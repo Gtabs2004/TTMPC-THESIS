@@ -1,5 +1,7 @@
 import { createContext, useContext, useEffect, useState } from "react";
-import { supabase } from "../supabaseClients";
+// 1. IMPORTANT: You must import the supabase client here!
+// Check your file structure. It might be '../supabaseClient' or '../config/supabaseClient'
+import { supabase } from '../supabaseClient'; 
 
 const AuthContext = createContext();
 
@@ -29,18 +31,16 @@ export const AuthContextProvider = ({ children }) => {
         password: password,
       });
 
-      // Handle Supabase error explicitly
       if (error) {
-        console.error("Sign-in error:", error.message); // Log the error for debugging
-        return { success: false, error: error.message }; // Return the error
+        console.error("Sign-in error:", error.message);
+        return { success: false, error: error.message };
       }
 
-      // If no error, return success
       console.log("Sign-in success:", data);
-      return { success: true, data }; // Return the user data
+      return { success: true, data };
     } catch (error) {
-      // Handle unexpected issues
-      console.error("Unexpected error during sign-in:", err.message);
+      // FIXED: Changed 'err.message' to 'error.message'
+      console.error("Unexpected error during sign-in:", error.message);
       return {
         success: false,
         error: "An unexpected error occurred. Please try again.",
@@ -48,23 +48,26 @@ export const AuthContextProvider = ({ children }) => {
     }
   };
 
+  // Sign out
+  const signOut = async () => {
+    const { error } = await supabase.auth.signOut();
+    if (error) {
+      console.error("Error signing out:", error);
+    }
+  };
+
+  // Listen for auth changes
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
     });
 
-    supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
     });
-  }, []);
 
-  // Sign out
-  async function signOut() {
-    const { error } = await supabase.auth.signOut();
-    if (error) {
-      console.error("Error signing out:", error);
-    }
-  }
+    return () => subscription.unsubscribe();
+  }, []);
 
   return (
     <AuthContext.Provider
