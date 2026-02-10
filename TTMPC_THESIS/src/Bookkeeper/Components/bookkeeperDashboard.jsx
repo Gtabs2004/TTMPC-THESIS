@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import React from "react";
+import { useNavigate, Link } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
 
 const Dashboard = () => {
@@ -8,59 +8,68 @@ const Dashboard = () => {
 
   const handleSignOut = async (e) => {
     e.preventDefault();
-
     try {
       await signOut();
       navigate("/");
     } catch (err) {
-      // Swallow sign-out errors for now; optionally surface to UI.
+      console.error("Failed to sign out:", err);
     }
   };
-  console.log(session);
+
   return (
-    <aside className="bg-white h-screen w-50  p-4">
-      <div className="flex flex-row items-start gap-2">
-        <img src="src/assets/img/ttmpc logo.png" className="h-12 w-auto"></img>
-        <div className="flex flex-col">
-          <h1 className="text-xl font-bold text-[#389734]">TTMPC</h1>
-          <p className="text-[8px] text-gray-500">Bookkeeper Portal</p>
+    <div className="flex min-h-screen bg-gray-100">
+      <aside className="bg-white w-64 p-4 flex flex-col border-r border-gray-200">
+        <div className="flex flex-row items-start gap-2 mb-6">
+          <img src="src/assets/img/ttmpc logo.png" alt="Logo" className="h-12 w-auto" />
+          <div className="flex flex-col">
+            <h1 className="text-xl font-bold text-[#389734]">TTMPC</h1>
+            <p className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold">
+              Bookkeeper Portal
+            </p>
+          </div>
         </div>
-      </div>
-      <hr className="w-full border-gray-300 my-2"></hr>
-      <nav className="flex flex-col gap-4 mt-4 ml-4 p-4">
-        <a href="#" className="text-green-700 text-xs ">
-          Dashboard
-          </a>
-         <a href="#" className="text-green-700 text-xs ">
-          Member Records
-          </a>
-          <a href="#" className="text-green-700 text-xs">
-          Loan Application
-          </a> 
-          <a href="#" className="text-green-700 text-xs">
-          Payments
-          </a>
-          <a href="#" className="text-green-700 text-xs">
-          Accounting
-          </a>
-          <a href="#" className="text-green-700 text-xs">
-          MIGS Scoring
-          </a>
-          <a href="#" className="text-green-700 text-xs">
-          Reports
-          </a>
-          <a href="#" className="text-green-700 text-xs">
-          Audit Trail
-          </a>
-           <button
+
+        <hr className="w-full border-gray-200 mb-6" />
+
+        
+        <nav className="flex flex-col gap-2 text-sm flex-grow">
+          {[
+            "Dashboard", "Member Records", "Loan Application", 
+            "Payments", "Accounting", "MIGS Scoring", 
+            "Reports", "Audit Trail"
+          ].map((item) => (
+            <Link
+              key={item}
+              to={`/${item.toLowerCase().replace(/\s+/g, '-')}`}
+              className="text-gray-700 hover:bg-green-50 hover:text-green-700 p-2 rounded-md transition-colors"
+            >
+              {item}
+            </Link>
+          ))}
+        </nav>
+
+        {/* Sign Out Button - Pushed to the bottom */}
+        <button
           onClick={handleSignOut}
-          className="hover:cursor-pointer rounded p-2 text-xs bg-green-400 text-white text-center"
+          className="mt-auto w-full rounded p-2 text-xs bg-green-600 hover:bg-green-700 text-white font-bold transition-colors"
         >
           Sign out
         </button>
-          </nav>
-    </aside>
-    
+      </aside>
+
+      {/* Main Content Area */}
+      <div className="flex-1 flex flex-col">
+        {/* Navbar */}
+        <header className="bg-white h-16 shadow-sm flex items-center px-8">
+           <h2 className="text-gray-800 font-medium">Welcome back, {session?.user?.email}</h2>
+        </header>
+
+        {/* Page Content */}
+        <main className="p-8">
+          {/* Your dashboard content (cards, tables, etc.) goes here */}
+        </main>
+      </div>
+    </div>
   );
 };
 
