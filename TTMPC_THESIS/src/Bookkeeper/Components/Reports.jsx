@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 
 
-const Dashboard = () => {
+const Reports = () => {
   const { session, signOut } = UserAuth();
   const navigate = useNavigate();
   
@@ -65,7 +65,7 @@ const menuItems = [
       "Loan Application": "/loan-application",
       Payments: "/payments",
       Accounting: "/accounting",
-      MIGS: "/migs",
+      "MIGS Scoring": "/migs",
       Reports: "/reports",
       "Audit Trail": "/audit-trail",
     };
@@ -121,11 +121,11 @@ const menuItems = [
 
         {/* Page Content */}
         <main className="p-8">
-          <h1 className="font-bold text-2xl">Dashboard</h1>
+          <h1 className="font-bold text-2xl">Reports</h1>
         </main>
       </div>
     </div>
   );
 };
 
-export default Dashboard;
+export default Reports;
