@@ -18,7 +18,7 @@ const Dashboard = () => {
   };
   console.log(session);
   return (
-    <aside className="bg-white h-screen w-44  p-4">
+    <aside className="bg-white h-screen w-50  p-4">
       <div className="flex flex-row items-start gap-2">
         <img src="src/assets/img/ttmpc logo.png" className="h-12 w-auto"></img>
         <div className="flex flex-col">
@@ -52,8 +52,15 @@ const Dashboard = () => {
           <a href="#" className="text-green-700 text-xs">
           Audit Trail
           </a>
+           <button
+          onClick={handleSignOut}
+          className="hover:cursor-pointer rounded p-2 text-xs bg-green-400 text-white text-center"
+        >
+          Sign out
+        </button>
           </nav>
     </aside>
+    
   );
 };
 
