@@ -18,18 +18,42 @@ const Dashboard = () => {
   };
   console.log(session);
   return (
-    <div>
-      <h1>Dashboard</h1>
-      <h2>Welcome, {session?.user?.email}</h2>
-      <div>
-        <p
-          onClick={handleSignOut}
-          className="hover:cursor-pointer  border inline-block px-4 py-3 mt-4 "
-        >
-          Sign out
-        </p>
+    <aside className="bg-white h-screen w-44  p-4">
+      <div className="flex flex-row items-start gap-2">
+        <img src="src/assets/img/ttmpc logo.png" className="h-12 w-auto"></img>
+        <div className="flex flex-col">
+          <h1 className="text-xl font-bold text-[#389734]">TTMPC</h1>
+          <p className="text-[8px] text-gray-500">Bookkeeper Portal</p>
+        </div>
       </div>
-    </div>
+      <hr className="w-full border-gray-300 my-2"></hr>
+      <nav className="flex flex-col gap-4 mt-4 ml-4 p-4">
+        <a href="#" className="text-green-700 text-xs ">
+          Dashboard
+          </a>
+         <a href="#" className="text-green-700 text-xs ">
+          Member Records
+          </a>
+          <a href="#" className="text-green-700 text-xs">
+          Loan Application
+          </a> 
+          <a href="#" className="text-green-700 text-xs">
+          Payments
+          </a>
+          <a href="#" className="text-green-700 text-xs">
+          Accounting
+          </a>
+          <a href="#" className="text-green-700 text-xs">
+          MIGS Scoring
+          </a>
+          <a href="#" className="text-green-700 text-xs">
+          Reports
+          </a>
+          <a href="#" className="text-green-700 text-xs">
+          Audit Trail
+          </a>
+          </nav>
+    </aside>
   );
 };
 
