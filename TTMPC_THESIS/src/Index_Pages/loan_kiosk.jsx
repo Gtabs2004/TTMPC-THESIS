@@ -18,7 +18,7 @@ const Loan_Kiosk = () => {
   };
   return(
     <div className="flex flex-col min-h-screen bg-gray-100">
-        <navbar className="w-full bg-[#E9F7DE] h-20 shadow-lg flex text-col">
+        <header className="w-full bg-[#E9F7DE] h-20 shadow-lg flex text-col">
             <div className="flex flex-row items-start gap-2">
             <img src="src/assets/img/ttmpc logo.png" alt="Logo" className="h-12 w-auto ml-5 mt-4"/>
             <div className="flex flex-col">
@@ -26,7 +26,7 @@ const Loan_Kiosk = () => {
             <p className="text-[#A0D284] text-xs">Loan Application Kiosk</p>
             </div>
             </div>
-    </navbar>
+    </header>
     <main className="flex justify-center items-center flex-col">
         <img src="src/assets/img/ttmpc logo.png" className="w-auto h-40 mt-16"/>
         <h1 className="text-lg font-semibold  ml-4">Loan Application Kiosk</h1>
