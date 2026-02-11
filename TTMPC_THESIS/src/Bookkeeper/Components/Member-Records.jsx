@@ -122,6 +122,62 @@ const menuItems = [
         {/* Page Content */}
         <main className="p-8">
           <h1 className="font-bold text-2xl">Records</h1>
+          <div className="bg-white h-100 w-full rounded-2xl m-auto mt-10 p-6 shadow-md">
+           <table className="w-full h-full text-left border-collapse mr-10 text-sm">
+            <thead>
+            <tr className="border-2 mr-8">
+            <th>Member Name</th>
+            <th>Employer</th>
+            <th>Share Capital</th>
+            <th>MIGS Status</th>
+            <th>Active Status</th>
+            <th>Actions</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr>
+              <td>Gero Antoni Tabiolo</td>
+              <td>DepEd</td>
+              <td>P100,000,000</td>
+              <td className="migs-status">MIGS</td>
+              <td>2</td>
+              <td><button className="bg-green-600 text-white px-2 py-1 rounded">View</button></td>
+            </tr>
+            <tr>
+              <td>Erden Jhed Teope</td>
+              <td>DepEd</td>
+              <td>P100,000,010</td>
+              <td className="non-migs">NON-MIGS</td>
+              <td>1</td>
+              <td><button className="bg-green-600 text-white px-2 py-1 rounded">View</button></td>
+            </tr>
+            <tr>
+              <td>Ashley Nicole Bulotaolo</td>
+              <td>DepEd</td>
+              <td>P20,000,000</td>
+              <td className="migs-status">MIGS</td>
+              <td>3</td>
+              <td><button className="bg-green-600 text-white px-2 py-1 rounded">View</button></td>
+            </tr>
+            <tr>
+              <td>Romelyn Delos Reyes</td>
+              <td>DepEd</td>
+              <td>P220,000,000</td>
+              <td className="migs-status">MIGS</td>
+              <td>2</td>
+              <td><button className="bg-green-600 text-white px-2 py-1 rounded">View</button></td>
+            </tr>
+            <tr>
+            <td>Nash Ervine Siaton</td>
+              <td>DepEd</td>
+              <td>P200,000,000</td>
+              <td className="non-migs">NON-MIGS</td>
+              <td>0</td>
+              <td><button className="bg-green-600 text-white px-2 py-1 rounded">View</button></td>
+              </tr>
+              </tbody>
+           </table>
+          </div>
         </main>
       </div>
     </div>

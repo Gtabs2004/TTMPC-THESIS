@@ -13,6 +13,8 @@ import LoanApplication from "./Bookkeeper/Components/Loan-Application";
 import MIGS from "./Bookkeeper/Components/MIGS";
 import Payments from "./Bookkeeper/Components/Payments";
 import Reports from "./Bookkeeper/Components/Reports";
+import Loan_Kiosk from "./Index_Pages/loan_kiosk";
+import Verification from "./Index_Pages/verification";
 
 
 
@@ -31,4 +33,6 @@ export const router = createBrowserRouter([
     {path: "/migs", element: <MIGS/>},
     {path: "/payments", element: <Payments/>},
     {path: "/reports", element: <Reports/>},
+    {path: "/loan-kiosk", element: <Loan_Kiosk/>},
+    {path: "/verification", element: <Verification/>},
 ])
