@@ -4,3 +4,25 @@ body{
   background-color: #F5F5F5;
   font-family: "poppins", sans-serif;
 }
+
+.migs-status{
+  display: inline-block;
+  background-color: #16A34A;
+  color: white;
+  border-radius: 15px;
+  padding: 7px;
+  font-size: 15x;
+  vertical-align: middle;
+  margin-top: 23px;
+}
+
+.non-migs{
+  display: inline-block;
+  background-color: #A9AEB8;
+  color: white;
+  border-radius: 15px;
+  padding: 7px;
+  font-size: 15px;
+  vertical-align: middle;
+  margin-top: 23px;
+}
