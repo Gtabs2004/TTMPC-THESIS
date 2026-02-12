@@ -15,6 +15,8 @@ import Payments from "./Bookkeeper/Components/Payments";
 import Reports from "./Bookkeeper/Components/Reports";
 import Loan_Kiosk from "./Index_Pages/loan_kiosk";
 import Verification from "./Index_Pages/verification";
+import Member_Services from "./Index_Pages/member_services";
+
 
 
 
@@ -35,4 +37,5 @@ export const router = createBrowserRouter([
     {path: "/reports", element: <Reports/>},
     {path: "/loan-kiosk", element: <Loan_Kiosk/>},
     {path: "/verification", element: <Verification/>},
+    {path: "/Member_Services", element: <Member_Services/>},
 ])

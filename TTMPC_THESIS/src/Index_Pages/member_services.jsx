@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { UserAuth } from '../contex/AuthContext';
-import { UserCheck, UserPlus } from 'lucide-react';
+import { Library, AlertCircle, Gift, LogOut } from 'lucide-react';
 
-const Loan_Kiosk = () => {
+const Member_Services = () => {
   const { session, signOut } = UserAuth();
   const navigate = useNavigate();
 
@@ -15,7 +15,7 @@ const Loan_Kiosk = () => {
     } catch (err) {
       console.error("Failed to sign out:", err);
     }
-  };
+  };                                    
   return(
     <div className="flex flex-col min-h-screen bg-gray-100">
         <header className="w-full bg-[#E9F7DE] h-20 shadow-lg flex text-col">
@@ -27,26 +27,30 @@ const Loan_Kiosk = () => {
             </div>
             </div>
     </header>
-    <main className="flex justify-center items-center flex-col">
+     <main className="flex justify-center items-center flex-col">
         <img src="src/assets/img/ttmpc logo.png" className="w-auto h-40 mt-16"/>
-        <h1 className="text-lg font-semibold  ml-4">Loan Application Kiosk</h1>
-        <p className="mt-8 text-gray-600 text-xs">Please select your applicant type to continue.</p>
+        <h1 className="text-sm font-semibold  ml-2">Loan Application Kiosk</h1>
+        <p className="mt-4  text-lg font-bold ">Available Loan Services</p>
         <div className="flex flex-row gap-10 mt-10">
-            <Link to="/verification" className="bg-white h-50 w-50 rounded-2xl font-bold flex text-center 
+            <Link to="/Consolidated_Loan" className="bg-white h-50 w-50 rounded-2xl font-bold flex text-center 
             items-center justify-center flex-col cursor-pointer">
-                <UserCheck className="w-12 h-12 text-[#66B538] mb-4" />
-                <h1>Member</h1>
+                <Library size={48} className="text-blue-600 mb-4" />
+                <h1>Consolidated Loan</h1>
                 </Link>
-            <button className="bg-white h-50 w-50 rounded-2xl font-bold flex text-center 
+            <Link to="/Emergency_Loan" className="bg-white h-50 w-50 rounded-2xl font-bold flex text-center 
             items-center justify-center flex-col cursor-pointer">
-                <UserPlus className="w-12 h-12 text-[#66B538] mb-4" />
-                <h1>Non-Member</h1>
-            </button>
+                <AlertCircle size={48} className="text-red-600 mb-4" />
+                <h1>Emergency Loan</h1>
+            </Link>
+            <Link to="/Bonus_Loan" className="bg-white h-50 w-50 rounded-2xl font-bold flex text-center 
+            items-center justify-center flex-col cursor-pointer">
+                <Gift size={48} className="text-green-600 mb-4" />
+                <h1>Bonus Loan</h1>
+                </Link>
         </div>
-    </main>
-    </div>
- 
+        </main>
+        </div>
   )
-}
+} 
 
-export default Loan_Kiosk;
+export default Member_Services;
