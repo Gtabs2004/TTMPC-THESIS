@@ -145,9 +145,10 @@ const Verification = () => {
               >
                 Back
               </button>
-              <button className="flex-1 py-3 bg-[#66B538] text-white font-bold rounded-xl shadow-lg hover:bg-[#559e2e] transition-colors cursor-pointer">
+              <Link to="/member_services" className="flex-1 text-center py-3 bg-[#66B538] text-white 
+              font-bold rounded-xl shadow-lg hover:bg-[#559e2e] transition-colors cursor-pointer">
                 Proceed
-              </button>
+              </Link>
             </div>
 
           </div>
