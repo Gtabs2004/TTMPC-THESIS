@@ -32,11 +32,11 @@ const Loan_Kiosk = () => {
         <h1 className="text-lg font-semibold  ml-4">Loan Application Kiosk</h1>
         <p className="mt-8 text-gray-600 text-xs">Please select your applicant type to continue.</p>
         <div className="flex flex-row gap-10 mt-10">
-            <button className="bg-white h-50 w-50 rounded-2xl font-bold flex text-center 
+            <Link to="/verification" className="bg-white h-50 w-50 rounded-2xl font-bold flex text-center 
             items-center justify-center flex-col cursor-pointer">
                 <UserCheck className="w-12 h-12 text-[#66B538] mb-4" />
                 <h1>Member</h1>
-            </button>
+                </Link>
             <button className="bg-white h-50 w-50 rounded-2xl font-bold flex text-center 
             items-center justify-center flex-col cursor-pointer">
                 <UserPlus className="w-12 h-12 text-[#66B538] mb-4" />
