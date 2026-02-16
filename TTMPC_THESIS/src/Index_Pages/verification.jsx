@@ -137,7 +137,7 @@ const Verification = () => {
               </button>
             </div>
 
-            {/* Action Buttons (Back / Proceed) */}
+            
             <div className="flex gap-4 mt-2">
               <button 
                 onClick={() => navigate(-1)}
