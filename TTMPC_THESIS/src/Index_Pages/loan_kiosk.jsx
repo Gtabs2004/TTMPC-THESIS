@@ -37,11 +37,11 @@ const Loan_Kiosk = () => {
                 <UserCheck className="w-12 h-12 text-[#66B538] mb-4" />
                 <h1>Member</h1>
                 </Link>
-            <button className="bg-white h-50 w-50 rounded-2xl font-bold flex text-center 
+            <Link to="/Non_Member" className="bg-white h-50 w-50 rounded-2xl font-bold flex text-center 
             items-center justify-center flex-col cursor-pointer">
                 <UserPlus className="w-12 h-12 text-[#66B538] mb-4" />
                 <h1>Non-Member</h1>
-            </button>
+            </Link>
         </div>
     </main>
     </div>
