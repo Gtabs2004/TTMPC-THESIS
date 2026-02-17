@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { UserAuth } from '../contex/AuthContext';
-import { Mail, Lock, AlertCircle, CheckCircle } from 'lucide-react';
+import { Mail, Lock, AlertCircle, CheckCircle } from 'lucide-react'; 
 
 const Verification = () => {
   const { session, signOut } = UserAuth();
@@ -12,6 +12,7 @@ const Verification = () => {
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [emailError, setEmailError] = useState("");
+  const [showPinModal, setShowPinModal] = useState(false);
 
   const validateEmail = (value) => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -58,6 +59,17 @@ const Verification = () => {
       navigate("/");
     } catch (err) {
       console.error("Failed to sign out:", err);
+    }
+  };
+
+  const handleVerifyClick = (e) => {
+    e.preventDefault();
+    // Here you would check if the PIN is default (0000). For now, always show modal.
+    if (pin === "0000") {
+      setShowPinModal(true);
+    } else {
+      // Proceed as normal (navigate or whatever is next)
+      // navigate('/loan-kiosk');
     }
   };
 
@@ -135,10 +147,97 @@ const Verification = () => {
                 </div>
               )}
 
-              <Link to="/loan_kiosk" className="w-full py-3 rounded-lg font-semibold transition duration-200 text-white mt-6 bg-[#66B538] 
-              hover:bg-[#4a932e] active:bg-[#3a6b23] flex items-center justify-center gap-2">
+              <button
+                type="button"
+                onClick={handleVerifyClick}
+                className="w-full py-3 rounded-lg font-semibold transition duration-200 text-white mt-6 bg-[#66B538] 
+                hover:bg-[#4a932e] active:bg-[#3a6b23] flex items-center justify-center gap-2"
+              >
                 Verify Account
-              </Link>
+              </button>
+
+{showPinModal && (
+  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 backdrop-blur-sm transition-opacity">
+    <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-sm relative transform transition-all scale-100">
+      
+      
+      <button 
+        onClick={() => setShowPinModal(false)} 
+        className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
+
+    
+      <div className="flex flex-col items-center gap-2 mb-6">
+        <div className="bg-[#E9F7DE] p-3 rounded-full">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-[#66B538]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+            </svg>
+        </div>
+        <h3 className='text-xl font-bold text-gray-800'>Change PIN</h3>
+        <p className="text-xs text-gray-500 text-center px-4">Secure your account by updating your personal identification number.</p>
+      </div>
+
+     
+      <form className="flex flex-col gap-4">
+        
+       
+        <div className="space-y-1">
+            <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide ml-1">Current PIN</label>
+            <input 
+                type="password" 
+                placeholder="••••" 
+                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#66B538] focus:ring-opacity-50 focus:border-[#66B538] transition duration-200 text-center tracking-widest text-lg" 
+            />
+        </div>
+
+       
+        <div className="space-y-1">
+            <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide ml-1">New PIN</label>
+            <input 
+                type="password" 
+                placeholder="••••" 
+                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#66B538] focus:ring-opacity-50 focus:border-[#66B538] transition duration-200 text-center tracking-widest text-lg" 
+            />
+        </div>
+
+        
+        <div className="space-y-1">
+            <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide ml-1">Confirm New PIN</label>
+            <input 
+                type="password" 
+                placeholder="••••" 
+                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#66B538] focus:ring-opacity-50 focus:border-[#66B538] transition duration-200 text-center tracking-widest text-lg" 
+            />
+        </div>
+
+        
+        <div className="flex gap-3 mt-4">
+            <button 
+                type="button"
+                onClick={() => setShowPinModal(false)}
+                className="flex-1 py-2 rounded-lg font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200 
+                transition duration-200 cursor-pointer"
+            >
+                Cancel
+            </button>
+            <Link to="/member_services" 
+                type="submit" 
+                className="flex-1 py-2 rounded-lg font-semibold text-white bg-[#66B538] hover:bg-[#559a2f] shadow-md hover:shadow-lg 
+                transition duration-200 flex items-center justify-center gap-2 cursor-pointer" 
+            >
+                Save
+            </Link>
+        </div>
+
+      </form>
+    </div>
+  </div>
+
+              )}
             </form>
 
             <div className="mt-6 pt-6 border-t border-gray-200">

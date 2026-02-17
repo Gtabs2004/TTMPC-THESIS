@@ -17,6 +17,7 @@ import Loan_Kiosk from "./Index_Pages/loan_kiosk";
 import Verification from "./Index_Pages/verification";
 import Member_Services from "./Index_Pages/member_services";
 import Non_Member from "./Index_Pages/non_member";
+import Pin_Change from "./Index_Pages/pin_change";
 
 
 
@@ -40,4 +41,5 @@ export const router = createBrowserRouter([
     {path: "/verification", element: <Verification/>},
     {path: "/Member_Services", element: <Member_Services/>},
     {path: "/Non_Member", element: <Non_Member/>},
+    {path: "/Pin_Change", element: <Pin_Change/>},
 ])
