@@ -45,7 +45,7 @@ const Loan_Kiosk = () => {
         <h1 className="text-lg font-semibold  ml-4">Loan Application Kiosk</h1>
         <p className="mt-8 text-gray-600 text-xs">Please select your applicant type to continue.</p>
         <div className="flex flex-row gap-10 mt-10">
-          <ApplicantCard to="/member_services" Icon={UserCheck} label="Member" />
+          <ApplicantCard to="/verification" Icon={UserCheck} label="Member" />
           <ApplicantCard to="/non_member" Icon={UserPlus} label="Non-Member" />
         </div>
     </main>
