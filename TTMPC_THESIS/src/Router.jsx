@@ -36,7 +36,7 @@ export const router = createBrowserRouter([
     {path: "/migs", element: <MIGS/>},
     {path: "/payments", element: <Payments/>},
     {path: "/reports", element: <Reports/>},
-    {path: "/loan-kiosk", element: <Loan_Kiosk/>},
+    {path: "/loan_kiosk", element: <Loan_Kiosk/>},
     {path: "/verification", element: <Verification/>},
     {path: "/Member_Services", element: <Member_Services/>},
     {path: "/Non_Member", element: <Non_Member/>},
