@@ -1,4 +1,5 @@
 function Consolidated_Loan() {
+	
 	return (
 		<main>
 			<h2>Consolidated Loan</h2>
