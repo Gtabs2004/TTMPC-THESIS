@@ -244,6 +244,9 @@ function Bonus_Loan() {
           <p className="text-justify text-gray-700 italic text-xs leading-5">
             with interest thereon at the rate of 2% per month, do hereby by these present, ASSIGN, TRANSFER and CONVEY into TTMPC, its successors and assign my salary/benefits corresponding to the amount of my loan inclusive of interest and surcharges.
           </p>
+
+          <button className="mt-6 bg-[#66B538] text-white px-4 py-2 rounded hover:bg-[#5aa12b] transition-colors text-sm float-right mb-4 ">
+            Submit Application</button>
         </div>
       </div>
     </div>

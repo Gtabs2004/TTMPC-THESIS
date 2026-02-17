@@ -19,7 +19,7 @@ function Consolidated_Loan() {
         </div>
       </header>
 
-      {/* Title & Status Bar */}
+      
       <section className="grid gap-8 px-4">
         <h1 className="text-center text-2xl font-bold mt-12 text-[#66B538]">CONSOLIDATED LOAN APPLICATION</h1>
         <div className="max-w-6xl mx-auto w-full">
@@ -48,9 +48,7 @@ function Consolidated_Loan() {
         </div>
       </section>
 
-      {/* ==========================================
-          SECTION 1: BORROWER'S INFORMATION
-      ========================================== */}
+      
       <div className="mt-10 bg-white rounded-lg shadow-md overflow-hidden max-w-6xl mx-auto w-full">
         <div className={sectionHeader}>
           <span className="bg-white text-[#66B538] rounded-full w-6 h-6 flex items-center justify-center text-sm">1</span>
@@ -58,12 +56,12 @@ function Consolidated_Loan() {
         </div>
 
         <div className="p-8 grid grid-cols-1 md:grid-cols-3 gap-6">
-          {/* Row 1 */}
+          
           <div><label className={labelStyles}>Surname <span className="text-red-500">*</span></label><input type="text" className={inputStyles} /></div>
           <div><label className={labelStyles}>First Name <span className="text-red-500">*</span></label><input type="text" className={inputStyles} /></div>
           <div><label className={labelStyles}>Middle Name</label><input type="text" className={inputStyles} /></div>
 
-          {/* Row 2 */}
+         
           <div><label className={labelStyles}>Contact No. <span className="text-red-500">*</span></label><input type="text" className={inputStyles} /></div>
           <div>
             <label className={labelStyles}>Latest Net Pay <span className="text-red-500">*</span></label>
@@ -74,10 +72,10 @@ function Consolidated_Loan() {
             <div className="relative"><span className="absolute left-3 top-2 text-gray-400 text-xs">₱</span><input type="number" className={`${inputStyles} pl-7`} /></div>
           </div>
 
-          {/* Row 3 */}
+          
           <div className="md:col-span-3"><label className={labelStyles}>Residence Address <span className="text-red-500">*</span></label><input type="text" className={inputStyles} /></div>
 
-          {/* Row 4 */}
+         
           <div><label className={labelStyles}>Date of Birth <span className="text-red-500">*</span></label><input type="date" className={inputStyles} /></div>
           <div><label className={labelStyles}>Age <span className="text-red-500">*</span></label><input type="number" className={inputStyles} /></div>
           <div>
@@ -85,7 +83,7 @@ function Consolidated_Loan() {
             <select className={inputStyles}><option>Select Status</option><option>Single</option><option>Married</option><option>Widowed</option></select>
           </div>
 
-          {/* Row 5 */}
+          
           <div>
             <label className={labelStyles}>Gender <span className="text-red-500">*</span></label>
             <select className={inputStyles}><option>Select Gender</option><option>Male</option><option>Female</option></select>
@@ -93,19 +91,17 @@ function Consolidated_Loan() {
           <div><label className={labelStyles}>TIN No. <span className="text-red-500">*</span></label><input type="text" className={inputStyles} /></div>
           <div><label className={labelStyles}>GSIS/SSS No. <span className="text-red-500">*</span></label><input type="text" className={inputStyles} /></div>
 
-          {/* Row 6 */}
+         
           <div className="md:col-span-2"><label className={labelStyles}>Employer's Name <span className="text-red-500">*</span></label><input type="text" className={inputStyles} /></div>
           <div className="md:col-span-1"><label className={labelStyles}>Office Address <span className="text-red-500">*</span></label><input type="text" className={inputStyles} /></div>
 
-          {/* Row 7 */}
+          
           <div className="md:col-span-2"><label className={labelStyles}>Name of Spouse <span className="text-red-500">*</span></label><input type="text" className={inputStyles} /></div>
           <div className="md:col-span-1"><label className={labelStyles}>Spouse's Occupation <span className="text-red-500">*</span></label><input type="text" className={inputStyles} /></div>
         </div>
       </div>
 
-      {/* ==========================================
-          SECTION 2: LOAN AGREEMENT
-      ========================================== */}
+      
       <div className="mt-8 bg-white rounded-lg shadow-md overflow-hidden max-w-6xl mx-auto w-full">
         <div className={sectionHeader}>
           <span className="bg-white text-[#66B538] rounded-full w-6 h-6 flex items-center justify-center text-sm">2</span>
@@ -129,9 +125,7 @@ function Consolidated_Loan() {
         </div>
       </div>
 
-      {/* ==========================================
-          SECTION 3: LOAN CONTRACT
-      ========================================== */}
+      
       <div className="mt-8 bg-white rounded-lg shadow-md overflow-hidden max-w-6xl mx-auto w-full">
         <div className={sectionHeader}>
           <span className="bg-white text-[#66B538] rounded-full w-6 h-6 flex items-center justify-center text-sm">3</span>
@@ -162,9 +156,7 @@ function Consolidated_Loan() {
         </div>
       </div>
 
-      {/* ==========================================
-          SECTION 4: BORROWER'S ADDITIONAL INFO
-      ========================================== */}
+      
       <div className="mt-8 bg-white rounded-lg shadow-md overflow-hidden max-w-6xl mx-auto w-full">
         <div className={sectionHeader}>
           <span className="bg-white text-[#66B538] rounded-full w-6 h-6 flex items-center justify-center text-sm">4</span>
@@ -177,16 +169,14 @@ function Consolidated_Loan() {
         </div>
       </div>
 
-      {/* ==========================================
-          SECTION 5: CO-MAKER'S OATH
-      ========================================== */}
+      
       <div className="mt-8 bg-white rounded-lg shadow-md overflow-hidden max-w-6xl mx-auto w-full">
         <div className={sectionHeader}>
           <span className="bg-white text-[#66B538] rounded-full w-6 h-6 flex items-center justify-center text-sm">5</span>
           CO-MAKER'S OATH
         </div>
         <div className="p-8 text-sm text-gray-800">
-           {/* Intro Sentence */}
+           
            <div className="flex flex-wrap items-center gap-3 mb-6">
             <span>We</span>
             <input type="text" className={`${inputStyles} w-48`} placeholder="Co-Maker 1 Name" />
@@ -199,7 +189,7 @@ function Consolidated_Loan() {
             hereby voluntarily and willingly bind ourselves as joint and severally liable to the Tubungan Teachers' Multi-Purpose Cooperative (TTMPC) for the loan amount mentioned in this loan application. We undertake to pay to the cooperative the amount of the loan + interest + damages should the borrower fail to pay.
           </p>
 
-          {/* Co-Maker 1 Details */}
+          
           <h3 className="font-bold text-[#66B538] mb-4 uppercase tracking-wide border-b border-gray-200 pb-2">Co-Maker 1</h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
             <div><label className={labelStyles}>Name / Govt. Issued ID</label><input type="text" className={inputStyles} /></div>
@@ -209,7 +199,7 @@ function Consolidated_Loan() {
             <div><label className={labelStyles}>Mobile No.</label><input type="text" className={inputStyles} /></div>
           </div>
 
-          {/* Co-Maker 2 Details */}
+         
           <h3 className="font-bold text-[#66B538] mb-4 uppercase tracking-wide border-b border-gray-200 pb-2">Co-Maker 2</h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div><label className={labelStyles}>Name / Govt. Issued ID</label><input type="text" className={inputStyles} /></div>
@@ -218,6 +208,8 @@ function Consolidated_Loan() {
             <div><label className={labelStyles}>Email Address</label><input type="text" className={inputStyles} /></div>
             <div><label className={labelStyles}>Mobile No.</label><input type="text" className={inputStyles} /></div>
           </div>
+		  <button className="mt-6 bg-[#66B538] text-white px-4 py-2 rounded hover:bg-[#5aa12b] transition-colors text-sm float-right mb-4 ">
+            Submit Application</button>
         </div>
       </div>
 

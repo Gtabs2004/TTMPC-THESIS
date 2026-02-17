@@ -125,7 +125,7 @@ function Emergency_Loan() {
           </p>
         </div>
       </div>
-	  
+
       <div className="mt-8 bg-white rounded-lg shadow-md overflow-hidden max-w-6xl mx-auto w-full">
         <div className={sectionHeader}>
           <span className="bg-white text-[#66B538] rounded-full w-6 h-6 flex items-center justify-center text-sm">3</span>
@@ -189,6 +189,8 @@ function Emergency_Loan() {
             with interest thereon at the rate of 2% per month, do hereby by these present, ASSIGN, TRANSFER and CONVEY into TTMPC, its successors and assign my salary/benefits corresponding to the amount of my loan inclusive of interest and surcharges.
           </p>
         </div>
+		<button className="mt-6 bg-[#66B538] text-white px-4 py-2 rounded hover:bg-[#5aa12b] transition-colors text-sm float-right mb-4 mr-4 ">
+            Submit Application</button>
       </div>
 
     </div>
