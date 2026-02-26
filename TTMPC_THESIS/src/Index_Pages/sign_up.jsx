@@ -103,7 +103,7 @@ const Sign_Up = () => {
         <p className="mt-14 text-center text-sm/6 text-gray-400">
           Already a member?{' '}
           {/* Using Link for router navigation */}
-          <Link to="/" className="font-semibold text-green-700 hover:text-green-600">
+          <Link to="/login" className="font-semibold text-green-700 hover:text-green-600">
             Sign in here
           </Link>
         </p>

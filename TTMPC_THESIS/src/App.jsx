@@ -4,7 +4,6 @@ import viteLogo from '/vite.svg'
 import { Link } from 'react-router-dom'
 
 function App() {
-  const [count, setCount] = useState(0)
 
   return (
     <div className="bg-orange-500 text-white p-4 text-center m-auto  font-bold 
