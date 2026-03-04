@@ -18,6 +18,8 @@ import Verification from "./Index_Pages/verification";
 import Member_Services from "./Index_Pages/member_services";
 import Non_Member from "./Index_Pages/non_member";
 import Manage_Loans from "./Bookkeeper/Components/Manage-Loans";
+import Member_Details from "./Bookkeeper/Components/member_details";
+import Membership_Form from "./LOANFORMS/Membership_Form";
 
 
 
@@ -42,6 +44,7 @@ export const router = createBrowserRouter([
     {path: "/verification", element: <Verification/>},
     {path: "/Member_Services", element: <Member_Services/>},
     {path: "/Non_Member", element: <Non_Member/>},
-    {path: "/manage-loans", element:<Manage_Loans/>}
-    
+    {path: "/manage-loans", element:<Manage_Loans/>},
+    {path: "/member_details", element:<Member_Details/>},
+    {path: "/membership_form", element:<Membership_Form/>}
 ])
