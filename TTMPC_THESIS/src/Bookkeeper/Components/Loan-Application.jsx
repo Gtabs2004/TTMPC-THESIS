@@ -121,9 +121,47 @@ const menuItems = [
           <p>Bookkeeper</p>
         </header>
 
-        {/* Page Content */}
+        
         <main className="p-8">
           <h1 className="font-bold text-2xl">Loan-Application</h1>
+
+
+        
+          <div className="bg-white w-full rounded-2xl m-auto mt-6 p-8 shadow-sm border border-gray-100 min-h-fit">
+            <h2 className="text-lg font-bold text-gray-800 mb-6">All Applications</h2>
+            <table className="w-full text-left border-collapse text-sm mb-24">
+                    <thead>
+                      <tr className="border-b border-gray-200 text-gray-500">
+                        <th className="pb-4 font-medium">Application ID</th>
+                        <th className="pb-4 font-medium">Member Name</th>
+                        <th className="pb-4 font-medium">Loan Type</th>
+                        <th className="pb-4 font-medium">Amount</th>
+                        <th className="pb-4 font-medium">Date Submitted</th>
+                        <th className="pb-4 font-medium">Status</th>
+                        <th className="pb-4 font-medium">Purpose</th>
+                      </tr>
+                  </thead>
+                  <tbody>
+                    {[
+                     { ID: "TTMPCL-001-123", name: "Gero Antoni Tabiolo", type: "Bonus Loan", amount: "₱50,000", date: "01-15-2026", status: "Approved", purpose: "Home Improvement" },
+                     { ID: "TTMPCL-002-123", name: "Erden Jhed Teope", type: "Emergency Loan", amount: "₱25,000", date: "01-18-2026", status: "Processing", purpose: "Medical Emergency" },
+                     { ID: "TTMPCL-003-123", name: "Ashley Nicole Bulotaolo", type: "Consolidated Loan", amount: "₱120,000", date: "01-20-2026", status: "Approved", purpose: "Debt Consolidation" },
+                     { ID: "TTMPCL-004-123", name: "Romelyn Delos Reyes", type: "Bonus Loan", amount: "₱20,000", date: "01-22-2026", status: "Approved", purpose: "Education" },
+                     { ID: "TTMPCL-005-123", name: "Nash Ervine Siaton", type: "Bonus Loan", amount: "₱30,000", date: "02-05-2026", status: "Pending", purpose: "Business Capital" }  
+                    ].map((loan, index) => (
+                        <tr key={loan.ID} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+                          <td className="py-4 font-semibold text-gray-800">{loan.ID}</td>
+                          <td className="py-4 text-gray-800 font-medium">{loan.name}</td>
+                          <td className="py-4 text-gray-600">{loan.type}</td>
+                          <td className="py-4 text-gray-800 font-medium">{loan.amount}</td>
+                          <td className="py-4 text-gray-600">{loan.date}</td>
+                          <td className="py-4 text-gray-600">{loan.status}</td>
+                          <td className="py-4 text-gray-600">{loan.purpose}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+              </table>
+          </div>
         </main>
       </div>
     </div>
