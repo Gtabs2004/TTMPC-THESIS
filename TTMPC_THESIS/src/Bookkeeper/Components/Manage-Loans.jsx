@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 
 
-const Payments = () => {
+const Manage_Loans = () => {
   const { session, signOut } = UserAuth();
   const navigate = useNavigate();
   
@@ -123,11 +123,11 @@ const menuItems = [
 
         {/* Page Content */}
         <main className="p-8">
-          <h1 className="font-bold text-2xl">Payments</h1>
+          <h1 className="font-bold text-2xl">Manage Loans</h1>
         </main>
       </div>
     </div>
   );
 };
 
-export default Payments;
+export default Manage_Loans;

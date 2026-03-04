@@ -76,11 +76,11 @@ function App() {
           <li>
             <Link to="/">Contact Us</Link>
           </li>
-          <li className="bg-[#E9F7DE] text-[#66B538] p-3 rounded-3xl">
-            <Link to="/">Be a Member</Link>
+          <li className="bg-[#E9F7DE] text-[#66B538] p-3 rounded-3xl cursor-pointer">
+            <Link to="/sign_up">Be a Member</Link>
           </li>
-          <li className="bg-[#66B538] text-white p-3 rounded-3xl">
-            <Link to="/">Login</Link>
+          <li className="bg-[#66B538] text-white rounded-3xl px-10 py-3 cursor-pointer">
+            <Link to="/login">Login</Link>
           </li>
         </ul>
       </header>
