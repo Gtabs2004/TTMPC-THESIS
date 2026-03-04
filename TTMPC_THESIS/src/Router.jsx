@@ -17,6 +17,7 @@ import Loan_Kiosk from "./Index_Pages/loan_kiosk";
 import Verification from "./Index_Pages/verification";
 import Member_Services from "./Index_Pages/member_services";
 import Non_Member from "./Index_Pages/non_member";
+import Manage_Loans from "./Bookkeeper/Components/Manage-Loans";
 
 
 
@@ -34,12 +35,13 @@ export const router = createBrowserRouter([
     {path: "/accounting", element: <Accounting/>},
     {path: "/audit-trail", element: <AuditTrail/>},
     {path: "/loan-application", element: <LoanApplication/>},
-    {path: "/migs", element: <MIGS/>},
+    {path: "/migs-scoring", element: <MIGS/>},
     {path: "/payments", element: <Payments/>},
     {path: "/reports", element: <Reports/>},
     {path: "/loan_kiosk", element: <Loan_Kiosk/>},
     {path: "/verification", element: <Verification/>},
     {path: "/Member_Services", element: <Member_Services/>},
     {path: "/Non_Member", element: <Non_Member/>},
+    {path: "/manage-loans", element:<Manage_Loans/>}
     
 ])
