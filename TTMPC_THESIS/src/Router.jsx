@@ -20,6 +20,8 @@ import Non_Member from "./Index_Pages/non_member";
 import Manage_Loans from "./Bookkeeper/Components/Manage-Loans";
 import Member_Details from "./Bookkeeper/Components/member_details";
 import Membership_Form from "./LOANFORMS/Membership_Form";
+import Dashboard_Manager from "./Manager/Components/M-Dashboard";
+import Member_Approvals from "./Manager/Components/Member-Approvals";
 
 
 
@@ -46,5 +48,8 @@ export const router = createBrowserRouter([
     {path: "/Non_Member", element: <Non_Member/>},
     {path: "/manage-loans", element:<Manage_Loans/>},
     {path: "/member_details", element:<Member_Details/>},
-    {path: "/membership_form", element:<Membership_Form/>}
+    {path: "/membership_form", element:<Membership_Form/>},
+    {path: "/manager-dashboard", element:<Dashboard_Manager/>},
+    {path: "/member-approvals", element:<Member_Approvals/>}
+
 ])
