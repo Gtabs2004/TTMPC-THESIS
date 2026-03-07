@@ -1,11 +1,139 @@
 import React from 'react';
+import { supabase } from '../supabaseClient';
+import React, { useState, useEffect } from 'react';
+
+const generateControlNumber = () => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  const random = String(Math.floor(1000 + Math.random() * 9000)); // 4-digit random number
+  return `CL-${year}${month}${day}-${random}`;
+};
+
+
 
 function Bonus_Loan() {
   const inputStyles = "border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-[#66B538] outline-none w-full bg-white text-sm";
   const labelStyles = "block text-xs font-bold text-gray-700 mb-1";
   const sectionHeader = "bg-[#66B538] text-white px-4 py-2 rounded-t-lg flex items-center gap-2 font-bold uppercase tracking-wide";
 
+  const [loading, setLoading] = useState(false);
+  const [formdata, setFromData] = useState({
+    application_status: 'New',
+    control_no: generateControlNumber(),
+    date_applied: new Date().toISOString().split('T')[0],
+    approval_status: '',
+    surname: '',
+    first_name: '',
+    middle_name: '',
+    contact_number: '',
+    residence_address: '',
+    date_of_birth: '',
+    age: '',
+    civil_status:'',
+    gender: '',
+    tin_no: '',
+    gsis_sss_no:'',
+    latest_net_pay: '',
+    share_capital : '',
+    employer_name: '',
+    office_address: '',
+    spouse_name: '',
+    spouse_occupation: '',
+    loan_amount_numeric: '',
+    loan_amount_words: '',
+    loan_purpose: '',
+    loan_term_months: '',
+    monthly_amortization: '',
+    source_of_income: '',
+    payment_start_date: '',
+    cm1_name: '',
+    cm1_name: '', 
+    cm1_id_no: '',
+    cm1_address: '',
+    cm1_email: '',
+    cm1_mobile: '',
+    cm2_name: '',
+    cm2_id_no: '',
+    cm2_address: '',
+    cm2_email: '',
+    cm2_mobile: '',
+    bonus_amount_words: '',
+    bonus_amount_numeric: '',
+  });
+
+  const handleChange = (e)=> {
+    const { name, value} = e.target;
+    setFromData (prev =>({...prev, [name]: value}));
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setFromData(true);
+
+    try {
+      const { data: {user}} = await supabase.auth.getUser();
+      
+      if (!user){
+        alert("Please Login First");
+        setLoading(false);
+        return;}
+      // database insertion //
+        const submissionData = {
+          user_email: user.email,
+          control_no: formdata.control_no,
+          application_status: formdata.application_status,
+          date_applied: formdata.date_applied || null,
+
+        // information//
+
+          surname: formdata.surname,
+          first_name: formdata.first_name,
+          middle_name: formdata.middle_name || null,
+          contact_number: formdata.contact_number,
+          residence_address: formdata.residence_address,
+          date_of_birth: formdata.date_of_birth,
+          age: formdata.age,
+          civil_status: formdata.civil_status,
+          gender: formdata.gender,
+          tin_no: formdata.tin_no,
+          gsis_sss_no: formdata. gsis_sss_no,
+          latest_net_pay: formdata.latest_net_pay,
+          share_capital : formdata.share_capital || null,
+          employer_name: formdata.employer_name,
+          office_address: formdata.office_address || null,
+          spouse_name: formdata.spouse_name || null,
+          spouse_occupation: formdata.spouse_occupation || null,
+          loan_amount_numeric: formdata.loan_amount_numeric,
+          loan_amount_words: formdata.loan_amount_words,
+          loan_purpose: formdata.loan_purpose,
+          loan_term_months: formdata.loan_term_months,
+          monthly_amortization: formdata.monthly_amortization,
+          source_of_income: formdata.source_of_income || null,
+
+
+          // payemnt // 
+          payment_start_date: formdata.payment_start_date,
+          
+
+
+
+
+        }
+    }
+    
+    catch (err) {
+      alert("Submission Error: " + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+
+  
   return (
+
     <div className="flex flex-col min-h-screen bg-gray-100 pb-20">
       <header className="w-full bg-[#E9F7DE] h-20 shadow-lg flex text-col px-6">
         <div className="flex flex-row items-center gap-4">
@@ -16,18 +144,18 @@ function Bonus_Loan() {
           </div>
         </div>
       </header>
-
+<form onSubmit={handleSubmit}>
       <section className="grid gap-8 px-4">
         <h1 className="text-center text-xl font-bold mt-12">Bonus Loan Application</h1>
         <div className="max-w-6xl mx-auto w-full">
           <div className="bg-[#EEF6F1] rounded-xl p-6 border-2 border-[#66B538] flex flex-wrap items-center justify-between gap-6">
             <div className="flex gap-8">
               <label className="flex items-center space-x-2 cursor-pointer">
-                <input type="radio" name="status" className="h-4 w-4 accent-[#66B538]" />
+                <input type="radio" name="application_status" className="h-4 w-4 accent-[#66B538]" />
                 <span className="font-semibold text-gray-700">New</span>
               </label>
               <label className="flex items-center space-x-2 cursor-pointer">
-                <input type="radio" name="status" className="h-4 w-4 accent-[#66B538]" />
+                <input type="radio" name="application_status" className="h-4 w-4 accent-[#66B538]" />
                 <span className="font-semibold text-gray-700">Renewal</span>
               </label>
             </div>
@@ -249,6 +377,7 @@ function Bonus_Loan() {
             Submit Application</button>
         </div>
       </div>
+      </form>
     </div>
   );
 }
