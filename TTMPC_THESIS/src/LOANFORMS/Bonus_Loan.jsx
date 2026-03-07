@@ -1,4 +1,3 @@
-import React from 'react';
 import { supabase } from '../supabaseClient';
 import React, { useState, useEffect } from 'react';
 
@@ -49,7 +48,6 @@ function Bonus_Loan() {
     source_of_income: '',
     payment_start_date: '',
     cm1_name: '',
-    cm1_name: '', 
     cm1_id_no: '',
     cm1_address: '',
     cm1_email: '',
@@ -94,13 +92,13 @@ function Bonus_Loan() {
           contact_number: formdata.contact_number,
           residence_address: formdata.residence_address,
           date_of_birth: formdata.date_of_birth,
-          age: formdata.age,
+          age: formdata.age ? parseInt(formdata.age) :null,
           civil_status: formdata.civil_status,
           gender: formdata.gender,
           tin_no: formdata.tin_no,
           gsis_sss_no: formdata. gsis_sss_no,
-          latest_net_pay: formdata.latest_net_pay,
-          share_capital : formdata.share_capital || null,
+          latest_net_pay: formdata.latest_net_pay ? parseFloat(formdata.latest_net_pay) : null,
+          share_capital : formdata.share_capital ? parseFloat(formdata.share_capital) : null,
           employer_name: formdata.employer_name,
           office_address: formdata.office_address || null,
           spouse_name: formdata.spouse_name || null,
@@ -115,10 +113,21 @@ function Bonus_Loan() {
 
           // payemnt // 
           payment_start_date: formdata.payment_start_date,
-          
 
 
+          // co makers //
 
+          cm1_name: formdata.cm1_name,
+          cm1_name: formdata.cm1_name, 
+          cm1_id_no: formdata.cm1_id_no,
+          cm1_address: formdata.cm1_address,
+          cm1_email: formdata.cm1_email,
+          cm1_mobile: formdata.cm1_mobile,
+          cm2_name: formdata.cm2_name,
+          cm2_id_no: formdata.cm2_id_no,
+          cm2_address: formdata.cm2_address,
+          cm2_email: formdata.cm2_email,
+          cm2_mobile: cm2_mobile,
 
         }
     }
@@ -151,22 +160,22 @@ function Bonus_Loan() {
           <div className="bg-[#EEF6F1] rounded-xl p-6 border-2 border-[#66B538] flex flex-wrap items-center justify-between gap-6">
             <div className="flex gap-8">
               <label className="flex items-center space-x-2 cursor-pointer">
-                <input type="radio" name="application_status" className="h-4 w-4 accent-[#66B538]" />
-                <span className="font-semibold text-gray-700">New</span>
+                <input type="radio" name="application_status" value = "New" checked = {formdata.application_status === 'New'} onChange = {handleChange}className="h-4 w-4 accent-[#66B538]" />
+                <span className="font-semibold text-gray-700">New v</span>
               </label>
               <label className="flex items-center space-x-2 cursor-pointer">
-                <input type="radio" name="application_status" className="h-4 w-4 accent-[#66B538]" />
+                <input type="radio" name="application_status" value = "Renewal " checked = {formdata.application_status === 'Renewal'} onChange = {handleChange} className="h-4 w-4 accent-[#66B538]" />
                 <span className="font-semibold text-gray-700">Renewal</span>
               </label>
             </div>
             <div className="flex flex-wrap gap-4">
               <div>
                 <label className="block text-[10px] uppercase font-bold text-gray-500">Control No.</label>
-                <input type="text" className="border border-gray-300 rounded px-3 py-1.5 w-48" />
+                <input type="text" value = {formdata.control_no} readOnly className="border border-gray-300 rounded px-3 py-1.5 w-48" />
               </div>
               <div>
                 <label className="block text-[10px] uppercase font-bold text-gray-500">Date Applied</label>
-                <input type="date" className="border border-gray-300 rounded px-3 py-1.5 w-48" />
+                <input type="date" value = {formdata.date_applied} className="border border-gray-300 rounded px-3 py-1.5 w-48" />
               </div>
             </div>
           </div>
