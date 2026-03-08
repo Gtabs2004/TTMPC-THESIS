@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 
 
-const M_Dashboard = () => {
+const Loan_Approval = () => {
   const { session, signOut } = UserAuth();
   const navigate = useNavigate();
   
@@ -44,7 +44,7 @@ const menuItems = [
           <div className="flex flex-col">
             <h1 className="text-xl font-bold text-[#389734]">TTMPC</h1>
             <p className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold">
-              Manager Portal
+              BOD Portal
             </p>
           </div>
         </div>
@@ -112,42 +112,10 @@ const menuItems = [
         {/* Page Content */}
         <main className="p-8">
           <h1 className="font-bold text-2xl">Dashboard</h1>
-
-          <div className="flex flex-row gap-4 mt-8">
-            <div className="flex-1 bg-white p-4 rounded-lg shadow w-12 h-34">
-                <div className="mt-8">
-                <span className="float-end bg-[#EA580C] bg-opacity-10 text-[#EA580C] rounded-lg px-2 py-1 text-xs font-semibold mb-10">Action Required</span>
-                <h3 className="text-slate-400 text-[12px] font-semibold">Pending Approvals</h3>
-                <p className="font-extrabold text-slate-800 mt-0.5">12</p>
-                <p className="text-[10px] font-semibold"><span className="text-[#1C5F20]">+5%</span> from last week</p>
-                </div>  
-             </div>
-             <div className="flex-1 bg-white p-4 rounded-lg shadow w-12 h-34">
-                <div className="mt-8">
-                <h3 className="text-slate-400 text-[12px] font-semibold">Approved Loans</h3>
-                <p className="font-extrabold text-slate-800 mt-0.5">30</p>
-                <p className="text-[10px] font-semibold"><span className="text-[#1C5F20]">-2%</span> from last month</p>
-                </div>
-            </div>
-             <div className="flex-1 bg-white p-4 rounded-lg shadow w-12 h-34">
-                <div className="mt-8">
-                <h3 className="text-slate-400 text-[12px] font-semibold">Total Active Loans</h3>
-                <p className="font-extrabold text-slate-800 mt-0.5">150</p>
-                <p className="text-[10px] font-semibold"><span className="text-[#1C5F20]">+12%</span> year to date</p>
-                </div>
-            </div>
-             <div className="flex-1 bg-white p-4 rounded-lg shadow w-12 h-34">
-                <div className="mt-8">
-                <h3 className="text-slate-400 text-[12px] font-semibold">Deliquent Rate</h3>
-                <p className="font-extrabold text-slate-800 mt-0.5">2.4%</p>
-                <p className="text-[10px] font-semibold"><span className="text-[#1C5F20]">-0.5%</span> improvemnet</p>
-                </div>
-            </div>
-         </div>
         </main>
       </div>
     </div>
   );
 };
 
-export default M_Dashboard;
+export default Loan_Approval;
