@@ -19,7 +19,7 @@ const Role_Selection = () => {
       </header>
       
       <main className="flex-1 flex flex-col justify-center items-center p-6">
-        <div className="flex flex-col items-center max-w-2xl w-full -mt-10"> {/* Negative margin to offset header visually */}
+        <div className="flex flex-col items-center max-w-2xl w-full -mt-10"> 
           
           <img src="src/assets/img/ttmpc logo.png" alt="Logo" className="h-28 w-auto mb-8 drop-shadow-md" />
           
