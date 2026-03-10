@@ -24,7 +24,7 @@ import Dashboard_BOD from "./BOD/Components/B-Dashboard";
 import Member_Approvals from "./BOD/Components/Member-Approvals";
 import M_Dashboard from "./Manager/Components/M-Dashboard";
 import Loan_Approval from "./Manager/Components/loan-approval";
-
+import Role_Selection from "./Index_Pages/role_selection";
 
 
 
@@ -54,5 +54,6 @@ export const router = createBrowserRouter([
     {path: "/BOD-dashboard", element:<Dashboard_BOD/>},
     {path: "/member-approvals", element:<Member_Approvals/>},
     {path: "/manager-dashboard", element:<M_Dashboard/>},
-    {path: "/loan-approval", element:<Loan_Approval/>}
+    {path: "/loan-approval", element:<Loan_Approval/>},
+    {path: "/role_selection", element:<Role_Selection/>}
 ])
