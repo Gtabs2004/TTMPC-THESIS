@@ -32,13 +32,32 @@ const Member_Approvals = () => {
     }
   };
 
-  const tableData = [
-    { id: "APP-001", name: "Juan Dela Cruz", email: "juan.cruz@email.com", employer: "DepEd", date: "Oct 12, 2023" },
-    { id: "APP-002", name: "Maria Santos", email: "m.santos88@email.com", employer: "DepEd", date: "Oct 11, 2023" },
-    { id: "APP-003", name: "Ricardo Lim", email: "ric_lim@email.com", employer: "DepEd", date: "Oct 11, 2023" },
-    { id: "APP-004", name: "Elena Reyes", email: "e.reyes_90@email.com", employer: "DepEd", date: "Oct 10, 2023" },
-    { id: "APP-005", name: "Roberto Gomez", email: "rob.gomez@email.com", employer: "DepEd", date: "Oct 10, 2023" },
-  ];
+  const tabData = {
+    "Pending": [
+      { id: "APP-001", name: "Juan Dela Cruz", email: "juan.cruz@email.com", employer: "DepEd", date: "Oct 12, 2023" },
+      { id: "APP-002", name: "Maria Santos", email: "m.santos88@email.com", employer: "DepEd", date: "Oct 11, 2023" },
+      { id: "APP-003", name: "Ricardo Lim", email: "ric_lim@email.com", employer: "DepEd", date: "Oct 11, 2023" },
+      { id: "APP-004", name: "Elena Reyes", email: "e.reyes_90@email.com", employer: "DepEd", date: "Oct 10, 2023" },
+      { id: "APP-005", name: "Roberto Gomez", email: "rob.gomez@email.com", employer: "DepEd", date: "Oct 10, 2023" },
+    ],
+    "1st Training": [
+      { id: "APP-006", name: "Ana Villanueva", email: "ana.v@email.com", employer: "DepEd", trainingDate: "Oct 14, 2023", attendance: "Present", status: "Passed" },
+      { id: "APP-007", name: "Carlo Mendoza", email: "c.mendoza@email.com", employer: "DepEd", trainingDate: "Oct 14, 2023", attendance: "Present", status: "Pending" },
+      { id: "APP-008", name: "Liza Fernandez", email: "liza.f@email.com", employer: "DepEd", trainingDate: "Oct 15, 2023", attendance: "Absent", status: "Failed" },
+      { id: "APP-009", name: "Mark Aquino", email: "mark.a@email.com", employer: "DepEd", trainingDate: "Oct 15, 2023", attendance: "Present", status: "Passed" },
+      { id: "APP-010", name: "Sofia Ramos", email: "sofia.r@email.com", employer: "DepEd", trainingDate: "Oct 16, 2023", attendance: "Present", status: "Pending" },
+    ],
+    "2nd Training": [
+      { id: "APP-011", name: "Diego Torres", email: "diego.t@email.com", employer: "DepEd", trainingDate: "Oct 20, 2023", attendance: "Present", status: "Passed" },
+      { id: "APP-012", name: "Carla Cruz", email: "carla.c@email.com", employer: "DepEd", trainingDate: "Oct 20, 2023", attendance: "Present", status: "Pending" },
+      { id: "APP-013", name: "Raul Bautista", email: "raul.b@email.com", employer: "DepEd", trainingDate: "Oct 21, 2023", attendance: "Present", status: "Passed" },
+    ],
+    "Rejected": [
+      { id: "APP-014", name: "Pedro Castillo", email: "pedro.c@email.com", employer: "DepEd", date: "Oct 8, 2023", reason: "Incomplete Documents" },
+      { id: "APP-015", name: "Luz Miranda", email: "luz.m@email.com", employer: "DepEd", date: "Oct 7, 2023", reason: "Failed Background Check" },
+      { id: "APP-016", name: "Tony Ocampo", email: "tony.o@email.com", employer: "DepEd", date: "Oct 6, 2023", reason: "Duplicate Application" },
+    ],
+  };
 
   return (
     <div className="flex min-h-screen bg-[#F8FAFC]">
@@ -158,28 +177,28 @@ const Member_Approvals = () => {
                 className={`flex items-center gap-2 pb-3 px-1 border-b-2 font-semibold text-sm transition-colors ${activeTab === "Pending" ? "border-[#2C7A3F] text-[#2C7A3F]" : "border-transparent text-gray-500 hover:text-gray-700"}`}
               >
                 Pending
-                <span className={`text-[10px] px-2 py-0.5 rounded-full text-white ${activeTab === "Pending" ? "bg-[#2C7A3F]" : "bg-gray-400"}`}>12</span>
+                <span className={`text-[10px] px-2 py-0.5 rounded-full text-white ${activeTab === "Pending" ? "bg-[#2C7A3F]" : "bg-gray-400"}`}>{tabData["Pending"].length}</span>
               </button>
               <button 
                 onClick={() => setActiveTab("1st Training")}
                 className={`flex items-center gap-2 pb-3 px-1 border-b-2 font-semibold text-sm transition-colors ${activeTab === "1st Training" ? "border-[#2C7A3F] text-[#2C7A3F]" : "border-transparent text-gray-400 hover:text-gray-700"}`}
               >
                 1st Training
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">8</span>
+                <span className={`text-[10px] px-2 py-0.5 rounded-full ${activeTab === "1st Training" ? "bg-[#2C7A3F] text-white" : "bg-gray-100 text-gray-500"}`}>{tabData["1st Training"].length}</span>
               </button>
               <button 
                 onClick={() => setActiveTab("2nd Training")}
                 className={`flex items-center gap-2 pb-3 px-1 border-b-2 font-semibold text-sm transition-colors ${activeTab === "2nd Training" ? "border-[#2C7A3F] text-[#2C7A3F]" : "border-transparent text-gray-400 hover:text-gray-700"}`}
               >
                 2nd Training
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">5</span>
+                <span className={`text-[10px] px-2 py-0.5 rounded-full ${activeTab === "2nd Training" ? "bg-[#2C7A3F] text-white" : "bg-gray-100 text-gray-500"}`}>{tabData["2nd Training"].length}</span>
               </button>
               <button 
                 onClick={() => setActiveTab("Rejected")}
                 className={`flex items-center gap-2 pb-3 px-1 border-b-2 font-semibold text-sm transition-colors ${activeTab === "Rejected" ? "border-[#2C7A3F] text-[#2C7A3F]" : "border-transparent text-gray-400 hover:text-gray-700"}`}
               >
                 Rejected
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-red-100 text-red-500">3</span>
+                <span className={`text-[10px] px-2 py-0.5 rounded-full ${activeTab === "Rejected" ? "bg-red-500 text-white" : "bg-red-100 text-red-500"}`}>{tabData["Rejected"].length}</span>
               </button>
             </div>
 
@@ -196,7 +215,7 @@ const Member_Approvals = () => {
                 </div>
               </div>
               <div className="text-xs text-gray-400">
-                Showing 1-5 of 12 pending applications
+                Showing 1-{tabData[activeTab].length} of {tabData[activeTab].length} {activeTab.toLowerCase()} applications
               </div>
             </div>
 
@@ -207,11 +226,24 @@ const Member_Approvals = () => {
                     <th className="px-6 py-4">Application ID</th>
                     <th className="px-6 py-4">Member Name</th>
                     <th className="px-6 py-4">Employer</th>
-                    <th className="px-6 py-4">Submitted Date</th>
+                    {(activeTab === "1st Training" || activeTab === "2nd Training") && (
+                      <>
+                        <th className="px-6 py-4">Training Date</th>
+                        <th className="px-6 py-4">Attendance</th>
+                        <th className="px-6 py-4">Status</th>
+                      </>
+                    )}
+                    {activeTab === "Pending" && <th className="px-6 py-4">Submitted Date</th>}
+                    {activeTab === "Rejected" && (
+                      <>
+                        <th className="px-6 py-4">Submitted Date</th>
+                        <th className="px-6 py-4">Rejection Reason</th>
+                      </>
+                    )}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {tableData.map((row, index) => (
+                  {tabData[activeTab].map((row, index) => (
                     <tr key={index} className="hover:bg-gray-50 transition-colors">
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className="font-bold text-[#2C7A3F]">{row.id}</span>
@@ -223,9 +255,44 @@ const Member_Approvals = () => {
                       <td className="px-6 py-4 whitespace-nowrap text-gray-600 font-medium">
                         {row.employer}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-gray-500">
-                        {row.date}
-                      </td>
+                      {(activeTab === "1st Training" || activeTab === "2nd Training") && (
+                        <>
+                          <td className="px-6 py-4 whitespace-nowrap text-gray-500">{row.trainingDate}</td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
+                              row.attendance === "Present"
+                                ? "bg-green-100 text-green-700"
+                                : "bg-red-100 text-red-600"
+                            }`}>
+                              {row.attendance}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
+                              row.status === "Passed"
+                                ? "bg-green-100 text-green-700"
+                                : row.status === "Failed"
+                                ? "bg-red-100 text-red-600"
+                                : "bg-yellow-100 text-yellow-700"
+                            }`}>
+                              {row.status}
+                            </span>
+                          </td>
+                        </>
+                      )}
+                      {activeTab === "Pending" && (
+                        <td className="px-6 py-4 whitespace-nowrap text-gray-500">{row.date}</td>
+                      )}
+                      {activeTab === "Rejected" && (
+                        <>
+                          <td className="px-6 py-4 whitespace-nowrap text-gray-500">{row.date}</td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-600">
+                              {row.reason}
+                            </span>
+                          </td>
+                        </>
+                      )}
                     </tr>
                   ))}
                 </tbody>

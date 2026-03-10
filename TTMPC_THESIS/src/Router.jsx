@@ -3,7 +3,7 @@ import App from "./App";
 import Bonus_Loan from "./LOANFORMS/Bonus_Loan";
 import Consolidated_Loan from "./LOANFORMS/Consolidated_Loan";
 import Emergency_Loan from "./LOANFORMS/Emergency_Loan";
-import Sign_Up from "./Index_Pages/Sign_Up";
+import Sign_Up from "./Index_Pages/sign_up";
 import Login from "./Index_Pages/login";
 import Dashboard from "./Bookkeeper/Components/bookkeeperDashboard";
 import Records from "./Bookkeeper/Components/Member-Records";
