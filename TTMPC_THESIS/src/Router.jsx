@@ -4,6 +4,7 @@ import Bonus_Loan from "./LOANFORMS/Bonus_Loan";
 import Consolidated_Loan from "./LOANFORMS/Consolidated_Loan";
 import Emergency_Loan from "./LOANFORMS/Emergency_Loan";
 import Sign_Up from "./Index_Pages/Sign_Up";
+import MemberLogin from "./Index_Pages/memberlogin";
 import Login from "./Index_Pages/login";
 import Dashboard from "./Bookkeeper/Components/bookkeeperDashboard";
 import Records from "./Bookkeeper/Components/Member-Records";
@@ -55,5 +56,6 @@ export const router = createBrowserRouter([
     {path: "/member-approvals", element:<Member_Approvals/>},
     {path: "/manager-dashboard", element:<M_Dashboard/>},
     {path: "/loan-approval", element:<Loan_Approval/>},
-    {path: "/role_selection", element:<Role_Selection/>}
+    {path: "/role_selection", element:<Role_Selection/>},
+    {path: "/memberlogin", element:<MemberLogin/>}
 ])

@@ -34,7 +34,7 @@ const Role_Selection = () => {
           <div className="flex flex-col sm:flex-row gap-6 md:gap-10 w-full justify-center">
             
         
-            <Link to="/verification" className="group bg-white h-56 w-full sm:w-56 rounded-3xl font-bold flex items-center justify-center flex-col cursor-pointer shadow-sm hover:shadow-xl hover:-translate-y-2 transition-all duration-300 border border-gray-100 hover:border-[#66B538]">
+            <Link to="/memberlogin" className="group bg-white h-56 w-full sm:w-56 rounded-3xl font-bold flex items-center justify-center flex-col cursor-pointer shadow-sm hover:shadow-xl hover:-translate-y-2 transition-all duration-300 border border-gray-100 hover:border-[#66B538]">
               <div className="bg-[#E9F7DE] p-5 rounded-full mb-5 group-hover:scale-110 transition-transform duration-300">
                 <User className="w-10 h-10 text-[#66B538]" strokeWidth={2.5} />
               </div>
