@@ -1,7 +1,60 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 
+
+
+
 function Membership_Form() {
+
+  const [formdata, setFormdata] = useState({
+    date_applied: new Date().toISOString().split('T')[0],
+    application_status: 'pending',
+    application_id: '',
+
+    surname: '',
+    first_name: '',
+    middle_name: '',
+
+    gender: '',
+    civil_status: '',
+    date_of_birth: '',
+    citizenships: '',
+    religion: '',
+
+    height: '',
+    weight: '',
+
+    blood_type: '',
+    tin_number: '',
+
+    maiden_name: '',
+    spouse_name: '',
+    spouse_occupation: '',
+
+    number_of_dependents: '',
+
+    permanent_address: '',
+    contact_number: '',
+    email: '',
+
+    educational_attainment: '',
+    occupation: '',
+    position: '',
+
+    annual_income: '',
+    other_income: '',
+
+  });
+
+  const handleChange = (e) =>{
+    const { name, value } = e.target;
+    setFormdata (prev =>({...prev, [name]: value }));
+  }
+
+  
+
+
+
   const navigate = useNavigate();
 
   return (
