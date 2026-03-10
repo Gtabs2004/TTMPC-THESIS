@@ -16,14 +16,11 @@ function Login() {
     setError('');
     setLoading(true);
 
-    // Call Supabase sign-in through AuthContext
     const result = await signInUser(email, password);
 
     if (result.success) {
       const user = result.data?.user;
 
-      // For now, always navigate to bookkeeper dashboard
-      // Later you can inspect a role field on `user` and branch.
       navigate('/dashboard');
     } else {
       setError(result.error || 'Login failed. Please try again.');

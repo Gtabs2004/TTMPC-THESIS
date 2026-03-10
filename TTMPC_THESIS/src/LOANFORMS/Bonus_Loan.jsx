@@ -117,7 +117,6 @@ function Bonus_Loan() {
 
           // co makers //
 
-          cm1_name: formdata.cm1_name,
           cm1_name: formdata.cm1_name, 
           cm1_id_no: formdata.cm1_id_no,
           cm1_address: formdata.cm1_address,
