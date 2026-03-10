@@ -115,8 +115,8 @@ const Member_Approvals = () => {
                 <UserPlus className="text-[#2C7A3F] w-6 h-6" />
               </div>
               <div className="flex flex-col">
-                <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">New This Month</h3>
-                <p className="text-2xl font-extrabold text-slate-800 mt-0.5">45</p>
+                <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Total Evaluated</h3>
+                <p className="text-2xl font-extrabold text-slate-800 mt-0.5">8</p>
               </div>
             </div>
 
@@ -125,8 +125,8 @@ const Member_Approvals = () => {
                 <ClipboardList className="text-[#D97706] w-6 h-6" />
               </div>
               <div className="flex flex-col">
-                <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Avg Process Time</h3>
-                <p className="text-2xl font-extrabold text-slate-800 mt-0.5">2.4 Days</p>
+                <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Passed First Training</h3>
+                <p className="text-2xl font-extrabold text-slate-800 mt-0.5">6</p>
               </div>
             </div>
 
@@ -135,8 +135,8 @@ const Member_Approvals = () => {
                 <BadgeCheck className="text-[#2C7A3F] w-6 h-6" />
               </div>
               <div className="flex flex-col">
-                <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Approval Rate</h3>
-                <p className="text-2xl font-extrabold text-slate-800 mt-0.5">94.2%</p>
+                <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Pending Evaluation</h3>
+                <p className="text-2xl font-extrabold text-slate-800 mt-0.5">2</p>
               </div>
             </div>
 
@@ -145,8 +145,8 @@ const Member_Approvals = () => {
                 <Banknote className="text-[#2C7A3F] w-6 h-6" />
               </div>
               <div className="flex flex-col">
-                <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Projected Capital</h3>
-                <p className="text-2xl font-extrabold text-slate-800 mt-0.5">₱142.5K</p>
+                <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">NO Show</h3>
+                <p className="text-2xl font-extrabold text-slate-800 mt-0.5">2</p>
               </div>
             </div>
           </div>
