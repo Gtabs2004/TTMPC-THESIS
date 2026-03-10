@@ -11,7 +11,9 @@ import {
   Banknote,
   ChevronLeft,
   ChevronRight,
-  ChevronDown
+  ChevronDown,
+  Download,
+  CalendarDays
 } from 'lucide-react';
 
 const Member_Approvals = () => {
@@ -41,16 +43,21 @@ const Member_Approvals = () => {
       { id: "APP-005", name: "Roberto Gomez", email: "rob.gomez@email.com", employer: "DepEd", date: "Oct 10, 2023" },
     ],
     "1st Training": [
-      { id: "APP-006", name: "Ana Villanueva", email: "ana.v@email.com", employer: "DepEd", trainingDate: "Oct 14, 2023", attendance: "Present", status: "Passed" },
-      { id: "APP-007", name: "Carlo Mendoza", email: "c.mendoza@email.com", employer: "DepEd", trainingDate: "Oct 14, 2023", attendance: "Present", status: "Pending" },
-      { id: "APP-008", name: "Liza Fernandez", email: "liza.f@email.com", employer: "DepEd", trainingDate: "Oct 15, 2023", attendance: "Absent", status: "Failed" },
-      { id: "APP-009", name: "Mark Aquino", email: "mark.a@email.com", employer: "DepEd", trainingDate: "Oct 15, 2023", attendance: "Present", status: "Passed" },
-      { id: "APP-010", name: "Sofia Ramos", email: "sofia.r@email.com", employer: "DepEd", trainingDate: "Oct 16, 2023", attendance: "Present", status: "Pending" },
+      { name: "Carlo Mendoza",      email: "carlo.mendoza@gmail.com",   trainingDate: "Jan. 31, 2026 – 9:00 AM", attendance: "Present", result: "Passed" },
+      { name: "Angela Reyes",       email: "angela.reyes@gmail.com",    trainingDate: "Jan. 31, 2026 – 9:00 AM", attendance: "Present", result: "Pending" },
+      { name: "Jessa Mae Gonzales", email: "jm.gonzales@gmail.com",     trainingDate: "Jan. 31, 2026 – 9:00 AM", attendance: "Absent",  result: "N/A" },
+      { name: "Nicole Anne Bautista", email: "nicole.bautista@gmail.com", trainingDate: "Jan. 31, 2026 – 9:00 AM", attendance: "Present", result: "Passed" },
+      { name: "Kevin Navarro",      email: "kevin.navarro@gmail.com",   trainingDate: "Jan. 31, 2026 – 9:00 AM", attendance: "Absent",  result: "N/A" },
+      { name: "Jasmine Flores",     email: "jasmine.flores@gmail.com",  trainingDate: "Jan. 31, 2026 – 9:00 AM", attendance: "Present", result: "Passed" },
+      { name: "Bea Castro",         email: "bea.castro@gmail.com",      trainingDate: "Jan. 31, 2026 – 9:00 AM", attendance: "Present", result: "Pending" },
+      { name: "Dave Herrera",       email: "dave.herrera@gmail.com",    trainingDate: "Jan. 31, 2026 – 9:00 AM", attendance: "Present", result: "Passed" },
     ],
     "2nd Training": [
-      { id: "APP-011", name: "Diego Torres", email: "diego.t@email.com", employer: "DepEd", trainingDate: "Oct 20, 2023", attendance: "Present", status: "Passed" },
-      { id: "APP-012", name: "Carla Cruz", email: "carla.c@email.com", employer: "DepEd", trainingDate: "Oct 20, 2023", attendance: "Present", status: "Pending" },
-      { id: "APP-013", name: "Raul Bautista", email: "raul.b@email.com", employer: "DepEd", trainingDate: "Oct 21, 2023", attendance: "Present", status: "Passed" },
+      { name: "Carlo Mendoza",      email: "carlo.mendoza@gmail.com",   trainingDate: "Feb. 7, 2026 – 9:00 AM", attendance: "Present", result: "Passed" },
+      { name: "Angela Reyes",       email: "angela.reyes@gmail.com",    trainingDate: "Feb. 7, 2026 – 9:00 AM", attendance: "Present", result: "Passed" },
+      { name: "Jessa Mae Gonzales", email: "jm.gonzales@gmail.com",     trainingDate: "Feb. 7, 2026 – 9:00 AM", attendance: "Present", result: "Passed" },
+      { name: "Nicole Anne Bautista", email: "nicole.bautista@gmail.com", trainingDate: "Feb. 7, 2026 – 9:00 AM", attendance: "Present", result: "Passed" },
+      { name: "Kevin Navarro",      email: "kevin.navarro@gmail.com",   trainingDate: "Feb. 7, 2026 – 9:00 AM", attendance: "Absent",  result: "N/A" },
     ],
     "Rejected": [
       { id: "APP-014", name: "Pedro Castillo", email: "pedro.c@email.com", employer: "DepEd", date: "Oct 8, 2023", reason: "Incomplete Documents" },
@@ -58,6 +65,8 @@ const Member_Approvals = () => {
       { id: "APP-016", name: "Tony Ocampo", email: "tony.o@email.com", employer: "DepEd", date: "Oct 6, 2023", reason: "Duplicate Application" },
     ],
   };
+
+  const isTrainingTab = activeTab === "1st Training" || activeTab === "2nd Training";
 
   return (
     <div className="flex min-h-screen bg-[#F8FAFC]">
@@ -202,42 +211,64 @@ const Member_Approvals = () => {
               </button>
             </div>
 
-            <div className="flex justify-between items-center px-6 py-4">
-              <div className="flex items-center gap-2 text-sm text-gray-500">
-                <span>Filter by Employer:</span>
-                <div className="relative">
-                  <select className="appearance-none bg-white border border-gray-200 text-gray-700 py-1.5 pl-3 pr-8 rounded-md focus:outline-none focus:ring-1 focus:ring-[#2C7A3F] text-sm font-medium cursor-pointer">
-                    <option>All Employers</option>
-                    <option>DepEd</option>
-
-                  </select>
-                  <ChevronDown className="absolute right-2.5 top-2 w-4 h-4 text-gray-400 pointer-events-none" />
+            {/* Title + actions row for training tabs; filter row for others */}
+            {isTrainingTab ? (
+              <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+                <h2 className="text-lg font-bold text-gray-800">
+                  {activeTab} Attendance &amp; Evaluation
+                </h2>
+                <div className="flex items-center gap-3">
+                  <button className="flex items-center gap-1.5 px-4 py-2 rounded-lg border border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
+                    <Download className="w-4 h-4" />
+                    Export List
+                  </button>
+                  <button className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-[#2C7A3F] text-white text-sm font-medium hover:bg-green-800 transition-colors">
+                    <CalendarDays className="w-4 h-4" />
+                    Schedule Training
+                  </button>
                 </div>
               </div>
-              <div className="text-xs text-gray-400">
-                Showing 1-{tabData[activeTab].length} of {tabData[activeTab].length} {activeTab.toLowerCase()} applications
+            ) : (
+              <div className="flex justify-between items-center px-6 py-4">
+                <div className="flex items-center gap-2 text-sm text-gray-500">
+                  <span>Filter by Employer:</span>
+                  <div className="relative">
+                    <select className="appearance-none bg-white border border-gray-200 text-gray-700 py-1.5 pl-3 pr-8 rounded-md focus:outline-none focus:ring-1 focus:ring-[#2C7A3F] text-sm font-medium cursor-pointer">
+                      <option>All Employers</option>
+                      <option>DepEd</option>
+                    </select>
+                    <ChevronDown className="absolute right-2.5 top-2 w-4 h-4 text-gray-400 pointer-events-none" />
+                  </div>
+                </div>
+                <div className="text-xs text-gray-400">
+                  Showing 1-{tabData[activeTab].length} of {tabData[activeTab].length} {activeTab.toLowerCase()} applications
+                </div>
               </div>
-            </div>
+            )}
 
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm">
                 <thead className="bg-[#F8FAFC] text-gray-500 text-[11px] uppercase font-bold tracking-wider">
                   <tr>
-                    <th className="px-6 py-4">Application ID</th>
-                    <th className="px-6 py-4">Member Name</th>
-                    <th className="px-6 py-4">Employer</th>
-                    {(activeTab === "1st Training" || activeTab === "2nd Training") && (
+                    {isTrainingTab ? (
                       <>
-                        <th className="px-6 py-4">Training Date</th>
-                        <th className="px-6 py-4">Attendance</th>
-                        <th className="px-6 py-4">Status</th>
+                        <th className="px-6 py-4">Member Name</th>
+                        <th className="px-6 py-4">Training Schedule</th>
+                        <th className="px-6 py-4">Attendance Status</th>
+                        <th className="px-6 py-4">Evaluation Result</th>
                       </>
-                    )}
-                    {activeTab === "Pending" && <th className="px-6 py-4">Submitted Date</th>}
-                    {activeTab === "Rejected" && (
+                    ) : (
                       <>
-                        <th className="px-6 py-4">Submitted Date</th>
-                        <th className="px-6 py-4">Rejection Reason</th>
+                        <th className="px-6 py-4">Application ID</th>
+                        <th className="px-6 py-4">Member Name</th>
+                        <th className="px-6 py-4">Employer</th>
+                        {activeTab === "Pending" && <th className="px-6 py-4">Submitted Date</th>}
+                        {activeTab === "Rejected" && (
+                          <>
+                            <th className="px-6 py-4">Submitted Date</th>
+                            <th className="px-6 py-4">Rejection Reason</th>
+                          </>
+                        )}
                       </>
                     )}
                   </tr>
@@ -245,52 +276,68 @@ const Member_Approvals = () => {
                 <tbody className="divide-y divide-gray-100">
                   {tabData[activeTab].map((row, index) => (
                     <tr key={index} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className="font-bold text-[#2C7A3F]">{row.id}</span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="font-bold text-gray-800">{row.name}</div>
-                        <div className="text-xs text-gray-400">{row.email}</div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-gray-600 font-medium">
-                        {row.employer}
-                      </td>
-                      {(activeTab === "1st Training" || activeTab === "2nd Training") && (
+                      {isTrainingTab ? (
                         <>
-                          <td className="px-6 py-4 whitespace-nowrap text-gray-500">{row.trainingDate}</td>
+                          {/* Member Name */}
                           <td className="px-6 py-4 whitespace-nowrap">
-                            <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
+                            <div className="font-semibold text-gray-800">{row.name}</div>
+                            <div className="text-xs text-gray-400">{row.email}</div>
+                          </td>
+                          {/* Training Schedule */}
+                          <td className="px-6 py-4 whitespace-nowrap text-gray-600">
+                            {row.trainingDate}
+                          </td>
+                          {/* Attendance Status */}
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border ${
                               row.attendance === "Present"
-                                ? "bg-green-100 text-green-700"
-                                : "bg-red-100 text-red-600"
+                                ? "border-green-300 bg-green-50 text-green-700"
+                                : "border-red-300 bg-red-50 text-red-600"
                             }`}>
+                              <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+                                row.attendance === "Present" ? "bg-green-500" : "bg-red-500"
+                              }`} />
                               {row.attendance}
                             </span>
                           </td>
+                          {/* Evaluation Result */}
                           <td className="px-6 py-4 whitespace-nowrap">
-                            <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
-                              row.status === "Passed"
-                                ? "bg-green-100 text-green-700"
-                                : row.status === "Failed"
-                                ? "bg-red-100 text-red-600"
-                                : "bg-yellow-100 text-yellow-700"
+                            <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold border ${
+                              row.result === "Passed"
+                                ? "border-green-300 bg-green-50 text-green-700"
+                                : row.result === "Pending"
+                                ? "border-yellow-300 bg-yellow-50 text-yellow-700"
+                                : "border-gray-300 bg-gray-50 text-gray-500"
                             }`}>
-                              {row.status}
+                              {row.result}
                             </span>
                           </td>
                         </>
-                      )}
-                      {activeTab === "Pending" && (
-                        <td className="px-6 py-4 whitespace-nowrap text-gray-500">{row.date}</td>
-                      )}
-                      {activeTab === "Rejected" && (
+                      ) : (
                         <>
-                          <td className="px-6 py-4 whitespace-nowrap text-gray-500">{row.date}</td>
                           <td className="px-6 py-4 whitespace-nowrap">
-                            <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-600">
-                              {row.reason}
-                            </span>
+                            <span className="font-bold text-[#2C7A3F]">{row.id}</span>
                           </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="font-bold text-gray-800">{row.name}</div>
+                            <div className="text-xs text-gray-400">{row.email}</div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-gray-600 font-medium">
+                            {row.employer}
+                          </td>
+                          {activeTab === "Pending" && (
+                            <td className="px-6 py-4 whitespace-nowrap text-gray-500">{row.date}</td>
+                          )}
+                          {activeTab === "Rejected" && (
+                            <>
+                              <td className="px-6 py-4 whitespace-nowrap text-gray-500">{row.date}</td>
+                              <td className="px-6 py-4 whitespace-nowrap">
+                                <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-600">
+                                  {row.reason}
+                                </span>
+                              </td>
+                            </>
+                          )}
                         </>
                       )}
                     </tr>
