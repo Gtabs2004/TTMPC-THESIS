@@ -1,12 +1,11 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { UserAuth } from '../contex/AuthContext';
-import { Mail, Lock, User } from 'lucide-react';
+import { Mail, Lock } from 'lucide-react';
 
 function MemberLogin() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [role, setRole] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -21,8 +20,13 @@ function MemberLogin() {
     const result = await signInUser(email, password);
 
     if (result.success) {
-      // const user = result.data?.user;
-      navigate('/dashboard');
+      const accountRole = (result.role || '').toLowerCase();
+
+      if (accountRole !== 'member') {
+        setError('This account is not a member account. Please use Staff Login.');
+      } else {
+        navigate('/Member_Services');
+      }
     } else {
       setError(result.error || 'Login failed. Please try again.');
     }
