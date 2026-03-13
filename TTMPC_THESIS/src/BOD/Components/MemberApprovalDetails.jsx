@@ -19,6 +19,7 @@ const MemberApprovalDetails = () => {
   const [actionError, setActionError] = useState('');
   const [notifying, setNotifying] = useState(false);
   const [notifyMessage, setNotifyMessage] = useState('');
+  const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000';
 
   useEffect(() => {
     const fetchMemberDetails = async () => {
@@ -83,7 +84,7 @@ const MemberApprovalDetails = () => {
       date: formatDate(memberRow.created_at),
       contact: memberRow.contact_number || '-',
       address: memberRow.permanent_address || '-',
-      classification: memberRow.classification || memberRow.position || 'Regular',
+      occupation: memberRow.occupation || memberRow.position || 'Regular',
       status: normalizeStatus(memberRow.application_status),
       reason: memberRow.rejection_reason || memberRow.remarks || '-',
       row: memberRow,
@@ -99,7 +100,6 @@ const MemberApprovalDetails = () => {
 
   const proceedConfig = member ? getProceedConfig(member.status) : null;
 
-
   const closeModal = () => {
     if (notifying) return;
     setActiveModal(null);
@@ -108,6 +108,36 @@ const MemberApprovalDetails = () => {
     setSendEmail(true);
     setActionError('');
     setNotifyMessage('');
+  };
+
+  const sendResendEmail = async (nextStatus) => {
+    if (!member?.email || member.email === '-') {
+      throw new Error('Member email is missing.');
+    }
+
+    let response;
+    try {
+      response = await fetch(`${apiBaseUrl}/api/send-status-email`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json' // Added as a best practice
+        },
+        body: JSON.stringify({
+          to_email: member.email,
+          member_name: member.name,
+          status: nextStatus,
+          remarks: remarks.trim() || null,
+        }),
+      });
+    } catch (_networkError) {
+      throw new Error('Failed to fetch email API. Make sure backend is running at VITE_API_BASE_URL.');
+    }
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData?.detail || errorData?.message || 'Email API request failed.');
+    }
   };
 
   const applyStatusUpdate = async (nextStatus) => {
@@ -147,17 +177,24 @@ const MemberApprovalDetails = () => {
 
     setSaving(false);
     setNotifying(true);
-    setNotifyMessage('Sending email notification...');
-
-    setTimeout(() => {
-      setNotifyMessage('Email notification sent. Returning to member approvals...');
-    }, 800);
+    try {
+      if (sendEmail) {
+        setNotifyMessage('Sending email notification...');
+        await sendResendEmail(nextStatus);
+        setNotifyMessage('Email notification sent. Returning to member approvals...');
+      } else {
+        setNotifyMessage('Email skipped. Returning to member approvals...');
+      }
+    } catch (emailError) {
+      console.error(emailError);
+      setNotifyMessage(`Status updated, but email failed: ${emailError.message}`);
+    }
 
     setTimeout(() => {
       setNotifying(false);
       closeModal();
       navigate('/member-approvals');
-    }, 1800);
+    }, 1500);
   };
 
   if (loading) {
@@ -232,8 +269,8 @@ const MemberApprovalDetails = () => {
             <p className="font-medium text-gray-800">{member.date}</p>
           </div>
           <div>
-            <p className="flex items-center text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1"><Award className="w-3 h-3 mr-1" /> Classification</p>
-            <p className="font-bold text-gray-800">{member.classification}</p>
+            <p className="flex items-center text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1"><Award className="w-3 h-3 mr-1" /> Occupation</p>
+            <p className="font-bold text-gray-800">{member.occupation}</p>
           </div>
         </div>
       </div>

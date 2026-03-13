@@ -469,7 +469,7 @@ const Member_Approvals = () => {
                             <div className="text-xs text-gray-400">{row.email}</div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-gray-600 font-medium">
-                            {row.annual_income}
+                            {row.annualIncome}
                           </td>
                           {activeTab === "Pending" && (
                             <td className="px-6 py-4 whitespace-nowrap text-gray-500">{row.date}</td>
