@@ -15,40 +15,30 @@ const MemberApprovalDetails = () => {
   const [memberRow, setMemberRow] = useState(null);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [actionError, setActionError] = useState('');
+  const [notifying, setNotifying] = useState(false);
+  const [notifyMessage, setNotifyMessage] = useState('');
 
   useEffect(() => {
     const fetchMemberDetails = async () => {
       setLoading(true);
       setFetchError('');
 
-      let row = null;
-
-      const byApplicationId = await supabase
+      const { data, error } = await supabase
         .from('member_applications')
         .select('*')
         .eq('application_id', id)
         .maybeSingle();
 
-      if (byApplicationId.data) {
-        row = byApplicationId.data;
-      } else {
-        const byId = await supabase
-          .from('member_applications')
-          .select('*')
-          .eq('id', id)
-          .maybeSingle();
-
-        if (byId.error) {
-          setFetchError(byId.error.message || 'Unable to fetch member details.');
-          setMemberRow(null);
-          setLoading(false);
-          return;
-        }
-
-        row = byId.data;
+      if (error) {
+        setFetchError(error.message || 'Unable to fetch member details.');
+        setMemberRow(null);
+        setLoading(false);
+        return;
       }
 
-      setMemberRow(row || null);
+      setMemberRow(data || null);
       setLoading(false);
     };
 
@@ -86,7 +76,7 @@ const MemberApprovalDetails = () => {
       .join(' ');
 
     return {
-      id: memberRow.application_id || memberRow.id,
+      id: memberRow.application_id,
       name: fullName || memberRow.full_name || 'Unnamed Applicant',
       email: memberRow.email || '-',
       employer: memberRow.occupation || memberRow.employer || '-',
@@ -100,11 +90,74 @@ const MemberApprovalDetails = () => {
     };
   }, [memberRow]);
 
+  const getProceedConfig = (status) => {
+    if (status === 'Pending') return { title: 'Proceed to 1st Training', nextStatus: '1st Training', button: 'Confirm & Proceed' };
+    if (status === '1st Training') return { title: 'Proceed to 2nd Training', nextStatus: '2nd Training', button: 'Confirm & Proceed' };
+    if (status === '2nd Training') return { title: 'Mark as Official Member', nextStatus: 'Official Member', button: 'Confirm & Complete' };
+    return null;
+  };
+
+  const proceedConfig = member ? getProceedConfig(member.status) : null;
+
+
   const closeModal = () => {
+    if (notifying) return;
     setActiveModal(null);
     setRemarks('');
     setSendSms(true);
     setSendEmail(true);
+    setActionError('');
+    setNotifyMessage('');
+  };
+
+  const applyStatusUpdate = async (nextStatus) => {
+    if (!memberRow) return;
+
+    setSaving(true);
+    setActionError('');
+
+    const payload = {
+      application_status: nextStatus,
+    };
+
+    if (remarks.trim()) {
+      payload.remarks = remarks.trim();
+    }
+
+    if (nextStatus === 'Rejected' && remarks.trim()) {
+      payload.rejection_reason = remarks.trim();
+    }
+
+    const { data, error } = await supabase
+      .from('member_applications')
+      .update(payload)
+      .eq('application_id', memberRow.application_id)
+      .select('*')
+      .maybeSingle();
+
+    if (error) {
+      setActionError(error.message || 'Unable to update application status.');
+      setSaving(false);
+      return;
+    }
+
+    if (data) {
+      setMemberRow(data);
+    }
+
+    setSaving(false);
+    setNotifying(true);
+    setNotifyMessage('Sending email notification...');
+
+    setTimeout(() => {
+      setNotifyMessage('Email notification sent. Returning to member approvals...');
+    }, 800);
+
+    setTimeout(() => {
+      setNotifying(false);
+      closeModal();
+      navigate('/member-approvals');
+    }, 1800);
   };
 
   if (loading) {
@@ -193,7 +246,8 @@ const MemberApprovalDetails = () => {
               <p className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-1">Current Status</p>
               <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
                 member.status === 'Pending' ? 'bg-yellow-50 text-yellow-600' :
-                member.status === 'Approved' ? 'bg-green-50 text-green-600' :
+                member.status === 'Official Member' || member.status === 'Approved' ? 'bg-green-50 text-green-600' :
+                member.status === '1st Training' || member.status === '2nd Training' ? 'bg-blue-50 text-blue-600' :
                 'bg-red-50 text-red-600'
               }`}>
                 {member.status}
@@ -210,22 +264,27 @@ const MemberApprovalDetails = () => {
       <div className="flex gap-4 float-end">
         <button 
           onClick={() => setActiveModal('reject')} 
+          disabled={saving || member.status === 'Official Member'}
           className="flex items-center text-[#B91C1C] bg-[#FECACA] hover:bg-red-300 transition-colors font-medium rounded-lg px-4 py-2.5 text-sm cursor-pointer"
         >
           <X className="w-4 h-4 mr-1.5" /> Reject Application
         </button>
         <button 
           onClick={() => setActiveModal('revise')} 
+          disabled={saving || member.status === 'Official Member'}
           className="flex items-center text-[#B45309] bg-[#FDE68A] hover:bg-yellow-300 transition-colors font-medium rounded-lg px-4 py-2.5 text-sm cursor-pointer"
         >
           Return for Revision
         </button>
-        <button 
-          onClick={() => setActiveModal('proceed')} 
-          className="flex items-center text-white bg-[#1D6021] hover:bg-[#154718] transition-colors font-medium rounded-lg px-4 py-2.5 text-sm cursor-pointer"
-        >
-          <Check className="w-4 h-4 mr-1.5" /> Proceed to 1st Training
-        </button>
+        {proceedConfig && (
+          <button
+            onClick={() => setActiveModal('proceed')}
+            disabled={saving}
+            className="flex items-center text-white bg-[#1D6021] hover:bg-[#154718] transition-colors font-medium rounded-lg px-4 py-2.5 text-sm cursor-pointer"
+          >
+            <Check className="w-4 h-4 mr-1.5" /> {proceedConfig.title}
+          </button>
+        )}
       </div>
 
       {/* --- Modals Overlay --- */}
@@ -236,6 +295,7 @@ const MemberApprovalDetails = () => {
             {/* Close Button */}
             <button 
               onClick={closeModal} 
+              disabled={notifying}
               className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors"
             >
               <X className="w-5 h-5" />
@@ -290,11 +350,23 @@ const MemberApprovalDetails = () => {
             {/* Proceed Modal */}
             {activeModal === 'proceed' && (
               <>
-                <h3 className="text-xl font-bold text-gray-900 mb-4">Proceed to 1st Training</h3>
+                <h3 className="text-xl font-bold text-gray-900 mb-4">{proceedConfig?.title || 'Proceed'}</h3>
                 <p className="text-sm text-gray-600 mb-8">
-                  You are about to approve <span className="font-bold text-gray-900">{member.name}</span> for the 1st Training Orientation phase. Proceed?
+                  You are about to move <span className="font-bold text-gray-900">{member.name}</span> to <span className="font-bold text-gray-900">{proceedConfig?.nextStatus || 'the next stage'}</span>. Proceed?
                 </p>
               </>
+            )}
+
+            {actionError && (
+              <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                {actionError}
+              </div>
+            )}
+
+            {notifying && (
+              <div className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+                {notifyMessage}
+              </div>
             )}
 
             {/* Shared Notification Options */}
@@ -316,24 +388,37 @@ const MemberApprovalDetails = () => {
             <div className="flex justify-center gap-3 mt-4">
               <button 
                 onClick={closeModal}
+                disabled={notifying}
                 className="px-6 py-2.5 rounded-lg border border-gray-300 text-gray-700 font-medium text-sm hover:bg-gray-50 transition-colors w-1/2"
               >
                 Cancel
               </button>
               
               {activeModal === 'reject' && (
-                <button className="px-6 py-2.5 rounded-lg bg-[#DC2626] hover:bg-red-700 text-white font-medium text-sm transition-colors w-1/2">
-                  Confirm Rejection
+                <button
+                  onClick={() => applyStatusUpdate('Rejected')}
+                  disabled={saving || notifying}
+                  className="px-6 py-2.5 rounded-lg bg-[#DC2626] hover:bg-red-700 text-white font-medium text-sm transition-colors w-1/2 disabled:opacity-60"
+                >
+                  {saving ? 'Saving...' : notifying ? 'Sending Email...' : 'Confirm Rejection'}
                 </button>
               )}
               {activeModal === 'revise' && (
-                <button className="px-6 py-2.5 rounded-lg bg-[#F59E0B] hover:bg-amber-600 text-white font-medium text-sm transition-colors w-1/2">
-                  Send for Revision
+                <button
+                  onClick={() => applyStatusUpdate('For Revision')}
+                  disabled={saving || notifying}
+                  className="px-6 py-2.5 rounded-lg bg-[#F59E0B] hover:bg-amber-600 text-white font-medium text-sm transition-colors w-1/2 disabled:opacity-60"
+                >
+                  {saving ? 'Saving...' : notifying ? 'Sending Email...' : 'Send for Revision'}
                 </button>
               )}
               {activeModal === 'proceed' && (
-                <button className="px-6 py-2.5 rounded-lg bg-[#1D6021] hover:bg-[#154718] text-white font-medium text-sm transition-colors w-1/2">
-                  Confirm & Proceed
+                <button
+                  onClick={() => proceedConfig && applyStatusUpdate(proceedConfig.nextStatus)}
+                  disabled={saving || notifying || !proceedConfig}
+                  className="px-6 py-2.5 rounded-lg bg-[#1D6021] hover:bg-[#154718] text-white font-medium text-sm transition-colors w-1/2 disabled:opacity-60"
+                >
+                  {saving ? 'Saving...' : notifying ? 'Sending Email...' : (proceedConfig?.button || 'Confirm & Proceed')}
                 </button>
               )}
             </div>
