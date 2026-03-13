@@ -137,7 +137,7 @@ const Loan_Approval = () => {
 
         <main className="p-8 flex-1">
           {/* Top Stats Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
             <div className="bg-white border border-gray-100 rounded-xl p-5 flex items-center gap-4 shadow-sm">
               <div className="w-12 h-12 rounded-lg bg-[#EAF5EC] flex items-center justify-center flex-shrink-0">
                 <UserPlus className="text-[#2C7A3F] w-6 h-6" />
@@ -168,15 +168,6 @@ const Loan_Approval = () => {
               </div>
             </div>
 
-            <div className="bg-white border border-gray-100 rounded-xl p-5 flex items-center gap-4 shadow-sm">
-              <div className="w-12 h-12 rounded-lg bg-[#EAF5EC] flex items-center justify-center flex-shrink-0">
-                <Banknote className="text-[#2C7A3F] w-6 h-6" />
-              </div>
-              <div className="flex flex-col">
-                <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Projected Capital</h3>
-                <p className="text-2xl font-extrabold text-slate-800 mt-0.5">₱142.5K</p>
-              </div>
-            </div>
           </div>
 
           {/* Data Table Container */}
