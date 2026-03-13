@@ -79,7 +79,7 @@ const MemberApprovalDetails = () => {
       id: memberRow.application_id,
       name: fullName || memberRow.full_name || 'Unnamed Applicant',
       email: memberRow.email || '-',
-      employer: memberRow.occupation || memberRow.employer || '-',
+      annualIncome: memberRow.annual_income || '-',
       date: formatDate(memberRow.created_at),
       contact: memberRow.contact_number || '-',
       address: memberRow.permanent_address || '-',
@@ -216,8 +216,8 @@ const MemberApprovalDetails = () => {
             <p className="font-medium text-gray-800">{member.email}</p>
           </div>
           <div>
-            <p className="flex items-center text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1"><Building2 className="w-3 h-3 mr-1" /> Employer</p>
-            <p className="font-medium text-gray-800">{member.employer}</p>
+            <p className="flex items-center text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1"><Building2 className="w-3 h-3 mr-1" /> Annual Income</p>
+            <p className="font-medium text-gray-800">{member.annualIncome}</p>
           </div>
           <div>
             <p className="flex items-center text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1"><Phone className="w-3 h-3 mr-1" /> Contact Number</p>

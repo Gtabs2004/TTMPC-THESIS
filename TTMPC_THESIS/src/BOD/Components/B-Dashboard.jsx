@@ -55,7 +55,7 @@ const menuItems = [
         <nav className="flex flex-col gap-2 text-sm flex-grow">
   {(() => {
     const routeMap = {
-      "Dashboard": "/manager-dashboard",
+      "Dashboard": "/BOD-dashboard",
       "Member Approvals": "/member-approvals",
       
     };
