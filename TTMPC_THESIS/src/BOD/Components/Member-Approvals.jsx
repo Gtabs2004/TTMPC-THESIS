@@ -159,7 +159,7 @@ const Member_Approvals = () => {
         id: app.application_id,
         name: fullName || "Unnamed Applicant",
         email: app.email || "-",
-        employer: app.occupation || app.employer || "N/A",
+        annualIncome: app.annual_income || "N/A",
         date: app.created_at
           ? new Date(app.created_at).toLocaleDateString("en-US", {
               month: "short",
@@ -208,7 +208,7 @@ const Member_Approvals = () => {
           {menuItems.map((item) => {
             const Icon = item.icon;
             const routeMap = {
-              "Dashboard": "/manager-dashboard",
+              "Dashboard": "/BOD-dashboard",
               "Member Approvals": "/member-approvals"
             };
             const to = routeMap[item.name] || `/${item.name.toLowerCase().replace(/\s+/g, '-')}`;
@@ -258,7 +258,7 @@ const Member_Approvals = () => {
         </header>
 
         <main className="p-8">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
             <div className="bg-white border border-gray-100 rounded-xl p-5 flex items-center gap-4 shadow-sm">
               <div className="w-12 h-12 rounded-lg bg-[#EAF5EC] flex items-center justify-center flex-shrink-0">
                 <UserPlus className="text-[#2C7A3F] w-6 h-6" />
@@ -290,15 +290,7 @@ const Member_Approvals = () => {
               </div>
             </div>
 
-            <div className="bg-white border border-gray-100 rounded-xl p-5 flex items-center gap-4 shadow-sm">
-              <div className="w-12 h-12 rounded-lg bg-[#EAF5EC] flex items-center justify-center flex-shrink-0">
-                <Banknote className="text-[#2C7A3F] w-6 h-6" />
-              </div>
-              <div className="flex flex-col">
-                <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Projected Capital</h3>
-                <p className="text-2xl font-extrabold text-slate-800 mt-0.5">₱142.5K</p>
-              </div>
-            </div>
+           
           </div>
 
           <div className="bg-white border border-gray-100 rounded-xl shadow-sm overflow-hidden">
@@ -367,11 +359,13 @@ const Member_Approvals = () => {
             ) : (
               <div className="flex justify-between items-center px-6 py-4">
                 <div className="flex items-center gap-2 text-sm text-gray-500">
-                  <span>Filter by Employer:</span>
+                  <span>Filter by Annual Income:</span>
                   <div className="relative">
                     <select className="appearance-none bg-white border border-gray-200 text-gray-700 py-1.5 pl-3 pr-8 rounded-md focus:outline-none focus:ring-1 focus:ring-[#2C7A3F] text-sm font-medium cursor-pointer">
-                      <option>All Employers</option>
-                      <option>DepEd</option>
+                      <option>All</option>
+                      <option>Below ₱50,000</option>
+                      <option>₱50,000 - ₱100,000</option>
+                      <option>Above ₱100,000</option>
                     </select>
                     <ChevronDown className="absolute right-2.5 top-2 w-4 h-4 text-gray-400 pointer-events-none" />
                   </div>
@@ -397,7 +391,7 @@ const Member_Approvals = () => {
                       <>
                         <th className="px-6 py-4">Application ID</th>
                         <th className="px-6 py-4">Member Name</th>
-                        <th className="px-6 py-4">Employer</th>
+                        <th className="px-6 py-4">Annual Income</th>
                         {activeTab === "Pending" && <th className="px-6 py-4">Submitted Date</th>}
                         {activeTab === "Rejected" && (
                           <>
@@ -475,7 +469,7 @@ const Member_Approvals = () => {
                             <div className="text-xs text-gray-400">{row.email}</div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-gray-600 font-medium">
-                            {row.employer}
+                            {row.annual_income}
                           </td>
                           {activeTab === "Pending" && (
                             <td className="px-6 py-4 whitespace-nowrap text-gray-500">{row.date}</td>
