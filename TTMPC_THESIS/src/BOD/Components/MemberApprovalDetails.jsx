@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Building2, MapPin, Award, Phone, Calendar, Mail, X, Check } from 'lucide-react';
+import { supabase } from '../../supabaseClient';
 
 const MemberApprovalDetails = () => {
   const { id } = useParams();
@@ -11,96 +12,93 @@ const MemberApprovalDetails = () => {
   const [remarks, setRemarks] = useState('');
   const [sendSms, setSendSms] = useState(true);
   const [sendEmail, setSendEmail] = useState(true);
+  const [memberRow, setMemberRow] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState('');
 
-  const mockMemberData = {
-    "APP-001": {
-      name: "Juan Dela Cruz",
-      email: "juan.cruz@email.com",
-      employer: "DepEd",
-      date: "Oct 12, 2023",
-      contact: "0917 123 4567",
-      address: "Manila, Philippines",
-      classification: "Regular",
-      status: "Pending"
-    },
-     "APP-002": {
-      name: "Maria Santos",
-      email: "m.santos88@email.com",
-      employer: "DepEd",
-      date: "Oct 11, 2023",
-      contact: "0918 234 5678",
-      address: "Quezon City, Philippines",
-      classification: "Regular",
-      status: "Pending"
-    },
-    "APP-003": {
-      name: "Ricardo Lim",
-      email: "ric_lim@email.com",
-      employer: "DepEd",
-      date: "Oct 11, 2023",
-      contact: "0919 345 6789",
-      address: "Makati, Philippines",
-      classification: "Regular",
-      status: "Pending"
-    },
-    "APP-004": {
-      name: "Elena Reyes",
-      email: "e.reyes_90@email.com",
-      employer: "DepEd",
-      date: "Oct 10, 2023",
-      contact: "0920 456 7890",
-      address: "Pasig, Philippines",
-      classification: "Regular",
-      status: "Pending"
-    },
-    "APP-005": {
-      name: "Roberto Gomez",
-      email: "rob.gomez@email.com",
-      employer: "DepEd",
-      date: "Oct 10, 2023",
-      contact: "0921 567 8901",
-      address: "Taguig, Philippines",
-      classification: "Regular",
-      status: "Pending"
-    },
-    "APP-014": {
-      name: "Pedro Castillo",
-      email: "pedro.c@email.com",
-      employer: "DepEd",
-      date: "Oct 8, 2023",
-      contact: "0922 678 9012",
-      address: "Caloocan, Philippines",
-      classification: "Regular",
-      status: "Rejected",
-      reason: "Incomplete Documents"
-    },
-    "APP-015": {
-      name: "Luz Miranda",
-      email: "luz.m@email.com",
-      employer: "DepEd",
-      date: "Oct 7, 2023",
-      contact: "0923 789 0123",
-      address: "Valenzuela, Philippines",
-      classification: "Regular",
-      status: "Rejected",
-      reason: "Failed Background Check"
-    },
-    "APP-016": {
-      name: "Tony Ocampo",
-      email: "tony.o@email.com",
-      employer: "DepEd",
-      date: "Oct 6, 2023",
-      contact: "0924 890 1234",
-      address: "Parañaque, Philippines",
-      classification: "Regular",
-      status: "Rejected",
-      reason: "Duplicate Application"
-    },
+  useEffect(() => {
+    const fetchMemberDetails = async () => {
+      setLoading(true);
+      setFetchError('');
+
+      let row = null;
+
+      const byApplicationId = await supabase
+        .from('member_applications')
+        .select('*')
+        .eq('application_id', id)
+        .maybeSingle();
+
+      if (byApplicationId.data) {
+        row = byApplicationId.data;
+      } else {
+        const byId = await supabase
+          .from('member_applications')
+          .select('*')
+          .eq('id', id)
+          .maybeSingle();
+
+        if (byId.error) {
+          setFetchError(byId.error.message || 'Unable to fetch member details.');
+          setMemberRow(null);
+          setLoading(false);
+          return;
+        }
+
+        row = byId.data;
+      }
+
+      setMemberRow(row || null);
+      setLoading(false);
+    };
+
+    fetchMemberDetails();
+  }, [id]);
+
+  const formatDate = (value) => {
+    if (!value) return '-';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '-';
+
+    return date.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    });
   };
-    
-  
 
-  const member = mockMemberData[id] || mockMemberData["APP-001"]; // Fallback for testing purposes if ID is missing
+  const normalizeStatus = (value) => {
+    const normalized = (value || '').toString().trim().toLowerCase();
+    if (normalized === 'pending') return 'Pending';
+    if (normalized === 'rejected') return 'Rejected';
+    if (normalized === 'approved') return 'Approved';
+    if (normalized === '1st training' || normalized === 'first training' || normalized === 'training 1') return '1st Training';
+    if (normalized === '2nd training' || normalized === 'second training' || normalized === 'training 2') return '2nd Training';
+    return value || 'Pending';
+  };
+
+  const member = useMemo(() => {
+    if (!memberRow) return null;
+
+    const fullName = [memberRow.first_name, memberRow.middle_name, memberRow.surname]
+      .map((part) => (part || '').trim())
+      .filter(Boolean)
+      .join(' ');
+
+    return {
+      id: memberRow.application_id || memberRow.id,
+      name: fullName || memberRow.full_name || 'Unnamed Applicant',
+      email: memberRow.email || '-',
+      employer: memberRow.occupation || memberRow.employer || '-',
+      date: formatDate(memberRow.created_at),
+      contact: memberRow.contact_number || '-',
+      address: memberRow.permanent_address || '-',
+      classification: memberRow.classification || memberRow.position || 'Regular',
+      status: normalizeStatus(memberRow.application_status),
+      reason: memberRow.rejection_reason || memberRow.remarks || '-',
+      row: memberRow,
+    };
+  }, [memberRow]);
 
   const closeModal = () => {
     setActiveModal(null);
@@ -108,6 +106,20 @@ const MemberApprovalDetails = () => {
     setSendSms(true);
     setSendEmail(true);
   };
+
+  if (loading) {
+    return (
+      <div className="p-8 bg-gray-50 min-h-screen">
+        <button
+          onClick={() => navigate('/member-approvals')}
+          className="flex items-center text-sm text-[#1a4a2f] font-semibold mb-4 hover:underline"
+        >
+          <ArrowLeft className="w-4 h-4 mr-2" /> Back to Member Approvals
+        </button>
+        <h1 className="text-3xl font-bold text-[#1a4a2f] mb-8">Loading member details...</h1>
+      </div>
+    );
+  }
 
   if (!member) {
     return (
@@ -119,12 +131,11 @@ const MemberApprovalDetails = () => {
           <ArrowLeft className="w-4 h-4 mr-2" /> Back to Member Approvals
         </button>
         <h1 className="text-3xl font-bold text-[#1a4a2f] mb-8">Member Not Found</h1>
-        <p>The member with ID {id} could not be found.</p>
+        <p>{fetchError || `The member with ID ${id} could not be found.`}</p>
       </div>
     );
   }
 
-  // Helper component for the custom green checkbox
   const CustomCheckbox = ({ checked, onChange, label }) => (
     <div onClick={onChange} className="flex items-center gap-2 cursor-pointer mb-2 w-fit">
       <div className={`w-4 h-4 rounded flex items-center justify-center transition-colors ${checked ? 'bg-[#1D6021]' : 'border border-gray-300 bg-white'}`}>
@@ -190,7 +201,7 @@ const MemberApprovalDetails = () => {
             </div>
             <div className="text-right">
               <p className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-1">Application ID</p>
-              <p className="font-medium text-gray-800">{id}</p>
+              <p className="font-medium text-gray-800">{member.id}</p>
             </div>
           </div>
         </div>
