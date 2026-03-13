@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
 import { 
   LayoutDashboard, 
@@ -21,20 +21,39 @@ import { supabase } from "../../supabaseClient";
 const Member_Approvals = () => {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState("Pending");
-  const [application, setApplication] = useState();
+  const [applications, setApplications] = useState([]);
 
+  const fetchData = async () => {
+    const { data, error } = await supabase
+      .from("member_applications")
+      .select("*")
+      .order("created_at", { ascending: false });
 
-   const fetchData = async ()=>{
-    const [error, data] = await supabase
-    .from("Membership_Form")
-    .select("")
-    .order("created_at", { ascending: false });
+    console.log("Supabase Data:", data);
+    console.error("Supabase Error:", error);
 
-
-    if (!error) {
-      setApplication(data);
+    if (!error && data) {
+      setApplications(data);
     }
   };
+
+  useEffect(() => {
+    const checkSessionAndFetch = async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      console.log("Current User:", session?.user?.email);
+
+      if (session) {
+        fetchData();
+      } else {
+        console.warn("No active session! RLS will block the query.");
+      }
+    };
+
+    checkSessionAndFetch();
+  }, []);
 
 
   const menuItems = [
@@ -51,37 +70,57 @@ const Member_Approvals = () => {
     }
   };
 
-  const tabData = {
-    "Pending": [
-      { id: "APP-001", name: "Juan Dela Cruz", email: "juan.cruz@email.com", employer: "DepEd", date: "Oct 12, 2023" },
-      { id: "APP-002", name: "Maria Santos", email: "m.santos88@email.com", employer: "DepEd", date: "Oct 11, 2023" },
-      { id: "APP-003", name: "Ricardo Lim", email: "ric_lim@email.com", employer: "DepEd", date: "Oct 11, 2023" },
-      { id: "APP-004", name: "Elena Reyes", email: "e.reyes_90@email.com", employer: "DepEd", date: "Oct 10, 2023" },
-      { id: "APP-005", name: "Roberto Gomez", email: "rob.gomez@email.com", employer: "DepEd", date: "Oct 10, 2023" },
-    ],
-    "1st Training": [
-      { name: "Carlo Mendoza",      email: "carlo.mendoza@gmail.com",   trainingDate: "Jan. 31, 2026 – 9:00 AM", attendance: "Present", result: "Passed" },
-      { name: "Angela Reyes",       email: "angela.reyes@gmail.com",    trainingDate: "Jan. 31, 2026 – 9:00 AM", attendance: "Present", result: "Pending" },
-      { name: "Jessa Mae Gonzales", email: "jm.gonzales@gmail.com",     trainingDate: "Jan. 31, 2026 – 9:00 AM", attendance: "Absent",  result: "N/A" },
-      { name: "Nicole Anne Bautista", email: "nicole.bautista@gmail.com", trainingDate: "Jan. 31, 2026 – 9:00 AM", attendance: "Present", result: "Passed" },
-      { name: "Kevin Navarro",      email: "kevin.navarro@gmail.com",   trainingDate: "Jan. 31, 2026 – 9:00 AM", attendance: "Absent",  result: "N/A" },
-      { name: "Jasmine Flores",     email: "jasmine.flores@gmail.com",  trainingDate: "Jan. 31, 2026 – 9:00 AM", attendance: "Present", result: "Passed" },
-      { name: "Bea Castro",         email: "bea.castro@gmail.com",      trainingDate: "Jan. 31, 2026 – 9:00 AM", attendance: "Present", result: "Pending" },
-      { name: "Dave Herrera",       email: "dave.herrera@gmail.com",    trainingDate: "Jan. 31, 2026 – 9:00 AM", attendance: "Present", result: "Passed" },
-    ],
-    "2nd Training": [
-      { name: "Carlo Mendoza",      email: "carlo.mendoza@gmail.com",   trainingDate: "Feb. 7, 2026 – 9:00 AM", attendance: "Present", result: "Passed" },
-      { name: "Angela Reyes",       email: "angela.reyes@gmail.com",    trainingDate: "Feb. 7, 2026 – 9:00 AM", attendance: "Present", result: "Passed" },
-      { name: "Jessa Mae Gonzales", email: "jm.gonzales@gmail.com",     trainingDate: "Feb. 7, 2026 – 9:00 AM", attendance: "Present", result: "Passed" },
-      { name: "Nicole Anne Bautista", email: "nicole.bautista@gmail.com", trainingDate: "Feb. 7, 2026 – 9:00 AM", attendance: "Present", result: "Passed" },
-      { name: "Kevin Navarro",      email: "kevin.navarro@gmail.com",   trainingDate: "Feb. 7, 2026 – 9:00 AM", attendance: "Absent",  result: "N/A" },
-    ],
-    "Rejected": [
-      { id: "APP-014", name: "Pedro Castillo", email: "pedro.c@email.com", employer: "DepEd", date: "Oct 8, 2023", reason: "Incomplete Documents" },
-      { id: "APP-015", name: "Luz Miranda", email: "luz.m@email.com", employer: "DepEd", date: "Oct 7, 2023", reason: "Failed Background Check" },
-      { id: "APP-016", name: "Tony Ocampo", email: "tony.o@email.com", employer: "DepEd", date: "Oct 6, 2023", reason: "Duplicate Application" },
-    ],
+  const normalizeStatus = (value) => {
+    const normalized = (value || "")
+      .toString()
+      .trim()
+      .toLowerCase()
+      .replace(/[_-]+/g, " ")
+      .replace(/\s+/g, " ");
+
+    if (normalized === "pending") return "Pending";
+    if (normalized === "rejected") return "Rejected";
+    if (normalized === "1st training" || normalized === "first training" || normalized === "training 1") return "1st Training";
+    if (normalized === "2nd training" || normalized === "second training" || normalized === "training 2") return "2nd Training";
+    return "Pending";
   };
+
+  const formattedRows = useMemo(() => {
+    return applications.map((app) => {
+      const fullName = [app.first_name, app.middle_name, app.surname]
+        .map((item) => (item || "").trim())
+        .filter(Boolean)
+        .join(" ");
+
+      return {
+        id: app.id || app.application_id,
+        name: fullName || "Unnamed Applicant",
+        email: app.email || "-",
+        employer: app.occupation || app.employer || "N/A",
+        date: app.created_at
+          ? new Date(app.created_at).toLocaleDateString("en-US", {
+              month: "short",
+              day: "numeric",
+              year: "numeric",
+            })
+          : "-",
+        reason: app.rejection_reason || app.remarks || "No reason provided",
+        trainingDate: app.training_schedule || "Not scheduled",
+        attendance: app.attendance_status || "Pending",
+        result: app.evaluation_result || "Pending",
+        status: normalizeStatus(app.application_status),
+      };
+    });
+  }, [applications]);
+
+  const tabData = useMemo(() => {
+    return {
+      Pending: formattedRows.filter((row) => row.status === "Pending"),
+      "1st Training": formattedRows.filter((row) => row.status === "1st Training"),
+      "2nd Training": formattedRows.filter((row) => row.status === "2nd Training"),
+      Rejected: formattedRows.filter((row) => row.status === "Rejected"),
+    };
+  }, [formattedRows]);
 
   const isTrainingTab = activeTab === "1st Training" || activeTab === "2nd Training";
 
@@ -173,6 +212,7 @@ const Member_Approvals = () => {
                 <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Avg Process Time</h3>
                 <p className="text-2xl font-extrabold text-slate-800 mt-0.5">2.4 Days</p>
               </div>
+              
             </div>
 
             <div className="bg-white border border-gray-100 rounded-xl p-5 flex items-center gap-4 shadow-sm">
