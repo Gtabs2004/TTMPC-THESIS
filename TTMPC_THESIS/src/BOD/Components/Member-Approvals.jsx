@@ -30,7 +30,9 @@ const Member_Approvals = () => {
       .order("created_at", { ascending: false });
 
     console.log("Supabase Data:", data);
-    console.error("Supabase Error:", error);
+    if (error) {
+      console.error("Supabase Error:", error);
+    }
 
     if (!error && data) {
       setApplications(data);
@@ -80,9 +82,58 @@ const Member_Approvals = () => {
 
     if (normalized === "pending") return "Pending";
     if (normalized === "rejected") return "Rejected";
+    if (normalized === "for revision" || normalized === "revision") return "For Revision";
     if (normalized === "1st training" || normalized === "first training" || normalized === "training 1") return "1st Training";
     if (normalized === "2nd training" || normalized === "second training" || normalized === "training 2") return "2nd Training";
+    if (normalized === "official member" || normalized === "member") return "Official Member";
     return "Pending";
+  };
+
+  const formatDisplayDate = (value) => {
+    if (!value) return "Not scheduled";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return value;
+
+    return date.toLocaleDateString("en-US", {
+      month: "long",
+      day: "numeric",
+      year: "numeric",
+    });
+  };
+
+  const getThirdSaturday = (year, monthIndex) => {
+    const firstDay = new Date(year, monthIndex, 1);
+    const dayOfWeek = firstDay.getDay();
+    const firstSaturdayDate = dayOfWeek === 6 ? 1 : 1 + ((6 - dayOfWeek + 7) % 7);
+    return new Date(year, monthIndex, firstSaturdayDate + 14);
+  };
+
+  const getRuleSchedule = (referenceDateInput) => {
+    const referenceDate = new Date(referenceDateInput);
+    const fallbackDate = Number.isNaN(referenceDate.getTime()) ? new Date() : referenceDate;
+    const year = fallbackDate.getFullYear();
+
+    const marchSchedule = getThirdSaturday(year, 2);
+    const septemberSchedule = getThirdSaturday(year, 8);
+
+    if (fallbackDate <= marchSchedule) return marchSchedule;
+    if (fallbackDate <= septemberSchedule) return septemberSchedule;
+
+    return getThirdSaturday(year + 1, 2);
+  };
+
+  const getNextRuleSchedule = (currentScheduleDate) => {
+    const date = new Date(currentScheduleDate);
+    if (Number.isNaN(date.getTime())) {
+      return getRuleSchedule(new Date().toISOString());
+    }
+
+    const year = date.getFullYear();
+    const month = date.getMonth();
+
+    if (month === 2) return getThirdSaturday(year, 8);
+    if (month === 8) return getThirdSaturday(year + 1, 2);
+    return getRuleSchedule(date.toISOString());
   };
 
   const formattedRows = useMemo(() => {
@@ -92,8 +143,20 @@ const Member_Approvals = () => {
         .filter(Boolean)
         .join(" ");
 
+      const firstTrainingSchedule = getRuleSchedule(app.created_at || new Date().toISOString());
+      const secondTrainingSchedule = getNextRuleSchedule(firstTrainingSchedule);
+
+      let computedTrainingDate = "Not scheduled";
+      const normalized = normalizeStatus(app.application_status);
+      if (normalized === "1st Training") {
+        computedTrainingDate = formatDisplayDate(firstTrainingSchedule.toISOString());
+      }
+      if (normalized === "2nd Training") {
+        computedTrainingDate = formatDisplayDate(secondTrainingSchedule.toISOString());
+      }
+
       return {
-        id: app.id || app.application_id,
+        id: app.application_id,
         name: fullName || "Unnamed Applicant",
         email: app.email || "-",
         employer: app.occupation || app.employer || "N/A",
@@ -105,7 +168,7 @@ const Member_Approvals = () => {
             })
           : "-",
         reason: app.rejection_reason || app.remarks || "No reason provided",
-        trainingDate: app.training_schedule || "Not scheduled",
+        trainingDate: computedTrainingDate,
         attendance: app.attendance_status || "Pending",
         result: app.evaluation_result || "Pending",
         status: normalizeStatus(app.application_status),
@@ -118,7 +181,9 @@ const Member_Approvals = () => {
       Pending: formattedRows.filter((row) => row.status === "Pending"),
       "1st Training": formattedRows.filter((row) => row.status === "1st Training"),
       "2nd Training": formattedRows.filter((row) => row.status === "2nd Training"),
+      "For Revision": formattedRows.filter((row) => row.status === "For Revision"),
       Rejected: formattedRows.filter((row) => row.status === "Rejected"),
+      "Official Member": formattedRows.filter((row) => row.status === "Official Member"),
     };
   }, [formattedRows]);
 
@@ -193,7 +258,7 @@ const Member_Approvals = () => {
         </header>
 
         <main className="p-8">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
             <div className="bg-white border border-gray-100 rounded-xl p-5 flex items-center gap-4 shadow-sm">
               <div className="w-12 h-12 rounded-lg bg-[#EAF5EC] flex items-center justify-center flex-shrink-0">
                 <UserPlus className="text-[#2C7A3F] w-6 h-6" />
@@ -225,7 +290,15 @@ const Member_Approvals = () => {
               </div>
             </div>
 
-            
+            <div className="bg-white border border-gray-100 rounded-xl p-5 flex items-center gap-4 shadow-sm">
+              <div className="w-12 h-12 rounded-lg bg-[#EAF5EC] flex items-center justify-center flex-shrink-0">
+                <Banknote className="text-[#2C7A3F] w-6 h-6" />
+              </div>
+              <div className="flex flex-col">
+                <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Projected Capital</h3>
+                <p className="text-2xl font-extrabold text-slate-800 mt-0.5">₱142.5K</p>
+              </div>
+            </div>
           </div>
 
           <div className="bg-white border border-gray-100 rounded-xl shadow-sm overflow-hidden">
@@ -258,6 +331,20 @@ const Member_Approvals = () => {
                 Rejected
                 <span className={`text-[10px] px-2 py-0.5 rounded-full ${activeTab === "Rejected" ? "bg-red-500 text-white" : "bg-red-100 text-red-500"}`}>{tabData["Rejected"].length}</span>
               </button>
+              <button
+                onClick={() => setActiveTab("For Revision")}
+                className={`flex items-center gap-2 pb-3 px-1 border-b-2 font-semibold text-sm transition-colors ${activeTab === "For Revision" ? "border-[#2C7A3F] text-[#2C7A3F]" : "border-transparent text-gray-400 hover:text-gray-700"}`}
+              >
+                For Revision
+                <span className={`text-[10px] px-2 py-0.5 rounded-full ${activeTab === "For Revision" ? "bg-amber-500 text-white" : "bg-amber-100 text-amber-600"}`}>{tabData["For Revision"].length}</span>
+              </button>
+              <button
+                onClick={() => setActiveTab("Official Member")}
+                className={`flex items-center gap-2 pb-3 px-1 border-b-2 font-semibold text-sm transition-colors ${activeTab === "Official Member" ? "border-[#2C7A3F] text-[#2C7A3F]" : "border-transparent text-gray-400 hover:text-gray-700"}`}
+              >
+                Official Member
+                <span className={`text-[10px] px-2 py-0.5 rounded-full ${activeTab === "Official Member" ? "bg-green-600 text-white" : "bg-green-100 text-green-700"}`}>{tabData["Official Member"].length}</span>
+              </button>
             </div>
 
             
@@ -266,7 +353,16 @@ const Member_Approvals = () => {
                 <h2 className="text-lg font-bold text-gray-800">
                   {activeTab} Attendance &amp; Evaluation
                 </h2>
-               
+                <div className="flex items-center gap-3">
+                  <button className="flex items-center gap-1.5 px-4 py-2 rounded-lg border border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
+                    <Download className="w-4 h-4" />
+                    Export List
+                  </button>
+                  <button className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-[#2C7A3F] text-white text-sm font-medium hover:bg-green-800 transition-colors">
+                    <CalendarDays className="w-4 h-4" />
+                    Schedule Training
+                  </button>
+                </div>
               </div>
             ) : (
               <div className="flex justify-between items-center px-6 py-4">
@@ -309,6 +405,12 @@ const Member_Approvals = () => {
                             <th className="px-6 py-4">Rejection Reason</th>
                           </>
                         )}
+                        {activeTab === "For Revision" && (
+                          <>
+                            <th className="px-6 py-4">Submitted Date</th>
+                            <th className="px-6 py-4">Revision Notes</th>
+                          </>
+                        )}
                       </>
                     )}
                   </tr>
@@ -320,7 +422,12 @@ const Member_Approvals = () => {
                         <>
                         
                           <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="font-semibold text-gray-800">{row.name}</div>
+                            <button
+                              className="text-left font-semibold text-gray-800 hover:text-blue-600 hover:underline"
+                              onClick={() => row.id && navigate(`/member-approvals/${row.id}`)}
+                            >
+                              {row.name}
+                            </button>
                             <div className="text-xs text-gray-400">{row.email}</div>
                           </td>
                          
@@ -361,7 +468,7 @@ const Member_Approvals = () => {
                           <td className="px-6 py-4 whitespace-nowrap">
                             <button
                               className="text-left font-bold text-gray-800 hover:text-blue-600 hover:underline"
-                              onClick={() => navigate(`/member-approvals/${row.id}`)}
+                              onClick={() => row.id && navigate(`/member-approvals/${row.id}`)}
                             >
                               {row.name}
                             </button>
@@ -378,6 +485,16 @@ const Member_Approvals = () => {
                               <td className="px-6 py-4 whitespace-nowrap text-gray-500">{row.date}</td>
                               <td className="px-6 py-4 whitespace-nowrap">
                                 <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-600">
+                                  {row.reason}
+                                </span>
+                              </td>
+                            </>
+                          )}
+                          {activeTab === "For Revision" && (
+                            <>
+                              <td className="px-6 py-4 whitespace-nowrap text-gray-500">{row.date}</td>
+                              <td className="px-6 py-4 whitespace-nowrap">
+                                <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-700">
                                   {row.reason}
                                 </span>
                               </td>
