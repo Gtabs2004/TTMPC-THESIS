@@ -98,7 +98,7 @@ const Member_Approvals = () => {
                 to={to}
                 className={({ isActive }) =>
                   `flex items-center gap-3 p-2 rounded-md transition-colors ${
-                    isActive || item.name === "Member Approvals" // Force active for preview
+                    isActive || item.name === "Member Approvals" 
                       ? 'bg-green-50 text-green-700 font-semibold'
                       : 'text-gray-700 hover:bg-green-50 hover:text-green-700'
                   }`
@@ -273,7 +273,7 @@ const Member_Approvals = () => {
                     )}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100">
+                <tbody className="divide-y divide-gray-100 cursor-pointer">
                   {tabData[activeTab].map((row, index) => (
                     <tr key={index} className="hover:bg-gray-50 transition-colors">
                       {isTrainingTab ? (
@@ -283,11 +283,11 @@ const Member_Approvals = () => {
                             <div className="font-semibold text-gray-800">{row.name}</div>
                             <div className="text-xs text-gray-400">{row.email}</div>
                           </td>
-                          {/* Training Schedule */}
+                         
                           <td className="px-6 py-4 whitespace-nowrap text-gray-600">
                             {row.trainingDate}
                           </td>
-                          {/* Attendance Status */}
+                         
                           <td className="px-6 py-4 whitespace-nowrap">
                             <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border ${
                               row.attendance === "Present"
@@ -300,7 +300,7 @@ const Member_Approvals = () => {
                               {row.attendance}
                             </span>
                           </td>
-                          {/* Evaluation Result */}
+                         
                           <td className="px-6 py-4 whitespace-nowrap">
                             <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold border ${
                               row.result === "Passed"
@@ -319,7 +319,12 @@ const Member_Approvals = () => {
                             <span className="font-bold text-[#2C7A3F]">{row.id}</span>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="font-bold text-gray-800">{row.name}</div>
+                            <button
+                              className="text-left font-bold text-gray-800 hover:text-blue-600 hover:underline"
+                              onClick={() => navigate(`/member-approvals/${row.id}`)}
+                            >
+                              {row.name}
+                            </button>
                             <div className="text-xs text-gray-400">{row.email}</div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-gray-600 font-medium">
