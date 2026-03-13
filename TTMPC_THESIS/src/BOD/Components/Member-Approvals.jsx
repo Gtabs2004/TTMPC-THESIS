@@ -15,11 +15,28 @@ import {
   Download,
   CalendarDays
 } from 'lucide-react';
+import { supabase } from "../../supabaseClient";
+
 
 const Member_Approvals = () => {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState("Pending");
-  
+  const [application, setApplication] = useState();
+
+
+   const fetchData = async ()=>{
+    const [error, data] = await supabase
+    .from("Membership_Form")
+    .select("")
+    .order("created_at", { ascending: false });
+
+
+    if (!error) {
+      setApplication(data);
+    }
+  };
+
+
   const menuItems = [
     { name: "Dashboard", icon: LayoutDashboard },
     { name: "Member Approvals", icon: Users }
