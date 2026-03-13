@@ -214,9 +214,12 @@ const Loan_Approval = () => {
                       </td>
                       <td className="p-5 text-sm text-gray-500">{loan.date}</td>
                       <td className="p-5 text-sm text-right pr-8">
-                        <button className="text-[#1D6021] font-bold hover:underline transition-all">
-                          {loan.actions}
-                        </button>
+                        <button 
+                            onClick={() => navigate(`/loan-approval/${loan.id}`)}
+                            className="text-[#1D6021] font-bold hover:underline transition-all"
+                          >
+                            {loan.actions}
+                          </button>
                       </td>
                     </tr>
                   ))}
