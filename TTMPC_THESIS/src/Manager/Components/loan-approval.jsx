@@ -44,7 +44,7 @@ const menuItems = [
           <div className="flex flex-col">
             <h1 className="text-xl font-bold text-[#389734]">TTMPC</h1>
             <p className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold">
-              BOD Portal
+              Manager Portal
             </p>
           </div>
         </div>
@@ -106,10 +106,10 @@ const menuItems = [
           <span className="absolute top-1 right-1 block h-2 w-2 rounded-full bg-red-500 ring-2 ring-white"></span>
           </button>
           <img src="src/assets/img/bookkeeper-profile.png" alt="Bookkeeper Profile" className="ml-4 w-8 h-8 rounded-full"></img>
-          <p>Bookkeeper</p>
+          <p>Manager</p>
         </header>
 
-        {/* Page Content */}
+        
         <main className="p-8">
           <h1 className="font-bold text-2xl">Dashboard</h1>
         </main>
