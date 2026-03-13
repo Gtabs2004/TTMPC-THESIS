@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { UserAuth } from '../contex/AuthContext';
-import { UserCheck, UserPlus } from 'lucide-react';
+import { UserCheck, UserPlus, UserRound } from 'lucide-react';
 
 const Loan_Kiosk = () => {
   const { session, signOut } = UserAuth();
@@ -17,12 +17,12 @@ const Loan_Kiosk = () => {
     }
   };
 
-  const ApplicantCard = ({ to, Icon, label }) => (
+  const ApplicantCard = ({ to, Icon, label, color = "#66B538" }) => (
     <Link
       to={to}
       className="bg-white h-48 w-48 rounded-2xl font-bold flex items-center justify-center flex-col cursor-pointer shadow-sm hover:shadow-md transition"
     >
-      <Icon className="w-12 h-12 text-[#66B538] mb-4" />
+      <Icon className={`w-12 h-12 mb-4`} style={{ color }} />
       <h2 className="text-sm">{label}</h2>
     </Link>
   );
@@ -46,7 +46,8 @@ const Loan_Kiosk = () => {
         <p className="mt-8 text-gray-600 text-xs">Please select your applicant type to continue.</p>
         <div className="flex flex-row gap-10 mt-10">
           <ApplicantCard to="/verification" Icon={UserCheck} label="Member" />
-          <ApplicantCard to="/non_member" Icon={UserPlus} label="Non-Member" />
+          <ApplicantCard to="/non_member" Icon={UserPlus} label="Non-Member" color="#DC2626" />
+          <ApplicantCard to="/non_member" Icon={UserRound} label="Koica" color="#2563EB" />
         </div>
     </main>
     </div>
