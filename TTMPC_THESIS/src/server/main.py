@@ -1,5 +1,7 @@
 import os
 import json
+import uuid
+from datetime import date
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -49,6 +51,11 @@ class StatusEmailRequest(BaseModel):
     member_name: str
     status: str
     remarks: str | None = None
+
+
+class FinalizeMemberRequest(BaseModel):
+    application_id: str
+    is_bona_fide: bool = True
 
 @app.post("/api/send-status-email")
 async def send_status_email(payload: StatusEmailRequest):
@@ -101,6 +108,76 @@ async def send_status_email(payload: StatusEmailRequest):
         raise HTTPException(status_code=err.code, detail=error_body or "Failed to send email.")
     except URLError as err:
         raise HTTPException(status_code=500, detail=f"Email service unreachable: {err.reason}")
+
+
+@app.post("/api/finalize-member")
+async def finalize_member(payload: FinalizeMemberRequest):
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+
+    # 1) Load application row
+    application_resp = supabase.table("member_applications").select("*").eq("application_id", payload.application_id).execute()
+    application_rows = application_resp.data or []
+    if not application_rows:
+        raise HTTPException(status_code=404, detail="Application not found.")
+
+    app_row = application_rows[0]
+    middle_name = (app_row.get("middle_name") or "").strip()
+    middle_initial = middle_name[:1] if middle_name else None
+
+    # 2) Insert to member table
+    # Try snake_case column naming first, then fallback to schema naming shown in design docs.
+    snake_payload = {
+        "member_id": str(uuid.uuid4()),
+        "application_id": app_row.get("application_id"),
+        "membership_type_id": app_row.get("membership_type_id"),
+        "co_maker": app_row.get("co_maker"),
+        "first_name": app_row.get("first_name"),
+        "last_name": app_row.get("surname") or app_row.get("last_name"),
+        "middle_initial": middle_initial,
+        "membership_date": date.today().isoformat(),
+        "is_bona_fide": payload.is_bona_fide,
+    }
+
+    pascal_payload = {
+        "MemberID": snake_payload["member_id"],
+        "ApplicationID": snake_payload["application_id"],
+        "MembershipTypeID": snake_payload["membership_type_id"],
+        "CoMaker": snake_payload["co_maker"],
+        "FirstName": snake_payload["first_name"],
+        "LastName": snake_payload["last_name"],
+        "MiddleInitial": snake_payload["middle_initial"],
+        "MembershipDate": snake_payload["membership_date"],
+        "IsBonaFide": snake_payload["is_bona_fide"],
+    }
+
+    insert_errors: list[str] = []
+    inserted = False
+
+    for insert_payload in (snake_payload, pascal_payload):
+      try:
+          supabase.table("member").insert(insert_payload).execute()
+          inserted = True
+          break
+      except Exception as err:
+          insert_errors.append(str(err))
+
+    if not inserted:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to insert into member table. Details: {' | '.join(insert_errors)}",
+        )
+
+    # 3) Remove from application table after successful member insert
+    try:
+        supabase.table("member_applications").delete().eq("application_id", payload.application_id).execute()
+    except Exception as err:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Inserted member record, but failed to remove application: {err}",
+        )
+
+    return {"success": True, "message": "Application finalized and moved to member table."}
 
 @app.post("/api/login")
 async def login(user_data: LoginRequest):
