@@ -58,6 +58,7 @@ class StatusEmailRequest(BaseModel):
 
 class MembershipConfirmationRequest(BaseModel):
     application_id: str
+    confirmed_by_user_id: str
     force: bool = False
 
 @app.post("/api/send-status-email")
@@ -158,7 +159,11 @@ async def login(user_data: LoginRequest):
 @app.post("/api/confirm-membership")
 async def confirm_membership_endpoint(payload: MembershipConfirmationRequest):
     try:
-        result = confirm_membership(payload.application_id, force=payload.force)
+        result = confirm_membership(
+            payload.application_id,
+            confirmed_by_user_id=payload.confirmed_by_user_id,
+            force=payload.force,
+        )
         return {"success": True, "data": result}
     except MembershipConfirmationError as err:
         raise HTTPException(status_code=400, detail=str(err))

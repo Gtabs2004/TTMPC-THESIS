@@ -151,6 +151,11 @@ const MemberApprovalDetails = () => {
       try {
         setNotifyMessage('Finalizing membership and generating membership ID...');
 
+        const { data: authData, error: authError } = await supabase.auth.getUser();
+        if (authError || !authData?.user?.id) {
+          throw new Error('Unable to verify confirmer account. Please sign in again.');
+        }
+
         const response = await fetch(`${apiBaseUrl}/api/confirm-membership`, {
           method: 'POST',
           headers: {
@@ -159,6 +164,7 @@ const MemberApprovalDetails = () => {
           },
           body: JSON.stringify({
             application_id: memberRow.application_id,
+            confirmed_by_user_id: authData.user.id,
           }),
         });
 

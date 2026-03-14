@@ -20,13 +20,7 @@ function MemberLogin() {
     const result = await signInUser(email, password);
 
     if (result.success) {
-      const accountRole = (result.role || '').toLowerCase();
-
-      if (accountRole !== 'member') {
-        setError('This account is not a member account. Please use Staff Login.');
-      } else {
-        navigate('/Member_Services');
-      }
+      navigate('/member-dashboard');
     } else {
       setError(result.error || 'Login failed. Please try again.');
     }
