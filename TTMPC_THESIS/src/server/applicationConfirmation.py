@@ -134,6 +134,39 @@ def _application_is_eligible(data: dict[str, Any], force: bool) -> bool:
 	return status_value in accepted
 
 
+def ensure_confirmer_is_bod(supabase: Client, confirmer_user_id: str) -> dict[str, Any]:
+	clean_id = str(confirmer_user_id or "").strip()
+	if not clean_id:
+		raise MembershipConfirmationError("confirmed_by_user_id is required for confirmation.")
+
+	for account_table in ["member_account", "member_accounts"]:
+		try:
+			account_response = (
+				supabase.table(account_table)
+				.select("user_id, role")
+				.eq("user_id", clean_id)
+				.limit(1)
+				.execute()
+			)
+		except Exception:
+			continue
+
+		if not account_response.data:
+			continue
+
+		role_value = str(account_response.data[0].get("role") or "").strip()
+		if role_value.lower() != "bod":
+			raise MembershipConfirmationError("Only BOD users can confirm membership applications.")
+
+		return {
+			"user_id": clean_id,
+			"role": role_value,
+			"table": account_table,
+		}
+
+	raise MembershipConfirmationError("Confirmer account was not found in member_account/member_accounts.")
+
+
 def _build_default_password(last_name: str | None) -> str:
 	clean_last_name = re.sub(r"[^A-Za-z0-9]", "", str(last_name or "").strip())
 	if not clean_last_name:
@@ -198,6 +231,57 @@ def _get_or_create_auth_user_id(
 		raise MembershipConfirmationError("Authentication account was created but user id was not returned.")
 
 	return user_id, True, default_password
+
+
+def set_new_account_temporary(
+	supabase: Client,
+	auth_user_id: str,
+	email: str | None,
+) -> dict[str, Any]:
+	clean_email = str(email or "").strip().lower()
+
+	for account_table in ["member_account", "member_accounts"]:
+		# First, try update path (row already exists via trigger or prior process).
+		try:
+			update_response = (
+				supabase.table(account_table)
+				.update({"is_temporary": True})
+				.eq("user_id", auth_user_id)
+				.execute()
+			)
+			if update_response.data:
+				return {
+					"table": account_table,
+					"mode": "updated",
+					"is_temporary": True,
+				}
+		except Exception:
+			pass
+
+		# If no row exists, attempt a minimal insert fallback.
+		try:
+			insert_payload = {
+				"user_id": auth_user_id,
+				"email": clean_email,
+				"role": "Member",
+				"is_temporary": True,
+			}
+			insert_response = supabase.table(account_table).insert(insert_payload).execute()
+			if insert_response.data:
+				return {
+					"table": account_table,
+					"mode": "inserted",
+					"is_temporary": True,
+				}
+		except Exception:
+			continue
+
+	return {
+		"table": None,
+		"mode": "skipped",
+		"is_temporary": False,
+		"reason": "member account table missing or write blocked",
+	}
 
 
 def create_member(
@@ -277,12 +361,14 @@ def mark_application_as_approved(
 	application_id: str,
 	application_table: str,
 	membership_id: str,
+	confirmed_by_user_id: str,
 ) -> None:
 	approved_at = datetime.now(timezone.utc).isoformat()
 	full_payload = {
 		"application_status": "Member",
 		"membership_id": membership_id,
 		"approved_at": approved_at,
+		"approved_by": confirmed_by_user_id,
 	}
 
 	# Try to store all historical links; if optional columns are missing, fallback to status-only.
@@ -295,6 +381,48 @@ def mark_application_as_approved(
 	supabase.table(application_table).update({"application_status": "Member"}).eq(
 		"application_id", application_id
 	).execute()
+
+
+def update_confirmed_account_role_to_member(
+	supabase: Client,
+	auth_user_id: str,
+) -> dict[str, Any]:
+	for account_table in ["member_account", "member_accounts"]:
+		try:
+			account_response = (
+				supabase.table(account_table)
+				.select("user_id, role")
+				.eq("user_id", auth_user_id)
+				.limit(1)
+				.execute()
+			)
+		except Exception:
+			continue
+
+		if not account_response.data:
+			continue
+
+		current_role = str(account_response.data[0].get("role") or "").strip()
+		if current_role.lower() == "bod":
+			supabase.table(account_table).update({"role": "Member"}).eq("user_id", auth_user_id).execute()
+			return {
+				"updated": True,
+				"table": account_table,
+				"from": current_role,
+				"to": "Member",
+			}
+
+		return {
+			"updated": False,
+			"table": account_table,
+			"current_role": current_role,
+		}
+
+	return {
+		"updated": False,
+		"table": None,
+		"reason": "member account row not found",
+	}
 
 
 def send_confirmation_email(
@@ -358,9 +486,10 @@ def send_confirmation_email(
 		return {"sent": False, "reason": f"Email service unreachable: {err.reason}"}
 
 
-def confirm_membership(application_id: str, force: bool = False) -> dict[str, Any]:
+def confirm_membership(application_id: str, confirmed_by_user_id: str, force: bool = False) -> dict[str, Any]:
 	try:
 		supabase, resend_api_key, resend_from_email = _load_runtime_config()
+		confirmer = ensure_confirmer_is_bod(supabase, confirmed_by_user_id)
 		application_data, application_table = get_application_data_by_application_id(supabase, application_id)
 		membership_id = generate_membership_id(supabase)
 
@@ -392,6 +521,21 @@ def confirm_membership(application_id: str, force: bool = False) -> dict[str, An
 			application_data.get("last_name") or application_data.get("surname"),
 		)
 
+		temporary_result = {
+			"table": None,
+			"mode": "not-required",
+			"is_temporary": False,
+		}
+		if auth_created:
+			temporary_result = set_new_account_temporary(
+				supabase,
+				auth_user_id,
+				application_data.get("email"),
+			)
+		temp_password_for_email = generated_password or _build_default_password(
+			application_data.get("last_name") or application_data.get("surname")
+		)
+
 		existing_member = get_member_by_user_id(supabase, auth_user_id)
 		if existing_member:
 			membership_id = existing_member.get("membership_id") or membership_id
@@ -415,13 +559,15 @@ def confirm_membership(application_id: str, force: bool = False) -> dict[str, An
 			row_application_id,
 			application_table,
 			membership_id,
+			confirmed_by_user_id,
 		)
+		role_update_result = update_confirmed_account_role_to_member(supabase, auth_user_id)
 
 		email_result = send_confirmation_email(
 			to_email=application_data.get("email") or "",
 			first_name=application_data.get("first_name") or "Applicant",
 			membership_id=membership_id,
-			default_password=generated_password,
+			default_password=temp_password_for_email,
 			resend_api_key=resend_api_key,
 			resend_from_email=resend_from_email,
 		)
@@ -430,9 +576,12 @@ def confirm_membership(application_id: str, force: bool = False) -> dict[str, An
 			"application_id": row_application_id,
 			"application_table": application_table,
 			"application_status": "Member",
+			"confirmed_by": confirmer,
 			"membership_id": membership_id,
 			"auth_user_id": auth_user_id,
 			"auth_account_created": auth_created,
+			"temporary_account_update": temporary_result,
+			"account_role_update": role_update_result,
 			"member": created_member,
 			"email": email_result,
 		}
