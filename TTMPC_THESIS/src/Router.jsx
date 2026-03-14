@@ -35,6 +35,11 @@ import Member_Savings from "./Member/Components/Member_Savings";
 import Koica_Forms from "./LOANFORMS/Koica_Forms";
 import Loan_Services from "./Index_Pages/loan_services";
 import Savings_Services from "./Index_Pages/savings_services";
+import RegularSavings_Services from "./Index_Pages/regularsavings_services";
+import Withdrawal from "./Index_Pages/withdrawal";
+import Withdrawal_Success from "./Index_Pages/withdrawal_success";
+import Deposit from "./Index_Pages/deposit";
+import Deposit_Success from "./Index_Pages/deposit_success";
 
 
 
@@ -77,4 +82,9 @@ export const router = createBrowserRouter([
     {path: "/koica-forms", element:<Koica_Forms/>},
     {path: "/loan_services", element:<Loan_Services/>},
     {path: "/savings_services", element:<Savings_Services/>},
+    {path: "/regularsavings_services", element:<RegularSavings_Services/>},
+    {path: "/withdrawal", element:<Withdrawal/>},
+    {path: "/withdrawal_success", element:<Withdrawal_Success/>},
+    {path: "/deposit", element:<Deposit/>},
+    {path: "/deposit_success", element:<Deposit_Success/>},
 ]);
