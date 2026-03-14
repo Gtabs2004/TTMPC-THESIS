@@ -143,6 +143,49 @@ const MemberApprovalDetails = () => {
   const applyStatusUpdate = async (nextStatus) => {
     if (!memberRow) return;
 
+    if (nextStatus === 'Official Member') {
+      setSaving(true);
+      setActionError('');
+      setNotifying(true);
+
+      try {
+        setNotifyMessage('Finalizing membership and generating membership ID...');
+
+        const response = await fetch(`${apiBaseUrl}/api/confirm-membership`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          },
+          body: JSON.stringify({
+            application_id: memberRow.application_id,
+          }),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData?.detail || 'Unable to finalize membership.');
+        }
+
+        const result = await response.json().catch(() => ({}));
+        const generatedMembershipId = result?.data?.membership_id || 'TTMPC_M_#####';
+
+        setNotifyMessage(`Membership created successfully. ID: ${generatedMembershipId}. Returning to member approvals...`);
+        setTimeout(() => {
+          setSaving(false);
+          setNotifying(false);
+          closeModal();
+          navigate('/member-approvals');
+        }, 1500);
+      } catch (error) {
+        setSaving(false);
+        setNotifying(false);
+        setActionError(error.message || 'Unable to finalize membership.');
+      }
+
+      return;
+    }
+
     setSaving(true);
     setActionError('');
 
