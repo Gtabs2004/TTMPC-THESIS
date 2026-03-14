@@ -1,0 +1,37 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+
+    {
+      "label": "Frontend: Vite Dev",
+      "type": "npm",
+      "script": "dev",
+      "path": "TTMPC_THESIS",
+      "problemMatcher": []
+    },
+
+    {
+      "label": "Backend: FastAPI",
+      "type": "shell",
+      "command": "python -m uvicorn main:app --reload",
+      "options": {
+        "cwd": "TTMPC_THESIS/src/server"
+      },
+      "problemMatcher": []
+    },
+
+    {
+      "label": "Start Full Stack",
+      "dependsOn": [
+        "Frontend: Vite Dev",
+        "Backend: FastAPI"
+      ],
+      "dependsOrder": "parallel",
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      }
+    }
+
+  ]
+}
