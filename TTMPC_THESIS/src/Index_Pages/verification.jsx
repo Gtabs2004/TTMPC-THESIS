@@ -1,24 +1,39 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { UserAuth } from '../contex/AuthContext';
 import { supabase } from '../supabaseClient'; // Make sure this path is correct
-import { Mail, Lock, AlertCircle, CheckCircle } from 'lucide-react'; 
+import { Mail, Lock, AlertCircle } from 'lucide-react'; 
 
 const Verification = () => {
-  const { signOut } = UserAuth();
   const navigate = useNavigate();
 
   const [email, setEmail] = useState("");
-  const [pin, setPin] = useState("");
+  const [password, setPassword] = useState("");
   
-  // States for the Change PIN Modal
-  const [newPin, setNewPin] = useState("");
-  const [confirmPin, setConfirmPin] = useState("");
+  // States for first-login password change modal
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [emailError, setEmailError] = useState("");
-  const [showPinModal, setShowPinModal] = useState(false);
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+
+  const getMemberAccountByEmail = async (normalizedEmail) => {
+    for (const tableName of ["member_accounts", "member_account"]) {
+      const { data, error } = await supabase
+        .from(tableName)
+        .select("*")
+        .ilike("email", normalizedEmail)
+        .limit(1)
+        .maybeSingle();
+
+      if (!error && data) {
+        return { account: data, tableName, error: null };
+      }
+    }
+
+    return { account: null, tableName: null, error: null };
+  };
 
   const validateEmail = (value) => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -29,40 +44,42 @@ const Verification = () => {
     }
   };
 
-  // --- STEP 1: VERIFY EMAIL & PIN ---
+  // --- STEP 1: VERIFY EMAIL & PASSWORD ---
   const handleVerifyClick = async (e) => {
     e.preventDefault();
     setError("");
 
-    if (!email.trim() || pin.length < 4) {
-      setError("Please enter your email and complete 4-digit PIN");
+    if (!email.trim() || !password.trim()) {
+      setError("Please enter your email and password");
       return;
     }
 
     setIsLoading(true);
     try {
-      // Calls the Postgres function to check credentials and the 'is_temporary' flag
-      const { data, error: rpcError } = await supabase.rpc('verify_kiosk_pin', {
-        p_email: email,
-        p_pin: pin
+      const normalizedEmail = email.trim().toLowerCase();
+
+      // Authenticate first. Any valid auth user can access kiosk regardless of role.
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+        email: normalizedEmail,
+        password,
       });
 
-      if (rpcError) throw rpcError;
+      if (authError) {
+        setError("Invalid email or password. Please try again.");
+        return;
+      }
 
-      if (data && data.length > 0) {
-        const { is_valid, needs_change } = data[0];
+      const authenticatedEmail = authData?.user?.email?.trim().toLowerCase() || normalizedEmail;
+      const { account } = await getMemberAccountByEmail(authenticatedEmail);
 
-        if (is_valid) {
-          if (needs_change) {
-            // User is still using the default PIN (0000)
-            setShowPinModal(true);
-          } else {
-            // PIN is already custom; proceed to services
-            navigate('/member_services');
-          }
-        } else {
-          setError("Invalid email or PIN. Please try again.");
-        }
+      // If profile exists and is marked temporary/needs change, force password update.
+      const mustChangePassword = Boolean(account?.needs_change ?? account?.is_temporary);
+
+      if (mustChangePassword) {
+        // First login: password change is required immediately.
+        setShowPasswordModal(true);
+      } else {
+        navigate('/member_services');
       }
     } catch (err) {
       setError("Verification failed. Please check your connection.");
@@ -72,42 +89,43 @@ const Verification = () => {
     }
   };
 
-  // --- STEP 2: SAVE NEW PIN & UPDATE FLAG ---
-  const handleSaveNewPin = async (e) => {
-  e.preventDefault();
-  setIsLoading(true);
-
-  try {
-    // FIX: Remove the getUser() call that causes the crash
-    // We use the 'email' state variable that is already in your component
-    const { error: updateError } = await supabase
-      .from('kiosk_auth')
-      .update({ 
-        pin: newPin, 
-        is_temporary: false // This will now actually change in the DB
-      })
-      .eq('email', email); // Filter by the email you just verified
-
-    if (updateError) throw updateError;
-
-    setShowPinModal(false);
-    alert("PIN updated successfully!");
-    navigate('/member_services'); 
-  } catch (err) {
-    // This alert will catch any database permission (RLS) errors
-    alert("Update failed: " + err.message);
-  } finally {
-    setIsLoading(false);
-  }
-};
-
-  const handleSignOut = async (e) => {
+  // --- STEP 2: FORCE PASSWORD CHANGE ON FIRST LOGIN ---
+  const handleSaveNewPassword = async (e) => {
     e.preventDefault();
+    setError("");
+
+    if (newPassword.length < 8) {
+      setError("New password must be at least 8 characters.");
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      setError("New password and confirmation do not match.");
+      return;
+    }
+
+    setIsLoading(true);
     try {
-      await signOut();
-      navigate("/");
+      const { error: authUpdateError } = await supabase.auth.updateUser({
+        password: newPassword,
+      });
+
+      if (authUpdateError) throw authUpdateError;
+
+      for (const tableName of ['member_accounts', 'member_account']) {
+        await supabase
+          .from(tableName)
+          .update({ needs_change: false, is_temporary: false })
+          .eq('email', email.trim().toLowerCase());
+      }
+
+      setShowPasswordModal(false);
+      navigate('/member_services');
     } catch (err) {
-      console.error("Failed to sign out:", err);
+      setError("Password update failed: " + err.message);
+      console.error("Password update error:", err);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -164,18 +182,17 @@ const Verification = () => {
               <div>
                 <label className="flex items-center gap-2 text-sm font-semibold text-gray-900 mb-2">
                   <Lock className="w-4 h-4 text-gray-500" />
-                  PIN (4 Digits)
+                  Password
                 </label>
                 <input
                   type="password"
-                  value={pin}
-                  onChange={(e) => setPin(e.target.value.replace(/[^0-9]/g, '').slice(0, 4))}
-                  placeholder="••••"
-                  maxLength="4"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Enter your password"
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#66B538] focus:ring-opacity-20 
-                  focus:border-[#66B538] transition duration-200 font-mono text-2xl tracking-widest text-center"
+                  focus:border-[#66B538] transition duration-200"
                 />
-                <p className="text-gray-500 text-xs mt-1">Your PIN is required for security verification</p>
+                <p className="text-gray-500 text-xs mt-1">Your password is required for account verification</p>
               </div>  
 
               {error && (
@@ -194,66 +211,48 @@ const Verification = () => {
                 {isLoading ? "Verifying..." : "Verify Account"}
               </button>
 
-              {showPinModal && (
+                {showPasswordModal && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 backdrop-blur-sm transition-opacity">
                   <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-sm relative transform transition-all scale-100">
-                    <button 
-                      type="button"
-                      onClick={() => setShowPinModal(false)} 
-                      className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                    </button>
-
                     <div className="flex flex-col items-center gap-2 mb-6">
                       <div className="bg-[#E9F7DE] p-3 rounded-full">
                           <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-[#66B538]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                           </svg>
                       </div>
-                      <h3 className='text-xl font-bold text-gray-800'>Change PIN</h3>
-                      <p className="text-xs text-gray-500 text-center px-4">Secure your account by updating your personal identification number.</p>
+                    <h3 className='text-xl font-bold text-gray-800'>Change Password Required</h3>
+                    <p className="text-xs text-gray-500 text-center px-4">First login detected. You are using a default password. Change it now to continue.</p>
                     </div>
 
                     <div className="flex flex-col gap-4">
-                      {/* Note: I removed Current PIN as we already verified it to open this modal */}
                       <div className="space-y-1">
-                          <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide ml-1">New PIN</label>
+                      <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide ml-1">New Password</label>
                           <input 
                               type="password" 
-                              placeholder="••••" 
-                              value={newPin}
-                              onChange={(e) => setNewPin(e.target.value.replace(/[^0-9]/g, '').slice(0, 4))}
-                              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#66B538] focus:ring-opacity-50 focus:border-[#66B538] transition duration-200 text-center tracking-widest text-lg" 
+                        placeholder="At least 8 characters" 
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
+                        className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#66B538] focus:ring-opacity-50 focus:border-[#66B538] transition duration-200" 
                           />
                       </div>
 
                       <div className="space-y-1">
-                          <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide ml-1">Confirm New PIN</label>
+                      <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide ml-1">Confirm New Password</label>
                           <input 
                               type="password" 
-                              placeholder="••••" 
-                              value={confirmPin}
-                              onChange={(e) => setConfirmPin(e.target.value.replace(/[^0-9]/g, '').slice(0, 4))}
-                              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#66B538] focus:ring-opacity-50 focus:border-[#66B538] transition duration-200 text-center tracking-widest text-lg" 
+                        placeholder="Re-enter new password" 
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#66B538] focus:ring-opacity-50 focus:border-[#66B538] transition duration-200" 
                           />
                       </div>
 
-                      <div className="flex gap-3 mt-4">
+                    <div className="flex gap-3 mt-4">
                           <button 
                               type="button"
-                              onClick={() => setShowPinModal(false)}
-                              className="flex-1 py-2 rounded-lg font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200 transition duration-200"
-                          >
-                              Cancel
-                          </button>
-                          <button 
-                              type="button"
-                              onClick={handleSaveNewPin}
+                        onClick={handleSaveNewPassword}
                               disabled={isLoading}
-                              className="flex-1 py-2 rounded-lg font-semibold text-white bg-[#66B538] hover:bg-[#559a2f] shadow-md transition duration-200 flex items-center justify-center gap-2" 
+                        className="flex-1 py-2 rounded-lg font-semibold text-white bg-[#66B538] hover:bg-[#559a2f] shadow-md transition duration-200 flex items-center justify-center gap-2 disabled:opacity-50" 
                           >
                               {isLoading ? "Saving..." : "Save"}
                           </button>
