@@ -30,3 +30,9 @@ body {
   color:#94A3B8;
   font-size: 12px;
 }
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+}
