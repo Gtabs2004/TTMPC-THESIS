@@ -160,7 +160,7 @@ function Bonus_Loan() {
             <div className="flex gap-8">
               <label className="flex items-center space-x-2 cursor-pointer">
                 <input type="radio" name="application_status" value = "New" checked = {formdata.application_status === 'New'} onChange = {handleChange}className="h-4 w-4 accent-[#66B538]" />
-                <span className="font-semibold text-gray-700">New v</span>
+                <span className="font-semibold text-gray-700">New</span>
               </label>
               <label className="flex items-center space-x-2 cursor-pointer">
                 <input type="radio" name="application_status" value = "Renewal " checked = {formdata.application_status === 'Renewal'} onChange = {handleChange} className="h-4 w-4 accent-[#66B538]" />
