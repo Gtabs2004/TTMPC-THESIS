@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { supabase } from '../supabaseClient'; // Ensure this path is correct
+import React, { useEffect, useState } from 'react';
+import { fetchLoanPrefill, submitUnifiedLoan } from './loanSubmission';
 
 // Function to generate control number: CL-YYYYMMDD-XXXX
 const generateControlNumber = () => {
@@ -66,81 +66,95 @@ function Consolidated_Loan() {
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadPrefill = async () => {
+      try {
+        const { userEmail, profile } = await fetchLoanPrefill();
+        if (!isMounted) return;
+
+        if (!profile) {
+          setFormData((prev) => ({ ...prev, user_email: userEmail || prev.user_email }));
+          return;
+        }
+
+        setFormData((prev) => ({
+          ...prev,
+          user_email: userEmail || prev.user_email,
+          surname: profile.surname ?? profile.last_name ?? prev.surname,
+          first_name: profile.first_name ?? prev.first_name,
+          middle_name: profile.middle_name ?? profile.middle_initial ?? prev.middle_name,
+          contact_no: profile.contact_number ?? profile.contact_no ?? prev.contact_no,
+          residence_address: profile.permanent_address ?? profile.residence_address ?? prev.residence_address,
+          date_of_birth: profile.date_of_birth ?? prev.date_of_birth,
+          age: profile.age?.toString() ?? prev.age,
+          civil_status: profile.civil_status ?? prev.civil_status,
+          gender: profile.gender ?? prev.gender,
+          tin_no: profile.tin_number ?? profile.tin_no ?? prev.tin_no,
+          gsis_sss_no: profile.gsis_sss_no ?? prev.gsis_sss_no,
+          employer_name: profile.employer_name ?? profile.occupation ?? prev.employer_name,
+          office_address: profile.office_address ?? prev.office_address,
+          spouse_name: profile.spouse_name ?? prev.spouse_name,
+          spouse_occupation: profile.spouse_occupation ?? prev.spouse_occupation,
+          latest_net_pay: (profile.latest_net_pay ?? profile.annual_income)?.toString() ?? prev.latest_net_pay,
+          share_capital: profile.share_capital?.toString() ?? prev.share_capital,
+        }));
+      } catch (_err) {
+        // Prefill is optional; form remains manually fillable on failure.
+      }
+    };
+
+    loadPrefill();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   // 3. LOGIC: Database Insertion
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
 
     try {
-      // 1. Get the current logged-in user's data from Supabase Auth
-      const { data: { user } } = await supabase.auth.getUser();
-
-      if (!user) {
-        alert("Please log in to submit a loan application.");
-        setLoading(false);
-        return;
-      }
-
-      // 2. Prepare submission data with proper type conversions
-      const submissionData = {
-        user_email: user.email,
-        control_no: formData.control_no,
-        application_status: formData.application_status,
-        date_applied: formData.date_applied || null,
-        
-        // Borrower Information
-        surname: formData.surname,
-        first_name: formData.first_name,
-        middle_name: formData.middle_name || null,
-        contact_no: formData.contact_no,
-        residence_address: formData.residence_address,
-        date_of_birth: formData.date_of_birth || null,
-        age: formData.age ? parseInt(formData.age) : null,
-        civil_status: formData.civil_status || null,
-        gender: formData.gender || null,
-        tin_no: formData.tin_no || null,
-        gsis_sss_no: formData.gsis_sss_no || null,
-
-        // Financial/Employment
-        latest_net_pay: formData.latest_net_pay ? parseFloat(formData.latest_net_pay) : null,
-        share_capital: formData.share_capital ? parseFloat(formData.share_capital) : null,
-        employer_name: formData.employer_name || null,
-        office_address: formData.office_address || null,
-        spouse_name: formData.spouse_name || null,
-        spouse_occupation: formData.spouse_occupation || null,
-
-        // Loan Details
-        loan_amount_numeric: formData.loan_amount_numeric ? parseFloat(formData.loan_amount_numeric) : null,
-        loan_amount_words: formData.loan_amount_words || null,
-        loan_purpose: formData.loan_purpose || null,
-        loan_term_months: formData.loan_term_months ? parseInt(formData.loan_term_months) : null,
-        monthly_amortization: formData.monthly_amortization ? parseFloat(formData.monthly_amortization) : null,
-        source_of_income: formData.source_of_income || null,
-        payment_start_date: formData.payment_start_date || null,
-
-        // Co-Maker 1
-        cm1_name: formData.cm1_name || null,
-        cm1_id_no: formData.cm1_id_no || null,
-        cm1_address: formData.cm1_address || null,
-        cm1_email: formData.cm1_email || null,
-        cm1_mobile: formData.cm1_mobile || null,
-
-        // Co-Maker 2
-        cm2_name: formData.cm2_name || null,
-        cm2_id_no: formData.cm2_id_no || null,
-        cm2_address: formData.cm2_address || null,
-        cm2_email: formData.cm2_email || null,
-        cm2_mobile: formData.cm2_mobile || null,
-      };
-
-      // 3. Perform the insertion
-      const { error } = await supabase
-        .from('consolidated_loans')
-        .insert([submissionData]);
-
-      if (error) throw error;
+      await submitUnifiedLoan({
+        loanTypeCode: 'CONSOLIDATED',
+        controlNumber: formData.control_no,
+        applicationStatus: formData.application_status,
+        applicationDate: formData.date_applied,
+        loanAmount: formData.loan_amount_numeric,
+        principalAmount: formData.loan_amount_numeric,
+        term: formData.loan_term_months,
+        optionalFields: {
+          loan_amount_words: formData.loan_amount_words || null,
+          loan_purpose: formData.loan_purpose || null,
+          monthly_amortization: formData.monthly_amortization || null,
+          source_of_income: formData.source_of_income || null,
+          payment_start_date: formData.payment_start_date || null,
+          consolidated_notes: null,
+        },
+        coMakers: [
+          {
+            email: formData.cm1_email,
+            name: formData.cm1_name,
+            id_no: formData.cm1_id_no,
+            address: formData.cm1_address,
+            mobile: formData.cm1_mobile,
+            liability_status: 'active',
+          },
+          {
+            email: formData.cm2_email,
+            name: formData.cm2_name,
+            id_no: formData.cm2_id_no,
+            address: formData.cm2_address,
+            mobile: formData.cm2_mobile,
+            liability_status: 'active',
+          },
+        ],
+      });
 
       alert("Loan Application Submitted Successfully!");
+      window.location.reload();
     } catch (err) {
       alert("Submission Error: " + err.message);
     } finally {

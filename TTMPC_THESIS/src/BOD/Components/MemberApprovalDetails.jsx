@@ -106,13 +106,13 @@ const MemberApprovalDetails = () => {
       religion: memberRow.religion || 'N/A',
       heightWeight: `${memberRow.height || '-'} cm / ${memberRow.weight || '-'} kg`,
       bloodType: memberRow.blood_type || 'N/A',
-      tin: memberRow.tin || 'N/A',
+      tin_number: memberRow.tin_number || 'N/A',
 
       // Family Information
       maidenName: memberRow.maiden_name || 'N/A',
       spouseName: memberRow.spouse_name || 'N/A',
       spouseOccupation: memberRow.spouse_occupation || 'N/A',
-      dependents: memberRow.dependents_count || '0',
+      number_of_dependents: memberRow.number_of_dependents || '0',
 
       // Contact & Address
       address: memberRow.permanent_address || 'N/A',
@@ -124,7 +124,7 @@ const MemberApprovalDetails = () => {
       occupation: memberRow.occupation || 'N/A',
       position: memberRow.position || 'N/A',
       annualIncome: memberRow.annual_income || 'N/A',
-      otherIncomeSource: memberRow.other_income_source || 'N/A',
+      other_income: memberRow.other_income || 'N/A',
       
       reason: memberRow.rejection_reason || memberRow.remarks || '-',
       row: memberRow,
@@ -140,6 +140,9 @@ const MemberApprovalDetails = () => {
 
   const proceedConfig = member ? getProceedConfig(member.status) : null;
 
+  const handlePrint = () => {
+  window.print();
+  };
   const closeModal = () => {
     if (notifying) return;
     setActiveModal(null);
@@ -378,7 +381,7 @@ const MemberApprovalDetails = () => {
             Application Submitted: <span className="text-gray-900">{member.date}</span> • Ref: <span className="text-gray-900">{member.id}</span>
           </div>
         </div>
-        <button className="flex items-center gap-2 px-4 py-2 border border-gray-200 bg-white text-gray-700 font-semibold rounded-lg text-sm shadow-sm hover:bg-gray-50 transition-colors">
+        <button onClick={handlePrint} className="flex items-center gap-2 px-4 py-2 border border-gray-200 bg-white text-gray-700 font-semibold rounded-lg text-sm shadow-sm hover:bg-gray-50 transition-colors">
           <Download className="w-4 h-4" /> Export Application as PDF
         </button>
       </div>
@@ -403,7 +406,7 @@ const MemberApprovalDetails = () => {
           <InfoField label="Blood Type" value={member.bloodType} />
           
           <div className="md:col-span-3">
-            <InfoField label="Tax Identification Number (TIN)" value={member.tin} isGreen={true} />
+            <InfoField label="Tax Identification Number (TIN)" value={member.tin_number} isGreen={true} />
           </div>
         </div>
       </SectionCard>
@@ -414,7 +417,7 @@ const MemberApprovalDetails = () => {
           <InfoField label="Maiden Name (If Applicable)" value={member.maidenName} />
           <InfoField label="Name of Spouse" value={member.spouseName} />
           <InfoField label="Spouse's Occupation" value={member.spouseOccupation} />
-          <InfoField label="Number of Dependents" value={member.dependents} />
+          <InfoField label="Number of Dependents" value={member.number_of_dependents} />
         </div>
       </SectionCard>
 
@@ -444,13 +447,13 @@ const MemberApprovalDetails = () => {
           <InfoField label="Position" value={member.position} />
           <InfoField label="Annual Income" value={`₱ ${member.annualIncome}`} />
           <div className="md:col-span-2">
-            <InfoField label="Other Source of Income" value={member.otherIncomeSource} />
+            <InfoField label="Other Source of Income" value={member.other_income} />
           </div>
         </div>
       </SectionCard>
 
       {/* --- BOTTOM ACTION BUTTONS --- */}
-      <div className="flex flex-wrap justify-end gap-4 mt-8 bg-white p-6 rounded-xl border border-gray-100 shadow-sm">
+      <div className="no-print flex flex-wrap justify-end gap-4 mt-8 bg-white p-6 rounded-xl border border-gray-100 shadow-sm">
         <button 
           onClick={() => setActiveModal('reject')} 
           disabled={saving || member.status === 'Official Member'}
@@ -481,13 +484,13 @@ const MemberApprovalDetails = () => {
 
       {/* --- MODALS OVERLAY (Untouched functionality) --- */}
       {activeModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+        <div className="no-print fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm print:!hidden">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-lg p-6 relative animate-in fade-in zoom-in-95 duration-200">
             
             <button 
               onClick={closeModal} 
               disabled={notifying}
-              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors"
+              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors "
             >
               <X className="w-5 h-5" />
             </button>

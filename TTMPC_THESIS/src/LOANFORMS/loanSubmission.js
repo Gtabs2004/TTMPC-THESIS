@@ -1,0 +1,372 @@
+import { supabase } from '../supabaseClient';
+
+const ACCOUNT_TABLE_CANDIDATES = ['member_account', 'member_accounts'];
+let activeAccountTables = null;
+
+const toInt = (value) => {
+  if (value === null || value === undefined || value === '') return null;
+  const parsed = parseInt(value, 10);
+  return Number.isNaN(parsed) ? null : parsed;
+};
+
+const toFloat = (value) => {
+  if (value === null || value === undefined || value === '') return null;
+  const parsed = parseFloat(value);
+  return Number.isNaN(parsed) ? null : parsed;
+};
+
+const normalizeDateToIso = (value) => {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toISOString();
+};
+
+async function getCurrentUser() {
+  const {
+    data: { user },
+    error,
+  } = await supabase.auth.getUser();
+
+  if (error) throw error;
+  if (!user) {
+    throw new Error('Please log in to submit a loan application.');
+  }
+
+  return user;
+}
+
+async function getMemberIdForUser(userId) {
+  const { data, error } = await supabase
+    .from('member')
+    .select('id')
+    .eq('id', userId)
+    .limit(1)
+    .maybeSingle();
+
+  if (error) throw error;
+  if (!data?.id) {
+    throw new Error('No member profile found for the logged-in account.');
+  }
+
+  return data.id;
+}
+
+async function getLoanTypeId(loanTypeCode) {
+  const code = String(loanTypeCode || '').trim().toUpperCase();
+  if (!code) {
+    throw new Error('Loan type is required.');
+  }
+
+  // Try strict code match first.
+  let { data, error } = await supabase
+    .from('loan_types')
+    .select('id, code, name')
+    .eq('code', code)
+    .limit(1)
+    .maybeSingle();
+
+  if (error) throw error;
+  if (data?.id) return data.id;
+
+  // Fallback: case-insensitive code match.
+  ({ data, error } = await supabase
+    .from('loan_types')
+    .select('id, code, name')
+    .ilike('code', code)
+    .limit(1)
+    .maybeSingle());
+
+  if (error) throw error;
+  if (data?.id) return data.id;
+
+  // Fallback: match by common names.
+  const expectedNames = {
+    CONSOLIDATED: 'Consolidated Loan',
+    BONUS: 'Bonus Loan',
+    EMERGENCY: 'Emergency Loan',
+  };
+
+  const fallbackName = expectedNames[code] || code;
+  ({ data, error } = await supabase
+    .from('loan_types')
+    .select('id, code, name')
+    .ilike('name', fallbackName)
+    .limit(1)
+    .maybeSingle());
+
+  if (error) throw error;
+  if (data?.id) return data.id;
+
+  throw new Error(
+    `Loan type code not found: ${code}. Ensure loan_types has seeded rows and authenticated SELECT policy.`
+  );
+}
+
+async function resolveCoMakerMemberId(email) {
+  const normalizedEmail = String(email || '').trim().toLowerCase();
+  if (!normalizedEmail) return null;
+
+  const resolveFromMemberApplications = async () => {
+    const { data: appRow, error: appError } = await supabase
+      .from('member_applications')
+      .select('membership_id')
+      .ilike('email', normalizedEmail)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (appError || !appRow?.membership_id) {
+      return null;
+    }
+
+    const { data: memberRow, error: memberError } = await supabase
+      .from('member')
+      .select('id')
+      .eq('membership_id', appRow.membership_id)
+      .limit(1)
+      .maybeSingle();
+
+    if (!memberError && memberRow?.id) {
+      return memberRow.id;
+    }
+
+    return null;
+  };
+
+  if (!activeAccountTables) {
+    const discovered = [];
+    for (const tableName of ACCOUNT_TABLE_CANDIDATES) {
+      const { error } = await supabase.from(tableName).select('user_id').limit(1);
+      if (!error) {
+        discovered.push(tableName);
+      }
+    }
+    activeAccountTables = discovered;
+  }
+
+  for (const tableName of activeAccountTables) {
+    const { data, error } = await supabase
+      .from(tableName)
+      .select('user_id')
+      .ilike('email', normalizedEmail)
+      .limit(1)
+      .maybeSingle();
+
+    if (error || !data?.user_id) {
+      continue;
+    }
+
+    const { data: memberRow, error: memberError } = await supabase
+      .from('member')
+      .select('id')
+      .eq('id', data.user_id)
+      .limit(1)
+      .maybeSingle();
+
+    if (!memberError && memberRow?.id) {
+      return memberRow.id;
+    }
+  }
+
+  return resolveFromMemberApplications();
+}
+
+export async function fetchLoanPrefill() {
+  const user = await getCurrentUser();
+
+  const toDateInput = (value) => {
+    if (!value) return null;
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return null;
+    return d.toISOString().split('T')[0];
+  };
+
+  const normalizeProfile = (raw, memberRow) => {
+    if (!raw && !memberRow) return null;
+    const r = raw || {};
+    const m = memberRow || {};
+
+    return {
+      surname: r.surname ?? r.last_name ?? m.last_name ?? null,
+      first_name: r.first_name ?? m.first_name ?? null,
+      middle_name: r.middle_name ?? r.middle_initial ?? m.middle_initial ?? null,
+      contact_number: r.contact_number ?? r.contact_no ?? null,
+      permanent_address: r.permanent_address ?? r.residence_address ?? null,
+      date_of_birth: toDateInput(r.date_of_birth),
+      age: r.age ?? null,
+      civil_status: r.civil_status ?? null,
+      gender: r.gender ?? null,
+      tin_number: r.tin_number ?? r.tin_no ?? null,
+      gsis_sss_no: r.gsis_sss_no ?? null,
+      employer_name: r.employer_name ?? r.occupation ?? null,
+      office_address: r.office_address ?? null,
+      spouse_name: r.spouse_name ?? null,
+      spouse_occupation: r.spouse_occupation ?? null,
+      latest_net_pay: r.latest_net_pay ?? r.annual_income ?? null,
+      share_capital: r.share_capital ?? null,
+      membership_id: r.membership_id ?? m.membership_id ?? null,
+      email: r.email ?? user.email,
+    };
+  };
+
+  const mergeProfile = (base, incoming) => {
+    if (!incoming) return base;
+    if (!base) return incoming;
+    const result = { ...base };
+    for (const [key, value] of Object.entries(incoming)) {
+      if (value !== null && value !== undefined && value !== '') {
+        result[key] = value;
+      }
+    }
+    return result;
+  };
+
+  let memberRow = null;
+  let profile = null;
+
+  const { data: memberData, error: memberError } = await supabase
+    .from('member')
+    .select('id, membership_id, first_name, last_name, middle_initial')
+    .eq('id', user.id)
+    .limit(1)
+    .maybeSingle();
+
+  if (!memberError && memberData) {
+    memberRow = memberData;
+  }
+
+  // Source 1: RPC prefill (may be partial)
+  try {
+    const { data, error } = await supabase.rpc('get_loan_prefill_by_member', {
+      p_member_id: user.id,
+    });
+
+    if (!error) {
+      const row = Array.isArray(data) ? data[0] : data;
+      if (row) {
+        profile = mergeProfile(profile, normalizeProfile(row, memberRow));
+      }
+    }
+  } catch (_err) {
+    // fall through to table lookups
+  }
+
+  // Source 2: latest application by membership_id (always try, then merge)
+  if (memberRow?.membership_id) {
+    const { data: appByMembership, error: appMembershipError } = await supabase
+      .from('member_applications')
+      .select('*')
+      .eq('membership_id', memberRow.membership_id)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (!appMembershipError && appByMembership) {
+      profile = mergeProfile(profile, normalizeProfile(appByMembership, memberRow));
+    }
+  }
+
+  // Source 3: latest application by email (always try, then merge)
+  {
+    const { data: appByEmail, error: appByEmailError } = await supabase
+      .from('member_applications')
+      .select('*')
+      .ilike('email', user.email)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (!appByEmailError && appByEmail) {
+      profile = mergeProfile(profile, normalizeProfile(appByEmail, memberRow));
+    }
+  }
+
+  // Source 4: member row only
+  if (!profile && memberRow) {
+    profile = normalizeProfile(null, memberRow);
+    console.warn(
+      'Loan prefill fallback: member_applications data not visible for this user. Check RLS SELECT policy on member_applications.',
+      {
+        auth_user_id: user.id,
+        auth_email: user.email,
+        membership_id: memberRow.membership_id,
+      }
+    );
+  }
+
+  return {
+    userEmail: user.email,
+    profile,
+  };
+}
+
+export async function submitUnifiedLoan({
+  loanTypeCode,
+  controlNumber,
+  applicationStatus,
+  applicationDate,
+  loanAmount,
+  principalAmount,
+  interestRate,
+  term,
+  loanStatus = 'pending',
+  disbursalDate = null,
+  optionalFields = {},
+  coMakers = [],
+}) {
+  const user = await getCurrentUser();
+  const memberId = await getMemberIdForUser(user.id);
+  const loanTypeId = await getLoanTypeId(loanTypeCode);
+
+  const coMakerRows = [];
+
+  for (const coMaker of coMakers) {
+    const normalizedEmail = String(coMaker?.email || '').trim().toLowerCase() || null;
+    const memberIdForCoMaker = normalizedEmail ? await resolveCoMakerMemberId(normalizedEmail) : null;
+
+    coMakerRows.push({
+      loan_id: controlNumber,
+      member_id: memberId,
+      liability_status: coMaker.liability_status || 'active',
+      date_signed: normalizeDateToIso(coMaker.date_signed) ?? new Date().toISOString(),
+      co_maker_name: coMaker.name || null,
+      co_maker_email: normalizedEmail,
+      co_maker_mobile: coMaker.mobile || coMaker.contact_no || null,
+      co_maker_address: coMaker.address || null,
+      co_maker_id_no: coMaker.id_no || null,
+      is_member: Boolean(memberIdForCoMaker),
+    });
+  }
+
+  const payload = {
+    control_number: controlNumber,
+    member_id: memberId,
+    loan_type_id: loanTypeId,
+    loan_amount: toFloat(loanAmount),
+    principal_amount: toFloat(principalAmount ?? loanAmount),
+    interest_rate: toFloat(interestRate),
+    term: toInt(term),
+    loan_status: loanStatus,
+    application_date: normalizeDateToIso(applicationDate) ?? new Date().toISOString(),
+    disbursal_date: normalizeDateToIso(disbursalDate),
+    ...optionalFields,
+    user_email: user.email,
+  };
+
+  const { error: loanInsertError } = await supabase.from('loans').insert([payload]);
+  if (loanInsertError) throw loanInsertError;
+
+  if (coMakerRows.length) {
+    const { error: coMakerError } = await supabase
+      .from('co_makers')
+      .insert(coMakerRows);
+
+    if (coMakerError) throw coMakerError;
+  }
+
+  return {
+    controlNumber,
+    insertedCoMakers: coMakerRows.length,
+  };
+}
