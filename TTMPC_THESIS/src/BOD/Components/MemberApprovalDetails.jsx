@@ -1,6 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Building2, MapPin, Award, Phone, Calendar, Mail, X, Check } from 'lucide-react';
+import { 
+  ArrowLeft, Building2, MapPin, Award, Phone, Calendar, Mail, X, Check,
+  Download, User, Users, Contact, Briefcase
+} from 'lucide-react';
 import { supabase } from '../../supabaseClient';
 
 const MemberApprovalDetails = () => {
@@ -76,24 +79,61 @@ const MemberApprovalDetails = () => {
       .filter(Boolean)
       .join(' ');
 
+    // Calculate age if date of birth is available
+    let age = 'N/A';
+    if (memberRow.date_of_birth) {
+      const birthDate = new Date(memberRow.date_of_birth);
+      const diff = Date.now() - birthDate.getTime();
+      age = `${Math.abs(new Date(diff).getUTCFullYear() - 1970)} Years Old`;
+    }
+
     return {
       id: memberRow.application_id,
       name: fullName || memberRow.full_name || 'Unnamed Applicant',
-      email: memberRow.email || '-',
-      annualIncome: memberRow.annual_income || '-',
-      date: formatDate(memberRow.created_at),
-      contact: memberRow.contact_number || '-',
-      address: memberRow.permanent_address || '-',
-      occupation: memberRow.occupation || memberRow.position || 'Regular',
       status: normalizeStatus(memberRow.application_status),
+      date: formatDate(memberRow.created_at),
+      
+      // Personal Information
+      surname: memberRow.surname || 'N/A',
+      firstName: memberRow.first_name || 'N/A',
+      middleName: memberRow.middle_name || 'N/A',
+      gender: memberRow.gender || 'N/A',
+      civilStatus: memberRow.civil_status || 'N/A',
+      dob: formatDate(memberRow.date_of_birth) || 'N/A',
+      age: memberRow.age ? `${memberRow.age} Years Old` : age,
+      birthPlace: memberRow.place_of_birth || 'N/A',
+      citizenship: memberRow.citizenship || 'Filipino',
+      religion: memberRow.religion || 'N/A',
+      heightWeight: `${memberRow.height || '-'} cm / ${memberRow.weight || '-'} kg`,
+      bloodType: memberRow.blood_type || 'N/A',
+      tin: memberRow.tin || 'N/A',
+
+      // Family Information
+      maidenName: memberRow.maiden_name || 'N/A',
+      spouseName: memberRow.spouse_name || 'N/A',
+      spouseOccupation: memberRow.spouse_occupation || 'N/A',
+      dependents: memberRow.dependents_count || '0',
+
+      // Contact & Address
+      address: memberRow.permanent_address || 'N/A',
+      contact: memberRow.contact_number || 'N/A',
+      email: memberRow.email || 'N/A',
+
+      // Educational & Employment
+      education: memberRow.educational_attainment || 'N/A',
+      occupation: memberRow.occupation || 'N/A',
+      position: memberRow.position || 'N/A',
+      annualIncome: memberRow.annual_income || 'N/A',
+      otherIncomeSource: memberRow.other_income_source || 'N/A',
+      
       reason: memberRow.rejection_reason || memberRow.remarks || '-',
       row: memberRow,
     };
   }, [memberRow]);
 
   const getProceedConfig = (status) => {
-    if (status === 'Pending') return { title: 'Proceed to 1st Training', nextStatus: '1st Training', button: 'Confirm & Proceed' };
-    if (status === '1st Training') return { title: 'Proceed to 2nd Training', nextStatus: '2nd Training', button: 'Confirm & Proceed' };
+    if (status === 'Pending') return { title: 'Proceed to 1st Training', nextStatus: '1st Training', button: 'Proceed to 1st Training' };
+    if (status === '1st Training') return { title: 'Proceed to 2nd Training', nextStatus: '2nd Training', button: 'Proceed to 2nd Training' };
     if (status === '2nd Training') return { title: 'Mark as Official Member', nextStatus: 'Official Member', button: 'Confirm & Complete' };
     return null;
   };
@@ -111,7 +151,7 @@ const MemberApprovalDetails = () => {
   };
 
   const sendResendEmail = async (nextStatus) => {
-    if (!member?.email || member.email === '-') {
+    if (!member?.email || member.email === 'N/A') {
       throw new Error('Member email is missing.');
     }
 
@@ -121,7 +161,7 @@ const MemberApprovalDetails = () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Accept': 'application/json' // Added as a best practice
+          'Accept': 'application/json'
         },
         body: JSON.stringify({
           to_email: member.email,
@@ -246,10 +286,35 @@ const MemberApprovalDetails = () => {
     }, 1500);
   };
 
+  // Reusable Component for Data Fields
+  const InfoField = ({ label, value, isGreen }) => (
+    <div className="flex flex-col">
+      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">
+        {label}
+      </span>
+      <span className={`text-sm font-semibold ${isGreen ? 'text-green-700 tracking-widest' : 'text-gray-800'}`}>
+        {value}
+      </span>
+    </div>
+  );
+
+  // Reusable Component for Section Cards
+  const SectionCard = ({ icon: Icon, title, children }) => (
+    <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden mb-6">
+      <div className="px-6 py-4 border-b border-gray-50 flex items-center bg-gray-50/50">
+        <Icon className="w-5 h-5 text-[#1a4a2f] mr-2" />
+        <h2 className="text-sm font-bold text-[#1a4a2f]">{title}</h2>
+      </div>
+      <div className="p-6">
+        {children}
+      </div>
+    </div>
+  );
+
   if (loading) {
     return (
       <div className="p-8 bg-gray-50 min-h-screen">
-        <button
+        <button 
           onClick={() => navigate('/member-approvals')}
           className="flex items-center text-sm text-[#1a4a2f] font-semibold mb-4 hover:underline"
         >
@@ -285,100 +350,140 @@ const MemberApprovalDetails = () => {
   );
 
   return (
-    <div className="p-8 bg-gray-50 min-h-screen relative">
+    <div className="p-8 bg-gray-50 min-h-screen relative max-w-7xl mx-auto">
+      
+      {/* --- BACK BUTTON --- */}
       <button 
         onClick={() => navigate('/member-approvals')}
-        className="flex items-center text-sm text-[#1a4a2f] font-semibold mb-4 hover:underline"
+        className="flex items-center text-sm text-[#1a4a2f] font-semibold mb-6 hover:underline"
       >
         <ArrowLeft className="w-4 h-4 mr-2" /> Back to Member Approvals
       </button>
-      <h1 className="text-3xl font-bold text-[#1a4a2f] mb-8">{member.name}</h1>
-      
-      <div className="mb-8">
-        <h2 className="text-lg font-bold text-gray-800 mb-4">Application Information</h2>
-        <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100 grid grid-cols-2 gap-y-6 gap-x-12">
-          <div>
-            <p className="flex items-center text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1"><Mail className="w-3 h-3 mr-1" /> Email</p>
-            <p className="font-medium text-gray-800">{member.email}</p>
-          </div>
-          <div>
-            <p className="flex items-center text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1"><Building2 className="w-3 h-3 mr-1" /> Annual Income</p>
-            <p className="font-medium text-gray-800">{member.annualIncome}</p>
-          </div>
-          <div>
-            <p className="flex items-center text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1"><Phone className="w-3 h-3 mr-1" /> Contact Number</p>
-            <p className="font-medium text-gray-800">{member.contact}</p>
-          </div>
-          <div>
-            <p className="flex items-center text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1"><MapPin className="w-3 h-3 mr-1" /> Address</p>
-            <p className="font-medium text-gray-800">{member.address}</p>
-          </div>
-          <div>
-            <p className="flex items-center text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1"><Calendar className="w-3 h-3 mr-1" /> Application Date</p>
-            <p className="font-medium text-gray-800">{member.date}</p>
-          </div>
-          <div>
-            <p className="flex items-center text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1"><Award className="w-3 h-3 mr-1" /> Occupation</p>
-            <p className="font-bold text-gray-800">{member.occupation}</p>
-          </div>
-        </div>
-      </div>
 
-      <div className="mb-8">
-        <h2 className="text-lg font-bold text-gray-800 mb-4">Application Status</h2>
-        <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-1">Current Status</p>
-              <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                member.status === 'Pending' ? 'bg-yellow-50 text-yellow-600' :
-                member.status === 'Official Member' || member.status === 'Approved' ? 'bg-green-50 text-green-600' :
-                member.status === '1st Training' || member.status === '2nd Training' ? 'bg-blue-50 text-blue-600' :
-                'bg-red-50 text-red-600'
+      {/* --- HEADER --- */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+        <div>
+          <div className="flex items-center gap-4 mb-2">
+            <h1 className="text-3xl font-black text-gray-900">{member.name}</h1>
+            <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${
+                member.status === 'Pending' ? 'bg-orange-100 text-orange-600' :
+                member.status === 'Official Member' || member.status === 'Approved' ? 'bg-green-100 text-green-700' :
+                member.status === '1st Training' || member.status === '2nd Training' ? 'bg-blue-100 text-blue-700' :
+                'bg-red-100 text-red-700'
               }`}>
-                {member.status}
-              </span>
-            </div>
-            <div className="text-right">
-              <p className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-1">Application ID</p>
-              <p className="font-medium text-gray-800">{member.id}</p>
-            </div>
+              • {member.status}
+            </span>
+          </div>
+          <div className="text-sm text-gray-500 font-medium">
+            Application Submitted: <span className="text-gray-900">{member.date}</span> • Ref: <span className="text-gray-900">{member.id}</span>
           </div>
         </div>
+        <button className="flex items-center gap-2 px-4 py-2 border border-gray-200 bg-white text-gray-700 font-semibold rounded-lg text-sm shadow-sm hover:bg-gray-50 transition-colors">
+          <Download className="w-4 h-4" /> Export Application as PDF
+        </button>
       </div>
 
-      <div className="flex gap-4 float-end">
+      {/* --- PERSONAL INFORMATION --- */}
+      <SectionCard icon={User} title="Personal Information">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-y-8 gap-x-12">
+          <InfoField label="Surname" value={member.surname} />
+          <InfoField label="First Name" value={member.firstName} />
+          <InfoField label="Middle Name" value={member.middleName} />
+          
+          <InfoField label="Gender" value={member.gender} />
+          <InfoField label="Civil Status" value={member.civilStatus} />
+          <InfoField label="Date of Birth" value={member.dob} />
+          
+          <InfoField label="Age" value={member.age} />
+          <InfoField label="Place of Birth" value={member.birthPlace} />
+          <InfoField label="Citizenship" value={member.citizenship} />
+          
+          <InfoField label="Religion" value={member.religion} />
+          <InfoField label="Height / Weight" value={member.heightWeight} />
+          <InfoField label="Blood Type" value={member.bloodType} />
+          
+          <div className="md:col-span-3">
+            <InfoField label="Tax Identification Number (TIN)" value={member.tin} isGreen={true} />
+          </div>
+        </div>
+      </SectionCard>
+
+      {/* --- FAMILY INFORMATION --- */}
+      <SectionCard icon={Users} title="Family Information">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-y-8 gap-x-12">
+          <InfoField label="Maiden Name (If Applicable)" value={member.maidenName} />
+          <InfoField label="Name of Spouse" value={member.spouseName} />
+          <InfoField label="Spouse's Occupation" value={member.spouseOccupation} />
+          <InfoField label="Number of Dependents" value={member.dependents} />
+        </div>
+      </SectionCard>
+
+      {/* --- CONTACT & ADDRESS DETAILS --- */}
+      <SectionCard icon={Contact} title="Contact & Address Details">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-y-8 gap-x-12">
+          <div className="md:col-span-2">
+            <InfoField label="Permanent Address" value={member.address} />
+          </div>
+          <InfoField label="Contact Number" value={member.contact} />
+          <div className="flex flex-col">
+             <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">
+               Email Address
+             </span>
+             <a href={`mailto:${member.email}`} className="text-sm font-semibold text-[#1a4a2f] underline decoration-1 underline-offset-2">
+               {member.email}
+             </a>
+          </div>
+        </div>
+      </SectionCard>
+
+      {/* --- EDUCATIONAL & EMPLOYMENT INFORMATION --- */}
+      <SectionCard icon={Briefcase} title="Educational & Employment Information">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-y-8 gap-x-12">
+          <InfoField label="Educational Attainment" value={member.education} />
+          <InfoField label="Occupation / Income Source" value={member.occupation} />
+          <InfoField label="Position" value={member.position} />
+          <InfoField label="Annual Income" value={`₱ ${member.annualIncome}`} />
+          <div className="md:col-span-2">
+            <InfoField label="Other Source of Income" value={member.otherIncomeSource} />
+          </div>
+        </div>
+      </SectionCard>
+
+      {/* --- BOTTOM ACTION BUTTONS --- */}
+      <div className="flex flex-wrap justify-end gap-4 mt-8 bg-white p-6 rounded-xl border border-gray-100 shadow-sm">
         <button 
           onClick={() => setActiveModal('reject')} 
           disabled={saving || member.status === 'Official Member'}
-          className="flex items-center text-[#B91C1C] bg-[#FECACA] hover:bg-red-300 transition-colors font-medium rounded-lg px-4 py-2.5 text-sm cursor-pointer"
+          className="flex items-center text-[#DC2626] bg-red-50 border border-red-200 hover:bg-red-100 transition-colors font-bold rounded-lg px-6 py-2.5 text-sm"
         >
-          <X className="w-4 h-4 mr-1.5" /> Reject Application
+          <X className="w-4 h-4 mr-2" strokeWidth={2.5} /> Reject Application
         </button>
+        
         <button 
           onClick={() => setActiveModal('revise')} 
           disabled={saving || member.status === 'Official Member'}
-          className="flex items-center text-[#B45309] bg-[#FDE68A] hover:bg-yellow-300 transition-colors font-medium rounded-lg px-4 py-2.5 text-sm cursor-pointer"
+          className="flex items-center text-[#D97706] bg-yellow-50 border border-yellow-200 hover:bg-yellow-100 transition-colors font-bold rounded-lg px-6 py-2.5 text-sm"
         >
           Return for Revision
         </button>
+
         {proceedConfig && (
           <button
             onClick={() => setActiveModal('proceed')}
             disabled={saving}
-            className="flex items-center text-white bg-[#1D6021] hover:bg-[#154718] transition-colors font-medium rounded-lg px-4 py-2.5 text-sm cursor-pointer"
+            className="flex items-center text-white bg-[#1a4a2f] hover:bg-[#123622] transition-colors font-bold rounded-lg px-6 py-2.5 text-sm shadow-sm"
           >
-            <Check className="w-4 h-4 mr-1.5" /> {proceedConfig.title}
+            <Check className="w-4 h-4 mr-2" strokeWidth={2.5} /> {proceedConfig.button}
           </button>
         )}
       </div>
 
-      {/* --- Modals Overlay --- */}
+
+      {/* --- MODALS OVERLAY (Untouched functionality) --- */}
       {activeModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-lg p-6 relative animate-in fade-in zoom-in-95 duration-200">
             
-            {/* Close Button */}
             <button 
               onClick={closeModal} 
               disabled={notifying}
@@ -387,7 +492,6 @@ const MemberApprovalDetails = () => {
               <X className="w-5 h-5" />
             </button>
 
-            {/* Reject Modal */}
             {activeModal === 'reject' && (
               <>
                 <h3 className="text-xl font-bold text-gray-900 mb-4">Reject Membership Application</h3>
@@ -410,7 +514,6 @@ const MemberApprovalDetails = () => {
               </>
             )}
 
-            {/* Revise Modal */}
             {activeModal === 'revise' && (
               <>
                 <h3 className="text-xl font-bold text-gray-900 mb-4">Return for Revision</h3>
@@ -433,7 +536,6 @@ const MemberApprovalDetails = () => {
               </>
             )}
 
-            {/* Proceed Modal */}
             {activeModal === 'proceed' && (
               <>
                 <h3 className="text-xl font-bold text-gray-900 mb-4">{proceedConfig?.title || 'Proceed'}</h3>
@@ -455,7 +557,6 @@ const MemberApprovalDetails = () => {
               </div>
             )}
 
-            {/* Shared Notification Options */}
             <div className="mb-8">
               <h4 className="text-[10px] font-bold text-green-700 uppercase tracking-wider mb-3">Notification Options</h4>
               <CustomCheckbox 
@@ -470,7 +571,6 @@ const MemberApprovalDetails = () => {
               />
             </div>
 
-            {/* Shared Footer Actions */}
             <div className="flex justify-center gap-3 mt-4">
               <button 
                 onClick={closeModal}
@@ -502,9 +602,9 @@ const MemberApprovalDetails = () => {
                 <button
                   onClick={() => proceedConfig && applyStatusUpdate(proceedConfig.nextStatus)}
                   disabled={saving || notifying || !proceedConfig}
-                  className="px-6 py-2.5 rounded-lg bg-[#1D6021] hover:bg-[#154718] text-white font-medium text-sm transition-colors w-1/2 disabled:opacity-60"
+                  className="px-6 py-2.5 rounded-lg bg-[#1a4a2f] hover:bg-[#123622] text-white font-medium text-sm transition-colors w-1/2 disabled:opacity-60"
                 >
-                  {saving ? 'Saving...' : notifying ? 'Sending Email...' : (proceedConfig?.button || 'Confirm & Proceed')}
+                  {saving ? 'Saving...' : notifying ? 'Sending Email...' : (proceedConfig?.button || 'Confirm')}
                 </button>
               )}
             </div>
