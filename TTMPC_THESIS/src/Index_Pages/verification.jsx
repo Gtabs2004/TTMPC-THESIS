@@ -9,14 +9,9 @@ const Verification = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   
-  // States for first-login password change modal
-  const [newPassword, setNewPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [emailError, setEmailError] = useState("");
-  const [showPasswordModal, setShowPasswordModal] = useState(false);
 
   const getMemberAccountByEmail = async (normalizedEmail) => {
     for (const tableName of ["member_accounts", "member_account"]) {
@@ -71,59 +66,14 @@ const Verification = () => {
 
       const authenticatedEmail = authData?.user?.email?.trim().toLowerCase() || normalizedEmail;
       const { account } = await getMemberAccountByEmail(authenticatedEmail);
-
-      // If profile exists and is marked temporary/needs change, force password update.
-      const mustChangePassword = Boolean(account?.needs_change ?? account?.is_temporary);
-
-      if (mustChangePassword) {
-        // First login: password change is required immediately.
-        setShowPasswordModal(true);
-      } else {
-        navigate('/member_services');
+      if (account?.is_temporary || account?.needs_change) {
+        console.log('ALERT: Please change your default password.');
       }
+
+      navigate('/member_services');
     } catch (err) {
       setError("Verification failed. Please check your connection.");
       console.error("Verification error:", err);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // --- STEP 2: FORCE PASSWORD CHANGE ON FIRST LOGIN ---
-  const handleSaveNewPassword = async (e) => {
-    e.preventDefault();
-    setError("");
-
-    if (newPassword.length < 8) {
-      setError("New password must be at least 8 characters.");
-      return;
-    }
-
-    if (newPassword !== confirmPassword) {
-      setError("New password and confirmation do not match.");
-      return;
-    }
-
-    setIsLoading(true);
-    try {
-      const { error: authUpdateError } = await supabase.auth.updateUser({
-        password: newPassword,
-      });
-
-      if (authUpdateError) throw authUpdateError;
-
-      for (const tableName of ['member_accounts', 'member_account']) {
-        await supabase
-          .from(tableName)
-          .update({ needs_change: false, is_temporary: false })
-          .eq('email', email.trim().toLowerCase());
-      }
-
-      setShowPasswordModal(false);
-      navigate('/member_services');
-    } catch (err) {
-      setError("Password update failed: " + err.message);
-      console.error("Password update error:", err);
     } finally {
       setIsLoading(false);
     }
@@ -211,56 +161,6 @@ const Verification = () => {
                 {isLoading ? "Verifying..." : "Verify Account"}
               </button>
 
-                {showPasswordModal && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 backdrop-blur-sm transition-opacity">
-                  <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-sm relative transform transition-all scale-100">
-                    <div className="flex flex-col items-center gap-2 mb-6">
-                      <div className="bg-[#E9F7DE] p-3 rounded-full">
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-[#66B538]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                          </svg>
-                      </div>
-                    <h3 className='text-xl font-bold text-gray-800'>Change Password Required</h3>
-                    <p className="text-xs text-gray-500 text-center px-4">First login detected. You are using a default password. Change it now to continue.</p>
-                    </div>
-
-                    <div className="flex flex-col gap-4">
-                      <div className="space-y-1">
-                      <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide ml-1">New Password</label>
-                          <input 
-                              type="password" 
-                        placeholder="At least 8 characters" 
-                        value={newPassword}
-                        onChange={(e) => setNewPassword(e.target.value)}
-                        className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#66B538] focus:ring-opacity-50 focus:border-[#66B538] transition duration-200" 
-                          />
-                      </div>
-
-                      <div className="space-y-1">
-                      <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide ml-1">Confirm New Password</label>
-                          <input 
-                              type="password" 
-                        placeholder="Re-enter new password" 
-                        value={confirmPassword}
-                        onChange={(e) => setConfirmPassword(e.target.value)}
-                        className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#66B538] focus:ring-opacity-50 focus:border-[#66B538] transition duration-200" 
-                          />
-                      </div>
-
-                    <div className="flex gap-3 mt-4">
-                          <button 
-                              type="button"
-                        onClick={handleSaveNewPassword}
-                              disabled={isLoading}
-                        className="flex-1 py-2 rounded-lg font-semibold text-white bg-[#66B538] hover:bg-[#559a2f] shadow-md transition duration-200 flex items-center justify-center gap-2 disabled:opacity-50" 
-                          >
-                              {isLoading ? "Saving..." : "Save"}
-                          </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
             </form>
 
             <div className="mt-6 pt-6 border-t border-gray-200">
