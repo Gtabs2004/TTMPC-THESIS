@@ -314,7 +314,7 @@ function Membership_Form() {
                 <button
                   type="button"
                   onClick={() => navigate(-1)}
-                  className="bg-[#E9F7DE] text-[#5ca830] border border-[#A0D284] px-8 py-2.5 rounded-md font-bold text-sm hover:bg-[#d8f0c5] transition-colors"
+                  className="bg-[#E9F7DE] text-[#5ca830] border border-[#A0D284] px-8 py-2.5 rounded-md font-bold text-sm hover:bg-[#d8f0c5] transition-colors cursor-pointer"
                 >
                   Back
                 </button>

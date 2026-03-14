@@ -317,7 +317,7 @@ function Consolidated_Loan() {
             <button 
               type="submit" 
               disabled={loading}
-              className="mt-6 bg-[#66B538] text-white px-4 py-2 rounded hover:bg-[#5aa12b] transition-colors text-sm float-right mb-4 disabled:opacity-50"
+              className="mt-6 bg-[#66B538] text-white px-4 py-2 rounded hover:bg-[#5aa12b] transition-colors text-sm float-right mb-4 disabled:opacity-50 cursor-pointer"
             >
               {loading ? "Processing..." : "Submit Application"}
             </button>

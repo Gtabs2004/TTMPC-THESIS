@@ -32,6 +32,7 @@ import Member_Dashboard from "./Member/Components/Member_Dashboard";
 import Member_Loans from "./Member/Components/Member_Loans";
 import Members_Profile from "./Member/Components/Members_Profile";
 import Member_Savings from "./Member/Components/Member_Savings";
+import Koica_Forms from "./LOANFORMS/Koica_Forms";
 
 
 
@@ -70,5 +71,6 @@ export const router = createBrowserRouter([
     {path: "/member-dashboard", element:<Member_Dashboard/>},
     {path: "/member-loans", element:<Member_Loans/>},
     {path: "/members-profile", element:<Members_Profile/>},
-    {path: "/member-savings", element:<Member_Savings/>}
+    {path: "/member-savings", element:<Member_Savings/>},
+    {path: "/koica-forms", element:<Koica_Forms/>},
 ]);
