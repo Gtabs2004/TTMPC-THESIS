@@ -13,11 +13,24 @@ from supabase import Client, create_client
 ROOT_ENV_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".env"))
 
 APPLICATION_TABLE_CANDIDATES = ["membership_application", "member_applications"]
-MEMBER_TABLE = "member"
+MEMBER_TABLE_CANDIDATES = ["member", "members"]
 
 
 class MembershipConfirmationError(Exception):
 	pass
+
+
+def _resolve_member_table(supabase: Client) -> str:
+	for table_name in MEMBER_TABLE_CANDIDATES:
+		try:
+			supabase.table(table_name).select("id").limit(1).execute()
+			return table_name
+		except Exception:
+			continue
+
+	raise MembershipConfirmationError(
+		"Neither 'member' nor 'members' table is accessible in current schema."
+	)
 
 
 def _load_runtime_config() -> tuple[Client, str, str]:
@@ -67,8 +80,9 @@ def get_application_data_by_application_id(
 
 
 def generate_membership_id(supabase: Client) -> str:
+	member_table = _resolve_member_table(supabase)
 	response = (
-		supabase.table(MEMBER_TABLE)
+		supabase.table(member_table)
 		.select("membership_id")
 		.order("created_at", desc=True)
 		.limit(1)
@@ -90,7 +104,7 @@ def generate_membership_id(supabase: Client) -> str:
 	for _ in range(1000):
 		candidate = f"TTMPC_M_{new_number:05d}"
 		member_check = (
-			supabase.table(MEMBER_TABLE)
+			supabase.table(member_table)
 			.select("id")
 			.eq("membership_id", candidate)
 			.limit(1)
@@ -291,7 +305,8 @@ def create_member(
 	membership_date: str,
 	auth_user_id: str,
 ) -> dict[str, Any]:
-	payload = {
+	member_table = _resolve_member_table(supabase)
+	payload: dict[str, Any] = {
 		"id": auth_user_id,
 		"membership_id": membership_id,
 		"first_name": application_data.get("first_name"),
@@ -299,23 +314,31 @@ def create_member(
 		"middle_initial": _get_middle_initial(
 			application_data.get("middle_name"), application_data.get("middle_initial")
 		),
-		"membership_type_id": application_data.get("membership_type_id"),
 		"membership_date": membership_date,
-		"co_maker": None,
 		"is_bona_fide": True,
 		"created_at": datetime.now(timezone.utc).isoformat(),
 	}
 
-	response = supabase.table(MEMBER_TABLE).insert(payload).execute()
+	# Avoid writing explicit NULLs for fields that may have DB defaults/not-null constraints.
+	membership_type_id = application_data.get("membership_type_id")
+	if membership_type_id not in (None, ""):
+		payload["membership_type_id"] = membership_type_id
+
+	middle_initial = payload.get("middle_initial")
+	if middle_initial in (None, ""):
+		payload.pop("middle_initial", None)
+
+	response = supabase.table(member_table).insert(payload).execute()
 	if not response.data:
-		raise MembershipConfirmationError("Failed to create member record.")
+		raise MembershipConfirmationError(f"Failed to create member record in table '{member_table}'.")
 
 	return response.data[0]
 
 
 def get_member_by_user_id(supabase: Client, auth_user_id: str) -> dict[str, Any] | None:
+	member_table = _resolve_member_table(supabase)
 	response = (
-		supabase.table(MEMBER_TABLE)
+		supabase.table(member_table)
 		.select("*")
 		.eq("id", auth_user_id)
 		.limit(1)
@@ -333,25 +356,32 @@ def update_existing_member(
 	membership_id: str,
 	membership_date: str,
 ) -> dict[str, Any]:
-	payload = {
+	member_table = _resolve_member_table(supabase)
+	payload: dict[str, Any] = {
 		"membership_id": membership_id,
 		"first_name": application_data.get("first_name"),
 		"last_name": application_data.get("last_name") or application_data.get("surname"),
 		"middle_initial": _get_middle_initial(
 			application_data.get("middle_name"), application_data.get("middle_initial")
 		),
-		"membership_type_id": application_data.get("membership_type_id"),
 		"membership_date": membership_date,
-		"co_maker": None,
 		"is_bona_fide": True,
 	}
 
+	membership_type_id = application_data.get("membership_type_id")
+	if membership_type_id not in (None, ""):
+		payload["membership_type_id"] = membership_type_id
+
+	middle_initial = payload.get("middle_initial")
+	if middle_initial in (None, ""):
+		payload.pop("middle_initial", None)
+
 	# Some versions of supabase-py/postgrest do not support .select() chaining after .update().
-	supabase.table(MEMBER_TABLE).update(payload).eq("id", auth_user_id).execute()
+	supabase.table(member_table).update(payload).eq("id", auth_user_id).execute()
 
 	updated = get_member_by_user_id(supabase, auth_user_id)
 	if not updated:
-		raise MembershipConfirmationError("Failed to update existing member record.")
+		raise MembershipConfirmationError(f"Failed to update existing member record in table '{member_table}'.")
 
 	return updated
 
@@ -535,13 +565,14 @@ def send_confirmation_email(
 def confirm_membership(application_id: str, confirmed_by_user_id: str, force: bool = False) -> dict[str, Any]:
 	try:
 		supabase, resend_api_key, resend_from_email = _load_runtime_config()
+		member_table = _resolve_member_table(supabase)
 		confirmer = ensure_confirmer_is_bod(supabase, confirmed_by_user_id)
 		application_data, application_table = get_application_data_by_application_id(supabase, application_id)
 		membership_id = generate_membership_id(supabase)
 
 		# Guard against accidental duplicate confirmations.
 		existing = (
-			supabase.table(MEMBER_TABLE)
+			supabase.table(member_table)
 			.select("id")
 			.eq("membership_id", membership_id)
 			.limit(1)
@@ -610,6 +641,12 @@ def confirm_membership(application_id: str, confirmed_by_user_id: str, force: bo
 		)
 		role_update_result = update_confirmed_account_role_to_member(supabase, auth_user_id)
 
+		persisted_member = get_member_by_user_id(supabase, auth_user_id)
+		if not persisted_member:
+			raise MembershipConfirmationError(
+				f"Membership confirmation finished but no member row found for user {auth_user_id} in '{member_table}'."
+			)
+
 		email_result = send_confirmation_email(
 			to_email=application_data.get("email") or "",
 			first_name=application_data.get("first_name") or "Applicant",
@@ -627,9 +664,10 @@ def confirm_membership(application_id: str, confirmed_by_user_id: str, force: bo
 			"membership_id": membership_id,
 			"auth_user_id": auth_user_id,
 			"auth_account_created": auth_created,
+			"member_table": member_table,
 			"temporary_account_update": temporary_result,
 			"account_role_update": role_update_result,
-			"member": created_member,
+			"member": persisted_member,
 			"email": email_result,
 		}
 	except MembershipConfirmationError:

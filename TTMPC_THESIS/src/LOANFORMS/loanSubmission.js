@@ -15,6 +15,17 @@ const toFloat = (value) => {
   return Number.isNaN(parsed) ? null : parsed;
 };
 
+const resolveInterestRate = (loanTypeCode, interestRate) => {
+  const parsed = toFloat(interestRate);
+  if (parsed !== null) return parsed;
+
+  const code = String(loanTypeCode || '').trim().toUpperCase();
+  if (code === 'CONSOLIDATED') return 0.83;
+  if (code === 'EMERGENCY') return 2;
+  if (code === 'BONUS') return 2;
+  return null;
+};
+
 const normalizeDateToIso = (value) => {
   if (!value) return null;
   const date = new Date(value);
@@ -411,7 +422,7 @@ export async function submitUnifiedLoan({
     loan_type_id: loanTypeId,
     loan_amount: toFloat(loanAmount),
     principal_amount: toFloat(principalAmount ?? loanAmount),
-    interest_rate: toFloat(interestRate),
+    interest_rate: resolveInterestRate(loanTypeCode, interestRate),
     term: toInt(term),
     ...optionalFields,
     loan_status: normalizedLoanStatus,

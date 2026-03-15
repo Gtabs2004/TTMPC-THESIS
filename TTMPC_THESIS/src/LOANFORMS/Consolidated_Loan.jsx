@@ -46,6 +46,7 @@ function Consolidated_Loan() {
     loan_purpose: '',
     loan_term_months: '',
     monthly_amortization: '',
+    total_interest: '',
     source_of_income: '',
     payment_start_date: '',
     user_email: '',
@@ -127,6 +128,7 @@ function Consolidated_Loan() {
         setFormData((prev) => ({
           ...prev,
           monthly_amortization: data?.monthly_amortization ? String(data.monthly_amortization) : prev.monthly_amortization,
+          total_interest: data?.total_interest ? String(data.total_interest) : prev.total_interest,
         }));
       } catch (_err) {
         // Keep form usable even if compute API is temporarily unavailable.
@@ -151,8 +153,10 @@ function Consolidated_Loan() {
         applicationDate: formData.date_applied,
         loanAmount: formData.loan_amount_numeric,
         principalAmount: formData.loan_amount_numeric,
+        interestRate: 0.83,
         term: formData.loan_term_months,
         optionalFields: {
+          total_interest: formData.total_interest || null,
           loan_amount_words: formData.loan_amount_words || null,
           loan_purpose: formData.loan_purpose || null,
           monthly_amortization: formData.monthly_amortization || null,
