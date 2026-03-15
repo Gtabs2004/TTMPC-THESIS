@@ -1,6 +1,7 @@
-import React from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
+import { supabase } from "../../supabaseClient";
 import { 
   LayoutDashboard, 
   Users, 
@@ -19,6 +20,9 @@ import {
 const Member_Loans = () => {
   const { session, signOut } = UserAuth();
   const navigate = useNavigate();
+  const [loans, setLoans] = useState([]);
+  const [loadingLoans, setLoadingLoans] = useState(true);
+  const [loanError, setLoanError] = useState('');
 
   const menuItems = [
     { name: "Dashboard", icon: LayoutDashboard },
@@ -37,10 +41,114 @@ const Member_Loans = () => {
     }
   };
 
-  const activeLoans = [
-    { id: "BON-2023-0422", type: "Emergency Loan", originalAmount: "₱100,000.00", balance: "₱82,500.00", payment: "₱2,500.00", nextDue: "11/15/2023", status: "Active" },
-    { id: "BON-2022-1102", type: "Bonus Loan", originalAmount: "₱120,000.00", balance: "₱20,000.00", payment: "₱1000.00", nextDue: "11/15/2023", status: "Delinquent" }
-  ];
+  const formatCurrency = (value) => `₱${Number(value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const formatDate = (value) => {
+    if (!value) return 'N/A';
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return 'N/A';
+    return d.toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' });
+  };
+  const toStatus = (value) => {
+    const raw = String(value || '').trim().toLowerCase();
+    if (raw === 'pending') return 'Active';
+    if (raw === 'to be disbursed') return 'Active';
+    if (raw === 'approved') return 'Active';
+    if (raw === 'released') return 'Active';
+    if (raw === 'rejected') return 'Rejected';
+    return raw ? raw.charAt(0).toUpperCase() + raw.slice(1) : 'Unknown';
+  };
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const fetchMemberLoans = async () => {
+      try {
+        setLoadingLoans(true);
+        setLoanError('');
+
+        const { data: authData, error: authError } = await supabase.auth.getUser();
+        if (authError) throw authError;
+
+        const memberId = authData?.user?.id;
+        if (!memberId) throw new Error('Please sign in again to load your loans.');
+
+        const { data, error } = await supabase
+          .from('loans')
+          .select(`
+            control_number,
+            loan_amount,
+            principal_amount,
+            interest_rate,
+            total_interest,
+            monthly_amortization,
+            term,
+            loan_status,
+            application_date,
+            loan_type:loan_type_id (
+              name
+            )
+          `)
+          .eq('member_id', memberId)
+          .order('application_date', { ascending: false });
+
+        if (error) throw error;
+
+        const rows = (data || []).map((loan) => {
+          const principal = Number(loan.principal_amount ?? loan.loan_amount ?? 0);
+          const totalInterest = Number(loan.total_interest ?? 0);
+          const totalPayable = principal + totalInterest;
+          const monthly = Number(loan.monthly_amortization ?? 0);
+
+          return {
+            id: loan.control_number,
+            type: loan.loan_type?.name || 'N/A',
+            originalAmount: formatCurrency(principal),
+            balance: formatCurrency(totalPayable),
+            interestRate: loan.interest_rate !== null && loan.interest_rate !== undefined ? `${Number(loan.interest_rate)}%` : 'N/A',
+            payment: monthly > 0 ? formatCurrency(monthly) : 'N/A',
+            nextDue: formatDate(loan.application_date),
+            status: toStatus(loan.loan_status),
+            numericBalance: totalPayable,
+            numericPayment: monthly,
+          };
+        });
+
+        if (isMounted) {
+          setLoans(rows);
+        }
+      } catch (err) {
+        if (isMounted) {
+          setLoanError(err.message || 'Unable to load loan records.');
+        }
+      } finally {
+        if (isMounted) {
+          setLoadingLoans(false);
+        }
+      }
+    };
+
+    fetchMemberLoans();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const totalOutstanding = useMemo(
+    () => loans.reduce((sum, loan) => sum + (loan.numericBalance || 0), 0),
+    [loans]
+  );
+
+  const totalMonthly = useMemo(
+    () => loans.reduce((sum, loan) => sum + (loan.numericPayment || 0), 0),
+    [loans]
+  );
+
+  const latestLoan = loans[0] || null;
+
+  const loanTypeBadges = useMemo(() => {
+    const unique = [...new Set(loans.map((loan) => String(loan.type || '').trim()).filter(Boolean))];
+    return unique.slice(0, 3);
+  }, [loans]);
 
   return (
     <div className="flex min-h-screen bg-[#F8F9FA]">
@@ -141,9 +249,9 @@ const Member_Loans = () => {
                 <Banknote className="w-4 h-4 text-gray-600" />
               </div>
               <p className="text-xs font-bold text-gray-500 mb-1">Total Outstanding Balance</p>
-              <h3 className="text-3xl font-black text-gray-900 mb-2">₱512,500.00</h3>
+              <h3 className="text-3xl font-black text-gray-900 mb-2">{formatCurrency(totalOutstanding)}</h3>
               <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider mt-auto flex items-center">
-                <CalendarClock className="w-3 h-3 mr-1" /> Last Updated: 11/01/2023
+                <CalendarClock className="w-3 h-3 mr-1" /> Last Updated: {latestLoan?.nextDue || 'N/A'}
               </p>
             </div>
 
@@ -156,9 +264,9 @@ const Member_Loans = () => {
                 <CalendarClock className="w-4 h-4 text-[#1D6021]" />
               </div>
               <p className="text-xs font-bold text-gray-500 mb-1">Monthly Commitment</p>
-              <h3 className="text-3xl font-black text-gray-900 mb-2">₱14,200.00</h3>
+              <h3 className="text-3xl font-black text-gray-900 mb-2">{formatCurrency(totalMonthly)}</h3>
               <p className="text-[10px] font-bold text-gray-600 mt-auto">
-                Next Deduction: 11/15/2023
+                Next Deduction: {latestLoan?.nextDue || 'N/A'}
               </p>
             </div>
 
@@ -168,14 +276,17 @@ const Member_Loans = () => {
                 <FileText className="w-4 h-4 text-gray-600" />
               </div>
               <p className="text-xs font-bold text-gray-500 mb-1">Active Loans</p>
-              <h3 className="text-3xl font-black text-gray-900 mb-2">2</h3>
+              <h3 className="text-3xl font-black text-gray-900 mb-2">{loans.length}</h3>
               
               <div className="flex items-center gap-2 mt-auto">
                 <div className="flex -space-x-1.5">
-                  <div className="w-5 h-5 rounded-full bg-blue-500 border border-white flex items-center justify-center text-[8px] text-white font-bold">EM</div>
-                  <div className="w-5 h-5 rounded-full bg-orange-500 border border-white flex items-center justify-center text-[8px] text-white font-bold">BN</div>
+                  {loanTypeBadges.map((type, idx) => (
+                    <div key={`${type}-${idx}`} className="w-5 h-5 rounded-full bg-blue-500 border border-white flex items-center justify-center text-[8px] text-white font-bold">
+                      {type.slice(0, 2).toUpperCase()}
+                    </div>
+                  ))}
                 </div>
-                <p className="text-[10px] font-medium text-gray-400">Emergency, Bonus</p>
+                <p className="text-[10px] font-medium text-gray-400">{loanTypeBadges.join(', ') || 'No loans'}</p>
               </div>
             </div>
 
@@ -196,13 +307,26 @@ const Member_Loans = () => {
                   <th className="p-5 font-bold">Loan Type</th>
                   <th className="p-5 font-bold">Original Amount</th>
                   <th className="p-5 font-bold">Remaining Balance</th>
+                  <th className="p-5 font-bold">Interest Rate</th>
                   <th className="p-5 font-bold">Monthly Payment</th>
                   <th className="p-5 font-bold">Next Due</th>
                   <th className="p-5 font-bold">Status</th>
                 </tr>
               </thead>
               <tbody>
-                {activeLoans.map((loan, idx) => (
+                {loadingLoans ? (
+                  <tr>
+                    <td colSpan="7" className="p-5 text-sm text-gray-500">Loading loans...</td>
+                  </tr>
+                ) : loanError ? (
+                  <tr>
+                    <td colSpan="7" className="p-5 text-sm text-red-600">{loanError}</td>
+                  </tr>
+                ) : loans.length === 0 ? (
+                  <tr>
+                    <td colSpan="7" className="p-5 text-sm text-gray-500">No loan records found.</td>
+                  </tr>
+                ) : loans.map((loan, idx) => (
                   <tr key={idx} className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors last:border-0">
                     <td className="p-5">
                       <p className="text-sm font-bold text-gray-900">{loan.type}</p>
@@ -210,11 +334,12 @@ const Member_Loans = () => {
                     </td>
                     <td className="p-5 text-sm font-bold text-gray-600">{loan.originalAmount}</td>
                     <td className="p-5 text-sm font-black text-gray-900">{loan.balance}</td>
+                    <td className="p-5 text-sm font-bold text-gray-700">{loan.interestRate}</td>
                     <td className="p-5 text-sm font-bold text-[#1D6021]">{loan.payment}</td>
                     <td className="p-5 text-sm font-medium text-gray-500">{loan.nextDue}</td>
                     <td className="p-5">
                       <span className={`px-2.5 py-1 rounded text-[10px] font-extrabold tracking-wider ${
-                        loan.status === 'Active' ? 'bg-[#EAF1EB] text-[#1D6021]' : 'bg-[#FEF08A] text-[#854D0E]'
+                        loan.status === 'Active' ? 'bg-[#EAF1EB] text-[#1D6021]' : loan.status === 'Rejected' ? 'bg-red-100 text-red-700' : 'bg-[#FEF08A] text-[#854D0E]'
                       }`}>
                         {loan.status}
                       </span>
@@ -232,27 +357,27 @@ const Member_Loans = () => {
             <div className="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-gray-100 p-8 flex flex-col">
               <div className="mb-6 pb-6 border-b border-gray-100">
                 <h3 className="text-lg font-bold text-gray-900">Recent Payment Breakdown</h3>
-                <p className="text-xs text-gray-400 font-medium mt-1">CON-2023-0812 (Amortization Period #6 of 48)</p>
+                <p className="text-xs text-gray-400 font-medium mt-1">{latestLoan ? `${latestLoan.id} (${latestLoan.type})` : 'No loan selected'}</p>
               </div>
 
               <div className="space-y-6 flex-1">
                 <div className="flex justify-between items-center text-sm">
                   <span className="text-gray-600 font-medium">Principal Amount</span>
-                  <span className="font-bold text-gray-900">₱7,200.00</span>
+                  <span className="font-bold text-gray-900">{latestLoan?.originalAmount || 'N/A'}</span>
                 </div>
                 <div className="flex justify-between items-center text-sm">
-                  <span className="text-gray-600 font-medium">Interest (3%)</span>
-                  <span className="font-bold text-gray-900">₱2,100.00</span>
+                  <span className="text-gray-600 font-medium">Interest</span>
+                  <span className="font-bold text-gray-900">{latestLoan?.interestRate || 'N/A'}</span>
                 </div>
                 <div className="flex justify-between items-center text-sm">
                   <span className="text-gray-600 font-medium">Service Fee / Insurance</span>
-                  <span className="font-bold text-gray-900">₱200.00</span>
+                  <span className="font-bold text-gray-900">See loan computation summary</span>
                 </div>
               </div>
 
               <div className="flex justify-between items-center mt-8 pt-6 border-t border-gray-100">
                 <span className="font-bold text-gray-900">Total Monthly Payment</span>
-                <span className="text-xl font-black text-[#1D6021]">₱9,500.00</span>
+                <span className="text-xl font-black text-[#1D6021]">{latestLoan?.payment || 'N/A'}</span>
               </div>
 
               <div className="mt-8 bg-[#F8F9FA] p-4 rounded-xl flex items-start gap-3 border border-gray-100">

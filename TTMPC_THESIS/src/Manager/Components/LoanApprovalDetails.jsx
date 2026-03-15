@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { supabase } from '../../supabaseClient';
 import { 
   ArrowLeft, 
   User, 
@@ -28,46 +29,207 @@ const LoanApprovalDetails = () => {
   const { id } = useParams();
   const navigate = useNavigate();
 
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [actionError, setActionError] = useState('');
   const [activeModal, setActiveModal] = useState(null);
   const [remarks, setRemarks] = useState('');
   const [sendSms, setSendSms] = useState(true);
   const [sendEmail, setSendEmail] = useState(true);
+  const [loanDetails, setLoanDetails] = useState(null);
 
-  const member = { name: "Romelyn Delos Reyes" };
-
-  // Mock data - in a real app, you would fetch this based on the ID
-  const loanDetails = {
-    id: id || "TTMPCL-2026-001",
-    memberName: "Romelyn Delos Reyes",
-    status: "Pending Review",
-    summary: {
-      loanType: "Bonus Loan",
-      recommendedAmount: "₱20,000.00",
-      term: "12 Months",
-      migsStatus: "MIGS",
-      loanPurpose: "Home Improvement",
-      employerPosition: "DepEd (Teacher III)"
-    },
-    computation: {
-      principal: "₱20,000.00",
-      interestRate: "1.49% Monthly",
-      totalInterest: "₱1,992.04",
-      totalPayable: "₱21,832.67",
-      monthlyAmortization: "₱1,819.39"
-    },
-    risk: {
-      prevLoans: { value: "3", label: "FULLY PAID", color: "text-green-600" },
-      delinquency: { value: "NONE", label: "CLEAN RECORD", color: "text-green-600" },
-      consistency: { value: "98%", label: "EXCELLENT", color: "text-green-600" }
-    }
+  const formatCurrency = (value) => {
+    const amount = Number(value || 0);
+    return `₱${amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
+
+  const formatStatus = (value) => {
+    const raw = String(value || '').trim().toLowerCase();
+    if (!raw) return 'Pending Review';
+    return raw
+      .split(/[_\s-]+/)
+      .filter(Boolean)
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(' ');
+  };
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const fetchLoanDetails = async () => {
+      if (!id) {
+        if (isMounted) {
+          setLoadError('Loan ID is missing.');
+          setLoading(false);
+        }
+        return;
+      }
+
+      try {
+        setLoading(true);
+        setLoadError('');
+
+        const { data, error } = await supabase
+          .from('loans')
+          .select(`
+            control_number,
+            loan_amount,
+            principal_amount,
+            interest_rate,
+            total_interest,
+            monthly_amortization,
+            term,
+            loan_status,
+            loan_purpose,
+            source_of_income,
+            member:member_id (
+              first_name,
+              last_name,
+              is_bona_fide
+            ),
+            loan_type:loan_type_id (
+              name
+            )
+          `)
+          .eq('control_number', id)
+          .maybeSingle();
+
+        if (error) throw error;
+        if (!data) throw new Error('Loan record not found.');
+
+        const firstName = data.member?.first_name || '';
+        const lastName = data.member?.last_name || '';
+        const memberName = `${firstName} ${lastName}`.trim() || 'Unknown Member';
+        const principalAmount = Number(data.principal_amount ?? data.loan_amount ?? 0);
+        const totalInterest = Number(data.total_interest ?? 0);
+        const monthlyAmortization = Number(data.monthly_amortization ?? 0);
+        const totalPayable = totalInterest > 0
+          ? principalAmount + totalInterest
+          : (monthlyAmortization > 0 ? monthlyAmortization * Number(data.term || 0) : principalAmount);
+
+        const mapped = {
+          id: data.control_number,
+          memberName,
+          status: formatStatus(data.loan_status),
+          summary: {
+            loanType: data.loan_type?.name || 'N/A',
+            recommendedAmount: formatCurrency(data.loan_amount),
+            term: `${data.term || 0} Months`,
+            migsStatus: data.member?.is_bona_fide ? 'MIGS' : 'NON-MIGS',
+            loanPurpose: data.loan_purpose || 'N/A',
+            employerPosition: data.source_of_income || 'N/A',
+          },
+          computation: {
+            principal: formatCurrency(principalAmount),
+            interestRate: data.interest_rate ? `${Number(data.interest_rate)}% Monthly` : 'N/A',
+            totalInterest: formatCurrency(totalInterest),
+            totalPayable: formatCurrency(totalPayable),
+            monthlyAmortization: formatCurrency(monthlyAmortization),
+          },
+          risk: {
+            prevLoans: { value: 'N/A', label: 'NOT YET COMPUTED', color: 'text-gray-500' },
+            delinquency: { value: 'N/A', label: 'NOT YET COMPUTED', color: 'text-gray-500' },
+            consistency: { value: 'N/A', label: 'NOT YET COMPUTED', color: 'text-gray-500' },
+          },
+        };
+
+        if (isMounted) {
+          setLoanDetails(mapped);
+        }
+      } catch (err) {
+        if (isMounted) {
+          setLoadError(err.message || 'Failed to load loan details.');
+        }
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    fetchLoanDetails();
+    return () => {
+      isMounted = false;
+    };
+  }, [id]);
 
   const closeModal = () => {
     setActiveModal(null);
+    setActionError('');
     setRemarks('');
     setSendSms(true);
     setSendEmail(true);
   };
+
+  const applyLoanStatusUpdate = async (modalType) => {
+    if (!loanDetails?.id) return;
+
+    if ((modalType === 'reject' || modalType === 'revise') && !remarks.trim()) {
+      setActionError('Please provide remarks before confirming this action.');
+      return;
+    }
+
+    let nextStatus = 'pending';
+    if (modalType === 'proceed') nextStatus = 'to be disbursed';
+    if (modalType === 'reject') nextStatus = 'rejected';
+
+    try {
+      setSaving(true);
+      setActionError('');
+
+      const { data, error } = await supabase
+        .from('loans')
+        .update({ loan_status: nextStatus })
+        .eq('control_number', loanDetails.id)
+        .select('control_number, loan_status')
+        .maybeSingle();
+
+      if (error) {
+        throw new Error(error.message || 'Failed to update loan status.');
+      }
+
+      if (!data) {
+        throw new Error('Loan record not found during status update.');
+      }
+
+      setLoanDetails((prev) => prev ? { ...prev, status: formatStatus(nextStatus) } : prev);
+      closeModal();
+      navigate('/loan-approval');
+    } catch (err) {
+      setActionError(err.message || 'Unable to update loan application status.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="p-8 bg-gray-50 min-h-screen">
+        <button 
+          onClick={() => navigate('/loan-approval')}
+          className="flex items-center text-sm text-[#1D6021] font-semibold mb-6 hover:underline"
+        >
+          <ArrowLeft className="w-4 h-4 mr-2" /> Back to Loan Approvals
+        </button>
+        <div className="bg-white rounded-xl border border-gray-200 p-8 text-gray-600">Loading loan details...</div>
+      </div>
+    );
+  }
+
+  if (loadError || !loanDetails) {
+    return (
+      <div className="p-8 bg-gray-50 min-h-screen">
+        <button 
+          onClick={() => navigate('/loan-approval')}
+          className="flex items-center text-sm text-[#1D6021] font-semibold mb-6 hover:underline"
+        >
+          <ArrowLeft className="w-4 h-4 mr-2" /> Back to Loan Approvals
+        </button>
+        <div className="bg-white rounded-xl border border-red-200 p-8 text-red-600">{loadError || 'Unable to display loan details.'}</div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-8 bg-gray-50 min-h-screen relative">
@@ -87,6 +249,9 @@ const LoanApprovalDetails = () => {
             Application ID: <span className="font-bold text-[#1D6021] mr-2">{loanDetails.id}</span> | 
             Member: <span className="font-bold text-gray-800 ml-2">{loanDetails.memberName}</span>
           </p>
+          {actionError ? (
+            <p className="text-sm text-red-600 mt-2">{actionError}</p>
+          ) : null}
         </div>
         <span className="bg-[#FEF08A] text-[#854D0E] px-4 py-1.5 rounded-full text-sm font-bold flex items-center">
           <span className="w-2 h-2 rounded-full bg-[#EAB308] mr-2"></span>
@@ -260,7 +425,7 @@ const LoanApprovalDetails = () => {
               <>
                 <h3 className="text-xl font-bold text-gray-900 mb-4">Reject Loan Application</h3>
                 <p className="text-sm text-gray-600 mb-6">
-                  Are you sure you want to reject the loan application of <span className="font-bold text-gray-900">{member.name}</span>? This action is permanent and cannot be undone.
+                  Are you sure you want to reject the loan application of <span className="font-bold text-gray-900">{loanDetails.memberName}</span>? This action is permanent and cannot be undone.
                 </p>
                 
                 <div className="mb-6">
@@ -283,7 +448,7 @@ const LoanApprovalDetails = () => {
               <>
                 <h3 className="text-xl font-bold text-gray-900 mb-4">Return for Revision</h3>
                 <p className="text-sm text-gray-600 mb-6">
-                  Please specify the corrections or additional information required from <span className="font-bold text-gray-900">{member.name}</span>.
+                  Please specify the corrections or additional information required from <span className="font-bold text-gray-900">{loanDetails.memberName}</span>.
                 </p>
                 
                 <div className="mb-6">
@@ -306,7 +471,7 @@ const LoanApprovalDetails = () => {
               <>
                 <h3 className="text-xl font-bold text-gray-900 mb-4">Approve Loan Application</h3>
                 <p className="text-sm text-gray-600 mb-8">
-                  You are about to approve the loan application for <span className="font-bold text-gray-900">{member.name}</span>. Proceed?
+                  You are about to approve the loan application for <span className="font-bold text-gray-900">{loanDetails.memberName}</span>. Proceed?
                 </p>
               </>
             )}
@@ -314,40 +479,48 @@ const LoanApprovalDetails = () => {
             {/* Shared Notification Options */}
             <div className="mb-8">
               <h4 className="text-[10px] font-bold text-green-700 uppercase tracking-wider mb-3">Notification Options</h4>
-              <CustomCheckbox 
-                checked={sendSms} 
-                onChange={() => setSendSms(!sendSms)} 
-                label="Send SMS Notification" 
-              />
-              <CustomCheckbox 
-                checked={sendEmail} 
-                onChange={() => setSendEmail(!sendEmail)} 
-                label="Send Email Notification" 
-              />
+              <p className="text-xs text-gray-500">Email/SMS sending is disabled for this flow.</p>
             </div>
+
+            {actionError ? (
+              <div className="mb-4 text-sm text-red-600">{actionError}</div>
+            ) : null}
 
             {/* Shared Footer Actions */}
             <div className="flex justify-center gap-3 mt-4">
               <button 
                 onClick={closeModal}
+                disabled={saving}
                 className="px-6 py-2.5 rounded-lg border border-gray-300 text-gray-700 font-medium text-sm hover:bg-gray-50 transition-colors w-1/2"
               >
                 Cancel
               </button>
               
               {activeModal === 'reject' && (
-                <button className="px-6 py-2.5 rounded-lg bg-[#DC2626] hover:bg-red-700 text-white font-medium text-sm transition-colors w-1/2">
-                  Confirm Rejection
+                <button
+                  onClick={() => applyLoanStatusUpdate('reject')}
+                  disabled={saving}
+                  className="px-6 py-2.5 rounded-lg bg-[#DC2626] hover:bg-red-700 text-white font-medium text-sm transition-colors w-1/2 disabled:opacity-50"
+                >
+                  {saving ? 'Saving...' : 'Confirm Rejection'}
                 </button>
               )}
               {activeModal === 'revise' && (
-                <button className="px-6 py-2.5 rounded-lg bg-[#F59E0B] hover:bg-amber-600 text-white font-medium text-sm transition-colors w-1/2">
-                  Send for Revision
+                <button
+                  onClick={() => applyLoanStatusUpdate('revise')}
+                  disabled={saving}
+                  className="px-6 py-2.5 rounded-lg bg-[#F59E0B] hover:bg-amber-600 text-white font-medium text-sm transition-colors w-1/2 disabled:opacity-50"
+                >
+                  {saving ? 'Saving...' : 'Send for Revision'}
                 </button>
               )}
               {activeModal === 'proceed' && (
-                <button className="px-6 py-2.5 rounded-lg bg-[#1D6021] hover:bg-[#154718] text-white font-medium text-sm transition-colors w-1/2">
-                  Confirm Approval
+                <button
+                  onClick={() => applyLoanStatusUpdate('proceed')}
+                  disabled={saving}
+                  className="px-6 py-2.5 rounded-lg bg-[#1D6021] hover:bg-[#154718] text-white font-medium text-sm transition-colors w-1/2 disabled:opacity-50"
+                >
+                  {saving ? 'Saving...' : 'Confirm Approval'}
                 </button>
               )}
             </div>

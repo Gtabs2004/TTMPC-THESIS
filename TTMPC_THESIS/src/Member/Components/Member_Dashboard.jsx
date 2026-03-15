@@ -1,6 +1,7 @@
-import React from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
+import { supabase } from "../../supabaseClient";
 import { 
   LayoutDashboard, 
   Users, 
@@ -21,6 +22,11 @@ import {
 const MemberDashboard = () => {
   const { session, signOut } = UserAuth();
   const navigate = useNavigate();
+  const [profile, setProfile] = useState(null);
+  const [memberLoans, setMemberLoans] = useState([]);
+  const [loadingProfile, setLoadingProfile] = useState(true);
+  const [profileError, setProfileError] = useState("");
+  const [isTemporaryAccount, setIsTemporaryAccount] = useState(false);
 
   const menuItems = [
     { name: "Dashboard", icon: LayoutDashboard },
@@ -57,6 +63,170 @@ const MemberDashboard = () => {
       default: return 'bg-gray-100 text-gray-600';
     }
   };
+
+  const formatCurrency = (value) => `₱ ${Number(value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const formatDate = (value) => {
+    if (!value) return 'N/A';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return 'N/A';
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  };
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadDashboardData = async () => {
+      try {
+        setLoadingProfile(true);
+        setProfileError('');
+
+        const { data: authData, error: authError } = await supabase.auth.getUser();
+        if (authError) throw authError;
+
+        const memberId = authData?.user?.id;
+        const authEmail = authData?.user?.email || '';
+        if (!memberId) throw new Error('Please sign in again to load your dashboard.');
+
+        let temporaryFlag = false;
+        const accountQueries = ['member_account', 'member_accounts'];
+        for (const tableName of accountQueries) {
+          const { data: accountRow, error: accountError } = await supabase
+            .from(tableName)
+            .select('is_temporary')
+            .eq('user_id', memberId)
+            .limit(1)
+            .maybeSingle();
+
+          if (!accountError && accountRow) {
+            temporaryFlag = Boolean(accountRow.is_temporary);
+            break;
+          }
+        }
+
+        const { data: memberRow, error: memberError } = await supabase
+          .from('member')
+          .select('*')
+          .eq('id', memberId)
+          .maybeSingle();
+
+        if (memberError) throw memberError;
+
+        let latestApplication = null;
+        if (memberRow?.membership_id) {
+          const { data, error } = await supabase
+            .from('member_applications')
+            .select('*')
+            .eq('membership_id', memberRow.membership_id)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          if (!error && data) latestApplication = data;
+        }
+
+        if (!latestApplication && authEmail) {
+          const { data, error } = await supabase
+            .from('member_applications')
+            .select('*')
+            .ilike('email', authEmail)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          if (!error && data) latestApplication = data;
+        }
+
+        const { data: loansData, error: loansError } = await supabase
+          .from('loans')
+          .select('control_number, principal_amount, loan_amount, total_interest, monthly_amortization, loan_status, application_date, term')
+          .eq('member_id', memberId)
+          .order('application_date', { ascending: false });
+
+        if (loansError) throw loansError;
+
+        const { data: cbuRow, error: cbuError } = await supabase
+          .from('capital_build_up')
+          .select('starting_share_capital, transaction_date')
+          .eq('member_id', memberId)
+          .order('transaction_date', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (cbuError) throw cbuError;
+
+        const normalizedLoans = (loansData || []).map((loan) => {
+          const principal = Number(loan.principal_amount ?? loan.loan_amount ?? 0);
+          const totalInterest = Number(loan.total_interest ?? 0);
+          const monthly = Number(loan.monthly_amortization ?? 0);
+          return {
+            ...loan,
+            principal,
+            totalInterest,
+            totalPayable: principal + totalInterest,
+            monthly,
+          };
+        });
+
+        const fullName = [
+          memberRow?.first_name || latestApplication?.first_name,
+          latestApplication?.middle_name || memberRow?.middle_initial,
+          memberRow?.last_name || latestApplication?.surname || latestApplication?.last_name,
+        ]
+          .filter(Boolean)
+          .join(' ')
+          .trim() || 'Member';
+        const shareCapital = Number(cbuRow?.starting_share_capital ?? 0);
+
+        if (isMounted) {
+          setProfile({
+            fullName,
+            membershipId: memberRow?.membership_id || 'N/A',
+            joinDate: formatDate(memberRow?.membership_date || memberRow?.created_at || latestApplication?.created_at),
+            memberType: memberRow?.is_bona_fide ? 'Regular Member' : 'Member',
+            isActive: memberRow?.is_bona_fide !== false,
+            migsPercent: memberRow?.is_bona_fide ? 95 : 70,
+            shareCapital,
+          });
+          setIsTemporaryAccount(temporaryFlag);
+          setMemberLoans(normalizedLoans);
+        }
+      } catch (err) {
+        if (isMounted) {
+          setProfileError(err.message || 'Unable to load member dashboard data.');
+        }
+      } finally {
+        if (isMounted) {
+          setLoadingProfile(false);
+        }
+      }
+    };
+
+    loadDashboardData();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (isTemporaryAccount) {
+      window.alert('Password is in default. Please change password right away in Member Profile.');
+    }
+  }, [isTemporaryAccount]);
+
+  const activeLoans = useMemo(
+    () => memberLoans.filter((loan) => !['rejected', 'cancelled'].includes(String(loan.loan_status || '').toLowerCase())),
+    [memberLoans]
+  );
+
+  const activeLoanBalance = useMemo(
+    () => activeLoans.reduce((sum, loan) => sum + (loan.totalPayable || 0), 0),
+    [activeLoans]
+  );
+
+  const nextPaymentAmount = useMemo(
+    () => activeLoans.reduce((sum, loan) => sum + (loan.monthly || 0), 0),
+    [activeLoans]
+  );
+
+  const nextPaymentDate = activeLoans[0]?.application_date ? formatDate(activeLoans[0].application_date) : 'N/A';
 
   return (
    <div className="flex min-h-screen bg-[#F8F9FA]">
@@ -148,6 +318,18 @@ const MemberDashboard = () => {
         <main className="p-8 overflow-y-auto">
           <h1 className="font-extrabold text-[#1a4a2f] text-2xl mb-6">Dashboard</h1>
 
+          {isTemporaryAccount ? (
+            <div className="mb-6 p-4 rounded-xl border border-amber-200 bg-amber-50 text-sm text-amber-800 font-semibold flex items-center justify-between gap-3">
+              <span>Your account is using a default password. Change it right away.</span>
+              <button
+                onClick={() => navigate('/members-profile')}
+                className="px-3 py-1.5 rounded-lg bg-amber-600 text-white text-xs font-bold hover:bg-amber-700"
+              >
+                Change Password
+              </button>
+            </div>
+          ) : null}
+
           {/* Top Section: Profile & Status */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
             
@@ -163,22 +345,26 @@ const MemberDashboard = () => {
               <div className="flex-1 text-center sm:text-left">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
                   <div className="flex items-center justify-center sm:justify-start gap-3">
-                    <h2 className="text-xl font-bold text-gray-900">Juan Dela Cruz</h2>
-                    <span className="bg-[#1D6021] text-white px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wider uppercase">
-                      Active
+                    <h2 className="text-xl font-bold text-gray-900">{profile?.fullName || 'Loading...'}</h2>
+                    <span className={`${profile?.isActive ? 'bg-[#1D6021]' : 'bg-gray-500'} text-white px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wider uppercase`}>
+                      {profile?.isActive ? 'Active' : 'Inactive'}
                     </span>
                   </div>
                 </div>
                 
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between text-sm text-gray-500 mb-6">
                   <div>
-                    <p className="font-medium">Member ID: <span className="text-gray-900">2024-0892</span></p>
-                    <p className="font-medium">Join Date: <span className="text-gray-900">Jan 15, 2021</span></p>
+                    <p className="font-medium">Member ID: <span className="text-gray-900">{profile?.membershipId || 'N/A'}</span></p>
+                    <p className="font-medium">Join Date: <span className="text-gray-900">{profile?.joinDate || 'N/A'}</span></p>
                   </div>
                   <div className="mt-2 sm:mt-0 font-medium">
-                    Type: <span className="text-gray-900">Regular Member</span>
+                    Type: <span className="text-gray-900">{profile?.memberType || 'Member'}</span>
                   </div>
                 </div>
+
+                {profileError ? (
+                  <p className="text-xs text-red-600 font-semibold mb-3">{profileError}</p>
+                ) : null}
 
                 <button className="flex items-center justify-center gap-2 border border-[#1D6021] text-[#1D6021] hover:bg-[#EAF1EB] transition-colors font-bold rounded-lg px-4 py-2 text-sm">
                   <Pencil className="w-4 h-4" /> Edit Profile
@@ -196,7 +382,7 @@ const MemberDashboard = () => {
               </div>
               <div className="flex flex-col items-center">
                 <div className="w-20 h-20 rounded-full border-8 border-[#1D6021] flex items-center justify-center mb-3">
-                  <span className="font-extrabold text-gray-900 text-lg">95%</span>
+                  <span className="font-extrabold text-gray-900 text-lg">{profile?.migsPercent ?? 0}%</span>
                 </div>
                 <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider text-center">MIGS<br/>Standing</p>
               </div>
@@ -212,7 +398,7 @@ const MemberDashboard = () => {
                 <Wallet className="w-4 h-4 text-[#1D6021]" />
               </div>
               <p className="text-xs font-bold text-gray-500 mb-1">Share Capital</p>
-              <h3 className="text-2xl font-black text-gray-900 mb-2">₱ 250,000.00</h3>
+                <h3 className="text-2xl font-black text-gray-900 mb-2">{formatCurrency(profile?.shareCapital || 0)}</h3>
               <p className="text-[10px] font-bold text-green-600 flex items-center mt-auto">
                 <ArrowUpRight className="w-3 h-3 mr-0.5" /> +5.2% from last month
               </p>
@@ -236,9 +422,9 @@ const MemberDashboard = () => {
                 <CreditCard className="w-4 h-4 text-red-500" />
               </div>
               <p className="text-xs font-bold text-gray-500 mb-1">Active Loan Balance</p>
-              <h3 className="text-2xl font-black text-gray-900 mb-2">₱ 120,000.00</h3>
+              <h3 className="text-2xl font-black text-gray-900 mb-2">{formatCurrency(activeLoanBalance)}</h3>
               <p className="text-[10px] font-semibold text-gray-400 mt-auto">
-                Salary Loan • 24 months
+                {activeLoans.length ? `${activeLoans.length} active loan(s)` : 'No active loans'}
               </p>
             </div>
 
@@ -251,9 +437,9 @@ const MemberDashboard = () => {
                 <Calendar className="w-4 h-4 text-white" />
               </div>
               <p className="text-xs font-semibold text-green-100 mb-1">Next Payment</p>
-              <h3 className="text-2xl font-black mb-2">₱ 8,245.00</h3>
+              <h3 className="text-2xl font-black mb-2">{formatCurrency(nextPaymentAmount)}</h3>
               <p className="text-[10px] font-medium text-green-100 mt-auto">
-                Due on: Nov 15, 2023
+                Due on: {nextPaymentDate}
               </p>
             </div>
           </div>
