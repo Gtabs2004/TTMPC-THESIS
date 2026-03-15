@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { fetchLoanPrefill, submitUnifiedLoan } from './loanSubmission';
+import { buildEmergencyPayload, computeLoan } from './loanComputeApi';
 
 const generateControlNumber = () => {
   const now = new Date();
@@ -17,7 +18,7 @@ function Emergency_Loan() {
 
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
-    application_status: 'New',
+    application_type: 'New',
     control_no: generateControlNumber(),
     date_applied: new Date().toISOString().split('T')[0],
     surname: '',
@@ -107,15 +108,58 @@ function Emergency_Loan() {
     };
   }, []);
 
+  useEffect(() => {
+    const principal = Number(formData.loan_amount_numeric || 0);
+    const term = Number(formData.loan_term_months || 0);
+
+    if (!principal || !term) {
+      setFormData((prev) => ({ ...prev, monthly_amortization: '' }));
+      return;
+    }
+
+    if (principal > 20000) {
+      setFormData((prev) => ({ ...prev, monthly_amortization: '' }));
+      return;
+    }
+
+    // Emergency loan backend rule: only 6 or 12 months.
+    if (term !== 6 && term !== 12) {
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      try {
+        const data = await computeLoan(buildEmergencyPayload(formData));
+        setFormData((prev) => ({
+          ...prev,
+          monthly_amortization: data?.monthly_amortization ? String(data.monthly_amortization) : prev.monthly_amortization,
+        }));
+      } catch (_err) {
+        // Keep form usable even if compute API is temporarily unavailable.
+      }
+    }, 350);
+
+    return () => clearTimeout(timer);
+  }, [formData.loan_amount_numeric, formData.loan_term_months, formData.payment_start_date]);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
+
+    const principal = Number(formData.loan_amount_numeric || 0);
+    if (principal > 20000) {
+      alert('Emergency loan maximum amount is 20,000.');
+      setLoading(false);
+      return;
+    }
 
     try {
       await submitUnifiedLoan({
         loanTypeCode: 'EMERGENCY',
         controlNumber: formData.control_no,
-        applicationStatus: formData.application_status,
+        applicationStatus: 'pending',
+        applicationType: formData.application_type,
+        loanStatus: 'pending',
         applicationDate: formData.date_applied,
         loanAmount: formData.loan_amount_numeric,
         principalAmount: formData.loan_amount_numeric,
@@ -173,11 +217,11 @@ function Emergency_Loan() {
             <div className="bg-[#EEF6F1] rounded-xl p-6 border-2 border-[#66B538] flex flex-wrap items-center justify-between gap-6">
               <div className="flex gap-8">
                 <label className="flex items-center space-x-2 cursor-pointer">
-                  <input type="radio" name="application_status" value="New" checked={formData.application_status === 'New'} onChange={handleChange} className="h-4 w-4 accent-[#66B538]" />
+                  <input type="radio" name="application_type" value="New" checked={formData.application_type === 'New'} onChange={handleChange} className="h-4 w-4 accent-[#66B538]" />
                   <span className="font-semibold text-gray-700">New</span>
                 </label>
                 <label className="flex items-center space-x-2 cursor-pointer">
-                  <input type="radio" name="application_status" value="Renewal" checked={formData.application_status === 'Renewal'} onChange={handleChange} className="h-4 w-4 accent-[#66B538]" />
+                  <input type="radio" name="application_type" value="Renewal" checked={formData.application_type === 'Renewal'} onChange={handleChange} className="h-4 w-4 accent-[#66B538]" />
                   <span className="font-semibold text-gray-700">Renewal</span>
                 </label>
               </div>
@@ -222,10 +266,17 @@ function Emergency_Loan() {
           <div className={sectionHeader}><span className="bg-white text-[#66B538] rounded-full w-6 h-6 flex items-center justify-center text-sm">2</span> LOAN DETAILS</div>
           <div className="p-8 grid grid-cols-1 md:grid-cols-3 gap-6">
             <div><label className={labelStyles}>Loan Amount (Words)</label><input name="loan_amount_words" value={formData.loan_amount_words} onChange={handleChange} className={inputStyles} /></div>
-            <div><label className={labelStyles}>Loan Amount (Numeric)</label><input type="number" name="loan_amount_numeric" value={formData.loan_amount_numeric} onChange={handleChange} className={inputStyles} /></div>
+            <div><label className={labelStyles}>Loan Amount (Numeric)</label><input type="number" name="loan_amount_numeric" value={formData.loan_amount_numeric} onChange={handleChange} max="20000" className={inputStyles} /></div>
             <div><label className={labelStyles}>Loan Purpose</label><input name="loan_purpose" value={formData.loan_purpose} onChange={handleChange} className={inputStyles} /></div>
-            <div><label className={labelStyles}>Term (Months)</label><input type="number" name="loan_term_months" value={formData.loan_term_months} onChange={handleChange} className={inputStyles} /></div>
-            <div><label className={labelStyles}>Monthly Amortization</label><input type="number" name="monthly_amortization" value={formData.monthly_amortization} onChange={handleChange} className={inputStyles} /></div>
+            <div>
+              <label className={labelStyles}>Term (Months)</label>
+              <select name="loan_term_months" value={formData.loan_term_months} onChange={handleChange} className={inputStyles}>
+                <option value="">Select Term</option>
+                <option value="6">6 Months</option>
+                <option value="12">12 Months</option>
+              </select>
+            </div>
+            <div><label className={labelStyles}>Monthly Amortization</label><input type="number" name="monthly_amortization" value={formData.monthly_amortization} readOnly className={`${inputStyles} bg-gray-100 cursor-not-allowed`} /></div>
             <div><label className={labelStyles}>Source of Income</label><input name="source_of_income" value={formData.source_of_income} onChange={handleChange} className={inputStyles} /></div>
             <div><label className={labelStyles}>Payment Start Date</label><input type="date" name="payment_start_date" value={formData.payment_start_date} onChange={handleChange} className={inputStyles} /></div>
           </div>

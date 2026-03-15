@@ -362,25 +362,71 @@ def mark_application_as_approved(
 	application_table: str,
 	membership_id: str,
 	confirmed_by_user_id: str,
+	confirmed_by_role: str | None,
 ) -> None:
+	def _table_has_column(table_name: str, column_name: str) -> bool:
+		try:
+			supabase.table(table_name).select(column_name).limit(1).execute()
+			return True
+		except Exception:
+			return False
+
 	approved_at = datetime.now(timezone.utc).isoformat()
-	full_payload = {
+	payload = {
 		"application_status": "Member",
-		"membership_id": membership_id,
-		"approved_at": approved_at,
-		"approved_by": confirmed_by_user_id,
 	}
 
-	# Try to store all historical links; if optional columns are missing, fallback to status-only.
-	try:
-		supabase.table(application_table).update(full_payload).eq("application_id", application_id).execute()
-		return
-	except Exception:
-		pass
+	has_membership_id = _table_has_column(application_table, "membership_id")
+	has_approved_at = _table_has_column(application_table, "approved_at")
+	has_approved_by = _table_has_column(application_table, "approved_by")
+	has_approved_by_role = _table_has_column(application_table, "approved_by_role")
 
-	supabase.table(application_table).update({"application_status": "Member"}).eq(
-		"application_id", application_id
-	).execute()
+	if has_membership_id:
+		payload["membership_id"] = membership_id
+	if has_approved_at:
+		payload["approved_at"] = approved_at
+	if has_approved_by:
+		payload["approved_by"] = confirmed_by_user_id
+	if has_approved_by_role:
+		payload["approved_by_role"] = str(confirmed_by_role or "").strip() or None
+
+	try:
+		supabase.table(application_table).update(payload).eq("application_id", application_id).execute()
+	except Exception as err:
+		raise MembershipConfirmationError(
+			f"Unable to update {application_table} for application {application_id}: {err}"
+		)
+
+	verify_columns = ["application_id", "application_status"]
+	if has_membership_id:
+		verify_columns.append("membership_id")
+
+	verify_response = (
+		supabase.table(application_table)
+		.select(",".join(verify_columns))
+		.eq("application_id", application_id)
+		.limit(1)
+		.execute()
+	)
+
+	if not verify_response.data:
+		raise MembershipConfirmationError(
+			f"Approval update did not find application row {application_id} in {application_table}."
+		)
+
+	updated_row = verify_response.data[0]
+	status_after = str(updated_row.get("application_status") or "").strip().lower()
+	if status_after not in {"member", "official member"}:
+		raise MembershipConfirmationError(
+			f"Failed to set application_status to Member for application {application_id}."
+		)
+
+	if has_membership_id:
+		membership_after = str(updated_row.get("membership_id") or "").strip()
+		if membership_after != membership_id:
+			raise MembershipConfirmationError(
+				f"Failed to persist membership_id on {application_table} for application {application_id}."
+			)
 
 
 def update_confirmed_account_role_to_member(
@@ -560,6 +606,7 @@ def confirm_membership(application_id: str, confirmed_by_user_id: str, force: bo
 			application_table,
 			membership_id,
 			confirmed_by_user_id,
+			confirmer.get("role"),
 		)
 		role_update_result = update_confirmed_account_role_to_member(supabase, auth_user_id)
 

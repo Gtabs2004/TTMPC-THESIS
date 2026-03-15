@@ -395,7 +395,7 @@ const Member_Approvals = () => {
                         {activeTab === "Pending" && <th className="px-6 py-4">Submitted Date</th>}
                         {activeTab === "Rejected" && (
                           <>
-                            <th className="px-6 py-4">Submitted Date</th>
+                            <th className="px-6 py-4">Submitted Date</th> 
                             <th className="px-6 py-4">Rejection Reason</th>
                           </>
                         )}

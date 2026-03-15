@@ -22,6 +22,48 @@ const normalizeDateToIso = (value) => {
   return date.toISOString();
 };
 
+const normalizeLoanStatus = (value) => {
+  const status = String(value || '').trim().toLowerCase();
+  if (!status) return 'pending';
+
+  const map = {
+    pending: 'pending',
+    approved: 'approved',
+    rejected: 'rejected',
+    cancelled: 'cancelled',
+    canceled: 'cancelled',
+    released: 'released',
+    disbursed: 'released',
+  };
+
+  return map[status] || 'pending';
+};
+
+const normalizeApplicationStatus = (value) => {
+  const status = String(value || '').trim().toLowerCase();
+  if (!status) return 'pending';
+
+  const map = {
+    pending: 'pending',
+    approved: 'approved',
+    rejected: 'rejected',
+    cancelled: 'cancelled',
+    canceled: 'cancelled',
+    released: 'released',
+    disbursed: 'released',
+    new: 'pending',
+    renewal: 'pending',
+  };
+
+  return map[status] || 'pending';
+};
+
+const normalizeApplicationType = (value) => {
+  const type = String(value || '').trim().toLowerCase();
+  if (type === 'renewal') return 'renewal';
+  return 'new';
+};
+
 async function getCurrentUser() {
   const {
     data: { user },
@@ -58,48 +100,67 @@ async function getLoanTypeId(loanTypeCode) {
     throw new Error('Loan type is required.');
   }
 
-  // Try strict code match first.
-  let { data, error } = await supabase
-    .from('loan_types')
-    .select('id, code, name')
-    .eq('code', code)
-    .limit(1)
-    .maybeSingle();
-
-  if (error) throw error;
-  if (data?.id) return data.id;
-
-  // Fallback: case-insensitive code match.
-  ({ data, error } = await supabase
-    .from('loan_types')
-    .select('id, code, name')
-    .ilike('code', code)
-    .limit(1)
-    .maybeSingle());
-
-  if (error) throw error;
-  if (data?.id) return data.id;
-
-  // Fallback: match by common names.
-  const expectedNames = {
-    CONSOLIDATED: 'Consolidated Loan',
-    BONUS: 'Bonus Loan',
-    EMERGENCY: 'Emergency Loan',
+  const tryQuery = async (builder) => {
+    const { data, error } = await builder;
+    if (error) return null;
+    return data?.id || null;
   };
 
-  const fallbackName = expectedNames[code] || code;
-  ({ data, error } = await supabase
-    .from('loan_types')
-    .select('id, code, name')
-    .ilike('name', fallbackName)
-    .limit(1)
-    .maybeSingle());
+  // Try strict/code-based matching first when code column exists.
+  let foundId = await tryQuery(
+    supabase
+      .from('loan_types')
+      .select('id, code, name')
+      .eq('code', code)
+      .limit(1)
+      .maybeSingle()
+  );
+  if (foundId) return foundId;
 
-  if (error) throw error;
-  if (data?.id) return data.id;
+  foundId = await tryQuery(
+    supabase
+      .from('loan_types')
+      .select('id, code, name')
+      .ilike('code', code)
+      .limit(1)
+      .maybeSingle()
+  );
+  if (foundId) return foundId;
+
+  // Name variants: supports both "Bonus" and "Bonus Loan" styles.
+  const expectedNames = {
+    CONSOLIDATED: ['Consolidated Loan', 'Consolidated'],
+    BONUS: ['Bonus Loan', 'Bonus'],
+    EMERGENCY: ['Emergency Loan', 'Emergency'],
+  };
+
+  const nameCandidates = expectedNames[code] || [code];
+  for (const candidate of nameCandidates) {
+    foundId = await tryQuery(
+      supabase
+        .from('loan_types')
+        .select('id, name')
+        .ilike('name', candidate)
+        .limit(1)
+        .maybeSingle()
+    );
+    if (foundId) return foundId;
+  }
+
+  // Last fallback: token match (e.g., name contains "bonus").
+  const token = code.toLowerCase();
+  foundId = await tryQuery(
+    supabase
+      .from('loan_types')
+      .select('id, name')
+      .ilike('name', `%${token}%`)
+      .limit(1)
+      .maybeSingle()
+  );
+  if (foundId) return foundId;
 
   throw new Error(
-    `Loan type code not found: ${code}. Ensure loan_types has seeded rows and authenticated SELECT policy.`
+    `Loan type code not found: ${code}. Seed loan_types with Bonus, Consolidated, and Emergency entries.`
   );
 }
 
@@ -305,6 +366,7 @@ export async function submitUnifiedLoan({
   loanTypeCode,
   controlNumber,
   applicationStatus,
+  applicationType,
   applicationDate,
   loanAmount,
   principalAmount,
@@ -327,7 +389,7 @@ export async function submitUnifiedLoan({
 
     coMakerRows.push({
       loan_id: controlNumber,
-      member_id: memberId,
+      member_id: memberIdForCoMaker,
       liability_status: coMaker.liability_status || 'active',
       date_signed: normalizeDateToIso(coMaker.date_signed) ?? new Date().toISOString(),
       co_maker_name: coMaker.name || null,
@@ -339,6 +401,10 @@ export async function submitUnifiedLoan({
     });
   }
 
+  const normalizedLoanStatus = normalizeLoanStatus(loanStatus);
+  const normalizedApplicationStatus = normalizeApplicationStatus(applicationStatus);
+  const normalizedApplicationType = normalizeApplicationType(applicationType ?? applicationStatus);
+
   const payload = {
     control_number: controlNumber,
     member_id: memberId,
@@ -347,10 +413,12 @@ export async function submitUnifiedLoan({
     principal_amount: toFloat(principalAmount ?? loanAmount),
     interest_rate: toFloat(interestRate),
     term: toInt(term),
-    loan_status: loanStatus,
+    ...optionalFields,
+    loan_status: normalizedLoanStatus,
+    application_status: normalizedApplicationStatus,
+    application_type: normalizedApplicationType,
     application_date: normalizeDateToIso(applicationDate) ?? new Date().toISOString(),
     disbursal_date: normalizeDateToIso(disbursalDate),
-    ...optionalFields,
     user_email: user.email,
   };
 

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { fetchLoanPrefill, submitUnifiedLoan } from './loanSubmission';
+import { buildConsolidatedPayload, computeLoan } from './loanComputeApi';
 
 // Function to generate control number: CL-YYYYMMDD-XXXX
 const generateControlNumber = () => {
@@ -20,7 +21,7 @@ function Consolidated_Loan() {
   // 1. STATE LOGIC: Form Data State
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
-    application_status: 'New',
+    application_type: 'New',
     control_no: generateControlNumber(),
     date_applied: new Date().toISOString().split('T')[0],
     surname: '',
@@ -111,6 +112,30 @@ function Consolidated_Loan() {
     };
   }, []);
 
+  useEffect(() => {
+    const principal = Number(formData.loan_amount_numeric || 0);
+    const term = Number(formData.loan_term_months || 0);
+
+    if (!principal || !term) {
+      setFormData((prev) => ({ ...prev, monthly_amortization: '' }));
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      try {
+        const data = await computeLoan(buildConsolidatedPayload(formData));
+        setFormData((prev) => ({
+          ...prev,
+          monthly_amortization: data?.monthly_amortization ? String(data.monthly_amortization) : prev.monthly_amortization,
+        }));
+      } catch (_err) {
+        // Keep form usable even if compute API is temporarily unavailable.
+      }
+    }, 350);
+
+    return () => clearTimeout(timer);
+  }, [formData.loan_amount_numeric, formData.loan_term_months, formData.payment_start_date]);
+
   // 3. LOGIC: Database Insertion
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -120,7 +145,9 @@ function Consolidated_Loan() {
       await submitUnifiedLoan({
         loanTypeCode: 'CONSOLIDATED',
         controlNumber: formData.control_no,
-        applicationStatus: formData.application_status,
+        applicationStatus: 'pending',
+        applicationType: formData.application_type,
+        loanStatus: 'pending',
         applicationDate: formData.date_applied,
         loanAmount: formData.loan_amount_numeric,
         principalAmount: formData.loan_amount_numeric,
@@ -183,11 +210,11 @@ function Consolidated_Loan() {
             <div className="bg-[#EEF6F1] rounded-xl p-6 border-2 border-[#66B538] flex flex-wrap items-center justify-between gap-6">
               <div className="flex gap-8">
                 <label className="flex items-center space-x-2 cursor-pointer">
-                  <input type="radio" name="application_status" value="New" checked={formData.application_status === 'New'} onChange={handleChange} className="h-4 w-4 accent-[#66B538]" />
+                  <input type="radio" name="application_type" value="New" checked={formData.application_type === 'New'} onChange={handleChange} className="h-4 w-4 accent-[#66B538]" />
                   <span className="font-semibold text-gray-700">New</span>
                 </label>
                 <label className="flex items-center space-x-2 cursor-pointer">
-                  <input type="radio" name="application_status" value="Renewal" checked={formData.application_status === 'Renewal'} onChange={handleChange} className="h-4 w-4 accent-[#66B538]" />
+                  <input type="radio" name="application_type" value="Renewal" checked={formData.application_type === 'Renewal'} onChange={handleChange} className="h-4 w-4 accent-[#66B538]" />
                   <span className="font-semibold text-gray-700">Renewal</span>
                 </label>
               </div>
@@ -263,7 +290,7 @@ function Consolidated_Loan() {
               <span>for a term of</span>
               <select name="loan_term_months" value={formData.loan_term_months} onChange={handleChange} className={`${inputStyles} w-32`}><option value="">Select</option><option>12</option><option>24</option><option>36</option><option>48</option><option>60</option></select>
               <span>months with a monthly amortization of</span>
-              <input type="number" name="monthly_amortization" value={formData.monthly_amortization} onChange={handleChange} className={`${inputStyles} w-48`} />
+              <input type="number" name="monthly_amortization" value={formData.monthly_amortization} readOnly className={`${inputStyles} w-48 bg-gray-100 cursor-not-allowed`} />
               <span>, which I promise to pay to <strong>Tubungan Teachers' MPC</strong>.</span>
             </div>
           </div>

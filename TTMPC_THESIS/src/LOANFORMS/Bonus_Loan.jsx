@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { fetchLoanPrefill, submitUnifiedLoan } from './loanSubmission';
+import { buildBonusPayload, computeLoan } from './loanComputeApi';
 
 const generateControlNumber = () => {
   const now = new Date();
@@ -17,7 +18,7 @@ function Bonus_Loan() {
 
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
-    application_status: 'New',
+    application_type: 'New',
     control_no: generateControlNumber(),
     date_applied: new Date().toISOString().split('T')[0],
     surname: '',
@@ -60,7 +61,17 @@ function Bonus_Loan() {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+    setFormData((prev) => {
+      if (name === 'bonus_amount_numeric') {
+        return {
+          ...prev,
+          bonus_amount_numeric: value,
+          loan_amount_numeric: value,
+        };
+      }
+
+      return { ...prev, [name]: value };
+    });
   };
 
   useEffect(() => {
@@ -110,6 +121,31 @@ function Bonus_Loan() {
     };
   }, []);
 
+  useEffect(() => {
+    const principal = Number(formData.loan_amount_numeric || 0);
+    const term = Number(formData.loan_term_months || 0);
+
+    if (!principal || !term) {
+      setFormData((prev) => ({ ...prev, monthly_amortization: '' }));
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      try {
+        // Bonus form in this flow is for members; use regular category.
+        const data = await computeLoan(buildBonusPayload(formData, true));
+        setFormData((prev) => ({
+          ...prev,
+          monthly_amortization: data?.monthly_amortization ? String(data.monthly_amortization) : prev.monthly_amortization,
+        }));
+      } catch (_err) {
+        // Keep form usable even if compute API is temporarily unavailable.
+      }
+    }, 350);
+
+    return () => clearTimeout(timer);
+  }, [formData.loan_amount_numeric, formData.loan_term_months, formData.payment_start_date]);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -118,7 +154,9 @@ function Bonus_Loan() {
       await submitUnifiedLoan({
         loanTypeCode: 'BONUS',
         controlNumber: formData.control_no,
-        applicationStatus: formData.application_status,
+        applicationStatus: 'pending',
+        applicationType: formData.application_type,
+        loanStatus: 'pending',
         applicationDate: formData.date_applied,
         loanAmount: formData.loan_amount_numeric,
         principalAmount: formData.loan_amount_numeric,
@@ -180,11 +218,11 @@ function Bonus_Loan() {
             <div className="bg-[#EEF6F1] rounded-xl p-6 border-2 border-[#66B538] flex flex-wrap items-center justify-between gap-6">
               <div className="flex gap-8">
                 <label className="flex items-center space-x-2 cursor-pointer">
-                  <input type="radio" name="application_status" value="New" checked={formData.application_status === 'New'} onChange={handleChange} className="h-4 w-4 accent-[#66B538]" />
+                  <input type="radio" name="application_type" value="New" checked={formData.application_type === 'New'} onChange={handleChange} className="h-4 w-4 accent-[#66B538]" />
                   <span className="font-semibold text-gray-700">New</span>
                 </label>
                 <label className="flex items-center space-x-2 cursor-pointer">
-                  <input type="radio" name="application_status" value="Renewal" checked={formData.application_status === 'Renewal'} onChange={handleChange} className="h-4 w-4 accent-[#66B538]" />
+                  <input type="radio" name="application_type" value="Renewal" checked={formData.application_type === 'Renewal'} onChange={handleChange} className="h-4 w-4 accent-[#66B538]" />
                   <span className="font-semibold text-gray-700">Renewal</span>
                 </label>
               </div>
@@ -229,10 +267,17 @@ function Bonus_Loan() {
           <div className={sectionHeader}><span className="bg-white text-[#66B538] rounded-full w-6 h-6 flex items-center justify-center text-sm">2</span> LOAN DETAILS</div>
           <div className="p-8 grid grid-cols-1 md:grid-cols-3 gap-6">
             <div><label className={labelStyles}>Loan Amount (Words)</label><input name="loan_amount_words" value={formData.loan_amount_words} onChange={handleChange} className={inputStyles} /></div>
-            <div><label className={labelStyles}>Loan Amount (Numeric)</label><input type="number" name="loan_amount_numeric" value={formData.loan_amount_numeric} onChange={handleChange} className={inputStyles} /></div>
+            <div><label className={labelStyles}>Loan Amount (Numeric)</label><input type="number" name="loan_amount_numeric" value={formData.loan_amount_numeric} readOnly className={`${inputStyles} bg-gray-100 cursor-not-allowed`} /></div>
             <div><label className={labelStyles}>Loan Purpose</label><input name="loan_purpose" value={formData.loan_purpose} onChange={handleChange} className={inputStyles} /></div>
-            <div><label className={labelStyles}>Term (Months)</label><input type="number" name="loan_term_months" value={formData.loan_term_months} onChange={handleChange} className={inputStyles} /></div>
-            <div><label className={labelStyles}>Monthly Amortization</label><input type="number" name="monthly_amortization" value={formData.monthly_amortization} onChange={handleChange} className={inputStyles} /></div>
+            <div>
+              <label className={labelStyles}>Term (Months)</label>
+              <select name="loan_term_months" value={formData.loan_term_months} onChange={handleChange} className={inputStyles}>
+                <option value="">Select Bonus Cycle</option>
+                <option value="5">May Midyear Bonus (5 months)</option>
+                <option value="11">Yearend Bonus November (11 months)</option>
+              </select>
+            </div>
+            <div><label className={labelStyles}>Monthly Amortization</label><input type="number" name="monthly_amortization" value={formData.monthly_amortization} readOnly className={`${inputStyles} bg-gray-100 cursor-not-allowed`} /></div>
             <div><label className={labelStyles}>Source of Income</label><input name="source_of_income" value={formData.source_of_income} onChange={handleChange} className={inputStyles} /></div>
             <div><label className={labelStyles}>Payment Start Date</label><input type="date" name="payment_start_date" value={formData.payment_start_date} onChange={handleChange} className={inputStyles} /></div>
           </div>

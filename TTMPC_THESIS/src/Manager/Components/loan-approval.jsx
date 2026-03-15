@@ -1,6 +1,7 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
+import { supabase } from "../../supabaseClient"; // Make sure this path is correct
 import { 
   LayoutDashboard, 
   Users, 
@@ -17,25 +18,56 @@ import {
 const Loan_Approval = () => {
   const { session, signOut } = UserAuth();
   const navigate = useNavigate();
+  const [loans, setLoans] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState("");
   
   const menuItems = [
     { name: "Dashboard", icon: LayoutDashboard },
     { name: "Loan Approvals", icon: Users },
   ];
 
-  // Moved your mock data here so it can be accessed by the table
-  const loanData = [
-    {id:"TTMPCL-2026-001", name:"Romelyn Delos Reyes", type: "Bonus", amount: "₱20,000", term: "12 Months", status: "MIGS", date: "Jan. 10, 2026", actions:"Review"},
-    {id:"TTMPCL-2026-002", name:"Erden Jhed Teope", type: "Emergency", amount: "₱25,000", term: "12 Months", status: "MIGS", date: "Jan. 10, 2026", actions:"Review"},
-    {id:"TTMPCL-2026-003", name:"Ashley Nicole Bulotaolo", type: "Consolidated", amount: "₱120,000", term: "24 Months", status: "MIGS", date: "Jan. 10, 2026", actions:"Review"},
-    {id:"TTMPCL-2026-004", name:"Karina Dela Cruz", type: "Bonus", amount: "₱20,000", term: "12 Months", status: "MIGS", date: "Jan. 11, 2026", actions:"Review"},
-    {id:"TTMPCL-2026-005", name:"Gero Antoni Tabiolo", type: "Emergency", amount: "₱25,000", term: "12 Months", status: "MIGS", date: "Jan. 11, 2026", actions:"Review"},
-    {id:"TTMPCL-2026-006", name:"Nash Ervine Siaton", type: "Consolidated", amount: "₱180,000", term: "36 Months", status: "MIGS", date: "Jan. 12, 2026", actions:"Review"},
-    {id:"TTMPCL-2026-007", name:"Paul Soriano", type: "Consolidated", amount: "₱60,000", term: "12 Months", status: "NON-MIGS", date: "Jan. 12, 2026", actions:"Review"},
-    {id:"TTMPCL-2026-008", name:"Joseph Mercado", type: "Consolidated", amount: "₱50,000", term: "12 Months", status: "MIGS", date: "Jan. 12, 2026", actions:"Review"},
-    {id:"TTMPCL-2026-009", name:"Antonio Ramirez", type: "Emergency", amount: "₱40,000", term: "12 Months", status: "NON-MIGS", date: "Jan. 13, 2026", actions:"Review"},
-    {id:"TTMPCL-2026-010", name:"Anthony Bautista", type: "Emergency", amount: "₱90,000", term: "12 Months", status: "MIGS", date: "Jan. 13, 2026", actions:"Review"},
-  ];
+  // Fetch data from Supabase on mount
+  useEffect(() => {
+    fetchLoans();
+  }, []);
+
+  const fetchLoans = async () => {
+    try {
+      setLoading(true);
+      setFetchError("");
+      
+      // Using Supabase relational queries to fetch joined data
+      const { data, error } = await supabase
+        .from("loans")
+        .select(`
+          control_number,
+          loan_amount,
+          term,
+          application_status,
+          application_date,
+          member:member_id (
+            first_name, 
+            last_name, 
+            is_bona_fide
+          ),
+          loan_types:loan_type_id (
+            name
+          )
+        `)
+        .order("application_date", { ascending: false });
+
+      if (error) throw error;
+      if (data) {
+        setLoans(data);
+      }
+    } catch (err) {
+      console.error("Error fetching loans:", err.message);
+      setFetchError(err.message || "Unable to load loans.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleSignOut = async (e) => {
     e.preventDefault();
@@ -60,6 +92,30 @@ const Loan_Approval = () => {
   const getMigsStyle = (status) => {
     return status === 'MIGS' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500';
   };
+
+  // Map the relational database rows to the exact format your UI expects
+  const displayLoans = loans.map((loan) => {
+    // Safely extract the joined data (fallback to 'Unknown' if a link is missing)
+    const firstName = loan.member?.first_name || "";
+    const lastName = loan.member?.last_name || "";
+    const memberName = `${firstName} ${lastName}`.trim() || "Unknown Member";
+    
+    const loanTypeName = loan.loan_types?.name || "N/A";
+    
+    // Assuming 'is_bona_fide' determines if they are a Member In Good Standing (MIGS)
+    const migsStatus = loan.member?.is_bona_fide ? "MIGS" : "NON-MIGS";
+
+    return {
+      id: loan.control_number,
+      name: memberName,
+      type: loanTypeName,
+      amount: loan.loan_amount ? `₱${Number(loan.loan_amount).toLocaleString()}` : "₱0",
+      term: `${loan.term || 0} Months`,
+      status: migsStatus,
+      date: loan.application_date ? new Date(loan.application_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "N/A",
+      actions: "Review"
+    };
+  });
 
   return (
     <div className="flex min-h-screen bg-gray-50">
@@ -187,33 +243,47 @@ const Loan_Approval = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {loanData.map((loan, idx) => (
-                    <tr key={idx} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
-                      <td className="p-5 text-sm text-gray-500 font-medium">{loan.id}</td>
-                      <td className="p-5 text-sm font-bold text-gray-800">{loan.name}</td>
-                      <td className="p-5 text-sm">
-                        <span className={`px-3 py-1.5 rounded-full text-xs font-bold ${getLoanTypeStyle(loan.type)}`}>
-                          {loan.type}
-                        </span>
-                      </td>
-                      <td className="p-5 text-sm font-bold text-gray-900">{loan.amount}</td>
-                      <td className="p-5 text-sm text-gray-500">{loan.term}</td>
-                      <td className="p-5 text-sm">
-                        <span className={`px-3 py-1.5 rounded-full text-[11px] font-bold tracking-wider ${getMigsStyle(loan.status)}`}>
-                          {loan.status}
-                        </span>
-                      </td>
-                      <td className="p-5 text-sm text-gray-500">{loan.date}</td>
-                      <td className="p-5 text-sm text-right pr-8">
-                        <button 
-                            onClick={() => navigate(`/loan-approval/${loan.id}`)}
-                            className="text-[#1D6021] font-bold hover:underline transition-all"
-                          >
-                            {loan.actions}
-                          </button>
-                      </td>
+                  {loading ? (
+                    <tr>
+                      <td colSpan="8" className="p-5 text-center text-gray-500">Loading applications...</td>
                     </tr>
-                  ))}
+                  ) : fetchError ? (
+                    <tr>
+                      <td colSpan="8" className="p-5 text-center text-red-600">Failed to load loans: {fetchError}</td>
+                    </tr>
+                  ) : displayLoans.length === 0 ? (
+                    <tr>
+                      <td colSpan="8" className="p-5 text-center text-gray-500">No loans found.</td>
+                    </tr>
+                  ) : (
+                    displayLoans.map((loan, idx) => (
+                      <tr key={idx} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
+                        <td className="p-5 text-sm text-gray-500 font-medium">{loan.id}</td>
+                        <td className="p-5 text-sm font-bold text-gray-800">{loan.name}</td>
+                        <td className="p-5 text-sm">
+                          <span className={`px-3 py-1.5 rounded-full text-xs font-bold ${getLoanTypeStyle(loan.type)}`}>
+                            {loan.type}
+                          </span>
+                        </td>
+                        <td className="p-5 text-sm font-bold text-gray-900">{loan.amount}</td>
+                        <td className="p-5 text-sm text-gray-500">{loan.term}</td>
+                        <td className="p-5 text-sm">
+                          <span className={`px-3 py-1.5 rounded-full text-[11px] font-bold tracking-wider ${getMigsStyle(loan.status)}`}>
+                            {loan.status}
+                          </span>
+                        </td>
+                        <td className="p-5 text-sm text-gray-500">{loan.date}</td>
+                        <td className="p-5 text-sm text-right pr-8">
+                          <button 
+                              onClick={() => navigate(`/loan-approval/${loan.id}`)}
+                              className="text-[#1D6021] font-bold hover:underline transition-all"
+                            >
+                              {loan.actions}
+                            </button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>
@@ -227,11 +297,7 @@ const Loan_Approval = () => {
               <button className="w-8 h-8 flex items-center justify-center rounded-full bg-[#1D6021] text-white font-medium text-sm transition-colors">
                 1
               </button>
-              {[2, 3, 4, 5].map(num => (
-                <button key={num} className="w-8 h-8 flex items-center justify-center rounded-full border border-gray-300 text-gray-600 font-medium text-sm hover:bg-gray-50 transition-colors">
-                  {num}
-                </button>
-              ))}
+              {/* Simplified pagination logic placeholder */}
               
               <button className="w-8 h-8 flex items-center justify-center rounded-full border border-gray-300 text-gray-500 hover:bg-gray-50 transition-colors">
                 <ChevronRight className="w-4 h-4" />
@@ -240,7 +306,7 @@ const Loan_Approval = () => {
           </div>
           
         </main>
-      </div>s
+      </div>
     </div>
   );
 };
