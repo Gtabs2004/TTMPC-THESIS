@@ -1,8 +1,12 @@
 import os
 import json
+import calendar
+from datetime import date, datetime
+from decimal import Decimal, ROUND_HALF_UP
+from typing import Annotated, Literal, Union
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, model_validator
 from supabase import create_client, Client
 from dotenv import load_dotenv
 from urllib import request as urlrequest
@@ -60,6 +64,184 @@ class MembershipConfirmationRequest(BaseModel):
     application_id: str
     confirmed_by_user_id: str
     force: bool = False
+
+
+class LoanComputeBaseRequest(BaseModel):
+    loan_type: str
+    principal: Decimal = Field(..., gt=0)
+    term_months: int = Field(..., gt=0)
+    first_due_date: date | None = None
+
+
+class ConsolidatedLoanComputeRequest(LoanComputeBaseRequest):
+    loan_type: Literal["consolidated"]
+
+
+class EmergencyLoanComputeRequest(LoanComputeBaseRequest):
+    loan_type: Literal["emergency"]
+
+    @model_validator(mode="after")
+    def validate_rules(self):
+        if self.principal > Decimal("20000"):
+            raise ValueError("Emergency loan amount cannot exceed 20,000.")
+        if self.term_months not in (6, 12):
+            raise ValueError("Emergency loan term must be 6 or 12 months only.")
+        return self
+
+
+class BonusLoanComputeRequest(LoanComputeBaseRequest):
+    loan_type: Literal["bonus"]
+    member_category: Literal["regular", "non_member", "non-member"]
+
+
+LoanComputeRequest = Annotated[
+    Union[
+        ConsolidatedLoanComputeRequest,
+        EmergencyLoanComputeRequest,
+        BonusLoanComputeRequest,
+    ],
+    Field(discriminator="loan_type"),
+]
+
+
+class MonthlyBreakdownRow(BaseModel):
+    installment_no: int
+    due_date: date
+    expected_amount: Decimal
+    principal_component: Decimal
+    interest_component: Decimal
+    schedule_status: Literal["Pending"] = "Pending"
+
+
+class LoanComputeResponse(BaseModel):
+    loan_type: str
+    principal: Decimal
+    term_months: int
+    monthly_amortization: Decimal
+    total_interest: Decimal
+    total_deductions: Decimal
+    net_proceeds: Decimal
+    deductions: dict[str, Decimal]
+    monthly_breakdown: list[MonthlyBreakdownRow]
+
+
+TWOPLACES = Decimal("0.01")
+
+
+def money(value: Decimal) -> Decimal:
+    return value.quantize(TWOPLACES, rounding=ROUND_HALF_UP)
+
+
+def add_months(base_date: date, months_to_add: int) -> date:
+    month_index = base_date.month - 1 + months_to_add
+    new_year = base_date.year + month_index // 12
+    new_month = month_index % 12 + 1
+    max_day = calendar.monthrange(new_year, new_month)[1]
+    new_day = min(base_date.day, max_day)
+    return date(new_year, new_month, new_day)
+
+
+@app.post("/api/loans/compute")
+async def compute_loan(payload: LoanComputeRequest):
+    principal = Decimal(str(payload.principal))
+    term = payload.term_months
+    first_due_date = payload.first_due_date or date.today()
+
+    monthly_breakdown: list[MonthlyBreakdownRow] = []
+
+    service_fee = Decimal("0")
+    cbu_deduction = Decimal("0")
+    insurance_fee = Decimal("0")
+    notarial_fee = Decimal("0")
+
+    monthly_amortization = Decimal("0")
+
+    if payload.loan_type == "consolidated":
+        principal_component = money(principal / Decimal(term))
+        interest_component = money(principal * Decimal("0.0083"))
+        monthly_amortization = money(principal_component + interest_component)
+
+        service_fee = money(Decimal(((int(principal) - 1) // 50000) + 1) * Decimal("100"))
+        insurance_fee = money((principal / Decimal("1000")) * Decimal("1.35"))
+        cbu_deduction = money(principal * Decimal("0.02"))
+        notarial_fee = money(Decimal("100"))
+
+        for installment_no in range(1, term + 1):
+            monthly_breakdown.append(
+                MonthlyBreakdownRow(
+                    installment_no=installment_no,
+                    due_date=add_months(first_due_date, installment_no - 1),
+                    expected_amount=monthly_amortization,
+                    principal_component=principal_component,
+                    interest_component=interest_component,
+                )
+            )
+
+    elif payload.loan_type == "emergency":
+        principal_component = money(principal / Decimal(term))
+        service_fee = money(Decimal("100"))
+        cbu_deduction = money(principal * Decimal("0.02"))
+
+        for installment_no in range(1, term + 1):
+            interest_component = money((principal / Decimal(term)) * Decimal("0.02") * Decimal(term - installment_no))
+            expected_amount = money(principal_component + interest_component)
+            monthly_breakdown.append(
+                MonthlyBreakdownRow(
+                    installment_no=installment_no,
+                    due_date=add_months(first_due_date, installment_no - 1),
+                    expected_amount=expected_amount,
+                    principal_component=principal_component,
+                    interest_component=interest_component,
+                )
+            )
+
+        if monthly_breakdown:
+            monthly_amortization = monthly_breakdown[0].expected_amount
+
+    elif payload.loan_type == "bonus":
+        member_category = str(payload.member_category).strip().lower()
+        monthly_rate = Decimal("0.02") if member_category == "regular" else Decimal("0.03")
+
+        principal_component = money(principal / Decimal(term))
+        interest_component = money(principal * monthly_rate)
+        monthly_amortization = money(principal_component + interest_component)
+
+        service_fee = money(Decimal("100"))
+
+        for installment_no in range(1, term + 1):
+            monthly_breakdown.append(
+                MonthlyBreakdownRow(
+                    installment_no=installment_no,
+                    due_date=add_months(first_due_date, installment_no - 1),
+                    expected_amount=monthly_amortization,
+                    principal_component=principal_component,
+                    interest_component=interest_component,
+                )
+            )
+
+    total_interest = money(sum((row.interest_component for row in monthly_breakdown), Decimal("0")))
+    total_deductions = money(service_fee + cbu_deduction + insurance_fee + notarial_fee)
+    net_proceeds = money(principal - total_deductions)
+
+    return {
+        "success": True,
+        "data": LoanComputeResponse(
+            loan_type=payload.loan_type,
+            principal=money(principal),
+            term_months=term,
+            monthly_amortization=monthly_amortization,
+            total_interest=total_interest,
+            total_deductions=total_deductions,
+            net_proceeds=net_proceeds,
+            deductions={
+                "service_fee": service_fee,
+                "cbu_deduction": cbu_deduction,
+                "insurance_fee": insurance_fee,
+                "notarial_fee": notarial_fee,
+            },
+            monthly_breakdown=monthly_breakdown,
+        ).model_dump(mode="json"),
+    }
 
 @app.post("/api/send-status-email")
 async def send_status_email(payload: StatusEmailRequest):

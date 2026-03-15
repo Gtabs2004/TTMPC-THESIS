@@ -5,6 +5,16 @@ ALTER TABLE IF EXISTS membership_application ENABLE ROW LEVEL SECURITY;
 ALTER TABLE IF EXISTS member_applications ENABLE ROW LEVEL SECURITY;
 ALTER TABLE IF EXISTS member ENABLE ROW LEVEL SECURITY;
 
+ALTER TABLE IF EXISTS public.membership_application ADD COLUMN IF NOT EXISTS membership_id TEXT;
+ALTER TABLE IF EXISTS public.membership_application ADD COLUMN IF NOT EXISTS approved_at TIMESTAMPTZ;
+ALTER TABLE IF EXISTS public.membership_application ADD COLUMN IF NOT EXISTS approved_by UUID;
+ALTER TABLE IF EXISTS public.membership_application ADD COLUMN IF NOT EXISTS approved_by_role TEXT;
+
+ALTER TABLE IF EXISTS public.member_applications ADD COLUMN IF NOT EXISTS membership_id TEXT;
+ALTER TABLE IF EXISTS public.member_applications ADD COLUMN IF NOT EXISTS approved_at TIMESTAMPTZ;
+ALTER TABLE IF EXISTS public.member_applications ADD COLUMN IF NOT EXISTS approved_by UUID;
+ALTER TABLE IF EXISTS public.member_applications ADD COLUMN IF NOT EXISTS approved_by_role TEXT;
+
 DO $$
 BEGIN
   IF to_regclass('public.membership_application') IS NOT NULL THEN
