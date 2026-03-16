@@ -8,10 +8,53 @@ const generateControlNumber = () => {
   const year = now.getFullYear();
   const month = String(now.getMonth() + 1).padStart(2, '0');
   const day = String(now.getDate()).padStart(2, '0');
-  const random = String(Math.floor(1000 + Math.random() * 9000)); // 4-digit random number
+  const random = String(Math.floor(1000 + Math.random() * 9000)); 
   return `CL-${year}${month}${day}-${random}`;
 };
+// Function to convert number to words
+const numberToWords = (num) => {
+  if (num === '' || num === undefined || num === null) return '';
+  
+  num = parseInt(num, 10);
+  if (isNaN(num)) return '';
+  
+  const ones = ['', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine'];
+  const teens = ['ten', 'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen'];
+  const tens = ['', '', 'twenty', 'thirty', 'forty', 'fifty', 'sixty', 'seventy', 'eighty', 'ninety'];
+  const scales = ['', 'thousand', 'million', 'billion', 'trillion'];
 
+  const convertHundreds = (n) => {
+    let result = '';
+    if (n >= 100) {
+      result += ones[Math.floor(n / 100)] + ' hundred ';
+      n %= 100;
+    }
+    if (n >= 20) {
+      result += tens[Math.floor(n / 10)];
+      if (n % 10 > 0) result += ' ' + ones[n % 10];
+    } else if (n >= 10) {
+      result += teens[n - 10];
+    } else if (n > 0) {
+      result += ones[n];
+    }
+    return result.trim();
+  };
+
+  if (num === 0) return 'zero';
+
+  let words = '';
+  let scaleIndex = 0;
+
+  while (num > 0) {
+    if (num % 1000 !== 0) {
+      words = convertHundreds(num % 1000) + ' ' + scales[scaleIndex] + ' ' + words;
+    }
+    num = Math.floor(num / 1000);
+    scaleIndex++;
+  }
+
+  return words.trim().replace(/\s+/g, ' ');
+};
 function Consolidated_Loan() {
 
   const inputStyles = "border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-[#66B538] outline-none w-full bg-white text-sm transition-all";
@@ -44,18 +87,26 @@ function Consolidated_Loan() {
     loan_amount_words: '',
     loan_amount_numeric: '',
     loan_purpose: '',
+    loan_purpose_other: '',
     loan_term_months: '',
     monthly_amortization: '',
     total_interest: '',
     source_of_income: '',
     payment_start_date: '',
     user_email: '',
+    borrower_id_type: '',
+    borrower_id_number: '',
+    cm_oath_borrower: '',
+    cm_oath_amount_words: '',
+    cm_oath_amount_numeric: '',
     cm1_name: '', 
+    cm1_id_type: '',
     cm1_id_no: '',
     cm1_address: '',
     cm1_email: '',
     cm1_mobile: '',
     cm2_name: '',
+    cm2_id_type: '',
     cm2_id_no: '',
     cm2_address: '',
     cm2_email: '',
@@ -112,6 +163,19 @@ function Consolidated_Loan() {
       isMounted = false;
     };
   }, []);
+
+  // Auto-fill loan_amount_words when loan_amount_numeric changes
+  useEffect(() => {
+    if (formData.loan_amount_numeric) {
+      const words = numberToWords(formData.loan_amount_numeric);
+      setFormData((prev) => ({
+        ...prev,
+        loan_amount_words: words.charAt(0).toUpperCase() + words.slice(1),
+      }));
+    } else {
+      setFormData((prev) => ({ ...prev, loan_amount_words: '' }));
+    }
+  }, [formData.loan_amount_numeric]);
 
   useEffect(() => {
     const principal = Number(formData.loan_amount_numeric || 0);
@@ -276,30 +340,95 @@ function Consolidated_Loan() {
           </div>
         </div>
 
-        {/* Section 2: LOAN AGREEMENT */}
+       {/* Section 2: LOAN AGREEMENT */}
         <div className="mt-8 bg-white rounded-lg shadow-md overflow-hidden max-w-6xl mx-auto w-full">
           <div className={sectionHeader}>
             <span className="bg-white text-[#66B538] rounded-full w-6 h-6 flex items-center justify-center text-sm">2</span>
             LOAN AGREEMENT
           </div>
-          <div className="p-8 text-sm text-gray-800 leading-relaxed">
-            <div className="flex flex-wrap items-center gap-3 mb-4">
-              <span>I hereby apply for a loan in the amount of</span>
-              <input type="text" name="loan_amount_words" value={formData.loan_amount_words} onChange={handleChange} className={`${inputStyles} flex-grow md:w-64`} placeholder="Amount in words" />
-              <div className="relative w-40"><span className="absolute left-3 top-2 text-gray-400 text-xs">Php</span><input type="number" name="loan_amount_numeric" value={formData.loan_amount_numeric} onChange={handleChange} className={`${inputStyles} pl-10`} /></div>
-              <span>for the purpose of</span>
-              <input type="text" name="loan_purpose" value={formData.loan_purpose} onChange={handleChange} className={`${inputStyles} flex-grow md:w-64`} />
+          <div className="p-8 text-sm text-gray-800">
+            
+            <div className="leading-[3.5rem]">
+              I hereby apply for a loan in the amount of
+              <input 
+                type="text" 
+                name="loan_amount_words" 
+                value={formData.loan_amount_words} 
+                onChange={handleChange} 
+                className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-[#66B538] outline-none bg-white text-sm transition-all mx-2 w-[22rem] inline-block align-middle" 
+              />
+              <div className="inline-flex items-center relative mr-2 align-middle">
+                <span className="absolute left-3 text-gray-400 text-xs font-medium">Php</span>
+                <input 
+                  type="number" 
+                  name="loan_amount_numeric" 
+                  value={formData.loan_amount_numeric} 
+                  onChange={handleChange} 
+                  className="border border-gray-300 rounded-md pl-10 pr-3 py-1.5 focus:ring-2 focus:ring-[#66B538] outline-none bg-white text-sm transition-all w-40" 
+                />
+              </div>
+              for the purpose of
+              <select 
+                name="loan_purpose" 
+                value={formData.loan_purpose} 
+                onChange={handleChange} 
+                className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-[#66B538] outline-none bg-white text-sm transition-all mx-2 w-64 inline-block align-middle" 
+              >
+                <option value="">Select Purpose</option>
+                <option value="Emergency Needs">Emergency Needs</option>
+                <option value="Medical Expenses">Medical Expenses</option>
+                <option value="Family & Household Needs">Family & Household Needs</option>
+                <option value="Education">Education</option>
+                <option value="Livelihood/Business">Livelihood/Business</option>
+                <option value="Financial Obligations">Financial Obligations</option>
+                <option value="Personal Needs">Personal Needs</option>
+                <option value="Others">Others</option>
+              </select>
+              {formData.loan_purpose === 'Others' && (
+                <input 
+                  type="text" 
+                  name="loan_purpose_other" 
+                  value={formData.loan_purpose_other} 
+                  onChange={handleChange} 
+                  placeholder="Please specify..."
+                  className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-[#66B538] outline-none bg-white text-sm transition-all mx-2 w-56 inline-block align-middle" 
+                />
+              )}
+              <br className="hidden md:block" />
+              
+              for a term of
+              <select 
+                name="loan_term_months" 
+                value={formData.loan_term_months} 
+                onChange={handleChange} 
+                className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-[#66B538] outline-none bg-white text-sm transition-all mx-2 w-32 inline-block align-middle text-gray-600"
+              >
+                <option value="">Select Term</option>
+                <option>12</option>
+                <option>24</option>
+                <option>36</option>
+                <option>48</option>
+                <option>60</option>
+              </select>
+              months with a monthly amortization of
+              <input 
+                type="number" 
+                name="monthly_amortization" 
+                value={formData.monthly_amortization} 
+                readOnly 
+                className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-[#66B538] outline-none bg-gray-50 text-sm transition-all mx-2 w-48 inline-block align-middle" 
+              />
+              , which I promise to pay the amount to <strong>Tubungan Teachers' Multi Purpose Cooperative</strong>
+              
+              <br />
+              
+              <span className="block mt-2 leading-normal">
+                <strong>(TTMPC)</strong> in accordance with the terms and conditions as stipulated in the Promissory Note of which I certify to have read and understood clearly. I bind myself to pay out my monthly salary and/or other benefits the required monthly amortization here on or surrender my ATM to TTMPC.
+              </span>
             </div>
-            <div className="flex flex-wrap items-center gap-3 mb-6">
-              <span>for a term of</span>
-              <select name="loan_term_months" value={formData.loan_term_months} onChange={handleChange} className={`${inputStyles} w-32`}><option value="">Select</option><option>12</option><option>24</option><option>36</option><option>48</option><option>60</option></select>
-              <span>months with a monthly amortization of</span>
-              <input type="number" name="monthly_amortization" value={formData.monthly_amortization} readOnly className={`${inputStyles} w-48 bg-gray-100 cursor-not-allowed`} />
-              <span>, which I promise to pay to <strong>Tubungan Teachers' MPC</strong>.</span>
-            </div>
+
           </div>
         </div>
-
         {/* Section 3: LOAN CONTRACT */}
         <div className="mt-8 bg-white rounded-lg shadow-md overflow-hidden max-w-6xl mx-auto w-full">
           <div className={sectionHeader}>
@@ -307,19 +436,83 @@ function Consolidated_Loan() {
             LOAN CONTRACT
           </div>
           <div className="p-8 text-sm text-gray-800">
-            <div className="flex flex-wrap items-center gap-3 mb-6 leading-loose">
-              <span>I, (Name of Borrower), promise to pay <strong>TTMPC</strong> from my</span>
-              <input type="text" name="source_of_income" value={formData.source_of_income} onChange={handleChange} className={`${inputStyles} w-48`} placeholder="Source of Income" />
-              <span>to begin on</span>
-              <input type="date" name="payment_start_date" value={formData.payment_start_date} onChange={handleChange} className={`${inputStyles} w-40`} />
-              <span>until fully paid.</span>
+            
+            {/* Form paragraph with inline inputs */}
+            <div className="leading-[3.5rem]">
+              I, 
+              <input 
+                type="text" 
+                name="borrower_name" 
+                value={`${formData.first_name} ${formData.middle_name} ${formData.surname}`.trim()} 
+                readOnly 
+                className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-[#66B538] outline-none bg-gray-50 text-sm transition-all mx-2 w-72 inline-block align-middle" 
+              />
+              bind myself to pay <strong>Tubungan Teachers' Multi Purpose Cooperative (TTMPC)</strong> the amount of 
+              <input 
+                type="text" 
+                name="loan_amount_words" 
+                value={formData.loan_amount_words} 
+                onChange={handleChange} 
+                className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-[#66B538] outline-none bg-white text-sm transition-all mx-2 w-56 inline-block align-middle" 
+              />
+              
+              <br className="hidden md:block" />
+
+              <div className="inline-flex items-center relative mr-2 align-middle">
+                <span className="absolute left-3 text-gray-400 text-xs font-medium">Php</span>
+                <input 
+                  type="number" 
+                  name="loan_amount_numeric" 
+                  value={formData.loan_amount_numeric} 
+                  onChange={handleChange} 
+                  className="border border-gray-300 rounded-md pl-10 pr-3 py-1.5 focus:ring-2 focus:ring-[#66B538] outline-none bg-white text-sm transition-all w-48" 
+                />
+              </div>
+              from <span className="text-blue-600 font-medium">my monthly salary every month OR from my monthly income</span> to begin on 
+              <input 
+                type="date" 
+                name="payment_start_date" 
+                value={formData.payment_start_date} 
+                onChange={handleChange} 
+                className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-[#66B538] outline-none bg-white text-sm transition-all mx-2 w-40 inline-block align-middle text-gray-600" 
+              />
+              and until the loan is fully paid.
+              
+              <br className="hidden md:block" />
+
+              <span className="inline-block mt-4">
+                I hereby agree that should I resign or be terminated from my employment with 
+                <input 
+                  type="text" 
+                  name="employer_name" 
+                  value={formData.employer_name} 
+                  onChange={handleChange} 
+                  className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-[#66B538] outline-none bg-white text-sm transition-all mx-2 w-[22rem] inline-block align-middle" 
+                />
+                the outstanding balance of my loan shall be paid
+              </span>
+              
+              <br />
+              
+              <span className="block mt-2 leading-normal">
+                through: (1) deduction from share capital; (2) by my co-makers; (3) value ofcollateral (if there is any); (4) deduction from any benefit from employment.
+              </span>
             </div>
-            <p className="text-gray-700 italic text-xs mb-6 text-justify">
-              I agree that should I resign or be terminated, the balance shall be paid through deduction, co-makers, or benefits.
-            </p>
+
+            {/* IDs section */}
+            <div className="flex flex-wrap gap-6 mt-8">
+              <div className="w-64">
+                <label className={labelStyles}>Valid ID/Gov't. Issued ID <span className="text-red-500">*</span></label>
+                <input type="text" name="borrower_id_type" value={formData.borrower_id_type} onChange={handleChange} className={inputStyles} />
+              </div>
+              <div className="w-64">
+                <label className={labelStyles}>ID Number <span className="text-red-500">*</span></label>
+                <input type="text" name="borrower_id_number" value={formData.borrower_id_number} onChange={handleChange} className={inputStyles} />
+              </div>
+            </div>
+
           </div>
         </div>
-
         {/* Section 4: ADDITIONAL INFORMATION */}
         <div className="mt-8 bg-white rounded-lg shadow-md overflow-hidden max-w-6xl mx-auto w-full">
           <div className={sectionHeader}>
@@ -328,44 +521,107 @@ function Consolidated_Loan() {
           </div>
           <div className="p-8 grid grid-cols-1 md:grid-cols-2 gap-6">
             <div><label className={labelStyles}>Email Address <span className="text-red-500">*</span></label><input type="email" name="user_email" value={formData.user_email} onChange={handleChange} className={inputStyles} required /></div>
-            <div><label className={labelStyles}>Mobile / Tel No. <span className="text-red-500">*</span></label><input type="text" name="mobile_tel_no" className={inputStyles} /></div>
+            <div><label className={labelStyles}>Mobile / Tel No. <span className="text-red-500">*</span></label><input type="text" name="mobile_tel_no" value={formData.contact_no} onChange={handleChange} className={inputStyles} /></div>
           </div>
         </div>
 
-        {/* Section 5: CO-MAKER'S OATH */}
-        <div className="mt-8 bg-white rounded-lg shadow-md overflow-hidden max-w-6xl mx-auto w-full">
+        {/* Section 5: CO-MAKERS' OATH */}
+        <div className="mt-8 bg-white rounded-lg shadow-md overflow-hidden max-w-6xl mx-auto w-full mb-8">
           <div className={sectionHeader}>
             <span className="bg-white text-[#66B538] rounded-full w-6 h-6 flex items-center justify-center text-sm">5</span>
-            CO-MAKER'S OATH
+            CO-MAKERS' OATH
           </div>
           <div className="p-8 text-sm text-gray-800">
+            
+            {/* Form paragraph with inline inputs */}
+            <div className="leading-[3.5rem] mb-10">
+              We,
+              <input 
+                type="text" 
+                name="cm1_name" 
+                value={formData.cm1_name} 
+                onChange={handleChange} 
+                className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-[#66B538] outline-none bg-white text-sm transition-all mx-2 w-64 inline-block align-middle" 
+              />
+              and
+              <input 
+                type="text" 
+                name="cm2_name" 
+                value={formData.cm2_name} 
+                onChange={handleChange} 
+                className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-[#66B538] outline-none bg-white text-sm transition-all mx-2 w-64 inline-block align-middle" 
+              />
+              the co-makers of
+              <input 
+                type="text" 
+                name="cm_oath_borrower" 
+                value={formData.cm_oath_borrower} 
+                onChange={handleChange} 
+                className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-[#66B538] outline-none bg-white text-sm transition-all mx-2 w-[22rem] inline-block align-middle" 
+              />
+              
+              <br className="hidden xl:block" />
+              
+              <span className="leading-loose block mt-2 text-justify">
+                hereby voluntarily and willingly, bind ourselves to pay jointly and solidarily all his/her unpaid obligations to <strong>Tubungan Teachers' Multi Purpose Cooperative (TTMPC)</strong> pursuant to the terms attached in this loan application, in case he/she fails to pay his/her obligations for any reason whatsoever. In case this happens we hereby authorize you to deduct from our salaries OR collect from us personally the amount of 
+                
+                <input 
+                  type="text" 
+                  name="cm_oath_amount_words" 
+                  value={formData.cm_oath_amount_words} 
+                  onChange={handleChange} 
+                  className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-[#66B538] outline-none bg-white text-sm transition-all mx-2 w-64 inline-block align-middle" 
+                />
+                
+                <div className="inline-flex items-center relative mr-2 align-middle">
+                  <span className="absolute left-3 text-gray-400 text-xs font-medium">Php</span>
+                  <input 
+                    type="number" 
+                    name="cm_oath_amount_numeric" 
+                    value={formData.cm_oath_amount_numeric} 
+                    onChange={handleChange} 
+                    className="border border-gray-300 rounded-md pl-10 pr-3 py-1.5 focus:ring-2 focus:ring-[#66B538] outline-none bg-white text-sm transition-all w-40" 
+                  />
+                </div>
+                
+                every month until the amount is paid in full.
+              </span>
+            </div>
+
             {/* Co-Maker 1 */}
-            <h3 className="font-bold text-[#66B538] mb-4 uppercase tracking-wide border-b border-gray-200 pb-2">Co-Maker 1</h3>
+            <h3 className="font-bold text-md mb-4 tracking-wide text-gray-900">Co-Maker 1</h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-4">
+              <div><label className={labelStyles}>Valid ID/Gov't. Issued ID <span className="text-red-500">*</span></label><input type="text" name="cm1_id_type" value={formData.cm1_id_type} onChange={handleChange} className={inputStyles} /></div>
+              <div><label className={labelStyles}>ID Number <span className="text-red-500">*</span></label><input type="text" name="cm1_id_no" value={formData.cm1_id_no} onChange={handleChange} className={inputStyles} /></div>
+              <div><label className={labelStyles}>Residence Address <span className="text-red-500">*</span></label><input type="text" name="cm1_address" value={formData.cm1_address} onChange={handleChange} className={inputStyles} /></div>
+            </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-              <div><label className={labelStyles}>Name</label><input type="text" name="cm1_name" value={formData.cm1_name} onChange={handleChange} className={inputStyles} /></div>
-              <div><label className={labelStyles}>ID Number</label><input type="text" name="cm1_id_no" value={formData.cm1_id_no} onChange={handleChange} className={inputStyles} /></div>
-              <div><label className={labelStyles}>Address</label><input type="text" name="cm1_address" value={formData.cm1_address} onChange={handleChange} className={inputStyles} /></div>
-              <div><label className={labelStyles}>Email Address</label><input type="email" name="cm1_email" value={formData.cm1_email} onChange={handleChange} className={inputStyles} /></div>
-              <div><label className={labelStyles}>Mobile No.</label><input type="text" name="cm1_mobile" value={formData.cm1_mobile} onChange={handleChange} className={inputStyles} /></div>
+              <div><label className={labelStyles}>Email Address <span className="text-red-500">*</span></label><input type="email" name="cm1_email" value={formData.cm1_email} onChange={handleChange} className={inputStyles} /></div>
+              <div><label className={labelStyles}>Mobile No. <span className="text-red-500">*</span></label><input type="text" name="cm1_mobile" value={formData.cm1_mobile} onChange={handleChange} className={inputStyles} /></div>
             </div>
 
             {/* Co-Maker 2 */}
-            <h3 className="font-bold text-[#66B538] mb-4 uppercase tracking-wide border-b border-gray-200 pb-2">Co-Maker 2</h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div><label className={labelStyles}>Name</label><input type="text" name="cm2_name" value={formData.cm2_name} onChange={handleChange} className={inputStyles} /></div>
-              <div><label className={labelStyles}>ID Number</label><input type="text" name="cm2_id_no" value={formData.cm2_id_no} onChange={handleChange} className={inputStyles} /></div>
-              <div><label className={labelStyles}>Address</label><input type="text" name="cm2_address" value={formData.cm2_address} onChange={handleChange} className={inputStyles} /></div>
-              <div><label className={labelStyles}>Email Address</label><input type="email" name="cm2_email" value={formData.cm2_email} onChange={handleChange} className={inputStyles} /></div>
-              <div><label className={labelStyles}>Mobile No.</label><input type="text" name="cm2_mobile" value={formData.cm2_mobile} onChange={handleChange} className={inputStyles} /></div>
+            <h3 className="font-bold text-md mb-4 tracking-wide text-gray-900">Co-Maker 2</h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-4">
+              <div><label className={labelStyles}>Valid ID/Gov't. Issued ID <span className="text-red-500">*</span></label><input type="text" name="cm2_id_type" value={formData.cm2_id_type} onChange={handleChange} className={inputStyles} /></div>
+              <div><label className={labelStyles}>ID Number <span className="text-red-500">*</span></label><input type="text" name="cm2_id_no" value={formData.cm2_id_no} onChange={handleChange} className={inputStyles} /></div>
+              <div><label className={labelStyles}>Residence Address <span className="text-red-500">*</span></label><input type="text" name="cm2_address" value={formData.cm2_address} onChange={handleChange} className={inputStyles} /></div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+              <div><label className={labelStyles}>Email Address <span className="text-red-500">*</span></label><input type="email" name="cm2_email" value={formData.cm2_email} onChange={handleChange} className={inputStyles} /></div>
+              <div><label className={labelStyles}>Mobile No. <span className="text-red-500">*</span></label><input type="text" name="cm2_mobile" value={formData.cm2_mobile} onChange={handleChange} className={inputStyles} /></div>
             </div>
 
-            <button 
-              type="submit" 
-              disabled={loading}
-              className="mt-6 bg-[#66B538] text-white px-4 py-2 rounded hover:bg-[#5aa12b] transition-colors text-sm float-right mb-4 disabled:opacity-50 cursor-pointer"
-            >
-              {loading ? "Processing..." : "Submit Application"}
-            </button>
+           
+            <div className="flex justify-end pt-4 border-t border-gray-100">
+              <button 
+                type="submit" 
+                disabled={loading}
+                className="bg-[#66B538] text-white px-6 py-2 rounded hover:bg-[#5aa12b] transition-colors font-bold disabled:opacity-50 cursor-pointer"
+              >
+                {loading ? "Processing..." : "Submit Application"}
+              </button>
+            </div>
           </div>
         </div>
       </form>
