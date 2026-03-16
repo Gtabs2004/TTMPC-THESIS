@@ -11,6 +11,50 @@ const generateControlNumber = () => {
   return `BL-${year}${month}${day}-${random}`;
 };
 
+const numberToWords = (num) => {
+  if (num === '' || num === undefined || num === null) return '';
+  
+  num = parseInt(num, 10);
+  if (isNaN(num)) return '';
+  
+  const ones = ['', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine'];
+  const teens = ['ten', 'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen'];
+  const tens = ['', '', 'twenty', 'thirty', 'forty', 'fifty', 'sixty', 'seventy', 'eighty', 'ninety'];
+  const scales = ['', 'thousand', 'million', 'billion', 'trillion'];
+
+  const convertHundreds = (n) => {
+    let result = '';
+    if (n >= 100) {
+      result += ones[Math.floor(n / 100)] + ' hundred ';
+      n %= 100;
+    }
+    if (n >= 20) {
+      result += tens[Math.floor(n / 10)];
+      if (n % 10 > 0) result += ' ' + ones[n % 10];
+    } else if (n >= 10) {
+      result += teens[n - 10];
+    } else if (n > 0) {
+      result += ones[n];
+    }
+    return result.trim();
+  };
+
+  if (num === 0) return 'zero';
+
+  let words = '';
+  let scaleIndex = 0;
+
+  while (num > 0) {
+    if (num % 1000 !== 0) {
+      words = convertHundreds(num % 1000) + ' ' + scales[scaleIndex] + ' ' + words;
+    }
+    num = Math.floor(num / 1000);
+    scaleIndex++;
+  }
+
+  return words.trim().replace(/\s+/g, ' ');
+};
+
 function Bonus_Loan() {
   const inputStyles = 'border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-[#66B538] outline-none w-full bg-white text-sm';
   const labelStyles = 'block text-xs font-bold text-gray-700 mb-1';
@@ -41,6 +85,7 @@ function Bonus_Loan() {
     loan_amount_numeric: '',
     loan_amount_words: '',
     loan_purpose: '',
+    loan_purpose_other: '',
     loan_term_months: '',
     monthly_amortization: '',
     total_interest: '',
@@ -121,6 +166,19 @@ function Bonus_Loan() {
       isMounted = false;
     };
   }, []);
+
+  // Auto-fill loan_amount_words when bonus_amount_numeric changes
+  useEffect(() => {
+    if (formData.bonus_amount_numeric) {
+      const words = numberToWords(formData.bonus_amount_numeric);
+      setFormData((prev) => ({
+        ...prev,
+        bonus_amount_words: words.charAt(0).toUpperCase() + words.slice(1),
+      }));
+    } else {
+      setFormData((prev) => ({ ...prev, bonus_amount_words: '' }));
+    }
+  }, [formData.bonus_amount_numeric]);
 
   useEffect(() => {
     const principal = Number(formData.loan_amount_numeric || 0);
@@ -267,47 +325,194 @@ function Bonus_Loan() {
           </div>
         </div>
 
+        {/* Section 2: LOAN AGREEMENT */}
         <div className="mt-8 bg-white rounded-lg shadow-md overflow-hidden max-w-6xl mx-auto w-full">
-          <div className={sectionHeader}><span className="bg-white text-[#66B538] rounded-full w-6 h-6 flex items-center justify-center text-sm">2</span> LOAN DETAILS</div>
-          <div className="p-8 grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div><label className={labelStyles}>Loan Amount (Words)</label><input name="loan_amount_words" value={formData.loan_amount_words} onChange={handleChange} className={inputStyles} /></div>
-            <div><label className={labelStyles}>Loan Amount (Numeric)</label><input type="number" name="loan_amount_numeric" value={formData.loan_amount_numeric} readOnly className={`${inputStyles} bg-gray-100 cursor-not-allowed`} /></div>
-            <div><label className={labelStyles}>Loan Purpose</label><input name="loan_purpose" value={formData.loan_purpose} onChange={handleChange} className={inputStyles} /></div>
-            <div>
-              <label className={labelStyles}>Term (Months)</label>
-              <select name="loan_term_months" value={formData.loan_term_months} onChange={handleChange} className={inputStyles}>
+          <div className={sectionHeader}>
+            <span className="bg-white text-[#66B538] rounded-full w-6 h-6 flex items-center justify-center text-sm">2</span>
+            LOAN AGREEMENT
+          </div>
+          <div className="p-8 text-sm text-gray-800">
+            
+            <div className="leading-[3.5rem]">
+              I hereby apply for a loan in the amount of
+              <input 
+                type="text" 
+                name="loan_amount_words" 
+                value={formData.loan_amount_words} 
+                onChange={handleChange} 
+                className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-[#66B538] outline-none bg-white text-sm transition-all mx-2 w-[22rem] inline-block align-middle" 
+              />
+              <div className="inline-flex items-center relative mr-2 align-middle">
+                <span className="absolute left-3 text-gray-400 text-xs font-medium">Php</span>
+                <input 
+                  type="number" 
+                  name="loan_amount_numeric" 
+                  value={formData.loan_amount_numeric} 
+                  readOnly
+                  className="border border-gray-300 rounded-md pl-10 pr-3 py-1.5 outline-none bg-gray-50 text-sm transition-all w-40 cursor-not-allowed" 
+                />
+              </div>
+              for the purpose of
+              <select 
+                name="loan_purpose" 
+                value={formData.loan_purpose} 
+                onChange={handleChange} 
+                className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-[#66B538] outline-none bg-white text-sm transition-all mx-2 w-64 inline-block align-middle" 
+              >
+                <option value="">Select Purpose</option>
+                <option value="Emergency Needs">Emergency Needs</option>
+                <option value="Medical Expenses">Medical Expenses</option>
+                <option value="Family & Household Needs">Family & Household Needs</option>
+                <option value="Education">Education</option>
+                <option value="Livelihood/Business">Livelihood/Business</option>
+                <option value="Financial Obligations">Financial Obligations</option>
+                <option value="Personal Needs">Personal Needs</option>
+                <option value="Others">Others</option>
+              </select>
+              {formData.loan_purpose === 'Others' && (
+                <input 
+                  type="text" 
+                  name="loan_purpose_other" 
+                  value={formData.loan_purpose_other} 
+                  onChange={handleChange} 
+                  placeholder="Please specify..."
+                  className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-[#66B538] outline-none bg-white text-sm transition-all mx-2 w-56 inline-block align-middle" 
+                />
+              )}
+              
+              <br className="hidden md:block" />
+              
+              for a term of
+              <select 
+                name="loan_term_months" 
+                value={formData.loan_term_months} 
+                onChange={handleChange} 
+                className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-[#66B538] outline-none bg-white text-sm transition-all mx-2 w-72 inline-block align-middle text-gray-600 truncate"
+              >
                 <option value="">Select Bonus Cycle</option>
                 <option value="5">May Midyear Bonus (5 months)</option>
                 <option value="11">Yearend Bonus November (11 months)</option>
               </select>
+              months with a monthly amortization of
+              <input 
+                type="number" 
+                name="monthly_amortization" 
+                value={formData.monthly_amortization} 
+                readOnly 
+                className="border border-gray-300 rounded-md px-3 py-1.5 outline-none bg-gray-50 text-sm transition-all mx-2 w-48 inline-block align-middle cursor-not-allowed" 
+              />
+              , which I promise to pay the amount to <strong>Tubungan Teachers' Multi Purpose Cooperative</strong>
+              
+              <br />
+              
+              <span className="block mt-2 leading-normal">
+                <strong>(TTMPC)</strong> in accordance with the terms and conditions as stipulated in the Promissory Note of which I certify to have read and understood clearly. I bind myself to pay out my monthly salary and/or other benefits the required monthly amortization here on or surrender my ATM to TTMPC.
+              </span>
             </div>
-            <div><label className={labelStyles}>Monthly Amortization</label><input type="number" name="monthly_amortization" value={formData.monthly_amortization} readOnly className={`${inputStyles} bg-gray-100 cursor-not-allowed`} /></div>
-            <div><label className={labelStyles}>Source of Income</label><input name="source_of_income" value={formData.source_of_income} onChange={handleChange} className={inputStyles} /></div>
-            <div><label className={labelStyles}>Payment Start Date</label><input type="date" name="payment_start_date" value={formData.payment_start_date} onChange={handleChange} className={inputStyles} /></div>
+
           </div>
         </div>
+       {/* Section 3: APPLICANTS AUTHORIZATION FOR SALARY DEDUCTION */}
+        <div className="mt-8 bg-white rounded-lg shadow-md overflow-hidden max-w-6xl mx-auto w-full mb-8">
+          <div className={sectionHeader}>
+            <span className="bg-white text-[#66B538] rounded-full w-6 h-6 flex items-center justify-center text-sm">3</span>
+            APPLICANTS AUTHORIZATION FOR SALARY DEDUCTION
+          </div>
+          <div className="p-8 text-sm text-gray-800">
+            
+            <p className="font-bold text-gray-900 mb-6">
+              To the TTMPC Treasurer or his representative:
+            </p>
+            
+            <div className="leading-[3.5rem]">
+              Sir, I hereby authorize you to get my mid-year/year end bonus and deduct from it the amount of
+              
+              <input 
+                type="text" 
+                name="bonus_amount_words" 
+                value={formData.bonus_amount_words} 
+                onChange={handleChange} 
+                className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-[#66B538] outline-none bg-white text-sm transition-all mx-2 w-80 inline-block align-middle" 
+              />
+              
+              <div className="inline-flex items-center relative mr-2 align-middle">
+                <span className="absolute left-3 text-gray-400 text-xs font-medium">Php</span>
+                <input 
+                  type="number" 
+                  name="bonus_amount_numeric" 
+                  value={formData.bonus_amount_numeric} 
+                  onChange={handleChange} 
+                  className="border border-gray-300 rounded-md pl-10 pr-3 py-1.5 focus:ring-2 focus:ring-[#66B538] outline-none bg-white text-sm transition-all w-48" 
+                />
+              </div>
+            </div>
 
-        <div className="mt-8 bg-white rounded-lg shadow-md overflow-hidden max-w-6xl mx-auto w-full">
-          <div className={sectionHeader}><span className="bg-white text-[#66B538] rounded-full w-6 h-6 flex items-center justify-center text-sm">3</span> BONUS AUTHORIZATION</div>
-          <div className="p-8 grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div><label className={labelStyles}>Bonus Amount (Words)</label><input name="bonus_amount_words" value={formData.bonus_amount_words} onChange={handleChange} className={inputStyles} /></div>
-            <div><label className={labelStyles}>Bonus Amount (Numeric)</label><input type="number" name="bonus_amount_numeric" value={formData.bonus_amount_numeric} onChange={handleChange} className={inputStyles} /></div>
+            <p className="mt-6 text-gray-800">
+              This authorization is irrevocable until my obligations as indicated above has been paid infull.
+            </p>
+
           </div>
         </div>
+       {/* Section 4: DEED OF ASSIGNMENT */}
+        <div className="mt-8 bg-white rounded-lg shadow-md overflow-hidden max-w-6xl mx-auto w-full mb-8">
+          <div className={sectionHeader}>
+            <span className="bg-white text-[#66B538] rounded-full w-6 h-6 flex items-center justify-center text-sm">4</span>
+            DEED OF ASSIGNMENT
+          </div>
+          <div className="p-8 text-sm text-gray-800">
+            
+            <p className="font-bold mb-6 text-gray-900 uppercase tracking-wide">
+              KNOW ALL MEN OF THESE PRESENTS:
+            </p>
+            
+            <div className="leading-[3.5rem]">
+              I,
+              <input 
+                type="text" 
+                name="borrower_name" 
+                value={`${formData.first_name || ''} ${formData.middle_name || ''} ${formData.surname || ''}`.trim()} 
+                readOnly 
+                className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-[#66B538] outline-none bg-gray-50 text-sm transition-all mx-2 w-[22rem] inline-block align-middle" 
+              />
+              of legal age, and an employee of
+              <input 
+                type="text" 
+                name="employer_name" 
+                value={formData.employer_name} 
+                onChange={handleChange} 
+                className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-[#66B538] outline-none bg-white text-sm transition-all mx-2 w-96 inline-block align-middle" 
+              />
+              Tubungan, Iloilo.
+              
+              <br className="hidden xl:block" />
+              <div className="h-4"></div> {/* Spacer for vertical rhythm */}
+              
+              <span className="leading-loose block mt-2 text-justify">
+                For and in coordination of my loan with <strong>Tubungan Teachers' Multi Purpose Cooperative (TTMPC)</strong> in the amount of
+                
+                <input 
+                  type="text" 
+                  name="loan_amount_words" 
+                  value={formData.loan_amount_words} 
+                  onChange={handleChange} 
+                  className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-[#66B538] outline-none bg-white text-sm transition-all mx-2 w-64 inline-block align-middle" 
+                />
+                
+                <div className="inline-flex items-center relative mr-2 align-middle">
+                  <span className="absolute left-3 text-gray-400 text-xs font-medium">Php</span>
+                  <input 
+                    type="number" 
+                    name="loan_amount_numeric" 
+                    value={formData.loan_amount_numeric} 
+                    onChange={handleChange} 
+                    className="border border-gray-300 rounded-md pl-10 pr-3 py-1.5 focus:ring-2 focus:ring-[#66B538] outline-none bg-white text-sm transition-all w-40" 
+                  />
+                </div>
+                
+                with interest thereon at the rate of 2% per month, do hereby by these present, ASSIGN, TRANSFER and CONVEY into TTMPC, its successors and assign my salary/benefits corresponding to the amount of my loan inclusive of interest and surcharges.
+              </span>
+            </div>
 
-        <div className="mt-8 bg-white rounded-lg shadow-md overflow-hidden max-w-6xl mx-auto w-full">
-          <div className={sectionHeader}><span className="bg-white text-[#66B538] rounded-full w-6 h-6 flex items-center justify-center text-sm">4</span> CO-MAKERS</div>
-          <div className="p-8 grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div><label className={labelStyles}>Co-Maker 1 Name</label><input name="cm1_name" value={formData.cm1_name} onChange={handleChange} className={inputStyles} /></div>
-            <div><label className={labelStyles}>Co-Maker 1 ID No.</label><input name="cm1_id_no" value={formData.cm1_id_no} onChange={handleChange} className={inputStyles} /></div>
-            <div><label className={labelStyles}>Co-Maker 1 Address</label><input name="cm1_address" value={formData.cm1_address} onChange={handleChange} className={inputStyles} /></div>
-            <div><label className={labelStyles}>Co-Maker 1 Email</label><input type="email" name="cm1_email" value={formData.cm1_email} onChange={handleChange} className={inputStyles} /></div>
-            <div><label className={labelStyles}>Co-Maker 1 Mobile</label><input name="cm1_mobile" value={formData.cm1_mobile} onChange={handleChange} className={inputStyles} /></div>
-            <div><label className={labelStyles}>Co-Maker 2 Name</label><input name="cm2_name" value={formData.cm2_name} onChange={handleChange} className={inputStyles} /></div>
-            <div><label className={labelStyles}>Co-Maker 2 ID No.</label><input name="cm2_id_no" value={formData.cm2_id_no} onChange={handleChange} className={inputStyles} /></div>
-            <div><label className={labelStyles}>Co-Maker 2 Address</label><input name="cm2_address" value={formData.cm2_address} onChange={handleChange} className={inputStyles} /></div>
-            <div><label className={labelStyles}>Co-Maker 2 Email</label><input type="email" name="cm2_email" value={formData.cm2_email} onChange={handleChange} className={inputStyles} /></div>
-            <div><label className={labelStyles}>Co-Maker 2 Mobile</label><input name="cm2_mobile" value={formData.cm2_mobile} onChange={handleChange} className={inputStyles} /></div>
           </div>
           <div className="p-8 pt-0">
             <button type="submit" disabled={loading} className="bg-[#66B538] text-white px-5 py-2 rounded hover:bg-[#5aa12b] transition-colors text-sm font-semibold disabled:opacity-50">

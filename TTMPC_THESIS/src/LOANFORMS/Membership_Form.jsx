@@ -50,7 +50,20 @@ function Membership_Form() {
 
   const handleChange = (e) =>{
     const { name, value } = e.target;
-    setFormdata (prev =>({...prev, [name]: value }));
+    
+    // Clear family information fields when "Single" is selected
+    if (name === 'civil_status' && value === 'Single') {
+      setFormdata(prev => ({
+        ...prev,
+        [name]: value,
+        maiden_name: '',
+        spouse_name: '',
+        spouse_occupation: '',
+        number_of_dependents: '',
+      }));
+    } else {
+      setFormdata(prev => ({ ...prev, [name]: value }));
+    }
   }
 
   const handleSubmit = async (e) => {
@@ -222,6 +235,7 @@ function Membership_Form() {
             </section>
 
             
+            {formdata.civil_status !== 'Single' && (
             <section>
               <h3 className="text-sm font-bold text-slate-700 uppercase mb-4">Family Information</h3>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-4">
@@ -245,6 +259,7 @@ function Membership_Form() {
                 </div>
               </div>
             </section>
+            )}
 
             
             <section>

@@ -86,7 +86,7 @@
               <Link to="/">About Us</Link>
             </li>
             <li>
-              <Link to="/Loan_Kiosk">Products</Link>
+              <Link to="/Loan_Kiosk">Services</Link>
             </li>
             <li>
               <Link to="/">FAQs</Link>
