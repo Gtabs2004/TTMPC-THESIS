@@ -39,7 +39,11 @@ const normalizeLoanStatus = (value) => {
 
   const map = {
     pending: 'pending',
+    'recommended for approval': 'recommended for approval',
+    recommended_for_approval: 'recommended for approval',
     approved: 'approved',
+    'to be disbursed': 'to be disbursed',
+    to_be_disbursed: 'to be disbursed',
     rejected: 'rejected',
     cancelled: 'cancelled',
     canceled: 'cancelled',
@@ -56,7 +60,11 @@ const normalizeApplicationStatus = (value) => {
 
   const map = {
     pending: 'pending',
+    'recommended for approval': 'recommended for approval',
+    recommended_for_approval: 'recommended for approval',
     approved: 'approved',
+    'to be disbursed': 'to be disbursed',
+    to_be_disbursed: 'to be disbursed',
     rejected: 'rejected',
     cancelled: 'cancelled',
     canceled: 'cancelled',
