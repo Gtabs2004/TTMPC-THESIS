@@ -87,7 +87,7 @@ export const router = createBrowserRouter([
     {path: "/member-loans", element:<Member_Loans/>},
     {path: "/members-profile", element:<Members_Profile/>},
     {path: "/member-savings", element:<Member_Savings/>},
-    {path: "/koica-forms", element:<Koica_Forms/>},
+    {path: "/Koica_Forms", element:<Koica_Forms/>},
     {path: "/loan_services", element:<Loan_Services/>},
     {path: "/savings_services", element:<Savings_Services/>},
     {path: "/regularsavings_services", element:<RegularSavings_Services/>},
