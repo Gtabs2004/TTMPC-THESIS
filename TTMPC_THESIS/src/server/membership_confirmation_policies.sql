@@ -119,10 +119,10 @@ BEGIN
     VALUES (
       v_member_id,
       now(),
+      500,
       0,
-      300,
       'CBU Opening Balance',
-      300
+      500
     );
   END IF;
 

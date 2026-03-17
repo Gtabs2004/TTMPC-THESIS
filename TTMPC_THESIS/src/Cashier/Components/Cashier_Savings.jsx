@@ -167,7 +167,6 @@ const menuItems = [
           <Bell className="w-5 h-5"/>
           <span className="absolute top-1 right-1 block h-2 w-2 rounded-full bg-red-500 ring-2 ring-white"></span>
           </button>
-          <img src={profileImg} alt="Bookkeeper Profile" className="ml-4 w-8 h-8 rounded-full"></img>
           <p>Cashier</p>
         </header>
 
@@ -197,7 +196,10 @@ const menuItems = [
                   <option value="amount">Sort by Amount</option>
                   <option value="name">Sort by Name</option>
                 </select>
-                <button className="px-4 py-2.5 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition-colors flex items-center gap-2">
+                <button
+                  onClick={() => navigate('/add_savings')}
+                  className="px-4 py-2.5 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition-colors flex items-center gap-2"
+                >
                   <UserPlus size={16} />
                   Add Savings
                 </button>

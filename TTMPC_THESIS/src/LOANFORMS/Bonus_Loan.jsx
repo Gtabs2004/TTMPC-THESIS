@@ -1,15 +1,7 @@
-import React, { useEffect, useState } from 'react';
-import { fetchLoanPrefill, submitUnifiedLoan } from './loanSubmission';
+import React, { useEffect, useMemo, useState } from 'react';
+import { useLocation } from 'react-router-dom';
+import { createUniqueControlNumber, fetchLoanPrefill, submitUnifiedLoan } from './loanSubmission';
 import { buildBonusPayload, computeLoan } from './loanComputeApi';
-
-const generateControlNumber = () => {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-  const day = String(now.getDate()).padStart(2, '0');
-  const random = String(Math.floor(1000 + Math.random() * 9000));
-  return `BL-${year}${month}${day}-${random}`;
-};
 
 const numberToWords = (num) => {
   if (num === '' || num === undefined || num === null) return '';
@@ -56,6 +48,14 @@ const numberToWords = (num) => {
 };
 
 function Bonus_Loan() {
+  const location = useLocation();
+  const isNonMemberBonus = useMemo(() => {
+    const params = new URLSearchParams(location.search);
+    return params.get('loanType')?.toUpperCase() === 'NONMEMBER_BONUS';
+  }, [location.search]);
+
+  const resolvedLoanTypeCode = isNonMemberBonus ? 'NONMEMBER_BONUS' : 'BONUS';
+
   const inputStyles = 'border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-[#66B538] outline-none w-full bg-white text-sm';
   const labelStyles = 'block text-xs font-bold text-gray-700 mb-1';
   const sectionHeader = 'bg-[#66B538] text-white px-4 py-2 rounded-t-lg flex items-center gap-2 font-bold uppercase tracking-wide';
@@ -63,7 +63,7 @@ function Bonus_Loan() {
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     application_type: 'New',
-    control_no: generateControlNumber(),
+    control_no: createUniqueControlNumber(isNonMemberBonus ? 'NMBL' : 'BL'),
     date_applied: new Date().toISOString().split('T')[0],
     surname: '',
     first_name: '',
@@ -90,6 +90,7 @@ function Bonus_Loan() {
     monthly_amortization: '',
     total_interest: '',
     source_of_income: '',
+    user_email: '',
     payment_start_date: '',
     cm1_name: '',
     cm1_id_no: '',
@@ -124,6 +125,8 @@ function Bonus_Loan() {
     let isMounted = true;
 
     const loadPrefill = async () => {
+      if (isNonMemberBonus) return;
+
       try {
         const { userEmail, profile } = await fetchLoanPrefill();
         if (!isMounted) return;
@@ -165,7 +168,7 @@ function Bonus_Loan() {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [isNonMemberBonus]);
 
   // Keep amount words synced to whichever numeric amount source user edits.
   useEffect(() => {
@@ -220,7 +223,8 @@ function Bonus_Loan() {
 
     try {
       await submitUnifiedLoan({
-        loanTypeCode: 'BONUS',
+        loanTypeCode: resolvedLoanTypeCode,
+        targetTable: isNonMemberBonus ? 'koica_loans' : 'loans',
         controlNumber: formData.control_no,
         applicationStatus: 'pending',
         applicationType: formData.application_type,
@@ -230,12 +234,33 @@ function Bonus_Loan() {
         principalAmount: formData.loan_amount_numeric,
         interestRate: 2,
         term: formData.loan_term_months,
+        requireMemberProfile: !isNonMemberBonus,
+        applicantProfile: isNonMemberBonus
+          ? {
+              full_name: `${formData.first_name || ''} ${formData.middle_name || ''} ${formData.surname || ''}`.trim(),
+              credentials: {
+                surname: formData.surname || null,
+                first_name: formData.first_name || null,
+                middle_name: formData.middle_name || null,
+                contact_no: formData.contact_no || null,
+                residence_address: formData.residence_address || null,
+                date_of_birth: formData.date_of_birth || null,
+                civil_status: formData.civil_status || null,
+                gender: formData.gender || null,
+                tin_no: formData.tin_no || null,
+                gsis_sss_no: formData.gsis_sss_no || null,
+                employer_name: formData.employer_name || null,
+                office_address: formData.office_address || null,
+              },
+            }
+          : {},
         optionalFields: {
           total_interest: formData.total_interest || null,
           loan_amount_words: formData.loan_amount_words || null,
           loan_purpose: formData.loan_purpose || null,
           monthly_amortization: formData.monthly_amortization || null,
           source_of_income: formData.source_of_income || null,
+          user_email: formData.user_email || null,
           payment_start_date: formData.payment_start_date || null,
           bonus_amount_words: formData.bonus_amount_words || null,
           bonus_amount_numeric: formData.bonus_amount_numeric || null,
@@ -317,6 +342,9 @@ function Bonus_Loan() {
             <div><label className={labelStyles}>First Name *</label><input name="first_name" value={formData.first_name} onChange={handleChange} className={inputStyles} required /></div>
             <div><label className={labelStyles}>Middle Name</label><input name="middle_name" value={formData.middle_name} onChange={handleChange} className={inputStyles} /></div>
             <div><label className={labelStyles}>Contact No. *</label><input name="contact_no" value={formData.contact_no} onChange={handleChange} className={inputStyles} required /></div>
+            {isNonMemberBonus ? (
+              <div><label className={labelStyles}>Email Address</label><input type="email" name="user_email" value={formData.user_email} onChange={handleChange} className={inputStyles} /></div>
+            ) : null}
             <div><label className={labelStyles}>Latest Net Pay *</label><input type="number" name="latest_net_pay" value={formData.latest_net_pay} onChange={handleChange} className={inputStyles} required /></div>
             <div><label className={labelStyles}>Share Capital *</label><input type="number" name="share_capital" value={formData.share_capital} onChange={handleChange} className={inputStyles} required /></div>
             <div className="md:col-span-3"><label className={labelStyles}>Residence Address *</label><input name="residence_address" value={formData.residence_address} onChange={handleChange} className={inputStyles} required /></div>

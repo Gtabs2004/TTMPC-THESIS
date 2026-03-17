@@ -23,7 +23,15 @@ const resolveInterestRate = (loanTypeCode, interestRate) => {
   if (code === 'CONSOLIDATED') return 0.83;
   if (code === 'EMERGENCY') return 2;
   if (code === 'BONUS') return 2;
+  if (code === 'NONMEMBER_BONUS') return 2;
   return null;
+};
+
+export const createUniqueControlNumber = (prefix = 'LN') => {
+  const safePrefix = String(prefix || 'LN').toUpperCase().replace(/[^A-Z0-9]/g, '') || 'LN';
+  const stamp = new Date().toISOString().replace(/[-:TZ.]/g, '').slice(0, 14);
+  const random = Math.floor(100000 + Math.random() * 900000);
+  return `${safePrefix}-${stamp}-${random}`;
 };
 
 const normalizeDateToIso = (value) => {
@@ -97,6 +105,16 @@ async function getCurrentUser() {
   return user;
 }
 
+async function getCurrentUserIfAny() {
+  const {
+    data: { user },
+    error,
+  } = await supabase.auth.getUser();
+
+  if (error) return null;
+  return user || null;
+}
+
 async function getMemberIdForUser(userId) {
   const { data, error } = await supabase
     .from('member')
@@ -111,6 +129,18 @@ async function getMemberIdForUser(userId) {
   }
 
   return data.id;
+}
+
+async function getOptionalMemberIdForUser(userId) {
+  const { data, error } = await supabase
+    .from('member')
+    .select('id')
+    .eq('id', userId)
+    .limit(1)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data?.id || null;
 }
 
 async function getLoanTypeId(loanTypeCode) {
@@ -151,6 +181,8 @@ async function getLoanTypeId(loanTypeCode) {
     CONSOLIDATED: ['Consolidated Loan', 'Consolidated'],
     BONUS: ['Bonus Loan', 'Bonus'],
     EMERGENCY: ['Emergency Loan', 'Emergency'],
+    KOICA: ['KOICA Loan', 'Agri-Business Financial Facility Loan', 'ABFF Loan', 'KOICA'],
+    NONMEMBER_BONUS: ['Nonmember Bonus Loan', 'Non-member Bonus Loan', 'Non Member Bonus Loan'],
   };
 
   const nameCandidates = expectedNames[code] || [code];
@@ -179,7 +211,7 @@ async function getLoanTypeId(loanTypeCode) {
   if (foundId) return foundId;
 
   throw new Error(
-    `Loan type code not found: ${code}. Seed loan_types with Bonus, Consolidated, and Emergency entries.`
+    `Loan type code not found: ${code}. Seed loan_types with Bonus, Consolidated, Emergency, KOICA, and Nonmember Bonus.`
   );
 }
 
@@ -393,12 +425,57 @@ export async function submitUnifiedLoan({
   term,
   loanStatus = 'pending',
   disbursalDate = null,
+  requireMemberProfile = true,
+  targetTable = 'loans',
+  applicantProfile = {},
   optionalFields = {},
   coMakers = [],
 }) {
+  const normalizedLoanStatus = normalizeLoanStatus(loanStatus);
+  const normalizedApplicationStatus = normalizeApplicationStatus(applicationStatus);
+  const normalizedApplicationType = normalizeApplicationType(applicationType ?? applicationStatus);
+
+  if (targetTable !== 'loans') {
+    const maybeUser = await getCurrentUserIfAny();
+    const submittedEmail = String(optionalFields?.user_email || optionalFields?.email || maybeUser?.email || '').trim().toLowerCase() || null;
+
+    const normalizedFullName = String(applicantProfile?.full_name || '').trim() || null;
+    const credentialsPayload = applicantProfile?.credentials ?? null;
+
+    const customPayload = {
+      control_number: controlNumber,
+      full_name: normalizedFullName,
+      credentials: credentialsPayload,
+      user_email: submittedEmail,
+      loan_type_code: String(loanTypeCode || '').trim().toUpperCase() || null,
+      loan_amount: toFloat(loanAmount),
+      principal_amount: toFloat(principalAmount ?? loanAmount),
+      interest_rate: resolveInterestRate(loanTypeCode, interestRate),
+      term: toInt(term),
+      loan_status: normalizedLoanStatus,
+      application_status: normalizedApplicationStatus,
+      application_type: normalizedApplicationType,
+      application_date: normalizeDateToIso(applicationDate) ?? new Date().toISOString(),
+      disbursal_date: normalizeDateToIso(disbursalDate),
+      raw_payload: {
+        optionalFields,
+        coMakers,
+      },
+    };
+
+    const { error: customInsertError } = await supabase.from(targetTable).insert([customPayload]);
+    if (customInsertError) throw customInsertError;
+
+    return {
+      controlNumber,
+      insertedCoMakers: 0,
+    };
+  }
+
   const user = await getCurrentUser();
-  const memberId = await getMemberIdForUser(user.id);
-  const loanTypeId = await getLoanTypeId(loanTypeCode);
+  const memberId = requireMemberProfile
+    ? await getMemberIdForUser(user.id)
+    : await getOptionalMemberIdForUser(user.id);
 
   const coMakerRows = [];
 
@@ -420,9 +497,7 @@ export async function submitUnifiedLoan({
     });
   }
 
-  const normalizedLoanStatus = normalizeLoanStatus(loanStatus);
-  const normalizedApplicationStatus = normalizeApplicationStatus(applicationStatus);
-  const normalizedApplicationType = normalizeApplicationType(applicationType ?? applicationStatus);
+  const loanTypeId = await getLoanTypeId(loanTypeCode);
 
   const payload = {
     control_number: controlNumber,

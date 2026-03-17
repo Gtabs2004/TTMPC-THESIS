@@ -32,7 +32,7 @@ const Non_Member = () => {
         <h1 className="text-sm font-semibold  ml-2">Loan Application Kiosk</h1>
         <p className="mt-4  text-lg font-bold ">Available Loan Services</p>
         <div className="flex flex-row gap-10 mt-10">
-            <Link to="/Bonus_Loan" className="bg-white h-50 w-50 rounded-2xl font-bold flex text-center 
+            <Link to="/Bonus_Loan?loanType=NONMEMBER_BONUS" className="bg-white h-50 w-50 rounded-2xl font-bold flex text-center 
             items-center justify-center flex-col cursor-pointer">
                 <Gift size={48} className="text-green-600 mb-4" />
                 <h1>Bonus Loan</h1>

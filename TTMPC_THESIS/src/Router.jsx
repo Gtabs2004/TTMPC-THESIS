@@ -49,7 +49,6 @@ import Treasurer_Reports from "./Treasurer/Components/Treasurer_Reports";
 import Cashier_Dashboard from "./Cashier/Components/Cashier_Dashboard";
 import Cashier_Savings from "./Cashier/Components/Cashier_Savings";
 import Savings_Details from "./Cashier/Components/Savings_Details";
-import Secretary_Attendance from "./BOD/Components/Secretary_Attendance";
 
 
 
@@ -106,6 +105,7 @@ export const router = createBrowserRouter([
     {path: "/Treasurer_Reports", element:<Treasurer_Reports/>},
     {path: "/Cashier_Dashboard", element:<Cashier_Dashboard/>},
     {path: "/Cashier_Savings", element:<Cashier_Savings/>},
+    {path: "/add_savings", element:<Add_Savings/>},
     {path: "/Savings_Details/:id", element:<Savings_Details/>},
     {path: "/Secretary_Attendance", element:<Secretary_Attendance/>}
 ]);

@@ -11,7 +11,7 @@ from supabase import create_client, Client
 from dotenv import load_dotenv
 from urllib import request as urlrequest
 from urllib.error import HTTPError, URLError
-from applicationConfirmation import MembershipConfirmationError, confirm_membership, get_next_membership_id
+from applicationConfirmation import MembershipConfirmationError, confirm_membership, confirm_membership_batch, get_next_membership_id
 
 # 1. Load Environment Variables
 # Load from project root .env explicitly for consistent behavior.
@@ -63,6 +63,12 @@ class StatusEmailRequest(BaseModel):
 class MembershipConfirmationRequest(BaseModel):
     application_id: str
     confirmed_by_user_id: str
+    force: bool = False
+
+
+class MembershipBatchConfirmationRequest(BaseModel):
+    confirmed_by_user_id: str
+    max_items: int = 50
     force: bool = False
 
 
@@ -351,6 +357,21 @@ async def confirm_membership_endpoint(payload: MembershipConfirmationRequest):
         raise HTTPException(status_code=400, detail=str(err))
     except Exception as err:
         raise HTTPException(status_code=500, detail=f"Membership confirmation failed: {err}")
+
+
+@app.post("/api/confirm-membership/batch")
+async def confirm_membership_batch_endpoint(payload: MembershipBatchConfirmationRequest):
+    try:
+        result = confirm_membership_batch(
+            confirmed_by_user_id=payload.confirmed_by_user_id,
+            max_items=payload.max_items,
+            force=payload.force,
+        )
+        return {"success": True, "data": result}
+    except MembershipConfirmationError as err:
+        raise HTTPException(status_code=400, detail=str(err))
+    except Exception as err:
+        raise HTTPException(status_code=500, detail=f"Batch membership confirmation failed: {err}")
 
 
 @app.get("/api/next-membership-id")
