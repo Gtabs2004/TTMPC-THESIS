@@ -46,6 +46,9 @@ import Loans from "./Treasurer/Components/Loans";
 import Savings from "./Treasurer/Components/Savings";
 import Members from "./Treasurer/Components/Members";
 import Treasurer_Reports from "./Treasurer/Components/Treasurer_Reports";
+import Cashier_Dashboard from "./Cashier/Components/Cashier_Dashboard";
+import Cashier_Savings from "./Cashier/Components/Cashier_Savings";
+import Savings_Details from "./Cashier/Components/Savings_Details";
 
 
 
@@ -99,5 +102,8 @@ export const router = createBrowserRouter([
     {path: "/Loans", element:<Loans/>},
     {path: "/Savings", element:<Savings/>},
     {path: "/Members", element:<Members/>},
-    {path: "/Treasurer_Reports", element:<Treasurer_Reports/>}
+    {path: "/Treasurer_Reports", element:<Treasurer_Reports/>},
+    {path: "/Cashier_Dashboard", element:<Cashier_Dashboard/>},
+    {path: "/Cashier_Savings", element:<Cashier_Savings/>},
+    {path: "/Savings_Details/:id", element:<Savings_Details/>},
 ]);
