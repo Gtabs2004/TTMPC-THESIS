@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '../../supabaseClient';
 import { 
   ArrowLeft, 
@@ -28,6 +28,9 @@ const CustomCheckbox = ({ checked, onChange, label }) => (
 const LoanApprovalDetails = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
+  const isBookkeeperFlow = location.pathname.startsWith('/bookkeeper-loan-approval');
+  const backRoute = isBookkeeperFlow ? '/bookkeeper-loan-approval' : '/loan-approval';
 
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
@@ -81,6 +84,7 @@ const LoanApprovalDetails = () => {
             monthly_amortization,
             term,
             loan_status,
+            application_status,
             loan_purpose,
             source_of_income,
             member:member_id (
@@ -111,7 +115,7 @@ const LoanApprovalDetails = () => {
         const mapped = {
           id: data.control_number,
           memberName,
-          status: formatStatus(data.loan_status),
+          status: formatStatus(data.loan_status || data.application_status),
           summary: {
             loanType: data.loan_type?.name || 'N/A',
             recommendedAmount: formatCurrency(data.loan_amount),
@@ -171,8 +175,9 @@ const LoanApprovalDetails = () => {
     }
 
     let nextStatus = 'pending';
-    if (modalType === 'proceed') nextStatus = 'to be disbursed';
-    if (modalType === 'reject') nextStatus = 'rejected';
+    if (isBookkeeperFlow && modalType === 'recommend') nextStatus = 'recommended for approval';
+    if (!isBookkeeperFlow && modalType === 'proceed') nextStatus = 'to be disbursed';
+    if (!isBookkeeperFlow && modalType === 'reject') nextStatus = 'rejected';
 
     try {
       setSaving(true);
@@ -180,7 +185,7 @@ const LoanApprovalDetails = () => {
 
       const { data, error } = await supabase
         .from('loans')
-        .update({ loan_status: nextStatus })
+        .update({ loan_status: nextStatus, application_status: nextStatus })
         .eq('control_number', loanDetails.id)
         .select('control_number, loan_status')
         .maybeSingle();
@@ -195,7 +200,7 @@ const LoanApprovalDetails = () => {
 
       setLoanDetails((prev) => prev ? { ...prev, status: formatStatus(nextStatus) } : prev);
       closeModal();
-      navigate('/loan-approval');
+      navigate(backRoute);
     } catch (err) {
       setActionError(err.message || 'Unable to update loan application status.');
     } finally {
@@ -207,10 +212,10 @@ const LoanApprovalDetails = () => {
     return (
       <div className="p-8 bg-gray-50 min-h-screen">
         <button 
-          onClick={() => navigate('/loan-approval')}
+          onClick={() => navigate(backRoute)}
           className="flex items-center text-sm text-[#1D6021] font-semibold mb-6 hover:underline"
         >
-          <ArrowLeft className="w-4 h-4 mr-2" /> Back to Loan Approvals
+          <ArrowLeft className="w-4 h-4 mr-2" /> Back to Loan Queue
         </button>
         <div className="bg-white rounded-xl border border-gray-200 p-8 text-gray-600">Loading loan details...</div>
       </div>
@@ -221,10 +226,10 @@ const LoanApprovalDetails = () => {
     return (
       <div className="p-8 bg-gray-50 min-h-screen">
         <button 
-          onClick={() => navigate('/loan-approval')}
+          onClick={() => navigate(backRoute)}
           className="flex items-center text-sm text-[#1D6021] font-semibold mb-6 hover:underline"
         >
-          <ArrowLeft className="w-4 h-4 mr-2" /> Back to Loan Approvals
+          <ArrowLeft className="w-4 h-4 mr-2" /> Back to Loan Queue
         </button>
         <div className="bg-white rounded-xl border border-red-200 p-8 text-red-600">{loadError || 'Unable to display loan details.'}</div>
       </div>
@@ -235,10 +240,10 @@ const LoanApprovalDetails = () => {
     <div className="p-8 bg-gray-50 min-h-screen relative">
       {/* Back Button */}
       <button 
-        onClick={() => navigate('/loan-approval')}
+        onClick={() => navigate(backRoute)}
         className="flex items-center text-sm text-[#1D6021] font-semibold mb-6 hover:underline"
       >
-        <ArrowLeft className="w-4 h-4 mr-2" /> Back to Loan Approvals
+        <ArrowLeft className="w-4 h-4 mr-2" /> Back to Loan Queue
       </button>
 
       {/* Header */}
@@ -386,24 +391,35 @@ const LoanApprovalDetails = () => {
 
         {/* Footer Actions */}
         <div className="bg-[#F8F9FA] border-t border-gray-200 p-6 flex justify-end gap-4">
-          <button 
-            onClick={() => setActiveModal('reject')}
-            className="flex items-center px-6 py-2.5 rounded-lg border border-red-200 text-red-600 bg-red-50 hover:bg-red-100 font-bold text-sm transition-colors cursor-pointer"
-          >
-            <X className="w-4 h-4 mr-2" /> Reject Loan
-          </button>
-          <button 
-            onClick={() => setActiveModal('revise')}
-            className="flex items-center px-6 py-2.5 rounded-lg border border-yellow-200 text-yellow-700 bg-[#FEF9C3] hover:bg-yellow-200 font-bold text-sm transition-colors cursor-pointer"
-          >
-            <FileEdit className="w-4 h-4 mr-2" /> Return for Revision
-          </button>
-          <button 
-            onClick={() => setActiveModal('proceed')}
-            className="flex items-center px-6 py-2.5 rounded-lg bg-[#1D6021] text-white hover:bg-[#154718] font-bold text-sm transition-colors cursor-pointer"
-          >
-            <Check className="w-4 h-4 mr-2" /> Approve Loan
-          </button>
+          {isBookkeeperFlow ? (
+            <button 
+              onClick={() => setActiveModal('recommend')}
+              className="flex items-center px-6 py-2.5 rounded-lg bg-[#1D6021] text-white hover:bg-[#154718] font-bold text-sm transition-colors cursor-pointer"
+            >
+              <Check className="w-4 h-4 mr-2" /> Recommend for Approval
+            </button>
+          ) : (
+            <>
+              <button 
+                onClick={() => setActiveModal('reject')}
+                className="flex items-center px-6 py-2.5 rounded-lg border border-red-200 text-red-600 bg-red-50 hover:bg-red-100 font-bold text-sm transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4 mr-2" /> Reject Loan
+              </button>
+              <button 
+                onClick={() => setActiveModal('revise')}
+                className="flex items-center px-6 py-2.5 rounded-lg border border-yellow-200 text-yellow-700 bg-[#FEF9C3] hover:bg-yellow-200 font-bold text-sm transition-colors cursor-pointer"
+              >
+                <FileEdit className="w-4 h-4 mr-2" /> Return for Revision
+              </button>
+              <button 
+                onClick={() => setActiveModal('proceed')}
+                className="flex items-center px-6 py-2.5 rounded-lg bg-[#1D6021] text-white hover:bg-[#154718] font-bold text-sm transition-colors cursor-pointer"
+              >
+                <Check className="w-4 h-4 mr-2" /> Approve Loan
+              </button>
+            </>
+          )}
         </div>
       </div>
 
@@ -476,6 +492,16 @@ const LoanApprovalDetails = () => {
               </>
             )}
 
+            {/* Recommend Modal */}
+            {activeModal === 'recommend' && (
+              <>
+                <h3 className="text-xl font-bold text-gray-900 mb-4">Recommend for Manager Approval</h3>
+                <p className="text-sm text-gray-600 mb-8">
+                  You are about to forward this loan of <span className="font-bold text-gray-900">{loanDetails.memberName}</span> to the Manager queue.
+                </p>
+              </>
+            )}
+
             {/* Shared Notification Options */}
             <div className="mb-8">
               <h4 className="text-[10px] font-bold text-green-700 uppercase tracking-wider mb-3">Notification Options</h4>
@@ -521,6 +547,15 @@ const LoanApprovalDetails = () => {
                   className="px-6 py-2.5 rounded-lg bg-[#1D6021] hover:bg-[#154718] text-white font-medium text-sm transition-colors w-1/2 disabled:opacity-50"
                 >
                   {saving ? 'Saving...' : 'Confirm Approval'}
+                </button>
+              )}
+              {activeModal === 'recommend' && (
+                <button
+                  onClick={() => applyLoanStatusUpdate('recommend')}
+                  disabled={saving}
+                  className="px-6 py-2.5 rounded-lg bg-[#1D6021] hover:bg-[#154718] text-white font-medium text-sm transition-colors w-1/2 disabled:opacity-50"
+                >
+                  {saving ? 'Saving...' : 'Send to Manager'}
                 </button>
               )}
             </div>

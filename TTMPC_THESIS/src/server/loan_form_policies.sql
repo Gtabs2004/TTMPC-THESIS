@@ -101,7 +101,7 @@ ON public.co_makers (loan_id, member_id);
 
 GRANT USAGE ON SCHEMA public TO authenticated;
 GRANT SELECT ON public.loan_types TO authenticated;
-GRANT SELECT, INSERT ON public.loans TO authenticated;
+GRANT SELECT, INSERT, UPDATE ON public.loans TO authenticated;
 GRANT SELECT, INSERT, UPDATE ON public.co_makers TO authenticated;
 GRANT SELECT ON public.member TO authenticated;
 
@@ -217,16 +217,17 @@ BEGIN
     ';
 
     EXECUTE 'DROP POLICY IF EXISTS "manager update all loans" ON loans';
+    EXECUTE 'DROP POLICY IF EXISTS "staff update loan workflow" ON loans';
     EXECUTE '
-      CREATE POLICY "manager update all loans"
+      CREATE POLICY "staff update loan workflow"
       ON loans
       FOR UPDATE
       TO authenticated
       USING (
-        public.has_portal_role(auth.uid(), auth.email(), ARRAY[''manager''])
+        public.has_portal_role(auth.uid(), auth.email(), ARRAY[''manager'', ''bookkeeper''])
       )
       WITH CHECK (
-        public.has_portal_role(auth.uid(), auth.email(), ARRAY[''manager''])
+        public.has_portal_role(auth.uid(), auth.email(), ARRAY[''manager'', ''bookkeeper''])
       )
     ';
 

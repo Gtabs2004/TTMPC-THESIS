@@ -14,6 +14,7 @@ import LoanApplication from "./Bookkeeper/Components/Loan-Application";
 import MIGS from "./Bookkeeper/Components/MIGS";
 import Payments from "./Bookkeeper/Components/Payments";
 import Reports from "./Bookkeeper/Components/Reports";
+import BookkeeperLoanApproval from "./Bookkeeper/Components/Loan-Approval";
 import Loan_Kiosk from "./Index_Pages/loan_kiosk";
 import Verification from "./Index_Pages/verification";
 import Member_Services from "./Index_Pages/member_services";
@@ -57,6 +58,7 @@ export const router = createBrowserRouter([
     {path: "/accounting", element: <Accounting/>},
     {path: "/audit-trail", element: <AuditTrail/>},
     {path: "/loan-application", element: <LoanApplication/>},
+    {path: "/bookkeeper-loan-approval", element: <BookkeeperLoanApproval/>},
     {path: "/migs-scoring", element: <MIGS/>},
     {path: "/payments", element: <Payments/>},
     {path: "/reports", element: <Reports/>},
@@ -75,6 +77,7 @@ export const router = createBrowserRouter([
     {path: "/role_selection", element:<Role_Selection/>},
     {path: "/memberlogin", element:<MemberLogin/>},
     {path: "/loan-approval/:id", element:<LoanApprovalDetails/>},
+    {path: "/bookkeeper-loan-approval/:id", element:<LoanApprovalDetails/>},
     {path: "/member-dashboard", element:<Member_Dashboard/>},
     {path: "/member-loans", element:<Member_Loans/>},
     {path: "/members-profile", element:<Members_Profile/>},

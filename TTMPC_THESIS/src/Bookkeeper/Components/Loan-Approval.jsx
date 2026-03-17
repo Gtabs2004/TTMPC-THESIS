@@ -1,33 +1,45 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
-import { supabase } from "../../supabaseClient"; // Make sure this path is correct
-import { 
-  LayoutDashboard, 
-  Users, 
+import { supabase } from "../../supabaseClient";
+import {
+  LayoutDashboard,
+  Users,
+  FileText,
+  CreditCard,
+  Calculator,
+  Activity,
+  BarChart3,
+  History,
   Search,
   Bell,
   UserPlus,
   ClipboardList,
   BadgeCheck,
-  Banknote,
   ChevronLeft,
-  ChevronRight
-} from 'lucide-react';
+  ChevronRight,
+} from "lucide-react";
 
-const Loan_Approval = () => {
-  const { session, signOut } = UserAuth();
+const BookkeeperLoanApproval = () => {
+  const { signOut } = UserAuth();
   const navigate = useNavigate();
   const [loans, setLoans] = useState([]);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState("");
-  
+
   const menuItems = [
     { name: "Dashboard", icon: LayoutDashboard },
-    { name: "Loan Approvals", icon: Users },
+    { name: "Member Records", icon: Users },
+    { name: "Loan Application", icon: FileText },
+    { name: "Loan Approval", icon: FileText },
+    { name: "Manage Loans", icon: CreditCard },
+    { name: "Payments", icon: CreditCard },
+    { name: "Accounting", icon: Calculator },
+    { name: "MIGS Scoring", icon: Activity },
+    { name: "Reports", icon: BarChart3 },
+    { name: "Audit Trail", icon: History },
   ];
 
-  // Fetch data from Supabase on mount
   useEffect(() => {
     fetchLoans();
   }, []);
@@ -36,33 +48,34 @@ const Loan_Approval = () => {
     try {
       setLoading(true);
       setFetchError("");
-      
-      // Using Supabase relational queries to fetch joined data
+
       const { data, error } = await supabase
         .from("loans")
-        .select(`
+        .select(
+          `
           control_number,
           loan_amount,
           term,
           loan_status,
           application_date,
           member:member_id (
-            first_name, 
-            last_name, 
+            first_name,
+            last_name,
             is_bona_fide
           ),
           loan_types:loan_type_id (
             name
           )
-        `)
+        `
+        )
         .order("application_date", { ascending: false });
 
       if (error) throw error;
       if (data) {
-        const managerQueue = data.filter(
-          (loan) => String(loan.loan_status || "").trim().toLowerCase() === "recommended for approval"
+        const bookkeeperQueue = data.filter(
+          (loan) => String(loan.loan_status || "").trim().toLowerCase() === "pending"
         );
-        setLoans(managerQueue);
+        setLoans(bookkeeperQueue);
       }
     } catch (err) {
       console.error("Error fetching loans:", err.message);
@@ -82,41 +95,46 @@ const Loan_Approval = () => {
     }
   };
 
-  // Helper functions for badge styling
   const getLoanTypeStyle = (type) => {
-    switch(type) {
-      case 'Bonus': return 'bg-blue-100 text-blue-700';
-      case 'Emergency': return 'bg-red-100 text-red-700';
-      case 'Consolidated': return 'bg-purple-100 text-purple-700';
-      default: return 'bg-gray-100 text-gray-700';
+    switch (type) {
+      case "Bonus":
+        return "bg-blue-100 text-blue-700";
+      case "Emergency":
+        return "bg-red-100 text-red-700";
+      case "Consolidated":
+        return "bg-purple-100 text-purple-700";
+      default:
+        return "bg-gray-100 text-gray-700";
     }
   };
 
   const getMigsStyle = (status) => {
-    return status === 'MIGS' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500';
+    return status === "MIGS" ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500";
   };
 
-  // Map the relational database rows to the exact format your UI expects
   const displayLoans = loans.map((loan) => {
-    // Safely extract the joined data (fallback to 'Unknown' if a link is missing)
     const firstName = loan.member?.first_name || "";
     const lastName = loan.member?.last_name || "";
     const memberName = `${firstName} ${lastName}`.trim() || "Unknown Member";
-    
+
     const loanTypeName = loan.loan_types?.name || "N/A";
-    
-    // Assuming 'is_bona_fide' determines if they are a Member In Good Standing (MIGS)
     const migsStatus = loan.member?.is_bona_fide ? "MIGS" : "NON-MIGS";
 
     return {
       id: loan.control_number,
       name: memberName,
       type: loanTypeName,
-      amount: loan.loan_amount ? `₱${Number(loan.loan_amount).toLocaleString()}` : "₱0",
+      amount: loan.loan_amount ? `P${Number(loan.loan_amount).toLocaleString()}` : "P0",
       term: `${loan.term || 0} Months`,
       status: migsStatus,
-      date: loan.application_date ? new Date(loan.application_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "N/A",
-      actions: "Review"
+      date: loan.application_date
+        ? new Date(loan.application_date).toLocaleDateString("en-US", {
+            month: "short",
+            day: "numeric",
+            year: "numeric",
+          })
+        : "N/A",
+      actions: "Review",
     };
   });
 
@@ -127,9 +145,7 @@ const Loan_Approval = () => {
           <img src="src/assets/img/ttmpc logo.png" alt="Logo" className="h-12 w-auto" />
           <div className="flex flex-col">
             <h1 className="text-xl font-bold text-[#389734]">TTMPC</h1>
-            <p className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold">
-              Manager Portal
-            </p>
+            <p className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold">Bookkeeper Portal</p>
           </div>
         </div>
 
@@ -138,13 +154,21 @@ const Loan_Approval = () => {
         <nav className="flex flex-col gap-2 text-sm flex-grow">
           {(() => {
             const routeMap = {
-              "Dashboard": "/manager-dashboard",
-              "Loan Approvals": "/loan-approval",
+              Dashboard: "/dashboard",
+              "Member Records": "/records",
+              "Loan Application": "/loan-application",
+              "Loan Approval": "/bookkeeper-loan-approval",
+              "Manage Loans": "/manage-loans",
+              Payments: "/payments",
+              Accounting: "/accounting",
+              "MIGS Scoring": "/migs-scoring",
+              Reports: "/reports",
+              "Audit Trail": "/audit-trail",
             };
 
             return menuItems.map((item) => {
               const Icon = item.icon;
-              const to = routeMap[item.name] || `/${item.name.toLowerCase().replace(/\s+/g, '-')}`;
+              const to = routeMap[item.name] || `/${item.name.toLowerCase().replace(/\s+/g, "-")}`;
 
               return (
                 <NavLink
@@ -153,8 +177,8 @@ const Loan_Approval = () => {
                   className={({ isActive }) =>
                     `flex items-center gap-3 p-2 rounded-md transition-colors ${
                       isActive
-                        ? 'bg-green-50 text-green-700 font-semibold'
-                        : 'text-gray-700 hover:bg-green-50 hover:text-green-700'
+                        ? "bg-green-50 text-green-700 font-semibold"
+                        : "text-gray-700 hover:bg-green-50 hover:text-green-700"
                     }`
                   }
                 >
@@ -177,25 +201,24 @@ const Loan_Approval = () => {
       <div className="flex-1 flex flex-col">
         <header className="bg-white h-16 shadow-sm flex items-center justify-end px-8 border-b border-gray-100">
           <div className="relative">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400"/>
-            <input 
-              type="text" 
-              className="bg-gray-50 w-52 h-10 rounded-lg border border-gray-200 pl-10 pr-4 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-[#2C7A3F]" 
-              placeholder="Search..." 
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400" />
+            <input
+              type="text"
+              className="bg-gray-50 w-52 h-10 rounded-lg border border-gray-200 pl-10 pr-4 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-[#2C7A3F]"
+              placeholder="Search..."
             />
           </div>
           <button className="ml-6 relative p-1 rounded-full text-gray-500 hover:bg-gray-100 transition-colors">
-            <Bell className="w-5 h-5"/>
+            <Bell className="w-5 h-5" />
             <span className="absolute top-1 right-1 block h-2 w-2 rounded-full bg-red-500 ring-2 ring-white"></span>
           </button>
           <div className="flex items-center ml-4 gap-2 border-l border-gray-200 pl-4">
             <img src="src/assets/img/bookkeeper-profile.png" alt="Profile" className="w-8 h-8 rounded-full bg-gray-200" />
-            <p className="text-sm font-medium text-gray-700">Manager</p>
+            <p className="text-sm font-medium text-gray-700">Bookkeeper</p>
           </div>
         </header>
 
         <main className="p-8 flex-1">
-          {/* Top Stats Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
             <div className="bg-white border border-gray-100 rounded-xl p-5 flex items-center gap-4 shadow-sm">
               <div className="w-12 h-12 rounded-lg bg-[#EAF5EC] flex items-center justify-center flex-shrink-0">
@@ -226,10 +249,8 @@ const Loan_Approval = () => {
                 <p className="text-2xl font-extrabold text-slate-800 mt-0.5">94.2%</p>
               </div>
             </div>
-
           </div>
 
-          {/* Data Table Container */}
           <div className="bg-white border border-gray-200 rounded-xl shadow-sm">
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
@@ -248,15 +269,21 @@ const Loan_Approval = () => {
                 <tbody>
                   {loading ? (
                     <tr>
-                      <td colSpan="8" className="p-5 text-center text-gray-500">Loading applications...</td>
+                      <td colSpan="8" className="p-5 text-center text-gray-500">
+                        Loading applications...
+                      </td>
                     </tr>
                   ) : fetchError ? (
                     <tr>
-                      <td colSpan="8" className="p-5 text-center text-red-600">Failed to load loans: {fetchError}</td>
+                      <td colSpan="8" className="p-5 text-center text-red-600">
+                        Failed to load loans: {fetchError}
+                      </td>
                     </tr>
                   ) : displayLoans.length === 0 ? (
                     <tr>
-                      <td colSpan="8" className="p-5 text-center text-gray-500">No loans found.</td>
+                      <td colSpan="8" className="p-5 text-center text-gray-500">
+                        No loans found.
+                      </td>
                     </tr>
                   ) : (
                     displayLoans.map((loan, idx) => (
@@ -277,12 +304,12 @@ const Loan_Approval = () => {
                         </td>
                         <td className="p-5 text-sm text-gray-500">{loan.date}</td>
                         <td className="p-5 text-sm text-right pr-8">
-                          <button 
-                              onClick={() => navigate(`/loan-approval/${loan.id}`)}
-                              className="text-[#1D6021] font-bold hover:underline transition-all"
-                            >
-                              {loan.actions}
-                            </button>
+                          <button
+                            onClick={() => navigate(`/bookkeeper-loan-approval/${loan.id}`)}
+                            className="text-[#1D6021] font-bold hover:underline transition-all"
+                          >
+                            {loan.actions}
+                          </button>
                         </td>
                       </tr>
                     ))
@@ -291,27 +318,24 @@ const Loan_Approval = () => {
               </table>
             </div>
 
-            {/* Pagination */}
             <div className="flex items-center justify-center p-6 gap-2 border-t border-gray-100">
               <button className="w-8 h-8 flex items-center justify-center rounded-full border border-gray-300 text-gray-500 hover:bg-gray-50 transition-colors">
                 <ChevronLeft className="w-4 h-4" />
               </button>
-              
+
               <button className="w-8 h-8 flex items-center justify-center rounded-full bg-[#1D6021] text-white font-medium text-sm transition-colors">
                 1
               </button>
-              {/* Simplified pagination logic placeholder */}
-              
+
               <button className="w-8 h-8 flex items-center justify-center rounded-full border border-gray-300 text-gray-500 hover:bg-gray-50 transition-colors">
                 <ChevronRight className="w-4 h-4" />
               </button>
             </div>
           </div>
-          
         </main>
       </div>
     </div>
   );
 };
 
-export default Loan_Approval;
+export default BookkeeperLoanApproval;
