@@ -48,7 +48,7 @@ const Member_Details = () => {
             <p className="text-2xl font-bold text-[#1a4a2f]">₱45,000.00</p>
           </div>
           <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
-            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Last Contribution Date</p>
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Savings</p>
             <p className="text-2xl font-bold text-[#1a4a2f]">₱45,000.00</p>
           </div>
           <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">

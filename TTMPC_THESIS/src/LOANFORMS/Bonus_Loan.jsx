@@ -108,7 +108,7 @@ function Bonus_Loan() {
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => {
-      if (name === 'bonus_amount_numeric') {
+      if (name === 'bonus_amount_numeric' || name === 'loan_amount_numeric') {
         return {
           ...prev,
           bonus_amount_numeric: value,
@@ -167,18 +167,26 @@ function Bonus_Loan() {
     };
   }, []);
 
-  // Auto-fill loan_amount_words when bonus_amount_numeric changes
+  // Keep amount words synced to whichever numeric amount source user edits.
   useEffect(() => {
-    if (formData.bonus_amount_numeric) {
-      const words = numberToWords(formData.bonus_amount_numeric);
+    const numericAmount = formData.loan_amount_numeric || formData.bonus_amount_numeric;
+    if (numericAmount) {
+      const words = numberToWords(numericAmount);
       setFormData((prev) => ({
         ...prev,
+        loan_amount_numeric: numericAmount,
+        bonus_amount_numeric: numericAmount,
+        loan_amount_words: words.charAt(0).toUpperCase() + words.slice(1),
         bonus_amount_words: words.charAt(0).toUpperCase() + words.slice(1),
       }));
     } else {
-      setFormData((prev) => ({ ...prev, bonus_amount_words: '' }));
+      setFormData((prev) => ({
+        ...prev,
+        loan_amount_words: '',
+        bonus_amount_words: '',
+      }));
     }
-  }, [formData.bonus_amount_numeric]);
+  }, [formData.loan_amount_numeric, formData.bonus_amount_numeric]);
 
   useEffect(() => {
     const principal = Number(formData.loan_amount_numeric || 0);
@@ -348,8 +356,8 @@ function Bonus_Loan() {
                   type="number" 
                   name="loan_amount_numeric" 
                   value={formData.loan_amount_numeric} 
-                  readOnly
-                  className="border border-gray-300 rounded-md pl-10 pr-3 py-1.5 outline-none bg-gray-50 text-sm transition-all w-40 cursor-not-allowed" 
+                  onChange={handleChange}
+                  className="border border-gray-300 rounded-md pl-10 pr-3 py-1.5 focus:ring-2 focus:ring-[#66B538] outline-none bg-white text-sm transition-all w-40" 
                 />
               </div>
               for the purpose of

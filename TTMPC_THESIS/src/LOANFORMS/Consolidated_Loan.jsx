@@ -178,6 +178,19 @@ function Consolidated_Loan() {
   }, [formData.loan_amount_numeric]);
 
   useEffect(() => {
+    const borrowerName = `${formData.first_name || ''} ${formData.middle_name || ''} ${formData.surname || ''}`
+      .trim()
+      .replace(/\s+/g, ' ');
+
+    setFormData((prev) => ({
+      ...prev,
+      cm_oath_borrower: borrowerName,
+      cm_oath_amount_numeric: prev.loan_amount_numeric || '',
+      cm_oath_amount_words: prev.loan_amount_words || '',
+    }));
+  }, [formData.first_name, formData.middle_name, formData.surname, formData.loan_amount_numeric, formData.loan_amount_words]);
+
+  useEffect(() => {
     const principal = Number(formData.loan_amount_numeric || 0);
     const term = Number(formData.loan_term_months || 0);
 
@@ -556,8 +569,8 @@ function Consolidated_Loan() {
                 type="text" 
                 name="cm_oath_borrower" 
                 value={formData.cm_oath_borrower} 
-                onChange={handleChange} 
-                className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-[#66B538] outline-none bg-white text-sm transition-all mx-2 w-[22rem] inline-block align-middle" 
+                readOnly
+                className="border border-gray-300 rounded-md px-3 py-1.5 outline-none bg-gray-50 text-sm transition-all mx-2 w-[22rem] inline-block align-middle cursor-not-allowed" 
               />
               
               <br className="hidden xl:block" />
@@ -569,8 +582,8 @@ function Consolidated_Loan() {
                   type="text" 
                   name="cm_oath_amount_words" 
                   value={formData.cm_oath_amount_words} 
-                  onChange={handleChange} 
-                  className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-[#66B538] outline-none bg-white text-sm transition-all mx-2 w-64 inline-block align-middle" 
+                  readOnly
+                  className="border border-gray-300 rounded-md px-3 py-1.5 outline-none bg-gray-50 text-sm transition-all mx-2 w-64 inline-block align-middle cursor-not-allowed" 
                 />
                 
                 <div className="inline-flex items-center relative mr-2 align-middle">
@@ -579,8 +592,8 @@ function Consolidated_Loan() {
                     type="number" 
                     name="cm_oath_amount_numeric" 
                     value={formData.cm_oath_amount_numeric} 
-                    onChange={handleChange} 
-                    className="border border-gray-300 rounded-md pl-10 pr-3 py-1.5 focus:ring-2 focus:ring-[#66B538] outline-none bg-white text-sm transition-all w-40" 
+                    readOnly
+                    className="border border-gray-300 rounded-md pl-10 pr-3 py-1.5 outline-none bg-gray-50 text-sm transition-all w-40 cursor-not-allowed" 
                   />
                 </div>
                 
