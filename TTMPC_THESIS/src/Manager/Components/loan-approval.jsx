@@ -38,7 +38,7 @@ const Loan_Approval = () => {
       setFetchError("");
       
       // Using Supabase relational queries to fetch joined data
-      const { data, error } = await supabase
+      const { data: loansData, error: loansError } = await supabase
         .from("loans")
         .select(`
           control_number,
@@ -57,13 +57,38 @@ const Loan_Approval = () => {
         `)
         .order("application_date", { ascending: false });
 
-      if (error) throw error;
-      if (data) {
-        const managerQueue = data.filter(
-          (loan) => String(loan.loan_status || "").trim().toLowerCase() === "recommended for approval"
-        );
-        setLoans(managerQueue);
-      }
+      if (loansError) throw loansError;
+
+      const { data: koicaData, error: koicaError } = await supabase
+        .from("koica_loans")
+        .select(`
+          control_number,
+          loan_amount,
+          term,
+          loan_status,
+          application_date,
+          full_name,
+          loan_type_code
+        `)
+        .order("application_date", { ascending: false });
+
+      if (koicaError) throw koicaError;
+
+      const mappedKoica = (koicaData || []).map((row) => ({
+        ...row,
+        source: "koica",
+      }));
+
+      const mappedLoans = (loansData || []).map((row) => ({
+        ...row,
+        source: "loans",
+      }));
+
+      const managerQueue = [...mappedLoans, ...mappedKoica]
+        .filter((loan) => String(loan.loan_status || "").trim().toLowerCase() === "recommended for approval")
+        .sort((a, b) => new Date(b.application_date || 0) - new Date(a.application_date || 0));
+
+      setLoans(managerQueue);
     } catch (err) {
       console.error("Error fetching loans:", err.message);
       setFetchError(err.message || "Unable to load loans.");
@@ -98,18 +123,24 @@ const Loan_Approval = () => {
 
   // Map the relational database rows to the exact format your UI expects
   const displayLoans = loans.map((loan) => {
+    const isKoica = loan.source === "koica";
     // Safely extract the joined data (fallback to 'Unknown' if a link is missing)
     const firstName = loan.member?.first_name || "";
     const lastName = loan.member?.last_name || "";
-    const memberName = `${firstName} ${lastName}`.trim() || "Unknown Member";
+    const memberName = isKoica
+      ? (loan.full_name || "Unknown Applicant")
+      : (`${firstName} ${lastName}`.trim() || "Unknown Member");
     
-    const loanTypeName = loan.loan_types?.name || "N/A";
+    const loanTypeName = isKoica
+      ? (loan.loan_type_code === "NONMEMBER_BONUS" ? "Nonmember Bonus Loan" : "ABFF Loan")
+      : (loan.loan_types?.name || "N/A");
     
     // Assuming 'is_bona_fide' determines if they are a Member In Good Standing (MIGS)
-    const migsStatus = loan.member?.is_bona_fide ? "MIGS" : "NON-MIGS";
+    const migsStatus = isKoica ? "N/A" : (loan.member?.is_bona_fide ? "MIGS" : "NON-MIGS");
 
     return {
       id: loan.control_number,
+      source: loan.source,
       name: memberName,
       type: loanTypeName,
       amount: loan.loan_amount ? `₱${Number(loan.loan_amount).toLocaleString()}` : "₱0",
@@ -278,7 +309,7 @@ const Loan_Approval = () => {
                         <td className="p-5 text-sm text-gray-500">{loan.date}</td>
                         <td className="p-5 text-sm text-right pr-8">
                           <button 
-                              onClick={() => navigate(`/loan-approval/${loan.id}`)}
+                              onClick={() => navigate(`/loan-approval/${loan.id}?source=${loan.source}`)}
                               className="text-[#1D6021] font-bold hover:underline transition-all"
                             >
                               {loan.actions}

@@ -391,8 +391,6 @@ def mark_application_as_approved(
 	application_id: str,
 	application_table: str,
 	membership_id: str,
-	confirmed_by_user_id: str,
-	confirmed_by_role: str | None,
 ) -> None:
 	def _table_has_column(table_name: str, column_name: str) -> bool:
 		try:
@@ -408,17 +406,11 @@ def mark_application_as_approved(
 
 	has_membership_id = _table_has_column(application_table, "membership_id")
 	has_approved_at = _table_has_column(application_table, "approved_at")
-	has_approved_by = _table_has_column(application_table, "approved_by")
-	has_approved_by_role = _table_has_column(application_table, "approved_by_role")
 
 	if has_membership_id:
 		payload["membership_id"] = membership_id
 	if has_approved_at:
 		payload["approved_at"] = approved_at
-	if has_approved_by:
-		payload["approved_by"] = confirmed_by_user_id
-	if has_approved_by_role:
-		payload["approved_by_role"] = str(confirmed_by_role or "").strip() or None
 
 	try:
 		supabase.table(application_table).update(payload).eq("application_id", application_id).execute()
@@ -457,6 +449,71 @@ def mark_application_as_approved(
 			raise MembershipConfirmationError(
 				f"Failed to persist membership_id on {application_table} for application {application_id}."
 			)
+
+
+def _to_int_or_none(value: Any) -> int | None:
+	if value in (None, ""):
+		return None
+	try:
+		return int(float(str(value)))
+	except Exception:
+		return None
+
+
+def upsert_personal_data_sheet(
+	supabase: Client,
+	application_data: dict[str, Any],
+	application_id: str,
+	membership_id: str,
+	membership_date: str,
+) -> dict[str, Any] | None:
+	try:
+		supabase.table("personal_data_sheet").select("personal_data_sheet_id").limit(1).execute()
+	except Exception:
+		return None
+
+	pds_id = str(application_data.get("application_id") or application_id or "").strip()
+	if not pds_id:
+		pds_id = f"TTMPCAP-{int(datetime.now(timezone.utc).timestamp())}"
+
+	payload: dict[str, Any] = {
+		"personal_data_sheet_id": pds_id,
+		"membership_number_id": membership_id,
+		"surname": application_data.get("surname") or application_data.get("last_name"),
+		"first_name": application_data.get("first_name"),
+		"middle_name": application_data.get("middle_name"),
+		"date_of_birth": application_data.get("date_of_birth"),
+		"gender": application_data.get("gender"),
+		"civil_status": application_data.get("civil_status"),
+		"maiden_name": application_data.get("maiden_name"),
+		"tin_number": application_data.get("tin_number"),
+		"citizenship": application_data.get("citizenship"),
+		"religion": application_data.get("religion"),
+		"height": _to_int_or_none(application_data.get("height")),
+		"blood_type": application_data.get("blood_type"),
+		"place_of_birth": application_data.get("place_of_birth"),
+		"contact_number": _to_int_or_none(application_data.get("contact_number")),
+		"occupation": application_data.get("occupation"),
+		"educational_attainment": application_data.get("educational_attainment"),
+		"position": application_data.get("position"),
+		"number_of_dependents": _to_int_or_none(application_data.get("number_of_dependents")),
+		"spouse_name": application_data.get("spouse_name"),
+		"spouse_occupation": application_data.get("spouse_occupation"),
+		"spouse_date_of_birth": application_data.get("spouse_date_of_birth"),
+		"date_of_membership": membership_date,
+	}
+
+	filtered_payload = {k: v for k, v in payload.items() if v is not None}
+
+	response = (
+		supabase.table("personal_data_sheet")
+		.upsert(filtered_payload, on_conflict="personal_data_sheet_id")
+		.execute()
+	)
+
+	if response.data:
+		return response.data[0]
+	return None
 
 
 def update_confirmed_account_role_to_member(
@@ -552,9 +609,11 @@ def send_confirmation_email(
 	)
 
 	try:
-		with urlrequest.urlopen(req) as response:
+		with urlrequest.urlopen(req, timeout=12) as response:
 			body = response.read().decode("utf-8")
 			return {"sent": True, "data": json.loads(body) if body else {}}
+	except TimeoutError:
+		return {"sent": False, "reason": "Email service timeout."}
 	except HTTPError as err:
 		error_body = err.read().decode("utf-8") if err.fp else ""
 		return {"sent": False, "reason": error_body or f"HTTP {err.code}"}
@@ -636,8 +695,6 @@ def confirm_membership(application_id: str, confirmed_by_user_id: str, force: bo
 			row_application_id,
 			application_table,
 			membership_id,
-			confirmed_by_user_id,
-			confirmer.get("role"),
 		)
 		role_update_result = update_confirmed_account_role_to_member(supabase, auth_user_id)
 
@@ -646,6 +703,14 @@ def confirm_membership(application_id: str, confirmed_by_user_id: str, force: bo
 			raise MembershipConfirmationError(
 				f"Membership confirmation finished but no member row found for user {auth_user_id} in '{member_table}'."
 			)
+
+		personal_data_sheet = upsert_personal_data_sheet(
+			supabase,
+			application_data,
+			row_application_id,
+			membership_id,
+			membership_date,
+		)
 
 		email_result = send_confirmation_email(
 			to_email=application_data.get("email") or "",
@@ -668,6 +733,7 @@ def confirm_membership(application_id: str, confirmed_by_user_id: str, force: bo
 			"temporary_account_update": temporary_result,
 			"account_role_update": role_update_result,
 			"member": persisted_member,
+			"personal_data_sheet": personal_data_sheet,
 			"email": email_result,
 		}
 	except MembershipConfirmationError:
@@ -680,3 +746,95 @@ def confirm_membership(application_id: str, confirmed_by_user_id: str, force: bo
 				"for this workflow (or use service role on backend only)."
 			)
 		raise
+
+
+def confirm_membership_batch(
+	confirmed_by_user_id: str,
+	max_items: int = 50,
+	force: bool = False,
+) -> dict[str, Any]:
+	if max_items <= 0:
+		raise MembershipConfirmationError("max_items must be greater than 0.")
+
+	# Cap request size to avoid very long-running HTTP calls.
+	max_items = min(max_items, 500)
+
+	supabase, _, _ = _load_runtime_config()
+	ensure_confirmer_is_bod(supabase, confirmed_by_user_id)
+
+	candidates: list[dict[str, Any]] = []
+	seen_ids: set[str] = set()
+
+	for application_table in APPLICATION_TABLE_CANDIDATES:
+		try:
+			response = (
+				supabase.table(application_table)
+				.select("application_id,application_status,training_status,email")
+				.order("created_at", desc=False)
+				.limit(max_items * 4)
+				.execute()
+			)
+		except Exception:
+			continue
+
+		for row in response.data or []:
+			app_id = str(row.get("application_id") or "").strip()
+			if not app_id or app_id in seen_ids:
+				continue
+
+			status_now = str(row.get("application_status") or "").strip().lower()
+			if status_now in {"member", "official member"}:
+				continue
+
+			if not force and not _application_is_eligible(row, force=False):
+				continue
+
+			seen_ids.add(app_id)
+			candidates.append(
+				{
+					"application_id": app_id,
+					"application_table": application_table,
+				}
+			)
+
+			if len(candidates) >= max_items:
+				break
+
+		if len(candidates) >= max_items:
+			break
+
+	results: list[dict[str, Any]] = []
+	success_count = 0
+	fail_count = 0
+
+	for item in candidates:
+		app_id = item["application_id"]
+		try:
+			result = confirm_membership(app_id, confirmed_by_user_id=confirmed_by_user_id, force=force)
+			success_count += 1
+			results.append(
+				{
+					"application_id": app_id,
+					"status": "success",
+					"membership_id": result.get("membership_id"),
+					"auth_user_id": result.get("auth_user_id"),
+					"auth_account_created": bool(result.get("auth_account_created")),
+				}
+			)
+		except Exception as err:
+			fail_count += 1
+			results.append(
+				{
+					"application_id": app_id,
+					"status": "failed",
+					"error": str(err),
+				}
+			)
+
+	return {
+		"requested_max_items": max_items,
+		"processed": len(candidates),
+		"success_count": success_count,
+		"failed_count": fail_count,
+		"results": results,
+	}

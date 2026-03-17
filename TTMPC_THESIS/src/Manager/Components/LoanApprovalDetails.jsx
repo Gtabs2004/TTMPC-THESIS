@@ -29,6 +29,8 @@ const LoanApprovalDetails = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
+  const sourceParam = new URLSearchParams(location.search).get('source');
+  const isKoicaSource = sourceParam === 'koica';
   const isBookkeeperFlow = location.pathname.startsWith('/bookkeeper-loan-approval');
   const backRoute = isBookkeeperFlow ? '/bookkeeper-loan-approval' : '/loan-approval';
 
@@ -57,6 +59,16 @@ const LoanApprovalDetails = () => {
       .join(' ');
   };
 
+  const inferInterestRate = (loanTypeLabel, loanTypeCode) => {
+    const label = String(loanTypeLabel || '').trim().toLowerCase();
+    const code = String(loanTypeCode || '').trim().toUpperCase();
+
+    if (label.includes('bonus') || code === 'BONUS' || code === 'NONMEMBER_BONUS') return 2;
+    if (label.includes('emergency') || code === 'EMERGENCY') return 2;
+    if (label.includes('consolidated') || code === 'CONSOLIDATED') return 0.83;
+    return null;
+  };
+
   useEffect(() => {
     let isMounted = true;
 
@@ -73,61 +85,114 @@ const LoanApprovalDetails = () => {
         setLoading(true);
         setLoadError('');
 
-        const { data, error } = await supabase
-          .from('loans')
-          .select(`
-            control_number,
-            loan_amount,
-            principal_amount,
-            interest_rate,
-            total_interest,
-            monthly_amortization,
-            term,
-            loan_status,
-            application_status,
-            loan_purpose,
-            source_of_income,
-            member:member_id (
-              first_name,
-              last_name,
-              is_bona_fide
-            ),
-            loan_type:loan_type_id (
-              name
-            )
-          `)
-          .eq('control_number', id)
-          .maybeSingle();
+        let data = null;
+        let tableName = 'loans';
 
-        if (error) throw error;
+        if (isKoicaSource) {
+          const { data: koicaData, error: koicaError } = await supabase
+            .from('koica_loans')
+            .select(`
+              control_number,
+              full_name,
+              loan_amount,
+              principal_amount,
+              interest_rate,
+              term,
+              loan_status,
+              application_status,
+              loan_type_code,
+              raw_payload
+            `)
+            .eq('control_number', id)
+            .maybeSingle();
+          if (koicaError) throw koicaError;
+          data = koicaData;
+          tableName = 'koica_loans';
+        } else {
+          const { data: loanData, error: loanError } = await supabase
+            .from('loans')
+            .select(`
+              control_number,
+              loan_amount,
+              principal_amount,
+              interest_rate,
+              total_interest,
+              monthly_amortization,
+              term,
+              loan_status,
+              application_status,
+              loan_purpose,
+              source_of_income,
+              member:member_id (
+                first_name,
+                last_name,
+                is_bona_fide
+              ),
+              loan_type:loan_type_id (
+                name
+              )
+            `)
+            .eq('control_number', id)
+            .maybeSingle();
+          if (loanError) throw loanError;
+          data = loanData;
+        }
+
         if (!data) throw new Error('Loan record not found.');
 
         const firstName = data.member?.first_name || '';
         const lastName = data.member?.last_name || '';
-        const memberName = `${firstName} ${lastName}`.trim() || 'Unknown Member';
+        const memberName = isKoicaSource
+          ? (data.full_name || 'Unknown Applicant')
+          : (`${firstName} ${lastName}`.trim() || 'Unknown Member');
         const principalAmount = Number(data.principal_amount ?? data.loan_amount ?? 0);
-        const totalInterest = Number(data.total_interest ?? 0);
-        const monthlyAmortization = Number(data.monthly_amortization ?? 0);
-        const totalPayable = totalInterest > 0
-          ? principalAmount + totalInterest
-          : (monthlyAmortization > 0 ? monthlyAmortization * Number(data.term || 0) : principalAmount);
+        const monthlyAmortization = Number(
+          data.monthly_amortization
+          ?? data.raw_payload?.optionalFields?.monthly_amortization
+          ?? 0
+        );
+        const termMonths = Number(data.term || 0);
+        const resolvedLoanType = isKoicaSource
+          ? (data.loan_type_code === 'NONMEMBER_BONUS' ? 'Nonmember Bonus Loan' : 'ABFF Loan')
+          : (data.loan_type?.name || 'N/A');
+        const effectiveInterestRate = data.interest_rate ?? inferInterestRate(resolvedLoanType, data.loan_type_code);
+
+        const hasStoredTotalInterest = data.total_interest !== null && data.total_interest !== undefined;
+        let resolvedTotalInterest = hasStoredTotalInterest
+          ? Number(data.total_interest)
+          : Number(data.raw_payload?.optionalFields?.total_interest ?? NaN);
+
+        if (!Number.isFinite(resolvedTotalInterest)) {
+          if (monthlyAmortization > 0 && termMonths > 0) {
+            resolvedTotalInterest = Math.max(0, (monthlyAmortization * termMonths) - principalAmount);
+          } else if (effectiveInterestRate !== null && principalAmount > 0 && termMonths > 0) {
+            resolvedTotalInterest = Math.max(0, principalAmount * (Number(effectiveInterestRate) / 100) * termMonths);
+          } else {
+            resolvedTotalInterest = 0;
+          }
+        }
+
+        const totalPayable = monthlyAmortization > 0 && termMonths > 0
+          ? monthlyAmortization * termMonths
+          : principalAmount + resolvedTotalInterest;
 
         const mapped = {
           id: data.control_number,
+          sourceTable: tableName,
           memberName,
           status: formatStatus(data.loan_status || data.application_status),
           summary: {
-            loanType: data.loan_type?.name || 'N/A',
+            loanType: resolvedLoanType,
             recommendedAmount: formatCurrency(data.loan_amount),
             term: `${data.term || 0} Months`,
-            migsStatus: data.member?.is_bona_fide ? 'MIGS' : 'NON-MIGS',
-            loanPurpose: data.loan_purpose || 'N/A',
-            employerPosition: data.source_of_income || 'N/A',
+            migsStatus: isKoicaSource ? 'N/A' : (data.member?.is_bona_fide ? 'MIGS' : 'NON-MIGS'),
+            loanPurpose: data.loan_purpose || data.raw_payload?.optionalFields?.loan_purpose || 'N/A',
+            employerPosition: data.source_of_income || data.raw_payload?.optionalFields?.source_of_income || 'N/A',
           },
           computation: {
             principal: formatCurrency(principalAmount),
-            interestRate: data.interest_rate ? `${Number(data.interest_rate)}% Monthly` : 'N/A',
-            totalInterest: formatCurrency(totalInterest),
+            interestRate: effectiveInterestRate !== null ? `${Number(effectiveInterestRate)}% Monthly` : 'N/A',
+            totalInterest: formatCurrency(resolvedTotalInterest),
             totalPayable: formatCurrency(totalPayable),
             monthlyAmortization: formatCurrency(monthlyAmortization),
           },
@@ -184,7 +249,7 @@ const LoanApprovalDetails = () => {
       setActionError('');
 
       const { data, error } = await supabase
-        .from('loans')
+        .from(loanDetails.sourceTable || 'loans')
         .update({ loan_status: nextStatus, application_status: nextStatus })
         .eq('control_number', loanDetails.id)
         .select('control_number, loan_status')
@@ -352,13 +417,13 @@ const LoanApprovalDetails = () => {
                   </div>
                 </div>
                 <div className="border-t border-gray-300 pt-4 mb-4 flex justify-between items-center">
-                  <span className="font-bold text-gray-900">Total Payable</span>
+                  <span className="font-bold text-gray-900">Total Payable (All Months)</span>
                   <span className="font-bold text-gray-900">{loanDetails.computation.totalPayable}</span>
                 </div>
                 <div className="border-t border-gray-300 pt-4 flex justify-between items-center">
                   <div>
-                    <p className="text-[10px] font-bold text-[#1D6021] uppercase tracking-wider">Monthly Amortization</p>
-                    <p className="text-[9px] text-gray-500">Estimated salary deduction</p>
+                    <p className="text-[10px] font-bold text-[#1D6021] uppercase tracking-wider">Payable Per Month</p>
+                    <p className="text-[9px] text-gray-500">Monthly amortization amount</p>
                   </div>
                   <span className="text-2xl font-black text-[#1D6021]">{loanDetails.computation.monthlyAmortization}</span>
                 </div>

@@ -8,6 +8,11 @@ import { supabase } from '../supabaseClient';
 function Membership_Form() {
   const navigate = useNavigate();
 
+  const generateApplicationId = () => {
+    const randomPart = Math.floor(100000 + Math.random() * 900000);
+    return `TTMPCAP-${randomPart}`;
+  };
+
   const [loading, setLoading] = useState(false);
   const [formdata, setFormdata] = useState({
     application_status: 'pending',
@@ -82,6 +87,7 @@ function Membership_Form() {
 
     const payload = {
       ...formdata,
+      application_id: generateApplicationId(),
       created_at: new Date().toISOString(),
       date_of_birth: formdata.date_of_birth || null,
       age: computedAge,

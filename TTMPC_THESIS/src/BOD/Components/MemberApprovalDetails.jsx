@@ -158,6 +158,9 @@ const MemberApprovalDetails = () => {
       throw new Error('Member email is missing.');
     }
 
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 12000);
+
     let response;
     try {
       response = await fetch(`${apiBaseUrl}/api/send-status-email`, {
@@ -166,6 +169,7 @@ const MemberApprovalDetails = () => {
           'Content-Type': 'application/json',
           'Accept': 'application/json'
         },
+        signal: controller.signal,
         body: JSON.stringify({
           to_email: member.email,
           member_name: member.name,
@@ -173,8 +177,13 @@ const MemberApprovalDetails = () => {
           remarks: remarks.trim() || null,
         }),
       });
-    } catch (_networkError) {
+    } catch (networkError) {
+      if (networkError?.name === 'AbortError') {
+        throw new Error('Email API timed out. Status was saved, but email may not have been sent.');
+      }
       throw new Error('Failed to fetch email API. Make sure backend is running at VITE_API_BASE_URL.');
+    } finally {
+      clearTimeout(timeoutId);
     }
 
     if (!response.ok) {
@@ -199,17 +208,31 @@ const MemberApprovalDetails = () => {
           throw new Error('Unable to verify confirmer account. Please sign in again.');
         }
 
-        const response = await fetch(`${apiBaseUrl}/api/confirm-membership`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-          },
-          body: JSON.stringify({
-            application_id: memberRow.application_id,
-            confirmed_by_user_id: authData.user.id,
-          }),
-        });
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 20000);
+
+        let response;
+        try {
+          response = await fetch(`${apiBaseUrl}/api/confirm-membership`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+            },
+            signal: controller.signal,
+            body: JSON.stringify({
+              application_id: memberRow.application_id,
+              confirmed_by_user_id: authData.user.id,
+            }),
+          });
+        } catch (networkError) {
+          if (networkError?.name === 'AbortError') {
+            throw new Error('Membership confirmation timed out. Please check backend logs and retry.');
+          }
+          throw networkError;
+        } finally {
+          clearTimeout(timeoutId);
+        }
 
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({}));
@@ -218,8 +241,16 @@ const MemberApprovalDetails = () => {
 
         const result = await response.json().catch(() => ({}));
         const generatedMembershipId = result?.data?.membership_id || 'TTMPC_M_#####';
+        const emailResult = result?.data?.email;
 
-        setNotifyMessage(`Membership created successfully. ID: ${generatedMembershipId}. Returning to member approvals...`);
+        let emailNote = '';
+        if (emailResult?.sent === true) {
+          emailNote = ' Email notification sent.';
+        } else if (emailResult?.reason) {
+          emailNote = ` Email notification not sent: ${emailResult.reason}`;
+        }
+
+        setNotifyMessage(`Membership created successfully. ID: ${generatedMembershipId}.${emailNote} Returning to member approvals...`);
         setTimeout(() => {
           setSaving(false);
           setNotifying(false);

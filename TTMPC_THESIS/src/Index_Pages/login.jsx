@@ -18,6 +18,9 @@ function Login() {
 
     if (normalizedRole === 'manager') return '/manager-dashboard';
     if (normalizedRole === 'bod') return '/BOD-dashboard';
+    if (normalizedRole === 'secretary') return '/BOD-dashboard';
+    if (normalizedRole === 'cashier') return '/Cashier_Dashboard';
+    if (normalizedRole === 'treasurer') return '/Treasurer_Dashboard';
     return '/dashboard';
   };
 
@@ -31,7 +34,7 @@ function Login() {
     if (result.success) {
       const accountRole = (result.role || '').toLowerCase();
       const selectedRole = role.toLowerCase();
-      const allowedStaffRoles = ['bookkeeper', 'treasurer', 'manager', 'secretary', 'bod'];
+      const allowedStaffRoles = ['bookkeeper', 'treasurer', 'manager', 'cashier', 'secretary', 'bod'];
 
       if (accountRole === 'member') {
         setError('This account is for the Member portal. Please use Member Login.');
@@ -93,6 +96,7 @@ function Login() {
                   <option value="bookkeeper">Bookkeeper</option>
                   <option value="treasurer">Treasurer</option>
                   <option value="manager">Manager</option>
+                  <option value="cashier">Cashier</option>
                   <option value="secretary">Secretary</option>
                   <option value="bod">BOD</option>
                 </select>

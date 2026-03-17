@@ -30,7 +30,6 @@ const BookkeeperLoanApproval = () => {
   const menuItems = [
     { name: "Dashboard", icon: LayoutDashboard },
     { name: "Member Records", icon: Users },
-    { name: "Loan Application", icon: FileText },
     { name: "Loan Approval", icon: FileText },
     { name: "Manage Loans", icon: CreditCard },
     { name: "Payments", icon: CreditCard },
@@ -49,7 +48,7 @@ const BookkeeperLoanApproval = () => {
       setLoading(true);
       setFetchError("");
 
-      const { data, error } = await supabase
+      const { data: loansData, error: loansError } = await supabase
         .from("loans")
         .select(
           `
@@ -70,13 +69,38 @@ const BookkeeperLoanApproval = () => {
         )
         .order("application_date", { ascending: false });
 
-      if (error) throw error;
-      if (data) {
-        const bookkeeperQueue = data.filter(
-          (loan) => String(loan.loan_status || "").trim().toLowerCase() === "pending"
-        );
-        setLoans(bookkeeperQueue);
-      }
+      if (loansError) throw loansError;
+
+      const { data: koicaData, error: koicaError } = await supabase
+        .from("koica_loans")
+        .select(`
+          control_number,
+          loan_amount,
+          term,
+          loan_status,
+          application_date,
+          full_name,
+          loan_type_code
+        `)
+        .order("application_date", { ascending: false });
+
+      if (koicaError) throw koicaError;
+
+      const mappedKoica = (koicaData || []).map((row) => ({
+        ...row,
+        source: "koica",
+      }));
+
+      const mappedLoans = (loansData || []).map((row) => ({
+        ...row,
+        source: "loans",
+      }));
+
+      const combinedQueue = [...mappedLoans, ...mappedKoica]
+        .filter((loan) => String(loan.loan_status || "").trim().toLowerCase() === "pending")
+        .sort((a, b) => new Date(b.application_date || 0) - new Date(a.application_date || 0));
+
+      setLoans(combinedQueue);
     } catch (err) {
       console.error("Error fetching loans:", err.message);
       setFetchError(err.message || "Unable to load loans.");
@@ -113,15 +137,21 @@ const BookkeeperLoanApproval = () => {
   };
 
   const displayLoans = loans.map((loan) => {
+    const isKoica = loan.source === "koica";
     const firstName = loan.member?.first_name || "";
     const lastName = loan.member?.last_name || "";
-    const memberName = `${firstName} ${lastName}`.trim() || "Unknown Member";
+    const memberName = isKoica
+      ? (loan.full_name || "Unknown Applicant")
+      : (`${firstName} ${lastName}`.trim() || "Unknown Member");
 
-    const loanTypeName = loan.loan_types?.name || "N/A";
-    const migsStatus = loan.member?.is_bona_fide ? "MIGS" : "NON-MIGS";
+    const loanTypeName = isKoica
+      ? (loan.loan_type_code === "NONMEMBER_BONUS" ? "Nonmember Bonus Loan" : "ABFF Loan")
+      : (loan.loan_types?.name || "N/A");
+    const migsStatus = isKoica ? "N/A" : (loan.member?.is_bona_fide ? "MIGS" : "NON-MIGS");
 
     return {
       id: loan.control_number,
+      source: loan.source,
       name: memberName,
       type: loanTypeName,
       amount: loan.loan_amount ? `P${Number(loan.loan_amount).toLocaleString()}` : "P0",
@@ -156,7 +186,6 @@ const BookkeeperLoanApproval = () => {
             const routeMap = {
               Dashboard: "/dashboard",
               "Member Records": "/records",
-              "Loan Application": "/loan-application",
               "Loan Approval": "/bookkeeper-loan-approval",
               "Manage Loans": "/manage-loans",
               Payments: "/payments",
@@ -305,7 +334,7 @@ const BookkeeperLoanApproval = () => {
                         <td className="p-5 text-sm text-gray-500">{loan.date}</td>
                         <td className="p-5 text-sm text-right pr-8">
                           <button
-                            onClick={() => navigate(`/bookkeeper-loan-approval/${loan.id}`)}
+                            onClick={() => navigate(`/bookkeeper-loan-approval/${loan.id}?source=${loan.source}`)}
                             className="text-[#1D6021] font-bold hover:underline transition-all"
                           >
                             {loan.actions}
