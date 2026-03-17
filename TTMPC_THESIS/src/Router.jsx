@@ -41,6 +41,11 @@ import Withdrawal from "./Index_Pages/withdrawal";
 import Withdrawal_Success from "./Index_Pages/withdrawal_success";
 import Deposit from "./Index_Pages/deposit";
 import Deposit_Success from "./Index_Pages/deposit_success";
+import Treasurer_Dashboard from "./Treasurer/Components/Treasurer_Dashboard";
+import Loans from "./Treasurer/Components/Loans";
+import Savings from "./Treasurer/Components/Savings";
+import Members from "./Treasurer/Components/Members";
+import Treasurer_Reports from "./Treasurer/Components/Treasurer_Reports";
 
 
 
@@ -90,4 +95,9 @@ export const router = createBrowserRouter([
     {path: "/withdrawal_success", element:<Withdrawal_Success/>},
     {path: "/deposit", element:<Deposit/>},
     {path: "/deposit_success", element:<Deposit_Success/>},
+    {path: "/Treasurer_Dashboard", element:<Treasurer_Dashboard/>},
+    {path: "/Loans", element:<Loans/>},
+    {path: "/Savings", element:<Savings/>},
+    {path: "/Members", element:<Members/>},
+    {path: "/Treasurer_Reports", element:<Treasurer_Reports/>}
 ]);

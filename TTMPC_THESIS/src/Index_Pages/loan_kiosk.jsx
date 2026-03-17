@@ -61,7 +61,7 @@ const Loan_Kiosk = () => {
             bgClass="bg-red-50" 
           />
           <ApplicantCard 
-            to="/non_member" 
+            to="/Koica_Forms" 
             Icon={UserRound} 
             label="Koica" 
             iconColor="#2563EB" 
