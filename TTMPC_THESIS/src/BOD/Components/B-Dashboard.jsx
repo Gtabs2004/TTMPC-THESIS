@@ -11,8 +11,10 @@ import {
   BarChart3, 
   History,
   Search,
-  Bell
+  Bell,
+  CalendarCheck
 } from 'lucide-react';
+import logo from "../../assets/img/ttmpc logo.png";
 
 
 const Dashboard_BOD = () => {
@@ -20,11 +22,21 @@ const Dashboard_BOD = () => {
   const navigate = useNavigate();
   
 const menuItems = [
-    { name: "Dashboard", icon: LayoutDashboard },
-    { name: "Member Approvals", icon: Users },
-    
+    {
+      section: "BOD",
+      items: [
+        { name: "Dashboard", icon: LayoutDashboard },
+        { name: "Member Approvals", icon: Users },
+      ]
+    },
+    {
+      section: "SECRETARY",
+      items: [
+        { name: "Training Attendance", icon: CalendarCheck },
+      ]
+    }
   ];
- 
+  
 
   const handleSignOut = async (e) => {
     e.preventDefault();
@@ -52,38 +64,49 @@ const menuItems = [
         <hr className="w-full border-gray-200 mb-6" />
 
         
-        <nav className="flex flex-col gap-2 text-sm flex-grow">
-  {(() => {
-    const routeMap = {
-      "Dashboard": "/BOD-dashboard",
-      "Member Approvals": "/member-approvals",
-      
-    };
-
-    return menuItems.map((item) => {
-      const Icon = item.icon;
-      const to = routeMap[item.name] || `/${item.name.toLowerCase().replace(/\s+/g, '-')}`;
-
-      return (
-        <NavLink
-          key={item.name}
-          to={to}
-          className={({ isActive }) =>
-            `flex items-center gap-3 p-2 rounded-md transition-colors ${
-              isActive
-                ? 'bg-green-50 text-green-700 font-semibold'
-                : 'text-gray-700 hover:bg-green-50 hover:text-green-700'
-            }`
-          }
-        >
-          <Icon size={20} />
-          <span>{item.name}</span>
-        </NavLink>
-      );
-    });
-  })()}
-</nav>
-
+       <nav className="flex flex-col gap-2 text-sm flex-grow">
+                 {(() => {
+                   const routeMap = {
+                     "Dashboard": "/BOD-dashboard",
+                     "Member Approvals": "/member-approvals",
+                     "Training Attendance": "/Secretary_Attendance"
+                   };
+       
+                   // 1. Map through the section categories first
+                   return menuItems.map((sectionGroup) => (
+                     <div key={sectionGroup.section} className="mb-4 flex flex-col gap-2">
+                       {/* Optional: You can display the section name here if you want */}
+                       <p className="text-xs font-bold text-gray-400 px-2 uppercase tracking-wider">
+                         {sectionGroup.section}
+                       </p>
+                       
+                       {/* 2. Then map through the actual items inside that section */}
+                       {sectionGroup.items.map((item) => {
+                         const Icon = item.icon;
+                         const to = routeMap[item.name] || `/${item.name.toLowerCase().replace(/\s+/g, '-')}`;
+       
+                         return (
+                           <NavLink
+                             key={item.name}
+                             to={to}
+                             className={({ isActive }) =>
+                               `flex items-center gap-3 p-2 rounded-md transition-colors ${
+                                 isActive
+                                   ? 'bg-green-50 text-green-700 font-semibold'
+                                   : 'text-gray-700 hover:bg-green-50 hover:text-green-700'
+                               }`
+                             }
+                           >
+                             <Icon size={20} />
+                             <span>{item.name}</span>
+                           </NavLink>
+                         );
+                       })}
+                     </div>
+                   ));
+                 })()}
+               </nav>
+       
         
         <button
           onClick={handleSignOut}
