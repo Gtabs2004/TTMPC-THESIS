@@ -34,6 +34,7 @@ ALTER TABLE public.loans
   CHECK (
     lower(coalesce(loan_status, '')) IN (
       'pending',
+      'recommended for approval',
       'approved',
       'rejected',
       'cancelled',

@@ -44,7 +44,7 @@ const Loan_Approval = () => {
           control_number,
           loan_amount,
           term,
-          application_status,
+          loan_status,
           application_date,
           member:member_id (
             first_name, 
@@ -59,7 +59,10 @@ const Loan_Approval = () => {
 
       if (error) throw error;
       if (data) {
-        setLoans(data);
+        const managerQueue = data.filter(
+          (loan) => String(loan.loan_status || "").trim().toLowerCase() === "recommended for approval"
+        );
+        setLoans(managerQueue);
       }
     } catch (err) {
       console.error("Error fetching loans:", err.message);
