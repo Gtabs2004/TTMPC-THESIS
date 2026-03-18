@@ -97,7 +97,10 @@ const BookkeeperLoanApproval = () => {
       }));
 
       const combinedQueue = [...mappedLoans, ...mappedKoica]
-        .filter((loan) => String(loan.loan_status || "").trim().toLowerCase() === "pending")
+        .filter((loan) => {
+          const status = String(loan.loan_status || "").trim().toLowerCase();
+          return status === "pending" || status === "draft";
+        })
         .sort((a, b) => new Date(b.application_date || 0) - new Date(a.application_date || 0));
 
       setLoans(combinedQueue);
