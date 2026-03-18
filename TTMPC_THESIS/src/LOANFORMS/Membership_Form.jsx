@@ -9,7 +9,7 @@ function Membership_Form() {
   const navigate = useNavigate();
 
   const generateApplicationId = () => {
-    const randomPart = Math.floor(100000 + Math.random() * 900000);
+    const randomPart = Math.floor(100000 + Math.random() * 9000); // generate a 4 random 
     return `TTMPCAP-${randomPart}`;
   };
 

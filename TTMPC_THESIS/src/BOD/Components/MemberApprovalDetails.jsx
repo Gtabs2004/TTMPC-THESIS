@@ -22,6 +22,7 @@ const MemberApprovalDetails = () => {
   const [actionError, setActionError] = useState('');
   const [notifying, setNotifying] = useState(false);
   const [notifyMessage, setNotifyMessage] = useState('');
+  const [portalRole, setPortalRole] = useState('');
   const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000';
 
   useEffect(() => {
@@ -48,6 +49,32 @@ const MemberApprovalDetails = () => {
 
     fetchMemberDetails();
   }, [id]);
+
+  useEffect(() => {
+    const resolvePortalRole = async () => {
+      const { data: authData } = await supabase.auth.getUser();
+      const user = authData?.user;
+      if (!user) return;
+
+      for (const table of ['member_account', 'member_accounts']) {
+        const byUserId = await supabase.from(table).select('role').eq('user_id', user.id).limit(1).maybeSingle();
+        if (!byUserId.error && byUserId.data?.role) {
+          setPortalRole(String(byUserId.data.role).trim().toLowerCase());
+          return;
+        }
+
+        const byEmail = user.email
+          ? await supabase.from(table).select('role').ilike('email', user.email).limit(1).maybeSingle()
+          : { data: null, error: null };
+        if (!byEmail.error && byEmail.data?.role) {
+          setPortalRole(String(byEmail.data.role).trim().toLowerCase());
+          return;
+        }
+      }
+    };
+
+    resolvePortalRole();
+  }, []);
 
   const formatDate = (value) => {
     if (!value) return '-';
@@ -194,6 +221,18 @@ const MemberApprovalDetails = () => {
 
   const applyStatusUpdate = async (nextStatus) => {
     if (!memberRow) return;
+    if (portalRole === 'secretary') {
+      setActionError('Secretary has view-only access for membership applications.');
+      return;
+    }
+
+    if (nextStatus === '2nd Training') {
+      const firstTrainingAttendance = String(memberRow?.attendance_status || '').trim().toLowerCase();
+      if (firstTrainingAttendance !== 'present') {
+        setActionError('Only applicants marked Present in 1st Training can proceed to 2nd Training.');
+        return;
+      }
+    }
 
     if (nextStatus === 'Official Member') {
       setSaving(true);
@@ -272,6 +311,12 @@ const MemberApprovalDetails = () => {
     const payload = {
       application_status: nextStatus,
     };
+
+    // Moving to 2nd training starts a new attendance/evaluation cycle.
+    if (nextStatus === '2nd Training') {
+      payload.attendance_status = 'Pending';
+      payload.evaluation_result = 'Pending';
+    }
 
     if (remarks.trim()) {
       payload.remarks = remarks.trim();
@@ -484,10 +529,15 @@ const MemberApprovalDetails = () => {
       </SectionCard>
 
       {/* --- BOTTOM ACTION BUTTONS --- */}
+      {portalRole === 'secretary' && (
+        <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+          Secretary access is view-only in this page. You can review pending applications and record attendance in Training Attendance.
+        </div>
+      )}
       <div className="no-print flex flex-wrap justify-end gap-4 mt-8 bg-white p-6 rounded-xl border border-gray-100 shadow-sm">
         <button 
           onClick={() => setActiveModal('reject')} 
-          disabled={saving || member.status === 'Official Member'}
+          disabled={saving || member.status === 'Official Member' || portalRole === 'secretary'}
           className="flex items-center text-[#DC2626] bg-red-50 border border-red-200 hover:bg-red-100 transition-colors font-bold rounded-lg px-6 py-2.5 text-sm"
         >
           <X className="w-4 h-4 mr-2" strokeWidth={2.5} /> Reject Application
@@ -495,7 +545,7 @@ const MemberApprovalDetails = () => {
         
         <button 
           onClick={() => setActiveModal('revise')} 
-          disabled={saving || member.status === 'Official Member'}
+          disabled={saving || member.status === 'Official Member' || portalRole === 'secretary'}
           className="flex items-center text-[#D97706] bg-yellow-50 border border-yellow-200 hover:bg-yellow-100 transition-colors font-bold rounded-lg px-6 py-2.5 text-sm"
         >
           Return for Revision
@@ -504,8 +554,9 @@ const MemberApprovalDetails = () => {
         {proceedConfig && (
           <button
             onClick={() => setActiveModal('proceed')}
-            disabled={saving}
+            disabled={saving || portalRole === 'secretary' || (member.status === '1st Training' && String(member.row?.attendance_status || '').toLowerCase() !== 'present')}
             className="flex items-center text-white bg-[#1a4a2f] hover:bg-[#123622] transition-colors font-bold rounded-lg px-6 py-2.5 text-sm shadow-sm"
+            title={member.status === '1st Training' && String(member.row?.attendance_status || '').toLowerCase() !== 'present' ? 'Mark attendance as Present in 1st Training before proceeding.' : ''}
           >
             <Check className="w-4 h-4 mr-2" strokeWidth={2.5} /> {proceedConfig.button}
           </button>
