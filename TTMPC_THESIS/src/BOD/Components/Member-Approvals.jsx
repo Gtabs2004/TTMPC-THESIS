@@ -56,7 +56,7 @@ const Member_Approvals = () => {
     return "";
   };
 
-  const fetchData = async (pageNumber = 1) => {
+  const fetchData = async (pageNumber = 1, roleOverride = portalRole) => {
     const from = (pageNumber - 1) * LIMIT;
     const to = from + LIMIT - 1;
 
@@ -66,8 +66,9 @@ const Member_Approvals = () => {
       .order("created_at", { ascending: false })
       .range(from, to);
 
-    if (portalRole === "secretary") {
-      query = query.eq("application_status", "pending");
+    if (roleOverride === "secretary") {
+      // Case-insensitive pending filter for mixed historical values.
+      query = query.or("application_status.eq.pending,application_status.eq.Pending,application_status.eq.PENDING");
     }
 
     // IMPORTANT: do not use `data`/`error` before this line.
@@ -95,7 +96,8 @@ const Member_Approvals = () => {
       if (session) {
         const role = await resolvePortalRole(session.user);
         setPortalRole(role);
-        fetchData();
+        // Use resolved role directly to avoid stale state during first load.
+        fetchData(1, role);
       } else {
         console.warn("No active session! RLS will block the query.");
       }
@@ -106,7 +108,7 @@ const Member_Approvals = () => {
 
   useEffect(() => {
     if (!portalRole) return;
-    fetchData(page);
+    fetchData(page, portalRole);
   }, [portalRole, page]);
 
 
@@ -148,7 +150,7 @@ const Member_Approvals = () => {
     if (normalized === "rejected") return "Rejected";
     if (normalized === "for revision" || normalized === "revision") return "For Revision";
     if (normalized === "1st training" || normalized === "first training" || normalized === "training 1") return "1st Training";
-    if (normalized === "2nd training" || normalized === "second training" || normalized === "training 2") return "2nd Training";
+    if (normalized === "2nd training" || normalized === "second training" || normalized === "training 2") return "1st Training";
     if (normalized === "official member" || normalized === "member") return "Official Member";
     return "Pending";
   };
@@ -208,15 +210,10 @@ const Member_Approvals = () => {
         .join(" ");
 
       const firstTrainingSchedule = getRuleSchedule(app.created_at || new Date().toISOString());
-      const secondTrainingSchedule = getNextRuleSchedule(firstTrainingSchedule);
-
       let computedTrainingDate = "Not scheduled";
       const normalized = normalizeStatus(app.application_status);
       if (normalized === "1st Training") {
         computedTrainingDate = formatDisplayDate(firstTrainingSchedule.toISOString());
-      }
-      if (normalized === "2nd Training") {
-        computedTrainingDate = formatDisplayDate(secondTrainingSchedule.toISOString());
       }
 
       return {
@@ -245,19 +242,18 @@ const Member_Approvals = () => {
     return {
       Pending: formattedRows.filter((row) => row.status === "Pending"),
       "1st Training": formattedRows.filter((row) => row.status === "1st Training"),
-      "2nd Training": formattedRows.filter((row) => row.status === "2nd Training"),
       "For Revision": formattedRows.filter((row) => row.status === "For Revision"),
       Rejected: formattedRows.filter((row) => row.status === "Rejected"),
       "Official Member": formattedRows.filter((row) => row.status === "Official Member"),
     };
   }, [formattedRows]);
 
-  const isTrainingTab = activeTab === "1st Training" || activeTab === "2nd Training";
+  const isTrainingTab = activeTab === "1st Training";
   const isSecretary = portalRole === "secretary";
   const canUseBodActions = !isSecretary;
   const visibleTabs = isSecretary
     ? ["Pending"]
-    : ["Pending", "1st Training", "2nd Training", "Rejected", "For Revision", "Official Member"];
+    : ["Pending", "1st Training", "Rejected", "For Revision", "Official Member"];
 
   // Keep pagination compact like the provided mock: max 5 visible page pills.
   const visiblePageNumbers = useMemo(() => {
@@ -294,7 +290,7 @@ const Member_Approvals = () => {
                   {(() => {
                     const routeMap = {
                       "Dashboard": "/BOD-dashboard",
-                      "Member Approvals": "/Member-Approvals",
+                      "Member Approvals": "/member-approvals",
                       "Training Attendance": "/Secretary_Attendance",
                       "Membership Records": "/Secretary_Records"
                     };
@@ -410,13 +406,6 @@ const Member_Approvals = () => {
               >
                 1st Training
                 <span className={`text-[10px] px-2 py-0.5 rounded-full ${activeTab === "1st Training" ? "bg-[#2C7A3F] text-white" : "bg-gray-100 text-gray-500"}`}>{tabData["1st Training"].length}</span>
-              </button>)}
-              {visibleTabs.includes("2nd Training") && (<button 
-                onClick={() => setActiveTab("2nd Training")}
-                className={`flex items-center gap-2 pb-3 px-1 border-b-2 font-semibold text-sm transition-colors ${activeTab === "2nd Training" ? "border-[#2C7A3F] text-[#2C7A3F]" : "border-transparent text-gray-400 hover:text-gray-700"}`}
-              >
-                2nd Training
-                <span className={`text-[10px] px-2 py-0.5 rounded-full ${activeTab === "2nd Training" ? "bg-[#2C7A3F] text-white" : "bg-gray-100 text-gray-500"}`}>{tabData["2nd Training"].length}</span>
               </button>)}
               {visibleTabs.includes("Rejected") && (<button 
                 onClick={() => setActiveTab("Rejected")}

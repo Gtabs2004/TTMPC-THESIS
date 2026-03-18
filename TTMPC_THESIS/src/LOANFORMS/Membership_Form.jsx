@@ -36,6 +36,7 @@ function Membership_Form() {
 
     maiden_name: '',
     spouse_name: '',
+    spouse_date_of_birth: '',
     spouse_occupation: '',
 
     number_of_dependents: '',
@@ -63,6 +64,7 @@ function Membership_Form() {
         [name]: value,
         maiden_name: '',
         spouse_name: '',
+        spouse_date_of_birth: '',
         spouse_occupation: '',
         number_of_dependents: '',
       }));
@@ -74,6 +76,13 @@ function Membership_Form() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
+
+    const toIntOrNull = (value) => {
+      const text = String(value ?? '').trim();
+      if (!text) return null;
+      const parsed = Number(text);
+      return Number.isFinite(parsed) ? Math.trunc(parsed) : null;
+    };
 
     const computedAge = formdata.date_of_birth
       ? Math.max(0, new Date().getFullYear() - new Date(formdata.date_of_birth).getFullYear())
@@ -91,6 +100,11 @@ function Membership_Form() {
       created_at: new Date().toISOString(),
       date_of_birth: formdata.date_of_birth || null,
       age: computedAge,
+      // Prevent Postgres integer/bigint errors when optional numeric fields are blank.
+      number_of_dependents: toIntOrNull(formdata.number_of_dependents),
+      height: toIntOrNull(formdata.height),
+      weight: toIntOrNull(formdata.weight),
+      contact_number: toIntOrNull(formdata.contact_number),
     };
 
     try {
@@ -252,6 +266,11 @@ function Membership_Form() {
                 <div>
                   <label className="block text-xs font-semibold text-gray-600 mb-1">Name of Spouse</label>
                   <input type="text" name="spouse_name" value={formdata.spouse_name} onChange={handleChange} className="w-full border border-gray-300 rounded-md p-2.5 text-sm focus:ring-1 focus:ring-green-500 outline-none" />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1">Spouse Date of Birth</label>
+                  <input type="date" name="spouse_date_of_birth" value={formdata.spouse_date_of_birth} onChange={handleChange} className="w-full border border-gray-300 rounded-md p-2.5 text-sm focus:ring-1 focus:ring-green-500 outline-none" />
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-gray-600 mb-1">Spouse's Occupation</label>
