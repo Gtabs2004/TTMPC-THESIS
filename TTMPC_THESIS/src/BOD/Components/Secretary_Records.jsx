@@ -77,8 +77,8 @@ const Secretary_Records = () => {
             const routeMap = {
               "Dashboard": "/BOD-dashboard",
               "Member Approvals": "/Member-Approvals",
-              "Training Attendance": "/training-attendance",
-              "Membership Records": "/membership-records"
+              "Training Attendance": "/Secretary_Attendance",
+              "Membership Records": "/Secretary_Records"
             };
         
             return menuItems.map((sectionGroup) => (
