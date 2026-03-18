@@ -1,6 +1,7 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
+import { supabase } from "../../supabaseClient";
 import { 
   LayoutDashboard, 
   Users, 
@@ -14,8 +15,10 @@ import {
 } from 'lucide-react';
 import logo from "../../assets/img/ttmpc logo.png";
 
+
+
 const Secretary_Attendance = () => {
-  const { session, signOut } = UserAuth();
+  const { signOut } = UserAuth();
   const navigate = useNavigate();
   
   // --- STATE ---
@@ -23,6 +26,15 @@ const Secretary_Attendance = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedMember, setSelectedMember] = useState(null);
   const [editedRemark, setEditedRemark] = useState("");
+  const [tableData, setTableData] = useState({
+    Pending: [],
+    "1st Training": [],
+    "2nd Training": [],
+    Rejected: [],
+  });
+  const [portalRole, setPortalRole] = useState("");
+  const [savingAttendance, setSavingAttendance] = useState(false);
+  const [pageError, setPageError] = useState("");
 
   const menuItems = [
     {
@@ -40,32 +52,166 @@ const Secretary_Attendance = () => {
     }
   ];
 
-  // --- MOCK DATA (Now in State so we can update remarks) ---
-  const [tableData, setTableData] = useState({
-    "Pending": [
-      { id: 1, name: "Mark Wilson", email: "mark.w@gmail.com", schedule: "Mar. 21, 2026 - 9:00 AM", status: "Pending", remarks: "Awaiting schedule confirmation" },
-      { id: 2, name: "Lisa Wong", email: "lisa.wong@gmail.com", schedule: "Mar. 21, 2026 - 9:00 AM", status: "Pending", remarks: "Needs documentation" },
-    ],
-    "1st Training": [
-      // 3rd Saturday of March 2026 is March 21
-      { id: 3, name: "Carlo Mendoza", email: "carlo.mendoza@gmail.com", schedule: "Mar. 21, 2026 - 9:00 AM", status: "Present", remarks: "Attended and completed the training" },
-      { id: 4, name: "Angela Reyes", email: "angela.reyes@gmail.com", schedule: "Mar. 21, 2026 - 9:00 AM", status: "Absent", remarks: "Absent without prior notice" },
-      { id: 5, name: "Jessa Mae Gonzales", email: "jm.gonzales@gmail.com", schedule: "Mar. 21, 2026 - 9:00 AM", status: "Present", remarks: "Attended but left early" },
-      { id: 6, name: "Nicole Anne Bautista", email: "nicole.bautista@gmail.com", schedule: "Mar. 21, 2026 - 9:00 AM", status: "Present", remarks: "Attended and completed the training" },
-      { id: 7, name: "Kevin Navarro", email: "kevin.navarro@gmail.com", schedule: "Mar. 21, 2026 - 9:00 AM", status: "Absent", remarks: "Absent with prior notice" },
-      { id: 8, name: "Jasmine Flores", email: "jasmine.flores@gmail.com", schedule: "Mar. 21, 2026 - 9:00 AM", status: "Present", remarks: "Attended and completed the training" },
-      { id: 9, name: "Bea Castro", email: "bea.castro@gmail.com", schedule: "Mar. 21, 2026 - 9:00 AM", status: "Absent", remarks: "Will attend the next scheduled training" },
-      { id: 10, name: "Dave Herrera", email: "dave.herrera@gmail.com", schedule: "Mar. 21, 2026 - 9:00 AM", status: "Present", remarks: "Attended and completed the training" },
-    ],
-    "2nd Training": [
-      // 3rd Saturday of September 2026 is September 19
-      { id: 11, name: "Sarah Connor", email: "sarah.c@gmail.com", schedule: "Sep. 19, 2026 - 9:00 AM", status: "Present", remarks: "Attended and completed the training" },
-      { id: 12, name: "John Smith", email: "john.s@gmail.com", schedule: "Sep. 19, 2026 - 9:00 AM", status: "Present", remarks: "Excellent participation" },
-    ],
-    "Rejected": [
-      { id: 13, name: "Tom Hardy", email: "tom.h@gmail.com", schedule: "Mar. 21, 2026 - 9:00 AM", status: "Absent", remarks: "Failed to attend 3 times" },
-    ]
-  });
+  const normalizeStatus = (value) => {
+    const normalized = String(value || "").trim().toLowerCase();
+    if (normalized === "pending") return "Pending";
+    if (["1st training", "first training", "training 1"].includes(normalized)) return "1st Training";
+    if (["2nd training", "second training", "training 2"].includes(normalized)) return "2nd Training";
+    if (normalized === "rejected") return "Rejected";
+    return "Pending";
+  };
+
+  const formatDisplayDate = (value) => {
+    if (!value) return "Not scheduled";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "Not scheduled";
+    return date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  };
+
+  const getThirdSaturday = (year, monthIndex) => {
+    const firstDay = new Date(year, monthIndex, 1);
+    const dayOfWeek = firstDay.getDay();
+    const firstSaturdayDate = dayOfWeek === 6 ? 1 : 1 + ((6 - dayOfWeek + 7) % 7);
+    return new Date(year, monthIndex, firstSaturdayDate + 14);
+  };
+
+  const getRuleSchedule = (referenceDateInput) => {
+    const referenceDate = new Date(referenceDateInput);
+    const fallbackDate = Number.isNaN(referenceDate.getTime()) ? new Date() : referenceDate;
+    const year = fallbackDate.getFullYear();
+    const marchSchedule = getThirdSaturday(year, 2);
+    const septemberSchedule = getThirdSaturday(year, 8);
+    if (fallbackDate <= marchSchedule) return marchSchedule;
+    if (fallbackDate <= septemberSchedule) return septemberSchedule;
+    return getThirdSaturday(year + 1, 2);
+  };
+
+  const getNextRuleSchedule = (currentScheduleDate) => {
+    const date = new Date(currentScheduleDate);
+    if (Number.isNaN(date.getTime())) return getRuleSchedule(new Date().toISOString());
+    const year = date.getFullYear();
+    const month = date.getMonth();
+    if (month === 2) return getThirdSaturday(year, 8);
+    if (month === 8) return getThirdSaturday(year + 1, 2);
+    return getRuleSchedule(date.toISOString());
+  };
+
+  const resolvePortalRole = async () => {
+    const { data: authData } = await supabase.auth.getUser();
+    const user = authData?.user;
+    if (!user) return "";
+
+    for (const table of ["member_account", "member_accounts"]) {
+      const byUserId = await supabase.from(table).select("role").eq("user_id", user.id).limit(1).maybeSingle();
+      if (!byUserId.error && byUserId.data?.role) return String(byUserId.data.role).trim().toLowerCase();
+
+      const byEmail = user.email
+        ? await supabase.from(table).select("role").ilike("email", user.email).limit(1).maybeSingle()
+        : { data: null, error: null };
+      if (!byEmail.error && byEmail.data?.role) return String(byEmail.data.role).trim().toLowerCase();
+    }
+
+    return "";
+  };
+
+  const fetchAttendanceRows = async () => {
+    setPageError("");
+    const { data, error } = await supabase
+      .from("member_applications")
+      .select("application_id, first_name, middle_name, surname, email, created_at, application_status, attendance_status, remarks")
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      setPageError(error.message || "Unable to load attendance records.");
+      return;
+    }
+
+    const grouped = {
+      Pending: [],
+      "1st Training": [],
+      "2nd Training": [],
+      Rejected: [],
+    };
+
+    for (const row of data || []) {
+      const status = normalizeStatus(row.application_status);
+      if (!grouped[status]) continue;
+
+      const fullName = [row.first_name, row.middle_name, row.surname]
+        .map((part) => String(part || "").trim())
+        .filter(Boolean)
+        .join(" ") || "Unnamed Applicant";
+
+      const firstTrainingSchedule = getRuleSchedule(row.created_at || new Date().toISOString());
+      const secondTrainingSchedule = getNextRuleSchedule(firstTrainingSchedule);
+      const scheduleDate = status === "2nd Training" ? secondTrainingSchedule : firstTrainingSchedule;
+
+      grouped[status].push({
+        id: row.application_id,
+        applicationId: row.application_id,
+        name: fullName,
+        email: row.email || "-",
+        schedule: `${formatDisplayDate(scheduleDate.toISOString())} - 9:00 AM`,
+        status: row.attendance_status || "Pending",
+        remarks: row.remarks || "",
+      });
+    }
+
+    setTableData(grouped);
+  };
+
+  const persistAttendanceToApplication = async (member) => {
+    const payload = {
+      attendance_status: member.status,
+      remarks: member.remarks ?? editedRemark,
+    };
+
+    const { error } = await supabase
+      .from("member_applications")
+      .update(payload)
+      .eq("application_id", member.applicationId || member.id);
+
+    if (error) {
+      throw new Error(error.message || "Unable to save attendance in member_applications.");
+    }
+  };
+
+  const upsertAttendanceLog = async (member, currentTab) => {
+    const { data: authData } = await supabase.auth.getUser();
+    const payload = {
+      application_id: member.applicationId || member.id,
+      member_name: member.name,
+      member_email: member.email,
+      training_stage: currentTab,
+      attendance_status: member.status,
+      remarks: editedRemark,
+      recorded_at: new Date().toISOString(),
+      recorded_by: authData?.user?.id || null,
+    };
+
+    const tableCandidates = ["attendance_logs", "ATTENDANCE_LOGS"];
+    for (const tableName of tableCandidates) {
+      const upsertTry = await supabase.from(tableName).upsert(payload, { onConflict: "application_id,training_stage" });
+      if (!upsertTry.error) return { ok: true };
+
+      const insertTry = await supabase.from(tableName).insert(payload);
+      if (!insertTry.error) return { ok: true };
+    }
+
+    return {
+      ok: false,
+      warning: "Saved to member_applications, but attendance_logs insert failed. Run src/server/attendance_logs_schema.sql in Supabase.",
+    };
+  };
+
+  useEffect(() => {
+    const init = async () => {
+      const role = await resolvePortalRole();
+      setPortalRole(role);
+      await fetchAttendanceRows();
+    };
+    init();
+  }, []);
 
   const tabs = [
     { name: "Pending", count: tableData["Pending"].length, color: "bg-green-600" },
@@ -73,6 +219,8 @@ const Secretary_Attendance = () => {
     { name: "2nd Training", count: tableData["2nd Training"].length, color: "bg-yellow-400 text-black" },
     { name: "Rejected", count: tableData["Rejected"].length, color: "bg-red-500" }
   ];
+  const isSecretary = portalRole === "secretary";
+  const visibleTabs = isSecretary ? ["Pending", "1st Training", "2nd Training"] : tabs.map((tab) => tab.name);
 
   const handleSignOut = async (e) => {
     e.preventDefault();
@@ -97,7 +245,9 @@ const Secretary_Attendance = () => {
     setEditedRemark("");
   };
 
-  const saveRemark = () => {
+  const saveRemark = async () => {
+    if (!selectedMember) return;
+    setSavingAttendance(true);
     // Update the remark in our state
     setTableData(prev => ({
       ...prev,
@@ -105,7 +255,44 @@ const Secretary_Attendance = () => {
         member.id === selectedMember.id ? { ...member, remarks: editedRemark } : member
       )
     }));
-    closeModal();
+
+    try {
+      const updatedMember = { ...selectedMember, remarks: editedRemark };
+      await persistAttendanceToApplication(updatedMember);
+      const logResult = await upsertAttendanceLog(updatedMember, activeTab);
+      if (!logResult.ok) {
+        setPageError(logResult.warning);
+      }
+      closeModal();
+    } catch (err) {
+      setPageError(err.message || "Unable to save attendance log.");
+    } finally {
+      setSavingAttendance(false);
+    }
+  };
+
+  const handleAttendanceStatusChange = async (member, nextStatus) => {
+    setSavingAttendance(true);
+    const updatedMember = { ...member, status: nextStatus };
+
+    setTableData((prev) => ({
+      ...prev,
+      [activeTab]: prev[activeTab].map((row) =>
+        row.id === member.id ? { ...row, status: nextStatus } : row
+      ),
+    }));
+
+    try {
+      await persistAttendanceToApplication(updatedMember);
+      const logResult = await upsertAttendanceLog(updatedMember, activeTab);
+      if (!logResult.ok) {
+        setPageError(logResult.warning);
+      }
+    } catch (err) {
+      setPageError(err.message || "Unable to save attendance status.");
+    } finally {
+      setSavingAttendance(false);
+    }
   };
 
   return (
@@ -229,9 +416,15 @@ const Secretary_Attendance = () => {
 
           {/* Table Container */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-200">
+            {pageError ? (
+              <div className="mx-6 mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">
+                {pageError}
+              </div>
+            ) : null}
+
             {/* Tabs */}
             <div className="flex gap-8 px-6 pt-4 border-b border-gray-200">
-              {tabs.map((tab) => (
+              {tabs.filter((tab) => visibleTabs.includes(tab.name)).map((tab) => (
                 <button
                   key={tab.name}
                   onClick={() => setActiveTab(tab.name)}
@@ -287,7 +480,9 @@ const Secretary_Attendance = () => {
                           className={`text-sm font-bold bg-transparent border border-gray-200 rounded-md py-1.5 px-3 pr-8 appearance-none focus:outline-none focus:ring-2 focus:ring-green-500 cursor-pointer
                             ${row.status === 'Present' ? 'text-green-600' : row.status === 'Absent' ? 'text-red-500' : 'text-gray-600'}
                           `}
-                          defaultValue={row.status}
+                          value={row.status}
+                          disabled={activeTab !== '1st Training' && activeTab !== '2nd Training'}
+                          onChange={(e) => handleAttendanceStatusChange(row, e.target.value)}
                           style={{
                             backgroundImage: `url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%239CA3AF%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E")`,
                             backgroundRepeat: "no-repeat",
@@ -386,9 +581,10 @@ const Secretary_Attendance = () => {
                 </button>
                 <button 
                   onClick={saveRemark} 
-                  className="px-6 py-2 bg-[#1B5E20] hover:bg-green-800 text-white rounded-lg text-sm font-semibold transition-colors"
+                  disabled={savingAttendance}
+                  className="px-6 py-2 bg-[#1B5E20] hover:bg-green-800 text-white rounded-lg text-sm font-semibold transition-colors disabled:opacity-60"
                 >
-                  Save
+                  {savingAttendance ? 'Saving...' : 'Save'}
                 </button>
               </div>
             </div>

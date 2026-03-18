@@ -24,6 +24,33 @@ const Member_Approvals = () => {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState("Pending");
   const [applications, setApplications] = useState([]);
+  const [selectedEvaluationRow, setSelectedEvaluationRow] = useState(null);
+  const [portalRole, setPortalRole] = useState("");
+
+  const resolvePortalRole = async (sessionUser) => {
+    if (!sessionUser?.id && !sessionUser?.email) return "";
+
+    const tableCandidates = ["member_account", "member_accounts"];
+    for (const table of tableCandidates) {
+      const byUserId = sessionUser?.id
+        ? await supabase.from(table).select("role").eq("user_id", sessionUser.id).limit(1).maybeSingle()
+        : { data: null, error: null };
+
+      if (!byUserId.error && byUserId.data?.role) {
+        return String(byUserId.data.role).trim().toLowerCase();
+      }
+
+      const byEmail = sessionUser?.email
+        ? await supabase.from(table).select("role").ilike("email", sessionUser.email).limit(1).maybeSingle()
+        : { data: null, error: null };
+
+      if (!byEmail.error && byEmail.data?.role) {
+        return String(byEmail.data.role).trim().toLowerCase();
+      }
+    }
+
+    return "";
+  };
 
   const fetchData = async () => {
     const { data, error } = await supabase
@@ -50,6 +77,8 @@ const Member_Approvals = () => {
       console.log("Current User:", session?.user?.email);
 
       if (session) {
+        const role = await resolvePortalRole(session.user);
+        setPortalRole(role);
         fetchData();
       } else {
         console.warn("No active session! RLS will block the query.");
@@ -58,6 +87,12 @@ const Member_Approvals = () => {
 
     checkSessionAndFetch();
   }, []);
+
+  useEffect(() => {
+    if (portalRole === "secretary") {
+      setActiveTab("Pending");
+    }
+  }, [portalRole]);
 
 
  const menuItems = [
@@ -184,6 +219,7 @@ const Member_Approvals = () => {
         trainingDate: computedTrainingDate,
         attendance: app.attendance_status || "Pending",
         result: app.evaluation_result || "Pending",
+        secretaryRemarks: app.remarks || app.evaluation_remarks || "No secretary remarks yet.",
         status: normalizeStatus(app.application_status),
       };
     });
@@ -201,6 +237,10 @@ const Member_Approvals = () => {
   }, [formattedRows]);
 
   const isTrainingTab = activeTab === "1st Training" || activeTab === "2nd Training";
+  const isSecretary = portalRole === "secretary";
+  const visibleTabs = isSecretary
+    ? ["Pending"]
+    : ["Pending", "1st Training", "2nd Training", "Rejected", "For Revision", "Official Member"];
 
   return (
     <div className="flex min-h-screen bg-[#F8FAFC]">
@@ -323,48 +363,48 @@ const Member_Approvals = () => {
 
           <div className="bg-white border border-gray-100 rounded-xl shadow-sm overflow-hidden">
             <div className="flex items-center gap-6 px-6 pt-4 border-b border-gray-100">
-              <button 
+              {visibleTabs.includes("Pending") && (<button 
                 onClick={() => setActiveTab("Pending")}
                 className={`flex items-center gap-2 pb-3 px-1 border-b-2 font-semibold text-sm transition-colors ${activeTab === "Pending" ? "border-[#2C7A3F] text-[#2C7A3F]" : "border-transparent text-gray-500 hover:text-gray-700"}`}
               >
                 Pending
                 <span className={`text-[10px] px-2 py-0.5 rounded-full text-white ${activeTab === "Pending" ? "bg-[#2C7A3F]" : "bg-gray-400"}`}>{tabData["Pending"].length}</span>
-              </button>
-              <button 
+              </button>)}
+              {visibleTabs.includes("1st Training") && (<button 
                 onClick={() => setActiveTab("1st Training")}
                 className={`flex items-center gap-2 pb-3 px-1 border-b-2 font-semibold text-sm transition-colors ${activeTab === "1st Training" ? "border-[#2C7A3F] text-[#2C7A3F]" : "border-transparent text-gray-400 hover:text-gray-700"}`}
               >
                 1st Training
                 <span className={`text-[10px] px-2 py-0.5 rounded-full ${activeTab === "1st Training" ? "bg-[#2C7A3F] text-white" : "bg-gray-100 text-gray-500"}`}>{tabData["1st Training"].length}</span>
-              </button>
-              <button 
+              </button>)}
+              {visibleTabs.includes("2nd Training") && (<button 
                 onClick={() => setActiveTab("2nd Training")}
                 className={`flex items-center gap-2 pb-3 px-1 border-b-2 font-semibold text-sm transition-colors ${activeTab === "2nd Training" ? "border-[#2C7A3F] text-[#2C7A3F]" : "border-transparent text-gray-400 hover:text-gray-700"}`}
               >
                 2nd Training
                 <span className={`text-[10px] px-2 py-0.5 rounded-full ${activeTab === "2nd Training" ? "bg-[#2C7A3F] text-white" : "bg-gray-100 text-gray-500"}`}>{tabData["2nd Training"].length}</span>
-              </button>
-              <button 
+              </button>)}
+              {visibleTabs.includes("Rejected") && (<button 
                 onClick={() => setActiveTab("Rejected")}
                 className={`flex items-center gap-2 pb-3 px-1 border-b-2 font-semibold text-sm transition-colors ${activeTab === "Rejected" ? "border-[#2C7A3F] text-[#2C7A3F]" : "border-transparent text-gray-400 hover:text-gray-700"}`}
               >
                 Rejected
                 <span className={`text-[10px] px-2 py-0.5 rounded-full ${activeTab === "Rejected" ? "bg-red-500 text-white" : "bg-red-100 text-red-500"}`}>{tabData["Rejected"].length}</span>
-              </button>
-              <button
+              </button>)}
+              {visibleTabs.includes("For Revision") && (<button
                 onClick={() => setActiveTab("For Revision")}
                 className={`flex items-center gap-2 pb-3 px-1 border-b-2 font-semibold text-sm transition-colors ${activeTab === "For Revision" ? "border-[#2C7A3F] text-[#2C7A3F]" : "border-transparent text-gray-400 hover:text-gray-700"}`}
               >
                 For Revision
                 <span className={`text-[10px] px-2 py-0.5 rounded-full ${activeTab === "For Revision" ? "bg-amber-500 text-white" : "bg-amber-100 text-amber-600"}`}>{tabData["For Revision"].length}</span>
-              </button>
-              <button
+              </button>)}
+              {visibleTabs.includes("Official Member") && (<button
                 onClick={() => setActiveTab("Official Member")}
                 className={`flex items-center gap-2 pb-3 px-1 border-b-2 font-semibold text-sm transition-colors ${activeTab === "Official Member" ? "border-[#2C7A3F] text-[#2C7A3F]" : "border-transparent text-gray-400 hover:text-gray-700"}`}
               >
                 Official Member
                 <span className={`text-[10px] px-2 py-0.5 rounded-full ${activeTab === "Official Member" ? "bg-green-600 text-white" : "bg-green-100 text-green-700"}`}>{tabData["Official Member"].length}</span>
-              </button>
+              </button>)}
             </div>
 
             
@@ -471,15 +511,20 @@ const Member_Approvals = () => {
                           </td>
                          
                           <td className="px-6 py-4 whitespace-nowrap">
-                            <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold border ${
-                              row.result === "Passed"
-                                ? "border-green-300 bg-green-50 text-green-700"
-                                : row.result === "Pending"
-                                ? "border-yellow-300 bg-yellow-50 text-yellow-700"
-                                : "border-gray-300 bg-gray-50 text-gray-500"
-                            }`}>
-                              {row.result}
-                            </span>
+                            <button
+                              type="button"
+                              onClick={() => setSelectedEvaluationRow(row)}
+                              className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold border transition hover:shadow-sm hover:-translate-y-0.5 ${
+                                row.result === "Passed"
+                                  ? "border-green-300 bg-green-50 text-green-700"
+                                  : row.result === "Pending"
+                                  ? "border-yellow-300 bg-yellow-50 text-yellow-700"
+                                  : "border-gray-300 bg-gray-50 text-gray-500"
+                              }`}
+                              title="View evaluation details"
+                            >
+                              {row.result === "Pending" ? "View Remarks" : row.result}
+                            </button>
                           </td>
                         </>
                       ) : (
@@ -554,6 +599,50 @@ const Member_Approvals = () => {
           </div>
         </main>
       </div>
+
+      {selectedEvaluationRow && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl p-6">
+            <div className="flex items-start justify-between mb-4">
+              <div>
+                <h3 className="text-xl font-bold text-gray-900">Evaluation Result Details</h3>
+                <p className="text-sm text-gray-500 mt-1">Review Secretary remarks for this training record.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedEvaluationRow(null)}
+                className="text-gray-500 hover:text-gray-800 text-sm font-semibold"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4 text-sm">
+              <div>
+                <p className="text-gray-400 text-xs font-bold uppercase tracking-wider">Member</p>
+                <p className="text-gray-800 font-semibold">{selectedEvaluationRow.name}</p>
+              </div>
+              <div>
+                <p className="text-gray-400 text-xs font-bold uppercase tracking-wider">Training Schedule</p>
+                <p className="text-gray-800 font-semibold">{selectedEvaluationRow.trainingDate}</p>
+              </div>
+              <div>
+                <p className="text-gray-400 text-xs font-bold uppercase tracking-wider">Attendance</p>
+                <p className="text-gray-800 font-semibold">{selectedEvaluationRow.attendance}</p>
+              </div>
+              <div>
+                <p className="text-gray-400 text-xs font-bold uppercase tracking-wider">Evaluation Result</p>
+                <p className="text-gray-800 font-semibold">{selectedEvaluationRow.result}</p>
+              </div>
+            </div>
+
+            <div className="border border-gray-200 rounded-lg p-4 bg-gray-50">
+              <p className="text-gray-400 text-xs font-bold uppercase tracking-wider mb-2">Secretary Remarks</p>
+              <p className="text-gray-800 text-sm whitespace-pre-wrap">{selectedEvaluationRow.secretaryRemarks}</p>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
