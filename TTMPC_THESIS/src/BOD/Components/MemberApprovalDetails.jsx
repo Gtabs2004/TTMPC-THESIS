@@ -160,7 +160,7 @@ const MemberApprovalDetails = () => {
 
   const getProceedConfig = (status) => {
     if (status === 'Pending') return { title: 'Proceed to 1st Training', nextStatus: '1st Training', button: 'Proceed to 1st Training' };
-    if (status === '1st Training') return { title: 'Proceed to 2nd Training', nextStatus: '2nd Training', button: 'Proceed to 2nd Training' };
+    if (status === '1st Training') return { title: 'Mark as Official Member', nextStatus: 'Official Member', button: 'Confirm & Complete' };
     if (status === '2nd Training') return { title: 'Mark as Official Member', nextStatus: 'Official Member', button: 'Confirm & Complete' };
     return null;
   };
@@ -226,10 +226,10 @@ const MemberApprovalDetails = () => {
       return;
     }
 
-    if (nextStatus === '2nd Training') {
+    if (nextStatus === 'Official Member') {
       const firstTrainingAttendance = String(memberRow?.attendance_status || '').trim().toLowerCase();
-      if (firstTrainingAttendance !== 'present') {
-        setActionError('Only applicants marked Present in 1st Training can proceed to 2nd Training.');
+      if (memberRow?.application_status === '1st Training' && firstTrainingAttendance !== 'present') {
+        setActionError('Only applicants marked Present in 1st Training can be approved as members.');
         return;
       }
     }
@@ -311,12 +311,6 @@ const MemberApprovalDetails = () => {
     const payload = {
       application_status: nextStatus,
     };
-
-    // Moving to 2nd training starts a new attendance/evaluation cycle.
-    if (nextStatus === '2nd Training') {
-      payload.attendance_status = 'Pending';
-      payload.evaluation_result = 'Pending';
-    }
 
     if (remarks.trim()) {
       payload.remarks = remarks.trim();
@@ -447,7 +441,7 @@ const MemberApprovalDetails = () => {
             <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${
                 member.status === 'Pending' ? 'bg-orange-100 text-orange-600' :
                 member.status === 'Official Member' || member.status === 'Approved' ? 'bg-green-100 text-green-700' :
-                member.status === '1st Training' || member.status === '2nd Training' ? 'bg-blue-100 text-blue-700' :
+                member.status === '1st Training' ? 'bg-blue-100 text-blue-700' :
                 'bg-red-100 text-red-700'
               }`}>
               • {member.status}
@@ -556,7 +550,7 @@ const MemberApprovalDetails = () => {
             onClick={() => setActiveModal('proceed')}
             disabled={saving || portalRole === 'secretary' || (member.status === '1st Training' && String(member.row?.attendance_status || '').toLowerCase() !== 'present')}
             className="flex items-center text-white bg-[#1a4a2f] hover:bg-[#123622] transition-colors font-bold rounded-lg px-6 py-2.5 text-sm shadow-sm"
-            title={member.status === '1st Training' && String(member.row?.attendance_status || '').toLowerCase() !== 'present' ? 'Mark attendance as Present in 1st Training before proceeding.' : ''}
+            title={member.status === '1st Training' && String(member.row?.attendance_status || '').toLowerCase() !== 'present' ? 'Mark attendance as Present in 1st Training before approval.' : ''}
           >
             <Check className="w-4 h-4 mr-2" strokeWidth={2.5} /> {proceedConfig.button}
           </button>

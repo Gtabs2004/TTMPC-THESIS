@@ -15,11 +15,61 @@ ALTER TABLE IF EXISTS public.member_applications ADD COLUMN IF NOT EXISTS approv
 ALTER TABLE IF EXISTS public.member_applications ADD COLUMN IF NOT EXISTS approved_by UUID;
 ALTER TABLE IF EXISTS public.member_applications ADD COLUMN IF NOT EXISTS approved_by_role TEXT;
 
+CREATE OR REPLACE FUNCTION public.is_membership_staff()
+RETURNS boolean
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_role text;
+BEGIN
+  IF to_regclass('public.member_account') IS NOT NULL THEN
+    SELECT lower(btrim(coalesce(ma.role, '')))
+    INTO v_role
+    FROM public.member_account ma
+    WHERE ma.user_id = auth.uid()
+       OR lower(coalesce(ma.email, '')) = lower(coalesce(auth.email(), ''))
+    LIMIT 1;
+
+    IF v_role IN ('bod', 'manager', 'secretary') THEN
+      RETURN true;
+    END IF;
+  END IF;
+
+  IF to_regclass('public.member_accounts') IS NOT NULL THEN
+    SELECT lower(btrim(coalesce(ma.role, '')))
+    INTO v_role
+    FROM public.member_accounts ma
+    WHERE ma.user_id = auth.uid()
+       OR lower(coalesce(ma.email, '')) = lower(coalesce(auth.email(), ''))
+    LIMIT 1;
+
+    IF v_role IN ('bod', 'manager', 'secretary') THEN
+      RETURN true;
+    END IF;
+  END IF;
+
+  v_role := lower(btrim(coalesce(
+    auth.jwt() ->> 'role',
+    auth.jwt() -> 'app_metadata' ->> 'role',
+    auth.jwt() -> 'user_metadata' ->> 'role',
+    ''
+  )));
+
+  RETURN v_role IN ('bod', 'manager', 'secretary');
+END;
+$$;
+
 DO $$
 BEGIN
   IF to_regclass('public.membership_application') IS NOT NULL THEN
     EXECUTE 'DROP POLICY IF EXISTS "service role read applications" ON membership_application';
     EXECUTE 'CREATE POLICY "service role read applications" ON membership_application FOR SELECT USING (auth.role() = ''service_role'')';
+
+    EXECUTE 'DROP POLICY IF EXISTS "staff read applications" ON membership_application';
+    EXECUTE 'CREATE POLICY "staff read applications" ON membership_application FOR SELECT TO authenticated USING (public.is_membership_staff())';
 
     EXECUTE 'DROP POLICY IF EXISTS "service role update applications" ON membership_application';
     EXECUTE 'CREATE POLICY "service role update applications" ON membership_application FOR UPDATE USING (auth.role() = ''service_role'')';
@@ -28,6 +78,9 @@ BEGIN
   IF to_regclass('public.member_applications') IS NOT NULL THEN
     EXECUTE 'DROP POLICY IF EXISTS "service role read applications" ON member_applications';
     EXECUTE 'CREATE POLICY "service role read applications" ON member_applications FOR SELECT USING (auth.role() = ''service_role'')';
+
+    EXECUTE 'DROP POLICY IF EXISTS "staff read applications" ON member_applications';
+    EXECUTE 'CREATE POLICY "staff read applications" ON member_applications FOR SELECT TO authenticated USING (public.is_membership_staff())';
 
     EXECUTE 'DROP POLICY IF EXISTS "service role update applications" ON member_applications';
     EXECUTE 'CREATE POLICY "service role update applications" ON member_applications FOR UPDATE USING (auth.role() = ''service_role'')';
@@ -67,87 +120,14 @@ CREATE TABLE IF NOT EXISTS public.capital_build_up (
   ending_share_capital numeric DEFAULT 0
 );
 
-CREATE OR REPLACE FUNCTION public.seed_cbu_on_membership_approval()
-RETURNS trigger
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public
-AS $$
-DECLARE
-  v_member_id uuid;
-  old_status text;
-  new_status text;
-BEGIN
-  old_status := lower(coalesce(OLD.application_status, ''));
-  new_status := lower(coalesce(NEW.application_status, ''));
-
-  IF old_status IN ('approved', 'member', 'official member') THEN
-    RETURN NEW;
-  END IF;
-
-  IF new_status NOT IN ('approved', 'member', 'official member') THEN
-    RETURN NEW;
-  END IF;
-
-  IF NEW.membership_id IS NULL OR btrim(NEW.membership_id) = '' THEN
-    RETURN NEW;
-  END IF;
-
-  SELECT m.id
-  INTO v_member_id
-  FROM public.member m
-  WHERE m.membership_id = NEW.membership_id
-  LIMIT 1;
-
-  IF v_member_id IS NULL THEN
-    RETURN NEW;
-  END IF;
-
-  IF NOT EXISTS (
-    SELECT 1
-    FROM public.capital_build_up c
-    WHERE c.member_id = v_member_id
-  ) THEN
-    INSERT INTO public.capital_build_up (
-      member_id,
-      transaction_date,
-      starting_share_capital,
-      capital_added,
-      deposit_account,
-      ending_share_capital
-    )
-    VALUES (
-      v_member_id,
-      now(),
-      500,
-      0,
-      'CBU Opening Balance',
-      500
-    );
-  END IF;
-
-  RETURN NEW;
-END;
-$$;
-
+-- Policy update: CBU must NOT be auto-seeded at membership approval.
+-- CBU rows should be created only after proper post-approval processing.
 DROP TRIGGER IF EXISTS trg_seed_cbu_on_member_applications ON public.member_applications;
-CREATE CONSTRAINT TRIGGER trg_seed_cbu_on_member_applications
-AFTER UPDATE OF application_status, membership_id ON public.member_applications
-DEFERRABLE INITIALLY DEFERRED
-FOR EACH ROW
-EXECUTE FUNCTION public.seed_cbu_on_membership_approval();
 
 DO $$
 BEGIN
   IF to_regclass('public.membership_application') IS NOT NULL THEN
     EXECUTE 'DROP TRIGGER IF EXISTS trg_seed_cbu_on_membership_application ON public.membership_application';
-    EXECUTE '
-      CREATE CONSTRAINT TRIGGER trg_seed_cbu_on_membership_application
-      AFTER UPDATE OF application_status, membership_id ON public.membership_application
-      DEFERRABLE INITIALLY DEFERRED
-      FOR EACH ROW
-      EXECUTE FUNCTION public.seed_cbu_on_membership_approval()
-    ';
   END IF;
 END $$;
 

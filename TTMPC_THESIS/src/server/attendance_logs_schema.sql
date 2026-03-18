@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS public.attendance_logs (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   CONSTRAINT attendance_logs_stage_check CHECK (
-    training_stage IN ('1st Training', '2nd Training')
+    training_stage IN ('1st Training')
   ),
   CONSTRAINT attendance_logs_status_check CHECK (
     attendance_status IN ('Present', 'Absent', 'Pending')

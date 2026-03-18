@@ -139,6 +139,11 @@ def _application_is_eligible(data: dict[str, Any], force: bool) -> bool:
 
 	status_value = str(data.get("training_status") or data.get("application_status") or "").strip().lower()
 	accepted = {
+		"1st training",
+		"first training",
+		"training 1",
+		"1st training completed",
+		"first training completed",
 		"2nd_training_completed",
 		"2nd training completed",
 		"2nd training",
@@ -455,9 +460,21 @@ def _to_int_or_none(value: Any) -> int | None:
 	if value in (None, ""):
 		return None
 	try:
-		return int(float(str(value)))
+		# Accept values like "170", "170.5", or "170 cm" and keep only numeric part.
+		text = str(value).strip()
+		match = re.search(r"-?\d+(?:\.\d+)?", text)
+		if not match:
+			return None
+		return int(float(match.group(0)))
 	except Exception:
 		return None
+
+
+def _generate_bod_resolution_number(application_id: str, membership_date: str) -> str:
+	clean_app_id = re.sub(r"[^A-Za-z0-9]", "", str(application_id or "").upper())
+	suffix = clean_app_id[-6:] if clean_app_id else datetime.now(timezone.utc).strftime("%H%M%S")
+	year = str(membership_date or "")[:4] or str(datetime.now(timezone.utc).year)
+	return f"BOD-RES-{year}-{suffix}"
 
 
 def upsert_personal_data_sheet(
@@ -501,6 +518,8 @@ def upsert_personal_data_sheet(
 		"spouse_occupation": application_data.get("spouse_occupation"),
 		"spouse_date_of_birth": application_data.get("spouse_date_of_birth"),
 		"date_of_membership": membership_date,
+		# Auto-generated at BOD approval; financial fields remain for authorized manual encoding.
+		"BOD_resolution_number": _generate_bod_resolution_number(pds_id, membership_date),
 	}
 
 	filtered_payload = {k: v for k, v in payload.items() if v is not None}
