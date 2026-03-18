@@ -213,6 +213,9 @@ const Secretary_Attendance = () => {
     init();
   }, []);
 
+  // naku ervine
+  
+
   const tabs = [
     { name: "Pending", count: tableData["Pending"].length, color: "bg-green-600" },
     { name: "1st Training", count: tableData["1st Training"].length, color: "bg-blue-500" },
