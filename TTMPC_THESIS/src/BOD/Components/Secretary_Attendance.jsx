@@ -11,7 +11,8 @@ import {
   UserPlus,
   ClipboardList,
   BadgeCheck,
-  Download
+  Download,
+  Archive
 } from 'lucide-react';
 import logo from "../../assets/img/ttmpc logo.png";
 
@@ -48,6 +49,7 @@ const Secretary_Attendance = () => {
       section: "SECRETARY",
       items: [
         { name: "Training Attendance", icon: CalendarCheck },
+        { name: "Membership Records", icon: Archive  }
       ]
     }
   ];
@@ -319,7 +321,8 @@ const Secretary_Attendance = () => {
             const routeMap = {
               "Dashboard": "/BOD-dashboard",
               "Member Approvals": "/member-approvals",
-              "Training Attendance": "/Secretary_Attendance"
+              "Training Attendance": "/Secretary_Attendance",
+              "Membership Records": "/Secretary_Records",
             };
 
             return menuItems.map((sectionGroup) => (
