@@ -52,6 +52,7 @@ import Savings_Details from "./Cashier/Components/Savings_Details";
 import Add_Savings from "./Cashier/Components/Add_Savings";
 import Secretary_Attendance from "./BOD/Components/Secretary_Attendance";
 import Secretary_Records from "./BOD/Components/Secretary_Records";
+import Record_Details from "./BOD/Components/Record_Details";
 
 
 
@@ -113,5 +114,6 @@ export const router = createBrowserRouter([
     {path: "/Secretary_Attendance", element:<Secretary_Attendance/>},
     {path: "/Secretary_Records", element:<Secretary_Records/>},
     {path: "/secretary-records", element:<Secretary_Records/>},
-    {path: "/membership-records", element:<Secretary_Records/>}
+    {path: "/membership-records", element:<Secretary_Records/>},
+    {path: "/record-details/:id", element:<Record_Details/>}
 ]);

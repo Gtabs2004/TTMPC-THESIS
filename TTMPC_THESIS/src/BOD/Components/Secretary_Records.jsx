@@ -178,7 +178,7 @@ const Secretary_Records = () => {
                     <td className="py-4 text-gray-800 font-medium">{member.loans}</td>
                     <td className="py-4">
                       <button 
-                        onClick={() => navigate('/')}
+                        onClick={() => navigate(`/record-details/${member.id}`)}
                         className="text-[#1e9e4a] hover:text-green-800 transition-colors p-1"
                       >
                         <Eye size={20} strokeWidth={2} />
