@@ -24,7 +24,7 @@ export const AuthContextProvider = ({ children }) => {
   };
 
   // Sign up
-  const signUpNewUser = async (email, password) => {
+  const signUpNewUser = async (email, password, role = "treasurer") => {
     const { data, error } = await supabase.auth.signUp({
       email: email.toLowerCase(),
       password: password,
@@ -33,6 +33,18 @@ export const AuthContextProvider = ({ children }) => {
     if (error) {
       console.error("Error signing up: ", error);
       return { success: false, error };
+    }
+
+    // Insert profile row for Treasurer
+    const { data: profileData, error: profileError } = await supabase
+      .from("member_account")
+      .insert([
+        { email: email.toLowerCase(), role: role }
+      ]);
+
+    if (profileError) {
+      console.error("Error creating Treasurer profile: ", profileError);
+      return { success: false, error: profileError };
     }
 
     return { success: true, data };
