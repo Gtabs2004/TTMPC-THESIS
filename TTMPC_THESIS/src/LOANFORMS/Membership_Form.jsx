@@ -99,6 +99,7 @@ function Membership_Form() {
       application_id: generateApplicationId(),
       created_at: new Date().toISOString(),
       date_of_birth: formdata.date_of_birth || null,
+      spouse_date_of_birth: formdata.spouse_date_of_birth || null,
       age: computedAge,
       // Prevent Postgres integer/bigint errors when optional numeric fields are blank.
       number_of_dependents: toIntOrNull(formdata.number_of_dependents),
