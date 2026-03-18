@@ -332,6 +332,20 @@ BEGIN
       USING (auth.role() = ''service_role'')
       WITH CHECK (auth.role() = ''service_role'')
     ';
+
+    EXECUTE 'DROP POLICY IF EXISTS "staff update koica workflow" ON koica_loans';
+    EXECUTE '
+      CREATE POLICY "staff update koica workflow"
+      ON koica_loans
+      FOR UPDATE
+      TO authenticated
+      USING (
+        public.has_portal_role(auth.uid(), auth.email(), ARRAY[''manager'', ''bookkeeper''])
+      )
+      WITH CHECK (
+        public.has_portal_role(auth.uid(), auth.email(), ARRAY[''manager'', ''bookkeeper''])
+      )
+    ';
   END IF;
 
 END $$;

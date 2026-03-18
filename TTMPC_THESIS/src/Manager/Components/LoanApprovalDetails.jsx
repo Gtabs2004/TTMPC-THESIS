@@ -40,6 +40,7 @@ const LoanApprovalDetails = () => {
   const [actionError, setActionError] = useState('');
   const [activeModal, setActiveModal] = useState(null);
   const [remarks, setRemarks] = useState('');
+  const [bookkeeperInternalRemarks, setBookkeeperInternalRemarks] = useState('');
   const [sendSms, setSendSms] = useState(true);
   const [sendEmail, setSendEmail] = useState(true);
   const [loanDetails, setLoanDetails] = useState(null);
@@ -89,7 +90,7 @@ const LoanApprovalDetails = () => {
         let tableName = 'loans';
 
         if (isKoicaSource) {
-          const { data: koicaData, error: koicaError } = await supabase
+          const { data: koicaRows, error: koicaError } = await supabase
             .from('koica_loans')
             .select(`
               control_number,
@@ -100,16 +101,19 @@ const LoanApprovalDetails = () => {
               term,
               loan_status,
               application_status,
+              bookkeeper_internal_remarks,
+              bookkeeper_reviewed_at,
+              manager_review_requested_at,
               loan_type_code,
               raw_payload
             `)
             .eq('control_number', id)
-            .maybeSingle();
+            .limit(1);
           if (koicaError) throw koicaError;
-          data = koicaData;
+          data = koicaRows?.[0] || null;
           tableName = 'koica_loans';
         } else {
-          const { data: loanData, error: loanError } = await supabase
+          const { data: loanRows, error: loanError } = await supabase
             .from('loans')
             .select(`
               control_number,
@@ -121,6 +125,9 @@ const LoanApprovalDetails = () => {
               term,
               loan_status,
               application_status,
+              bookkeeper_internal_remarks,
+              bookkeeper_reviewed_at,
+              manager_review_requested_at,
               loan_purpose,
               source_of_income,
               member:member_id (
@@ -133,9 +140,9 @@ const LoanApprovalDetails = () => {
               )
             `)
             .eq('control_number', id)
-            .maybeSingle();
+            .limit(1);
           if (loanError) throw loanError;
-          data = loanData;
+          data = loanRows?.[0] || null;
         }
 
         if (!data) throw new Error('Loan record not found.');
@@ -188,6 +195,9 @@ const LoanApprovalDetails = () => {
             migsStatus: isKoicaSource ? 'N/A' : (data.member?.is_bona_fide ? 'MIGS' : 'NON-MIGS'),
             loanPurpose: data.loan_purpose || data.raw_payload?.optionalFields?.loan_purpose || 'N/A',
             employerPosition: data.source_of_income || data.raw_payload?.optionalFields?.source_of_income || 'N/A',
+            bookkeeperInternalRemarks: data.bookkeeper_internal_remarks || 'No internal remarks submitted.',
+            bookkeeperReviewedAt: data.bookkeeper_reviewed_at || null,
+            managerReviewRequestedAt: data.manager_review_requested_at || null,
           },
           computation: {
             principal: formatCurrency(principalAmount),
@@ -227,6 +237,7 @@ const LoanApprovalDetails = () => {
     setActiveModal(null);
     setActionError('');
     setRemarks('');
+    setBookkeeperInternalRemarks('');
     setSendSms(true);
     setSendEmail(true);
   };
@@ -239,6 +250,13 @@ const LoanApprovalDetails = () => {
       return;
     }
 
+    if (isBookkeeperFlow && modalType === 'recommend') {
+      if (!bookkeeperInternalRemarks.trim()) {
+        setActionError('Please enter internal remarks before sending to Manager.');
+        return;
+      }
+    }
+
     let nextStatus = 'pending';
     if (isBookkeeperFlow && modalType === 'recommend') nextStatus = 'recommended for approval';
     if (!isBookkeeperFlow && modalType === 'proceed') nextStatus = 'to be disbursed';
@@ -248,22 +266,40 @@ const LoanApprovalDetails = () => {
       setSaving(true);
       setActionError('');
 
-      const { data, error } = await supabase
+      const updatePayload = { loan_status: nextStatus, application_status: nextStatus };
+      if (isBookkeeperFlow && modalType === 'recommend') {
+        updatePayload.bookkeeper_internal_remarks = bookkeeperInternalRemarks.trim();
+        updatePayload.bookkeeper_reviewed_at = new Date().toISOString();
+        updatePayload.manager_review_requested_at = new Date().toISOString();
+      }
+
+      const { data: updatedRows, error } = await supabase
         .from(loanDetails.sourceTable || 'loans')
-        .update({ loan_status: nextStatus, application_status: nextStatus })
+        .update(updatePayload)
         .eq('control_number', loanDetails.id)
-        .select('control_number, loan_status')
-        .maybeSingle();
+        .select('control_number, loan_status, bookkeeper_internal_remarks, bookkeeper_reviewed_at, manager_review_requested_at')
+        .limit(1);
 
       if (error) {
         throw new Error(error.message || 'Failed to update loan status.');
       }
 
-      if (!data) {
+      const updatedRow = updatedRows?.[0] || null;
+
+      if (!updatedRow) {
         throw new Error('Loan record not found during status update.');
       }
 
-      setLoanDetails((prev) => prev ? { ...prev, status: formatStatus(nextStatus) } : prev);
+      setLoanDetails((prev) => prev ? {
+        ...prev,
+        status: formatStatus(nextStatus),
+        summary: {
+          ...prev.summary,
+          bookkeeperInternalRemarks: updatedRow.bookkeeper_internal_remarks || prev.summary.bookkeeperInternalRemarks,
+          bookkeeperReviewedAt: updatedRow.bookkeeper_reviewed_at || prev.summary.bookkeeperReviewedAt,
+          managerReviewRequestedAt: updatedRow.manager_review_requested_at || prev.summary.managerReviewRequestedAt,
+        },
+      } : prev);
       closeModal();
       navigate(backRoute);
     } catch (err) {
@@ -392,6 +428,19 @@ const LoanApprovalDetails = () => {
                 </div>
               </div>
             </div>
+
+            {/* Bookkeeper recommendation notes (manager view is read-only) */}
+            <div>
+              <h2 className="flex items-center text-lg font-bold text-gray-800 mb-4">
+                <FileEdit className="w-5 h-5 mr-2 text-[#1D6021]" /> Bookkeeper Internal Review
+              </h2>
+              <div className="bg-[#F8F9FA] border border-gray-200 rounded-xl p-5 space-y-4">
+                <div>
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Internal Remarks</p>
+                  <p className="text-sm text-gray-700 whitespace-pre-wrap">{loanDetails.summary.bookkeeperInternalRemarks}</p>
+                </div>
+              </div>
+            </div>
           </div>
 
           {/* Right Column */}
@@ -458,7 +507,10 @@ const LoanApprovalDetails = () => {
         <div className="bg-[#F8F9FA] border-t border-gray-200 p-6 flex justify-end gap-4">
           {isBookkeeperFlow ? (
             <button 
-              onClick={() => setActiveModal('recommend')}
+              onClick={() => {
+                setBookkeeperInternalRemarks(loanDetails?.summary?.bookkeeperInternalRemarks === 'No internal remarks submitted.' ? '' : (loanDetails?.summary?.bookkeeperInternalRemarks || ''));
+                setActiveModal('recommend');
+              }}
               className="flex items-center px-6 py-2.5 rounded-lg bg-[#1D6021] text-white hover:bg-[#154718] font-bold text-sm transition-colors cursor-pointer"
             >
               <Check className="w-4 h-4 mr-2" /> Recommend for Approval
@@ -561,9 +613,22 @@ const LoanApprovalDetails = () => {
             {activeModal === 'recommend' && (
               <>
                 <h3 className="text-xl font-bold text-gray-900 mb-4">Recommend for Manager Approval</h3>
-                <p className="text-sm text-gray-600 mb-8">
+                <p className="text-sm text-gray-600 mb-4">
                   You are about to forward this loan of <span className="font-bold text-gray-900">{loanDetails.memberName}</span> to the Manager queue.
                 </p>
+
+                <div className="mb-6">
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Internal Remarks (Bookkeeper) <span className="text-red-500">*</span>
+                  </label>
+                  <textarea
+                    rows="4"
+                    className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-[#1D6021] focus:border-[#1D6021] outline-none"
+                    placeholder="Enter internal notes for the Manager..."
+                    value={bookkeeperInternalRemarks}
+                    onChange={(e) => setBookkeeperInternalRemarks(e.target.value)}
+                  ></textarea>
+                </div>
               </>
             )}
 
