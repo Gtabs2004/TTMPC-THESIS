@@ -12,7 +12,8 @@ import {
   History,
   Search,
   Bell,
-  CalendarCheck
+  CalendarCheck,
+  Archive
 } from 'lucide-react';
 import logo from "../../assets/img/ttmpc logo.png";
 
@@ -33,6 +34,7 @@ const menuItems = [
       section: "SECRETARY",
       items: [
         { name: "Training Attendance", icon: CalendarCheck },
+        { name: "Membership Records", icon: Archive  }
       ]
     }
   ];
@@ -69,18 +71,19 @@ const menuItems = [
                    const routeMap = {
                      "Dashboard": "/BOD-dashboard",
                      "Member Approvals": "/member-approvals",
-                     "Training Attendance": "/Secretary_Attendance"
+                     "Training Attendance": "/Secretary_Attendance",
+                      "Membership Records": "/Secretary_Records"
                    };
        
-                   // 1. Map through the section categories first
+                   
                    return menuItems.map((sectionGroup) => (
                      <div key={sectionGroup.section} className="mb-4 flex flex-col gap-2">
-                       {/* Optional: You can display the section name here if you want */}
+                       
                        <p className="text-xs font-bold text-gray-400 px-2 uppercase tracking-wider">
                          {sectionGroup.section}
                        </p>
                        
-                       {/* 2. Then map through the actual items inside that section */}
+                       
                        {sectionGroup.items.map((item) => {
                          const Icon = item.icon;
                          const to = routeMap[item.name] || `/${item.name.toLowerCase().replace(/\s+/g, '-')}`;
@@ -118,20 +121,22 @@ const menuItems = [
 
      
       <div className="flex-1 flex flex-col">
-        <header className="bg-white h-16 shadow-sm flex items-center justify-end px-8">
-          <div className="relative">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400"/>
-          <input type="text" className=" bg-gray-50  w-52 h-10 rounded-lg border border-gray-300 px-4 
-          py-1 focus:outline-none focus:ring-2 focus:ring-green-500"></input>
-          </div>
-          <button className="ml-6 relative p-1 rounded-full text-gray-500 hover:bg-gray-100 transition-colors">
-          <Bell className="w-5 h-5"/>
-          <span className="absolute top-1 right-1 block h-2 w-2 rounded-full bg-red-500 ring-2 ring-white"></span>
-          </button>
-          <img src="src/assets/img/bookkeeper-profile.png" alt="Bookkeeper Profile" className="ml-4 w-8 h-8 rounded-full"></img>
-          <p>Bookkeeper</p>
-        </header>
-
+        <header className="bg-white h-16 shadow-sm flex items-center justify-end px-8 border-b border-gray-100">
+                 <div className="relative">
+                   <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400"/>
+                   <input type="text" className="bg-gray-50 w-52 h-10 rounded-lg border border-gray-200 pl-10 pr-4 
+                   py-1 text-sm focus:outline-none focus:ring-2 focus:ring-[#2C7A3F]" placeholder="Search..."></input>
+                 </div>
+                 <button className="ml-6 relative p-1 rounded-full text-gray-500 hover:bg-gray-100 transition-colors">
+                   <Bell className="w-5 h-5"/>
+                   <span className="absolute top-1 right-1 block h-2 w-2 rounded-full bg-red-500 ring-2 ring-white"></span>
+                 </button>
+                 <div className="flex items-center ml-4 gap-2 border-l border-gray-200 pl-4">
+                   <img src="src/assets/img/bookkeeper-profile.png" alt="Profile" className="w-8 h-8 rounded-full bg-gray-200"></img>
+                   <p className="text-sm font-medium text-gray-700">Manager</p>
+                 </div>
+               </header>
+       
         {/* Page Content */}
         <main className="p-8">
           <h1 className="font-bold text-2xl">Dashboard</h1>

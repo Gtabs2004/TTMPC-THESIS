@@ -51,6 +51,7 @@ import Cashier_Savings from "./Cashier/Components/Cashier_Savings";
 import Savings_Details from "./Cashier/Components/Savings_Details";
 import Add_Savings from "./Cashier/Components/Add_Savings";
 import Secretary_Attendance from "./BOD/Components/Secretary_Attendance";
+import Secretary_Records from "./BOD/Components/Secretary_Records";
 
 
 
@@ -109,5 +110,6 @@ export const router = createBrowserRouter([
     {path: "/Cashier_Savings", element:<Cashier_Savings/>},
     {path: "/add_savings", element:<Add_Savings/>},
     {path: "/Savings_Details/:id", element:<Savings_Details/>},
-    {path: "/Secretary_Attendance", element:<Secretary_Attendance/>}
+    {path: "/Secretary_Attendance", element:<Secretary_Attendance/>},
+    {path: "/Secretary_Records", element:<Secretary_Records/>}
 ]);

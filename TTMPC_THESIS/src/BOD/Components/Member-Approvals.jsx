@@ -14,7 +14,8 @@ import {
   ChevronDown,
   Download,
   CalendarDays,
-  CalendarCheck
+  CalendarCheck,
+  Archive
 } from 'lucide-react';
 import { supabase } from "../../supabaseClient";
 import logo from "../../assets/img/ttmpc logo.png";
@@ -107,6 +108,7 @@ const Member_Approvals = () => {
       section: "SECRETARY",
       items: [
         { name: "Training Attendance", icon: CalendarCheck },
+        { name: "Membership Records", icon: Archive  }
       ]
     }
   ];
@@ -261,8 +263,9 @@ const Member_Approvals = () => {
                   {(() => {
                     const routeMap = {
                       "Dashboard": "/BOD-dashboard",
-                      "Member Approvals": "/member-approvals",
-                      "Training Attendance": "/Secretary_Attendance"
+                      "Member Approvals": "/Member-Approvals",
+                      "Training Attendance": "/Secretary_Attendance",
+                      "Membership Records": "/Secretary_Records"
                     };
         
                     // 1. Map through the section categories first
