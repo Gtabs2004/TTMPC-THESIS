@@ -24,6 +24,7 @@ const menuItems = [
     { name: "Disbursement", icon: CreditCard },
     { name: "Schedule", icon: Calculator },
     { name: "Payments", icon: Users },
+    { name: "Loan-Approval", icon: CreditCard },
     { name: "Accounting", icon: BarChart3 },
   ];
  
@@ -61,6 +62,7 @@ const menuItems = [
       "Disbursement": "/disbursement",
       "Schedule": "/schedule",
       "Payments": "/treasurer-payments",
+      "Loan-Approval": "/treasurer-approval",
       "Accounting": "/treasurer-accounting",
     };
 
