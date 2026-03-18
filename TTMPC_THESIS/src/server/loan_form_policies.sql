@@ -387,7 +387,7 @@ BEGIN
         public.has_portal_role(
           auth.uid(),
           auth.email(),
-          ARRAY[''manager'', ''bod'', ''bookkeeper'']
+          ARRAY[''manager'', ''bod'', ''bookkeeper'', ''treasurer'']
         )
       )
     ';
