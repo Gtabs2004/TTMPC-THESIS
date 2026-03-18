@@ -231,12 +231,29 @@ const Member_Savings = () => {
             </div>
 
             {/* Pagination / Footer */}
-            <div className="p-5 border-t border-gray-100 flex items-center justify-end gap-4 text-xs font-bold text-gray-400">
-              <button className="hover:text-gray-700 transition-colors flex items-center gap-1 cursor-pointer">
-                <ChevronLeft className="w-4 h-4" /> Previous
+            <div className="p-5 border-t border-gray-100 flex items-center justify-center gap-2">
+              <button
+                className="w-8 h-8 flex items-center justify-center rounded-full border border-gray-300 bg-white text-gray-500 transition-colors hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled
+              >
+                <ChevronLeft className="w-4 h-4" />
               </button>
-              <button className="hover:text-gray-700 transition-colors flex items-center gap-1 cursor-pointer">
-                Next <ChevronRight className="w-4 h-4" />
+
+              {[1, 2, 3, 4, 5].map((page) => (
+                <button
+                  key={page}
+                  className={`w-8 h-8 flex items-center justify-center rounded-full border text-xs font-semibold transition-colors ${
+                    page === 1
+                      ? "bg-[#16A34A] text-white border-[#16A34A]"
+                      : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"
+                  }`}
+                >
+                  {page}
+                </button>
+              ))}
+
+              <button className="w-8 h-8 flex items-center justify-center rounded-full border border-gray-300 bg-white text-gray-500 transition-colors hover:bg-gray-50">
+                <ChevronRight className="w-4 h-4" />
               </button>
             </div>
 
