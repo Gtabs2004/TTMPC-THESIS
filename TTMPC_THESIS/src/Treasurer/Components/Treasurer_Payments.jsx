@@ -38,13 +38,13 @@ const Payments = () => {
   const { session, signOut } = UserAuth();
   const navigate = useNavigate();
   const [currentPage, setCurrentPage] = useState(1);
-  const [searchTerm, setSearchTerm] = useState('');
   
   const menuItems = [
     { name: "Dashboard", icon: LayoutDashboard },
     { name: "Disbursement", icon: CreditCard },
     { name: "Schedule", icon: Calculator },
     { name: "Payments", icon: Users },
+    { name: "Loan-Approval", icon: CreditCard },
     { name: "Accounting", icon: BarChart3 },
   ];
 
@@ -90,7 +90,8 @@ const Payments = () => {
               "Dashboard": "/Treasurer_Dashboard",
               "Disbursement": "/disbursement",
               "Schedule": "/schedule",
-              "Payments": "/treasurer-payments",    
+              "Payments": "/treasurer-payments",
+              "Loan-Approval": "/treasurer-approval",
               "Accounting": "/treasurer-accounting", 
             };
 
