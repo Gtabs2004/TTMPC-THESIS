@@ -173,29 +173,31 @@ const menuItems = [
     </tbody>
   </table>
 </div>
-          <div className="flex justify-center items-center mt-8 gap-3">
-  
-  <button className="w-10 h-10 flex items-center justify-center rounded-full border 
-  border-gray-400 text-gray-500 hover:bg-gray-100 transition-colors cursor-not-allowed" disabled>
-    <ChevronLeft size={20} />
-  </button>
+          <div className="flex justify-center items-center mt-8 gap-2">
+            <button
+              className="w-8 h-8 flex items-center justify-center rounded-full border border-gray-300 bg-white text-gray-500 transition-colors hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
 
-  {[1, 2, 3, 4, 5].map((page) => (
-    <button 
-      key={page} 
-      className="w-10 h-10 flex items-center justify-center rounded-full border border-gray-400 
-      text-gray-500 font-medium hover:bg-gray-100 transition-colors cursor-pointer"
-    >
-      {page}
-    </button>
-  ))}
+            {[1, 2, 3, 4, 5].map((page) => (
+              <button
+                key={page}
+                className={`w-8 h-8 flex items-center justify-center rounded-full border text-xs font-semibold transition-colors ${
+                  page === 1
+                    ? "bg-[#16A34A] text-white border-[#16A34A]"
+                    : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"
+                }`}
+              >
+                {page}
+              </button>
+            ))}
 
-
-  <button className="w-10 h-10 flex items-center justify-center rounded-full border border-gray-400 text-gray-500
-   hover:bg-gray-100 transition-colors cursor-pointer">
-    <ChevronRight size={20} />
-  </button>
-</div>
+            <button className="w-8 h-8 flex items-center justify-center rounded-full border border-gray-300 bg-white text-gray-500 transition-colors hover:bg-gray-50">
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
         </main> 
       </div>
     </div>

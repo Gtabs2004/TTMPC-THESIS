@@ -27,6 +27,9 @@ const Member_Approvals = () => {
   const [applications, setApplications] = useState([]);
   const [selectedEvaluationRow, setSelectedEvaluationRow] = useState(null);
   const [portalRole, setPortalRole] = useState("");
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const LIMIT = 10;
 
   const resolvePortalRole = async (sessionUser) => {
     if (!sessionUser?.id && !sessionUser?.email) return "";
@@ -53,20 +56,32 @@ const Member_Approvals = () => {
     return "";
   };
 
-  const fetchData = async () => {
-    const { data, error } = await supabase
-      .from("member_applications")
-      .select("*")
-      .order("created_at", { ascending: false });
+  const fetchData = async (pageNumber = 1) => {
+    const from = (pageNumber - 1) * LIMIT;
+    const to = from + LIMIT - 1;
 
-    console.log("Supabase Data:", data);
+    let query = supabase
+      .from("member_applications")
+      .select("*", { count: "exact" })
+      .order("created_at", { ascending: false })
+      .range(from, to);
+
+    if (portalRole === "secretary") {
+      query = query.eq("application_status", "pending");
+    }
+
+    // IMPORTANT: do not use `data`/`error` before this line.
+    // Accessing them earlier causes a Temporal Dead Zone ReferenceError.
+    const { data, count, error } = await query;
+
     if (error) {
       console.error("Supabase Error:", error);
+      return;
     }
 
-    if (!error && data) {
-      setApplications(data);
-    }
+    console.log("Supabase Data:", data);
+    setApplications(data || []);
+    setTotalPages(Math.max(1, Math.ceil((count || 0) / LIMIT)));
   };
 
   useEffect(() => {
@@ -90,10 +105,9 @@ const Member_Approvals = () => {
   }, []);
 
   useEffect(() => {
-    if (portalRole === "secretary") {
-      setActiveTab("Pending");
-    }
-  }, [portalRole]);
+    if (!portalRole) return;
+    fetchData(page);
+  }, [portalRole, page]);
 
 
  const menuItems = [
@@ -240,9 +254,26 @@ const Member_Approvals = () => {
 
   const isTrainingTab = activeTab === "1st Training" || activeTab === "2nd Training";
   const isSecretary = portalRole === "secretary";
+  const canUseBodActions = !isSecretary;
   const visibleTabs = isSecretary
     ? ["Pending"]
     : ["Pending", "1st Training", "2nd Training", "Rejected", "For Revision", "Official Member"];
+
+  // Keep pagination compact like the provided mock: max 5 visible page pills.
+  const visiblePageNumbers = useMemo(() => {
+    const maxVisible = 5;
+    const safeTotal = Math.max(1, totalPages);
+    const safePage = Math.min(Math.max(1, page), safeTotal);
+
+    let start = Math.max(1, safePage - Math.floor(maxVisible / 2));
+    let end = Math.min(safeTotal, start + maxVisible - 1);
+
+    if (end - start + 1 < maxVisible) {
+      start = Math.max(1, end - maxVisible + 1);
+    }
+
+    return Array.from({ length: end - start + 1 }, (_, i) => start + i);
+  }, [page, totalPages]);
 
   return (
     <div className="flex min-h-screen bg-[#F8FAFC]">
@@ -264,8 +295,8 @@ const Member_Approvals = () => {
                     const routeMap = {
                       "Dashboard": "/BOD-dashboard",
                       "Member Approvals": "/Member-Approvals",
-                      "Training Attendance": "/Secretary_Attendance",
-                      "Membership Records": "/Secretary_Records"
+                      "Training Attendance": "/training-attendance",
+                      "Membership Records": "/membership-records"
                     };
         
                     // 1. Map through the section categories first
@@ -488,8 +519,11 @@ const Member_Approvals = () => {
                         
                           <td className="px-6 py-4 whitespace-nowrap">
                             <button
-                              className="text-left font-semibold text-gray-800 hover:text-blue-600 hover:underline"
-                              onClick={() => row.id && navigate(`/member-approvals/${row.id}`)}
+                              type="button"
+                              disabled={!canUseBodActions}
+                              className={`text-left font-semibold ${canUseBodActions ? 'text-gray-800 hover:text-blue-600 hover:underline' : 'text-gray-500 cursor-not-allowed'}`}
+                              onClick={() => canUseBodActions && row.id && navigate(`/member-approvals/${row.id}`)}
+                              title={canUseBodActions ? '' : 'Secretary has read-only access in Member Approvals.'}
                             >
                               {row.name}
                             </button>
@@ -516,15 +550,16 @@ const Member_Approvals = () => {
                           <td className="px-6 py-4 whitespace-nowrap">
                             <button
                               type="button"
-                              onClick={() => setSelectedEvaluationRow(row)}
-                              className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold border transition hover:shadow-sm hover:-translate-y-0.5 ${
+                              disabled={!canUseBodActions}
+                              onClick={() => canUseBodActions && setSelectedEvaluationRow(row)}
+                              className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold border transition ${canUseBodActions ? 'hover:shadow-sm hover:-translate-y-0.5' : 'cursor-not-allowed opacity-70'} ${
                                 row.result === "Passed"
                                   ? "border-green-300 bg-green-50 text-green-700"
                                   : row.result === "Pending"
                                   ? "border-yellow-300 bg-yellow-50 text-yellow-700"
                                   : "border-gray-300 bg-gray-50 text-gray-500"
                               }`}
-                              title="View evaluation details"
+                              title={canUseBodActions ? 'View evaluation details' : 'Secretary has read-only access in Member Approvals.'}
                             >
                               {row.result === "Pending" ? "View Remarks" : row.result}
                             </button>
@@ -537,8 +572,11 @@ const Member_Approvals = () => {
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
                             <button
-                              className="text-left font-bold text-gray-800 hover:text-blue-600 hover:underline"
-                              onClick={() => row.id && navigate(`/member-approvals/${row.id}`)}
+                              type="button"
+                              disabled={!canUseBodActions}
+                              className={`text-left font-bold ${canUseBodActions ? 'text-gray-800 hover:text-blue-600 hover:underline' : 'text-gray-500 cursor-not-allowed'}`}
+                              onClick={() => canUseBodActions && row.id && navigate(`/member-approvals/${row.id}`)}
+                              title={canUseBodActions ? '' : 'Secretary has read-only access in Member Approvals.'}
                             >
                               {row.name}
                             </button>
@@ -579,22 +617,38 @@ const Member_Approvals = () => {
             </div>
 
             <div className="flex items-center justify-center gap-2 py-6 border-t border-gray-50">
-              <button className="w-8 h-8 flex items-center justify-center rounded-full border border-gray-200 text-gray-400 hover:bg-gray-50 transition-colors">
+              <button
+                type="button"
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page === 1}
+                className="w-8 h-8 rounded-full border border-gray-300 bg-white text-gray-500 flex items-center justify-center transition-colors hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                title="Previous page"
+              >
                 <ChevronLeft className="w-4 h-4" />
               </button>
-              {[1, 2, 3, 4, 5].map((page) => (
+
+              {visiblePageNumbers.map((pageNumber) => (
                 <button
-                  key={page}
-                  className={`w-8 h-8 flex items-center justify-center rounded-full text-sm font-semibold transition-colors ${
-                    page === 1
-                      ? "bg-[#2C7A3F] text-white border-transparent"
-                      : "border border-gray-200 text-gray-500 hover:bg-gray-50"
+                  key={pageNumber}
+                  type="button"
+                  onClick={() => setPage(pageNumber)}
+                  className={`w-8 h-8 rounded-full border text-xs font-semibold flex items-center justify-center transition-colors ${
+                    page === pageNumber
+                      ? "bg-[#16A34A] text-white border-[#16A34A]"
+                      : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"
                   }`}
                 >
-                  {page}
+                  {pageNumber}
                 </button>
               ))}
-              <button className="w-8 h-8 flex items-center justify-center rounded-full border border-gray-200 text-gray-400 hover:bg-gray-50 transition-colors">
+
+              <button
+                type="button"
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={page === totalPages}
+                className="w-8 h-8 rounded-full border border-gray-300 bg-white text-gray-500 flex items-center justify-center transition-colors hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                title="Next page"
+              >
                 <ChevronRight className="w-4 h-4" />
               </button>
             </div>

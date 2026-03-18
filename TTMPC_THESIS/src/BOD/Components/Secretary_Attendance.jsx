@@ -321,8 +321,8 @@ const Secretary_Attendance = () => {
             const routeMap = {
               "Dashboard": "/BOD-dashboard",
               "Member Approvals": "/member-approvals",
-              "Training Attendance": "/Secretary_Attendance",
-              "Membership Records": "/Secretary_Records",
+              "Training Attendance": "/training-attendance",
+              "Membership Records": "/membership-records",
             };
 
             return menuItems.map((sectionGroup) => (
