@@ -233,6 +233,39 @@ const Treasurer_ApprovalDetails = () => {
   };
 
   const applyLoanStatusUpdate = async (modalType) => {
+        // Helper: fetch loan details for disbursement
+        const fetchLoanDisbursementDetails = async (loanId) => {
+          const { data, error } = await supabase
+            .from('loans')
+            .select(`loan_type:loan_type_id(name), loan_amount, term, monthly_amortization`)
+            .eq('control_number', loanId)
+            .maybeSingle();
+          if (error) throw error;
+          return {
+            loanType: data.loan_type?.name || '',
+            loanAmount: data.loan_amount,
+            term: data.term,
+            monthlyAmortization: data.monthly_amortization
+          };
+        };
+
+        // Helper: insert disbursement record
+        const insertDisbursementRecord = async (loanId, loanType, loanAmount, term, monthlyAmortization) => {
+          const { data, error } = await supabase
+            .from('disbursement')
+            .insert([
+              {
+                loan_id: loanId,
+                loan_type: loanType,
+                loan_amount: loanAmount,
+                term: term,
+                monthly_amortization: monthlyAmortization,
+                status: 'Ready for Disbursement'
+              }
+            ]);
+          if (error) throw error;
+          return data;
+        };
     if (!loanDetails?.id) return;
 
     if ((modalType === 'reject' || modalType === 'revise' || modalType === 'reschedule') && !remarks.trim()) {
@@ -241,9 +274,16 @@ const Treasurer_ApprovalDetails = () => {
     }
 
     let nextStatus = 'pending';
+    let updatePayload = { loan_status: nextStatus, application_status: nextStatus };
     if (isBookkeeperFlow && modalType === 'recommend') nextStatus = 'recommended for approval';
     if (!isBookkeeperFlow && modalType === 'proceed') nextStatus = 'to be disbursed';
-    if (!isBookkeeperFlow && modalType === 'disburse') nextStatus = 'to be disbursed';
+    if (!isBookkeeperFlow && modalType === 'disburse') {
+      nextStatus = 'to be disbursed';
+      updatePayload = {
+        ...updatePayload,
+        disbursement_confirmation: new Date().toISOString()
+      };
+    }
     if (!isBookkeeperFlow && modalType === 'reschedule') nextStatus = 'pending rescheduling';
     if (!isBookkeeperFlow && modalType === 'reject') nextStatus = 'rejected';
 
@@ -253,9 +293,9 @@ const Treasurer_ApprovalDetails = () => {
 
       const { data, error } = await supabase
         .from(loanDetails.sourceTable || 'loans')
-        .update({ loan_status: nextStatus, application_status: nextStatus })
+        .update(updatePayload)
         .eq('control_number', loanDetails.id)
-        .select('control_number, loan_status')
+        .select('control_number, loan_status, disbursement_confirmation')
         .maybeSingle();
 
       if (error) {
@@ -266,7 +306,7 @@ const Treasurer_ApprovalDetails = () => {
         throw new Error('Loan record not found during status update.');
       }
 
-      setLoanDetails((prev) => prev ? { ...prev, status: formatStatus(nextStatus) } : prev);
+      setLoanDetails((prev) => prev ? { ...prev, status: formatStatus(nextStatus), disbursement_confirmation: data.disbursement_confirmation } : prev);
       closeModal();
       navigate(backRoute);
     } catch (err) {
@@ -429,6 +469,35 @@ const Treasurer_ApprovalDetails = () => {
                     <p className="text-[9px] text-gray-500">Monthly amortization amount</p>
                   </div>
                   <span className="text-2xl font-black text-[#1D6021]">{loanDetails.computation.monthlyAmortization}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Treasurer's Disbursement Assessment */}
+            <div className="bg-white rounded-xl border border-gray-200 p-6 mb-4">
+              <h2 className="flex items-center text-lg font-bold text-gray-800 mb-4">
+                <BarChart2 className="w-5 h-5 mr-2 text-[#1D6021]" /> Treasurer's Disbursement Assessment
+              </h2>
+              <div className="space-y-6">
+                {/* Fund Availability */}
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-semibold text-gray-700">Cooperative Fund Availability</span>
+                  <div className="flex items-center gap-2">
+                    <div className="w-32 h-3 bg-gray-200 rounded-full overflow-hidden">
+                      <div className="h-3 bg-[#1D6021] rounded-full" style={{ width: '80%' }}></div>
+                    </div>
+                    <span className="text-xs font-bold text-green-700">Sufficient</span>
+                  </div>
+                </div>
+                {/* Financial Impact Assessment */}
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-semibold text-gray-700">Financial Impact Assessment</span>
+                  <span className="text-xs font-bold text-gray-800">Projected Interest Revenue: ₱100,000.00</span>
+                </div>
+                {/* Recommendation Status */}
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-semibold text-gray-700">Recommendation Status</span>
+                  <span className="px-3 py-1 rounded-full bg-green-100 text-green-700 text-xs font-bold border border-green-200">Highly Recommended</span>
                 </div>
               </div>
             </div>
@@ -624,6 +693,12 @@ const Treasurer_ApprovalDetails = () => {
                       <span className="text-gray-700 font-semibold">Status:</span>
                       <span className="font-bold text-green-700">Ready for Disbursement</span>
                     </div>
+                    {loanDetails.disbursement_confirmation && (
+                      <div className="border-t border-green-300 pt-3 flex justify-between text-sm">
+                        <span className="text-gray-700 font-semibold">Disbursement Confirmed</span>
+                        <span className="font-bold text-green-700">{new Date(loanDetails.disbursement_confirmation).toLocaleString()}</span>
+                      </div>
+                    )}
                   </div>
                 </div>
 
