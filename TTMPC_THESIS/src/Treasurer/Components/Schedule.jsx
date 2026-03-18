@@ -15,16 +15,16 @@ import {
 } from 'lucide-react';
 
 
-const Members = () => {
+const Schedule = () => {
   const { session, signOut } = UserAuth();
   const navigate = useNavigate();
   
 const menuItems = [
     { name: "Dashboard", icon: LayoutDashboard },
-    { name: "Loans", icon: CreditCard },
-    { name: "Savings", icon: Calculator },
-    { name: "Members", icon: Users },
-    { name: "Reports", icon: BarChart3 },
+    { name: "Disbursement", icon: CreditCard },
+    { name: "Schedule", icon: Calculator },
+    { name: "Payments", icon: Users },
+    { name: "Accounting", icon: BarChart3 },
   ];
  
 
@@ -58,10 +58,10 @@ const menuItems = [
   {(() => {
     const routeMap = {
       "Dashboard": "/Treasurer_Dashboard",
-      "Loans": "/Loans",
-      "Savings": "/Savings",
-      "Members": "/Members",
-      "Reports": "/Treasurer_Reports",
+      "Disbursement": "/disbursement",
+      "Schedule": "/schedule",
+      "Payments": "/treasurer-payments",
+      "Accounting": "/treasurer-accounting",
     };
 
     return menuItems.map((item) => {
@@ -115,11 +115,11 @@ const menuItems = [
 
         {/* Page Content */}
         <main className="p-8">
-          <h1 className="font-bold text-2xl">Dashboard</h1>
+          <h1 className="font-bold text-2xl">Schedule</h1>
         </main>
       </div>
     </div>
   );
 };
 
-export default Members;
+export default Schedule;
