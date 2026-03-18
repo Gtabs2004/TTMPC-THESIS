@@ -112,8 +112,6 @@ export const router = createBrowserRouter([
     {path: "/add_savings", element:<Add_Savings/>},
     {path: "/Savings_Details/:id", element:<Savings_Details/>},
     {path: "/Secretary_Attendance", element:<Secretary_Attendance/>},
-    {path: "/secretary-attendance", element:<Secretary_Attendance/>},
-    {path: "/training-attendance", element:<Secretary_Attendance/>},
     {path: "/Secretary_Records", element:<Secretary_Records/>},
     {path: "/secretary-records", element:<Secretary_Records/>},
     {path: "/membership-records", element:<Secretary_Records/>},
