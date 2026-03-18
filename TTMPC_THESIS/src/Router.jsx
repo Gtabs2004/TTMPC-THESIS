@@ -8,11 +8,11 @@ import MemberLogin from "./Index_Pages/memberlogin";
 import Login from "./Index_Pages/login";
 import Dashboard from "./Bookkeeper/Components/bookkeeperDashboard";
 import Records from "./Bookkeeper/Components/Member-Records";
-import Accounting from "./Bookkeeper/Components/Accounting";
+import BookkeeperAccounting from "./Bookkeeper/Components/Accounting";
 import AuditTrail from "./Bookkeeper/Components/Audit-Trail";
 import LoanApplication from "./Bookkeeper/Components/Loan-Application";
 import MIGS from "./Bookkeeper/Components/MIGS";
-import Payments from "./Bookkeeper/Components/Payments";
+import BookkeeperPayments from "./Bookkeeper/Components/Payments";
 import Reports from "./Bookkeeper/Components/Reports";
 import BookkeeperLoanApproval from "./Bookkeeper/Components/Loan-Approval";
 import Loan_Kiosk from "./Index_Pages/loan_kiosk";
@@ -42,10 +42,10 @@ import Withdrawal_Success from "./Index_Pages/withdrawal_success";
 import Deposit from "./Index_Pages/deposit";
 import Deposit_Success from "./Index_Pages/deposit_success";
 import Treasurer_Dashboard from "./Treasurer/Components/Treasurer_Dashboard";
-import Loans from "./Treasurer/Components/Loans";
-import Savings from "./Treasurer/Components/Savings";
-import Members from "./Treasurer/Components/Members";
-import Treasurer_Reports from "./Treasurer/Components/Treasurer_Reports";
+import TreasurerAccounting from "./Treasurer/Components/Accounting";
+import Disbursement from "./Treasurer/Components/Disbursement";
+import TreasurerPayments from "./Treasurer/Components/Treasurer_Payments";
+import Schedule from "./Treasurer/Components/Schedule";
 import Cashier_Dashboard from "./Cashier/Components/Cashier_Dashboard";
 import Cashier_Savings from "./Cashier/Components/Cashier_Savings";
 import Savings_Details from "./Cashier/Components/Savings_Details";
@@ -67,12 +67,12 @@ export const router = createBrowserRouter([
     {path: "/Login", element: <Login/>},
     {path: "/dashboard", element: <Dashboard/>},
     {path: "/records", element: <Records/>},
-    {path: "/accounting", element: <Accounting/>},
+    {path: "/accounting", element: <BookkeeperAccounting/>},
     {path: "/audit-trail", element: <AuditTrail/>},
     {path: "/loan-application", element: <LoanApplication/>},
     {path: "/bookkeeper-loan-approval", element: <BookkeeperLoanApproval/>},
     {path: "/migs-scoring", element: <MIGS/>},
-    {path: "/payments", element: <Payments/>},
+    {path: "/payments", element: <BookkeeperPayments/>},
     {path: "/reports", element: <Reports/>},
     {path: "/loan_kiosk", element: <Loan_Kiosk/>},
     {path: "/verification", element: <Verification/>},
@@ -103,10 +103,10 @@ export const router = createBrowserRouter([
     {path: "/deposit", element:<Deposit/>},
     {path: "/deposit_success", element:<Deposit_Success/>},
     {path: "/Treasurer_Dashboard", element:<Treasurer_Dashboard/>},
-    {path: "/Loans", element:<Loans/>},
-    {path: "/Savings", element:<Savings/>},
-    {path: "/Members", element:<Members/>},
-    {path: "/Treasurer_Reports", element:<Treasurer_Reports/>},
+    {path: "/treasurer-accounting", element: <TreasurerAccounting/>},
+    {path: "/disbursement", element: <Disbursement/>},
+    {path: "/treasurer-payments", element: <TreasurerPayments/>},
+    {path: "/schedule", element:<Schedule/>},
     {path: "/Cashier_Dashboard", element:<Cashier_Dashboard/>},
     {path: "/Cashier_Savings", element:<Cashier_Savings/>},
     {path: "/add_savings", element:<Add_Savings/>},

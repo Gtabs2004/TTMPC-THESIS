@@ -21,10 +21,10 @@ const Treasurer_Dashboard = () => {
   
 const menuItems = [
     { name: "Dashboard", icon: LayoutDashboard },
-    { name: "Loans", icon: CreditCard },
-    { name: "Savings", icon: Calculator },
-    { name: "Members", icon: Users },
-    { name: "Reports", icon: BarChart3 },
+    { name: "Disbursement", icon: CreditCard },
+    { name: "Schedule", icon: Calculator },
+    { name: "Payments", icon: Users },
+    { name: "Accounting", icon: BarChart3 },
   ];
  
 
@@ -56,12 +56,12 @@ const menuItems = [
         
         <nav className="flex flex-col gap-2 text-sm flex-grow">
   {(() => {
-    const routeMap = {
+     const routeMap = {
       "Dashboard": "/Treasurer_Dashboard",
-      "Loans": "/Loans",
-      "Savings": "/Savings",
-      "Members": "/Members",
-      "Reports": "/Treasurer_Reports",
+      "Disbursement": "/disbursement",
+      "Schedule": "/schedule",
+      "Payments": "/treasurer-payments",
+      "Accounting": "/treasurer-accounting",
     };
 
     return menuItems.map((item) => {
