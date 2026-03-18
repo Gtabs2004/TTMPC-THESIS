@@ -49,6 +49,8 @@ import Treasurer_Reports from "./Treasurer/Components/Treasurer_Reports";
 import Cashier_Dashboard from "./Cashier/Components/Cashier_Dashboard";
 import Cashier_Savings from "./Cashier/Components/Cashier_Savings";
 import Savings_Details from "./Cashier/Components/Savings_Details";
+import Add_Savings from "./Cashier/Components/Add_Savings";
+import Secretary_Attendance from "./BOD/Components/Secretary_Attendance";
 
 
 
