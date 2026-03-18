@@ -55,6 +55,9 @@ import Secretary_Records from "./BOD/Components/Secretary_Records";
 import Record_Details from "./BOD/Components/Record_Details";
 import Treasurer_Approval from "./Treasurer/Components/Treasurer_Approval";
 import Treasurer_ApprovalDetails from "./Treasurer/Components/Treasurer_ApprovalDetails";
+import Cashier_CBU from "./Cashier/Components/Cashier_CBU";
+import Cashier_Withdrawals from "./Cashier/Components/Cashier_Withdrawals";
+import Cashier_Payments from "./Cashier/Components/Cashier_Payments";
 
 
 
@@ -119,4 +122,12 @@ export const router = createBrowserRouter([
     {path: "/record-details/:id", element:<Record_Details/>},
     {path: "/treasurer-approval", element:<Treasurer_Approval/>},
     {path:"/treasurer-approval/:id", element:<Treasurer_ApprovalDetails/>},
+    {path: "/Cashier_CBU", element:<Cashier_CBU/>},
+    {path: "/Cashier_Withdrawals", element:<Cashier_Withdrawals/>},
+    {path: "/Cashier_Payments", element:<Cashier_Payments/>},
+    {path: "/capital-build-up", element:<Cashier_CBU/>},
+    {path: "/withdrawals", element:<Cashier_Withdrawals/>},
+    {path: "/cashier-withdrawals", element:<Cashier_Withdrawals/>},
+    {path: "/payments-cashier", element:<Cashier_Payments/>},
+    {path: "/cashier-payments", element:<Cashier_Payments/>}
 ]);
