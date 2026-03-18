@@ -53,7 +53,8 @@ import Add_Savings from "./Cashier/Components/Add_Savings";
 import Secretary_Attendance from "./BOD/Components/Secretary_Attendance";
 import Secretary_Records from "./BOD/Components/Secretary_Records";
 import Record_Details from "./BOD/Components/Record_Details";
-
+import Treasurer_Approval from "./Treasurer/Components/Treasurer_Approval";
+import Treasurer_ApprovalDetails from "./Treasurer/Components/Treasurer_ApprovalDetails";
 
 
 
@@ -115,5 +116,7 @@ export const router = createBrowserRouter([
     {path: "/Secretary_Records", element:<Secretary_Records/>},
     {path: "/secretary-records", element:<Secretary_Records/>},
     {path: "/membership-records", element:<Secretary_Records/>},
-    {path: "/record-details/:id", element:<Record_Details/>}
+    {path: "/record-details/:id", element:<Record_Details/>},
+    {path: "/treasurer-approval", element:<Treasurer_Approval/>},
+    {path:"/treasurer-approval/:id", element:<Treasurer_ApprovalDetails/>},
 ]);
