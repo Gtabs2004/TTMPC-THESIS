@@ -2,7 +2,7 @@ import React, { useMemo, useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
 import logo from "../../assets/img/ttmpc logo.png";
-import { LayoutDashboard, CreditCard, UserSearch, Search, Bell } from "lucide-react";
+import { LayoutDashboard, CreditCard, UserSearch, Search, Bell, Banknote } from "lucide-react";
 
 const STATIC_MEMBERSHIP_NO_ACCOUNT = [
   { member_id: "TTMPC_M_00002", full_name: "Erden Jhed Teope", email: "erden@example.com" },
@@ -32,11 +32,13 @@ const Add_Savings = () => {
 
   const menuItems = [
     { name: "Dashboard", icon: LayoutDashboard },
+    { name: "Disbursement", icon: Banknote },
     { name: "Savings", icon: CreditCard },
   ];
 
   const routeMap = {
     Dashboard: "/Cashier_Dashboard",
+    Disbursement: "/Cashier_Disbursement",
     Savings: "/Cashier_Savings",
   };
 

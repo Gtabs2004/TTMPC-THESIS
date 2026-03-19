@@ -50,6 +50,7 @@ const Treasurer_Approval = () => {
         .select(
           `
           control_number,
+          member_id,
           loan_amount,
           term,
           loan_status,
@@ -83,6 +84,38 @@ const Treasurer_Approval = () => {
 
       if (koicaError) throw koicaError;
 
+      const needsMemberFallback = (loansData || []).filter(
+        (row) => row.member_id && !row.member?.first_name && !row.member?.last_name
+      );
+
+      if (needsMemberFallback.length > 0) {
+        const unresolvedMemberIds = [...new Set(needsMemberFallback.map((row) => row.member_id))];
+
+        const fetchMembersFrom = async (tableName, keyColumn) => {
+          const { data, error } = await supabase
+            .from(tableName)
+            .select(`${keyColumn}, first_name, last_name, is_bona_fide`)
+            .in(keyColumn, unresolvedMemberIds);
+          if (error) return [];
+          return (data || []).map((row) => ({ ...row, __fkKey: row[keyColumn] }));
+        };
+
+        let memberRows = await fetchMembersFrom("member", "id");
+
+        if (memberRows.length) {
+          const memberById = memberRows.reduce((acc, row) => {
+            if (row.__fkKey) acc[row.__fkKey] = row;
+            return acc;
+          }, {});
+
+          for (const row of loansData) {
+            if ((!row.member?.first_name && !row.member?.last_name) && row.member_id && memberById[row.member_id]) {
+              row.member = memberById[row.member_id];
+            }
+          }
+        }
+      }
+
       const mappedKoica = (koicaData || []).map((row) => ({
         ...row,
         source: "koica",
@@ -94,7 +127,7 @@ const Treasurer_Approval = () => {
       }));
 
       const combinedQueue = [...mappedLoans, ...mappedKoica]
-        .filter((loan) => String(loan.loan_status || "").trim().toLowerCase() === "pending")
+        .filter((loan) => String(loan.loan_status || "").trim().toLowerCase() === "to be disbursed")
         .sort((a, b) => new Date(b.application_date || 0) - new Date(a.application_date || 0));
 
       setLoans(combinedQueue);

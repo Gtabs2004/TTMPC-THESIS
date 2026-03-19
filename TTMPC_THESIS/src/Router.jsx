@@ -58,6 +58,7 @@ import Treasurer_ApprovalDetails from "./Treasurer/Components/Treasurer_Approval
 import Cashier_CBU from "./Cashier/Components/Cashier_CBU";
 import Cashier_Withdrawals from "./Cashier/Components/Cashier_Withdrawals";
 import Cashier_Payments from "./Cashier/Components/Cashier_Payments";
+import Cashier_Disbursement from "./Cashier/Components/Cashier_Disbursement";
 
 
 
@@ -125,9 +126,11 @@ export const router = createBrowserRouter([
     {path: "/Cashier_CBU", element:<Cashier_CBU/>},
     {path: "/Cashier_Withdrawals", element:<Cashier_Withdrawals/>},
     {path: "/Cashier_Payments", element:<Cashier_Payments/>},
+    {path: "/Cashier_Disbursement", element:<Cashier_Disbursement/>},
     {path: "/capital-build-up", element:<Cashier_CBU/>},
     {path: "/withdrawals", element:<Cashier_Withdrawals/>},
     {path: "/cashier-withdrawals", element:<Cashier_Withdrawals/>},
     {path: "/payments-cashier", element:<Cashier_Payments/>},
-    {path: "/cashier-payments", element:<Cashier_Payments/>}
+    {path: "/cashier-payments", element:<Cashier_Payments/>},
+    {path: "/cashier-disbursement", element:<Cashier_Disbursement/>}
 ]);

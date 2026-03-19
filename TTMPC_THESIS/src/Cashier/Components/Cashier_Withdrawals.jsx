@@ -29,6 +29,7 @@ const Cashier_Withdrawals = () => {
   const menuItems = [
     { name: "Dashboard", icon: LayoutDashboard, path: "/Cashier_Dashboard" },
     { name: "Payments", icon: Banknote, path: "/Cashier_Payments" },
+    { name: "Disbursement", icon: Banknote, path: "/Cashier_Disbursement" },
     { 
       name: "Deposits", 
       icon: Banknote, 
