@@ -150,7 +150,17 @@ class BookkeeperPaymentDecisionRequest(BaseModel):
     notes: str | None = None
 
 
+class CashierCBUDepositRequest(BaseModel):
+    member_id: str = Field(..., min_length=1)
+    deposit_amount: Decimal = Field(..., gt=0)
+    deposit_account: str = Field(default="Cash")
+    transaction_date: datetime | None = None
+    cbu_deposit_id: str | None = None
+
+
 TWOPLACES = Decimal("0.01")
+CBU_STARTING_CAPITAL = Decimal("500")
+CBU_SHARE_VALUE = Decimal("1000")
 
 
 def money(value: Decimal) -> Decimal:
@@ -212,6 +222,21 @@ def parse_date_value(value: str | None) -> date | None:
         return datetime.fromisoformat(str(value).replace("Z", "+00:00")).date()
     except ValueError:
         return None
+
+
+def build_cbu_deposit_id(sequence_number: int) -> str:
+    safe_seq = max(int(sequence_number), 1)
+    return f"CBUD_{safe_seq:03d}"
+
+
+def resolve_member_full_name(member_row: dict) -> str:
+    parts = [
+        str(member_row.get("first_name") or "").strip(),
+        str(member_row.get("middle_initial") or "").strip(),
+        str(member_row.get("last_name") or "").strip(),
+    ]
+    name = " ".join(part for part in parts if part)
+    return name or "Unknown Member"
 
 
 def build_single_schedule_row(
@@ -591,6 +616,285 @@ async def get_cashier_ready_for_disbursement_loans():
         return {"success": True, "data": mapped}
     except Exception as err:
         raise HTTPException(status_code=500, detail=f"Failed to fetch ready disbursement loans: {err}")
+
+
+@app.get("/api/cashier/cbu/members")
+async def get_cashier_cbu_members():
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+
+    try:
+        try:
+            member_response = (
+                supabase.table("member")
+                .select("id,membership_id,first_name,middle_initial,last_name")
+                .execute()
+            )
+        except Exception as err:
+            raise HTTPException(status_code=500, detail=f"Unable to load members: {err}")
+
+        member_rows = member_response.data or []
+
+        cbu_rows = []
+        try:
+            cbu_response = (
+                supabase.table("capital_build_up")
+                .select("id,member_id,transaction_date,starting_share_capital,capital_added,ending_share_capital,cbu_deposit_id")
+                .execute()
+            )
+            cbu_rows = cbu_response.data or []
+        except Exception:
+            cbu_response = (
+                supabase.table("capital_build_up")
+                .select("id,member_id,transaction_date,starting_share_capital,capital_added,ending_share_capital")
+                .execute()
+            )
+            cbu_rows = cbu_response.data or []
+
+        latest_cbu_by_member: dict[str, dict] = {}
+        for row in cbu_rows:
+            member_id = str(row.get("member_id") or "").strip()
+            if not member_id:
+                continue
+            previous = latest_cbu_by_member.get(member_id)
+            current_ts = str(row.get("transaction_date") or "")
+            previous_ts = str(previous.get("transaction_date") or "") if previous else ""
+            if (not previous) or current_ts > previous_ts:
+                latest_cbu_by_member[member_id] = row
+
+        mapped_members = []
+        for member in member_rows:
+            member_uuid = str(member.get("id") or "").strip()
+            if not member_uuid:
+                continue
+
+            latest = latest_cbu_by_member.get(member_uuid)
+            is_new_member = latest is None
+            current_balance = Decimal(str(latest.get("ending_share_capital") if latest else CBU_STARTING_CAPITAL))
+            if current_balance < 0:
+                current_balance = Decimal("0")
+
+            mapped_members.append(
+                {
+                    "member_uuid": member_uuid,
+                    "member_id": member.get("membership_id") or member_uuid,
+                    "member_name": resolve_member_full_name(member),
+                    "current_balance": decimal_to_float(current_balance),
+                    "current_shares": decimal_to_float(current_balance / CBU_SHARE_VALUE),
+                    "is_new_member": is_new_member,
+                    "starting_capital": decimal_to_float(CBU_STARTING_CAPITAL),
+                }
+            )
+
+        mapped_members.sort(key=lambda row: str(row.get("member_name") or "").lower())
+        return {"success": True, "data": mapped_members}
+    except HTTPException as err:
+        raise err
+    except Exception as err:
+        raise HTTPException(status_code=500, detail=f"Failed to load CBU members: {err}")
+
+
+@app.get("/api/cashier/cbu/members/{member_ref}")
+async def get_cashier_cbu_member(member_ref: str):
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+
+    try:
+        clean_ref = str(member_ref or "").strip()
+        if not clean_ref:
+            raise HTTPException(status_code=400, detail="member_ref is required.")
+
+        members_payload = await get_cashier_cbu_members()
+        members = members_payload.get("data") or []
+
+        target = next(
+            (
+                row
+                for row in members
+                if str(row.get("member_uuid") or "") == clean_ref
+                or str(row.get("member_id") or "") == clean_ref
+            ),
+            None,
+        )
+
+        if not target:
+            raise HTTPException(status_code=404, detail="Member not found.")
+
+        return {"success": True, "data": target}
+    except HTTPException as err:
+        raise err
+    except Exception as err:
+        raise HTTPException(status_code=500, detail=f"Failed to load CBU member: {err}")
+
+
+@app.get("/api/cashier/cbu/transactions")
+async def get_cashier_cbu_transactions():
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+
+    try:
+        try:
+            response = (
+                supabase.table("capital_build_up")
+                .select("id,member_id,transaction_date,capital_added,deposit_account,cbu_deposit_id,member:member_id(first_name,middle_initial,last_name,membership_id)")
+                .order("transaction_date", desc=True)
+                .execute()
+            )
+        except Exception:
+            response = (
+                supabase.table("capital_build_up")
+                .select("id,member_id,transaction_date,capital_added,deposit_account,member:member_id(first_name,middle_initial,last_name,membership_id)")
+                .order("transaction_date", desc=True)
+                .execute()
+            )
+
+        rows = response.data or []
+        mapped = []
+        for idx, row in enumerate(rows, start=1):
+            member = row.get("member") or {}
+            mapped.append(
+                {
+                    "cbu_deposit_id": row.get("cbu_deposit_id") or build_cbu_deposit_id(idx),
+                    "member_id": member.get("membership_id") or row.get("member_id"),
+                    "member_name": resolve_member_full_name(member),
+                    "capital_added": decimal_to_float(row.get("capital_added") or 0),
+                    "deposit_account": row.get("deposit_account") or "Cash",
+                    "transaction_date": row.get("transaction_date"),
+                    "status": "VERIFIED",
+                }
+            )
+
+        return {"success": True, "data": mapped}
+    except Exception as err:
+        raise HTTPException(status_code=500, detail=f"Failed to load CBU transactions: {err}")
+
+
+@app.post("/api/cashier/cbu/deposits")
+async def create_cashier_cbu_deposit(payload: CashierCBUDepositRequest):
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+
+    try:
+        member_ref = str(payload.member_id or "").strip()
+        if not member_ref:
+            raise HTTPException(status_code=400, detail="member_id is required.")
+
+        members_payload = await get_cashier_cbu_members()
+        members = members_payload.get("data") or []
+        member_row = next(
+            (
+                row
+                for row in members
+                if str(row.get("member_uuid") or "") == member_ref
+                or str(row.get("member_id") or "") == member_ref
+            ),
+            None,
+        )
+        if not member_row:
+            raise HTTPException(status_code=404, detail="Member not found.")
+
+        member_uuid = str(member_row.get("member_uuid") or "").strip()
+        if not member_uuid:
+            raise HTTPException(status_code=400, detail="Member UUID is missing.")
+
+        deposit_amount = Decimal(str(payload.deposit_amount or 0))
+        if deposit_amount <= 0:
+            raise HTTPException(status_code=400, detail="deposit_amount must be greater than zero.")
+
+        latest_cbu_response = (
+            supabase.table("capital_build_up")
+            .select("ending_share_capital")
+            .eq("member_id", member_uuid)
+            .order("transaction_date", desc=True)
+            .limit(1)
+            .execute()
+        )
+        latest_cbu_row = (latest_cbu_response.data or [None])[0]
+
+        starting_balance = Decimal(str((latest_cbu_row or {}).get("ending_share_capital") or CBU_STARTING_CAPITAL))
+        if starting_balance < 0:
+            starting_balance = Decimal("0")
+        ending_balance = starting_balance + deposit_amount
+
+        sequence_count_response = supabase.table("capital_build_up").select("id").execute()
+        next_sequence = len(sequence_count_response.data or []) + 1
+
+        cbu_deposit_id = build_cbu_deposit_id(next_sequence)
+
+        # Keep IDs unique even if the frontend sends a fixed placeholder (e.g., CBUD_001).
+        try:
+            existing_id_response = (
+                supabase.table("capital_build_up")
+                .select("id")
+                .eq("cbu_deposit_id", cbu_deposit_id)
+                .limit(1)
+                .execute()
+            )
+            if existing_id_response.data:
+                fallback_sequence = next_sequence
+                while True:
+                    candidate = build_cbu_deposit_id(fallback_sequence)
+                    candidate_exists = (
+                        supabase.table("capital_build_up")
+                        .select("id")
+                        .eq("cbu_deposit_id", candidate)
+                        .limit(1)
+                        .execute()
+                    )
+                    if not candidate_exists.data:
+                        cbu_deposit_id = candidate
+                        break
+                    fallback_sequence += 1
+        except Exception:
+            # If cbu_deposit_id column does not exist yet, insertion fallback handles it.
+            pass
+
+        insert_payload = {
+            "member_id": member_uuid,
+            "transaction_date": (payload.transaction_date or datetime.utcnow()).isoformat(),
+            "starting_share_capital": decimal_to_float(starting_balance),
+            "capital_added": decimal_to_float(deposit_amount),
+            "deposit_account": str(payload.deposit_account or "Cash").strip() or "Cash",
+            "ending_share_capital": decimal_to_float(ending_balance),
+            "cbu_deposit_id": cbu_deposit_id,
+        }
+
+        inserted_row = None
+        try:
+            insert_response = supabase.table("capital_build_up").insert(insert_payload).execute()
+            inserted_row = (insert_response.data or [None])[0]
+        except Exception:
+            fallback_payload = {
+                "member_id": member_uuid,
+                "transaction_date": insert_payload["transaction_date"],
+                "starting_share_capital": insert_payload["starting_share_capital"],
+                "capital_added": insert_payload["capital_added"],
+                "deposit_account": insert_payload["deposit_account"],
+                "ending_share_capital": insert_payload["ending_share_capital"],
+            }
+            insert_response = supabase.table("capital_build_up").insert(fallback_payload).execute()
+            inserted_row = (insert_response.data or [None])[0]
+
+        return {
+            "success": True,
+            "message": "CBU deposit recorded successfully.",
+            "data": {
+                "cbu_deposit_id": (inserted_row or {}).get("cbu_deposit_id") or cbu_deposit_id,
+                "member_id": member_row.get("member_id"),
+                "member_uuid": member_uuid,
+                "member_name": member_row.get("member_name"),
+                "starting_balance": decimal_to_float(starting_balance),
+                "capital_added": decimal_to_float(deposit_amount),
+                "ending_balance": decimal_to_float(ending_balance),
+                "ending_shares": decimal_to_float(ending_balance / CBU_SHARE_VALUE),
+                "transaction_date": (inserted_row or {}).get("transaction_date") or insert_payload["transaction_date"],
+                "deposit_account": insert_payload["deposit_account"],
+            },
+        }
+    except HTTPException as err:
+        raise err
+    except Exception as err:
+        raise HTTPException(status_code=500, detail=f"Failed to create CBU deposit: {err}")
 
 
 @app.post("/api/cashier/disbursements/{loan_id}/disburse")
@@ -1051,6 +1355,215 @@ async def get_bookkeeper_loan_ledger(loan_id: str):
         raise HTTPException(status_code=404, detail="Loan ledger not found.")
 
     return {"success": True, "data": target}
+
+
+@app.get("/api/member/lifecycle/{member_id}")
+async def get_member_lifecycle(member_id: str):
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+
+    try:
+        clean_member_id = str(member_id or "").strip()
+        if not clean_member_id:
+            raise HTTPException(status_code=400, detail="member_id is required.")
+
+        member_response = (
+            supabase.table("member")
+            .select("*")
+            .eq("id", clean_member_id)
+            .limit(1)
+            .execute()
+        )
+        member_row = (member_response.data or [None])[0]
+        if not member_row:
+            raise HTTPException(status_code=404, detail="Member not found.")
+
+        account_email = ""
+        for account_table in ["member_account", "member_accounts"]:
+            try:
+                account_response = (
+                    supabase.table(account_table)
+                    .select("email")
+                    .eq("user_id", clean_member_id)
+                    .limit(1)
+                    .execute()
+                )
+                account_row = (account_response.data or [None])[0]
+                if account_row and account_row.get("email"):
+                    account_email = str(account_row.get("email") or "").strip()
+                    break
+            except Exception:
+                continue
+
+        application_row = None
+        membership_id = str(member_row.get("membership_id") or "").strip()
+        if membership_id:
+            try:
+                app_by_membership = (
+                    supabase.table("member_applications")
+                    .select("*")
+                    .eq("membership_id", membership_id)
+                    .order("created_at", desc=True)
+                    .limit(1)
+                    .execute()
+                )
+                application_row = (app_by_membership.data or [None])[0]
+            except Exception:
+                application_row = None
+
+        if not application_row and account_email:
+            try:
+                app_by_email = (
+                    supabase.table("member_applications")
+                    .select("*")
+                    .ilike("email", account_email)
+                    .order("created_at", desc=True)
+                    .limit(1)
+                    .execute()
+                )
+                application_row = (app_by_email.data or [None])[0]
+            except Exception:
+                application_row = None
+
+        full_name = " ".join(
+            part for part in [
+                application_row.get("first_name") if application_row else None,
+                application_row.get("middle_name") if application_row else None,
+                (application_row.get("surname") if application_row else None)
+                or (application_row.get("last_name") if application_row else None)
+                or member_row.get("last_name"),
+            ] if part
+        ).strip()
+
+        profile_payload = {
+            "full_name": full_name or "N/A",
+            "member_id": member_row.get("membership_id") or "N/A",
+            "email": (application_row.get("email") if application_row else None) or account_email or "N/A",
+            "mobile": (application_row.get("contact_number") if application_row else None) or "N/A",
+            "civil_status": (application_row.get("civil_status") if application_row else None) or "N/A",
+            "gender": (application_row.get("gender") if application_row else None) or "N/A",
+            "employer": (application_row.get("employer_name") if application_row else None) or "N/A",
+            "position": (application_row.get("position") if application_row else None) or (application_row.get("occupation") if application_row else None) or "N/A",
+            "salary_grade": (application_row.get("salary_grade") if application_row else None) or "N/A",
+            "address": (application_row.get("permanent_address") if application_row else None) or "N/A",
+        }
+
+        loans_response = (
+            supabase.table("loans")
+            .select(
+                "control_number,loan_amount,principal_amount,interest_rate,monthly_amortization,term,loan_status,application_status,application_date,disbursal_date," \
+                "loan_type:loan_type_id(name)"
+            )
+            .eq("member_id", clean_member_id)
+            .order("application_date", desc=True)
+            .execute()
+        )
+        loan_rows = loans_response.data or []
+
+        loan_ids = [str(row.get("control_number") or "").strip() for row in loan_rows if row.get("control_number")]
+
+        schedules_by_loan: dict[str, list[dict]] = {}
+        if loan_ids:
+            try:
+                schedules_response = (
+                    supabase.table("loan_schedules")
+                    .select("id,schedule_id,loan_id,installment_no,due_date,expected_amount,expected_principal,expected_interest,principal_component,interest_component,schedule_status")
+                    .in_("loan_id", loan_ids)
+                    .order("due_date")
+                    .execute()
+                )
+                for row in schedules_response.data or []:
+                    schedules_by_loan.setdefault(str(row.get("loan_id") or ""), []).append(row)
+            except Exception:
+                schedules_by_loan = {}
+
+        payment_rows = []
+        if loan_ids:
+            payments_response = (
+                supabase.table("loan_payments")
+                .select("id,payment_reference,loan_id,schedule_id,amount_paid,penalties,payment_date,confirmation_status,transaction_reference")
+                .in_("loan_id", loan_ids)
+                .order("payment_date", desc=True)
+                .execute()
+            )
+            payment_rows = payments_response.data or []
+
+        mapped_loans = []
+        for row in loan_rows:
+            loan_id = str(row.get("control_number") or "").strip()
+            if not loan_id:
+                continue
+
+            ordered_schedules = sorted(
+                schedules_by_loan.get(loan_id, []),
+                key=lambda sched: str(sched.get("due_date") or ""),
+            )
+
+            mapped_schedules = [
+                {
+                    "schedule_id": sched.get("schedule_id") or sched.get("id"),
+                    "installment_no": int(sched.get("installment_no") or 0),
+                    "due_date": sched.get("due_date"),
+                    "expected_amount": decimal_to_float(sched.get("expected_amount") or 0),
+                    "expected_principal": decimal_to_float(sched.get("expected_principal") or sched.get("principal_component") or 0),
+                    "expected_interest": decimal_to_float(sched.get("expected_interest") or sched.get("interest_component") or 0),
+                    "schedule_status": sched.get("schedule_status") or "unpaid",
+                }
+                for sched in ordered_schedules
+            ]
+
+            next_due_schedule = next(
+                (
+                    sched
+                    for sched in mapped_schedules
+                    if str(sched.get("schedule_status") or "").strip().lower() in {"unpaid", "pending", "overdue", ""}
+                ),
+                None,
+            )
+
+            mapped_loans.append(
+                {
+                    "loan_id": loan_id,
+                    "loan_type": (row.get("loan_type") or {}).get("name") or "N/A",
+                    "principal": decimal_to_float(row.get("principal_amount") or row.get("loan_amount") or 0),
+                    "monthly_amortization": decimal_to_float(row.get("monthly_amortization") or 0),
+                    "term": int(row.get("term") or 0),
+                    "loan_status": row.get("loan_status") or "N/A",
+                    "application_status": row.get("application_status") or "N/A",
+                    "application_date": row.get("application_date"),
+                    "disbursal_date": row.get("disbursal_date"),
+                    "schedules": mapped_schedules,
+                    "next_due_schedule": next_due_schedule,
+                }
+            )
+
+        mapped_payments = [
+            {
+                "payment_id": row.get("payment_reference") or row.get("id"),
+                "loan_id": row.get("loan_id"),
+                "schedule_id": row.get("schedule_id"),
+                "reference_no": row.get("transaction_reference") or row.get("payment_reference") or row.get("id"),
+                "amount_paid": decimal_to_float(row.get("amount_paid") or 0),
+                "penalties": decimal_to_float(row.get("penalties") or 0),
+                "payment_date": row.get("payment_date"),
+                "confirmation_status": row.get("confirmation_status") or "pending_bookkeeper",
+            }
+            for row in payment_rows
+        ]
+
+        return {
+            "success": True,
+            "data": {
+                "server_time": datetime.utcnow().isoformat(),
+                "profile": profile_payload,
+                "loans": mapped_loans,
+                "payments": mapped_payments,
+            },
+        }
+    except HTTPException as err:
+        raise err
+    except Exception as err:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch member lifecycle: {err}")
 
 
 @app.get("/api/bookkeeper/payments/pending")

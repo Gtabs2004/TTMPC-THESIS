@@ -149,7 +149,7 @@ BEGIN
        OR lower(coalesce(ma.email, '')) = lower(coalesce(auth.email(), ''))
     LIMIT 1;
 
-    IF v_role IN ('bod', 'manager') THEN
+    IF v_role IN ('bod', 'manager', 'cashier', 'treasurer') THEN
       RETURN true;
     END IF;
   END IF;
@@ -162,7 +162,7 @@ BEGIN
        OR lower(coalesce(ma.email, '')) = lower(coalesce(auth.email(), ''))
     LIMIT 1;
 
-    IF v_role IN ('bod', 'manager') THEN
+    IF v_role IN ('bod', 'manager', 'cashier', 'treasurer') THEN
       RETURN true;
     END IF;
   END IF;
@@ -174,7 +174,7 @@ BEGIN
     ''
   )));
 
-  RETURN v_role IN ('bod', 'manager');
+  RETURN v_role IN ('bod', 'manager', 'cashier', 'treasurer');
 END;
 $$;
 
