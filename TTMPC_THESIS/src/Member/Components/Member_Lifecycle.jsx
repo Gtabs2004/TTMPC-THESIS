@@ -111,74 +111,38 @@ const Member_Lifecycle = () => {
       const authEmail = authData?.user?.email || "";
       if (!memberId) throw new Error("Please sign in again to load your loan lifecycle.");
 
-      setFetchStage("Loading member profile...");
-      const { data: memberRow, error: memberError } = await supabase
-        .from("member")
-        .select("*")
-        .eq("id", memberId)
-        .maybeSingle();
-      if (memberError) throw memberError;
-
-      let applicationRow = null;
-      if (memberRow?.membership_id) {
-        const { data } = await supabase
-          .from("member_applications")
-          .select("*")
-          .eq("membership_id", memberRow.membership_id)
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .maybeSingle();
-        if (data) applicationRow = data;
+      setFetchStage("Loading lifecycle data from backend...");
+      const lifecycleResponse = await fetch(`${API_BASE_URL}/api/member/lifecycle/${encodeURIComponent(memberId)}`, {
+        method: "GET",
+        headers: { Accept: "application/json" },
+      });
+      const lifecyclePayload = await lifecycleResponse.json().catch(() => ({}));
+      if (!lifecycleResponse.ok || !lifecyclePayload?.success) {
+        throw new Error(lifecyclePayload?.detail || lifecyclePayload?.message || "Unable to load lifecycle data from backend.");
       }
 
-      if (!applicationRow && authEmail) {
-        const { data } = await supabase
-          .from("member_applications")
-          .select("*")
-          .ilike("email", authEmail)
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .maybeSingle();
-        if (data) applicationRow = data;
-      }
-
-      const fullName = [
-        applicationRow?.first_name || memberRow?.first_name,
-        applicationRow?.middle_name || memberRow?.middle_initial,
-        applicationRow?.surname || applicationRow?.last_name || memberRow?.last_name,
-      ]
-        .filter(Boolean)
-        .join(" ")
-        .trim();
+      const lifecycleData = lifecyclePayload?.data || {};
+      const profileRow = lifecycleData?.profile || {};
+      const backendLoans = Array.isArray(lifecycleData?.loans) ? lifecycleData.loans : [];
+      const backendPayments = Array.isArray(lifecycleData?.payments) ? lifecycleData.payments : [];
 
       setProfile({
-        fullName: fullName || "N/A",
-        memberId: memberRow?.membership_id || "N/A",
-        email: applicationRow?.email || authEmail || "N/A",
-        mobile: applicationRow?.contact_number || "N/A",
-        civilStatus: applicationRow?.civil_status || "N/A",
-        gender: applicationRow?.gender || "N/A",
-        employer: applicationRow?.employer_name || "N/A",
-        position: applicationRow?.position || applicationRow?.occupation || "N/A",
-        salaryGrade: applicationRow?.salary_grade || "N/A",
-        address: applicationRow?.permanent_address || "N/A",
+        fullName: profileRow.full_name || "N/A",
+        memberId: profileRow.member_id || "N/A",
+        email: profileRow.email || authEmail || "N/A",
+        mobile: profileRow.mobile || "N/A",
+        civilStatus: profileRow.civil_status || "N/A",
+        gender: profileRow.gender || "N/A",
+        employer: profileRow.employer || "N/A",
+        position: profileRow.position || "N/A",
+        salaryGrade: profileRow.salary_grade || "N/A",
+        address: profileRow.address || "N/A",
       });
 
-      setFetchStage("Fetching loans and lifecycle statuses...");
-      const { data: loanRows, error: loanError } = await supabase
-        .from("loans")
-        .select(
-          "control_number,loan_amount,principal_amount,interest_rate,monthly_amortization,term,loan_status,application_status,application_date,disbursal_date,loan_type:loan_type_id(name)"
-        )
-        .eq("member_id", memberId)
-        .order("application_date", { ascending: false });
-
-      if (loanError) throw loanError;
-
-      const normalizedLoans = (loanRows || []).map((loan) => ({
-        loan_id: loan.control_number,
-        loan_type: loan.loan_type?.name || "N/A",
-        principal: Number(loan.principal_amount ?? loan.loan_amount ?? 0),
+      const normalizedLoans = backendLoans.map((loan) => ({
+        loan_id: loan.loan_id,
+        loan_type: loan.loan_type || "N/A",
+        principal: Number(loan.principal || 0),
         monthly_amortization: Number(loan.monthly_amortization || 0),
         term: Number(loan.term || 0),
         loan_status: loan.loan_status || "N/A",
@@ -187,61 +151,39 @@ const Member_Lifecycle = () => {
         application_date: loan.application_date,
         disbursal_date: loan.disbursal_date,
       }));
-
       setLoans(normalizedLoans);
 
-      const loanIds = normalizedLoans.map((loan) => loan.loan_id).filter(Boolean);
-      let normalizedSchedules = [];
-      if (loanIds.length > 0) {
-        setFetchStage("Fetching loan schedules...");
-        const { data: scheduleRows, error: scheduleError } = await supabase
-          .from("loan_schedules")
-          .select(
-            "loan_id,installment_no,due_date,expected_amount,expected_principal,expected_interest,principal_component,interest_component,schedule_status"
-          )
-          .in("loan_id", loanIds)
-          .order("due_date", { ascending: true });
-
-        if (scheduleError) {
-          setScheduleWarning(`Loan schedules are unavailable right now: ${scheduleError.message || "query failed"}`);
-        } else {
-          normalizedSchedules = (scheduleRows || []).map((row) => ({
-            loan_id: row.loan_id,
-            installment_no: Number(row.installment_no || 0),
-            due_date: row.due_date,
-            expected_amount: Number(row.expected_amount || 0),
-            expected_principal: Number(row.expected_principal ?? row.principal_component ?? 0),
-            expected_interest: Number(row.expected_interest ?? row.interest_component ?? 0),
-            schedule_status: row.schedule_status || "unpaid",
-          }));
-        }
-      }
+      const normalizedSchedules = backendLoans
+        .map((loan) => {
+          const nextDue = loan.next_due_schedule || null;
+          if (!nextDue) return null;
+          return {
+            loan_id: loan.loan_id,
+            installment_no: Number(nextDue.installment_no || 0),
+            due_date: nextDue.due_date,
+            expected_amount: Number(nextDue.expected_amount || 0),
+            expected_principal: Number(nextDue.expected_principal || 0),
+            expected_interest: Number(nextDue.expected_interest || 0),
+            schedule_status: nextDue.schedule_status || "unpaid",
+          };
+        })
+        .filter(Boolean);
       setSchedules(normalizedSchedules);
 
-      setFetchStage("Fetching recorded payments and validations...");
-      const ledgerRequests = normalizedLoans.map(async (loan) => {
-        try {
-          const response = await fetch(`${API_BASE_URL}/api/bookkeeper/loan-ledger/${encodeURIComponent(loan.loan_id)}`);
-          const payload = await response.json().catch(() => ({}));
-          if (!response.ok || !payload?.success) return [];
+      if (normalizedLoans.length > 0 && normalizedSchedules.length === 0) {
+        setScheduleWarning("No schedules were returned by backend for your current loans.");
+      }
 
-          const history = Array.isArray(payload?.data?.payment_history) ? payload.data.payment_history : [];
-          return history.map((row) => ({
-            loan_id: loan.loan_id,
-            payment_id: row.payment_id || row.reference_no || "N/A",
-            reference_no: row.reference_no || row.payment_id || "N/A",
-            amount_paid: Number(row.amount_paid || 0),
-            penalties: Number(row.penalties || 0),
-            remaining_after: Number(row.remaining_after || 0),
-            payment_date: row.date_paid,
-            confirmation_status: row.confirmation_status || "pending_bookkeeper",
-          }));
-        } catch {
-          return [];
-        }
-      });
-
-      const paymentRows = (await Promise.all(ledgerRequests)).flat();
+      const paymentRows = backendPayments.map((row) => ({
+        loan_id: row.loan_id,
+        payment_id: row.payment_id || "N/A",
+        reference_no: row.reference_no || row.payment_id || "N/A",
+        amount_paid: Number(row.amount_paid || 0),
+        penalties: Number(row.penalties || 0),
+        remaining_after: Number(row.remaining_after || 0),
+        payment_date: row.payment_date,
+        confirmation_status: row.confirmation_status || "pending_bookkeeper",
+      }));
       paymentRows.sort((a, b) => new Date(b.payment_date || 0).getTime() - new Date(a.payment_date || 0).getTime());
       setPayments(paymentRows);
       setLastSynced(new Date().toISOString());
