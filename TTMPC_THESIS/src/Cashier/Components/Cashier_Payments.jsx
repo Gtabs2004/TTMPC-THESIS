@@ -70,9 +70,9 @@ const formatSequenceId = (prefix, sequenceNumber) => {
 };
 
 const getMonthlyInterestRate = (loan) => {
-  if (loan.loan_type === "consolidated") return 0.0083; // 0.83% monthly
-  if (loan.loan_type === "emergency") return 0.02; // 2% monthly, diminishing
-  if (loan.loan_type === "bonus") return loan.is_migs_member ? 0.02 : 0.03; // 2% MIGS / 3% non-MIGS
+  if (loan.loan_type === "consolidated") return 0.00083;
+  if (loan.loan_type === "emergency") return 0.02; 
+  if (loan.loan_type === "bonus") return loan.is_migs_member ? 0.02 : 0.03; 
   return 0;
 };
 
@@ -83,14 +83,14 @@ const calculateAmortization = (loan) => {
 
   if (principal <= 0 || months <= 0) return 0;
 
-  // Emergency uses diminishing balance (EMI formula).
+
   if (loan.loan_type === "emergency") {
     const factor = Math.pow(1 + monthlyRate, months);
     const emi = (principal * monthlyRate * factor) / (factor - 1);
     return roundCurrency(emi);
   }
 
-  // Consolidated and Bonus use flat monthly amortization.
+
   const totalPayable = principal * (1 + monthlyRate * months);
   return roundCurrency(totalPayable / months);
 };

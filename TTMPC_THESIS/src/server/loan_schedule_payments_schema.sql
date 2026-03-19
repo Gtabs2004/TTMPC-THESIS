@@ -40,7 +40,9 @@ ALTER TABLE public.loans
       'cancelled',
       'released',
       'ready for disbursement',
-      'to be disbursed'
+      'to be disbursed',
+      'partially paid',
+      'fully paid'
     )
   );
 
@@ -167,6 +169,29 @@ CREATE UNIQUE INDEX IF NOT EXISTS loan_schedules_schedule_id_uk
   ON public.loan_schedules (schedule_id)
   WHERE schedule_id IS NOT NULL;
 
+-- Resolve legacy duplicates first so unique active-due index can be created safely.
+WITH ranked_active AS (
+  SELECT
+    id,
+    loan_id,
+    row_number() OVER (
+      PARTITION BY loan_id
+      ORDER BY due_date ASC, installment_no ASC, created_at ASC, id ASC
+    ) AS rn
+  FROM public.loan_schedules
+  WHERE lower(coalesce(schedule_status, '')) IN ('unpaid', 'pending', 'overdue')
+)
+UPDATE public.loan_schedules ls
+SET schedule_status = 'Paid'
+FROM ranked_active ra
+WHERE ls.id = ra.id
+  AND ra.rn > 1;
+
+-- Single-active-schedule guardrail: at most one current due row per loan.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_loan_schedules_one_active_due_per_loan
+  ON public.loan_schedules (loan_id)
+  WHERE lower(coalesce(schedule_status, '')) IN ('unpaid', 'pending', 'overdue');
+
 CREATE INDEX IF NOT EXISTS idx_loan_schedules_loan_id
   ON public.loan_schedules (loan_id);
 
@@ -182,15 +207,31 @@ CREATE TABLE IF NOT EXISTS public.loan_payments (
   loan_id varchar NOT NULL REFERENCES public.loans(control_number) ON DELETE CASCADE,
   schedule_id uuid NOT NULL REFERENCES public.loan_schedules(id) ON DELETE RESTRICT,
   transaction_id uuid,
-  amount_paid numeric NOT NULL CHECK (amount_paid >= 0),
+  payment_reference text,
+  transaction_reference text,
+  amount_paid numeric NOT NULL CHECK (amount_paid > 0),
   payment_date timestamptz NOT NULL DEFAULT now(),
   penalties numeric NOT NULL DEFAULT 0 CHECK (penalties >= 0),
   deficiency numeric NOT NULL DEFAULT 0 CHECK (deficiency >= 0),
+  confirmation_status text NOT NULL DEFAULT 'pending_bookkeeper',
+  confirmed_at timestamptz,
+  confirmed_by uuid,
+  validated_by uuid,
+  validation_notes text,
+  reviewed_at timestamptz,
+  reviewed_by uuid,
+  rejection_reason text,
+  entered_by_role text NOT NULL DEFAULT 'cashier',
+  entered_by uuid,
   created_at timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT loan_payments_schedule_loan_fk
     FOREIGN KEY (schedule_id, loan_id)
     REFERENCES public.loan_schedules (id, loan_id)
-    ON DELETE RESTRICT
+    ON DELETE RESTRICT,
+  CONSTRAINT loan_payments_confirmation_status_chk
+    CHECK (lower(coalesce(confirmation_status, '')) IN ('pending_bookkeeper', 'validated', 'rejected')),
+  CONSTRAINT loan_payments_entered_by_role_chk
+    CHECK (lower(coalesce(entered_by_role, 'cashier')) IN ('cashier', 'bookkeeper', 'system'))
 );
 
 CREATE INDEX IF NOT EXISTS idx_loan_payments_loan_id
@@ -198,6 +239,9 @@ CREATE INDEX IF NOT EXISTS idx_loan_payments_loan_id
 
 CREATE INDEX IF NOT EXISTS idx_loan_payments_schedule_id
   ON public.loan_payments (schedule_id);
+
+CREATE INDEX IF NOT EXISTS idx_loan_payments_confirmation_status
+  ON public.loan_payments (confirmation_status);
 
 CREATE INDEX IF NOT EXISTS idx_loan_payments_payment_date
   ON public.loan_payments (payment_date);

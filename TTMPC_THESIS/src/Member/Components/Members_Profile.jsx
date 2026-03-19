@@ -15,7 +15,8 @@ import {
   Contact2,
   ShieldCheck,
   Lock,
-  ChevronRight
+  ChevronRight,
+  History
 } from 'lucide-react';
 
 const Members_Profile = () => {
@@ -40,6 +41,7 @@ const Members_Profile = () => {
   const menuItems = [
     { name: "Dashboard", icon: LayoutDashboard },
     { name: "Member Loans", icon: Activity },
+    { name: "Loan Lifecycle", icon: History },
     { name: "Member Profile", icon: Users },
     { name: "Member Savings", icon: CreditCard }
   ];
@@ -257,6 +259,7 @@ const Members_Profile = () => {
             const routeMap = {
               "Dashboard": "/member-dashboard",
               "Member Loans": "/member-loans",
+              "Loan Lifecycle": "/member-lifecycle",
               "Member Profile": "/members-profile",
               "Member Savings": "/member-savings"
             };

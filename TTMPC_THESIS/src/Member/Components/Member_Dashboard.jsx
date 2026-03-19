@@ -31,6 +31,7 @@ const MemberDashboard = () => {
   const menuItems = [
     { name: "Dashboard", icon: LayoutDashboard },
     { name: "Member Loans", icon: Activity },
+    { name: "Loan Lifecycle", icon: History },
     { name: "Member Profile", icon: Users },
     { name: "Member Savings", icon: CreditCard },
   ];
@@ -249,6 +250,7 @@ const MemberDashboard = () => {
             const routeMap = {
               "Dashboard": "/member-dashboard",
               "Member Loans": "/member-loans",
+              "Loan Lifecycle": "/member-lifecycle",
               "Member Profile": "/members-profile", // Note: removed the 's' here for consistency
               "Member Savings": "/member-savings"
             };

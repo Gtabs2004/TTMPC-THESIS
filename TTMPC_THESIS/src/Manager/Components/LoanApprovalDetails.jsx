@@ -66,7 +66,7 @@ const LoanApprovalDetails = () => {
 
     if (label.includes('bonus') || code === 'BONUS' || code === 'NONMEMBER_BONUS') return 2;
     if (label.includes('emergency') || code === 'EMERGENCY') return 2;
-    if (label.includes('consolidated') || code === 'CONSOLIDATED') return 0.83;
+    if (label.includes('consolidated') || code === 'CONSOLIDATED') return 0.083;
     return null;
   };
 

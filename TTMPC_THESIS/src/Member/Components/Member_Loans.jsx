@@ -14,7 +14,8 @@ import {
   FileText,
   Calculator,
   ArrowRight,
-  Info
+  Info,
+  History
 } from 'lucide-react';
 
 const Member_Loans = () => {
@@ -27,6 +28,7 @@ const Member_Loans = () => {
   const menuItems = [
     { name: "Dashboard", icon: LayoutDashboard },
     { name: "Member Loans", icon: Activity },
+    { name: "Loan Lifecycle", icon: History },
     { name: "Member Profile", icon: Users },
     { name: "Member Savings", icon: CreditCard }
   ];
@@ -171,6 +173,7 @@ const Member_Loans = () => {
             const routeMap = {
               "Dashboard": "/member-dashboard",
               "Member Loans": "/member-loans",
+              "Loan Lifecycle": "/member-lifecycle",
               "Member Profile": "/members-profile",
               "Member Savings": "/member-savings"
             };
@@ -239,6 +242,20 @@ const Member_Loans = () => {
         {/* Scrollable Page Content */}
         <main className="p-8 overflow-y-auto">
           <h1 className="font-extrabold text-[#1a4a2f] text-2xl mb-8">Loans</h1>
+
+          <div className="mb-6 rounded-xl border border-green-200 bg-green-50 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div>
+              <p className="text-sm font-bold text-[#1D6021]">Need the full loan lifecycle?</p>
+              <p className="text-xs text-gray-600">View approvals, status transitions, and real-time recorded payments in one screen.</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => navigate('/member-lifecycle')}
+              className="inline-flex items-center gap-2 rounded-lg bg-[#1D6021] px-4 py-2 text-xs font-bold text-white hover:bg-[#154718]"
+            >
+              <History className="w-4 h-4" /> Open Lifecycle View
+            </button>
+          </div>
           
           {/* Top Summary Cards */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
