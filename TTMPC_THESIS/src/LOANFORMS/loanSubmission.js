@@ -20,7 +20,7 @@ const resolveInterestRate = (loanTypeCode, interestRate) => {
   if (parsed !== null) return parsed;
 
   const code = String(loanTypeCode || '').trim().toUpperCase();
-  if (code === 'CONSOLIDATED') return 0.83;
+  if (code === 'CONSOLIDATED') return 0.083;
   if (code === 'EMERGENCY') return 2;
   if (code === 'BONUS') return 2;
   if (code === 'NONMEMBER_BONUS') return 2;

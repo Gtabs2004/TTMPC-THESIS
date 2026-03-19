@@ -28,7 +28,7 @@ const Cashier_Disbursement = () => {
   const [loading, setLoading] = useState(false);
   const [feedbackMessage, setFeedbackMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
-  const [claimingLoanId, setClaimingLoanId] = useState("");
+  const [disbursingLoanId, setDisbursingLoanId] = useState("");
 
   const menuItems = [
     { name: "Dashboard", icon: LayoutDashboard, path: "/Cashier_Dashboard" },
@@ -74,13 +74,13 @@ const Cashier_Disbursement = () => {
     }
   };
 
-  const handleClaimLoan = async (loanId) => {
-    setClaimingLoanId(loanId);
+  const handleDisburseLoan = async (loanId) => {
+    setDisbursingLoanId(loanId);
     setErrorMessage("");
     setFeedbackMessage("");
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/cashier/disbursements/${loanId}/claim`, {
+      const response = await fetch(`${API_BASE_URL}/api/cashier/disbursements/${loanId}/disburse`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -91,7 +91,7 @@ const Cashier_Disbursement = () => {
 
       const result = await response.json().catch(() => ({}));
       if (!response.ok) {
-        throw new Error(result?.detail || result?.message || "Failed to claim loan disbursement.");
+        throw new Error(result?.detail || result?.message || "Failed to disburse loan.");
       }
 
       const firstDueDate = result?.data?.first_due_date || "N/A";
@@ -102,7 +102,7 @@ const Cashier_Disbursement = () => {
     } catch (error) {
       setErrorMessage(error.message || "Disbursement failed.");
     } finally {
-      setClaimingLoanId("");
+      setDisbursingLoanId("");
     }
   };
 
@@ -283,11 +283,11 @@ const Cashier_Disbursement = () => {
                     <td className="px-4 py-3">
                       <button
                         type="button"
-                        onClick={() => handleClaimLoan(loan.loan_id)}
-                        disabled={claimingLoanId === loan.loan_id}
+                        onClick={() => handleDisburseLoan(loan.loan_id)}
+                        disabled={disbursingLoanId === loan.loan_id}
                         className="rounded-md bg-green-600 px-4 py-2 text-white transition-colors hover:bg-green-700 disabled:cursor-not-allowed disabled:bg-gray-300"
                       >
-                        {claimingLoanId === loan.loan_id ? "Processing..." : "Claim & Disburse"}
+                        {disbursingLoanId === loan.loan_id ? "Processing..." : "Disburse"}
                       </button>
                     </td>
                   </tr>

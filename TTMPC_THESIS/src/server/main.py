@@ -141,8 +141,13 @@ class CashierLoanPaymentCreateRequest(BaseModel):
     transaction_reference: str | None = None
 
 
-class CashierDisbursementClaimRequest(BaseModel):
+class CashierDisbursementRequest(BaseModel):
     disbursed_at: datetime | None = None
+
+
+class BookkeeperPaymentDecisionRequest(BaseModel):
+    validated_by: str | None = None
+    notes: str | None = None
 
 
 TWOPLACES = Decimal("0.01")
@@ -209,75 +214,46 @@ def parse_date_value(value: str | None) -> date | None:
         return None
 
 
-def build_schedule_rows_for_loan(
+def build_single_schedule_row(
     loan_type: str,
     principal: Decimal,
     term_months: int,
     monthly_rate_decimal: Decimal,
-    first_due_date: date,
+    due_date: date,
     loan_id: str,
+    installment_no: int,
+    remaining_principal_before: Decimal,
     start_sequence_number: int,
-) -> list[dict]:
+) -> dict:
     if term_months <= 0:
-        return []
+        raise ValueError("term_months must be greater than zero")
 
-    rows: list[dict] = []
     principal_component = money(principal / Decimal(term_months))
     penalty_rate_percent = Decimal("1") if loan_type == "bonus" else Decimal("2")
-    running_principal = principal
 
     if loan_type == "emergency":
-        remaining_principal = principal
-        for installment_no in range(1, term_months + 1):
-            interest_component = money(max(remaining_principal, Decimal("0")) * monthly_rate_decimal)
-            expected_amount = money(principal_component + interest_component)
-            due_date_value = add_months(first_due_date, installment_no - 1)
-
-            rows.append(
-                {
-                    "schedule_id": build_sequence_id("TTMPCLP_SI_", start_sequence_number + installment_no - 1),
-                    "loan_id": loan_id,
-                    "installment_no": installment_no,
-                    "due_date": due_date_value.isoformat(),
-                    "expected_amount": decimal_to_float(expected_amount),
-                    "expected_principal": decimal_to_float(principal_component),
-                    "expected_interest": decimal_to_float(interest_component),
-                    "penalty": decimal_to_float(penalty_rate_percent),
-                    "salary_schedule_id": None,
-                    "remaining_principal": decimal_to_float(max(running_principal - principal_component, Decimal("0"))),
-                    "principal_component": decimal_to_float(principal_component),
-                    "interest_component": decimal_to_float(interest_component),
-                    "schedule_status": "Unpaid",
-                }
-            )
-            remaining_principal = max(remaining_principal - principal_component, Decimal("0"))
-            running_principal = max(running_principal - principal_component, Decimal("0"))
+        interest_component = money(max(remaining_principal_before, Decimal("0")) * monthly_rate_decimal)
     else:
-        monthly_interest = money(principal * monthly_rate_decimal)
-        expected_amount = money(principal_component + monthly_interest)
+        interest_component = money(principal * monthly_rate_decimal)
 
-        for installment_no in range(1, term_months + 1):
-            due_date_value = add_months(first_due_date, installment_no - 1)
-            rows.append(
-                {
-                    "schedule_id": build_sequence_id("TTMPCLP_SI_", start_sequence_number + installment_no - 1),
-                    "loan_id": loan_id,
-                    "installment_no": installment_no,
-                    "due_date": due_date_value.isoformat(),
-                    "expected_amount": decimal_to_float(expected_amount),
-                    "expected_principal": decimal_to_float(principal_component),
-                    "expected_interest": decimal_to_float(monthly_interest),
-                    "penalty": decimal_to_float(penalty_rate_percent),
-                    "salary_schedule_id": None,
-                    "remaining_principal": decimal_to_float(max(running_principal - principal_component, Decimal("0"))),
-                    "principal_component": decimal_to_float(principal_component),
-                    "interest_component": decimal_to_float(monthly_interest),
-                    "schedule_status": "Unpaid",
-                }
-            )
-            running_principal = max(running_principal - principal_component, Decimal("0"))
+    expected_amount = money(principal_component + interest_component)
+    remaining_after = max(remaining_principal_before - principal_component, Decimal("0"))
 
-    return rows
+    return {
+        "schedule_id": build_sequence_id("TTMPCLP_SI_", start_sequence_number),
+        "loan_id": loan_id,
+        "installment_no": installment_no,
+        "due_date": due_date.isoformat(),
+        "expected_amount": decimal_to_float(expected_amount),
+        "expected_principal": decimal_to_float(principal_component),
+        "expected_interest": decimal_to_float(interest_component),
+        "penalty": decimal_to_float(penalty_rate_percent),
+        "salary_schedule_id": None,
+        "remaining_principal": decimal_to_float(remaining_after),
+        "principal_component": decimal_to_float(principal_component),
+        "interest_component": decimal_to_float(interest_component),
+        "schedule_status": "Unpaid",
+    }
 
 
 def resolve_monthly_rate_decimal(loan_type: str, interest_rate_percent: Decimal | None) -> Decimal:
@@ -285,13 +261,13 @@ def resolve_monthly_rate_decimal(loan_type: str, interest_rate_percent: Decimal 
         return Decimal(str(interest_rate_percent)) / Decimal("100")
 
     if loan_type == "consolidated":
-        return Decimal("0.0083")
+        return Decimal("0.00083")
     if loan_type == "emergency":
         return Decimal("0.02")
     if loan_type == "bonus":
         return Decimal("0.02")
 
-    return Decimal("0.0083")
+    return Decimal("0.00083")
 
 
 @app.post("/api/loans/compute")
@@ -311,7 +287,7 @@ async def compute_loan(payload: LoanComputeRequest):
 
     if payload.loan_type == "consolidated":
         principal_component = money(principal / Decimal(term))
-        interest_component = money(principal * Decimal("0.0083"))
+        interest_component = money(principal * Decimal("0.00083"))
         monthly_amortization = money(principal_component + interest_component)
 
         service_fee = money(Decimal(((int(principal) - 1) // 50000) + 1) * Decimal("100"))
@@ -591,7 +567,7 @@ async def get_cashier_ready_for_disbursement_loans():
         filtered = [
             row
             for row in rows
-            if str(row.get("loan_status") or "").strip().lower() in {"ready for disbursement", "to be disbursed"}
+            if str(row.get("loan_status") or "").strip().lower() == "ready for disbursement"
         ]
 
         mapped = []
@@ -617,8 +593,8 @@ async def get_cashier_ready_for_disbursement_loans():
         raise HTTPException(status_code=500, detail=f"Failed to fetch ready disbursement loans: {err}")
 
 
-@app.post("/api/cashier/disbursements/{loan_id}/claim")
-async def claim_cashier_disbursement(loan_id: str, payload: CashierDisbursementClaimRequest):
+@app.post("/api/cashier/disbursements/{loan_id}/disburse")
+async def disburse_cashier_loan(loan_id: str, payload: CashierDisbursementRequest):
     if not supabase:
         raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
 
@@ -642,7 +618,7 @@ async def claim_cashier_disbursement(loan_id: str, payload: CashierDisbursementC
             raise HTTPException(status_code=404, detail="Loan not found.")
 
         current_status = str(loan_row.get("loan_status") or "").strip().lower()
-        if current_status not in {"ready for disbursement", "to be disbursed"}:
+        if current_status != "ready for disbursement":
             raise HTTPException(status_code=400, detail="Loan is not in ready for disbursement status.")
 
         disbursed_at = payload.disbursed_at or datetime.utcnow()
@@ -683,35 +659,33 @@ async def claim_cashier_disbursement(loan_id: str, payload: CashierDisbursementC
             schedule_count_response = supabase.table("loan_schedules").select("id").execute()
             start_sequence_number = len(schedule_count_response.data or []) + 1
 
-            schedule_rows = build_schedule_rows_for_loan(
+            next_due_row = build_single_schedule_row(
                 loan_type=normalized_loan_type,
                 principal=principal_amount,
                 term_months=term_months,
                 monthly_rate_decimal=monthly_rate_decimal,
-                first_due_date=first_due_date,
+                due_date=first_due_date,
                 loan_id=clean_loan_id,
+                installment_no=1,
+                remaining_principal_before=principal_amount,
                 start_sequence_number=start_sequence_number,
             )
 
-            if schedule_rows:
-                try:
-                    insert_schedule_response = supabase.table("loan_schedules").insert(schedule_rows).execute()
-                    created_schedules = insert_schedule_response.data or []
-                except Exception:
-                    legacy_schedule_rows = [
-                        {
-                            "loan_id": row["loan_id"],
-                            "installment_no": row["installment_no"],
-                            "due_date": row["due_date"],
-                            "expected_amount": row["expected_amount"],
-                            "principal_component": row["principal_component"],
-                            "interest_component": row["interest_component"],
-                            "schedule_status": "Unpaid",
-                        }
-                        for row in schedule_rows
-                    ]
-                    insert_schedule_response = supabase.table("loan_schedules").insert(legacy_schedule_rows).execute()
-                    created_schedules = insert_schedule_response.data or []
+            try:
+                insert_schedule_response = supabase.table("loan_schedules").insert(next_due_row).execute()
+                created_schedules = insert_schedule_response.data or []
+            except Exception:
+                legacy_schedule_row = {
+                    "loan_id": next_due_row["loan_id"],
+                    "installment_no": next_due_row["installment_no"],
+                    "due_date": next_due_row["due_date"],
+                    "expected_amount": next_due_row["expected_amount"],
+                    "principal_component": next_due_row["principal_component"],
+                    "interest_component": next_due_row["interest_component"],
+                    "schedule_status": "Unpaid",
+                }
+                insert_schedule_response = supabase.table("loan_schedules").insert(legacy_schedule_row).execute()
+                created_schedules = insert_schedule_response.data or []
 
         update_payload = {
             "loan_status": "released",
@@ -737,7 +711,7 @@ async def claim_cashier_disbursement(loan_id: str, payload: CashierDisbursementC
 
         return {
             "success": True,
-            "message": "Loan disbursed successfully. Loan schedules are created for payment tracking.",
+            "message": "Loan disbursed successfully. Only the next due schedule is created.",
             "data": {
                 "loan": updated_loan,
                 "schedule_created": not has_existing_schedule,
@@ -838,6 +812,7 @@ async def create_cashier_loan_payment(payload: CashierLoanPaymentCreateRequest):
             "penalties": decimal_to_float(money(Decimal(str(payload.penalties)))),
             "deficiency": decimal_to_float(money(Decimal(str(deficiency_value)))),
             "confirmation_status": "pending_bookkeeper",
+            "entered_by_role": "cashier",
             "payment_reference": payment_reference,
             "transaction_reference": transaction_reference,
         }
@@ -883,6 +858,547 @@ async def create_cashier_loan_payment(payload: CashierLoanPaymentCreateRequest):
         raise err
     except Exception as err:
         raise HTTPException(status_code=500, detail=f"Failed to create cashier payment: {err}")
+
+
+def is_validated_payment_status(status_value: str | None) -> bool:
+    normalized = str(status_value or "").strip().lower()
+    return normalized in {"validated", "confirmed", "bookkeeper_confirmed", "approved"}
+
+
+@app.get("/api/bookkeeper/manage-loans")
+async def get_bookkeeper_manage_loans():
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+
+    try:
+        loans_response = (
+            supabase.table("loans")
+            .select(
+                "control_number,loan_amount,principal_amount,interest_rate,term,loan_status,application_status,monthly_amortization,application_date," \
+                "member:member_id(first_name,last_name,is_bona_fide),loan_type:loan_type_id(code,name)"
+            )
+            .order("application_date", desc=True)
+            .execute()
+        )
+        loan_rows = loans_response.data or []
+
+        visible_statuses = {
+            "approved",
+            "ready for disbursement",
+            "to be disbursed",
+            "released",
+            "partially paid",
+            "fully paid",
+        }
+        loan_rows = [
+            row
+            for row in loan_rows
+            if str(row.get("loan_status") or "").strip().lower() in visible_statuses
+        ]
+
+        loan_ids = [str(row.get("control_number") or "").strip() for row in loan_rows if row.get("control_number")]
+        if not loan_ids:
+            return {
+                "success": True,
+                "data": {
+                    "server_time": datetime.utcnow().isoformat(),
+                    "counts": {"active_loans": 0, "fully_paid_loans": 0},
+                    "rows": [],
+                },
+            }
+
+        payments_response = (
+            supabase.table("loan_payments")
+            .select("id,loan_id,amount_paid,penalties,payment_date,confirmation_status,payment_reference,transaction_reference")
+            .in_("loan_id", loan_ids)
+            .order("payment_date")
+            .execute()
+        )
+        payment_rows = payments_response.data or []
+
+        schedule_rows = []
+        try:
+            schedule_rows = (
+                supabase.table("loan_schedules")
+                .select("loan_id,due_date,schedule_status")
+                .in_("loan_id", loan_ids)
+                .order("due_date")
+                .execute()
+            ).data or []
+        except Exception:
+            schedule_rows = []
+
+        payments_by_loan: dict[str, list[dict]] = {}
+        for payment in payment_rows:
+            payments_by_loan.setdefault(str(payment.get("loan_id") or ""), []).append(payment)
+
+        schedules_by_loan: dict[str, list[dict]] = {}
+        for schedule in schedule_rows:
+            schedules_by_loan.setdefault(str(schedule.get("loan_id") or ""), []).append(schedule)
+
+        mapped_rows = []
+        active_count = 0
+        fully_paid_count = 0
+
+        for row in loan_rows:
+            loan_id = str(row.get("control_number") or "").strip()
+            if not loan_id:
+                continue
+
+            member = row.get("member") or {}
+            member_name = f"{member.get('first_name') or ''} {member.get('last_name') or ''}".strip() or "Unknown Member"
+            member_type = "Member" if bool(member.get("is_bona_fide")) else "Non-Member"
+
+            loan_type = row.get("loan_type") or {}
+            loan_type_name = loan_type.get("name") or "N/A"
+            loan_type_code = str(loan_type.get("code") or normalize_cashier_loan_type(loan_type_name)).upper()
+
+            principal_amount = Decimal(str(row.get("principal_amount") or row.get("loan_amount") or 0))
+
+            loan_payments = sorted(
+                payments_by_loan.get(loan_id, []),
+                key=lambda item: str(item.get("payment_date") or ""),
+            )
+
+            total_validated = Decimal("0")
+            payment_history = []
+            for payment in loan_payments:
+                amount_paid = Decimal(str(payment.get("amount_paid") or 0))
+                if is_validated_payment_status(payment.get("confirmation_status")):
+                    total_validated += amount_paid
+                running_remaining = max(principal_amount - total_validated, Decimal("0"))
+
+                payment_history.append(
+                    {
+                        "payment_id": payment.get("payment_reference") or payment.get("id"),
+                        "date_paid": payment.get("payment_date"),
+                        "reference_no": payment.get("transaction_reference") or payment.get("payment_reference") or payment.get("id"),
+                        "amount_paid": decimal_to_float(amount_paid),
+                        "penalties": decimal_to_float(payment.get("penalties") or 0),
+                        "remaining_after": decimal_to_float(running_remaining),
+                        "confirmation_status": payment.get("confirmation_status") or "pending_bookkeeper",
+                    }
+                )
+
+            remaining_balance = max(principal_amount - total_validated, Decimal("0"))
+            if remaining_balance <= 0:
+                repayment_status = "Fully Paid"
+            elif total_validated > 0:
+                repayment_status = "Partially Paid"
+            else:
+                repayment_status = "Unpaid"
+
+            active_due = None
+            for schedule in schedules_by_loan.get(loan_id, []):
+                status = str(schedule.get("schedule_status") or "").strip().lower()
+                if status in {"unpaid", "pending", "overdue", ""}:
+                    active_due = schedule
+                    break
+
+            due_date = active_due.get("due_date") if active_due else None
+
+            if repayment_status == "Fully Paid":
+                fully_paid_count += 1
+            else:
+                active_count += 1
+
+            mapped_rows.append(
+                {
+                    "loan_id": loan_id,
+                    "member_name": member_name,
+                    "member_type": member_type,
+                    "loan_type": loan_type_name,
+                    "loan_type_code": loan_type_code,
+                    "loan_amount": decimal_to_float(principal_amount),
+                    "interest_rate": decimal_to_float(row.get("interest_rate") or 0),
+                    "term_months": int(row.get("term") or 0),
+                    "amortization": decimal_to_float(row.get("monthly_amortization") or 0),
+                    "remaining_balance": decimal_to_float(remaining_balance),
+                    "due_date": due_date,
+                    "status": repayment_status,
+                    "source_loan_status": row.get("loan_status"),
+                    "source_application_status": row.get("application_status"),
+                    "payment_history": payment_history,
+                }
+            )
+
+        return {
+            "success": True,
+            "data": {
+                "server_time": datetime.utcnow().isoformat(),
+                "counts": {"active_loans": active_count, "fully_paid_loans": fully_paid_count},
+                "rows": mapped_rows,
+            },
+        }
+    except Exception as err:
+        raise HTTPException(status_code=500, detail=f"Failed to load manage loans data: {err}")
+
+
+@app.get("/api/bookkeeper/loan-ledger/{loan_id}")
+async def get_bookkeeper_loan_ledger(loan_id: str):
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+
+    clean_loan_id = str(loan_id or "").strip()
+    if not clean_loan_id:
+        raise HTTPException(status_code=400, detail="loan_id is required.")
+
+    payload = await get_bookkeeper_manage_loans()
+    rows = (payload.get("data") or {}).get("rows") or []
+    target = next((item for item in rows if str(item.get("loan_id") or "") == clean_loan_id), None)
+
+    if not target:
+        raise HTTPException(status_code=404, detail="Loan ledger not found.")
+
+    return {"success": True, "data": target}
+
+
+@app.get("/api/bookkeeper/payments/pending")
+async def get_bookkeeper_pending_payments():
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+
+    try:
+        payments_response = (
+            supabase.table("loan_payments")
+            .select("id,payment_reference,loan_id,schedule_id,amount_paid,penalties,payment_date,confirmation_status,transaction_reference")
+            .order("payment_date", desc=True)
+            .execute()
+        )
+        payment_rows = [
+            row
+            for row in (payments_response.data or [])
+            if str(row.get("confirmation_status") or "pending_bookkeeper").strip().lower() == "pending_bookkeeper"
+        ]
+
+        loan_ids = sorted({str(row.get("loan_id") or "").strip() for row in payment_rows if row.get("loan_id")})
+        member_name_by_loan: dict[str, str] = {}
+        if loan_ids:
+            loans_response = (
+                supabase.table("loans")
+                .select("control_number,member:member_id(first_name,last_name)")
+                .in_("control_number", loan_ids)
+                .execute()
+            )
+            for loan_row in loans_response.data or []:
+                member = loan_row.get("member") or {}
+                member_name_by_loan[str(loan_row.get("control_number") or "")] = (
+                    f"{member.get('first_name') or ''} {member.get('last_name') or ''}".strip() or "Unknown Member"
+                )
+
+        schedule_code_by_id: dict[str, str] = {}
+        try:
+            schedule_rows = (
+                supabase.table("loan_schedules")
+                .select("id,schedule_id")
+                .execute()
+            ).data or []
+            for sched in schedule_rows:
+                internal_id = str(sched.get("id") or "")
+                if internal_id:
+                    schedule_code_by_id[internal_id] = str(sched.get("schedule_id") or internal_id)
+        except Exception:
+            schedule_code_by_id = {}
+
+        result = []
+        for idx, row in enumerate(payment_rows, start=1):
+            internal_schedule_id = str(row.get("schedule_id") or "")
+            result.append(
+                {
+                    "payment_id": row.get("payment_reference") or build_sequence_id("TTMPCLP-", idx),
+                    "loan_id": row.get("loan_id"),
+                    "schedule_id": schedule_code_by_id.get(internal_schedule_id, row.get("schedule_id")),
+                    "amount_paid": decimal_to_float(row.get("amount_paid") or 0),
+                    "penalties": decimal_to_float(row.get("penalties") or 0),
+                    "date_paid": row.get("payment_date"),
+                    "entered_by": "Cashier",
+                    "confirmation_status": row.get("confirmation_status") or "pending_bookkeeper",
+                    "transaction_reference": row.get("transaction_reference"),
+                    "member_name": member_name_by_loan.get(str(row.get("loan_id") or ""), "Unknown Member"),
+                }
+            )
+
+        return {"success": True, "data": result}
+    except Exception as err:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch pending payments: {err}")
+
+
+@app.post("/api/bookkeeper/payments/{payment_id}/approve")
+async def approve_bookkeeper_payment(payment_id: str, payload: BookkeeperPaymentDecisionRequest):
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+
+    try:
+        clean_payment_id = str(payment_id or "").strip()
+        if not clean_payment_id:
+            raise HTTPException(status_code=400, detail="payment_id is required.")
+
+        payment_response = (
+            supabase.table("loan_payments")
+            .select("id,payment_reference,loan_id,schedule_id,amount_paid,penalties,payment_date,confirmation_status")
+            .eq("payment_reference", clean_payment_id)
+            .limit(1)
+            .execute()
+        )
+        payment_row = (payment_response.data or [None])[0]
+
+        if not payment_row:
+            payment_response = (
+                supabase.table("loan_payments")
+                .select("id,payment_reference,loan_id,schedule_id,amount_paid,penalties,payment_date,confirmation_status")
+                .eq("id", clean_payment_id)
+                .limit(1)
+                .execute()
+            )
+            payment_row = (payment_response.data or [None])[0]
+
+        if not payment_row:
+            raise HTTPException(status_code=404, detail="Payment not found.")
+
+        current_payment_status = str(payment_row.get("confirmation_status") or "pending_bookkeeper").strip().lower()
+        if current_payment_status != "pending_bookkeeper":
+            raise HTTPException(status_code=400, detail="Only pending payments can be approved.")
+
+        loan_id = str(payment_row.get("loan_id") or "").strip()
+        if not loan_id:
+            raise HTTPException(status_code=400, detail="Payment loan_id is missing.")
+
+        loan_response = (
+            supabase.table("loans")
+            .select(
+                "control_number,loan_amount,principal_amount,interest_rate,term,loan_status," \
+                "loan_type:loan_type_id(name)"
+            )
+            .eq("control_number", loan_id)
+            .limit(1)
+            .execute()
+        )
+        loan_row = (loan_response.data or [None])[0]
+        if not loan_row:
+            raise HTTPException(status_code=404, detail="Loan not found for this payment.")
+
+        principal_amount = Decimal(str(loan_row.get("principal_amount") or loan_row.get("loan_amount") or 0))
+        if principal_amount <= 0:
+            raise HTTPException(status_code=400, detail="Invalid loan principal.")
+
+        term_months = int(loan_row.get("term") or 0)
+        if term_months <= 0:
+            raise HTTPException(status_code=400, detail="Invalid loan term.")
+
+        loan_type_name = (loan_row.get("loan_type") or {}).get("name")
+        normalized_loan_type = normalize_cashier_loan_type(loan_type_name)
+        interest_rate_percent = Decimal(str(loan_row.get("interest_rate") or 0)) if loan_row.get("interest_rate") is not None else None
+        monthly_rate_decimal = resolve_monthly_rate_decimal(normalized_loan_type, interest_rate_percent)
+
+        schedule_internal_id = str(payment_row.get("schedule_id") or "").strip()
+        current_schedule_response = (
+            supabase.table("loan_schedules")
+            .select("id,schedule_id,loan_id,installment_no,due_date,remaining_principal,schedule_status")
+            .eq("id", schedule_internal_id)
+            .limit(1)
+            .execute()
+        )
+        current_schedule = (current_schedule_response.data or [None])[0]
+        if not current_schedule:
+            raise HTTPException(status_code=404, detail="Current schedule not found.")
+
+        payment_amount = Decimal(str(payment_row.get("amount_paid") or 0))
+        if payment_amount <= 0:
+            raise HTTPException(status_code=400, detail="Payment amount must be greater than zero.")
+
+        validated_response = (
+            supabase.table("loan_payments")
+            .select("amount_paid")
+            .eq("loan_id", loan_id)
+            .in_("confirmation_status", ["validated", "confirmed", "bookkeeper_confirmed", "approved"])
+            .execute()
+        )
+        total_validated_before = sum(Decimal(str(row.get("amount_paid") or 0)) for row in (validated_response.data or []))
+        total_validated_after = total_validated_before + payment_amount
+        remaining_loan_balance = max(principal_amount - total_validated_after, Decimal("0"))
+
+        schedule_update_payload = {"schedule_status": "Paid"}
+        (
+            supabase.table("loan_schedules")
+            .update(schedule_update_payload)
+            .eq("id", schedule_internal_id)
+            .execute()
+        )
+
+        payment_update_payload = {
+            "confirmation_status": "validated",
+            "reviewed_at": datetime.utcnow().isoformat(),
+            "confirmed_at": datetime.utcnow().isoformat(),
+        }
+        if payload.validated_by:
+            payment_update_payload["validated_by"] = payload.validated_by
+            payment_update_payload["reviewed_by"] = payload.validated_by
+            payment_update_payload["confirmed_by"] = payload.validated_by
+        if payload.notes:
+            payment_update_payload["validation_notes"] = payload.notes
+
+        try:
+            (
+                supabase.table("loan_payments")
+                .update(payment_update_payload)
+                .eq("id", payment_row.get("id"))
+                .execute()
+            )
+        except Exception:
+            # Backward-compatible fallback for DBs where check constraint still allows confirmed but not validated.
+            (
+                supabase.table("loan_payments")
+                .update({"confirmation_status": "confirmed"})
+                .eq("id", payment_row.get("id"))
+                .execute()
+            )
+
+        created_next_schedule = None
+        current_installment_no = int(current_schedule.get("installment_no") or 1)
+        if remaining_loan_balance > 0 and current_installment_no < term_months:
+            next_installment_no = current_installment_no + 1
+
+            next_due_date = parse_date_value(current_schedule.get("due_date"))
+            if not next_due_date:
+                next_due_date = add_months(datetime.utcnow().date(), 1)
+            else:
+                next_due_date = add_months(next_due_date, 1)
+
+            remaining_before = Decimal(str(current_schedule.get("remaining_principal") or remaining_loan_balance))
+            schedule_count_response = supabase.table("loan_schedules").select("id").execute()
+            next_sequence_number = len(schedule_count_response.data or []) + 1
+
+            next_schedule_row = build_single_schedule_row(
+                loan_type=normalized_loan_type,
+                principal=principal_amount,
+                term_months=term_months,
+                monthly_rate_decimal=monthly_rate_decimal,
+                due_date=next_due_date,
+                loan_id=loan_id,
+                installment_no=next_installment_no,
+                remaining_principal_before=remaining_before,
+                start_sequence_number=next_sequence_number,
+            )
+
+            try:
+                insert_next_response = supabase.table("loan_schedules").insert(next_schedule_row).execute()
+                created_next_schedule = (insert_next_response.data or [None])[0]
+            except Exception:
+                legacy_next_row = {
+                    "loan_id": next_schedule_row["loan_id"],
+                    "installment_no": next_schedule_row["installment_no"],
+                    "due_date": next_schedule_row["due_date"],
+                    "expected_amount": next_schedule_row["expected_amount"],
+                    "principal_component": next_schedule_row["principal_component"],
+                    "interest_component": next_schedule_row["interest_component"],
+                    "schedule_status": "Unpaid",
+                }
+                insert_next_response = supabase.table("loan_schedules").insert(legacy_next_row).execute()
+                created_next_schedule = (insert_next_response.data or [None])[0]
+
+        loan_status_update = "fully paid" if remaining_loan_balance <= 0 else "partially paid"
+        try:
+            (
+                supabase.table("loans")
+                .update({"loan_status": loan_status_update, "application_status": loan_status_update})
+                .eq("control_number", loan_id)
+                .execute()
+            )
+        except Exception:
+            # If status constraints do not allow repayment status values, keep released while returning computed repayment status.
+            (
+                supabase.table("loans")
+                .update({"loan_status": "released"})
+                .eq("control_number", loan_id)
+                .execute()
+            )
+
+        return {
+            "success": True,
+            "message": "Payment validated. Current due marked paid and next due generated if balance remains.",
+            "data": {
+                "payment_id": payment_row.get("payment_reference") or payment_row.get("id"),
+                "loan_id": loan_id,
+                "remaining_balance": decimal_to_float(remaining_loan_balance),
+                "loan_status": loan_status_update,
+                "next_schedule_id": (
+                    created_next_schedule.get("schedule_id")
+                    if created_next_schedule and created_next_schedule.get("schedule_id")
+                    else (created_next_schedule.get("id") if created_next_schedule else None)
+                ),
+            },
+        }
+    except HTTPException as err:
+        raise err
+    except Exception as err:
+        raise HTTPException(status_code=500, detail=f"Failed to approve payment: {err}")
+
+
+@app.post("/api/bookkeeper/payments/{payment_id}/reject")
+async def reject_bookkeeper_payment(payment_id: str, payload: BookkeeperPaymentDecisionRequest):
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+
+    try:
+        clean_payment_id = str(payment_id or "").strip()
+        if not clean_payment_id:
+            raise HTTPException(status_code=400, detail="payment_id is required.")
+
+        payment_response = (
+            supabase.table("loan_payments")
+            .select("id,payment_reference,confirmation_status")
+            .eq("payment_reference", clean_payment_id)
+            .limit(1)
+            .execute()
+        )
+        payment_row = (payment_response.data or [None])[0]
+
+        if not payment_row:
+            payment_response = (
+                supabase.table("loan_payments")
+                .select("id,payment_reference,confirmation_status")
+                .eq("id", clean_payment_id)
+                .limit(1)
+                .execute()
+            )
+            payment_row = (payment_response.data or [None])[0]
+
+        if not payment_row:
+            raise HTTPException(status_code=404, detail="Payment not found.")
+
+        update_payload = {
+            "confirmation_status": "rejected",
+            "reviewed_at": datetime.utcnow().isoformat(),
+        }
+        if payload.validated_by:
+            update_payload["reviewed_by"] = payload.validated_by
+        if payload.notes:
+            update_payload["rejection_reason"] = payload.notes
+
+        try:
+            (
+                supabase.table("loan_payments")
+                .update(update_payload)
+                .eq("id", payment_row.get("id"))
+                .execute()
+            )
+        except Exception:
+            (
+                supabase.table("loan_payments")
+                .update({"confirmation_status": "rejected"})
+                .eq("id", payment_row.get("id"))
+                .execute()
+            )
+
+        return {
+            "success": True,
+            "message": "Payment rejected successfully.",
+            "data": {"payment_id": payment_row.get("payment_reference") or payment_row.get("id")},
+        }
+    except HTTPException as err:
+        raise err
+    except Exception as err:
+        raise HTTPException(status_code=500, detail=f"Failed to reject payment: {err}")
 
 @app.post("/api/send-status-email")
 async def send_status_email(payload: StatusEmailRequest):

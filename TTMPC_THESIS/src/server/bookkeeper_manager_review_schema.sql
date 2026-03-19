@@ -49,7 +49,9 @@ ALTER TABLE public.loans
       'cancelled',
       'released',
       'ready for disbursement',
-      'to be disbursed'
+      'to be disbursed',
+      'partially paid',
+      'fully paid'
     )
   );
 
@@ -80,7 +82,9 @@ ALTER TABLE public.koica_loans
       'cancelled',
       'released',
       'ready for disbursement',
-      'to be disbursed'
+      'to be disbursed',
+      'partially paid',
+      'fully paid'
     )
   );
 
