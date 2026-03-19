@@ -7,6 +7,7 @@ import { UserAuth } from "../../contex/AuthContext";
 import {
   LayoutDashboard,
   CreditCard,
+  Banknote,
   Search,
   Bell,
   ArrowDownCircle,
@@ -38,6 +39,7 @@ const Savings_Details = () => {
 
   const menuItems = [
     { name: "Dashboard", icon: LayoutDashboard },
+    { name: "Disbursement", icon: Banknote },
     { name: "Savings", icon: CreditCard },
   ];
 
@@ -91,6 +93,7 @@ const Savings_Details = () => {
           {(() => {
             const routeMap = {
               Dashboard: "/Cashier_Dashboard",
+              Disbursement: "/Cashier_Disbursement",
               Savings: "/Cashier_Savings",
             };
 

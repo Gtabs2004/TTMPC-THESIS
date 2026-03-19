@@ -87,6 +87,42 @@ BEGIN
 END $$;
 
 DO $$
+DECLARE
+  has_member_fk boolean := false;
+BEGIN
+  IF to_regclass('public.loans') IS NULL OR to_regclass('public.member') IS NULL THEN
+    RETURN;
+  END IF;
+
+  SELECT EXISTS (
+    SELECT 1
+    FROM pg_constraint c
+    JOIN pg_attribute a
+      ON a.attrelid = c.conrelid
+     AND a.attnum = ANY (c.conkey)
+    WHERE c.conrelid = 'public.loans'::regclass
+      AND c.confrelid = 'public.member'::regclass
+      AND c.contype = 'f'
+      AND a.attname = 'member_id'
+  )
+  INTO has_member_fk;
+
+  IF NOT has_member_fk THEN
+    BEGIN
+      ALTER TABLE public.loans
+        ADD CONSTRAINT loans_member_id_member_id_fkey
+        FOREIGN KEY (member_id)
+        REFERENCES public.member(id)
+        ON UPDATE CASCADE
+        ON DELETE SET NULL
+        NOT VALID;
+    EXCEPTION
+      WHEN duplicate_object THEN NULL;
+    END;
+  END IF;
+END $$;
+
+DO $$
 BEGIN
   IF to_regclass('public.loan_types') IS NOT NULL THEN
     IF NOT EXISTS (SELECT 1 FROM public.loan_types WHERE lower(coalesce(name, '')) IN ('bonus', 'bonus loan')) THEN
@@ -340,10 +376,10 @@ BEGIN
       FOR UPDATE
       TO authenticated
       USING (
-        public.has_portal_role(auth.uid(), auth.email(), ARRAY[''manager'', ''bookkeeper''])
+        public.has_portal_role(auth.uid(), auth.email(), ARRAY[''manager'', ''bookkeeper'', ''treasurer''])
       )
       WITH CHECK (
-        public.has_portal_role(auth.uid(), auth.email(), ARRAY[''manager'', ''bookkeeper''])
+        public.has_portal_role(auth.uid(), auth.email(), ARRAY[''manager'', ''bookkeeper'', ''treasurer''])
       )
     ';
   END IF;
@@ -400,10 +436,10 @@ BEGIN
       FOR UPDATE
       TO authenticated
       USING (
-        public.has_portal_role(auth.uid(), auth.email(), ARRAY[''manager'', ''bookkeeper''])
+        public.has_portal_role(auth.uid(), auth.email(), ARRAY[''manager'', ''bookkeeper'', ''treasurer''])
       )
       WITH CHECK (
-        public.has_portal_role(auth.uid(), auth.email(), ARRAY[''manager'', ''bookkeeper''])
+        public.has_portal_role(auth.uid(), auth.email(), ARRAY[''manager'', ''bookkeeper'', ''treasurer''])
       )
     ';
 
@@ -485,7 +521,7 @@ BEGIN
         public.has_portal_role(
           auth.uid(),
           auth.email(),
-          ARRAY[''manager'', ''bod'', ''bookkeeper'']
+          ARRAY[''manager'', ''bod'', ''bookkeeper'', ''treasurer'']
         )
       )
     ';

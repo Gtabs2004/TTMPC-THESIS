@@ -48,6 +48,7 @@ ALTER TABLE public.loans
       'rejected',
       'cancelled',
       'released',
+      'ready for disbursement',
       'to be disbursed'
     )
   );
@@ -78,6 +79,7 @@ ALTER TABLE public.koica_loans
       'rejected',
       'cancelled',
       'released',
+      'ready for disbursement',
       'to be disbursed'
     )
   );

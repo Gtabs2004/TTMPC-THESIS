@@ -73,6 +73,19 @@ const Treasurer_ApprovalDetails = () => {
   useEffect(() => {
     let isMounted = true;
 
+    const fetchMemberById = async (memberId) => {
+      if (!memberId) return null;
+
+      const { data, error } = await supabase
+        .from('member')
+        .select('first_name, last_name, is_bona_fide')
+        .eq('id', memberId)
+        .maybeSingle();
+
+      if (error) return null;
+      return data || null;
+    };
+
     const fetchLoanDetails = async () => {
       if (!id) {
         if (isMounted) {
@@ -101,6 +114,9 @@ const Treasurer_ApprovalDetails = () => {
               term,
               loan_status,
               application_status,
+              bookkeeper_internal_remarks,
+              bookkeeper_reviewed_at,
+              manager_review_requested_at,
               loan_type_code,
               raw_payload
             `)
@@ -114,6 +130,7 @@ const Treasurer_ApprovalDetails = () => {
             .from('loans')
             .select(`
               control_number,
+              member_id,
               loan_amount,
               principal_amount,
               interest_rate,
@@ -122,6 +139,9 @@ const Treasurer_ApprovalDetails = () => {
               term,
               loan_status,
               application_status,
+              bookkeeper_internal_remarks,
+              bookkeeper_reviewed_at,
+              manager_review_requested_at,
               loan_purpose,
               source_of_income,
               member:member_id (
@@ -141,8 +161,16 @@ const Treasurer_ApprovalDetails = () => {
 
         if (!data) throw new Error('Loan record not found.');
 
-        const firstName = data.member?.first_name || '';
-        const lastName = data.member?.last_name || '';
+        let resolvedMember = data.member;
+        if (!isKoicaSource && (!resolvedMember?.first_name && !resolvedMember?.last_name) && data.member_id) {
+          const fallbackMember = await fetchMemberById(data.member_id);
+          if (fallbackMember) {
+            resolvedMember = fallbackMember;
+          }
+        }
+
+        const firstName = resolvedMember?.first_name || '';
+        const lastName = resolvedMember?.last_name || '';
         const memberName = isKoicaSource
           ? (data.full_name || 'Unknown Applicant')
           : (`${firstName} ${lastName}`.trim() || 'Unknown Member');
@@ -181,14 +209,20 @@ const Treasurer_ApprovalDetails = () => {
           id: data.control_number,
           sourceTable: tableName,
           memberName,
+          loanType: resolvedLoanType,
+          loanAmount: Number(data.loan_amount ?? principalAmount ?? 0),
+          term: `${termMonths} Months`,
           status: formatStatus(data.loan_status || data.application_status),
           summary: {
             loanType: resolvedLoanType,
             recommendedAmount: formatCurrency(data.loan_amount),
             term: `${data.term || 0} Months`,
-            migsStatus: isKoicaSource ? 'N/A' : (data.member?.is_bona_fide ? 'MIGS' : 'NON-MIGS'),
+            migsStatus: isKoicaSource ? 'N/A' : (resolvedMember?.is_bona_fide ? 'MIGS' : 'NON-MIGS'),
             loanPurpose: data.loan_purpose || data.raw_payload?.optionalFields?.loan_purpose || 'N/A',
             employerPosition: data.source_of_income || data.raw_payload?.optionalFields?.source_of_income || 'N/A',
+            bookkeeperInternalRemarks: data.bookkeeper_internal_remarks || 'No internal remarks submitted.',
+            bookkeeperReviewedAt: data.bookkeeper_reviewed_at || null,
+            managerReviewRequestedAt: data.manager_review_requested_at || null,
           },
           computation: {
             principal: formatCurrency(principalAmount),
@@ -274,39 +308,41 @@ const Treasurer_ApprovalDetails = () => {
     }
 
     let nextStatus = 'pending';
-    let updatePayload = { loan_status: nextStatus, application_status: nextStatus };
     if (isBookkeeperFlow && modalType === 'recommend') nextStatus = 'recommended for approval';
     if (!isBookkeeperFlow && modalType === 'proceed') nextStatus = 'to be disbursed';
-    if (!isBookkeeperFlow && modalType === 'disburse') {
-      nextStatus = 'to be disbursed';
-      updatePayload = {
-        ...updatePayload,
-        disbursement_confirmation: new Date().toISOString()
-      };
-    }
     if (!isBookkeeperFlow && modalType === 'reschedule') nextStatus = 'pending rescheduling';
     if (!isBookkeeperFlow && modalType === 'reject') nextStatus = 'rejected';
+
+    const updatePayload = { loan_status: nextStatus, application_status: nextStatus };
+    if (!isBookkeeperFlow && modalType === 'disburse') {
+      nextStatus = 'ready for disbursement';
+      updatePayload.loan_status = nextStatus;
+      updatePayload.application_status = nextStatus;
+      updatePayload.disbursement_confirmation = new Date().toISOString();
+    }
 
     try {
       setSaving(true);
       setActionError('');
 
-      const { data, error } = await supabase
+      const { data: updatedRows, error } = await supabase
         .from(loanDetails.sourceTable || 'loans')
         .update(updatePayload)
         .eq('control_number', loanDetails.id)
         .select('control_number, loan_status, disbursement_confirmation')
-        .maybeSingle();
+        .limit(1);
 
       if (error) {
         throw new Error(error.message || 'Failed to update loan status.');
       }
 
-      if (!data) {
-        throw new Error('Loan record not found during status update.');
+      const updatedRow = updatedRows?.[0] || null;
+
+      if (!updatedRow) {
+        throw new Error('Loan record was not updated. Please verify Treasurer update permissions and try again.');
       }
 
-      setLoanDetails((prev) => prev ? { ...prev, status: formatStatus(nextStatus), disbursement_confirmation: data.disbursement_confirmation } : prev);
+      setLoanDetails((prev) => prev ? { ...prev, status: formatStatus(nextStatus), disbursement_confirmation: updatedRow.disbursement_confirmation } : prev);
       closeModal();
       navigate(backRoute);
     } catch (err) {
@@ -433,6 +469,24 @@ const Treasurer_ApprovalDetails = () => {
                   <p className="text-2xl font-black text-gray-800 mb-1">{loanDetails.risk.consistency.value}</p>
                   <p className={`text-[9px] font-bold uppercase ${loanDetails.risk.consistency.color}`}>{loanDetails.risk.consistency.label}</p>
                 </div>
+              </div>
+            </div>
+
+            <div>
+              <h2 className="flex items-center text-lg font-bold text-gray-800 mb-4">
+                <FileEdit className="w-5 h-5 mr-2 text-[#1D6021]" /> Bookkeeper Internal Review
+              </h2>
+              <div className="bg-[#F8F9FA] border border-gray-200 rounded-xl p-5 space-y-4">
+                <div>
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Internal Remarks</p>
+                  <p className="text-sm text-gray-700 whitespace-pre-wrap">{loanDetails.summary.bookkeeperInternalRemarks}</p>
+                </div>
+                {loanDetails.summary.bookkeeperReviewedAt ? (
+                  <div className="border-t border-gray-200 pt-3">
+                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Reviewed At</p>
+                    <p className="text-sm text-gray-700">{new Date(loanDetails.summary.bookkeeperReviewedAt).toLocaleString()}</p>
+                  </div>
+                ) : null}
               </div>
             </div>
           </div>
