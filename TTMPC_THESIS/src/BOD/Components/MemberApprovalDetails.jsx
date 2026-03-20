@@ -279,7 +279,7 @@ const MemberApprovalDetails = () => {
         }
 
         const result = await response.json().catch(() => ({}));
-        const generatedMembershipId = result?.data?.membership_id || 'TTMPC_M_#####';
+        const generatedMembershipId = result?.data?.membership_id || 'TTMPCM-#####';
         const emailResult = result?.data?.email;
 
         let emailNote = '';
