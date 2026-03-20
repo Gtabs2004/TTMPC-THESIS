@@ -9,6 +9,8 @@ import {
   Activity, 
   Search,
   Bell,
+  Menu,
+  X,
   Pencil,
   Wallet,
   PiggyBank,
@@ -27,6 +29,7 @@ const MemberDashboard = () => {
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [profileError, setProfileError] = useState("");
   const [isTemporaryAccount, setIsTemporaryAccount] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   const menuItems = [
     { name: "Dashboard", icon: LayoutDashboard },
@@ -230,9 +233,27 @@ const MemberDashboard = () => {
   const nextPaymentDate = activeLoans[0]?.application_date ? formatDate(activeLoans[0].application_date) : 'N/A';
 
   return (
-   <div className="flex min-h-screen bg-[#F8F9FA]">
+   <div className="relative flex min-h-screen bg-[#F8F9FA]">
+      {isSidebarOpen ? (
+        <button
+          aria-label="Close sidebar overlay"
+          onClick={() => setIsSidebarOpen(false)}
+          className="fixed inset-0 z-20 bg-black/30 lg:hidden"
+        />
+      ) : null}
       {/* Sidebar */}
-      <aside className="bg-white w-64 p-4 flex flex-col border-r border-gray-200">
+      <aside
+        className={`fixed inset-y-0 left-0 z-30 w-64 transform bg-white p-4 flex flex-col border-r border-gray-200 transition-transform duration-200 ease-out lg:static lg:translate-x-0 ${
+          isSidebarOpen ? 'translate-x-0' : '-translate-x-full'
+        }`}
+      >
+        <button
+          aria-label="Close sidebar"
+          onClick={() => setIsSidebarOpen(false)}
+          className="absolute right-3 top-3 rounded-md p-1 text-gray-500 hover:bg-gray-100 lg:hidden"
+        >
+          <X className="h-5 w-5" />
+        </button>
         <div className="flex flex-row items-start gap-2 mb-6">
           <img src="src/assets/img/ttmpc logo.png" alt="Logo" className="h-12 w-auto" />
           <div className="flex flex-col">
@@ -292,10 +313,22 @@ const MemberDashboard = () => {
       </aside>
    
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex-1 flex flex-col overflow-hidden lg:pl-0">
         {/* Header */}
-        <header className="bg-white h-16 shadow-sm flex items-center justify-end px-8 z-10">
-          <div className="relative">
+        <header className="bg-white h-16 shadow-sm flex items-center justify-between px-4 sm:px-6 lg:px-8 z-10">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <button
+              aria-label="Open sidebar"
+              onClick={() => setIsSidebarOpen(true)}
+              className="rounded-md p-2 text-gray-600 hover:bg-gray-100 lg:hidden"
+            >
+              <Menu className="h-5 w-5" />
+            </button>
+            <h1 className="text-base sm:text-lg font-extrabold text-[#1a4a2f] lg:hidden">Dashboard</h1>
+          </div>
+
+          <div className="flex items-center gap-2 sm:gap-4">
+          <div className="relative hidden md:block">
             <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400"/>
             <input 
               type="text" 
@@ -303,22 +336,23 @@ const MemberDashboard = () => {
               placeholder="Search..."
             />
           </div>
-          <button className="ml-6 relative p-2 rounded-full text-gray-500 hover:bg-gray-100 transition-colors">
+          <button className="relative p-2 rounded-full text-gray-500 hover:bg-gray-100 transition-colors">
             <Bell className="w-5 h-5"/>
             <span className="absolute top-1.5 right-1.5 block h-2 w-2 rounded-full bg-red-500 ring-2 ring-white"></span>
           </button>
           
-          <div className="flex items-center ml-4 gap-3 border-l border-gray-200 pl-4 cursor-pointer">
+          <div className="flex items-center gap-2 sm:gap-3 border-l border-gray-200 pl-2 sm:pl-4 cursor-pointer">
             <div className="w-8 h-8 rounded-full bg-gray-200 overflow-hidden border border-gray-300">
                <img src="src/assets/img/member-profile.png" alt="Profile" className="w-full h-full object-cover" />
             </div>
-            <p className="text-sm font-bold text-gray-700">Member</p>
+            <p className="hidden sm:block text-sm font-bold text-gray-700">Member</p>
+          </div>
           </div>
         </header>
    
         {/* Scrollable Main */}
-        <main className="p-8 overflow-y-auto">
-          <h1 className="font-extrabold text-[#1a4a2f] text-2xl mb-6">Dashboard</h1>
+        <main className="p-4 sm:p-6 lg:p-8 overflow-y-auto">
+          <h1 className="hidden lg:block font-extrabold text-[#1a4a2f] text-2xl mb-6">Dashboard</h1>
 
           {isTemporaryAccount ? (
             <div className="mb-6 p-4 rounded-xl border border-amber-200 bg-amber-50 text-sm text-amber-800 font-semibold flex items-center justify-between gap-3">
@@ -333,12 +367,12 @@ const MemberDashboard = () => {
           ) : null}
 
           {/* Top Section: Profile & Status */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 mb-6">
             
             {/* Profile Card */}
-            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 lg:col-span-2 flex flex-col sm:flex-row items-center sm:items-start gap-6 relative">
+            <div className="bg-white p-4 sm:p-6 rounded-2xl shadow-sm border border-gray-100 lg:col-span-2 flex flex-col sm:flex-row items-center sm:items-start gap-4 sm:gap-6 relative">
               <div className="relative">
-                <div className="w-24 h-24 rounded-full border-4 border-[#EAF1EB] overflow-hidden bg-gray-100">
+                <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full border-4 border-[#EAF1EB] overflow-hidden bg-gray-100">
                   <img src="src/assets/img/member-profile.png" alt="Juan Dela Cruz" className="w-full h-full object-cover" />
                 </div>
                 <div className="absolute bottom-1 right-1 w-4 h-4 bg-green-500 border-2 border-white rounded-full"></div>
@@ -347,7 +381,7 @@ const MemberDashboard = () => {
               <div className="flex-1 text-center sm:text-left">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
                   <div className="flex items-center justify-center sm:justify-start gap-3">
-                    <h2 className="text-xl font-bold text-gray-900">{profile?.fullName || 'Loading...'}</h2>
+                    <h2 className="text-lg sm:text-xl font-bold text-gray-900">{profile?.fullName || 'Loading...'}</h2>
                     <span className={`${profile?.isActive ? 'bg-[#1D6021]' : 'bg-gray-500'} text-white px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wider uppercase`}>
                       {profile?.isActive ? 'Active' : 'Inactive'}
                     </span>
@@ -375,15 +409,15 @@ const MemberDashboard = () => {
             </div>
 
             {/* Status Circles Card */}
-            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-center gap-8">
+            <div className="bg-white p-4 sm:p-6 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-center gap-4 sm:gap-8">
               <div className="flex flex-col items-center">
-                <div className="w-20 h-20 rounded-full border-8 border-[#1D6021] flex items-center justify-center mb-3">
+                <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full border-8 border-[#1D6021] flex items-center justify-center mb-3">
                   <span className="font-extrabold text-gray-900 text-lg">100%</span>
                 </div>
                 <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider text-center">Profile<br/>Updated</p>
               </div>
               <div className="flex flex-col items-center">
-                <div className="w-20 h-20 rounded-full border-8 border-[#1D6021] flex items-center justify-center mb-3">
+                <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full border-8 border-[#1D6021] flex items-center justify-center mb-3">
                   <span className="font-extrabold text-gray-900 text-lg">{profile?.migsPercent ?? 0}%</span>
                 </div>
                 <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider text-center">MIGS<br/>Standing</p>
@@ -393,45 +427,45 @@ const MemberDashboard = () => {
           </div>
 
           {/* Balances Section */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 sm:gap-6 mb-8">
             {/* Share Capital */}
-            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col">
+            <div className="bg-white p-5 sm:p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col">
               <div className="w-8 h-8 rounded-lg bg-[#EAF1EB] flex items-center justify-center mb-4">
                 <Wallet className="w-4 h-4 text-[#1D6021]" />
               </div>
               <p className="text-xs font-bold text-gray-500 mb-1">Share Capital</p>
-                <h3 className="text-2xl font-black text-gray-900 mb-2">{formatCurrency(profile?.shareCapital || 0)}</h3>
+              <h3 className="text-xl sm:text-2xl font-black text-gray-900 mb-2">{formatCurrency(profile?.shareCapital || 0)}</h3>
               <p className="text-[10px] font-bold text-green-600 flex items-center mt-auto">
                 <ArrowUpRight className="w-3 h-3 mr-0.5" /> +5.2% from last month
               </p>
             </div>
 
             {/* Total Savings */}
-            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col">
+            <div className="bg-white p-5 sm:p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col">
               <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center mb-4">
                 <PiggyBank className="w-4 h-4 text-blue-600" />
               </div>
               <p className="text-xs font-bold text-gray-500 mb-1">Total Savings</p>
-              <h3 className="text-2xl font-black text-gray-900 mb-2">₱ 67,676.76</h3>
+              <h3 className="text-xl sm:text-2xl font-black text-gray-900 mb-2">₱ 67,676.76</h3>
               <p className="text-[10px] font-bold text-green-600 flex items-center mt-auto">
                 <ArrowUpRight className="w-3 h-3 mr-0.5" /> +₱ 2,500.00 new deposit
               </p>
             </div>
 
             {/* Active Loan Balance */}
-            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col">
+            <div className="bg-white p-5 sm:p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col">
               <div className="w-8 h-8 rounded-lg bg-red-50 flex items-center justify-center mb-4">
                 <CreditCard className="w-4 h-4 text-red-500" />
               </div>
               <p className="text-xs font-bold text-gray-500 mb-1">Active Loan Balance</p>
-              <h3 className="text-2xl font-black text-gray-900 mb-2">{formatCurrency(activeLoanBalance)}</h3>
+              <h3 className="text-xl sm:text-2xl font-black text-gray-900 mb-2">{formatCurrency(activeLoanBalance)}</h3>
               <p className="text-[10px] font-semibold text-gray-400 mt-auto">
                 {activeLoans.length ? `${activeLoans.length} active loan(s)` : 'No active loans'}
               </p>
             </div>
 
             {/* Next Payment (Green Card) */}
-            <div className="bg-[#2C7A3F] p-6 rounded-2xl shadow-sm flex flex-col text-white relative overflow-hidden">
+            <div className="bg-[#2C7A3F] p-5 sm:p-6 rounded-2xl shadow-sm flex flex-col text-white relative overflow-hidden">
               <div className="absolute top-6 right-6 bg-white/20 px-2 py-1 rounded text-[9px] font-bold tracking-wider uppercase">
                 Due in 5 Days
               </div>
@@ -439,7 +473,7 @@ const MemberDashboard = () => {
                 <Calendar className="w-4 h-4 text-white" />
               </div>
               <p className="text-xs font-semibold text-green-100 mb-1">Next Payment</p>
-              <h3 className="text-2xl font-black mb-2">{formatCurrency(nextPaymentAmount)}</h3>
+              <h3 className="text-xl sm:text-2xl font-black mb-2">{formatCurrency(nextPaymentAmount)}</h3>
               <p className="text-[10px] font-medium text-green-100 mt-auto">
                 Due on: {nextPaymentDate}
               </p>
@@ -447,7 +481,7 @@ const MemberDashboard = () => {
           </div>
 
           {/* Bottom Section: Transactions & Activity */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
             
             {/* Recent Transactions Table */}
             <div className="lg:col-span-2">
@@ -459,7 +493,8 @@ const MemberDashboard = () => {
               </div>
               
               <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-                <table className="w-full text-left border-collapse">
+                <div className="overflow-x-auto">
+                <table className="w-full min-w-[640px] text-left border-collapse">
                   <thead>
                     <tr className="border-b border-gray-100 text-[10px] uppercase tracking-wider text-gray-400 font-bold">
                       <th className="p-5">Date</th>
@@ -485,13 +520,14 @@ const MemberDashboard = () => {
                     ))}
                   </tbody>
                 </table>
+                </div>
               </div>
             </div>
 
             {/* Recent Activity Timeline */}
             <div>
               <h3 className="text-lg font-bold text-gray-900 mb-4 invisible lg:visible">Activity</h3> {/* Invisible spacer for alignment */}
-              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 h-[calc(100%-2.5rem)] flex flex-col">
+              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 sm:p-6 h-auto lg:h-[calc(100%-2.5rem)] flex flex-col">
                 <h4 className="font-bold text-gray-900 mb-6">Recent Activity</h4>
                 
                 <div className="space-y-6 flex-1">

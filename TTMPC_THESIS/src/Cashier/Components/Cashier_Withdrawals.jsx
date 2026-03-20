@@ -197,11 +197,10 @@ const Cashier_Withdrawals = () => {
                   {withdrawalData.map((row, index) => (
                     <tr key={index} className="hover:bg-gray-50 transition-colors">
                       
-                      {/* Member Info & Avatar */}
+                      
                       <td className="px-4 py-4">
                         <div className="flex items-center gap-4">
                           <div className="w-10 h-10 rounded-full bg-gray-200 shrink-0 overflow-hidden relative">
-                             {/* Fallback color if image is missing */}
                              <div className="w-full h-full bg-slate-300 flex items-center justify-center text-slate-500 font-bold text-sm">
                                {row.name.charAt(0)}
                              </div>
@@ -214,12 +213,12 @@ const Cashier_Withdrawals = () => {
                         </div>
                       </td>
 
-                      {/* Balance */}
+                      
                       <td className="px-4 py-4">
                         <span className="font-bold text-gray-900">{row.balance}</span>
                       </td>
 
-                      {/* Date */}
+                     
                       <td className="px-4 py-4 relative">
                         {row.hasDot && (
                           <span className="absolute left-1 top-5 w-1.5 h-1.5 rounded-full bg-red-500"></span>
@@ -227,14 +226,14 @@ const Cashier_Withdrawals = () => {
                         <span className="text-sm text-gray-500 font-medium ml-2">{row.date}</span>
                       </td>
 
-                      {/* Status */}
+                     
                       <td className="px-4 py-4">
                         <span className={`px-3 py-1 rounded text-[10px] uppercase tracking-wide ${getStatusStyle(row.status)}`}>
                           {row.status}
                         </span>
                       </td>
 
-                      {/* Action Button */}
+                     
                       <td className="px-4 py-4 text-center">
                         <button className="bg-green-50 hover:bg-green-100 text-[#389734] font-bold text-xs px-4 py-2 rounded-md transition-colors">
                           Withdraw

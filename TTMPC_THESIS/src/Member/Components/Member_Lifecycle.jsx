@@ -10,6 +10,8 @@ import {
   CreditCard,
   History,
   LayoutDashboard,
+  Menu,
+  X,
   RefreshCw,
   Search,
   ShieldCheck,
@@ -79,6 +81,7 @@ const Member_Lifecycle = () => {
   const [loans, setLoans] = useState([]);
   const [payments, setPayments] = useState([]);
   const [schedules, setSchedules] = useState([]);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   const menuItems = [
     { name: "Dashboard", icon: LayoutDashboard },
@@ -224,8 +227,26 @@ const Member_Lifecycle = () => {
   };
 
   return (
-    <div className="flex min-h-screen bg-[#F8F9FA]">
-      <aside className="bg-white w-64 p-4 flex flex-col border-r border-gray-200">
+    <div className="relative flex min-h-screen bg-[#F8F9FA]">
+      {isSidebarOpen ? (
+        <button
+          aria-label="Close sidebar overlay"
+          onClick={() => setIsSidebarOpen(false)}
+          className="fixed inset-0 z-20 bg-black/30 lg:hidden"
+        />
+      ) : null}
+      <aside
+        className={`fixed inset-y-0 left-0 z-30 w-64 transform bg-white p-4 flex flex-col border-r border-gray-200 transition-transform duration-200 ease-out lg:static lg:translate-x-0 ${
+          isSidebarOpen ? 'translate-x-0' : '-translate-x-full'
+        }`}
+      >
+        <button
+          aria-label="Close sidebar"
+          onClick={() => setIsSidebarOpen(false)}
+          className="absolute right-3 top-3 rounded-md p-1 text-gray-500 hover:bg-gray-100 lg:hidden"
+        >
+          <X className="h-5 w-5" />
+        </button>
         <div className="flex flex-row items-start gap-2 mb-6">
           <img src="src/assets/img/ttmpc logo.png" alt="Logo" className="h-12 w-auto" />
           <div className="flex flex-col">
@@ -236,7 +257,7 @@ const Member_Lifecycle = () => {
 
         <hr className="w-full border-gray-100 mb-6" />
 
-        <nav className="flex flex-col gap-2 text-sm flex-grow">
+        <nav className="flex grow flex-col gap-2 text-sm">
           {menuItems.map((item) => {
             const Icon = item.icon;
             const to = routeMap[item.name];
@@ -271,9 +292,21 @@ const Member_Lifecycle = () => {
         </button>
       </aside>
 
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <header className="bg-white h-16 shadow-sm flex items-center justify-end px-8 z-10 border-b border-gray-100">
-          <div className="relative">
+      <div className="flex-1 flex flex-col overflow-hidden lg:pl-0">
+        <header className="bg-white h-16 shadow-sm flex items-center justify-between px-4 sm:px-6 lg:px-8 z-10 border-b border-gray-100">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <button
+              aria-label="Open sidebar"
+              onClick={() => setIsSidebarOpen(true)}
+              className="rounded-md p-2 text-gray-600 hover:bg-gray-100 lg:hidden"
+            >
+              <Menu className="h-5 w-5" />
+            </button>
+            <h1 className="text-base sm:text-lg font-extrabold text-[#1a4a2f] lg:hidden">Lifecycle</h1>
+          </div>
+
+          <div className="flex items-center gap-2 sm:gap-4">
+          <div className="relative hidden md:block">
             <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
             <input
               type="text"
@@ -282,23 +315,25 @@ const Member_Lifecycle = () => {
               readOnly
             />
           </div>
-          <button className="ml-6 relative p-2 rounded-full text-gray-500 hover:bg-gray-100 transition-colors">
+          <button className="relative p-2 rounded-full text-gray-500 hover:bg-gray-100 transition-colors">
             <Bell className="w-5 h-5" />
             <span className="absolute top-1.5 right-1.5 block h-2 w-2 rounded-full bg-red-500 ring-2 ring-white" />
           </button>
 
-          <div className="flex items-center ml-4 gap-3 border-l border-gray-200 pl-4 cursor-pointer">
+          <div className="flex items-center gap-2 sm:gap-3 border-l border-gray-200 pl-2 sm:pl-4 cursor-pointer">
             <div className="w-8 h-8 rounded-full bg-gray-200 overflow-hidden border border-gray-300">
               <img src="src/assets/img/member-profile.png" alt="Profile" className="w-full h-full object-cover" />
             </div>
-            <p className="text-sm font-bold text-gray-700">Member</p>
+            <p className="hidden sm:block text-sm font-bold text-gray-700">Member</p>
+          </div>
           </div>
         </header>
 
-        <main className="p-8 overflow-y-auto">
+        <main className="p-4 sm:p-6 lg:p-8 overflow-y-auto">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6 gap-3">
             <div>
-              <h1 className="font-extrabold text-[#1a4a2f] text-2xl">Loan Lifecycle View</h1>
+              <h1 className="hidden lg:block font-extrabold text-[#1a4a2f] text-2xl">Loan Lifecycle View</h1>
+              <h1 className="lg:hidden font-extrabold text-[#1a4a2f] text-xl">Loan Lifecycle View</h1>
               <p className="text-xs text-gray-500 mt-1">
                 Real-time refresh every 7 seconds. Last synced: {formatDate(lastSynced)}
               </p>
@@ -329,8 +364,8 @@ const Member_Lifecycle = () => {
             </div>
           ) : null}
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-            <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 mb-6">
+            <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-100 shadow-sm p-4 sm:p-6">
               <div className="flex items-center gap-2 mb-4">
                 <Users className="w-5 h-5 text-[#1D6021]" />
                 <h2 className="font-bold text-gray-900">Complete Member Details</h2>
@@ -349,7 +384,7 @@ const Member_Lifecycle = () => {
               </div>
             </div>
 
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 sm:p-6">
               <div className="flex items-center gap-2 mb-4">
                 <ShieldCheck className="w-5 h-5 text-[#1D6021]" />
                 <h2 className="font-bold text-gray-900">Process Summary</h2>
@@ -368,7 +403,7 @@ const Member_Lifecycle = () => {
               <CalendarClock className="w-4 h-4 text-[#1D6021]" />
               <h3 className="font-bold text-gray-900">Loan Lifecycle Timeline</h3>
             </div>
-            <table className="min-w-full text-sm">
+            <table className="min-w-210 text-sm">
               <thead className="bg-gray-50 text-gray-600 uppercase text-[11px] tracking-wider">
                 <tr>
                   <th className="px-4 py-3 text-left">Loan ID</th>
@@ -409,7 +444,7 @@ const Member_Lifecycle = () => {
               <Wallet className="w-4 h-4 text-[#1D6021]" />
               <h3 className="font-bold text-gray-900">Recorded Loan Payments (Real-Time)</h3>
             </div>
-            <table className="min-w-full text-sm">
+            <table className="min-w-215 text-sm">
               <thead className="bg-gray-50 text-gray-600 uppercase text-[11px] tracking-wider">
                 <tr>
                   <th className="px-4 py-3 text-left">Date Paid</th>
@@ -452,7 +487,7 @@ const Member_Lifecycle = () => {
               <CalendarClock className="w-4 h-4 text-[#1D6021]" />
               <h3 className="font-bold text-gray-900">Loan Schedule</h3>
             </div>
-            <table className="min-w-full text-sm">
+            <table className="min-w-225 text-sm">
               <thead className="bg-gray-50 text-gray-600 uppercase text-[11px] tracking-wider">
                 <tr>
                   <th className="px-4 py-3 text-left">Loan ID</th>

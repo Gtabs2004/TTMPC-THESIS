@@ -9,6 +9,8 @@ import {
   Activity, 
   Search,
   Bell,
+  Menu,
+  X,
   Banknote,
   CalendarClock,
   FileText,
@@ -24,6 +26,7 @@ const Member_Loans = () => {
   const [loans, setLoans] = useState([]);
   const [loadingLoans, setLoadingLoans] = useState(true);
   const [loanError, setLoanError] = useState('');
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   const menuItems = [
     { name: "Dashboard", icon: LayoutDashboard },
@@ -153,9 +156,27 @@ const Member_Loans = () => {
   }, [loans]);
 
   return (
-    <div className="flex min-h-screen bg-[#F8F9FA]">
+    <div className="relative flex min-h-screen bg-[#F8F9FA]">
+      {isSidebarOpen ? (
+        <button
+          aria-label="Close sidebar overlay"
+          onClick={() => setIsSidebarOpen(false)}
+          className="fixed inset-0 z-20 bg-black/30 lg:hidden"
+        />
+      ) : null}
       {/* Sidebar */}
-      <aside className="bg-white w-64 p-4 flex flex-col border-r border-gray-200">
+      <aside
+        className={`fixed inset-y-0 left-0 z-30 w-64 transform bg-white p-4 flex flex-col border-r border-gray-200 transition-transform duration-200 ease-out lg:static lg:translate-x-0 ${
+          isSidebarOpen ? 'translate-x-0' : '-translate-x-full'
+        }`}
+      >
+        <button
+          aria-label="Close sidebar"
+          onClick={() => setIsSidebarOpen(false)}
+          className="absolute right-3 top-3 rounded-md p-1 text-gray-500 hover:bg-gray-100 lg:hidden"
+        >
+          <X className="h-5 w-5" />
+        </button>
         <div className="flex flex-row items-start gap-2 mb-6">
           <img src="src/assets/img/ttmpc logo.png" alt="Logo" className="h-12 w-auto" />
           <div className="flex flex-col">
@@ -168,7 +189,7 @@ const Member_Loans = () => {
    
         <hr className="w-full border-gray-100 mb-6" />
    
-        <nav className="flex flex-col gap-2 text-sm flex-grow">
+        <nav className="flex grow flex-col gap-2 text-sm">
           {(() => {
             const routeMap = {
               "Dashboard": "/member-dashboard",
@@ -215,10 +236,22 @@ const Member_Loans = () => {
       </aside>
    
       {/* Main Content */}
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex-1 flex flex-col overflow-hidden lg:pl-0">
         {/* Header */}
-        <header className="bg-white h-16 shadow-sm flex items-center justify-end px-8 z-10 border-b border-gray-100">
-          <div className="relative">
+        <header className="bg-white h-16 shadow-sm flex items-center justify-between px-4 sm:px-6 lg:px-8 z-10 border-b border-gray-100">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <button
+              aria-label="Open sidebar"
+              onClick={() => setIsSidebarOpen(true)}
+              className="rounded-md p-2 text-gray-600 hover:bg-gray-100 lg:hidden"
+            >
+              <Menu className="h-5 w-5" />
+            </button>
+            <h1 className="text-base sm:text-lg font-extrabold text-[#1a4a2f] lg:hidden">Loans</h1>
+          </div>
+
+          <div className="flex items-center gap-2 sm:gap-4">
+          <div className="relative hidden md:block">
             <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400"/>
             <input 
               type="text" 
@@ -226,22 +259,23 @@ const Member_Loans = () => {
               placeholder="Search..."
             />
           </div>
-          <button className="ml-6 relative p-2 rounded-full text-gray-500 hover:bg-gray-100 transition-colors">
+          <button className="relative p-2 rounded-full text-gray-500 hover:bg-gray-100 transition-colors">
             <Bell className="w-5 h-5"/>
             <span className="absolute top-1.5 right-1.5 block h-2 w-2 rounded-full bg-red-500 ring-2 ring-white"></span>
           </button>
           
-          <div className="flex items-center ml-4 gap-3 border-l border-gray-200 pl-4 cursor-pointer">
+          <div className="flex items-center gap-2 sm:gap-3 border-l border-gray-200 pl-2 sm:pl-4 cursor-pointer">
             <div className="w-8 h-8 rounded-full bg-gray-200 overflow-hidden border border-gray-300">
                <img src="src/assets/img/member-profile.png" alt="Member Profile" className="w-full h-full object-cover" />
             </div>
-            <p className="text-sm font-bold text-gray-700">Member</p>
+            <p className="hidden sm:block text-sm font-bold text-gray-700">Member</p>
+          </div>
           </div>
         </header>
    
         {/* Scrollable Page Content */}
-        <main className="p-8 overflow-y-auto">
-          <h1 className="font-extrabold text-[#1a4a2f] text-2xl mb-8">Loans</h1>
+        <main className="p-4 sm:p-6 lg:p-8 overflow-y-auto">
+          <h1 className="hidden lg:block font-extrabold text-[#1a4a2f] text-2xl mb-8">Loans</h1>
 
           <div className="mb-6 rounded-xl border border-green-200 bg-green-50 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div>
@@ -258,7 +292,7 @@ const Member_Loans = () => {
           </div>
           
           {/* Top Summary Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6 mb-8">
             
             {/* Balance Card */}
             <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col relative overflow-hidden">
@@ -266,7 +300,7 @@ const Member_Loans = () => {
                 <Banknote className="w-4 h-4 text-gray-600" />
               </div>
               <p className="text-xs font-bold text-gray-500 mb-1">Total Outstanding Balance</p>
-              <h3 className="text-3xl font-black text-gray-900 mb-2">{formatCurrency(totalOutstanding)}</h3>
+              <h3 className="text-2xl sm:text-3xl font-black text-gray-900 mb-2">{formatCurrency(totalOutstanding)}</h3>
               <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider mt-auto flex items-center">
                 <CalendarClock className="w-3 h-3 mr-1" /> Last Updated: {latestLoan?.nextDue || 'N/A'}
               </p>
@@ -281,7 +315,7 @@ const Member_Loans = () => {
                 <CalendarClock className="w-4 h-4 text-[#1D6021]" />
               </div>
               <p className="text-xs font-bold text-gray-500 mb-1">Monthly Commitment</p>
-              <h3 className="text-3xl font-black text-gray-900 mb-2">{formatCurrency(totalMonthly)}</h3>
+              <h3 className="text-2xl sm:text-3xl font-black text-gray-900 mb-2">{formatCurrency(totalMonthly)}</h3>
               <p className="text-[10px] font-bold text-gray-600 mt-auto">
                 Next Deduction: {latestLoan?.nextDue || 'N/A'}
               </p>
@@ -293,7 +327,7 @@ const Member_Loans = () => {
                 <FileText className="w-4 h-4 text-gray-600" />
               </div>
               <p className="text-xs font-bold text-gray-500 mb-1">Active Loans</p>
-              <h3 className="text-3xl font-black text-gray-900 mb-2">{loans.length}</h3>
+              <h3 className="text-2xl sm:text-3xl font-black text-gray-900 mb-2">{loans.length}</h3>
               
               <div className="flex items-center gap-2 mt-auto">
                 <div className="flex -space-x-1.5">
@@ -318,7 +352,8 @@ const Member_Loans = () => {
                </span>
             </div>
             
-            <table className="w-full text-left border-collapse">
+            <div className="overflow-x-auto">
+            <table className="w-full min-w-220 text-left border-collapse">
               <thead>
                 <tr className="bg-[#FAF9FB] border-b border-gray-100 text-[9px] uppercase tracking-wider text-gray-400 font-bold">
                   <th className="p-5 font-bold">Loan Type</th>
@@ -365,13 +400,14 @@ const Member_Loans = () => {
                 ))}
               </tbody>
             </table>
+            </div>
           </div>
 
           {/* Bottom Grid: Breakdown & Eligibility */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
             
             {/* Recent Payment Breakdown */}
-            <div className="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-gray-100 p-8 flex flex-col">
+            <div className="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-gray-100 p-5 sm:p-8 flex flex-col">
               <div className="mb-6 pb-6 border-b border-gray-100">
                 <h3 className="text-lg font-bold text-gray-900">Recent Payment Breakdown</h3>
                 <p className="text-xs text-gray-400 font-medium mt-1">{latestLoan ? `${latestLoan.id} (${latestLoan.type})` : 'No loan selected'}</p>
@@ -398,7 +434,7 @@ const Member_Loans = () => {
               </div>
 
               <div className="mt-8 bg-[#F8F9FA] p-4 rounded-xl flex items-start gap-3 border border-gray-100">
-                <Info className="w-4 h-4 text-[#1D6021] flex-shrink-0 mt-0.5" />
+                <Info className="w-4 h-4 text-[#1D6021] shrink-0 mt-0.5" />
                 <p className="text-[11px] text-gray-500 font-medium leading-relaxed">
                   Repayments are automatically deducted from your DepEd payroll on the 15th of every month. For discrepancies, please visit the nearest TTMPC branch.
                 </p>
@@ -406,7 +442,7 @@ const Member_Loans = () => {
             </div>
 
             {/* Loan Eligibility Tool */}
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 flex flex-col">
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 sm:p-8 flex flex-col">
               <div className="flex items-center gap-3 mb-4">
                 <div className="w-8 h-8 rounded-lg bg-[#EAF1EB] flex items-center justify-center border border-green-100">
                   <Calculator className="w-4 h-4 text-[#1D6021]" />

@@ -9,6 +9,8 @@ import {
   Activity, 
   Search,
   Bell,
+  Menu,
+  X,
   Pencil,
   User,
   Briefcase,
@@ -37,6 +39,7 @@ const Members_Profile = () => {
   const [passwordError, setPasswordError] = useState('');
   const [passwordSuccess, setPasswordSuccess] = useState('');
   const [updatingPassword, setUpdatingPassword] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   const menuItems = [
     { name: "Dashboard", icon: LayoutDashboard },
@@ -239,9 +242,27 @@ const Members_Profile = () => {
   };
 
   return (
-    <div className="flex min-h-screen bg-[#F8F9FA]">
+    <div className="relative flex min-h-screen bg-[#F8F9FA]">
+      {isSidebarOpen ? (
+        <button
+          aria-label="Close sidebar overlay"
+          onClick={() => setIsSidebarOpen(false)}
+          className="fixed inset-0 z-20 bg-black/30 lg:hidden"
+        />
+      ) : null}
       {/* Sidebar */}
-      <aside className="bg-white w-64 p-4 flex flex-col border-r border-gray-200">
+      <aside
+        className={`fixed inset-y-0 left-0 z-30 w-64 transform bg-white p-4 flex flex-col border-r border-gray-200 transition-transform duration-200 ease-out lg:static lg:translate-x-0 ${
+          isSidebarOpen ? 'translate-x-0' : '-translate-x-full'
+        }`}
+      >
+        <button
+          aria-label="Close sidebar"
+          onClick={() => setIsSidebarOpen(false)}
+          className="absolute right-3 top-3 rounded-md p-1 text-gray-500 hover:bg-gray-100 lg:hidden"
+        >
+          <X className="h-5 w-5" />
+        </button>
         <div className="flex flex-row items-start gap-2 mb-6">
           <img src="src/assets/img/ttmpc logo.png" alt="Logo" className="h-12 w-auto" />
           <div className="flex flex-col">
@@ -254,7 +275,7 @@ const Members_Profile = () => {
    
         <hr className="w-full border-gray-100 mb-6" />
    
-        <nav className="flex flex-col gap-2 text-sm flex-grow">
+        <nav className="flex grow flex-col gap-2 text-sm">
           {(() => {
             const routeMap = {
               "Dashboard": "/member-dashboard",
@@ -301,10 +322,22 @@ const Members_Profile = () => {
       </aside>
    
       {/* Main Content */}
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex-1 flex flex-col overflow-hidden lg:pl-0">
         {/* Header */}
-        <header className="bg-white h-16 shadow-sm flex items-center justify-end px-8 z-10 border-b border-gray-100">
-          <div className="relative">
+        <header className="bg-white h-16 shadow-sm flex items-center justify-between px-4 sm:px-6 lg:px-8 z-10 border-b border-gray-100">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <button
+              aria-label="Open sidebar"
+              onClick={() => setIsSidebarOpen(true)}
+              className="rounded-md p-2 text-gray-600 hover:bg-gray-100 lg:hidden"
+            >
+              <Menu className="h-5 w-5" />
+            </button>
+            <h1 className="text-base sm:text-lg font-extrabold text-[#1a4a2f] lg:hidden">Profile</h1>
+          </div>
+
+          <div className="flex items-center gap-2 sm:gap-4">
+          <div className="relative hidden md:block">
             <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400"/>
             <input 
               type="text" 
@@ -312,31 +345,32 @@ const Members_Profile = () => {
               placeholder="Search..."
             />
           </div>
-          <button className="ml-6 relative p-2 rounded-full text-gray-500 hover:bg-gray-100 transition-colors">
+          <button className="relative p-2 rounded-full text-gray-500 hover:bg-gray-100 transition-colors">
             <Bell className="w-5 h-5"/>
             <span className="absolute top-1.5 right-1.5 block h-2 w-2 rounded-full bg-red-500 ring-2 ring-white"></span>
           </button>
           
-          <div className="flex items-center ml-4 gap-3 border-l border-gray-200 pl-4 cursor-pointer">
+          <div className="flex items-center gap-2 sm:gap-3 border-l border-gray-200 pl-2 sm:pl-4 cursor-pointer">
             <div className="w-8 h-8 rounded-full bg-gray-200 overflow-hidden border border-gray-300">
                <img src="src/assets/img/member-profile.png" alt="Member Profile" className="w-full h-full object-cover" />
             </div>
-            <p className="text-sm font-bold text-gray-700">Member</p>
+            <p className="hidden sm:block text-sm font-bold text-gray-700">Member</p>
+          </div>
           </div>
         </header>
    
         {/* Scrollable Page Content */}
-        <main className="p-8 overflow-y-auto">
+        <main className="p-4 sm:p-6 lg:p-8 overflow-y-auto">
           
           {/* Top Profile Header Card */}
-          <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col sm:flex-row items-center justify-between mb-8">
-            <div className="flex items-center gap-6">
+          <div className="bg-white p-4 sm:p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col sm:flex-row items-center justify-between mb-8 gap-4">
+            <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-6 text-center sm:text-left">
               <div className="w-20 h-20 rounded-full bg-[#EAF1EB] overflow-hidden border border-gray-200">
                 <img src="src/assets/img/member-profile.png" alt="Juan Dela Cruz" className="w-full h-full object-cover" />
               </div>
               <div>
-                <h1 className="text-2xl font-black text-gray-900 mb-2">{profile?.fullName || 'Loading...'}</h1>
-                <div className="flex items-center gap-3 text-sm">
+                <h1 className="text-xl sm:text-2xl font-black text-gray-900 mb-2">{profile?.fullName || 'Loading...'}</h1>
+                <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 text-sm">
                   <span className="bg-[#EAF1EB] text-[#1D6021] px-2.5 py-1 rounded text-[10px] font-extrabold tracking-widest uppercase">
                     {profile?.memberType || 'Member'}
                   </span>
@@ -368,7 +402,7 @@ const Members_Profile = () => {
           ) : null}
 
           {/* Details Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
             
             {/* Personal Information */}
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 flex flex-col overflow-hidden">
@@ -377,23 +411,23 @@ const Members_Profile = () => {
                 <h2 className="font-bold text-gray-900">Personal Information</h2>
               </div>
               <div className="p-6 flex flex-col gap-5">
-                <div className="flex justify-between items-center text-sm border-b border-gray-50 pb-4">
+                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1 text-sm border-b border-gray-50 pb-4">
                   <span className="text-gray-500 font-medium">Full Name</span>
                   <span className="font-bold text-gray-900">{profile?.fullName || 'N/A'}</span>
                 </div>
-                <div className="flex justify-between items-center text-sm border-b border-gray-50 pb-4">
+                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1 text-sm border-b border-gray-50 pb-4">
                   <span className="text-gray-500 font-medium">Member ID</span>
                   <span className="font-bold text-gray-900">{profile?.memberId || 'N/A'}</span>
                 </div>
-                <div className="flex justify-between items-center text-sm border-b border-gray-50 pb-4">
+                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1 text-sm border-b border-gray-50 pb-4">
                   <span className="text-gray-500 font-medium">Date of Birth</span>
                   <span className="font-bold text-gray-900">{profile?.dateOfBirth || 'N/A'}</span>
                 </div>
-                <div className="flex justify-between items-center text-sm border-b border-gray-50 pb-4">
+                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1 text-sm border-b border-gray-50 pb-4">
                   <span className="text-gray-500 font-medium">Gender</span>
                   <span className="font-bold text-gray-900">{profile?.gender || 'N/A'}</span>
                 </div>
-                <div className="flex justify-between items-center text-sm">
+                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1 text-sm">
                   <span className="text-gray-500 font-medium">Civil Status</span>
                   <span className="font-bold text-gray-900">{profile?.civilStatus || 'N/A'}</span>
                 </div>
@@ -407,15 +441,15 @@ const Members_Profile = () => {
                 <h2 className="font-bold text-gray-900">Employment Details</h2>
               </div>
               <div className="p-6 flex flex-col gap-5">
-                <div className="flex justify-between items-center text-sm border-b border-gray-50 pb-4">
+                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1 text-sm border-b border-gray-50 pb-4">
                   <span className="text-gray-500 font-medium">Employer</span>
                   <span className="font-bold text-gray-900">{profile?.employer || 'N/A'}</span>
                 </div>
-                <div className="flex justify-between items-center text-sm border-b border-gray-50 pb-4">
+                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1 text-sm border-b border-gray-50 pb-4">
                   <span className="text-gray-500 font-medium">Position</span>
                   <span className="font-bold text-gray-900">{profile?.position || 'N/A'}</span>
                 </div>
-                <div className="flex justify-between items-center text-sm">
+                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1 text-sm">
                   <span className="text-gray-500 font-medium">Salary Grade</span>
                   <span className="font-bold text-gray-900">{profile?.salaryGrade || 'N/A'}</span>
                 </div>

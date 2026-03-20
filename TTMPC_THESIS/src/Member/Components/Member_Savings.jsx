@@ -6,8 +6,11 @@ import {
   Users, 
   CreditCard, 
   Activity, 
+  History,
   Search,
   Bell,
+  Menu,
+  X,
   Wallet,
   CalendarDays,
   Banknote,
@@ -24,6 +27,7 @@ import {
 const Member_Savings = () => {
   const { session, signOut } = UserAuth();
   const navigate = useNavigate();
+  const [isSidebarOpen, setIsSidebarOpen] = React.useState(false);
 
   const menuItems = [
     { name: "Dashboard", icon: LayoutDashboard },
@@ -68,9 +72,27 @@ const Member_Savings = () => {
   };
 
   return (
-    <div className="flex min-h-screen bg-[#F8F9FA]">
+    <div className="relative flex min-h-screen bg-[#F8F9FA]">
+      {isSidebarOpen ? (
+        <button
+          aria-label="Close sidebar overlay"
+          onClick={() => setIsSidebarOpen(false)}
+          className="fixed inset-0 z-20 bg-black/30 lg:hidden"
+        />
+      ) : null}
       {/* Sidebar */}
-      <aside className="bg-white w-64 p-4 flex flex-col border-r border-gray-200">
+      <aside
+        className={`fixed inset-y-0 left-0 z-30 w-64 transform bg-white p-4 flex flex-col border-r border-gray-200 transition-transform duration-200 ease-out lg:static lg:translate-x-0 ${
+          isSidebarOpen ? 'translate-x-0' : '-translate-x-full'
+        }`}
+      >
+        <button
+          aria-label="Close sidebar"
+          onClick={() => setIsSidebarOpen(false)}
+          className="absolute right-3 top-3 rounded-md p-1 text-gray-500 hover:bg-gray-100 lg:hidden"
+        >
+          <X className="h-5 w-5" />
+        </button>
         <div className="flex flex-row items-start gap-2 mb-6">
           <img src="src/assets/img/ttmpc logo.png" alt="Logo" className="h-12 w-auto" />
           <div className="flex flex-col">
@@ -83,7 +105,7 @@ const Member_Savings = () => {
    
         <hr className="w-full border-gray-100 mb-6" />
    
-        <nav className="flex flex-col gap-2 text-sm flex-grow">
+        <nav className="flex grow flex-col gap-2 text-sm">
           {(() => {
             const routeMap = {
               "Dashboard": "/member-dashboard",
@@ -130,10 +152,22 @@ const Member_Savings = () => {
       </aside>
    
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex-1 flex flex-col overflow-hidden lg:pl-0">
         {/* Header */}
-        <header className="bg-white h-16 shadow-sm flex items-center justify-end px-8 z-10 border-b border-gray-100">
-          <div className="relative">
+        <header className="bg-white h-16 shadow-sm flex items-center justify-between px-4 sm:px-6 lg:px-8 z-10 border-b border-gray-100">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <button
+              aria-label="Open sidebar"
+              onClick={() => setIsSidebarOpen(true)}
+              className="rounded-md p-2 text-gray-600 hover:bg-gray-100 lg:hidden"
+            >
+              <Menu className="h-5 w-5" />
+            </button>
+            <h1 className="text-base sm:text-lg font-extrabold text-[#1a4a2f] lg:hidden">Savings</h1>
+          </div>
+
+          <div className="flex items-center gap-2 sm:gap-4">
+          <div className="relative hidden md:block">
             <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400"/>
             <input 
               type="text" 
@@ -141,31 +175,32 @@ const Member_Savings = () => {
               placeholder="Search..."
             />
           </div>
-          <button className="ml-6 relative p-2 rounded-full text-gray-500 hover:bg-gray-100 transition-colors">
+          <button className="relative p-2 rounded-full text-gray-500 hover:bg-gray-100 transition-colors">
             <Bell className="w-5 h-5"/>
             <span className="absolute top-1.5 right-1.5 block h-2 w-2 rounded-full bg-red-500 ring-2 ring-white"></span>
           </button>
           
-          <div className="flex items-center ml-4 gap-3 border-l border-gray-200 pl-4 cursor-pointer">
+          <div className="flex items-center gap-2 sm:gap-3 border-l border-gray-200 pl-2 sm:pl-4 cursor-pointer">
             <div className="w-8 h-8 rounded-full bg-gray-200 overflow-hidden border border-gray-300">
                <img src="src/assets/img/member-profile.png" alt="Profile" className="w-full h-full object-cover" />
             </div>
-            <p className="text-sm font-bold text-gray-700">Member</p>
+            <p className="hidden sm:block text-sm font-bold text-gray-700">Member</p>
+          </div>
           </div>
         </header>
    
         {/* Scrollable Main */}
-        <main className="p-8 overflow-y-auto">
+        <main className="p-4 sm:p-6 lg:p-8 overflow-y-auto">
           
           {/* Top Summary Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6 mb-8">
             {/* Regular Savings Card */}
             <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col">
               <div className="w-10 h-10 rounded-lg bg-[#EAF1EB] flex items-center justify-center mb-6">
                 <Wallet className="w-5 h-5 text-[#1D6021]" />
               </div>
               <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">Regular Savings</p>
-              <h3 className="text-3xl font-black text-gray-900">₱85,420.50</h3>
+              <h3 className="text-2xl sm:text-3xl font-black text-gray-900">₱85,420.50</h3>
             </div>
 
             {/* Time Deposit Card */}
@@ -174,7 +209,7 @@ const Member_Savings = () => {
                 <CalendarDays className="w-5 h-5 text-[#1D6021]" />
               </div>
               <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">Time Deposit</p>
-              <h3 className="text-3xl font-black text-gray-900">₱150,000.00</h3>
+              <h3 className="text-2xl sm:text-3xl font-black text-gray-900">₱150,000.00</h3>
             </div>
 
             {/* Total Savings Card */}
@@ -183,7 +218,7 @@ const Member_Savings = () => {
                 <Banknote className="w-5 h-5 text-white" />
               </div>
               <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">Total Savings</p>
-              <h3 className="text-3xl font-black text-gray-900">₱235,420.50</h3>
+              <h3 className="text-2xl sm:text-3xl font-black text-gray-900">₱235,420.50</h3>
             </div>
           </div>
 
@@ -203,7 +238,7 @@ const Member_Savings = () => {
             
             {/* Ledger Table */}
             <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
+              <table className="w-full min-w-180 text-left border-collapse">
                 <thead>
                   <tr className="bg-[#FAF9FB] border-b border-gray-100 text-[10px] uppercase tracking-wider text-gray-400 font-bold">
                     <th className="p-5 font-bold">Date</th>
