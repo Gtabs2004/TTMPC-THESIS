@@ -254,26 +254,56 @@ def resolve_member_by_ref(member_ref: str) -> dict | None:
     clean_ref = str(member_ref or "").strip()
     if not clean_ref:
         return None
+    try:
+        by_uuid_response = (
+            supabase.table("member")
+            .select("*")
+            .eq("id", clean_ref)
+            .limit(1)
+            .execute()
+        )
+        by_uuid_row = (by_uuid_response.data or [None])[0]
+        if by_uuid_row:
+            return by_uuid_row
 
-    by_uuid_response = (
-        supabase.table("member")
-        .select("*")
-        .eq("id", clean_ref)
-        .limit(1)
-        .execute()
-    )
-    by_uuid_row = (by_uuid_response.data or [None])[0]
-    if by_uuid_row:
-        return by_uuid_row
+        by_membership_response = (
+            supabase.table("member")
+            .select("*")
+            .eq("membership_id", clean_ref)
+            .limit(1)
+            .execute()
+        )
+        return (by_membership_response.data or [None])[0]
+    except Exception:
+        return None
 
-    by_membership_response = (
-        supabase.table("member")
-        .select("*")
-        .eq("membership_id", clean_ref)
-        .limit(1)
-        .execute()
-    )
-    return (by_membership_response.data or [None])[0]
+
+def resolve_personal_data_sheet_by_ref(member_ref: str) -> dict | None:
+    clean_ref = str(member_ref or "").strip()
+    if not clean_ref:
+        return None
+    try:
+        by_membership_response = (
+            supabase.table("personal_data_sheet")
+            .select("*")
+            .eq("membership_number_id", clean_ref)
+            .limit(1)
+            .execute()
+        )
+        by_membership_row = (by_membership_response.data or [None])[0]
+        if by_membership_row:
+            return by_membership_row
+
+        by_pds_id_response = (
+            supabase.table("personal_data_sheet")
+            .select("*")
+            .eq("personal_data_sheet_id", clean_ref)
+            .limit(1)
+            .execute()
+        )
+        return (by_pds_id_response.data or [None])[0]
+    except Exception:
+        return None
 
 
 def build_single_schedule_row(
@@ -1632,6 +1662,7 @@ async def get_secretary_membership_records():
                 latest_cbu_by_member[member_id] = cbu
 
         records = []
+        seen_membership_numbers: set[str] = set()
         for row in member_rows:
             member_uuid = str(row.get("id") or "").strip()
             if not member_uuid:
@@ -1664,6 +1695,52 @@ async def get_secretary_membership_records():
                     "date_joined": joined_value,
                     "shares": decimal_to_float(shares_value),
                     "paid_up_capital": decimal_to_float(paid_up_value),
+                    "editable": True,
+                    "edit_scope": "member",
+                }
+            )
+            seen_membership_numbers.add(str(membership_number or "").strip())
+
+        # Include personal_data_sheet records not yet present in member table.
+        try:
+            pds_rows = (
+                supabase.table("personal_data_sheet")
+                .select("*")
+                .order("created_at", desc=True)
+                .execute()
+            ).data or []
+        except Exception:
+            pds_rows = (
+                supabase.table("personal_data_sheet")
+                .select("*")
+                .execute()
+            ).data or []
+
+        for pds in pds_rows:
+            membership_number = str(pds.get("membership_number_id") or "").strip()
+            if not membership_number or membership_number in seen_membership_numbers:
+                continue
+
+            full_name = " ".join(
+                part
+                for part in [
+                    str(pds.get("first_name") or "").strip(),
+                    str(pds.get("middle_name") or "").strip(),
+                    str(pds.get("surname") or "").strip(),
+                ]
+                if part
+            ) or "Unknown Member"
+
+            records.append(
+                {
+                    "member_uuid": membership_number,
+                    "applicant_id": membership_number,
+                    "applicant_name": full_name,
+                    "date_joined": pds.get("date_of_membership") or pds.get("created_at") or "",
+                    "shares": decimal_to_float(pds.get("number_of_shares") or 0),
+                    "paid_up_capital": decimal_to_float(pds.get("initial_paid_up_capital") or pds.get("amount") or 0),
+                    "editable": True,
+                    "edit_scope": "personal_data_sheet",
                 }
             )
 
@@ -1803,11 +1880,17 @@ async def get_secretary_membership_record_details(member_ref: str):
 
     try:
         member_row = resolve_member_by_ref(member_ref)
-        if not member_row:
-            raise HTTPException(status_code=404, detail="Membership record not found.")
+        pds_row = resolve_personal_data_sheet_by_ref(member_ref)
 
-        member_uuid = str(member_row.get("id") or "").strip()
-        membership_number = member_row.get("membership_id") or member_uuid
+        if not member_row and not pds_row:
+            raise HTTPException(status_code=403, detail="Applicant-only records cannot be edited. Record must exist in member or personal_data_sheet.")
+
+        member_uuid = str((member_row or {}).get("id") or "").strip()
+        membership_number = (
+            (member_row or {}).get("membership_id")
+            or (pds_row or {}).get("membership_number_id")
+            or member_uuid
+        )
 
         latest_application = None
         if membership_number:
@@ -1821,43 +1904,61 @@ async def get_secretary_membership_record_details(member_ref: str):
             )
             latest_application = (application_response.data or [None])[0]
 
-        latest_cbu_response = (
-            supabase.table("capital_build_up")
-            .select("ending_share_capital")
-            .eq("member_id", member_uuid)
-            .order("transaction_date", desc=True)
-            .limit(1)
-            .execute()
-        )
-        latest_cbu = (latest_cbu_response.data or [None])[0]
+        latest_cbu = None
+        if member_uuid:
+            latest_cbu_response = (
+                supabase.table("capital_build_up")
+                .select("ending_share_capital")
+                .eq("member_id", member_uuid)
+                .order("transaction_date", desc=True)
+                .limit(1)
+                .execute()
+            )
+            latest_cbu = (latest_cbu_response.data or [None])[0]
 
-        amount_value = member_row.get("share_capital_amount")
+        amount_value = (member_row or {}).get("share_capital_amount")
+        if amount_value is None:
+            amount_value = (pds_row or {}).get("amount")
         if amount_value is None:
             amount_value = (latest_cbu or {}).get("ending_share_capital") or 0
 
-        shares_value = member_row.get("number_of_shares")
+        shares_value = (member_row or {}).get("number_of_shares")
+        if shares_value is None:
+            shares_value = (pds_row or {}).get("number_of_shares")
         if shares_value is None:
             amount_decimal = Decimal(str(amount_value or 0))
             shares_value = amount_decimal / CBU_SHARE_VALUE if amount_decimal > 0 else Decimal("0")
 
-        paid_up_value = member_row.get("initial_paid_up_capital")
+        paid_up_value = (member_row or {}).get("initial_paid_up_capital")
+        if paid_up_value is None:
+            paid_up_value = (pds_row or {}).get("initial_paid_up_capital")
         if paid_up_value is None:
             paid_up_value = amount_value or 0
 
-        full_name = resolve_member_full_name(member_row)
+        full_name = resolve_member_full_name(member_row) if member_row else " ".join(
+            part
+            for part in [
+                str((pds_row or {}).get("first_name") or "").strip(),
+                str((pds_row or {}).get("middle_name") or "").strip(),
+                str((pds_row or {}).get("surname") or "").strip(),
+            ]
+            if part
+        ).strip()
 
         details = {
             "member_uuid": member_uuid,
-            "name": full_name,
+            "name": full_name or "Membership Record",
             "membership_number": membership_number,
-            "date_of_membership": member_row.get("membership_date") or member_row.get("created_at") or "",
-            "bod_resolution_number": member_row.get("bod_resolution_number") or "",
+            "date_of_membership": (member_row or {}).get("membership_date") or (pds_row or {}).get("date_of_membership") or (member_row or {}).get("created_at") or (pds_row or {}).get("created_at") or "",
+            "bod_resolution_number": (member_row or {}).get("bod_resolution_number") or (pds_row or {}).get("BOD_resolution_number") or "",
             "number_of_shares": decimal_to_float(shares_value),
             "amount": decimal_to_float(amount_value or 0),
             "initial_paid_up_capital": decimal_to_float(paid_up_value or 0),
-            "termination_resolution_number": member_row.get("termination_resolution_number") or "",
-            "termination_date": member_row.get("termination_date") or "",
+            "termination_resolution_number": (member_row or {}).get("termination_resolution_number") or "",
+            "termination_date": (member_row or {}).get("termination_date") or "",
             "application_id": (latest_application or {}).get("id"),
+            "editable": bool(member_row or pds_row),
+            "edit_scope": "member" if member_row else "personal_data_sheet",
         }
 
         return {"success": True, "data": details}
@@ -1874,12 +1975,10 @@ async def update_secretary_membership_record(member_ref: str, payload: Secretary
 
     try:
         member_row = resolve_member_by_ref(member_ref)
-        if not member_row:
-            raise HTTPException(status_code=404, detail="Membership record not found.")
+        pds_row = resolve_personal_data_sheet_by_ref(member_ref)
 
-        member_uuid = str(member_row.get("id") or "").strip()
-        if not member_uuid:
-            raise HTTPException(status_code=400, detail="Member UUID is missing.")
+        if not member_row and not pds_row:
+            raise HTTPException(status_code=403, detail="Applicant-only records cannot be edited. Record must exist in member or personal_data_sheet.")
 
         update_payload = {
             "membership_id": payload.membership_number,
@@ -1896,18 +1995,45 @@ async def update_secretary_membership_record(member_ref: str, payload: Secretary
         if not update_payload:
             raise HTTPException(status_code=400, detail="No valid fields provided for update.")
 
-        updated_response = (
-            supabase.table("member")
-            .update(update_payload)
-            .eq("id", member_uuid)
-            .execute()
-        )
+        update_results = {}
 
-        updated_row = (updated_response.data or [None])[0]
+        if member_row:
+            member_uuid = str(member_row.get("id") or "").strip()
+            if not member_uuid:
+                raise HTTPException(status_code=400, detail="Member UUID is missing.")
+
+            updated_response = (
+                supabase.table("member")
+                .update(update_payload)
+                .eq("id", member_uuid)
+                .execute()
+            )
+            update_results["member"] = (updated_response.data or [None])[0]
+
+        if pds_row:
+            pds_payload = {
+                "membership_number_id": payload.membership_number,
+                "date_of_membership": payload.date_of_membership,
+                "BOD_resolution_number": payload.bod_resolution_number,
+                "number_of_shares": decimal_to_float(payload.number_of_shares) if payload.number_of_shares is not None else None,
+                "amount": decimal_to_float(payload.amount) if payload.amount is not None else None,
+                "initial_paid_up_capital": decimal_to_float(payload.initial_paid_up_capital) if payload.initial_paid_up_capital is not None else None,
+            }
+            pds_payload = {k: v for k, v in pds_payload.items() if v is not None}
+
+            if pds_payload:
+                updated_pds_response = (
+                    supabase.table("personal_data_sheet")
+                    .update(pds_payload)
+                    .eq("personal_data_sheet_id", pds_row.get("personal_data_sheet_id"))
+                    .execute()
+                )
+                update_results["personal_data_sheet"] = (updated_pds_response.data or [None])[0]
+
         return {
             "success": True,
             "message": "Membership record updated successfully.",
-            "data": updated_row,
+            "data": update_results,
         }
     except HTTPException as err:
         raise err

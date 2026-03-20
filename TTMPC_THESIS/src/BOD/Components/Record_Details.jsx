@@ -13,6 +13,8 @@ const Record_Details = () => {
   const [saving, setSaving] = useState(false);
   const [memberName, setMemberName] = useState("Membership Record");
   const [saveMessage, setSaveMessage] = useState("");
+  const [isEditable, setIsEditable] = useState(true);
+  const [editScope, setEditScope] = useState("");
 
   const [formData, setFormData] = useState({
     membershipNumber: "",
@@ -42,6 +44,8 @@ const Record_Details = () => {
 
         const row = payload.data || {};
         setMemberName(row.name || "Membership Record");
+        setIsEditable(Boolean(row.editable));
+        setEditScope(String(row.edit_scope || ""));
         setFormData({
           membershipNumber: row.membership_number || "",
           dateOfMembership: row.date_of_membership ? String(row.date_of_membership).slice(0, 10) : "",
@@ -70,6 +74,11 @@ const Record_Details = () => {
   };
 
   const handleSave = async () => {
+    if (!isEditable) {
+      setSaveMessage("This record is still an applicant record and cannot be edited by Secretary.");
+      return;
+    }
+
     setSaving(true);
     setSaveMessage("");
     try {
@@ -130,6 +139,16 @@ const Record_Details = () => {
           <div className="mb-6 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">{saveMessage}</div>
         ) : null}
 
+        {isEditable ? (
+          <div className="mb-6 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700">
+            Editing scope: {editScope === "personal_data_sheet" ? "Personal Data Sheet" : "Member Record"}
+          </div>
+        ) : (
+          <div className="mb-6 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            Applicant-only records are read-only. Secretary can edit only records that exist in member or personal_data_sheet.
+          </div>
+        )}
+
         {/* Section 1: Membership Information */}
         <div className="mb-8">
           <h2 className="text-lg font-semibold text-gray-700 mb-4">Section 1: Membership Information</h2>
@@ -140,6 +159,7 @@ const Record_Details = () => {
                 type="text"
                 value={formData.membershipNumber}
                 onChange={(e) => handleInputChange('membershipNumber', e.target.value)}
+                disabled={!isEditable}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
               />
             </div>
@@ -149,6 +169,7 @@ const Record_Details = () => {
                 type="text"
                 value={formData.dateOfMembership}
                 onChange={(e) => handleInputChange('dateOfMembership', e.target.value)}
+                disabled={!isEditable}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
               />
             </div>
@@ -158,6 +179,7 @@ const Record_Details = () => {
                 type="text"
                 value={formData.bodResolutionNumber}
                 onChange={(e) => handleInputChange('bodResolutionNumber', e.target.value)}
+                disabled={!isEditable}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
               />
             </div>
@@ -177,6 +199,7 @@ const Record_Details = () => {
                 type="text"
                 value={formData.numberOfShares}
                 onChange={(e) => handleInputChange('numberOfShares', e.target.value)}
+                disabled={!isEditable}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
               />
             </div>
@@ -186,6 +209,7 @@ const Record_Details = () => {
                 type="text"
                 value={formData.amount}
                 onChange={(e) => handleInputChange('amount', e.target.value)}
+                disabled={!isEditable}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
               />
             </div>
@@ -195,6 +219,7 @@ const Record_Details = () => {
                 type="text"
                 value={formData.initialPaidUpCapital}
                 onChange={(e) => handleInputChange('initialPaidUpCapital', e.target.value)}
+                disabled={!isEditable}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
               />
             </div>
@@ -215,6 +240,7 @@ const Record_Details = () => {
                 value={formData.terminationResolutionNumber}
                 onChange={(e) => handleInputChange('terminationResolutionNumber', e.target.value)}
                 placeholder="None"
+                disabled={!isEditable}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
               />
             </div>
@@ -225,6 +251,7 @@ const Record_Details = () => {
                 value={formData.terminationDate}
                 onChange={(e) => handleInputChange('terminationDate', e.target.value)}
                 placeholder="mm/dd/yyyy"
+                disabled={!isEditable}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
               />
             </div>
@@ -244,7 +271,7 @@ const Record_Details = () => {
           </button>
           <button
             onClick={handleSave}
-            disabled={saving || loading}
+            disabled={saving || loading || !isEditable}
             className="px-6 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition-colors"
           >
             {saving ? "Saving..." : "Save"}

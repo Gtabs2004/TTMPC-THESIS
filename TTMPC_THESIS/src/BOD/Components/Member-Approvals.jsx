@@ -29,7 +29,29 @@ const Member_Approvals = () => {
   const [portalRole, setPortalRole] = useState("");
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
   const LIMIT = 10;
+
+  const getStatusOrClause = (statusTab, roleOverride) => {
+    const tab = roleOverride === "secretary" ? "Pending" : statusTab;
+
+    if (tab === "Pending") {
+      return "application_status.eq.pending,application_status.eq.Pending,application_status.eq.PENDING";
+    }
+    if (tab === "1st Training") {
+      return "application_status.eq.1st Training,application_status.eq.1st_training,application_status.eq.first training,application_status.eq.training 1,application_status.eq.2nd training,application_status.eq.2nd_training_completed,application_status.eq.second training completed";
+    }
+    if (tab === "Rejected") {
+      return "application_status.eq.rejected,application_status.eq.Rejected,application_status.eq.REJECTED";
+    }
+    if (tab === "For Revision") {
+      return "application_status.eq.for revision,application_status.eq.For Revision,application_status.eq.revision,application_status.eq.Revision";
+    }
+    if (tab === "Official Member") {
+      return "application_status.eq.official member,application_status.eq.Official Member,application_status.eq.member,application_status.eq.Member";
+    }
+    return "";
+  };
 
   const resolvePortalRole = async (sessionUser) => {
     if (!sessionUser?.id && !sessionUser?.email) return "";
@@ -66,9 +88,9 @@ const Member_Approvals = () => {
       .order("created_at", { ascending: false })
       .range(from, to);
 
-    if (roleOverride === "secretary") {
-      // Case-insensitive pending filter for mixed historical values.
-      query = query.or("application_status.eq.pending,application_status.eq.Pending,application_status.eq.PENDING");
+    const statusClause = getStatusOrClause(activeTab, roleOverride);
+    if (statusClause) {
+      query = query.or(statusClause);
     }
 
     // IMPORTANT: do not use `data`/`error` before this line.
@@ -82,7 +104,14 @@ const Member_Approvals = () => {
 
     console.log("Supabase Data:", data);
     setApplications(data || []);
-    setTotalPages(Math.max(1, Math.ceil((count || 0) / LIMIT)));
+    const resolvedCount = count || 0;
+    const resolvedTotalPages = Math.max(1, Math.ceil(resolvedCount / LIMIT));
+    setTotalCount(resolvedCount);
+    setTotalPages(resolvedTotalPages);
+
+    if (pageNumber > resolvedTotalPages) {
+      setPage(resolvedTotalPages);
+    }
   };
 
   useEffect(() => {
@@ -109,7 +138,11 @@ const Member_Approvals = () => {
   useEffect(() => {
     if (!portalRole) return;
     fetchData(page, portalRole);
-  }, [portalRole, page]);
+  }, [portalRole, page, activeTab]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [activeTab]);
 
 
  const menuItems = [
@@ -256,18 +289,13 @@ const Member_Approvals = () => {
     ? ["Pending"]
     : ["Pending", "1st Training", "Rejected", "For Revision", "Official Member"];
 
-  // Keep pagination compact like the provided mock: max 5 visible page pills.
+  // Show page groups like 1-5, 6-10, 11-15.
   const visiblePageNumbers = useMemo(() => {
-    const maxVisible = 5;
     const safeTotal = Math.max(1, totalPages);
     const safePage = Math.min(Math.max(1, page), safeTotal);
 
-    let start = Math.max(1, safePage - Math.floor(maxVisible / 2));
-    let end = Math.min(safeTotal, start + maxVisible - 1);
-
-    if (end - start + 1 < maxVisible) {
-      start = Math.max(1, end - maxVisible + 1);
-    }
+    const start = Math.floor((safePage - 1) / 5) * 5 + 1;
+    const end = Math.min(start + 4, safeTotal);
 
     return Array.from({ length: end - start + 1 }, (_, i) => start + i);
   }, [page, totalPages]);
@@ -464,7 +492,7 @@ const Member_Approvals = () => {
                   </div>
                 </div>
                 <div className="text-xs text-gray-400">
-                  Showing 1-{tabData[activeTab].length} of {tabData[activeTab].length} {activeTab.toLowerCase()} applications
+                  Showing {totalCount === 0 ? 0 : (page - 1) * LIMIT + 1}-{Math.min(page * LIMIT, totalCount)} of {totalCount} {activeTab.toLowerCase()} applications
                 </div>
               </div>
             )}
@@ -503,6 +531,13 @@ const Member_Approvals = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100 cursor-pointer">
+                  {tabData[activeTab].length === 0 && (
+                    <tr>
+                      <td colSpan={isTrainingTab ? 4 : activeTab === "Pending" ? 4 : 5} className="px-6 py-10 text-center text-gray-500">
+                        No {activeTab.toLowerCase()} applications on this page.
+                      </td>
+                    </tr>
+                  )}
                   {tabData[activeTab].map((row, index) => (
                     <tr key={index} className="hover:bg-gray-50 transition-colors">
                       {isTrainingTab ? (

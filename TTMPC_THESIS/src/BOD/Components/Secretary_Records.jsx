@@ -208,7 +208,7 @@ const Secretary_Records = () => {
     
           <div className="bg-white w-full rounded-2xl m-auto mt-6 p-8 shadow-sm border border-gray-100 min-h-fit">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-lg font-bold text-gray-800">All Applicants</h2>
+              <h2 className="text-lg font-bold text-gray-800">All Members</h2>
               <div className="flex items-center gap-3">
                   <button className="flex items-center gap-1.5 px-4 py-2 rounded-lg border border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
                       <Download className="w-4 h-4" />
@@ -220,8 +220,8 @@ const Secretary_Records = () => {
             <table className="w-full text-left border-collapse text-sm">
               <thead>
                 <tr className="border-b border-gray-200 text-gray-500">
-                  <th className="pb-4 font-medium">Applicant  ID</th>
-                  <th className="pb-4 font-medium">Applicant Name </th>
+                  <th className="pb-4 font-medium">Membership Id</th>
+                  <th className="pb-4 font-medium">Member Name </th>
                   <th className="pb-4 font-medium">Date Joined</th>
                   <th className="pb-4 font-medium">Shares</th>
                   <th className="pb-4 font-medium">Paid Up Capital</th>

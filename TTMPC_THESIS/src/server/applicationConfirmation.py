@@ -85,24 +85,29 @@ def generate_membership_id(supabase: Client) -> str:
 		supabase.table(member_table)
 		.select("membership_id")
 		.order("created_at", desc=True)
-		.limit(1)
+		.limit(1000)
 		.execute()
 	)
 
-	if response.data:
-		last_id = str(response.data[0].get("membership_id") or "")
-		match = re.match(r"^TTMPC_M_(\d{5})$", last_id)
-		last_number = int(match.group(1)) if match else 0
-		new_number = last_number + 1
-	else:
-		new_number = 1
+	max_existing_number = 0
+	for row in (response.data or []):
+		membership_id = str(row.get("membership_id") or "").strip()
+		match = re.match(r"^(?:TTMPC_M_|TTMPCM-)(\d{1,6})$", membership_id)
+		if not match:
+			continue
+		try:
+			max_existing_number = max(max_existing_number, int(match.group(1)))
+		except Exception:
+			continue
+
+	new_number = max_existing_number + 1
 
 	if new_number > 99999:
 		raise MembershipConfirmationError("Membership ID sequence exceeded 5 digits.")
 
 	# Guard against unexpected collisions if historical data has out-of-order timestamps.
 	for _ in range(1000):
-		candidate = f"TTMPC_M_{new_number:05d}"
+		candidate = f"TTMPCM-{new_number:05d}"
 		member_check = (
 			supabase.table(member_table)
 			.select("id")
