@@ -42,6 +42,7 @@ const Secretary_Attendance = () => {
       items: [
         { name: "Dashboard", icon: LayoutDashboard },
         { name: "Member Approvals", icon: Users },
+        { name: "Manage Member", icon: Users },
       ]
     },
     {
@@ -317,6 +318,7 @@ const Secretary_Attendance = () => {
             const routeMap = {
               "Dashboard": "/BOD-dashboard",
               "Member Approvals": "/member-approvals",
+              "Manage Member": "/bod-manage-member",
               "Training Attendance": "/Secretary_Attendance",
               "Membership Records": "/Secretary_Records",
             };

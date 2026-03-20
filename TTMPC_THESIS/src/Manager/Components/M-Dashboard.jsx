@@ -22,6 +22,7 @@ const M_Dashboard = () => {
 const menuItems = [
     { name: "Dashboard", icon: LayoutDashboard },
     { name: "Loan Approval", icon: Users },
+  { name: "Manage Member", icon: Users },
     
   ];
  
@@ -57,6 +58,7 @@ const menuItems = [
     const routeMap = {
       "Dashboard": "/manager-dashboard",
       "Loan Approval": "/loan-approval",
+      "Manage Member": "/manager-manage-member",
       
     };
 

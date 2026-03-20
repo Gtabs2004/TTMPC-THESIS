@@ -496,6 +496,7 @@ def upsert_personal_data_sheet(
 	payload: dict[str, Any] = {
 		"personal_data_sheet_id": pds_id,
 		"membership_number_id": membership_id,
+		"email": application_data.get("email"),
 		"surname": application_data.get("surname") or application_data.get("last_name"),
 		"first_name": application_data.get("first_name"),
 		"middle_name": application_data.get("middle_name"),
@@ -509,6 +510,7 @@ def upsert_personal_data_sheet(
 		"height": _to_int_or_none(application_data.get("height")),
 		"blood_type": application_data.get("blood_type"),
 		"place_of_birth": application_data.get("place_of_birth"),
+		"permanent_address": application_data.get("permanent_address") or application_data.get("address"),
 		"contact_number": _to_int_or_none(application_data.get("contact_number")),
 		"occupation": application_data.get("occupation"),
 		"educational_attainment": application_data.get("educational_attainment"),

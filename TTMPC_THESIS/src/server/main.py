@@ -158,6 +158,17 @@ class CashierCBUDepositRequest(BaseModel):
     cbu_deposit_id: str | None = None
 
 
+class SecretaryMembershipRecordUpdateRequest(BaseModel):
+    membership_number: str | None = None
+    date_of_membership: str | None = None
+    bod_resolution_number: str | None = None
+    number_of_shares: Decimal | None = None
+    amount: Decimal | None = None
+    initial_paid_up_capital: Decimal | None = None
+    termination_resolution_number: str | None = None
+    termination_date: str | None = None
+
+
 TWOPLACES = Decimal("0.01")
 CBU_STARTING_CAPITAL = Decimal("500")
 CBU_SHARE_VALUE = Decimal("1000")
@@ -237,6 +248,32 @@ def resolve_member_full_name(member_row: dict) -> str:
     ]
     name = " ".join(part for part in parts if part)
     return name or "Unknown Member"
+
+
+def resolve_member_by_ref(member_ref: str) -> dict | None:
+    clean_ref = str(member_ref or "").strip()
+    if not clean_ref:
+        return None
+
+    by_uuid_response = (
+        supabase.table("member")
+        .select("*")
+        .eq("id", clean_ref)
+        .limit(1)
+        .execute()
+    )
+    by_uuid_row = (by_uuid_response.data or [None])[0]
+    if by_uuid_row:
+        return by_uuid_row
+
+    by_membership_response = (
+        supabase.table("member")
+        .select("*")
+        .eq("membership_id", clean_ref)
+        .limit(1)
+        .execute()
+    )
+    return (by_membership_response.data or [None])[0]
 
 
 def build_single_schedule_row(
@@ -1564,6 +1601,318 @@ async def get_member_lifecycle(member_id: str):
         raise err
     except Exception as err:
         raise HTTPException(status_code=500, detail=f"Failed to fetch member lifecycle: {err}")
+
+
+@app.get("/api/secretary/membership-records")
+async def get_secretary_membership_records():
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+
+    try:
+        members_response = (
+            supabase.table("member")
+            .select("*")
+            .order("created_at", desc=True)
+            .execute()
+        )
+        member_rows = members_response.data or []
+
+        cbu_response = (
+            supabase.table("capital_build_up")
+            .select("member_id,transaction_date,ending_share_capital")
+            .order("transaction_date", desc=True)
+            .execute()
+        )
+        cbu_rows = cbu_response.data or []
+
+        latest_cbu_by_member: dict[str, dict] = {}
+        for cbu in cbu_rows:
+            member_id = str(cbu.get("member_id") or "").strip()
+            if member_id and member_id not in latest_cbu_by_member:
+                latest_cbu_by_member[member_id] = cbu
+
+        records = []
+        for row in member_rows:
+            member_uuid = str(row.get("id") or "").strip()
+            if not member_uuid:
+                continue
+
+            full_name = resolve_member_full_name(row)
+            membership_number = row.get("membership_id") or member_uuid
+            joined_value = row.get("membership_date") or row.get("created_at")
+
+            cbu_row = latest_cbu_by_member.get(member_uuid)
+            ending_capital = Decimal(str((cbu_row or {}).get("ending_share_capital") or 0))
+
+            amount_value = row.get("share_capital_amount")
+            if amount_value is None:
+                amount_value = ending_capital
+
+            shares_value = row.get("number_of_shares")
+            if shares_value is None:
+                shares_value = (Decimal(str(amount_value or 0)) / CBU_SHARE_VALUE) if amount_value else Decimal("0")
+
+            paid_up_value = row.get("initial_paid_up_capital")
+            if paid_up_value is None:
+                paid_up_value = amount_value or Decimal("0")
+
+            records.append(
+                {
+                    "member_uuid": member_uuid,
+                    "applicant_id": membership_number,
+                    "applicant_name": full_name,
+                    "date_joined": joined_value,
+                    "shares": decimal_to_float(shares_value),
+                    "paid_up_capital": decimal_to_float(paid_up_value),
+                }
+            )
+
+        return {"success": True, "data": records}
+    except Exception as err:
+        raise HTTPException(status_code=500, detail=f"Failed to load secretary membership records: {err}")
+
+
+@app.get("/api/personal_data_sheet")
+async def get_personal_datasheet_records():
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+
+    try:
+        rows = []
+        try:
+            response = (
+                supabase.table("personal_data_sheet")
+                .select("*")
+                .order("created_at", desc=True)
+                .execute()
+            )
+            rows = response.data or []
+        except Exception:
+            response = (
+                supabase.table("personal_data_sheet")
+                .select("*")
+                .execute()
+            )
+            rows = response.data or []
+
+        membership_ids = sorted(
+            {
+                str(row.get("membership_number_id") or "").strip()
+                for row in rows
+                if str(row.get("membership_number_id") or "").strip()
+            }
+        )
+
+        email_by_membership: dict[str, str] = {}
+        if membership_ids:
+            try:
+                apps_response = (
+                    supabase.table("member_applications")
+                    .select("membership_id,email,created_at")
+                    .in_("membership_id", membership_ids)
+                    .order("created_at", desc=True)
+                    .execute()
+                )
+                for app_row in apps_response.data or []:
+                    membership_id = str(app_row.get("membership_id") or "").strip()
+                    email_value = str(app_row.get("email") or "").strip()
+                    if membership_id and email_value and membership_id not in email_by_membership:
+                        email_by_membership[membership_id] = email_value
+            except Exception:
+                email_by_membership = {}
+
+        normalized = []
+        for idx, row in enumerate(rows, start=1):
+            first = row.get("first_name") or ""
+            middle = row.get("middle_name") or row.get("middle_initial") or ""
+            last = row.get("last_name") or row.get("surname") or ""
+            full_name = " ".join(part for part in [str(first).strip(), str(middle).strip(), str(last).strip()] if part)
+
+            membership_id = str(row.get("membership_number_id") or "").strip()
+            email_value = str(row.get("email") or "").strip() or email_by_membership.get(membership_id, "")
+            contact_number = row.get("contact_number") or row.get("mobile_number") or ""
+            address_value = row.get("permanent_address") or row.get("address") or ""
+
+            normalized.append(
+                {
+                    "id": row.get("personal_data_sheet_id") or row.get("id") or idx,
+                    "member_id": membership_id,
+                    "full_name": full_name,
+                    "email": email_value,
+                    "contact_number": contact_number,
+                    "address": address_value,
+                    "permanent_address": row.get("permanent_address") or "",
+                    "created_at": row.get("created_at"),
+                    "raw": row,
+                }
+            )
+
+        return {"success": True, "data": normalized}
+    except Exception as err:
+        raise HTTPException(status_code=500, detail=f"Failed to load personal datasheet records: {err}")
+
+
+@app.get("/api/personal_data_sheet/{membership_number_id}")
+async def get_personal_datasheet_record_by_membership(membership_number_id: str):
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+
+    try:
+        clean_membership_id = str(membership_number_id or "").strip()
+        if not clean_membership_id:
+            raise HTTPException(status_code=400, detail="membership_number_id is required.")
+
+        response = (
+            supabase.table("personal_data_sheet")
+            .select("*")
+            .eq("membership_number_id", clean_membership_id)
+            .limit(1)
+            .execute()
+        )
+
+        row = (response.data or [None])[0]
+        if not row:
+            raise HTTPException(status_code=404, detail="Personal data sheet record not found.")
+
+        try:
+            app_response = (
+                supabase.table("member_applications")
+                .select("membership_id,email")
+                .eq("membership_id", clean_membership_id)
+                .order("created_at", desc=True)
+                .limit(1)
+                .execute()
+            )
+            app_row = (app_response.data or [None])[0]
+            if app_row and not str(row.get("email") or "").strip():
+                row["email"] = str(app_row.get("email") or "").strip()
+        except Exception:
+            pass
+
+        return {"success": True, "data": row}
+    except HTTPException as err:
+        raise err
+    except Exception as err:
+        raise HTTPException(status_code=500, detail=f"Failed to load personal data sheet details: {err}")
+
+
+@app.get("/api/secretary/membership-records/{member_ref}")
+async def get_secretary_membership_record_details(member_ref: str):
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+
+    try:
+        member_row = resolve_member_by_ref(member_ref)
+        if not member_row:
+            raise HTTPException(status_code=404, detail="Membership record not found.")
+
+        member_uuid = str(member_row.get("id") or "").strip()
+        membership_number = member_row.get("membership_id") or member_uuid
+
+        latest_application = None
+        if membership_number:
+            application_response = (
+                supabase.table("member_applications")
+                .select("*")
+                .eq("membership_id", membership_number)
+                .order("created_at", desc=True)
+                .limit(1)
+                .execute()
+            )
+            latest_application = (application_response.data or [None])[0]
+
+        latest_cbu_response = (
+            supabase.table("capital_build_up")
+            .select("ending_share_capital")
+            .eq("member_id", member_uuid)
+            .order("transaction_date", desc=True)
+            .limit(1)
+            .execute()
+        )
+        latest_cbu = (latest_cbu_response.data or [None])[0]
+
+        amount_value = member_row.get("share_capital_amount")
+        if amount_value is None:
+            amount_value = (latest_cbu or {}).get("ending_share_capital") or 0
+
+        shares_value = member_row.get("number_of_shares")
+        if shares_value is None:
+            amount_decimal = Decimal(str(amount_value or 0))
+            shares_value = amount_decimal / CBU_SHARE_VALUE if amount_decimal > 0 else Decimal("0")
+
+        paid_up_value = member_row.get("initial_paid_up_capital")
+        if paid_up_value is None:
+            paid_up_value = amount_value or 0
+
+        full_name = resolve_member_full_name(member_row)
+
+        details = {
+            "member_uuid": member_uuid,
+            "name": full_name,
+            "membership_number": membership_number,
+            "date_of_membership": member_row.get("membership_date") or member_row.get("created_at") or "",
+            "bod_resolution_number": member_row.get("bod_resolution_number") or "",
+            "number_of_shares": decimal_to_float(shares_value),
+            "amount": decimal_to_float(amount_value or 0),
+            "initial_paid_up_capital": decimal_to_float(paid_up_value or 0),
+            "termination_resolution_number": member_row.get("termination_resolution_number") or "",
+            "termination_date": member_row.get("termination_date") or "",
+            "application_id": (latest_application or {}).get("id"),
+        }
+
+        return {"success": True, "data": details}
+    except HTTPException as err:
+        raise err
+    except Exception as err:
+        raise HTTPException(status_code=500, detail=f"Failed to load membership record details: {err}")
+
+
+@app.put("/api/secretary/membership-records/{member_ref}")
+async def update_secretary_membership_record(member_ref: str, payload: SecretaryMembershipRecordUpdateRequest):
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+
+    try:
+        member_row = resolve_member_by_ref(member_ref)
+        if not member_row:
+            raise HTTPException(status_code=404, detail="Membership record not found.")
+
+        member_uuid = str(member_row.get("id") or "").strip()
+        if not member_uuid:
+            raise HTTPException(status_code=400, detail="Member UUID is missing.")
+
+        update_payload = {
+            "membership_id": payload.membership_number,
+            "membership_date": payload.date_of_membership,
+            "bod_resolution_number": payload.bod_resolution_number,
+            "number_of_shares": decimal_to_float(payload.number_of_shares) if payload.number_of_shares is not None else None,
+            "share_capital_amount": decimal_to_float(payload.amount) if payload.amount is not None else None,
+            "initial_paid_up_capital": decimal_to_float(payload.initial_paid_up_capital) if payload.initial_paid_up_capital is not None else None,
+            "termination_resolution_number": payload.termination_resolution_number,
+            "termination_date": payload.termination_date,
+        }
+        update_payload = {k: v for k, v in update_payload.items() if v is not None}
+
+        if not update_payload:
+            raise HTTPException(status_code=400, detail="No valid fields provided for update.")
+
+        updated_response = (
+            supabase.table("member")
+            .update(update_payload)
+            .eq("id", member_uuid)
+            .execute()
+        )
+
+        updated_row = (updated_response.data or [None])[0]
+        return {
+            "success": True,
+            "message": "Membership record updated successfully.",
+            "data": updated_row,
+        }
+    except HTTPException as err:
+        raise err
+    except Exception as err:
+        raise HTTPException(status_code=500, detail=f"Failed to update membership record: {err}")
 
 
 @app.get("/api/bookkeeper/payments/pending")
