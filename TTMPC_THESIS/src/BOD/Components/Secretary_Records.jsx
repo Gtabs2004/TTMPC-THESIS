@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
 import { 
@@ -22,13 +22,19 @@ import {
 } from 'lucide-react';
 import logo from "../../assets/img/ttmpc logo.png"; 
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
+
 /// naku
 
 const Secretary_Records = () => {
-  const { session, signOut } = UserAuth();
+  const { signOut } = UserAuth();
   const navigate = useNavigate();
+  const [records, setRecords] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 5;
+  const itemsPerPage = 10;
   
   const menuItems = [
     {
@@ -36,6 +42,7 @@ const Secretary_Records = () => {
       items: [
         { name: "Dashboard", icon: LayoutDashboard },
         { name: "Member Approvals", icon: Users },
+        { name: "Manage Member", icon: Users },
       ]
     },
     {
@@ -57,6 +64,59 @@ const Secretary_Records = () => {
     }
   };
 
+  const formatCurrency = (value) => `₱${Number(value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const formatDate = (value) => {
+    if (!value) return "-";
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return "-";
+    return d.toLocaleDateString("en-US", { year: "numeric", month: "2-digit", day: "2-digit" });
+  };
+
+  useEffect(() => {
+    async function loadRecords() {
+      setLoading(true);
+      setError("");
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/secretary/membership-records`, {
+          method: "GET",
+          headers: { Accept: "application/json" },
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok || !payload?.success) {
+          throw new Error(payload?.detail || payload?.message || "Failed to load membership records.");
+        }
+
+        setRecords(Array.isArray(payload.data) ? payload.data : []);
+      } catch (err) {
+        setError(err?.message || "Unable to load membership records.");
+        setRecords([]);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    loadRecords();
+  }, []);
+
+  const filteredRecords = useMemo(() => {
+    const key = String(searchQuery || "").trim().toLowerCase();
+    if (!key) return records;
+    return records.filter((row) =>
+      String(row.applicant_id || "").toLowerCase().includes(key) ||
+      String(row.applicant_name || "").toLowerCase().includes(key)
+    );
+  }, [records, searchQuery]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredRecords.length / itemsPerPage));
+  const paginatedRecords = useMemo(() => {
+    const start = (currentPage - 1) * itemsPerPage;
+    return filteredRecords.slice(start, start + itemsPerPage);
+  }, [filteredRecords, currentPage]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, records]);
+
   return (
     <div className="flex min-h-screen bg-gray-100">
       <aside className="bg-white w-64 p-4 flex flex-col border-r border-gray-200">
@@ -76,7 +136,8 @@ const Secretary_Records = () => {
           {(() => {
             const routeMap = {
               "Dashboard": "/BOD-dashboard",
-              "Member Approvals": "/Member-Approvals",
+              "Member Approvals": "/member-approvals",
+              "Manage Member": "/bod-manage-member",
               "Training Attendance": "/Secretary_Attendance",
               "Membership Records": "/Secretary_Records"
             };
@@ -125,8 +186,13 @@ const Secretary_Records = () => {
         <header className="bg-white h-16 shadow-sm flex items-center justify-end px-8 border-b border-gray-100">
                  <div className="relative">
                    <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400"/>
-                   <input type="text" className="bg-gray-50 w-52 h-10 rounded-lg border border-gray-200 pl-10 pr-4 
-                   py-1 text-sm focus:outline-none focus:ring-2 focus:ring-[#2C7A3F]" placeholder="Search..."></input>
+                   <input
+                     type="text"
+                     value={searchQuery}
+                     onChange={(e) => setSearchQuery(e.target.value)}
+                     className="bg-gray-50 w-52 h-10 rounded-lg border border-gray-200 pl-10 pr-4 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-[#2C7A3F]"
+                     placeholder="Search..."
+                   />
                  </div>
                  <button className="ml-6 relative p-1 rounded-full text-gray-500 hover:bg-gray-100 transition-colors">
                    <Bell className="w-5 h-5"/>
@@ -163,22 +229,31 @@ const Secretary_Records = () => {
                 </tr>
               </thead>
               <tbody>
-                {[
-                  { id: "TTMPCAP-001", name: "Gero Antoni Tabiolo", dateJoined: "2023-01-15", shares: "₱0", loans: "₱500" },
-                  { id: "TTMPCAP-002", name: "Erden Jhed Teope", dateJoined: "2023-02-20", shares: "₱0", loans: "₱500" },
-                  { id: "TTMPCAP-003", name: "Ashley Nicole Bulotaolo", dateJoined: "2023-03-10", shares: "₱0", loans: "₱500" },
-                  { id: "TTMPCAP-004", name: "Romelyn Delos Reyes", dateJoined: "2023-04-05", shares: "₱0", loans: "₱500" },
-                  { id: "TTMPCAP-005", name: "Nash Ervine Siaton", dateJoined: "2023-05-12", shares: "₱0", loans: "₱500" },
-                ].map((member, index) => (
-                  <tr key={index} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
-                    <td className="py-4 font-semibold text-[#1a4a2f]">{member.id}</td>
-                    <td className="py-4 text-gray-800 font-medium">{member.name}</td>
-                    <td className="py-4 text-gray-800 font-medium">{member.dateJoined}</td>
-                    <td className="py-4 text-gray-800 font-medium">{member.shares}</td>
-                    <td className="py-4 text-gray-800 font-medium">{member.loans}</td>
+                {loading && (
+                  <tr>
+                    <td colSpan={6} className="py-6 text-center text-blue-700">Loading membership records...</td>
+                  </tr>
+                )}
+                {!!error && !loading && (
+                  <tr>
+                    <td colSpan={6} className="py-6 text-center text-red-600">{error}</td>
+                  </tr>
+                )}
+                {!loading && !error && paginatedRecords.length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="py-6 text-center text-gray-500">No records found.</td>
+                  </tr>
+                )}
+                {!loading && !error && paginatedRecords.map((member, index) => (
+                  <tr key={`${member.member_uuid}-${index}`} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+                    <td className="py-4 font-semibold text-[#1a4a2f]">{member.applicant_id}</td>
+                    <td className="py-4 text-gray-800 font-medium">{member.applicant_name}</td>
+                    <td className="py-4 text-gray-800 font-medium">{formatDate(member.date_joined)}</td>
+                    <td className="py-4 text-gray-800 font-medium">{Number(member.shares || 0).toFixed(2)}</td>
+                    <td className="py-4 text-gray-800 font-medium">{formatCurrency(member.paid_up_capital)}</td>
                     <td className="py-4">
                       <button 
-                        onClick={() => navigate(`/record-details/${member.id}`)}
+                        onClick={() => navigate(`/record-details/${member.member_uuid}`)}
                         className="text-[#1e9e4a] hover:text-green-800 transition-colors p-1"
                       >
                         <Eye size={20} strokeWidth={2} />
@@ -192,25 +267,35 @@ const Secretary_Records = () => {
           <div className="flex justify-center items-center mt-8 gap-2">
             <button
               className="w-8 h-8 flex items-center justify-center rounded-full border border-gray-300 bg-white text-gray-500 transition-colors hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-              disabled
+              disabled={currentPage <= 1}
+              onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
 
-            {[1, 2, 3, 4, 5].map((page) => (
+            {(() => {
+              const groupStart = Math.floor((currentPage - 1) / 5) * 5 + 1;
+              const groupEnd = Math.min(groupStart + 4, totalPages);
+              return Array.from({ length: groupEnd - groupStart + 1 }, (_, i) => groupStart + i).map((page) => (
               <button
                 key={page}
+                onClick={() => setCurrentPage(page)}
                 className={`w-8 h-8 flex items-center justify-center rounded-full border text-xs font-semibold transition-colors ${
-                  page === 1
+                  page === currentPage
                     ? "bg-[#16A34A] text-white border-[#16A34A]"
                     : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"
                 }`}
               >
                 {page}
               </button>
-            ))}
+              ));
+            })()}
 
-            <button className="w-8 h-8 flex items-center justify-center rounded-full border border-gray-300 bg-white text-gray-500 transition-colors hover:bg-gray-50">
+            <button
+              className="w-8 h-8 flex items-center justify-center rounded-full border border-gray-300 bg-white text-gray-500 transition-colors hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={currentPage >= totalPages}
+              onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
+            >
               <ChevronRight className="w-4 h-4" />
             </button>
           </div>

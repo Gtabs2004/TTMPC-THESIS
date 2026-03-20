@@ -25,6 +25,7 @@ const Loan_Approval = () => {
   const menuItems = [
     { name: "Dashboard", icon: LayoutDashboard },
     { name: "Loan Approvals", icon: Users },
+    { name: "Manage Member", icon: Users },
   ];
 
   // Fetch data from Supabase on mount
@@ -171,6 +172,7 @@ const Loan_Approval = () => {
             const routeMap = {
               "Dashboard": "/manager-dashboard",
               "Loan Approvals": "/loan-approval",
+              "Manage Member": "/manager-manage-member",
             };
 
             return menuItems.map((item) => {

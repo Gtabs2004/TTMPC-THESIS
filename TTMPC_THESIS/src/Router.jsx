@@ -55,6 +55,7 @@ import Add_Savings from "./Cashier/Components/Add_Savings";
 import Secretary_Attendance from "./BOD/Components/Secretary_Attendance";
 import Secretary_Records from "./BOD/Components/Secretary_Records";
 import Record_Details from "./BOD/Components/Record_Details";
+import BOD_Manage_Member from "./BOD/Components/Manage-Member";
 import Treasurer_Approval from "./Treasurer/Components/Treasurer_Approval";
 import Treasurer_ApprovalDetails from "./Treasurer/Components/Treasurer_ApprovalDetails";
 import Cashier_CBU from "./Cashier/Components/Cashier_CBU";
@@ -62,6 +63,8 @@ import Cashier_CBU_Deposit from "./Cashier/Components/Cashier_CBU_Deposit";
 import Cashier_Withdrawals from "./Cashier/Components/Cashier_Withdrawals";
 import Cashier_Payments from "./Cashier/Components/Cashier_Payments";
 import Cashier_Disbursement from "./Cashier/Components/Cashier_Disbursement";
+import Manage_Member from "./Bookkeeper/Components/Manage-Member";
+import Manager_Manage_Member from "./Manager/Components/Manage-Member";
 
 
 
@@ -88,12 +91,14 @@ export const router = createBrowserRouter([
     {path: "/Member_Services", element: <Member_Services/>},
     {path: "/Non_Member", element: <Non_Member/>},
     {path: "/manage-loans", element:<Manage_Loans/>},
+    {path: "/manage-member", element:<Manage_Member/>},
     {path: "/member_details", element:<Member_Details/>},
     {path: "/membership_form", element:<Membership_Form/>},
     {path: "/BOD-dashboard", element:<Dashboard_BOD/>},
     {path: "/member-approvals", element:<Member_Approvals/>},
     {path: "/member-approvals/:id", element:<MemberApprovalDetails/>},
     {path: "/manager-dashboard", element:<M_Dashboard/>},
+    {path: "/manager-manage-member", element:<Manager_Manage_Member/>},
     {path: "/loan-approval", element:<Loan_Approval/>},
     {path: "/role_selection", element:<Role_Selection/>},
     {path: "/memberlogin", element:<MemberLogin/>},
@@ -123,6 +128,7 @@ export const router = createBrowserRouter([
     {path: "/Savings_Details/:id", element:<Savings_Details/>},
     {path: "/Secretary_Attendance", element:<Secretary_Attendance/>},
     {path: "/Secretary_Records", element:<Secretary_Records/>},
+    {path: "/bod-manage-member", element:<BOD_Manage_Member/>},
     {path: "/secretary-records", element:<Secretary_Records/>},
     {path: "/membership-records", element:<Secretary_Records/>},
     {path: "/record-details/:id", element:<Record_Details/>},

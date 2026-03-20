@@ -118,6 +118,7 @@ const Member_Approvals = () => {
       items: [
         { name: "Dashboard", icon: LayoutDashboard },
         { name: "Member Approvals", icon: Users },
+        { name: "Manage Member", icon: Users },
       ]
     },
     {
@@ -291,6 +292,7 @@ const Member_Approvals = () => {
                     const routeMap = {
                       "Dashboard": "/BOD-dashboard",
                       "Member Approvals": "/member-approvals",
+                      "Manage Member": "/bod-manage-member",
                       "Training Attendance": "/Secretary_Attendance",
                       "Membership Records": "/Secretary_Records"
                     };

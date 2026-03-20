@@ -66,7 +66,7 @@ const BookkeeperPayments = () => {
 
   const menuItems = [
     { name: "Dashboard", icon: LayoutDashboard },
-    { name: "Member Records", icon: Users },
+    { name: "Manage Member", icon: Users },
     { name: "Loan Approval", icon: FileText },
     { name: "Manage Loans", icon: CreditCard },
     { name: "Payments", icon: Wallet },
@@ -78,7 +78,7 @@ const BookkeeperPayments = () => {
 
   const routeMap = {
     Dashboard: "/dashboard",
-    "Member Records": "/records",
+    "Manage Member": "/manage-member",
     "Loan Approval": "/bookkeeper-loan-approval",
     "Manage Loans": "/manage-loans",
     Payments: "/payments",

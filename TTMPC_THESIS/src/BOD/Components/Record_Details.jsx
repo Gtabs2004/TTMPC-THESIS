@@ -1,82 +1,66 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { ChevronLeft } from 'lucide-react';
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 
 const Record_Details = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   
-  // Sample member data - you can replace this with actual API calls
-  const memberData = {
-    "TTMPCAP-001": {
-      name: "Gero Antoni Tabiolo",
-      membershipNumber: "2023-0001",
-      dateOfMembership: "01/15/2023",
-      bodResolutionNumber: "RES-2023-01-01",
-      numberOfShares: "100",
-      amount: "₱5000.00",
-      initialPaidUpCapital: "₱2500.00",
-      terminationResolutionNumber: "None",
-      terminationDate: "mm/dd/yyyy"
-    },
-    "TTMPCAP-002": {
-      name: "Erden Jhed Teope",
-      membershipNumber: "2023-0002",
-      dateOfMembership: "02/20/2023",
-      bodResolutionNumber: "RES-2023-02-02",
-      numberOfShares: "80",
-      amount: "₱4000.00",
-      initialPaidUpCapital: "₱2000.00",
-      terminationResolutionNumber: "None",
-      terminationDate: "mm/dd/yyyy"
-    },
-    "TTMPCAP-003": {
-      name: "Ashley Nicole Bulotaolo",
-      membershipNumber: "2023-0003",
-      dateOfMembership: "03/10/2023",
-      bodResolutionNumber: "RES-2023-03-03",
-      numberOfShares: "120",
-      amount: "₱6000.00",
-      initialPaidUpCapital: "₱3000.00",
-      terminationResolutionNumber: "None",
-      terminationDate: "mm/dd/yyyy"
-    },
-    "TTMPCAP-004": {
-      name: "Romelyn Delos Reyes",
-      membershipNumber: "2023-0004",
-      dateOfMembership: "04/05/2023",
-      bodResolutionNumber: "RES-2023-04-04",
-      numberOfShares: "100",
-      amount: "₱5000.00",
-      initialPaidUpCapital: "₱2500.00",
-      terminationResolutionNumber: "None",
-      terminationDate: "mm/dd/yyyy"
-    },
-    "TTMPCAP-005": {
-      name: "Nash Ervine Siaton",
-      membershipNumber: "2023-0005",
-      dateOfMembership: "05/12/2023",
-      bodResolutionNumber: "RES-2023-05-05",
-      numberOfShares: "90",
-      amount: "₱4500.00",
-      initialPaidUpCapital: "₱2250.00",
-      terminationResolutionNumber: "None",
-      terminationDate: "mm/dd/yyyy"
-    }
-  };
-
-  const currentMember = memberData[id] || memberData["TTMPCAP-001"];
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [memberName, setMemberName] = useState("Membership Record");
+  const [saveMessage, setSaveMessage] = useState("");
 
   const [formData, setFormData] = useState({
-    membershipNumber: currentMember.membershipNumber,
-    dateOfMembership: currentMember.dateOfMembership,
-    bodResolutionNumber: currentMember.bodResolutionNumber,
-    numberOfShares: currentMember.numberOfShares,
-    amount: currentMember.amount,
-    initialPaidUpCapital: currentMember.initialPaidUpCapital,
-    terminationResolutionNumber: currentMember.terminationResolutionNumber,
-    terminationDate: currentMember.terminationDate
+    membershipNumber: "",
+    dateOfMembership: "",
+    bodResolutionNumber: "",
+    numberOfShares: "",
+    amount: "",
+    initialPaidUpCapital: "",
+    terminationResolutionNumber: "",
+    terminationDate: ""
   });
+
+  useEffect(() => {
+    async function loadDetails() {
+      if (!id) return;
+      setLoading(true);
+      setError("");
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/secretary/membership-records/${encodeURIComponent(id)}`, {
+          method: "GET",
+          headers: { Accept: "application/json" },
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok || !payload?.success) {
+          throw new Error(payload?.detail || payload?.message || "Failed to load record details.");
+        }
+
+        const row = payload.data || {};
+        setMemberName(row.name || "Membership Record");
+        setFormData({
+          membershipNumber: row.membership_number || "",
+          dateOfMembership: row.date_of_membership ? String(row.date_of_membership).slice(0, 10) : "",
+          bodResolutionNumber: row.bod_resolution_number || "",
+          numberOfShares: row.number_of_shares ?? "",
+          amount: row.amount ?? "",
+          initialPaidUpCapital: row.initial_paid_up_capital ?? "",
+          terminationResolutionNumber: row.termination_resolution_number || "",
+          terminationDate: row.termination_date ? String(row.termination_date).slice(0, 10) : "",
+        });
+      } catch (err) {
+        setError(err?.message || "Unable to load record details.");
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    loadDetails();
+  }, [id]);
 
   const handleInputChange = (field, value) => {
     setFormData(prev => ({
@@ -85,9 +69,39 @@ const Record_Details = () => {
     }));
   };
 
-  const handleSave = () => {
-    console.log("Saving record:", formData);
-    // Add your save logic here
+  const handleSave = async () => {
+    setSaving(true);
+    setSaveMessage("");
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/secretary/membership-records/${encodeURIComponent(id)}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify({
+          membership_number: formData.membershipNumber,
+          date_of_membership: formData.dateOfMembership || null,
+          bod_resolution_number: formData.bodResolutionNumber,
+          number_of_shares: formData.numberOfShares === "" ? null : Number(formData.numberOfShares),
+          amount: formData.amount === "" ? null : Number(formData.amount),
+          initial_paid_up_capital: formData.initialPaidUpCapital === "" ? null : Number(formData.initialPaidUpCapital),
+          termination_resolution_number: formData.terminationResolutionNumber,
+          termination_date: formData.terminationDate || null,
+        }),
+      });
+
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || !payload?.success) {
+        throw new Error(payload?.detail || payload?.message || "Failed to save record.");
+      }
+
+      setSaveMessage("Membership record saved successfully.");
+    } catch (err) {
+      setSaveMessage(err?.message || "Failed to save record.");
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -102,7 +116,19 @@ const Record_Details = () => {
         </button>
 
         <div className="bg-white rounded-lg shadow-sm p-8">
-        <h1 className="text-3xl font-bold text-gray-800 mb-8">{currentMember.name}</h1>
+        <h1 className="text-3xl font-bold text-gray-800 mb-8">{memberName}</h1>
+
+        {loading ? (
+          <div className="mb-6 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700">Loading record details...</div>
+        ) : null}
+
+        {error ? (
+          <div className="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
+        ) : null}
+
+        {saveMessage ? (
+          <div className="mb-6 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">{saveMessage}</div>
+        ) : null}
 
         {/* Section 1: Membership Information */}
         <div className="mb-8">
@@ -218,9 +244,10 @@ const Record_Details = () => {
           </button>
           <button
             onClick={handleSave}
+            disabled={saving || loading}
             className="px-6 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition-colors"
           >
-            Save
+            {saving ? "Saving..." : "Save"}
           </button>
         </div>
         </div>
