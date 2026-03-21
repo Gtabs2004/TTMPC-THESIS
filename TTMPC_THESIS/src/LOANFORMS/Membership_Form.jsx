@@ -33,7 +33,10 @@ function Membership_Form() {
 
     blood_type: '',
     tin_number: '',
+    gsis_number: '',
 
+    father_name: '',
+    mother_name: '',
     maiden_name: '',
     spouse_name: '',
     spouse_date_of_birth: '',
@@ -47,9 +50,12 @@ function Membership_Form() {
 
     educational_attainment: '',
     occupation: '',
+    income_source: '',
+    employer_name: '',
     position: '',
 
     annual_income: '',
+    salary: '',
     other_income: '',
 
   });
@@ -252,14 +258,28 @@ function Membership_Form() {
                   <label className="block text-xs font-semibold text-gray-600 mb-1">Taxpayer's Identification Number (TIN) <span className="text-red-500">*</span></label>
                   <input type="text" name="tin_number" value={formdata.tin_number} onChange={handleChange} className="w-full border border-gray-300 rounded-md p-2.5 text-sm focus:ring-1 focus:ring-green-500 outline-none" />
                 </div>
+
+                 <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1">GSIS Number <span className="text-red-500">*</span></label>
+                  <input type="text" name="gsis_number" value={formdata.gsis_number} onChange={handleChange} className="w-full border border-gray-300 rounded-md p-2.5 text-sm focus:ring-1 focus:ring-green-500 outline-none" />
+                </div>
               </div>
             </section>
 
             
-            {formdata.civil_status !== 'Single' && (
             <section>
               <h3 className="text-sm font-bold text-slate-700 uppercase mb-4">Family Information</h3>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-4">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1">Father Name</label>
+                  <input type="text" name="father_name" value={formdata.father_name} onChange={handleChange} className="w-full border border-gray-300 rounded-md p-2.5 text-sm focus:ring-1 focus:ring-green-500 outline-none" />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1">Mother Name</label>
+                  <input type="text" name="mother_name" value={formdata.mother_name} onChange={handleChange} className="w-full border border-gray-300 rounded-md p-2.5 text-sm focus:ring-1 focus:ring-green-500 outline-none" />
+                </div>
+
                 <div>
                   <label className="block text-xs font-semibold text-gray-600 mb-1">Maiden Name (if married)</label>
                   <input type="text" name="maiden_name" value={formdata.maiden_name} onChange={handleChange} className="w-full border border-gray-300 rounded-md p-2.5 text-sm focus:ring-1 focus:ring-green-500 outline-none" />
@@ -277,15 +297,15 @@ function Membership_Form() {
                   <label className="block text-xs font-semibold text-gray-600 mb-1">Spouse's Occupation</label>
                   <input type="text" name="spouse_occupation" value={formdata.spouse_occupation} onChange={handleChange} className="w-full border border-gray-300 rounded-md p-2.5 text-sm focus:ring-1 focus:ring-green-500 outline-none" />
                 </div>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div>
                   <label className="block text-xs font-semibold text-gray-600 mb-1">Number of Dependents</label>
                   <input type="number" name="number_of_dependents" value={formdata.number_of_dependents} onChange={handleChange} className="w-full border border-gray-300 rounded-md p-2.5 text-sm focus:ring-1 focus:ring-green-500 outline-none" />
                 </div>
               </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                
+              </div>
             </section>
-            )}
 
             
             <section>
@@ -316,14 +336,24 @@ function Membership_Form() {
                     <option value="">-- Select Educational Attainment --</option>
                     <option value="High School">High School</option>
                     <option value="Vocational">Vocational</option>
-                    <option value="College Undergraduate">College Undergraduate</option>
+                    <option value="College Undergraduate">Undergraduate</option>
                     <option value="College Graduate">College Graduate</option>
                     <option value="Post Graduate">Post Graduate</option>
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1">Occupation / Income Source <span className="text-red-500">*</span></label>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1">Occupation <span className="text-red-500">*</span></label>
                   <input type="text" name="occupation" value={formdata.occupation} onChange={handleChange} className="w-full border border-gray-300 rounded-md p-2.5 text-sm focus:ring-1 focus:ring-green-500 outline-none" />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1">Income Source <span className="text-red-500">*</span></label>
+                  <input type="text" name="income_source" value={formdata.income_source} onChange={handleChange} className="w-full border border-gray-300 rounded-md p-2.5 text-sm focus:ring-1 focus:ring-green-500 outline-none" />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1">Employer <span className="text-red-500">*</span></label>
+                  <input type="text" name="employer_name" value={formdata.employer_name} onChange={handleChange} className="w-full border border-gray-300 rounded-md p-2.5 text-sm focus:ring-1 focus:ring-green-500 outline-none" />
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-gray-600 mb-1">Position</label>
@@ -334,6 +364,11 @@ function Membership_Form() {
                 <div>
                   <label className="block text-xs font-semibold text-gray-600 mb-1">Annual Income <span className="text-red-500">*</span></label>
                   <input type="text" name="annual_income" value={formdata.annual_income} onChange={handleChange} className="w-full border border-gray-300 rounded-md p-2.5 text-sm focus:ring-1 focus:ring-green-500 outline-none" />
+                </div>
+
+                  <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1">Salary <span className="text-red-500">*</span></label>
+                  <input type="text" name="salary" value={formdata.salary} onChange={handleChange} className="w-full border border-gray-300 rounded-md p-2.5 text-sm focus:ring-1 focus:ring-green-500 outline-none" />
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-gray-600 mb-1">Other Source of Income</label>
