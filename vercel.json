@@ -1,0 +1,8 @@
+{
+  "installCommand": "cd TTMPC_THESIS && npm install",
+  "buildCommand": "cd TTMPC_THESIS && npm run build",
+  "outputDirectory": "TTMPC_THESIS/dist",
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
+}
