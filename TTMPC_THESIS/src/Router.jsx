@@ -145,4 +145,5 @@ export const router = createBrowserRouter([
     {path: "/payments-cashier", element:<Cashier_Payments/>},
     {path: "/cashier-payments", element:<Cashier_Payments/>},
     {path: "/cashier-disbursement", element:<Cashier_Disbursement/>}
+    
 ]);

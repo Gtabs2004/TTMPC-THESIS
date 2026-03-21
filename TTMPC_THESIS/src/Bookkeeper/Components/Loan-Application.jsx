@@ -11,7 +11,10 @@ import {
   BarChart3, 
   History,
   Search,
-  Bell
+  Bell,
+  UserPlus,
+  ClipboardList
+
 } from 'lucide-react';
 
 
@@ -21,8 +24,8 @@ const LoanApplication = () => {
   
 const menuItems = [
     { name: "Dashboard", icon: LayoutDashboard },
-    { name: "Manage Member", icon: Users },
-    { name: "Loan Approval", icon: FileText },
+    { name: "Member Records", icon: Users },
+    { name: "Loan Application", icon: FileText },
     { name: "Manage Loans", icon: CreditCard },
     { name: "Payments", icon: CreditCard },
     { name: "Accounting", icon: Calculator },
@@ -62,9 +65,9 @@ const menuItems = [
   {(() => {
     const routeMap = {
       Dashboard: "/dashboard",
-      "Manage Member": "/manage-member",
-      "Loan Approval": "/bookkeeper-loan-approval",
-    "Manage Loans":"/manage-loans",
+      "Member Records": "/records",
+      "Loan Application": "/loan-application",
+      "Manage Loans":"/manage-loans",
       Payments: "/payments",
       Accounting: "/accounting",
       MIGS: "/migs",
@@ -106,7 +109,7 @@ const menuItems = [
       </aside>
 
      
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 flex flex-col ">
         <header className="bg-white h-16 shadow-sm flex items-center justify-end px-8">
           <div className="relative">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400"/>
@@ -125,6 +128,45 @@ const menuItems = [
         <main className="p-8">
           <h1 className="font-bold text-2xl">Loan-Application</h1>
 
+         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6 mt-4">
+                    <div className="bg-white border border-gray-100 rounded-xl p-5 flex items-center gap-4 shadow-sm">
+                      <div className="w-12 h-12 rounded-lg bg-[#EAF5EC] flex items-center justify-center flex-shrink-0">
+                        <UserPlus className="text-[#2C7A3F] w-6 h-6" />
+                      </div>
+                      <div className="flex flex-col">
+                        <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Total Kiosk Today</h3>
+                        <p className="text-2xl font-extrabold text-slate-800 mt-0.5">24</p>
+                      </div>
+                    </div>
+        
+                    <div className="bg-white border border-gray-100 rounded-xl p-5 flex items-center gap-4 shadow-sm">
+                      <div className="w-12 h-12 rounded-lg bg-[#FFF4E5] flex items-center justify-center flex-shrink-0">
+                        <ClipboardList className="text-[#D97706] w-6 h-6" />
+                      </div>
+                      <div className="flex flex-col">
+                        <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Pending Review</h3>
+                        <p className="text-2xl font-extrabold text-slate-800 mt-0.5">8</p>
+                      </div>
+                     </div> 
+                       <div className="bg-white border border-gray-100 rounded-xl p-5 flex items-center gap-4 shadow-sm">
+                      <div className="w-12 h-12 rounded-lg bg-[#FFF4E5] flex items-center justify-center flex-shrink-0">
+                        <ClipboardList className="text-[#D97706] w-6 h-6" />
+                      </div>
+                      <div className="flex flex-col">
+                        <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Approved</h3>
+                        <p className="text-2xl font-extrabold text-slate-800 mt-0.5">12</p>
+                      </div>
+                     </div> 
+                       <div className="bg-white border border-gray-100 rounded-xl p-5 flex items-center gap-4 shadow-sm">
+                      <div className="w-12 h-12 rounded-lg bg-[#FFF4E5] flex items-center justify-center flex-shrink-0">
+                        <ClipboardList className="text-[#D97706] w-6 h-6" />
+                      </div>
+                      <div className="flex flex-col">
+                        <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">AVG. PROCESSING</h3>
+                        <p className="text-2xl font-extrabold text-slate-800 mt-0.5">1.4h</p>
+                      </div>
+                     </div> 
+                  </div>
 
         
           <div className="bg-white w-full rounded-2xl m-auto mt-6 p-8 shadow-sm border border-gray-100 min-h-fit">
@@ -136,18 +178,19 @@ const menuItems = [
                         <th className="pb-4 font-medium">Member Name</th>
                         <th className="pb-4 font-medium">Loan Type</th>
                         <th className="pb-4 font-medium">Amount</th>
-                        <th className="pb-4 font-medium">Date Submitted</th>
+                        <th className="pb-4 font-medium">Term</th>
+                        <th className="pb-4 font-medium"> MIGS Status</th>
+                        <th className="pb-4 font-medium">Submission</th>
                         <th className="pb-4 font-medium">Status</th>
-                        <th className="pb-4 font-medium">Purpose</th>
                       </tr>
                   </thead>
                   <tbody>
                     {[
-                     { ID: "TTMPCL-001-123", name: "Gero Antoni Tabiolo", type: "Bonus Loan", amount: "₱50,000", date: "01-15-2026", status: "Approved", purpose: "Home Improvement" },
-                     { ID: "TTMPCL-002-123", name: "Erden Jhed Teope", type: "Emergency Loan", amount: "₱25,000", date: "01-18-2026", status: "Processing", purpose: "Medical Emergency" },
-                     { ID: "TTMPCL-003-123", name: "Ashley Nicole Bulotaolo", type: "Consolidated Loan", amount: "₱120,000", date: "01-20-2026", status: "Approved", purpose: "Debt Consolidation" },
-                     { ID: "TTMPCL-004-123", name: "Romelyn Delos Reyes", type: "Bonus Loan", amount: "₱20,000", date: "01-22-2026", status: "Approved", purpose: "Education" },
-                     { ID: "TTMPCL-005-123", name: "Nash Ervine Siaton", type: "Bonus Loan", amount: "₱30,000", date: "02-05-2026", status: "Pending", purpose: "Business Capital" }  
+                     { ID: "TTMPCL-001-123", name: "Gero Antoni Tabiolo", type: "Bonus Loan", amount: "₱50,000", term: "12 Months", status: "MIGS", purpose: "Home Improvement" },
+                     { ID: "TTMPCL-002-123", name: "Erden Jhed Teope", type: "Emergency Loan", amount: "₱25,000", term: "12 Months", status: "Non-MIGS", purpose: "Medical Emergency" },
+                     { ID: "TTMPCL-003-123", name: "Ashley Nicole Bulotaolo", type: "Consolidated Loan", amount: "₱120,000", term: "24 Months", status: "Approved", purpose: "Debt Consolidation" },
+                     { ID: "TTMPCL-004-123", name: "Romelyn Delos Reyes", type: "Bonus Loan", amount: "₱20,000", term: "6 Months", status: "Approved", purpose: "Education" },
+                     { ID: "TTMPCL-005-123", name: "Nash Ervine Siaton", type: "Bonus Loan", amount: "₱30,000", term: "12 Months", status: "Pending", purpose: "Business Capital" }  
                     ].map((loan, index) => (
                         <tr key={loan.ID} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
                           <td className="py-4 font-semibold text-gray-800">{loan.ID}</td>

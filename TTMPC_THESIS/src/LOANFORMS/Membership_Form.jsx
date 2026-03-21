@@ -135,6 +135,8 @@ function Membership_Form() {
     }
   };
 
+  const isSingleCivilStatus = formdata.civil_status === 'Single';
+
   return (
     <div className="flex flex-col min-h-screen bg-gray-50 pb-20">
       <header className="w-full bg-[#E9F7DE] h-20 shadow-sm flex items-center px-8">
@@ -267,45 +269,47 @@ function Membership_Form() {
             </section>
 
             
-            <section>
-              <h3 className="text-sm font-bold text-slate-700 uppercase mb-4">Family Information</h3>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-4">
-                <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1">Father Name</label>
-                  <input type="text" name="father_name" value={formdata.father_name} onChange={handleChange} className="w-full border border-gray-300 rounded-md p-2.5 text-sm focus:ring-1 focus:ring-green-500 outline-none" />
-                </div>
+            {!isSingleCivilStatus && (
+              <section>
+                <h3 className="text-sm font-bold text-slate-700 uppercase mb-4">Family Information</h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1">Father Name</label>
+                    <input type="text" name="father_name" value={formdata.father_name} onChange={handleChange} className="w-full border border-gray-300 rounded-md p-2.5 text-sm focus:ring-1 focus:ring-green-500 outline-none" />
+                  </div>
 
-                <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1">Mother Name</label>
-                  <input type="text" name="mother_name" value={formdata.mother_name} onChange={handleChange} className="w-full border border-gray-300 rounded-md p-2.5 text-sm focus:ring-1 focus:ring-green-500 outline-none" />
-                </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1">Mother Name</label>
+                    <input type="text" name="mother_name" value={formdata.mother_name} onChange={handleChange} className="w-full border border-gray-300 rounded-md p-2.5 text-sm focus:ring-1 focus:ring-green-500 outline-none" />
+                  </div>
 
-                <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1">Maiden Name (if married)</label>
-                  <input type="text" name="maiden_name" value={formdata.maiden_name} onChange={handleChange} className="w-full border border-gray-300 rounded-md p-2.5 text-sm focus:ring-1 focus:ring-green-500 outline-none" />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1">Name of Spouse</label>
-                  <input type="text" name="spouse_name" value={formdata.spouse_name} onChange={handleChange} className="w-full border border-gray-300 rounded-md p-2.5 text-sm focus:ring-1 focus:ring-green-500 outline-none" />
-                </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1">Maiden Name (if married)</label>
+                    <input type="text" name="maiden_name" value={formdata.maiden_name} onChange={handleChange} className="w-full border border-gray-300 rounded-md p-2.5 text-sm focus:ring-1 focus:ring-green-500 outline-none" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1">Name of Spouse</label>
+                    <input type="text" name="spouse_name" value={formdata.spouse_name} onChange={handleChange} className="w-full border border-gray-300 rounded-md p-2.5 text-sm focus:ring-1 focus:ring-green-500 outline-none" />
+                  </div>
 
-                <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1">Spouse Date of Birth</label>
-                  <input type="date" name="spouse_date_of_birth" value={formdata.spouse_date_of_birth} onChange={handleChange} className="w-full border border-gray-300 rounded-md p-2.5 text-sm focus:ring-1 focus:ring-green-500 outline-none" />
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1">Spouse Date of Birth</label>
+                    <input type="date" name="spouse_date_of_birth" value={formdata.spouse_date_of_birth} onChange={handleChange} className="w-full border border-gray-300 rounded-md p-2.5 text-sm focus:ring-1 focus:ring-green-500 outline-none" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1">Spouse's Occupation</label>
+                    <input type="text" name="spouse_occupation" value={formdata.spouse_occupation} onChange={handleChange} className="w-full border border-gray-300 rounded-md p-2.5 text-sm focus:ring-1 focus:ring-green-500 outline-none" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1">Number of Dependents</label>
+                    <input type="number" name="number_of_dependents" value={formdata.number_of_dependents} onChange={handleChange} className="w-full border border-gray-300 rounded-md p-2.5 text-sm focus:ring-1 focus:ring-green-500 outline-none" />
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1">Spouse's Occupation</label>
-                  <input type="text" name="spouse_occupation" value={formdata.spouse_occupation} onChange={handleChange} className="w-full border border-gray-300 rounded-md p-2.5 text-sm focus:ring-1 focus:ring-green-500 outline-none" />
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  
                 </div>
-                <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1">Number of Dependents</label>
-                  <input type="number" name="number_of_dependents" value={formdata.number_of_dependents} onChange={handleChange} className="w-full border border-gray-300 rounded-md p-2.5 text-sm focus:ring-1 focus:ring-green-500 outline-none" />
-                </div>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                
-              </div>
-            </section>
+              </section>
+            )}
 
             
             <section>

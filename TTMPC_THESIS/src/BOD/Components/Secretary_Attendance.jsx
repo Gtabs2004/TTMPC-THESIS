@@ -306,7 +306,7 @@ const Secretary_Attendance = () => {
           <div className="flex flex-col">
             <h1 className="text-xl font-bold text-[#389734]">TTMPC</h1>
             <p className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold">
-              BOD Portal
+              Secretary Portal
             </p>
           </div>
         </div>
