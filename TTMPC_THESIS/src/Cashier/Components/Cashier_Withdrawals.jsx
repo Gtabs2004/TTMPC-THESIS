@@ -245,7 +245,7 @@ const Cashier_Withdrawals = () => {
               </table>
             </div>
 
-            {/* Pagination Footer */}
+            
             <div className="mt-6 pt-4 border-t border-gray-200 flex justify-center items-center gap-2">
               <button className="w-8 h-8 flex items-center justify-center rounded-full border border-gray-300 text-gray-500 hover:bg-gray-50">
                 <ChevronLeft className="w-4 h-4" />

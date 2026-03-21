@@ -374,7 +374,6 @@ const Cashier_CBU_Deposit = () => {
               >
                 <ReceiptText className="w-4 h-4" /> Submit CBU Deposit
               </button>
-              
             </div>
           </div>
         </main>

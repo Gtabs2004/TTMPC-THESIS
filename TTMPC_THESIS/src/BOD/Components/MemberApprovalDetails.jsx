@@ -22,7 +22,6 @@ const MemberApprovalDetails = () => {
   const [actionError, setActionError] = useState('');
   const [notifying, setNotifying] = useState(false);
   const [notifyMessage, setNotifyMessage] = useState('');
-  const [portalRole, setPortalRole] = useState('');
   const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000';
 
   useEffect(() => {
@@ -49,32 +48,6 @@ const MemberApprovalDetails = () => {
 
     fetchMemberDetails();
   }, [id]);
-
-  useEffect(() => {
-    const resolvePortalRole = async () => {
-      const { data: authData } = await supabase.auth.getUser();
-      const user = authData?.user;
-      if (!user) return;
-
-      for (const table of ['member_account', 'member_accounts']) {
-        const byUserId = await supabase.from(table).select('role').eq('user_id', user.id).limit(1).maybeSingle();
-        if (!byUserId.error && byUserId.data?.role) {
-          setPortalRole(String(byUserId.data.role).trim().toLowerCase());
-          return;
-        }
-
-        const byEmail = user.email
-          ? await supabase.from(table).select('role').ilike('email', user.email).limit(1).maybeSingle()
-          : { data: null, error: null };
-        if (!byEmail.error && byEmail.data?.role) {
-          setPortalRole(String(byEmail.data.role).trim().toLowerCase());
-          return;
-        }
-      }
-    };
-
-    resolvePortalRole();
-  }, []);
 
   const formatDate = (value) => {
     if (!value) return '-';
@@ -133,13 +106,13 @@ const MemberApprovalDetails = () => {
       religion: memberRow.religion || 'N/A',
       heightWeight: `${memberRow.height || '-'} cm / ${memberRow.weight || '-'} kg`,
       bloodType: memberRow.blood_type || 'N/A',
-      tin_number: memberRow.tin_number || 'N/A',
+      tin: memberRow.tin || 'N/A',
 
       // Family Information
       maidenName: memberRow.maiden_name || 'N/A',
       spouseName: memberRow.spouse_name || 'N/A',
       spouseOccupation: memberRow.spouse_occupation || 'N/A',
-      number_of_dependents: memberRow.number_of_dependents || '0',
+      dependents: memberRow.dependents_count || '0',
 
       // Contact & Address
       address: memberRow.permanent_address || 'N/A',
@@ -151,7 +124,7 @@ const MemberApprovalDetails = () => {
       occupation: memberRow.occupation || 'N/A',
       position: memberRow.position || 'N/A',
       annualIncome: memberRow.annual_income || 'N/A',
-      other_income: memberRow.other_income || 'N/A',
+      otherIncomeSource: memberRow.other_income_source || 'N/A',
       
       reason: memberRow.rejection_reason || memberRow.remarks || '-',
       row: memberRow,
@@ -160,16 +133,13 @@ const MemberApprovalDetails = () => {
 
   const getProceedConfig = (status) => {
     if (status === 'Pending') return { title: 'Proceed to 1st Training', nextStatus: '1st Training', button: 'Proceed to 1st Training' };
-    if (status === '1st Training') return { title: 'Mark as Official Member', nextStatus: 'Official Member', button: 'Confirm & Complete' };
+    if (status === '1st Training') return { title: 'Proceed to 2nd Training', nextStatus: '2nd Training', button: 'Proceed to 2nd Training' };
     if (status === '2nd Training') return { title: 'Mark as Official Member', nextStatus: 'Official Member', button: 'Confirm & Complete' };
     return null;
   };
 
   const proceedConfig = member ? getProceedConfig(member.status) : null;
 
-  const handlePrint = () => {
-  window.print();
-  };
   const closeModal = () => {
     if (notifying) return;
     setActiveModal(null);
@@ -185,9 +155,6 @@ const MemberApprovalDetails = () => {
       throw new Error('Member email is missing.');
     }
 
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 12000);
-
     let response;
     try {
       response = await fetch(`${apiBaseUrl}/api/send-status-email`, {
@@ -196,7 +163,6 @@ const MemberApprovalDetails = () => {
           'Content-Type': 'application/json',
           'Accept': 'application/json'
         },
-        signal: controller.signal,
         body: JSON.stringify({
           to_email: member.email,
           member_name: member.name,
@@ -204,13 +170,8 @@ const MemberApprovalDetails = () => {
           remarks: remarks.trim() || null,
         }),
       });
-    } catch (networkError) {
-      if (networkError?.name === 'AbortError') {
-        throw new Error('Email API timed out. Status was saved, but email may not have been sent.');
-      }
+    } catch (_networkError) {
       throw new Error('Failed to fetch email API. Make sure backend is running at VITE_API_BASE_URL.');
-    } finally {
-      clearTimeout(timeoutId);
     }
 
     if (!response.ok) {
@@ -221,18 +182,6 @@ const MemberApprovalDetails = () => {
 
   const applyStatusUpdate = async (nextStatus) => {
     if (!memberRow) return;
-    if (portalRole === 'secretary') {
-      setActionError('Secretary has view-only access for membership applications.');
-      return;
-    }
-
-    if (nextStatus === 'Official Member') {
-      const firstTrainingAttendance = String(memberRow?.attendance_status || '').trim().toLowerCase();
-      if (memberRow?.application_status === '1st Training' && firstTrainingAttendance !== 'present') {
-        setActionError('Only applicants marked Present in 1st Training can be approved as members.');
-        return;
-      }
-    }
 
     if (nextStatus === 'Official Member') {
       setSaving(true);
@@ -247,31 +196,17 @@ const MemberApprovalDetails = () => {
           throw new Error('Unable to verify confirmer account. Please sign in again.');
         }
 
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 20000);
-
-        let response;
-        try {
-          response = await fetch(`${apiBaseUrl}/api/confirm-membership`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Accept': 'application/json',
-            },
-            signal: controller.signal,
-            body: JSON.stringify({
-              application_id: memberRow.application_id,
-              confirmed_by_user_id: authData.user.id,
-            }),
-          });
-        } catch (networkError) {
-          if (networkError?.name === 'AbortError') {
-            throw new Error('Membership confirmation timed out. Please check backend logs and retry.');
-          }
-          throw networkError;
-        } finally {
-          clearTimeout(timeoutId);
-        }
+        const response = await fetch(`${apiBaseUrl}/api/confirm-membership`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          },
+          body: JSON.stringify({
+            application_id: memberRow.application_id,
+            confirmed_by_user_id: authData.user.id,
+          }),
+        });
 
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({}));
@@ -279,17 +214,9 @@ const MemberApprovalDetails = () => {
         }
 
         const result = await response.json().catch(() => ({}));
-        const generatedMembershipId = result?.data?.membership_id || 'TTMPCM-#####';
-        const emailResult = result?.data?.email;
+        const generatedMembershipId = result?.data?.membership_id || 'TTMPC_M_#####';
 
-        let emailNote = '';
-        if (emailResult?.sent === true) {
-          emailNote = ' Email notification sent.';
-        } else if (emailResult?.reason) {
-          emailNote = ` Email notification not sent: ${emailResult.reason}`;
-        }
-
-        setNotifyMessage(`Membership created successfully. ID: ${generatedMembershipId}.${emailNote} Returning to member approvals...`);
+        setNotifyMessage(`Membership created successfully. ID: ${generatedMembershipId}. Returning to member approvals...`);
         setTimeout(() => {
           setSaving(false);
           setNotifying(false);
@@ -424,8 +351,7 @@ const MemberApprovalDetails = () => {
 
   return (
     <div className="p-8 bg-gray-50 min-h-screen relative max-w-7xl mx-auto">
-      
-      {/* --- BACK BUTTON --- */}
+ 
       <button 
         onClick={() => navigate('/member-approvals')}
         className="flex items-center text-sm text-[#1a4a2f] font-semibold mb-6 hover:underline"
@@ -441,7 +367,7 @@ const MemberApprovalDetails = () => {
             <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${
                 member.status === 'Pending' ? 'bg-orange-100 text-orange-600' :
                 member.status === 'Official Member' || member.status === 'Approved' ? 'bg-green-100 text-green-700' :
-                member.status === '1st Training' ? 'bg-blue-100 text-blue-700' :
+                member.status === '1st Training' || member.status === '2nd Training' ? 'bg-blue-100 text-blue-700' :
                 'bg-red-100 text-red-700'
               }`}>
               • {member.status}
@@ -451,7 +377,7 @@ const MemberApprovalDetails = () => {
             Application Submitted: <span className="text-gray-900">{member.date}</span> • Ref: <span className="text-gray-900">{member.id}</span>
           </div>
         </div>
-        <button onClick={handlePrint} className="flex items-center gap-2 px-4 py-2 border border-gray-200 bg-white text-gray-700 font-semibold rounded-lg text-sm shadow-sm hover:bg-gray-50 transition-colors">
+        <button className="flex items-center gap-2 px-4 py-2 border border-gray-200 bg-white text-gray-700 font-semibold rounded-lg text-sm shadow-sm hover:bg-gray-50 transition-colors">
           <Download className="w-4 h-4" /> Export Application as PDF
         </button>
       </div>
@@ -476,7 +402,7 @@ const MemberApprovalDetails = () => {
           <InfoField label="Blood Type" value={member.bloodType} />
           
           <div className="md:col-span-3">
-            <InfoField label="Tax Identification Number (TIN)" value={member.tin_number} isGreen={true} />
+            <InfoField label="Tax Identification Number (TIN)" value={member.tin} isGreen={true} />
           </div>
         </div>
       </SectionCard>
@@ -487,7 +413,7 @@ const MemberApprovalDetails = () => {
           <InfoField label="Maiden Name (If Applicable)" value={member.maidenName} />
           <InfoField label="Name of Spouse" value={member.spouseName} />
           <InfoField label="Spouse's Occupation" value={member.spouseOccupation} />
-          <InfoField label="Number of Dependents" value={member.number_of_dependents} />
+          <InfoField label="Number of Dependents" value={member.dependents} />
         </div>
       </SectionCard>
 
@@ -517,21 +443,16 @@ const MemberApprovalDetails = () => {
           <InfoField label="Position" value={member.position} />
           <InfoField label="Annual Income" value={`₱ ${member.annualIncome}`} />
           <div className="md:col-span-2">
-            <InfoField label="Other Source of Income" value={member.other_income} />
+            <InfoField label="Other Source of Income" value={member.otherIncomeSource} />
           </div>
         </div>
       </SectionCard>
 
       {/* --- BOTTOM ACTION BUTTONS --- */}
-      {portalRole === 'secretary' && (
-        <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
-          Secretary access is view-only in this page. You can review pending applications and record attendance in Training Attendance.
-        </div>
-      )}
-      <div className="no-print flex flex-wrap justify-end gap-4 mt-8 bg-white p-6 rounded-xl border border-gray-100 shadow-sm">
+      <div className="flex flex-wrap justify-end gap-4 mt-8 bg-white p-6 rounded-xl border border-gray-100 shadow-sm">
         <button 
           onClick={() => setActiveModal('reject')} 
-          disabled={saving || member.status === 'Official Member' || portalRole === 'secretary'}
+          disabled={saving || member.status === 'Official Member'}
           className="flex items-center text-[#DC2626] bg-red-50 border border-red-200 hover:bg-red-100 transition-colors font-bold rounded-lg px-6 py-2.5 text-sm"
         >
           <X className="w-4 h-4 mr-2" strokeWidth={2.5} /> Reject Application
@@ -539,7 +460,7 @@ const MemberApprovalDetails = () => {
         
         <button 
           onClick={() => setActiveModal('revise')} 
-          disabled={saving || member.status === 'Official Member' || portalRole === 'secretary'}
+          disabled={saving || member.status === 'Official Member'}
           className="flex items-center text-[#D97706] bg-yellow-50 border border-yellow-200 hover:bg-yellow-100 transition-colors font-bold rounded-lg px-6 py-2.5 text-sm"
         >
           Return for Revision
@@ -548,9 +469,8 @@ const MemberApprovalDetails = () => {
         {proceedConfig && (
           <button
             onClick={() => setActiveModal('proceed')}
-            disabled={saving || portalRole === 'secretary' || (member.status === '1st Training' && String(member.row?.attendance_status || '').toLowerCase() !== 'present')}
+            disabled={saving}
             className="flex items-center text-white bg-[#1a4a2f] hover:bg-[#123622] transition-colors font-bold rounded-lg px-6 py-2.5 text-sm shadow-sm"
-            title={member.status === '1st Training' && String(member.row?.attendance_status || '').toLowerCase() !== 'present' ? 'Mark attendance as Present in 1st Training before approval.' : ''}
           >
             <Check className="w-4 h-4 mr-2" strokeWidth={2.5} /> {proceedConfig.button}
           </button>
@@ -560,13 +480,13 @@ const MemberApprovalDetails = () => {
 
       {/* --- MODALS OVERLAY (Untouched functionality) --- */}
       {activeModal && (
-        <div className="no-print fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm print:!hidden">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-lg p-6 relative animate-in fade-in zoom-in-95 duration-200">
             
             <button 
               onClick={closeModal} 
               disabled={notifying}
-              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors "
+              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors"
             >
               <X className="w-5 h-5" />
             </button>

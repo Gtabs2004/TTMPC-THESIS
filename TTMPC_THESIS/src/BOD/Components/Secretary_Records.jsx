@@ -125,7 +125,7 @@ const Secretary_Records = () => {
           <div className="flex flex-col">
             <h1 className="text-xl font-bold text-[#389734]">TTMPC</h1>
             <p className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold">
-              BOD Portal
+              Secretary Portal
             </p>
           </div>
         </div>
@@ -200,7 +200,7 @@ const Secretary_Records = () => {
                  </button>
                  <div className="flex items-center ml-4 gap-2 border-l border-gray-200 pl-4">
                    <img src="src/assets/img/bookkeeper-profile.png" alt="Profile" className="w-8 h-8 rounded-full bg-gray-200"></img>
-                   <p className="text-sm font-medium text-gray-700">Manager</p>
+                   <p className="text-sm font-medium text-gray-700">Secretary</p>
                  </div>
                </header>
        
