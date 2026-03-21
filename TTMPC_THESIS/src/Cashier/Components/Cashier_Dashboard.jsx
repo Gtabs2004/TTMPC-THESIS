@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
+import { PortalSidebarIdentity, PortalTopbarIdentity } from "../../components/PortalIdentity";
 import {
   LayoutDashboard,
   Search,
@@ -83,9 +84,7 @@ const Cashier_Dashboard = () => {
           <img src={logo} alt="Logo" className="h-12 w-auto" />
           <div className="flex flex-col">
             <h1 className="text-xl font-bold text-[#389734]">TTMPC</h1>
-            <p className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold">
-              Cashier Portal
-            </p>
+            <PortalSidebarIdentity className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold" fallbackPortal="Cashier Portal" fallbackRole="Cashier" />
           </div>
         </div>
 
@@ -175,7 +174,7 @@ const Cashier_Dashboard = () => {
             <span className="absolute top-1 right-1 block h-2 w-2 rounded-full bg-red-500 ring-2 ring-white"></span>
           </button>
           <img src="src/assets/img/bookkeeper-profile.png" alt="Profile" className="ml-4 w-8 h-8 rounded-full bg-gray-200" />
-          <p className="ml-2 font-medium text-sm text-gray-700">Cashier</p>
+          <PortalTopbarIdentity className="font-medium text-sm text-gray-700" fallbackRole="Cashier" />
         </header>
 
         {/* DASHBOARD CONTENT */}

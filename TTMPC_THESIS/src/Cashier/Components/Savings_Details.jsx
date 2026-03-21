@@ -1,8 +1,9 @@
-import React from "react";
+﻿import React from "react";
 import { useNavigate, useParams, NavLink } from "react-router-dom";
 import logo from "../../assets/img/ttmpc logo.png";
 
 import { UserAuth } from "../../contex/AuthContext";
+import { PortalSidebarIdentity, PortalTopbarIdentity } from "../../components/PortalIdentity";
 
 import {
   LayoutDashboard,
@@ -32,8 +33,8 @@ const Savings_Details = () => {
     name: "Gero Antoni Tabiolo",
     type: "Regular Savings",
     dateAcquired: "02-15-2026",
-    totalAmount: "₱50,000",
-    previousDeposit: "₱5,000",
+    totalAmount: "â‚±50,000",
+    previousDeposit: "â‚±5,000",
     previousDate: "03-14-2026",
   };
 
@@ -55,7 +56,7 @@ const Savings_Details = () => {
 
   const handleWithdraw = () => {
     if (withdrawAmount && Number(withdrawAmount) > 0) {
-      console.log(`Withdrawal: ₱${withdrawAmount}`);
+      console.log(`Withdrawal: â‚±${withdrawAmount}`);
       // Add API call here
       setWithdrawAmount("");
       setShowWithdrawForm(false);
@@ -65,7 +66,7 @@ const Savings_Details = () => {
 
   const handleDeposit = () => {
     if (depositAmount && Number(depositAmount) > 0) {
-      console.log(`Deposit: ₱${depositAmount}`);
+      console.log(`Deposit: â‚±${depositAmount}`);
       // Add API call here
       setDepositAmount("");
       setShowDepositForm(false);
@@ -137,7 +138,7 @@ const Savings_Details = () => {
             onClick={() => navigate("/Cashier_Savings")}
             className="text-gray-600 hover:text-gray-900 font-semibold"
           >
-            ← Back to Savings
+            â† Back to Savings
           </button>
           <div className="flex items-center gap-4">
             <div className="relative">
@@ -156,7 +157,7 @@ const Savings_Details = () => {
               alt="Cashier Profile"
               className="ml-4 w-8 h-8 rounded-full"
             />
-            <p className="text-gray-700 font-medium">Cashier</p>
+            <PortalTopbarIdentity className="text-sm font-medium text-gray-700" fallbackRole="Cashier" />
           </div>
         </header>
 
@@ -257,7 +258,7 @@ const Savings_Details = () => {
                       Amount to Withdraw
                     </label>
                     <div className="relative">
-                      <span className="absolute left-3 top-3 text-gray-700 font-bold">₱</span>
+                      <span className="absolute left-3 top-3 text-gray-700 font-bold">â‚±</span>
                       <input
                         type="number"
                         placeholder="Enter amount"
@@ -300,7 +301,7 @@ const Savings_Details = () => {
                       Amount to Deposit
                     </label>
                     <div className="relative">
-                      <span className="absolute left-3 top-3 text-gray-700 font-bold">₱</span>
+                      <span className="absolute left-3 top-3 text-gray-700 font-bold">â‚±</span>
                       <input
                         type="number"
                         placeholder="Enter amount"
@@ -344,7 +345,7 @@ const Savings_Details = () => {
                       <p className="text-sm text-gray-600">03-14-2026</p>
                     </div>
                   </div>
-                  <p className="font-bold text-green-600">+₱5,000</p>
+                  <p className="font-bold text-green-600">+â‚±5,000</p>
                 </div>
 
                 <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
@@ -357,7 +358,7 @@ const Savings_Details = () => {
                       <p className="text-sm text-gray-600">02-15-2026</p>
                     </div>
                   </div>
-                  <p className="font-bold text-gray-600">₱45,000</p>
+                  <p className="font-bold text-gray-600">â‚±45,000</p>
                 </div>
               </div>
             </div>
@@ -369,3 +370,6 @@ const Savings_Details = () => {
 };
 
 export default Savings_Details;
+
+
+

@@ -1,6 +1,7 @@
-import React, { useMemo, useState } from "react";
+﻿import React, { useMemo, useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
+import { PortalSidebarIdentity, PortalTopbarIdentity } from "../../components/PortalIdentity";
 import logo from "../../assets/img/ttmpc logo.png";
 import { LayoutDashboard, CreditCard, UserSearch, Search, Bell, Banknote } from "lucide-react";
 
@@ -178,7 +179,7 @@ const Add_Savings = () => {
             <Bell className="w-5 h-5" />
             <span className="absolute top-1 right-1 block h-2 w-2 rounded-full bg-red-500 ring-2 ring-white"></span>
           </button>
-          <p className="ml-4">Cashier</p>
+          <img src="src/assets/img/bookkeeper-profile.png" alt="Profile" className="ml-4 w-8 h-8 rounded-full bg-gray-200"></img>`r`n          <PortalTopbarIdentity className="text-sm font-medium text-gray-700" fallbackRole="Cashier" />
         </header>
 
         <main className="p-8">
@@ -295,3 +296,7 @@ const Add_Savings = () => {
 };
 
 export default Add_Savings;
+
+
+
+

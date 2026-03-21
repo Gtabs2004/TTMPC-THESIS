@@ -1,6 +1,7 @@
-import React, { useEffect, useMemo, useState } from "react";
+﻿import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
+import { PortalSidebarIdentity, PortalTopbarIdentity } from "../../components/PortalIdentity";
 import {
   LayoutDashboard,
   Users,
@@ -227,7 +228,7 @@ const ManageLoans = () => {
             alt="Bookkeeper Profile"
             className="ml-4 w-8 h-8 rounded-full"
           />
-          <p className="ml-2">Bookkeeper</p>
+          <PortalTopbarIdentity className="text-sm font-medium text-gray-700" fallbackRole="Bookkeeper" />
         </header>
 
         <main className="p-8">
@@ -419,3 +420,7 @@ const ManageLoans = () => {
 };
 
 export default ManageLoans;
+
+
+
+
