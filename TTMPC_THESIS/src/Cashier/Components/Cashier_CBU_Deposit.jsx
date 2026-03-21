@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from "react";
+﻿import React, { useEffect, useState } from "react";
 import { useNavigate, NavLink, useParams } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
+import { PortalSidebarIdentity, PortalTopbarIdentity } from "../../components/PortalIdentity";
 import {
   LayoutDashboard,
   Search,
@@ -21,7 +22,7 @@ const SHARE_VALUE = 1000;
 const STARTING_CAPITAL = 500;
 
 const formatCurrency = (value) =>
-  `₱${Number(value || 0).toLocaleString(undefined, {
+  `â‚±${Number(value || 0).toLocaleString(undefined, {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })}`;
@@ -239,7 +240,7 @@ const Cashier_CBU_Deposit = () => {
             <span className="absolute top-1 right-1 block h-2 w-2 rounded-full bg-red-500 ring-2 ring-white"></span>
           </button>
           <img src="src/assets/img/bookkeeper-profile.png" alt="Profile" className="ml-4 w-8 h-8 rounded-full bg-gray-200" />
-          <p className="ml-2 font-medium text-sm text-gray-700">Cashier</p>
+          <PortalTopbarIdentity className="text-sm font-medium text-gray-700" fallbackRole="Cashier" />
         </header>
 
         <main className="p-8 overflow-auto">
@@ -357,7 +358,7 @@ const Cashier_CBU_Deposit = () => {
               </div>
               <div className="rounded-lg border border-gray-200 bg-white p-4">
                 <p className="text-[10px] uppercase tracking-wider text-gray-500 font-bold mb-2">Share Rule</p>
-                <p className="text-sm font-bold text-gray-700">₱1,000 = 1 Share</p>
+                <p className="text-sm font-bold text-gray-700">â‚±1,000 = 1 Share</p>
               </div>
             </div>
 
@@ -383,3 +384,7 @@ const Cashier_CBU_Deposit = () => {
 };
 
 export default Cashier_CBU_Deposit;
+
+
+
+

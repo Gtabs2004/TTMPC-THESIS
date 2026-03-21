@@ -1,6 +1,7 @@
 import React from "react";
 import { useNavigate, NavLink } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
+import { PortalSidebarIdentity, PortalTopbarIdentity } from "../../components/PortalIdentity";
 import {
   LayoutDashboard,
   Users,
@@ -94,9 +95,7 @@ const Dashboard = () => {
           <img src="src/assets/img/ttmpc logo.png" alt="Logo" className="h-12 w-auto" />
           <div className="flex flex-col">
             <h1 className="text-xl font-bold text-[#389734]">TTMPC</h1>
-            <p className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold">
-              Bookkeeper Portal
-            </p>
+            <PortalSidebarIdentity className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold" fallbackPortal="Bookkeeper Portal" fallbackRole="Bookkeeper" />
           </div>
         </div>
 
@@ -168,7 +167,7 @@ const Dashboard = () => {
             alt="Profile"
             className="ml-4 w-8 h-8 rounded-full bg-gray-200"
           />
-          <p className="ml-2 text-sm font-medium text-gray-700">Bookkeeper</p>
+          <PortalTopbarIdentity className="text-sm font-medium text-gray-700" fallbackRole="Bookkeeper" />
         </header>
 
         

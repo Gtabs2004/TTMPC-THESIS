@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
+import { PortalSidebarIdentity, PortalTopbarIdentity } from "../../components/PortalIdentity";
 import { supabase } from "../../supabaseClient";
 import {
   LayoutDashboard,
@@ -205,7 +206,7 @@ const Treasurer_Approval = () => {
           <img src="src/assets/img/ttmpc logo.png" alt="Logo" className="h-12 w-auto" />
           <div className="flex flex-col">
             <h1 className="text-xl font-bold text-[#389734]">TTMPC</h1>
-            <p className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold">Treasurer Portal</p>
+            <PortalSidebarIdentity className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold" fallbackPortal="Treasurer Portal" fallbackRole="Treasurer" />
           </div>
         </div>
 
@@ -270,7 +271,7 @@ const Treasurer_Approval = () => {
           </button>
           <div className="flex items-center ml-4 gap-2 border-l border-gray-200 pl-4">
             <img src="src/assets/img/bookkeeper-profile.png" alt="Profile" className="w-8 h-8 rounded-full bg-gray-200" />
-            <p className="text-sm font-medium text-gray-700">Bookkeeper</p>
+            <PortalTopbarIdentity className="text-sm font-medium text-gray-700" fallbackRole="Treasurer" />
           </div>
         </header>
 

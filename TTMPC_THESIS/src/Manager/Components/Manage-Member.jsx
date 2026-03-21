@@ -1,6 +1,7 @@
-import React, { useEffect, useMemo, useState } from "react";
+﻿import React, { useEffect, useMemo, useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
+import { PortalSidebarIdentity, PortalTopbarIdentity } from "../../components/PortalIdentity";
 import { LayoutDashboard, Users, Search, Bell, ChevronLeft, ChevronRight } from "lucide-react";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
@@ -197,3 +198,7 @@ const Manager_Manage_Member = () => {
 };
 
 export default Manager_Manage_Member;
+
+
+
+

@@ -1,6 +1,7 @@
-import React, { useState } from "react";
+﻿import React, { useState } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
+import { PortalSidebarIdentity, PortalTopbarIdentity } from "../../components/PortalIdentity";
 import { 
   LayoutDashboard, 
   Users, 
@@ -23,15 +24,15 @@ import {
 
 // Mock data matching your screenshot
 const paymentsData = [
-  { id: "TTMPCPAY-2026-001", name: "Romelyn Delos Reyes", type: "Bonus", amount: "₱2,000", date: "Feb. 10, 2026", status: "On-Time", balance: "₱18,000" },
-  { id: "TTMPCPAY-2026-002", name: "Erden Jhed Teope", type: "Emergency", amount: "₱2,500", date: "Feb. 10, 2026", status: "On-Time", balance: "₱22,500" },
-  { id: "TTMPCPAY-2026-003", name: "Ashley Nicole Bulataolo", type: "Consolidated", amount: "₱10,000", date: "Feb. 10, 2026", status: "On-Time", balance: "₱110,000" },
-  { id: "TTMPCPAY-2026-004", name: "Karina Dela Cruz", type: "Bonus", amount: "₱2,000", date: "Feb. 11, 2026", status: "On-Time", balance: "₱18,000" },
-  { id: "TTMPCPAY-2026-005", name: "Gero Antoni Tablolo", type: "Emergency", amount: "₱2,500", date: "Feb. 11, 2026", status: "On-Time", balance: "₱22,500" },
-  { id: "TTMPCPAY-2026-006", name: "Nash Ervine Slaton", type: "Consolidated", amount: "₱15,000", date: "Feb. 12, 2026", status: "On-Time", balance: "₱165,000" },
-  { id: "TTMPCPAY-2026-007", name: "Paul Soriano", type: "Consolidated", amount: "₱5,000", date: "Feb. 12, 2026", status: "On-Time", balance: "₱55,000" },
-  { id: "TTMPCPAY-2026-008", name: "Joseph Mercado", type: "Consolidated", amount: "₱4,500", date: "Feb. 12, 2026", status: "Late", balance: "₱45,000" },
-  { id: "TTMPCPAY-2026-009", name: "Antonio Ramirez", type: "Emergency", amount: "₱3,500", date: "Feb. 13, 2026", status: "On-Time", balance: "₱38,500" },
+  { id: "TTMPCPAY-2026-001", name: "Romelyn Delos Reyes", type: "Bonus", amount: "â‚±2,000", date: "Feb. 10, 2026", status: "On-Time", balance: "â‚±18,000" },
+  { id: "TTMPCPAY-2026-002", name: "Erden Jhed Teope", type: "Emergency", amount: "â‚±2,500", date: "Feb. 10, 2026", status: "On-Time", balance: "â‚±22,500" },
+  { id: "TTMPCPAY-2026-003", name: "Ashley Nicole Bulataolo", type: "Consolidated", amount: "â‚±10,000", date: "Feb. 10, 2026", status: "On-Time", balance: "â‚±110,000" },
+  { id: "TTMPCPAY-2026-004", name: "Karina Dela Cruz", type: "Bonus", amount: "â‚±2,000", date: "Feb. 11, 2026", status: "On-Time", balance: "â‚±18,000" },
+  { id: "TTMPCPAY-2026-005", name: "Gero Antoni Tablolo", type: "Emergency", amount: "â‚±2,500", date: "Feb. 11, 2026", status: "On-Time", balance: "â‚±22,500" },
+  { id: "TTMPCPAY-2026-006", name: "Nash Ervine Slaton", type: "Consolidated", amount: "â‚±15,000", date: "Feb. 12, 2026", status: "On-Time", balance: "â‚±165,000" },
+  { id: "TTMPCPAY-2026-007", name: "Paul Soriano", type: "Consolidated", amount: "â‚±5,000", date: "Feb. 12, 2026", status: "On-Time", balance: "â‚±55,000" },
+  { id: "TTMPCPAY-2026-008", name: "Joseph Mercado", type: "Consolidated", amount: "â‚±4,500", date: "Feb. 12, 2026", status: "Late", balance: "â‚±45,000" },
+  { id: "TTMPCPAY-2026-009", name: "Antonio Ramirez", type: "Emergency", amount: "â‚±3,500", date: "Feb. 13, 2026", status: "On-Time", balance: "â‚±38,500" },
 ];
 
 const Payments = () => {
@@ -137,7 +138,7 @@ const Payments = () => {
             <span className="absolute top-1 right-1 block h-2 w-2 rounded-full bg-red-500 ring-2 ring-white"></span>
           </button>
           <img src="src/assets/img/treasurer-profile.png" alt="Treasurer Profile" className="ml-4 w-8 h-8 rounded-full bg-gray-200" />
-          <p className="ml-2 font-medium text-sm text-gray-700">Treasurer</p>
+          <PortalTopbarIdentity className="text-sm font-medium text-gray-700" fallbackRole="Treasurer" />
         </header>
 
         {/* Page Content */}
@@ -154,9 +155,9 @@ const Payments = () => {
                 <TrendingUp className="w-5 h-5 text-gray-300" />
               </div>
               <p className="text-sm text-gray-500 font-medium">Total Collected</p>
-              <h2 className="text-2xl font-bold text-gray-900 mb-1">₱125,500.00</h2>
+              <h2 className="text-2xl font-bold text-gray-900 mb-1">â‚±125,500.00</h2>
               <p className="text-xs text-green-600 font-medium flex items-center gap-1">
-                 ↻ Recent payments tracked
+                 â†» Recent payments tracked
               </p>
             </div>
 
@@ -171,7 +172,7 @@ const Payments = () => {
               <p className="text-sm text-gray-500 font-medium">On-Time Payments</p>
               <h2 className="text-2xl font-bold text-gray-900 mb-1">15</h2>
               <p className="text-xs text-green-600 font-medium flex items-center gap-1">
-                 ↻ Active collection cycle
+                 â†» Active collection cycle
               </p>
             </div>
 
@@ -283,3 +284,6 @@ const Payments = () => {
 };
 
 export default Payments;
+
+
+

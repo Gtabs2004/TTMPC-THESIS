@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from "react";
+﻿import React, { useState, useEffect } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
+import { PortalSidebarIdentity, PortalTopbarIdentity } from "../../components/PortalIdentity";
 import { supabase } from "../../supabaseClient"; // Make sure this path is correct
 import { 
   LayoutDashboard, 
@@ -144,7 +145,7 @@ const Loan_Approval = () => {
       source: loan.source,
       name: memberName,
       type: loanTypeName,
-      amount: loan.loan_amount ? `₱${Number(loan.loan_amount).toLocaleString()}` : "₱0",
+      amount: loan.loan_amount ? `â‚±${Number(loan.loan_amount).toLocaleString()}` : "â‚±0",
       term: `${loan.term || 0} Months`,
       status: migsStatus,
       date: loan.application_date ? new Date(loan.application_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "N/A",
@@ -223,7 +224,7 @@ const Loan_Approval = () => {
           </button>
           <div className="flex items-center ml-4 gap-2 border-l border-gray-200 pl-4">
             <img src="src/assets/img/bookkeeper-profile.png" alt="Profile" className="w-8 h-8 rounded-full bg-gray-200" />
-            <p className="text-sm font-medium text-gray-700">Manager</p>
+            <PortalTopbarIdentity className="text-sm font-medium text-gray-700" fallbackRole="Manager" />
           </div>
         </header>
 
@@ -356,3 +357,6 @@ const Loan_Approval = () => {
 };
 
 export default Loan_Approval;
+
+
+

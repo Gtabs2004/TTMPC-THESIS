@@ -1,6 +1,7 @@
-import React, { useState } from "react";
+﻿import React, { useState } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
-import { UserAuth } from "../../contex/AuthContext"; 
+import { UserAuth } from "../../contex/AuthContext";
+import { PortalSidebarIdentity, PortalTopbarIdentity } from "../../components/PortalIdentity"; 
 import { 
   LayoutDashboard, 
   Search,
@@ -162,7 +163,7 @@ const Cashier_Withdrawals = () => {
             <span className="absolute top-1 right-1 block h-2 w-2 rounded-full bg-red-500 ring-2 ring-white"></span>
           </button>
           <img src="src/assets/img/bookkeeper-profile.png" alt="Profile" className="ml-4 w-8 h-8 rounded-full bg-gray-200" />
-          <p className="ml-2 font-medium text-sm text-gray-700">Cashier</p>
+          <PortalTopbarIdentity className="text-sm font-medium text-gray-700" fallbackRole="Cashier" />
         </header>
 
         {/* 3. PAGE CONTENT */}
@@ -187,7 +188,7 @@ const Cashier_Withdrawals = () => {
                 <thead>
                   <tr className="border-b border-gray-100 text-[10px] uppercase font-bold text-gray-500 tracking-wider">
                     <th className="px-4 py-4 w-64">Member Name</th>
-                    <th className="px-4 py-4">Available Balance <span className="font-normal">(₱)</span></th>
+                    <th className="px-4 py-4">Available Balance <span className="font-normal">(â‚±)</span></th>
                     <th className="px-4 py-4">Last Withdrawal Date</th>
                     <th className="px-4 py-4">Status</th>
                     <th className="px-4 py-4 text-center">Actions</th>
@@ -274,3 +275,6 @@ const Cashier_Withdrawals = () => {
 };
 
 export default Cashier_Withdrawals;
+
+
+

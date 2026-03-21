@@ -1,6 +1,7 @@
-import React from "react";
+﻿import React from "react";
 import { useNavigate, NavLink } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
+import { PortalSidebarIdentity, PortalTopbarIdentity } from "../../components/PortalIdentity";
 import { 
   LayoutDashboard, 
   Users, 
@@ -118,7 +119,7 @@ const menuItems = [
           <span className="absolute top-1 right-1 block h-2 w-2 rounded-full bg-red-500 ring-2 ring-white"></span>
           </button>
           <img src="src/assets/img/bookkeeper-profile.png" alt="Bookkeeper Profile" className="ml-4 w-8 h-8 rounded-full"></img>
-          <p>Bookkeeper</p>
+          <PortalTopbarIdentity className="text-sm font-medium text-gray-700" fallbackRole="Bookkeeper" />
         </header>
 
         {/* Page Content */}
@@ -131,3 +132,6 @@ const menuItems = [
 };
 
 export default MIGS;
+
+
+

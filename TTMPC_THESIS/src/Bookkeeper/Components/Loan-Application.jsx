@@ -1,6 +1,7 @@
-import React from "react";
+﻿import React from "react";
 import { useNavigate, NavLink } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
+import { PortalSidebarIdentity, PortalTopbarIdentity } from "../../components/PortalIdentity";
 import { 
   LayoutDashboard, 
   Users, 
@@ -121,7 +122,7 @@ const menuItems = [
           <span className="absolute top-1 right-1 block h-2 w-2 rounded-full bg-red-500 ring-2 ring-white"></span>
           </button>
           <img src="src/assets/img/bookkeeper-profile.png" alt="Bookkeeper Profile" className="ml-4 w-8 h-8 rounded-full"></img>
-          <p>Bookkeeper</p>
+          <PortalTopbarIdentity className="text-sm font-medium text-gray-700" fallbackRole="Bookkeeper" />
         </header>
 
         
@@ -186,11 +187,11 @@ const menuItems = [
                   </thead>
                   <tbody>
                     {[
-                     { ID: "TTMPCL-001-123", name: "Gero Antoni Tabiolo", type: "Bonus Loan", amount: "₱50,000", term: "12 Months", status: "MIGS", purpose: "Home Improvement" },
-                     { ID: "TTMPCL-002-123", name: "Erden Jhed Teope", type: "Emergency Loan", amount: "₱25,000", term: "12 Months", status: "Non-MIGS", purpose: "Medical Emergency" },
-                     { ID: "TTMPCL-003-123", name: "Ashley Nicole Bulotaolo", type: "Consolidated Loan", amount: "₱120,000", term: "24 Months", status: "Approved", purpose: "Debt Consolidation" },
-                     { ID: "TTMPCL-004-123", name: "Romelyn Delos Reyes", type: "Bonus Loan", amount: "₱20,000", term: "6 Months", status: "Approved", purpose: "Education" },
-                     { ID: "TTMPCL-005-123", name: "Nash Ervine Siaton", type: "Bonus Loan", amount: "₱30,000", term: "12 Months", status: "Pending", purpose: "Business Capital" }  
+                     { ID: "TTMPCL-001-123", name: "Gero Antoni Tabiolo", type: "Bonus Loan", amount: "â‚±50,000", term: "12 Months", status: "MIGS", purpose: "Home Improvement" },
+                     { ID: "TTMPCL-002-123", name: "Erden Jhed Teope", type: "Emergency Loan", amount: "â‚±25,000", term: "12 Months", status: "Non-MIGS", purpose: "Medical Emergency" },
+                     { ID: "TTMPCL-003-123", name: "Ashley Nicole Bulotaolo", type: "Consolidated Loan", amount: "â‚±120,000", term: "24 Months", status: "Approved", purpose: "Debt Consolidation" },
+                     { ID: "TTMPCL-004-123", name: "Romelyn Delos Reyes", type: "Bonus Loan", amount: "â‚±20,000", term: "6 Months", status: "Approved", purpose: "Education" },
+                     { ID: "TTMPCL-005-123", name: "Nash Ervine Siaton", type: "Bonus Loan", amount: "â‚±30,000", term: "12 Months", status: "Pending", purpose: "Business Capital" }  
                     ].map((loan, index) => (
                         <tr key={loan.ID} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
                           <td className="py-4 font-semibold text-gray-800">{loan.ID}</td>
@@ -212,3 +213,6 @@ const menuItems = [
 };
 
 export default LoanApplication;
+
+
+

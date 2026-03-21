@@ -1,6 +1,7 @@
-import React, { useEffect, useMemo, useState } from "react";
+﻿import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
-import { UserAuth } from "../../contex/AuthContext"; // Adjust path to AuthContext if needed
+import { UserAuth } from "../../contex/AuthContext";
+import { PortalSidebarIdentity, PortalTopbarIdentity } from "../../components/PortalIdentity"; // Adjust path to AuthContext if needed
 import { 
   LayoutDashboard, 
   Search,
@@ -664,3 +665,6 @@ const Cashier_Payments = () => {
 };
 
 export default Cashier_Payments;
+
+
+

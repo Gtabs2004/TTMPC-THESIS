@@ -300,6 +300,7 @@ export async function fetchLoanPrefill() {
     const m = memberRow || {};
 
     return {
+      member_id: m.id ?? null,
       surname: r.surname ?? r.last_name ?? m.last_name ?? null,
       first_name: r.first_name ?? m.first_name ?? null,
       middle_name: r.middle_name ?? r.middle_initial ?? m.middle_initial ?? null,
@@ -310,13 +311,18 @@ export async function fetchLoanPrefill() {
       civil_status: r.civil_status ?? null,
       gender: r.gender ?? null,
       tin_number: r.tin_number ?? r.tin_no ?? null,
-      gsis_sss_no: r.gsis_sss_no ?? null,
-      employer_name: r.employer_name ?? r.occupation ?? null,
+      gsis_number: r.gsis_number ?? r.gsis_sss_no ?? null,
+      gsis_sss_no: r.gsis_sss_no ?? r.gsis_number ?? null,
+      source_of_income: r.income_source ?? r.source_of_income ?? r.occupation ?? null,
+      employer_name: r.employer_name ?? null,
       office_address: r.office_address ?? null,
       spouse_name: r.spouse_name ?? null,
       spouse_occupation: r.spouse_occupation ?? null,
-      latest_net_pay: r.latest_net_pay ?? r.annual_income ?? null,
+      salary: r.salary ?? null,
+      annual_income: r.annual_income ?? null,
+      latest_net_pay: r.latest_net_pay ?? r.salary ?? r.annual_income ?? null,
       share_capital: r.share_capital ?? null,
+      share_capital_fallback: r.share_capital_fallback ?? null,
       membership_id: r.membership_id ?? m.membership_id ?? null,
       email: r.email ?? user.email,
     };
@@ -336,6 +342,8 @@ export async function fetchLoanPrefill() {
 
   let memberRow = null;
   let profile = null;
+  let latestShareCapital = null;
+  let shareCapitalFallbackLabel = null;
 
   const { data: memberData, error: memberError } = await supabase
     .from('member')
@@ -346,6 +354,43 @@ export async function fetchLoanPrefill() {
 
   if (!memberError && memberData) {
     memberRow = memberData;
+  }
+
+  // Source 0: authoritative latest share capital from capital_build_up.
+  if (memberRow?.id) {
+    try {
+      const { data: cbuRows, error: cbuError } = await supabase
+        .from('capital_build_up')
+        .select('*')
+        .eq('member_id', memberRow.id)
+        .limit(200);
+
+      if (!cbuError && Array.isArray(cbuRows) && cbuRows.length) {
+        const latestRow = [...cbuRows].sort((a, b) => {
+          const aTs = Date.parse(a?.transaction_date || 0) || 0;
+          const bTs = Date.parse(b?.transaction_date || 0) || 0;
+          return bTs - aTs;
+        })[0];
+
+        latestShareCapital =
+          latestRow?.ending_share_capital ??
+          ((latestRow?.starting_share_capital ?? null) !== null && (latestRow?.capital_added ?? null) !== null
+            ? Number(latestRow.starting_share_capital) + Number(latestRow.capital_added)
+            : null) ??
+          latestRow?.share_capital_amount ??
+          latestRow?.share_capital ??
+          latestRow?.amount ??
+          null;
+      } else if (cbuError) {
+        console.warn('Loan prefill: unable to read capital_build_up (RLS or schema mismatch).', {
+          member_id: memberRow.id,
+          code: cbuError.code,
+          message: cbuError.message,
+        });
+      }
+    } catch (_err) {
+      // Keep prefill resilient when CBU read fails.
+    }
   }
 
   // Source 1: RPC prefill (may be partial)
@@ -405,6 +450,17 @@ export async function fetchLoanPrefill() {
         membership_id: memberRow.membership_id,
       }
     );
+  }
+
+  // Force share capital from CBU when available, otherwise provide UI fallback label.
+  if (latestShareCapital !== null && latestShareCapital !== undefined && latestShareCapital !== '') {
+    profile = mergeProfile(profile, { share_capital: latestShareCapital });
+  } else {
+    shareCapitalFallbackLabel = 'N/A';
+  }
+
+  if (shareCapitalFallbackLabel) {
+    profile = mergeProfile(profile, { share_capital_fallback: shareCapitalFallbackLabel });
   }
 
   return {
