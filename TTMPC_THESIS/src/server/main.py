@@ -1,10 +1,11 @@
 import os
 import json
+import io
 import calendar
 from datetime import date, datetime, timedelta
 from decimal import Decimal, ROUND_HALF_UP
 from typing import Annotated, Literal, Union
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, model_validator
 from supabase import create_client, Client
@@ -58,6 +59,38 @@ class StatusEmailRequest(BaseModel):
     member_name: str
     status: str
     remarks: str | None = None
+
+
+class MembershipFormPdfRequest(BaseModel):
+    application_id: str | None = None
+    date: str | None = None
+    surname: str | None = None
+    first_name: str | None = None
+    middle_name: str | None = None
+    gender: str | None = None
+    civil_status: str | None = None
+    date_of_birth: str | None = None
+    age: str | None = None
+    place_of_birth: str | None = None
+    citizenship: str | None = None
+    religion: str | None = None
+    height: str | None = None
+    weight: str | None = None
+    blood_type: str | None = None
+    tin_number: str | None = None
+    maiden_name: str | None = None
+    spouse_name: str | None = None
+    spouse_date_of_birth: str | None = None
+    spouse_occupation: str | None = None
+    number_of_dependents: str | None = None
+    permanent_address: str | None = None
+    contact_number: str | None = None
+    email: str | None = None
+    educational_attainment: str | None = None
+    occupation: str | None = None
+    position: str | None = None
+    annual_income: str | None = None
+    other_income: str | None = None
 
 
 class MembershipConfirmationRequest(BaseModel):
@@ -2521,3 +2554,87 @@ async def next_membership_id_endpoint():
         raise HTTPException(status_code=400, detail=str(err))
     except Exception as err:
         raise HTTPException(status_code=500, detail=f"Unable to generate membership ID: {err}")
+
+
+@app.post("/api/membership-form/print-pdf")
+async def print_membership_form_pdf(payload: MembershipFormPdfRequest):
+    try:
+        try:
+            from pypdf import PdfReader, PdfWriter
+        except ModuleNotFoundError:
+            raise HTTPException(
+                status_code=500,
+                detail="pypdf is not installed in the backend runtime environment.",
+            )
+
+        template_path = os.path.abspath(
+            os.path.join(os.path.dirname(__file__), "..", "PDF", "MEMBERSHIP_FORM.pdf")
+        )
+        if not os.path.exists(template_path):
+            raise HTTPException(status_code=404, detail="MEMBERSHIP_FORM.pdf not found.")
+
+        def clean(value: str | None) -> str:
+            return str(value or "").strip()
+
+        gender = clean(payload.gender).lower()
+        field_values = {
+            "application_id": clean(payload.application_id),
+            "date": clean(payload.date),
+            "surname": clean(payload.surname),
+            "first_name": clean(payload.first_name),
+            "middle_name": clean(payload.middle_name),
+            "male": "/Yes" if gender == "male" else "/Off",
+            "female": "/Yes" if gender == "female" else "/Off",
+            "civil_status": clean(payload.civil_status),
+            "date_of_birth": clean(payload.date_of_birth),
+            "age": clean(payload.age),
+            "place_of_birth": clean(payload.place_of_birth),
+            "citizenship": clean(payload.citizenship),
+            "religion": clean(payload.religion),
+            "height": clean(payload.height),
+            "weight": clean(payload.weight),
+            "blood_type": clean(payload.blood_type),
+            "tin_number": clean(payload.tin_number),
+            "maiden_name": clean(payload.maiden_name),
+            "spouse_name": clean(payload.spouse_name),
+            "spouse_date_of_birth": clean(payload.spouse_date_of_birth),
+            "spouse_occupation": clean(payload.spouse_occupation),
+            "number_of_dependents": clean(payload.number_of_dependents),
+            "permanent_address": clean(payload.permanent_address),
+            "contact_number": clean(payload.contact_number),
+            "email": clean(payload.email),
+            "educational_attainment": clean(payload.educational_attainment),
+            "occupation": clean(payload.occupation),
+            "position": clean(payload.position),
+            "annual_income": clean(payload.annual_income),
+            "other_income": clean(payload.other_income),
+        }
+
+        reader = PdfReader(template_path)
+        if not reader.get_fields():
+            raise HTTPException(
+                status_code=400,
+                detail="MEMBERSHIP_FORM.pdf has no fillable form fields (AcroForm). Use a fillable template first.",
+            )
+
+        writer = PdfWriter()
+        writer.append(reader)
+
+        for page in writer.pages:
+            writer.update_page_form_field_values(page, field_values, auto_regenerate=False)
+
+        writer.set_need_appearances_writer()
+
+        output = io.BytesIO()
+        writer.write(output)
+        output.seek(0)
+
+        return Response(
+            content=output.getvalue(),
+            media_type="application/pdf",
+            headers={"Content-Disposition": 'inline; filename="MEMBERSHIP_FORM_FILLED.pdf"'},
+        )
+    except HTTPException as err:
+        raise err
+    except Exception as err:
+        raise HTTPException(status_code=500, detail=f"Failed to generate printable membership PDF: {err}")
