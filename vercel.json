@@ -1,6 +1,6 @@
 {
-  "installCommand": "cd TTMPC_THESIS && npm install",
-  "buildCommand": "cd TTMPC_THESIS && npm run build",
+  "installCommand": "npm --prefix TTMPC_THESIS install",
+  "buildCommand": "npm --prefix TTMPC_THESIS run build",
   "outputDirectory": "TTMPC_THESIS/dist",
   "rewrites": [
     { "source": "/(.*)", "destination": "/index.html" }
