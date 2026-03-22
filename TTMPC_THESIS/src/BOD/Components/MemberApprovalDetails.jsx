@@ -67,12 +67,17 @@ const MemberApprovalDetails = () => {
     if (normalized === 'rejected') return 'Rejected';
     if (normalized === 'approved') return 'Approved';
     if (normalized === '1st training' || normalized === 'first training' || normalized === 'training 1') return '1st Training';
-    if (normalized === '2nd training' || normalized === 'second training' || normalized === 'training 2') return '2nd Training';
+    if (normalized === '2nd training' || normalized === 'second training' || normalized === 'training 2') return '1st Training';
+    if (normalized === 'official member' || normalized === 'member') return 'Official Member';
     return value || 'Pending';
   };
 
   const member = useMemo(() => {
     if (!memberRow) return null;
+
+    const resolvedTin = String(
+      memberRow.tin_number ?? memberRow.tin_no ?? memberRow.tin ?? ''
+    ).trim();
 
     const fullName = [memberRow.first_name, memberRow.middle_name, memberRow.surname]
       .map((part) => (part || '').trim())
@@ -106,7 +111,7 @@ const MemberApprovalDetails = () => {
       religion: memberRow.religion || 'N/A',
       heightWeight: `${memberRow.height || '-'} cm / ${memberRow.weight || '-'} kg`,
       bloodType: memberRow.blood_type || 'N/A',
-      tin: memberRow.tin || 'N/A',
+      tin: resolvedTin || 'N/A',
 
       // Family Information
       maidenName: memberRow.maiden_name || 'N/A',
@@ -133,8 +138,7 @@ const MemberApprovalDetails = () => {
 
   const getProceedConfig = (status) => {
     if (status === 'Pending') return { title: 'Proceed to 1st Training', nextStatus: '1st Training', button: 'Proceed to 1st Training' };
-    if (status === '1st Training') return { title: 'Proceed to 2nd Training', nextStatus: '2nd Training', button: 'Proceed to 2nd Training' };
-    if (status === '2nd Training') return { title: 'Mark as Official Member', nextStatus: 'Official Member', button: 'Confirm & Complete' };
+    if (status === '1st Training') return { title: 'Mark as Official Member', nextStatus: 'Official Member', button: 'Confirm & Complete' };
     return null;
   };
 
@@ -367,7 +371,7 @@ const MemberApprovalDetails = () => {
             <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${
                 member.status === 'Pending' ? 'bg-orange-100 text-orange-600' :
                 member.status === 'Official Member' || member.status === 'Approved' ? 'bg-green-100 text-green-700' :
-                member.status === '1st Training' || member.status === '2nd Training' ? 'bg-blue-100 text-blue-700' :
+                member.status === '1st Training' ? 'bg-blue-100 text-blue-700' :
                 'bg-red-100 text-red-700'
               }`}>
               • {member.status}

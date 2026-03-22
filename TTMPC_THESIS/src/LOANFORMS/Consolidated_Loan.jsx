@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { fetchLoanPrefill, submitUnifiedLoan } from './loanSubmission';
 import { buildConsolidatedPayload, computeLoan } from './loanComputeApi';
+import { formatTinNumber, TIN_FORMATTED_MAX_LENGTH } from './tinFormat';
 
 // Function to generate control number: CL-YYYYMMDD-XXXX
 const generateControlNumber = () => {
@@ -116,7 +117,8 @@ function Consolidated_Loan() {
   // 2. HANDLER: Update State
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+    const normalizedValue = name === 'tin_no' ? formatTinNumber(value) : value;
+    setFormData(prev => ({ ...prev, [name]: normalizedValue }));
   };
 
   useEffect(() => {
@@ -144,7 +146,7 @@ function Consolidated_Loan() {
           age: profile.age?.toString() ?? prev.age,
           civil_status: profile.civil_status ?? prev.civil_status,
           gender: profile.gender ?? prev.gender,
-          tin_no: profile.tin_number ?? profile.tin_no ?? prev.tin_no,
+          tin_no: formatTinNumber(profile.tin_number ?? profile.tin_no ?? prev.tin_no),
           gsis_sss_no: profile.gsis_sss_no ?? prev.gsis_sss_no,
           employer_name: profile.employer_name ?? profile.occupation ?? prev.employer_name,
           office_address: profile.office_address ?? prev.office_address,
@@ -344,7 +346,7 @@ function Consolidated_Loan() {
               <label className={labelStyles}>Gender <span className="text-red-500">*</span></label>
               <select name="gender" value={formData.gender} onChange={handleChange} className={inputStyles} required><option value="">Select Gender</option><option>Male</option><option>Female</option></select>
             </div>
-            <div><label className={labelStyles}>TIN No. <span className="text-red-500">*</span></label><input type="text" name="tin_no" value={formData.tin_no} onChange={handleChange} className={inputStyles} required /></div>
+            <div><label className={labelStyles}>TIN No. <span className="text-red-500">*</span></label><input type="text" name="tin_no" value={formData.tin_no} onChange={handleChange} inputMode="numeric" maxLength={TIN_FORMATTED_MAX_LENGTH} placeholder="123-456-789-000" className={inputStyles} required /></div>
             <div><label className={labelStyles}>GSIS/SSS No. <span className="text-red-500">*</span></label><input type="text" name="gsis_sss_no" value={formData.gsis_sss_no} onChange={handleChange} className={inputStyles} required /></div>
             <div className="md:col-span-2"><label className={labelStyles}>Employer's Name <span className="text-red-500">*</span></label><input type="text" name="employer_name" value={formData.employer_name} onChange={handleChange} className={inputStyles} required /></div>
             <div className="md:col-span-1"><label className={labelStyles}>Office Address <span className="text-red-500">*</span></label><input type="text" name="office_address" value={formData.office_address} onChange={handleChange} className={inputStyles} required /></div>

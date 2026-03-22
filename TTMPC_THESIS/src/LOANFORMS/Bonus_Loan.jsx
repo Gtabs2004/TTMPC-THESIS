@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { createUniqueControlNumber, fetchLoanPrefill, submitUnifiedLoan } from './loanSubmission';
 import { buildBonusPayload, computeLoan } from './loanComputeApi';
+import { formatTinNumber, TIN_FORMATTED_MAX_LENGTH } from './tinFormat';
 
 const numberToWords = (num) => {
   if (num === '' || num === undefined || num === null) return '';
@@ -108,6 +109,7 @@ function Bonus_Loan() {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
+    const normalizedValue = name === 'tin_no' ? formatTinNumber(value) : value;
     setFormData((prev) => {
       if (name === 'bonus_amount_numeric' || name === 'loan_amount_numeric') {
         return {
@@ -117,7 +119,7 @@ function Bonus_Loan() {
         };
       }
 
-      return { ...prev, [name]: value };
+      return { ...prev, [name]: normalizedValue };
     });
   };
 
@@ -146,7 +148,7 @@ function Bonus_Loan() {
           age: profile.age?.toString() ?? prev.age,
           civil_status: profile.civil_status ?? prev.civil_status,
           gender: profile.gender ?? prev.gender,
-          tin_no: profile.tin_number ?? profile.tin_no ?? prev.tin_no,
+          tin_no: formatTinNumber(profile.tin_number ?? profile.tin_no ?? prev.tin_no),
           gsis_sss_no: profile.gsis_sss_no ?? prev.gsis_sss_no,
           employer_name: profile.employer_name ?? profile.occupation ?? prev.employer_name,
           office_address: profile.office_address ?? prev.office_address,
@@ -352,7 +354,7 @@ function Bonus_Loan() {
             <div><label className={labelStyles}>Age *</label><input type="number" name="age" value={formData.age} onChange={handleChange} className={inputStyles} required /></div>
             <div><label className={labelStyles}>Civil Status *</label><input name="civil_status" value={formData.civil_status} onChange={handleChange} className={inputStyles} required /></div>
             <div><label className={labelStyles}>Gender *</label><input name="gender" value={formData.gender} onChange={handleChange} className={inputStyles} required /></div>
-            <div><label className={labelStyles}>TIN No. *</label><input name="tin_no" value={formData.tin_no} onChange={handleChange} className={inputStyles} required /></div>
+            <div><label className={labelStyles}>TIN No. *</label><input name="tin_no" value={formData.tin_no} onChange={handleChange} inputMode="numeric" maxLength={TIN_FORMATTED_MAX_LENGTH} placeholder="123-456-789-000" className={inputStyles} required /></div>
             <div><label className={labelStyles}>GSIS/SSS No. *</label><input name="gsis_sss_no" value={formData.gsis_sss_no} onChange={handleChange} className={inputStyles} required /></div>
             <div><label className={labelStyles}>Employer Name *</label><input name="employer_name" value={formData.employer_name} onChange={handleChange} className={inputStyles} required /></div>
             <div><label className={labelStyles}>Office Address *</label><input name="office_address" value={formData.office_address} onChange={handleChange} className={inputStyles} required /></div>
