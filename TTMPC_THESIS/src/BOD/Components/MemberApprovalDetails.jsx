@@ -129,7 +129,7 @@ const MemberApprovalDetails = () => {
       occupation: memberRow.occupation || 'N/A',
       position: memberRow.position || 'N/A',
       annualIncome: memberRow.annual_income || 'N/A',
-      otherIncomeSource: memberRow.other_income_source || 'N/A',
+      otherIncomeSource: memberRow.other_income || 'N/A',
       
       reason: memberRow.rejection_reason || memberRow.remarks || '-',
       row: memberRow,
