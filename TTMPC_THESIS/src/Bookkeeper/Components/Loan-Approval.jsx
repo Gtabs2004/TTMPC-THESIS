@@ -158,7 +158,7 @@ const BookkeeperLoanApproval = () => {
       source: loan.source,
       name: memberName,
       type: loanTypeName,
-      amount: loan.loan_amount ? `P${Number(loan.loan_amount).toLocaleString()}` : "P0",
+      amount: loan.loan_amount ? `\u20B1${Number(loan.loan_amount).toLocaleString()}` : "\u20B10",
       term: `${loan.term || 0} Months`,
       status: migsStatus,
       date: loan.application_date
@@ -179,7 +179,7 @@ const BookkeeperLoanApproval = () => {
           <img src="src/assets/img/ttmpc logo.png" alt="Logo" className="h-12 w-auto" />
           <div className="flex flex-col">
             <h1 className="text-xl font-bold text-[#389734]">TTMPC</h1>
-            <p className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold">Bookkeeper Portal</p>
+             <PortalSidebarIdentity className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold" fallbackPortal="Bookkeeper Portal" fallbackRole="Bookkeeper" />
           </div>
         </div>
 

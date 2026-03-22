@@ -1,4 +1,6 @@
-﻿import React, { useState } from 'react';
+﻿import React, { useEffect, useState } from 'react';
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000';
 
 function Add_Savings() {
   const inputStyles = "border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-[#66B538] outline-none w-full bg-white text-sm transition-all";
@@ -7,6 +9,7 @@ function Add_Savings() {
 
   // Form State
   const [formData, setFormData] = useState({
+    membership_number_id: '',
     account_number: '',
     date: new Date().toISOString().split('T')[0],
     account_name: '',
@@ -41,6 +44,15 @@ function Add_Savings() {
     nominee_address: '',
   });
 
+  const [memberSearch, setMemberSearch] = useState('');
+  const [searchingMembers, setSearchingMembers] = useState(false);
+  const [memberSearchError, setMemberSearchError] = useState('');
+  const [memberOptions, setMemberOptions] = useState([]);
+  const [selectedMemberLabel, setSelectedMemberLabel] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState('');
+  const [submitSuccess, setSubmitSuccess] = useState('');
+
   // Handle standard input changes
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -56,11 +68,161 @@ function Add_Savings() {
     }
   };
 
-  const handleSubmit = (e) => {
+  const calculateAge = (dob) => {
+    if (!dob) return '';
+    const birthDate = new Date(dob);
+    if (Number.isNaN(birthDate.getTime())) return '';
+
+    const today = new Date();
+    let years = today.getFullYear() - birthDate.getFullYear();
+    const monthDiff = today.getMonth() - birthDate.getMonth();
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+      years -= 1;
+    }
+    return years >= 0 ? String(years) : '';
+  };
+
+  const selectMember = (record) => {
+    const raw = record?.raw || {};
+    const surname = String(raw.surname || raw.last_name || '').trim();
+    const firstName = String(raw.first_name || '').trim();
+    const middleName = String(raw.middle_name || raw.middle_initial || '').trim();
+    const fullName = String(record?.full_name || [firstName, middleName, surname].filter(Boolean).join(' ')).trim();
+    const dob = String(raw.date_of_birth || '').trim();
+    const age = String(raw.age || '').trim() || calculateAge(dob);
+    const adultDependents = raw.adult_dependents ?? raw.number_of_dependents ?? '0';
+    const childDependents = raw.child_dependents ?? '0';
+
+    setSelectedMemberLabel(fullName || 'Selected Member');
+    setMemberSearch(surname || fullName);
+    setMemberOptions([]);
+
+    setFormData((prev) => ({
+      ...prev,
+      membership_number_id: String(record?.member_id || raw.membership_number_id || '').trim(),
+      account_name: fullName || prev.account_name,
+      surname: surname || prev.surname,
+      first_name: firstName || prev.first_name,
+      middle_name: middleName || prev.middle_name,
+      date_of_birth: dob || prev.date_of_birth,
+      age: age || prev.age,
+      civil_status: String(raw.civil_status || '').trim() || prev.civil_status,
+      marital_status: String(raw.marital_status || raw.civil_status || '').trim() || prev.marital_status,
+      gender: String(raw.gender || '').trim() || prev.gender,
+      contact_no: String(raw.contact_number || raw.mobile_number || record?.contact_number || '').trim() || prev.contact_no,
+      residence_address: String(raw.permanent_address || raw.address || record?.address || '').trim() || prev.residence_address,
+      educational_qualification: String(raw.educational_attainment || '').trim() || prev.educational_qualification,
+      adult_dependents: String(adultDependents),
+      child_dependents: String(childDependents),
+      annual_income: String(raw.annual_income || '').trim() || prev.annual_income,
+      employer_name: String(raw.employer_name || '').trim() || prev.employer_name,
+      job_position: String(raw.position || raw.occupation || '').trim() || prev.job_position,
+      nominee_name: String(raw.nominee_full_name || '').trim() || prev.nominee_name,
+      nominee_relationship: String(raw.nominee_relationship || '').trim() || prev.nominee_relationship,
+      nominee_dob: String(raw.nominee_date_of_birth || '').trim() || prev.nominee_dob,
+      nominee_age: String(raw.nominee_age || '').trim() || prev.nominee_age,
+      nominee_address: String(raw.nominee_address || '').trim() || prev.nominee_address,
+    }));
+  };
+
+  useEffect(() => {
+    const query = String(memberSearch || '').trim();
+    if (query.length < 2) {
+      setMemberOptions([]);
+      setMemberSearchError('');
+      return;
+    }
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(async () => {
+      try {
+        setSearchingMembers(true);
+        setMemberSearchError('');
+
+        const response = await fetch(`${API_BASE_URL}/api/personal_data_sheet`, { signal: controller.signal });
+        const result = await response.json();
+        if (!response.ok || !result?.success) {
+          throw new Error(result?.detail || 'Failed to search members.');
+        }
+
+        const queryLower = query.toLowerCase();
+        const filtered = (result.data || [])
+          .filter((record) => {
+            const raw = record?.raw || {};
+            const lastName = String(raw.surname || raw.last_name || '').toLowerCase();
+            return lastName.includes(queryLower);
+          })
+          .slice(0, 12);
+
+        setMemberOptions(filtered);
+      } catch (error) {
+        if (error.name !== 'AbortError') {
+          setMemberSearchError(error?.message || 'Unable to search members.');
+          setMemberOptions([]);
+        }
+      } finally {
+        setSearchingMembers(false);
+      }
+    }, 300);
+
+    return () => {
+      clearTimeout(timeoutId);
+      controller.abort();
+    };
+  }, [memberSearch]);
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    console.log("Submitting Savings Account Data:", formData);
-    alert("Savings Account Application Submitted!");
-    // Add your API submission logic here
+    setSubmitError('');
+    setSubmitSuccess('');
+
+    if (!String(formData.membership_number_id || '').trim()) {
+      setSubmitError('Please search and select a member first.');
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+
+      const payload = {
+        membership_number_id: String(formData.membership_number_id || '').trim(),
+        amount: Number(formData.annual_income || 0) || 0,
+        balance: Number(formData.annual_income || 0) || 0,
+        account_name: String(formData.account_name || '').trim() || null,
+        adult_dependents: Number(formData.adult_dependents || 0) || 0,
+        child_dependents: Number(formData.child_dependents || 0) || 0,
+        nominee_full_name: String(formData.nominee_name || '').trim() || null,
+        nominee_relationship: String(formData.nominee_relationship || '').trim() || null,
+        nominee_date_of_birth: String(formData.nominee_dob || '').trim() || null,
+        nominee_age: formData.nominee_age ? Number(formData.nominee_age) : null,
+        nominee_address: String(formData.nominee_address || '').trim() || null,
+      };
+
+      const response = await fetch(`${API_BASE_URL}/api/savings/transactions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      const result = await response.json();
+      if (!response.ok || !result?.success) {
+        throw new Error(result?.detail || 'Failed to create savings account.');
+      }
+
+      const generatedAccountNumber = result?.data?.Account_Number || '';
+      const generatedSavingsId = result?.data?.Savings_ID || generatedAccountNumber;
+
+      setFormData((prev) => ({
+        ...prev,
+        account_number: generatedAccountNumber,
+      }));
+
+      setSubmitSuccess(`Savings account created successfully. Account Number: ${generatedAccountNumber || generatedSavingsId}`);
+    } catch (error) {
+      setSubmitError(error?.message || 'Unable to submit savings application.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -70,16 +232,66 @@ function Add_Savings() {
       <form onSubmit={handleSubmit} className="px-4">
         <h2 className="text-center text-2xl font-bold mt-10 mb-2 text-[#1c5035]">SAVINGS DEPOSIT OPENING ACCOUNT</h2>
 
+        {submitError ? (
+          <div className="max-w-6xl mx-auto w-full mt-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {submitError}
+          </div>
+        ) : null}
+
+        {submitSuccess ? (
+          <div className="max-w-6xl mx-auto w-full mt-4 rounded-md border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
+            {submitSuccess}
+          </div>
+        ) : null}
+
         {/* Section 1: ACCOUNT INFORMATION */}
         <div className="mt-8 bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden max-w-6xl mx-auto w-full">
           <div className={sectionHeader}>
             <span className="bg-white text-[#66B538] rounded-full w-6 h-6 flex items-center justify-center text-sm">1</span>
             ACCOUNT INFORMATION
           </div>
+          <div className="px-8 pt-6 pb-0">
+            <label className={labelStyles}>Search Member by Last Name</label>
+            <input
+              type="text"
+              value={memberSearch}
+              onChange={(e) => setMemberSearch(e.target.value)}
+              placeholder="Type at least 2 letters of last name"
+              className={inputStyles}
+            />
+
+            {searchingMembers ? (
+              <p className="text-xs text-gray-500 mt-2">Searching members...</p>
+            ) : null}
+
+            {memberSearchError ? (
+              <p className="text-xs text-red-600 mt-2">{memberSearchError}</p>
+            ) : null}
+
+            {!searchingMembers && memberOptions.length > 0 ? (
+              <div className="mt-2 border border-gray-200 rounded-md max-h-44 overflow-y-auto bg-white">
+                {memberOptions.map((record) => (
+                  <button
+                    key={`${record.member_id}-${record.created_at || ''}`}
+                    type="button"
+                    onClick={() => selectMember(record)}
+                    className="w-full px-3 py-2 text-left text-sm hover:bg-green-50 border-b border-gray-100 last:border-b-0"
+                  >
+                    <p className="font-semibold text-gray-800">{record.full_name || 'Unknown Member'}</p>
+                    <p className="text-xs text-gray-500">ID: {record.member_id || 'N/A'}</p>
+                  </button>
+                ))}
+              </div>
+            ) : null}
+
+            {selectedMemberLabel ? (
+              <p className="text-xs text-green-700 mt-2 font-semibold">Selected: {selectedMemberLabel}</p>
+            ) : null}
+          </div>
           <div className="p-8 grid grid-cols-1 md:grid-cols-3 gap-6">
             <div>
               <label className={labelStyles}>Account Number</label>
-              <input type="text" name="account_number" value={formData.account_number} onChange={handleChange} className={inputStyles} />
+              <input type="text" name="account_number" value={formData.account_number} onChange={handleChange} className={inputStyles} placeholder="Auto-generated on submit" readOnly />
             </div>
             <div>
               <label className={labelStyles}>Date</label>
@@ -248,8 +460,8 @@ function Add_Savings() {
             </div>
 
             <div className="flex justify-end pt-6 border-t border-gray-100 mt-8">
-              <button type="submit" className="bg-[#66B538] text-white px-8 py-2.5 rounded-md hover:bg-[#5aa12b] transition-colors font-bold shadow-sm cursor-pointer">
-                Submit Application
+              <button type="submit" disabled={submitting} className="bg-[#66B538] disabled:opacity-60 text-white px-8 py-2.5 rounded-md hover:bg-[#5aa12b] transition-colors font-bold shadow-sm cursor-pointer">
+                {submitting ? 'Submitting...' : 'Submit Application'}
               </button>
             </div>
 

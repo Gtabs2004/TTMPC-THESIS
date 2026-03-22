@@ -144,11 +144,11 @@ const menuItems = [
     </thead>
     <tbody>
       {[
-        { name: "Gero Antoni Tabiolo", employer: "DepEd", capital: "â‚±450,000", status: "MIGS", loans: 2 },
-        { name: "Erden Jhed Teope", employer: "DepEd", capital: "â‚±320,000", status: "NON-MIGS", loans: 1 },
-        { name: "Ashley Nicole Bulotaolo", employer: "DepEd", capital: "â‚±580,000", status: "MIGS", loans: 3 },
-        { name: "Romelyn Delos Reyes", employer: "DepEd", capital: "â‚±280,000", status: "MIGS", loans: 2 },
-        { name: "Nash Ervine Siaton", employer: "DepEd", capital: "â‚±676,767", status: "NON-MIGS", loans: 0 },
+        { name: "Gero Antoni Tabiolo", employer: "DepEd", capital: "\u20B1450,000", status: "MIGS", loans: 2 },
+        { name: "Erden Jhed Teope", employer: "DepEd", capital: "\u20B1320,000", status: "NON-MIGS", loans: 1 },
+        { name: "Ashley Nicole Bulotaolo", employer: "DepEd", capital: "\u20B1580,000", status: "MIGS", loans: 3 },
+        { name: "Romelyn Delos Reyes", employer: "DepEd", capital: "\u20B1280,000", status: "MIGS", loans: 2 },
+        { name: "Nash Ervine Siaton", employer: "DepEd", capital: "\u20B1676,767", status: "NON-MIGS", loans: 0 },
         
       ].map((member, index) => (
         <tr key={index} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">

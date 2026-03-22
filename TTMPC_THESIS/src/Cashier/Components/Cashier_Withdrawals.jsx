@@ -8,24 +8,32 @@ import {
   Bell,
   Banknote,
   ChevronDown,
-  ChevronRight,
-  ChevronLeft
+  ChevronRight
 } from 'lucide-react';
 import logo from "../../assets/img/ttmpc logo.png"; 
 
-// Mock Data for Withdrawals
-const withdrawalData = [
-  { id: "MBR-2021-00892", name: "Romelyn Delos Reyes", avatar: "src/assets/img/avatar1.png", balance: "85,420.00", date: "Oct 24, 2023", status: "VERIFIED" },
-  { id: "MBR-2022-01452", name: "Erden Jhed Teope", avatar: "src/assets/img/avatar2.png", balance: "142,800.50", date: "Nov 02, 2023", status: "ACTIVE" },
-  { id: "MBR-2020-00342", name: "Ashley Nicole Bulataolo", avatar: "src/assets/img/avatar3.png", balance: "12,500.00", date: "Oct 15, 2023", status: "WARNING" },
-  { id: "MBR-2021-00221", name: "Karina Dela Cruz", avatar: "src/assets/img/avatar4.png", balance: "450,225.10", date: "Sep 28, 2023", status: "VERIFIED" },
-  { id: "MBR-2019-00567", name: "Gero Antoni Tablolo", avatar: "src/assets/img/avatar5.png", balance: "62,940.00", date: "Nov 04, 2023", status: "VERIFIED", hasDot: true },
-];
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
+
+const formatCurrency = (value) => {
+  const amount = Number(value || 0);
+  return `\u20B1${amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+};
+
+const formatDate = (value) => {
+  if (!value) return "N/A";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return "N/A";
+  return parsed.toLocaleString("en-US");
+};
 
 const Cashier_Withdrawals = () => {
   const { signOut } = UserAuth();
   const navigate = useNavigate();
   const [isDepositsOpen, setIsDepositsOpen] = useState(true);
+  const [rows, setRows] = React.useState([]);
+  const [loading, setLoading] = React.useState(false);
+  const [fetchError, setFetchError] = React.useState(null);
+  const [searchTerm, setSearchTerm] = React.useState("");
    
   const menuItems = [
     { name: "Dashboard", icon: LayoutDashboard, path: "/Cashier_Dashboard" },
@@ -53,12 +61,43 @@ const Cashier_Withdrawals = () => {
     }
   };
 
-  // Status Badge Logic
+  React.useEffect(() => {
+    const fetchRows = async () => {
+      try {
+        setLoading(true);
+        setFetchError(null);
+
+        const response = await fetch(`${API_BASE_URL}/api/cashier/withdrawals/transactions`);
+        const result = await response.json();
+        if (!response.ok || !result?.success) {
+          throw new Error(result?.detail || "Failed to load withdrawal transactions.");
+        }
+
+        setRows(Array.isArray(result.data) ? result.data : []);
+      } catch (error) {
+        setFetchError(error?.message || "Unable to fetch withdrawal transactions.");
+        setRows([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchRows();
+  }, []);
+
+  const filteredRows = rows.filter((row) => {
+    const text = searchTerm.trim().toLowerCase();
+    if (!text) return true;
+    return (
+      String(row.transaction_id || "").toLowerCase().includes(text)
+      || String(row.member_name || "").toLowerCase().includes(text)
+      || String(row.savings_id || "").toLowerCase().includes(text)
+    );
+  });
+
   const getStatusStyle = (status) => {
     switch(status) {
-      case 'VERIFIED': return 'bg-green-100 text-green-700 font-bold';
-      case 'ACTIVE': return 'bg-emerald-100 text-emerald-700 font-bold';
-      case 'WARNING': return 'bg-amber-100 text-amber-700 font-bold';
+      case 'VALIDATED': return 'bg-green-100 text-green-700 font-bold rounded-lg p-8 ';
       default: return 'bg-gray-100 text-gray-700 font-bold';
     }
   };
@@ -154,7 +193,9 @@ const Cashier_Withdrawals = () => {
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400"/>
             <input 
               type="text" 
-              placeholder="Search..."
+              placeholder="Search transaction..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
               className="bg-gray-50 w-52 h-10 rounded-lg border border-gray-300 px-4 pl-9 py-1 focus:outline-none focus:ring-2 focus:ring-[#389734]"
             />
           </div>
@@ -175,96 +216,76 @@ const Cashier_Withdrawals = () => {
             
             {/* Header Section */}
             <div className="flex justify-between items-center mb-6">
-              <h2 className="text-lg font-bold text-[#1F3E35]">Members Eligible for Withdrawal</h2>
+              <h2 className="text-lg font-bold text-[#1F3E35]">Posted Withdrawal Transactions</h2>
               <div className="flex items-center gap-2">
-                <span className="text-[10px] font-bold text-gray-400 uppercase">Auto-refresh in 30s</span>
+                <span className="text-[10px] font-bold text-gray-400 uppercase">Bookkeeper approved transactions</span>
                 <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
               </div>
             </div>
+
+            {fetchError ? (
+              <div className="mb-4 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{fetchError}</div>
+            ) : null}
 
             {/* Table */}
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="border-b border-gray-100 text-[10px] uppercase font-bold text-gray-500 tracking-wider">
+                    <th className="px-4 py-4">Transaction ID</th>
                     <th className="px-4 py-4 w-64">Member Name</th>
-                    <th className="px-4 py-4">Available Balance <span className="font-normal">(â‚±)</span></th>
-                    <th className="px-4 py-4">Last Withdrawal Date</th>
+                    <th className="px-4 py-4">Savings ID</th>
+                    <th className="px-4 py-4">Amount</th>
+                    <th className="px-4 py-4">Date Posted</th>
                     <th className="px-4 py-4">Status</th>
-                    <th className="px-4 py-4 text-center">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
-                  {withdrawalData.map((row, index) => (
-                    <tr key={index} className="hover:bg-gray-50 transition-colors">
-                      
-                      
+                  {loading ? (
+                    <tr>
+                      <td colSpan="6" className="px-4 py-6 text-center text-gray-500">Loading withdrawal transactions...</td>
+                    </tr>
+                  ) : filteredRows.length === 0 ? (
+                    <tr>
+                      <td colSpan="6" className="px-4 py-6 text-center text-gray-500">No posted withdrawals found.</td>
+                    </tr>
+                  ) : (
+                    filteredRows.map((row) => (
+                    <tr key={row.transaction_id} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-4 py-4">
+                        <span className="font-semibold text-gray-900">{row.transaction_id}</span>
+                      </td>
+
                       <td className="px-4 py-4">
                         <div className="flex items-center gap-4">
-                          <div className="w-10 h-10 rounded-full bg-gray-200 shrink-0 overflow-hidden relative">
-                             <div className="w-full h-full bg-slate-300 flex items-center justify-center text-slate-500 font-bold text-sm">
-                               {row.name.charAt(0)}
-                             </div>
-                             <img src={row.avatar} alt={row.name} className="absolute inset-0 w-full h-full object-cover" onError={(e) => e.target.style.display='none'} />
-                          </div>
                           <div>
-                            <p className="font-bold text-gray-900 text-sm">{row.name}</p>
-                            <p className="text-[10px] text-gray-400 font-medium">{row.id}</p>
+                            <p className="font-bold text-gray-900 text-sm">{row.member_name}</p>
+                            <p className="text-[10px] text-gray-400 font-medium">{row.membership_number_id || "N/A"}</p>
                           </div>
                         </div>
                       </td>
 
-                      
                       <td className="px-4 py-4">
-                        <span className="font-bold text-gray-900">{row.balance}</span>
+                        <span className="font-semibold text-gray-900">{row.savings_id}</span>
                       </td>
 
-                     
-                      <td className="px-4 py-4 relative">
-                        {row.hasDot && (
-                          <span className="absolute left-1 top-5 w-1.5 h-1.5 rounded-full bg-red-500"></span>
-                        )}
-                        <span className="text-sm text-gray-500 font-medium ml-2">{row.date}</span>
+                      <td className="px-4 py-4">
+                        <span className="font-bold text-gray-900">{formatCurrency(row.amount)}</span>
                       </td>
 
-                     
+                      <td className="px-4 py-4">
+                        <span className="text-sm text-gray-500 font-medium">{formatDate(row.date_posted)}</span>
+                      </td>
+
                       <td className="px-4 py-4">
                         <span className={`px-3 py-1 rounded text-[10px] uppercase tracking-wide ${getStatusStyle(row.status)}`}>
                           {row.status}
                         </span>
                       </td>
-
-                     
-                      <td className="px-4 py-4 text-center">
-                        <button className="bg-green-50 hover:bg-green-100 text-[#389734] font-bold text-xs px-4 py-2 rounded-md transition-colors">
-                          Withdraw
-                        </button>
-                      </td>
                     </tr>
-                  ))}
+                  ))) }
                 </tbody>
               </table>
-            </div>
-
-            
-            <div className="mt-6 pt-4 border-t border-gray-200 flex justify-center items-center gap-2">
-              <button className="w-8 h-8 flex items-center justify-center rounded-full border border-gray-300 text-gray-500 hover:bg-gray-50">
-                <ChevronLeft className="w-4 h-4" />
-              </button>
-              <button className="w-8 h-8 flex items-center justify-center rounded-full bg-[#389734] text-white font-medium text-sm">
-                1
-              </button>
-              {[2, 3, 4, 5].map((num) => (
-                <button
-                  key={num}
-                  className="w-8 h-8 flex items-center justify-center rounded-full border border-gray-300 text-gray-600 hover:bg-gray-50 font-medium text-sm"
-                >
-                  {num}
-                </button>
-              ))}
-              <button className="w-8 h-8 flex items-center justify-center rounded-full border border-gray-300 text-gray-500 hover:bg-gray-50">
-                <ChevronRight className="w-4 h-4" />
-              </button>
             </div>
 
           </div>

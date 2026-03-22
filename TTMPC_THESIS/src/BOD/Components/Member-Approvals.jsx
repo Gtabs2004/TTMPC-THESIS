@@ -433,7 +433,7 @@ const Member_Approvals = () => {
                 onClick={() => setActiveTab("1st Training")}
                 className={`flex items-center gap-2 pb-3 px-1 border-b-2 font-semibold text-sm transition-colors ${activeTab === "1st Training" ? "border-[#2C7A3F] text-[#2C7A3F]" : "border-transparent text-gray-400 hover:text-gray-700"}`}
               >
-                1st Training
+                Training
                 <span className={`text-[10px] px-2 py-0.5 rounded-full ${activeTab === "1st Training" ? "bg-[#2C7A3F] text-white" : "bg-gray-100 text-gray-500"}`}>{tabData["1st Training"].length}</span>
               </button>)}
               {visibleTabs.includes("Rejected") && (<button 

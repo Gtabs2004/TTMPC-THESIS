@@ -145,7 +145,7 @@ const Loan_Approval = () => {
       source: loan.source,
       name: memberName,
       type: loanTypeName,
-      amount: loan.loan_amount ? `â‚±${Number(loan.loan_amount).toLocaleString()}` : "â‚±0",
+      amount: loan.loan_amount ? `\u20B1${Number(loan.loan_amount).toLocaleString()}` : "\u20B10",
       term: `${loan.term || 0} Months`,
       status: migsStatus,
       date: loan.application_date ? new Date(loan.application_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "N/A",

@@ -71,6 +71,7 @@ const BookkeeperPayments = () => {
     { name: "Loan Approval", icon: FileText },
     { name: "Manage Loans", icon: CreditCard },
     { name: "Payments", icon: Wallet },
+    { name: "Savings Transactions", icon: CreditCard },
     { name: "Accounting", icon: Calculator },
     { name: "MIGS Scoring", icon: Activity },
     { name: "Reports", icon: BarChart3 },
@@ -83,6 +84,7 @@ const BookkeeperPayments = () => {
     "Loan Approval": "/bookkeeper-loan-approval",
     "Manage Loans": "/manage-loans",
     Payments: "/payments",
+    "Savings Transactions": "/bookkeeper-savings-transactions",
     Accounting: "/accounting",
     "MIGS Scoring": "/migs-scoring",
     Reports: "/reports",
@@ -356,9 +358,7 @@ const BookkeeperPayments = () => {
           <img src={logo} alt="Logo" className="h-12 w-auto" />
           <div className="flex flex-col">
             <h1 className="text-xl font-bold text-[#389734]">TTMPC</h1>
-            <p className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold">
-              Bookkeeper Portal
-            </p>
+             <PortalSidebarIdentity className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold" fallbackPortal="Bookkeeper Portal" fallbackRole="Bookkeeper" />
           </div>
         </div>
 
