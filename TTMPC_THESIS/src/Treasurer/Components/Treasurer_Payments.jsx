@@ -24,15 +24,15 @@ import {
 
 // Mock data matching your screenshot
 const paymentsData = [
-  { id: "TTMPCPAY-2026-001", name: "Romelyn Delos Reyes", type: "Bonus", amount: "â‚±2,000", date: "Feb. 10, 2026", status: "On-Time", balance: "â‚±18,000" },
-  { id: "TTMPCPAY-2026-002", name: "Erden Jhed Teope", type: "Emergency", amount: "â‚±2,500", date: "Feb. 10, 2026", status: "On-Time", balance: "â‚±22,500" },
-  { id: "TTMPCPAY-2026-003", name: "Ashley Nicole Bulataolo", type: "Consolidated", amount: "â‚±10,000", date: "Feb. 10, 2026", status: "On-Time", balance: "â‚±110,000" },
-  { id: "TTMPCPAY-2026-004", name: "Karina Dela Cruz", type: "Bonus", amount: "â‚±2,000", date: "Feb. 11, 2026", status: "On-Time", balance: "â‚±18,000" },
-  { id: "TTMPCPAY-2026-005", name: "Gero Antoni Tablolo", type: "Emergency", amount: "â‚±2,500", date: "Feb. 11, 2026", status: "On-Time", balance: "â‚±22,500" },
-  { id: "TTMPCPAY-2026-006", name: "Nash Ervine Slaton", type: "Consolidated", amount: "â‚±15,000", date: "Feb. 12, 2026", status: "On-Time", balance: "â‚±165,000" },
-  { id: "TTMPCPAY-2026-007", name: "Paul Soriano", type: "Consolidated", amount: "â‚±5,000", date: "Feb. 12, 2026", status: "On-Time", balance: "â‚±55,000" },
-  { id: "TTMPCPAY-2026-008", name: "Joseph Mercado", type: "Consolidated", amount: "â‚±4,500", date: "Feb. 12, 2026", status: "Late", balance: "â‚±45,000" },
-  { id: "TTMPCPAY-2026-009", name: "Antonio Ramirez", type: "Emergency", amount: "â‚±3,500", date: "Feb. 13, 2026", status: "On-Time", balance: "â‚±38,500" },
+  { id: "TTMPCPAY-2026-001", name: "Romelyn Delos Reyes", type: "Bonus", amount: "\u20B12,000", date: "Feb. 10, 2026", status: "On-Time", balance: "\u20B118,000" },
+  { id: "TTMPCPAY-2026-002", name: "Erden Jhed Teope", type: "Emergency", amount: "\u20B12,500", date: "Feb. 10, 2026", status: "On-Time", balance: "\u20B122,500" },
+  { id: "TTMPCPAY-2026-003", name: "Ashley Nicole Bulataolo", type: "Consolidated", amount: "\u20B110,000", date: "Feb. 10, 2026", status: "On-Time", balance: "\u20B1110,000" },
+  { id: "TTMPCPAY-2026-004", name: "Karina Dela Cruz", type: "Bonus", amount: "\u20B12,000", date: "Feb. 11, 2026", status: "On-Time", balance: "\u20B118,000" },
+  { id: "TTMPCPAY-2026-005", name: "Gero Antoni Tablolo", type: "Emergency", amount: "\u20B12,500", date: "Feb. 11, 2026", status: "On-Time", balance: "\u20B122,500" },
+  { id: "TTMPCPAY-2026-006", name: "Nash Ervine Slaton", type: "Consolidated", amount: "\u20B115,000", date: "Feb. 12, 2026", status: "On-Time", balance: "\u20B1165,000" },
+  { id: "TTMPCPAY-2026-007", name: "Paul Soriano", type: "Consolidated", amount: "\u20B15,000", date: "Feb. 12, 2026", status: "On-Time", balance: "\u20B155,000" },
+  { id: "TTMPCPAY-2026-008", name: "Joseph Mercado", type: "Consolidated", amount: "\u20B14,500", date: "Feb. 12, 2026", status: "Late", balance: "\u20B145,000" },
+  { id: "TTMPCPAY-2026-009", name: "Antonio Ramirez", type: "Emergency", amount: "\u20B13,500", date: "Feb. 13, 2026", status: "On-Time", balance: "\u20B138,500" },
 ];
 
 const Payments = () => {
@@ -155,7 +155,7 @@ const Payments = () => {
                 <TrendingUp className="w-5 h-5 text-gray-300" />
               </div>
               <p className="text-sm text-gray-500 font-medium">Total Collected</p>
-              <h2 className="text-2xl font-bold text-gray-900 mb-1">â‚±125,500.00</h2>
+                <h2 className="text-2xl font-bold text-gray-900 mb-1">{"\u20B1"}125,500.00</h2>
               <p className="text-xs text-green-600 font-medium flex items-center gap-1">
                  â†» Recent payments tracked
               </p>

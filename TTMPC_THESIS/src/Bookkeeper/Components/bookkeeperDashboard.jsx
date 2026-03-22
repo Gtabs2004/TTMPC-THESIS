@@ -54,11 +54,11 @@ const lineChartData = [
 ];
 
 const recentActivities = [
-  { id: 1, title: "Payment received", name: "Maria Santos", amount: "₱4,500", time: "10 Mins ago", color: "bg-green-500" },
-  { id: 2, title: "Bonus loan disbursed", name: "Juan Dela Cruz", amount: "₱50,000", time: "32 Mins ago", color: "bg-blue-400" },
-  { id: 3, title: "Share capital updated", name: "Rosa Reyes", amount: "₱2,000", time: "1 hour ago", color: "bg-purple-400" },
-  { id: 4, title: "Late payment flagged", name: "Pedro Garcia", amount: "₱3,200", time: "2 hours ago", color: "bg-red-400" },
-  { id: 5, title: "Kiosk application received", name: "Carlos Rivera", amount: "₱20,000", time: "3 hours ago", color: "bg-blue-400" },
+  { id: 1, title: "Payment received", name: "Maria Santos", amount: "\u20B14,500", time: "10 Mins ago", color: "bg-green-500" },
+  { id: 2, title: "Bonus loan disbursed", name: "Juan Dela Cruz", amount: "\u20B150,000", time: "32 Mins ago", color: "bg-blue-400" },
+  { id: 3, title: "Share capital updated", name: "Rosa Reyes", amount: "\u20B12,000", time: "1 hour ago", color: "bg-purple-400" },
+  { id: 4, title: "Late payment flagged", name: "Pedro Garcia", amount: "\u20B13,200", time: "2 hours ago", color: "bg-red-400" },
+  { id: 5, title: "Kiosk application received", name: "Carlos Rivera", amount: "\u20B120,000", time: "3 hours ago", color: "bg-blue-400" },
 ];
 
 const Dashboard = () => {
@@ -71,6 +71,7 @@ const Dashboard = () => {
     { name: "Loan Approval", icon: FileText },
     { name: "Manage Loans", icon: CreditCard },
     { name: "Payments", icon: CreditCard },
+    { name: "Savings Transactions", icon: CreditCard },
     { name: "Accounting", icon: Calculator },
     { name: "MIGS Scoring", icon: Activity },
     { name: "Reports", icon: BarChart3 },
@@ -109,6 +110,7 @@ const Dashboard = () => {
               "Loan Approval": "/bookkeeper-loan-approval",
               "Manage Loans": "/manage-loans",
               Payments: "/payments",
+              "Savings Transactions": "/bookkeeper-savings-transactions",
               Accounting: "/accounting",
               MIGS: "/migs",
               Reports: "/reports",
@@ -202,7 +204,7 @@ const Dashboard = () => {
                 </div>
               </div>
               <div className="mt-4">
-                <h3 className="text-3xl font-bold text-gray-800">₱48,750</h3>
+                <h3 className="text-3xl font-bold text-gray-800">{"\u20B1"}48,750</h3>
                 <div className="flex items-center mt-2 text-xs">
                   <TrendingUp size={14} className="text-green-500 mr-1" />
                   <span className="text-green-500 font-medium">+15.2%</span>
@@ -238,10 +240,10 @@ const Dashboard = () => {
                 </div>
               </div>
               <div className="mt-4">
-                <h3 className="text-3xl font-bold text-gray-800">₱2.85M</h3>
+                <h3 className="text-3xl font-bold text-gray-800">{"\u20B1"}2.85M</h3>
                 <div className="flex items-center mt-2 text-xs">
                   <TrendingUp size={14} className="text-green-500 mr-1" />
-                  <span className="text-green-500 font-medium">+₱45,000</span>
+                  <span className="text-green-500 font-medium">+{"\u20B1"}45,000</span>
                   <span className="text-gray-400 ml-1">vs last month</span>
                 </div>
               </div>
@@ -266,7 +268,7 @@ const Dashboard = () => {
                   <BarChart data={barChartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
                     <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: "#9ca3af", fontSize: 12 }} dy={10} />
-                    <YAxis axisLine={false} tickLine={false} tick={{ fill: "#9ca3af", fontSize: 12 }} tickFormatter={(val) => `₱${val / 1000}k`} />
+                    <YAxis axisLine={false} tickLine={false} tick={{ fill: "#9ca3af", fontSize: 12 }} tickFormatter={(val) => `\u20B1${val / 1000}k`} />
                     <Bar dataKey="value" fill="#10b981" radius={[4, 4, 0, 0]} barSize={28} />
                   </BarChart>
                 </ResponsiveContainer>

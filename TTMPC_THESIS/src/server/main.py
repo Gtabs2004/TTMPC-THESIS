@@ -202,6 +202,29 @@ class SecretaryMembershipRecordUpdateRequest(BaseModel):
     termination_date: str | None = None
 
 
+class SavingsTransactionCreateRequest(BaseModel):
+    membership_number_id: str = Field(..., min_length=1)
+    savings_amount: int | None = None
+    amount: int | None = None
+    balance: int | None = None
+    account_name: str | None = None
+    adult_dependents: int | None = None
+    child_dependents: int | None = None
+    nominee_full_name: str | None = None
+    nominee_relationship: str | None = None
+    nominee_date_of_birth: str | None = None
+    nominee_age: int | None = None
+    nominee_address: str | None = None
+
+
+class CashierSavingsDepositRequest(BaseModel):
+    amount: Decimal = Field(..., gt=0)
+
+
+class CashierSavingsWithdrawRequest(BaseModel):
+    amount: Decimal = Field(..., gt=0)
+
+
 TWOPLACES = Decimal("0.01")
 CBU_STARTING_CAPITAL = Decimal("500")
 CBU_SHARE_VALUE = Decimal("1000")
@@ -238,6 +261,56 @@ def normalize_cashier_loan_type(loan_type_name: str | None) -> str:
 def build_sequence_id(prefix: str, sequence_number: int) -> str:
     safe_seq = max(int(sequence_number), 1)
     return f"{prefix}{safe_seq:03d}"
+
+
+def build_savings_id(sequence_number: int) -> str:
+    safe_seq = max(int(sequence_number), 1)
+    return f"TTMPCRS_{safe_seq:03d}"
+
+
+def build_savings_cashier_transaction_id(sequence_number: int) -> str:
+    safe_seq = max(int(sequence_number), 1)
+    return f"TTMPSVTXN_{safe_seq:06d}"
+
+
+def parse_savings_id_sequence(value: str | None) -> int:
+    text = str(value or "").strip()
+    if not text.startswith("TTMPCRS_"):
+        return 0
+    sequence_part = text.split("TTMPCRS_", 1)[1]
+    return int(sequence_part) if sequence_part.isdigit() else 0
+
+
+def parse_savings_cashier_transaction_sequence(value: str | None) -> int:
+    text = str(value or "").strip()
+    if not text.startswith("TTMPSVTXN_"):
+        return 0
+    sequence_part = text.split("TTMPSVTXN_", 1)[1]
+    return int(sequence_part) if sequence_part.isdigit() else 0
+
+
+def get_next_savings_id() -> str:
+    response = (
+        supabase.table("Savings_Transactions")
+        .select("Savings_ID")
+        .execute()
+    )
+    max_sequence = 0
+    for row in response.data or []:
+        max_sequence = max(max_sequence, parse_savings_id_sequence(row.get("Savings_ID")))
+    return build_savings_id(max_sequence + 1)
+
+
+def get_next_savings_cashier_transaction_id() -> str:
+    response = (
+        supabase.table("savings_transaction_queue")
+        .select("transaction_id")
+        .execute()
+    )
+    max_sequence = 0
+    for row in response.data or []:
+        max_sequence = max(max_sequence, parse_savings_cashier_transaction_sequence(row.get("transaction_id")))
+    return build_savings_cashier_transaction_id(max_sequence + 1)
 
 
 def build_bod_resolution_number(reference_value: str | None, membership_date_value: str | None) -> str:
@@ -1926,6 +1999,678 @@ async def get_personal_datasheet_record_by_membership(membership_number_id: str)
         raise HTTPException(status_code=500, detail=f"Failed to load personal data sheet details: {err}")
 
 
+@app.post("/api/savings/transactions")
+async def create_savings_transaction(payload: SavingsTransactionCreateRequest):
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+
+    try:
+        membership_number_id = str(payload.membership_number_id or "").strip()
+        if not membership_number_id:
+            raise HTTPException(status_code=400, detail="membership_number_id is required.")
+
+        pds_response = (
+            supabase.table("personal_data_sheet")
+            .select("membership_number_id")
+            .eq("membership_number_id", membership_number_id)
+            .limit(1)
+            .execute()
+        )
+        if not (pds_response.data or []):
+            raise HTTPException(status_code=404, detail="Member not found in personal_data_sheet.")
+
+        savings_id = get_next_savings_id()
+        opening_savings_amount = payload.savings_amount
+        amount_value = payload.amount if payload.amount is not None else opening_savings_amount
+        balance_value = payload.balance if payload.balance is not None else opening_savings_amount
+
+        insert_payload = {
+            "Savings_ID": savings_id,
+            "membership_number_id": membership_number_id,
+            "Account_Number": savings_id,
+            "Savings_Amount": opening_savings_amount,
+            "Amount": amount_value,
+            "Balance": balance_value,
+            "Account_Name": payload.account_name,
+            "Adult dependents": payload.adult_dependents,
+            "Child dependents": payload.child_dependents,
+            "Nominee_Full_Name": payload.nominee_full_name,
+            "Nominee_Relationship": payload.nominee_relationship,
+            "Nominee Date of Birth": payload.nominee_date_of_birth,
+            "Nominee_Age": payload.nominee_age,
+            "Nominee_Address": payload.nominee_address,
+        }
+
+        response = (
+            supabase.table("Savings_Transactions")
+            .insert(insert_payload)
+            .execute()
+        )
+
+        created_row = (response.data or [None])[0] if response else None
+
+        return {
+            "success": True,
+            "data": {
+                "Savings_ID": savings_id,
+                "Account_Number": savings_id,
+                "record": created_row or insert_payload,
+            },
+        }
+    except HTTPException as err:
+        raise err
+    except Exception as err:
+        raise HTTPException(status_code=500, detail=f"Failed to create savings transaction: {err}")
+
+
+@app.get("/api/cashier/savings/accounts")
+async def get_cashier_savings_accounts():
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+
+    try:
+        response = (
+            supabase.table("Savings_Transactions")
+            .select("*")
+            .order("created_at", desc=True)
+            .execute()
+        )
+        rows = response.data or []
+
+        membership_ids = sorted(
+            {
+                str(row.get("membership_number_id") or "").strip()
+                for row in rows
+                if str(row.get("membership_number_id") or "").strip()
+            }
+        )
+
+        pds_by_membership: dict[str, dict] = {}
+        if membership_ids:
+            try:
+                pds_response = (
+                    supabase.table("personal_data_sheet")
+                    .select("membership_number_id,first_name,middle_name,surname,last_name")
+                    .in_("membership_number_id", membership_ids)
+                    .order("created_at", desc=True)
+                    .execute()
+                )
+                for pds_row in pds_response.data or []:
+                    membership_key = str(pds_row.get("membership_number_id") or "").strip()
+                    if membership_key and membership_key not in pds_by_membership:
+                        pds_by_membership[membership_key] = pds_row
+            except Exception:
+                pds_by_membership = {}
+
+        normalized = []
+        for row in rows:
+            membership_key = str(row.get("membership_number_id") or "").strip()
+            pds_row = pds_by_membership.get(membership_key, {})
+
+            first_name = str(pds_row.get("first_name") or "").strip()
+            middle_name = str(pds_row.get("middle_name") or "").strip()
+            last_name = str(pds_row.get("surname") or pds_row.get("last_name") or "").strip()
+            fallback_name = " ".join(part for part in [first_name, middle_name, last_name] if part).strip()
+
+            normalized.append(
+                {
+                    "id": str(row.get("Savings_ID") or "").strip(),
+                    "membership_number_id": membership_key,
+                    "account_number": str(row.get("Account_Number") or "").strip(),
+                    "member_name": str(row.get("Account_Name") or "").strip() or fallback_name or "Unknown Member",
+                    "amount": (
+                        row.get("Balance")
+                        if row.get("Balance") is not None
+                        else (row.get("Savings_Amount") if row.get("Savings_Amount") is not None else row.get("Amount"))
+                    ),
+                    "balance": row.get("Balance"),
+                    "date_opened": row.get("created_at"),
+                    "status": "ACTIVE",
+                }
+            )
+
+        return {"success": True, "data": normalized}
+    except Exception as err:
+        raise HTTPException(status_code=500, detail=f"Failed to load savings accounts: {err}")
+
+
+@app.get("/api/cashier/savings/accounts/{savings_id}")
+async def get_cashier_savings_account_details(savings_id: str):
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+
+    try:
+        clean_savings_id = str(savings_id or "").strip()
+        if not clean_savings_id:
+            raise HTTPException(status_code=400, detail="savings_id is required.")
+
+        account_response = (
+            supabase.table("Savings_Transactions")
+            .select("*")
+            .eq("Savings_ID", clean_savings_id)
+            .limit(1)
+            .execute()
+        )
+        account_row = (account_response.data or [None])[0]
+        if not account_row:
+            raise HTTPException(status_code=404, detail="Savings account not found.")
+
+        membership_key = str(account_row.get("membership_number_id") or "").strip()
+        member_name = str(account_row.get("Account_Name") or "").strip()
+
+        if not member_name and membership_key:
+            try:
+                pds_response = (
+                    supabase.table("personal_data_sheet")
+                    .select("first_name,middle_name,surname,last_name")
+                    .eq("membership_number_id", membership_key)
+                    .order("created_at", desc=True)
+                    .limit(1)
+                    .execute()
+                )
+                pds_row = (pds_response.data or [None])[0] or {}
+                first_name = str(pds_row.get("first_name") or "").strip()
+                middle_name = str(pds_row.get("middle_name") or "").strip()
+                last_name = str(pds_row.get("surname") or pds_row.get("last_name") or "").strip()
+                member_name = " ".join(part for part in [first_name, middle_name, last_name] if part).strip()
+            except Exception:
+                pass
+
+        amount_value = (
+            account_row.get("Balance")
+            if account_row.get("Balance") is not None
+            else (
+                account_row.get("Savings_Amount")
+                if account_row.get("Savings_Amount") is not None
+                else account_row.get("Amount")
+            )
+        )
+        opening_deposit = account_row.get("Savings_Amount")
+        created_at = account_row.get("created_at")
+
+        return {
+            "success": True,
+            "data": {
+                "id": clean_savings_id,
+                "membership_number_id": membership_key,
+                "account_number": str(account_row.get("Account_Number") or clean_savings_id).strip(),
+                "member_name": member_name or "Unknown Member",
+                "savings_type": "Regular Savings",
+                "date_opened": created_at,
+                "total_amount": amount_value,
+                "previous_deposit": opening_deposit,
+                "previous_date": created_at,
+                "deposits": [
+                    {
+                        "label": "Account Opening Deposit",
+                        "amount": opening_deposit,
+                        "date": created_at,
+                    }
+                ] if opening_deposit is not None else [],
+            },
+        }
+    except HTTPException as err:
+        raise err
+    except Exception as err:
+        raise HTTPException(status_code=500, detail=f"Failed to load savings account details: {err}")
+
+
+@app.post("/api/cashier/savings/accounts/{savings_id}/deposit")
+async def post_cashier_savings_deposit(savings_id: str, payload: CashierSavingsDepositRequest):
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+
+    try:
+        clean_savings_id = str(savings_id or "").strip()
+        if not clean_savings_id:
+            raise HTTPException(status_code=400, detail="savings_id is required.")
+
+        account_response = (
+            supabase.table("Savings_Transactions")
+            .select("Savings_ID,membership_number_id,Account_Name")
+            .eq("Savings_ID", clean_savings_id)
+            .limit(1)
+            .execute()
+        )
+        account_row = (account_response.data or [None])[0]
+        if not account_row:
+            raise HTTPException(status_code=404, detail="Savings account not found.")
+
+        membership_key = str(account_row.get("membership_number_id") or "").strip()
+        if membership_key:
+            try:
+                member_response = (
+                    supabase.table("member")
+                    .select("membership_id,is_bona_fide")
+                    .eq("membership_id", membership_key)
+                    .limit(1)
+                    .execute()
+                )
+                member_row = (member_response.data or [None])[0]
+                if member_row and member_row.get("is_bona_fide") is False:
+                    raise HTTPException(status_code=400, detail="Member is not bonafide and cannot transact.")
+            except HTTPException as err:
+                raise err
+            except Exception:
+                pass
+
+        transaction_id = get_next_savings_cashier_transaction_id()
+        queue_payload = {
+            "transaction_id": transaction_id,
+            "savings_id": clean_savings_id,
+            "membership_number_id": membership_key,
+            "member_name": str(account_row.get("Account_Name") or "").strip() or None,
+            "account_type": "Savings Deposit",
+            "transaction_type": "deposit",
+            "amount": decimal_to_float(money(Decimal(str(payload.amount)))),
+            "transaction_status": "pending_verification",
+            "entered_by_role": "cashier",
+            "requested_at": datetime.utcnow().isoformat(),
+        }
+
+        queue_response = (
+            supabase.table("savings_transaction_queue")
+            .insert(queue_payload)
+            .execute()
+        )
+        queued_row = (queue_response.data or [None])[0]
+
+        return {
+            "success": True,
+            "data": {
+                "transaction_id": transaction_id,
+                "savings_id": clean_savings_id,
+                "amount_deposited": decimal_to_float(money(Decimal(str(payload.amount)))),
+                "transaction_status": "pending_verification",
+                "record": queued_row,
+            },
+            "message": "Deposit submitted and is pending Bookkeeper verification.",
+        }
+    except HTTPException as err:
+        raise err
+    except Exception as err:
+        raise HTTPException(status_code=500, detail=f"Failed to post savings deposit: {err}")
+
+
+@app.post("/api/cashier/savings/accounts/{savings_id}/withdraw")
+async def post_cashier_savings_withdrawal(savings_id: str, payload: CashierSavingsWithdrawRequest):
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+
+    try:
+        clean_savings_id = str(savings_id or "").strip()
+        if not clean_savings_id:
+            raise HTTPException(status_code=400, detail="savings_id is required.")
+
+        account_response = (
+            supabase.table("Savings_Transactions")
+            .select("Savings_ID,membership_number_id,Account_Name")
+            .eq("Savings_ID", clean_savings_id)
+            .limit(1)
+            .execute()
+        )
+        account_row = (account_response.data or [None])[0]
+        if not account_row:
+            raise HTTPException(status_code=404, detail="Savings account not found.")
+
+        transaction_id = get_next_savings_cashier_transaction_id()
+        queue_payload = {
+            "transaction_id": transaction_id,
+            "savings_id": clean_savings_id,
+            "membership_number_id": str(account_row.get("membership_number_id") or "").strip() or None,
+            "member_name": str(account_row.get("Account_Name") or "").strip() or None,
+            "account_type": "Savings Withdrawal",
+            "transaction_type": "withdraw",
+            "amount": decimal_to_float(money(Decimal(str(payload.amount)))),
+            "transaction_status": "pending_verification",
+            "entered_by_role": "cashier",
+            "requested_at": datetime.utcnow().isoformat(),
+        }
+
+        queue_response = (
+            supabase.table("savings_transaction_queue")
+            .insert(queue_payload)
+            .execute()
+        )
+        queued_row = (queue_response.data or [None])[0]
+
+        return {
+            "success": True,
+            "data": {
+                "transaction_id": transaction_id,
+                "savings_id": clean_savings_id,
+                "amount_withdrawn": decimal_to_float(money(Decimal(str(payload.amount)))),
+                "transaction_status": "pending_verification",
+                "record": queued_row,
+            },
+            "message": "Withdrawal submitted and is pending Bookkeeper verification.",
+        }
+    except HTTPException as err:
+        raise err
+    except Exception as err:
+        raise HTTPException(status_code=500, detail=f"Failed to post savings withdrawal: {err}")
+
+
+@app.get("/api/bookkeeper/savings-transactions")
+async def get_bookkeeper_savings_transactions():
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+
+    try:
+        queue_response = (
+            supabase.table("savings_transaction_queue")
+            .select("*")
+            .order("requested_at", desc=True)
+            .execute()
+        )
+        queue_rows = queue_response.data or []
+
+        membership_ids = sorted(
+            {
+                str(row.get("membership_number_id") or "").strip()
+                for row in queue_rows
+                if str(row.get("membership_number_id") or "").strip()
+            }
+        )
+
+        pds_by_membership: dict[str, dict] = {}
+        if membership_ids:
+            try:
+                pds_response = (
+                    supabase.table("personal_data_sheet")
+                    .select("membership_number_id,first_name,middle_name,surname,last_name")
+                    .in_("membership_number_id", membership_ids)
+                    .order("created_at", desc=True)
+                    .execute()
+                )
+                for pds_row in pds_response.data or []:
+                    membership_key = str(pds_row.get("membership_number_id") or "").strip()
+                    if membership_key and membership_key not in pds_by_membership:
+                        pds_by_membership[membership_key] = pds_row
+            except Exception:
+                pds_by_membership = {}
+
+        normalized = []
+        for row in queue_rows:
+            membership_key = str(row.get("membership_number_id") or "").strip()
+            pds_row = pds_by_membership.get(membership_key, {})
+            member_name = str(row.get("member_name") or "").strip()
+            if not member_name:
+                first_name = str(pds_row.get("first_name") or "").strip()
+                middle_name = str(pds_row.get("middle_name") or "").strip()
+                last_name = str(pds_row.get("surname") or pds_row.get("last_name") or "").strip()
+                member_name = " ".join(part for part in [first_name, middle_name, last_name] if part).strip() or "Unknown Member"
+
+            normalized.append(
+                {
+                    "transaction_id": str(row.get("transaction_id") or "").strip(),
+                    "savings_id": str(row.get("savings_id") or "").strip(),
+                    "membership_number_id": membership_key,
+                    "member_name": member_name,
+                    "account_type": str(row.get("account_type") or "Savings").strip(),
+                    "transaction_type": str(row.get("transaction_type") or "deposit").strip().lower(),
+                    "amount": decimal_to_float(row.get("amount") or 0),
+                    "transaction_status": str(row.get("transaction_status") or "pending_verification").strip().lower(),
+                    "requested_at": row.get("requested_at"),
+                    "verified_at": row.get("verified_at"),
+                    "verified_by": row.get("verified_by"),
+                    "notes": row.get("notes"),
+                }
+            )
+
+        return {"success": True, "data": normalized}
+    except Exception as err:
+        raise HTTPException(status_code=500, detail=f"Failed to load savings transaction queue: {err}")
+
+
+@app.post("/api/bookkeeper/savings-transactions/{transaction_id}/confirm")
+async def confirm_bookkeeper_savings_transaction(transaction_id: str, payload: BookkeeperPaymentDecisionRequest):
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+
+    try:
+        clean_transaction_id = str(transaction_id or "").strip()
+        if not clean_transaction_id:
+            raise HTTPException(status_code=400, detail="transaction_id is required.")
+
+        queue_response = (
+            supabase.table("savings_transaction_queue")
+            .select("*")
+            .eq("transaction_id", clean_transaction_id)
+            .limit(1)
+            .execute()
+        )
+        queue_row = (queue_response.data or [None])[0]
+        if not queue_row:
+            raise HTTPException(status_code=404, detail="Savings transaction not found.")
+
+        current_status = str(queue_row.get("transaction_status") or "pending_verification").strip().lower()
+        if current_status != "pending_verification":
+            raise HTTPException(status_code=400, detail="Only pending transactions can be confirmed.")
+
+        savings_id = str(queue_row.get("savings_id") or "").strip()
+        if not savings_id:
+            raise HTTPException(status_code=400, detail="savings_id is missing on transaction queue.")
+
+        savings_response = (
+            supabase.table("Savings_Transactions")
+            .select("Savings_ID,Balance,Savings_Amount,Amount")
+            .eq("Savings_ID", savings_id)
+            .limit(1)
+            .execute()
+        )
+        savings_row = (savings_response.data or [None])[0]
+        if not savings_row:
+            raise HTTPException(status_code=404, detail="Savings account not found.")
+
+        current_balance = Decimal(
+            str(
+                savings_row.get("Balance")
+                if savings_row.get("Balance") is not None
+                else (
+                    savings_row.get("Savings_Amount")
+                    if savings_row.get("Savings_Amount") is not None
+                    else savings_row.get("Amount") or 0
+                )
+            )
+        )
+
+        transaction_amount = money(Decimal(str(queue_row.get("amount") or 0)))
+        if transaction_amount <= 0:
+            raise HTTPException(status_code=400, detail="Invalid transaction amount.")
+
+        transaction_type = str(queue_row.get("transaction_type") or "deposit").strip().lower()
+        if transaction_type == "withdraw":
+            if transaction_amount > current_balance:
+                raise HTTPException(status_code=400, detail="Insufficient balance for this withdrawal.")
+            new_balance = money(current_balance - transaction_amount)
+            ledger_entry_type = "debit"
+        else:
+            new_balance = money(current_balance + transaction_amount)
+            ledger_entry_type = "credit"
+
+        db_balance_value = int(new_balance.to_integral_value(rounding=ROUND_HALF_UP))
+        (
+            supabase.table("Savings_Transactions")
+            .update({"Balance": db_balance_value, "Amount": db_balance_value})
+            .eq("Savings_ID", savings_id)
+            .execute()
+        )
+
+        verified_at_value = datetime.utcnow().isoformat()
+        queue_update_payload = {
+            "transaction_status": "validated",
+            "verified_at": verified_at_value,
+            "verified_by": payload.validated_by,
+            "notes": payload.notes,
+            "posted_at": verified_at_value,
+        }
+        (
+            supabase.table("savings_transaction_queue")
+            .update(queue_update_payload)
+            .eq("transaction_id", clean_transaction_id)
+            .execute()
+        )
+
+        ledger_payload = {
+            "transaction_id": clean_transaction_id,
+            "ledger_source": "Savings_Transactions",
+            "source_id": savings_id,
+            "membership_number_id": queue_row.get("membership_number_id"),
+            "account_type": queue_row.get("account_type") or "Savings",
+            "entry_type": ledger_entry_type,
+            "amount": decimal_to_float(transaction_amount),
+            "running_balance": decimal_to_float(new_balance),
+            "posted_at": verified_at_value,
+            "posted_by": payload.validated_by,
+            "remarks": payload.notes,
+        }
+        try:
+            (
+                supabase.table("ledger_transactions")
+                .insert(ledger_payload)
+                .execute()
+            )
+        except Exception:
+            pass
+
+        return {
+            "success": True,
+            "message": "Savings transaction confirmed and posted.",
+            "data": {
+                "transaction_id": clean_transaction_id,
+                "savings_id": savings_id,
+                "transaction_type": transaction_type,
+                "posted_amount": decimal_to_float(transaction_amount),
+                "new_balance": decimal_to_float(new_balance),
+            },
+        }
+    except HTTPException as err:
+        raise err
+    except Exception as err:
+        raise HTTPException(status_code=500, detail=f"Failed to confirm savings transaction: {err}")
+
+
+@app.post("/api/bookkeeper/savings-transactions/{transaction_id}/reject")
+async def reject_bookkeeper_savings_transaction(transaction_id: str, payload: BookkeeperPaymentDecisionRequest):
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+
+    try:
+        clean_transaction_id = str(transaction_id or "").strip()
+        if not clean_transaction_id:
+            raise HTTPException(status_code=400, detail="transaction_id is required.")
+
+        queue_response = (
+            supabase.table("savings_transaction_queue")
+            .select("transaction_id,transaction_status")
+            .eq("transaction_id", clean_transaction_id)
+            .limit(1)
+            .execute()
+        )
+        queue_row = (queue_response.data or [None])[0]
+        if not queue_row:
+            raise HTTPException(status_code=404, detail="Savings transaction not found.")
+
+        current_status = str(queue_row.get("transaction_status") or "pending_verification").strip().lower()
+        if current_status != "pending_verification":
+            raise HTTPException(status_code=400, detail="Only pending transactions can be rejected.")
+
+        update_payload = {
+            "transaction_status": "rejected",
+            "verified_at": datetime.utcnow().isoformat(),
+            "verified_by": payload.validated_by,
+            "notes": payload.notes,
+        }
+        (
+            supabase.table("savings_transaction_queue")
+            .update(update_payload)
+            .eq("transaction_id", clean_transaction_id)
+            .execute()
+        )
+
+        return {
+            "success": True,
+            "message": "Savings transaction rejected.",
+            "data": {"transaction_id": clean_transaction_id},
+        }
+    except HTTPException as err:
+        raise err
+    except Exception as err:
+        raise HTTPException(status_code=500, detail=f"Failed to reject savings transaction: {err}")
+
+
+@app.get("/api/cashier/withdrawals/transactions")
+async def get_cashier_validated_withdrawal_transactions():
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+
+    try:
+        response = (
+            supabase.table("savings_transaction_queue")
+            .select("transaction_id,savings_id,membership_number_id,member_name,account_type,transaction_type,amount,transaction_status,requested_at,verified_at,posted_at,notes")
+            .eq("transaction_type", "withdraw")
+            .eq("transaction_status", "validated")
+            .order("posted_at", desc=True)
+            .execute()
+        )
+        rows = response.data or []
+
+        membership_ids = sorted(
+            {
+                str(row.get("membership_number_id") or "").strip()
+                for row in rows
+                if str(row.get("membership_number_id") or "").strip()
+            }
+        )
+
+        pds_by_membership: dict[str, dict] = {}
+        if membership_ids:
+            try:
+                pds_response = (
+                    supabase.table("personal_data_sheet")
+                    .select("membership_number_id,first_name,middle_name,surname,last_name")
+                    .in_("membership_number_id", membership_ids)
+                    .order("created_at", desc=True)
+                    .execute()
+                )
+                for pds_row in pds_response.data or []:
+                    membership_key = str(pds_row.get("membership_number_id") or "").strip()
+                    if membership_key and membership_key not in pds_by_membership:
+                        pds_by_membership[membership_key] = pds_row
+            except Exception:
+                pds_by_membership = {}
+
+        normalized = []
+        for row in rows:
+            membership_key = str(row.get("membership_number_id") or "").strip()
+            member_name = str(row.get("member_name") or "").strip()
+            if not member_name:
+                pds_row = pds_by_membership.get(membership_key, {})
+                first_name = str(pds_row.get("first_name") or "").strip()
+                middle_name = str(pds_row.get("middle_name") or "").strip()
+                last_name = str(pds_row.get("surname") or pds_row.get("last_name") or "").strip()
+                member_name = " ".join(part for part in [first_name, middle_name, last_name] if part).strip() or "Unknown Member"
+
+            normalized.append(
+                {
+                    "transaction_id": str(row.get("transaction_id") or "").strip(),
+                    "savings_id": str(row.get("savings_id") or "").strip(),
+                    "membership_number_id": membership_key,
+                    "member_name": member_name,
+                    "account_type": str(row.get("account_type") or "Savings Withdrawal").strip(),
+                    "amount": decimal_to_float(row.get("amount") or 0),
+                    "status": "VALIDATED",
+                    "date_posted": row.get("posted_at") or row.get("verified_at") or row.get("requested_at"),
+                    "notes": row.get("notes"),
+                }
+            )
+
+        return {"success": True, "data": normalized}
+    except Exception as err:
+        raise HTTPException(status_code=500, detail=f"Failed to load cashier withdrawal transactions: {err}")
+
+
 @app.get("/api/secretary/membership-records/{member_ref}")
 async def get_secretary_membership_record_details(member_ref: str):
     if not supabase:
@@ -2472,22 +3217,66 @@ async def send_status_email(payload: StatusEmailRequest):
     if not runtime_resend_api_key:
         raise HTTPException(status_code=500, detail="RESEND_API_KEY is not configured.")
 
+    status_color = "#2563eb" # Default Blue
+    status_text = payload.status.upper()
+    
+    # Designer Note: You can expand this logic to change colors based on the status string
+    if "approved" in status_text.lower(): status_color = "#059669" # Green
+    if "pending" in status_text.lower(): status_color = "#d97706" # Orange
+
     details_html = ""
     if payload.remarks:
-        details_html = f"<p><strong>Remarks:</strong> {payload.remarks}</p>"
+        details_html = f"""
+            <div style="margin-top: 24px; padding: 20px; background-color: #fff7ed; border-radius: 8px; border: 1px solid #ffedd5;">
+                <p style="margin: 0 0 8px 0; font-size: 12px; font-weight: 700; color: #9a3412; text-transform: uppercase; letter-spacing: 0.05em;">Notes from the Board</p>
+                <p style="margin: 0; font-size: 14px; color: #7c2d12; line-height: 1.5;">{payload.remarks}</p>
+            </div>
+        """
 
     resend_payload = {
         "from": runtime_resend_from_email,
         "to": [payload.to_email],
-        "subject": f"Membership Application Update: {payload.status}",
+        "subject": f"Update: Your Membership Application is {payload.status}",
         "html": f"""
-          <div style=\"font-family: Arial, sans-serif; color: #111827;\">
-            <h2 style=\"margin-bottom: 8px;\">Membership Application Update</h2>
-            <p>Hello {payload.member_name},</p>
-            <p>Your membership application status is now <strong>{payload.status}</strong>.</p>
-            {details_html}
-            <p style=\"margin-top: 16px;\">TTMPC BOD Portal</p>
-          </div>
+        <div style="background-color: #f8fafc; padding: 40px 10px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+            <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03); border: 1px solid #e2e8f0;">
+                
+                <div style="background-color: #111827; padding: 32px; text-align: center;">
+                    <p style="color: #60a5fa; font-size: 12px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 8px;">TTMPC BOD Portal</p>
+                    <h1 style="color: #ffffff; margin: 0; font-size: 22px; font-weight: 700;">Application Update</h1>
+                </div>
+
+                <div style="padding: 40px;">
+                    <p style="font-size: 16px; color: #4b5563; margin-top: 0;">Hello <strong>{payload.member_name}</strong>,</p>
+                    
+                    <p style="font-size: 15px; color: #64748b; line-height: 1.6;">
+                        This is an official notification regarding your current membership and training application. The Board of Directors has updated your profile status:
+                    </p>
+
+                    <div style="margin: 32px 0; text-align: center; padding: 32px; background-color: #f1f5f9; border-radius: 12px; border: 1px dashed #cbd5e1;">
+                        <span style="font-size: 13px; color: #64748b; text-transform: uppercase; letter-spacing: 1px;">Current Status</span>
+                        <div style="margin-top: 12px; font-size: 28px; font-weight: 800; color: {status_color}; letter-spacing: -0.5px;">
+                            {status_text}
+                        </div>
+                    </div>
+
+                    {details_html}
+
+                    <p style="margin-top: 32px; font-size: 15px; color: #4b5563;">
+                        If further action is required, please log in to the portal or contact your training coordinator.
+                    </p>
+
+                    <div style="margin-top: 40px; padding-top: 24px; border-top: 1px solid #f1f5f9;">
+                        <p style="margin: 0; font-size: 14px; font-weight: 700; color: #111827;">TTMPC Board of Directors</p>
+                        <p style="margin: 4px 0 0 0; font-size: 13px; color: #94a3b8;">Official Membership & Training Division</p>
+                    </div>
+                </div>
+
+                <div style="background-color: #f8fafc; padding: 20px; text-align: center; font-size: 11px; color: #94a3b8; border-top: 1px solid #e2e8f0;">
+                    <p style="margin: 0;">This is an automated administrative message. Please do not reply directly to this email.</p>
+                </div>
+            </div>
+        </div>
         """,
     }
 

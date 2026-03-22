@@ -24,10 +24,17 @@ import {
 } from 'lucide-react';
 import logo from "../../assets/img/ttmpc logo.png";
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
+
+const formatCurrency = (value) => {
+  const amount = Number(value || 0);
+  return `\u20B1${amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+};
+
 const Cashier_Savings = () => {
   const { session, signOut } = UserAuth();
   const navigate = useNavigate();
-  const [displayLoans, setDisplayLoans] = React.useState([]);
+  const [displaySavings, setDisplaySavings] = React.useState([]);
   const [loading, setLoading] = React.useState(false);
   const [fetchError, setFetchError] = React.useState(null);
   const [searchTerm, setSearchTerm] = React.useState("");
@@ -61,14 +68,6 @@ const Cashier_Savings = () => {
     }
   };
 
-  const getLoanTypeStyle = (type) => {
-    switch(type) {
-      case 'Regular Savings': return 'bg-blue-100 text-blue-800';
-      case 'Time-Deposit': return 'bg-purple-100 text-purple-800';
-      default: return 'bg-gray-100 text-gray-800';
-    }
-  };
-
   const getStatusStyle = (status) => {
     switch(status) {
       case 'ACTIVE': return 'bg-green-100 text-green-800 border border-green-300';
@@ -78,18 +77,52 @@ const Cashier_Savings = () => {
     }
   };
 
-  const savingsData = [
-    { ID: "TTMPCL-001-123", name: "Gero Antoni Tabiolo", type: "Regular Savings", amount: "₱50,000", date: "02-15-2026", status: "ACTIVE"},
-    { ID: "TTMPCL-002-123", name: "Erden Jhed Teope", type: "Time-Deposit", amount: "₱25,000", date: "03-12-2026", status: "ACTIVE" },
-    { ID: "TTMPCL-003-123", name: "Ashley Nicole Bulotaolo", type: "Time-Deposit", amount: "₱120,000", date: "03-15-2026", status: "ACTIVE"},
-    { ID: "TTMPCL-004-123", name: "Romelyn Delos Reyes", type: "Regular Savings", amount: "₱20,000", date: "03-25-2026", status: "PENDING" },
-    { ID: "TTMPCL-005-123", name: "Nash Ervine Siaton", type: "Regular Savings", amount: "₱30,000", date: "04-20-2026", status: "ACTIVE"}  
-  ];
+  React.useEffect(() => {
+    const fetchSavings = async () => {
+      try {
+        setLoading(true);
+        setFetchError(null);
 
-  const filteredSavings = savingsData.filter(saving => 
-    saving.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    saving.ID.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    saving.type.toLowerCase().includes(searchTerm.toLowerCase())
+        const response = await fetch(`${API_BASE_URL}/api/cashier/savings/accounts`);
+        const result = await response.json();
+
+        if (!response.ok || !result?.success) {
+          throw new Error(result?.detail || 'Failed to load savings accounts.');
+        }
+
+        const rows = (result.data || []).map((row) => ({
+          ID: row.id,
+          name: row.member_name || 'Unknown Member',
+          amount: formatCurrency(row.amount),
+          date: row.date_opened ? new Date(row.date_opened).toLocaleDateString('en-US') : 'N/A',
+          status: row.status || 'ACTIVE',
+        }));
+
+        setDisplaySavings(rows);
+      } catch (error) {
+        setFetchError(error?.message || 'Unable to fetch savings accounts.');
+        setDisplaySavings([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchSavings();
+  }, []);
+
+  const sortedSavings = [...displaySavings].sort((a, b) => {
+    if (sortBy === 'name') return a.name.localeCompare(b.name);
+    if (sortBy === 'amount') {
+      const amountA = Number(String(a.amount || '').replace(/[^\d.-]/g, ''));
+      const amountB = Number(String(b.amount || '').replace(/[^\d.-]/g, ''));
+      return amountB - amountA;
+    }
+    return new Date(b.date) - new Date(a.date);
+  });
+
+  const filteredSavings = sortedSavings.filter((saving) =>
+    saving.name.toLowerCase().includes(searchTerm.toLowerCase())
+    || saving.ID.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   return (
@@ -203,7 +236,7 @@ const Cashier_Savings = () => {
                 <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400"/>
                 <input 
                   type="text" 
-                  placeholder="Search by ID, name, or type..."
+                  placeholder="Search by ID or name..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="w-full bg-gray-50 border border-gray-300 rounded-lg pl-10 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition"
@@ -238,7 +271,6 @@ const Cashier_Savings = () => {
                   <tr>
                     <th className="px-6 py-4 font-bold text-sm">Savings ID</th>
                     <th className="px-6 py-4 font-bold text-sm">Member Name</th>
-                    <th className="px-6 py-4 font-bold text-sm">Type</th>
                     <th className="px-6 py-4 font-bold text-sm">Amount</th>
                     <th className="px-6 py-4 font-bold text-sm">Date Opened</th>
                     <th className="px-6 py-4 font-bold text-sm">Status</th>
@@ -246,7 +278,17 @@ const Cashier_Savings = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredSavings.length > 0 ? (
+                  {loading ? (
+                    <tr>
+                      <td colSpan="6" className="px-6 py-8 text-center text-gray-500">Loading savings accounts...</td>
+                    </tr>
+                  ) : fetchError ? (
+                    <tr>
+                      <td colSpan="6" className="px-6 py-8 text-center text-red-600">{fetchError}</td>
+                    </tr>
+                  ) : null}
+
+                  {!loading && !fetchError && filteredSavings.length > 0 ? (
                     filteredSavings.map((savings, index) => (
                       <tr 
                         key={savings.ID} 
@@ -259,11 +301,6 @@ const Cashier_Savings = () => {
                         </td>
                         <td className="px-6 py-4">
                           <span className="text-gray-800 font-medium">{savings.name}</span>
-                        </td>
-                        <td className="px-6 py-4">
-                          <span className={`inline-flex px-3 py-1.5 rounded-full text-xs font-bold ${getLoanTypeStyle(savings.type)}`}>
-                            {savings.type}
-                          </span>
                         </td>
                         <td className="px-6 py-4">
                           <span className="text-gray-900 font-bold">{savings.amount}</span>
@@ -288,15 +325,15 @@ const Cashier_Savings = () => {
                         </td>
                       </tr>
                     ))
-                  ) : (
+                  ) : !loading && !fetchError ? (
                     <tr>
-                      <td colSpan="7" className="px-6 py-8 text-center text-gray-500">
+                      <td colSpan="6" className="px-6 py-8 text-center text-gray-500">
                         <Search className="mx-auto mb-2 w-12 h-12 text-gray-300" />
                         <p className="text-lg font-medium">No savings accounts found</p>
                         <p className="text-sm mt-1">Try adjusting your search criteria</p>
                       </td>
                     </tr>
-                  )}
+                  ) : null}
                 </tbody>
               </table>
             </div>
