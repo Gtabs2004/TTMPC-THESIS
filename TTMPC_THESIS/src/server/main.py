@@ -226,7 +226,7 @@ class CashierSavingsWithdrawRequest(BaseModel):
 
 
 TWOPLACES = Decimal("0.01")
-CBU_STARTING_CAPITAL = Decimal("500")
+CBU_STARTING_CAPITAL = Decimal("0")
 CBU_SHARE_VALUE = Decimal("1000")
 
 
@@ -820,11 +820,18 @@ async def get_cashier_cbu_members():
         try:
             member_response = (
                 supabase.table("member")
-                .select("id,membership_id,first_name,middle_initial,last_name")
+                .select("id,membership_id,first_name,middle_initial,last_name,created_at")
                 .execute()
             )
-        except Exception as err:
-            raise HTTPException(status_code=500, detail=f"Unable to load members: {err}")
+        except Exception:
+            try:
+                member_response = (
+                    supabase.table("member")
+                    .select("id,membership_id,first_name,middle_initial,last_name")
+                    .execute()
+                )
+            except Exception as err:
+                raise HTTPException(status_code=500, detail=f"Unable to load members: {err}")
 
         member_rows = member_response.data or []
 
@@ -872,6 +879,7 @@ async def get_cashier_cbu_members():
                     "member_uuid": member_uuid,
                     "member_id": member.get("membership_id") or member_uuid,
                     "member_name": resolve_member_full_name(member),
+                    "created_at": member.get("created_at"),
                     "current_balance": decimal_to_float(current_balance),
                     "current_shares": decimal_to_float(current_balance / CBU_SHARE_VALUE),
                     "is_new_member": is_new_member,
@@ -879,7 +887,18 @@ async def get_cashier_cbu_members():
                 }
             )
 
-        mapped_members.sort(key=lambda row: str(row.get("member_name") or "").lower())
+        # Show newest created members first so newly created accounts appear at the top.
+        has_created_at = any(str(row.get("created_at") or "").strip() for row in mapped_members)
+        if has_created_at:
+            mapped_members.sort(
+                key=lambda row: (
+                    str(row.get("created_at") or ""),
+                    str(row.get("member_name") or "").lower(),
+                ),
+                reverse=True,
+            )
+        else:
+            mapped_members.sort(key=lambda row: str(row.get("member_name") or "").lower())
         return {"success": True, "data": mapped_members}
     except HTTPException as err:
         raise err
