@@ -69,7 +69,7 @@ const Cashier_CBU = () => {
   };
 
   const formatCurrency = (value) =>
-    `â‚±${Number(value || 0).toLocaleString(undefined, {
+    `₱${Number(value || 0).toLocaleString(undefined, {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     })}`;
@@ -157,7 +157,8 @@ const Cashier_CBU = () => {
   }, []);
 
   const proceedToDepositPage = (member) => {
-    navigate(`/Cashier_CBU_Deposit/${encodeURIComponent(member.member_id)}`);
+    const memberRef = member?.member_uuid || member?.member_id;
+    navigate(`/Cashier_CBU_Deposit/${encodeURIComponent(memberRef)}`);
   };
 
   return (

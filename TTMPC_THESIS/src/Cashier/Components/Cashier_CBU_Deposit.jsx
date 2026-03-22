@@ -22,7 +22,7 @@ const SHARE_VALUE = 1000;
 const STARTING_CAPITAL = 500;
 
 const formatCurrency = (value) =>
-  `â‚±${Number(value || 0).toLocaleString(undefined, {
+  `₱${Number(value || 0).toLocaleString(undefined, {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })}`;
@@ -358,7 +358,7 @@ const Cashier_CBU_Deposit = () => {
               </div>
               <div className="rounded-lg border border-gray-200 bg-white p-4">
                 <p className="text-[10px] uppercase tracking-wider text-gray-500 font-bold mb-2">Share Rule</p>
-                <p className="text-sm font-bold text-gray-700">â‚±1,000 = 1 Share</p>
+                <p className="text-sm font-bold text-gray-700">₱1,000 = 1 Share</p>
               </div>
             </div>
 

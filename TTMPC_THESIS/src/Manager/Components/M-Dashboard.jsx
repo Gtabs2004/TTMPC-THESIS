@@ -213,7 +213,7 @@ const M_Dashboard = () => {
                 </button>
               </div>
               <div className="h-64">
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={1}>
                   <AreaChart data={trendData} margin={{ top: 10, right: 0, left: 0, bottom: 0 }}>
                     <defs>
                       <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
@@ -234,7 +234,7 @@ const M_Dashboard = () => {
             <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
               <h3 className="text-gray-800 font-bold text-lg mb-4">Loan Distribution</h3>
               <div className="relative h-48 flex justify-center items-center">
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={1}>
                   <PieChart>
                     <Pie
                       data={distributionData}
