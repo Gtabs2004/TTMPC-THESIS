@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '../../supabaseClient';
 import { 
@@ -47,6 +47,7 @@ const LoanApprovalDetails = () => {
   const [remarks, setRemarks] = useState('');
   const [bookkeeperInternalRemarks, setBookkeeperInternalRemarks] = useState('');
   const [coMakerDetails, setCoMakerDetails] = useState(EMPTY_CO_MAKERS);
+  const [coMakerSearch, setCoMakerSearch] = useState(['', '']);
   const [coMakerMemberOptions, setCoMakerMemberOptions] = useState([]);
   const [coMakerMemberLoading, setCoMakerMemberLoading] = useState(false);
   const [sendSms, setSendSms] = useState(true);
@@ -55,7 +56,7 @@ const LoanApprovalDetails = () => {
 
   const formatCurrency = (value) => {
     const amount = Number(value || 0);
-    return `₱${amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    return `\u20B1${amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
 
   const formatStatus = (value) => {
@@ -78,41 +79,60 @@ const LoanApprovalDetails = () => {
     return null;
   };
 
-  useEffect(() => {
-    let isMounted = true;
+  const loadCoMakerMembers = useCallback(async () => {
+    try {
+      setCoMakerMemberLoading(true);
 
-    const loadCoMakerMembers = async () => {
-      try {
-        setCoMakerMemberLoading(true);
+      const dedupeByMembership = (rows) => {
+        const seen = new Set();
+        const normalized = [];
+        for (const row of rows) {
+          const membershipId = String(row.membership_number_id || '').trim();
+          if (!membershipId || seen.has(membershipId)) continue;
+          seen.add(membershipId);
+          normalized.push({
+            membership_number_id: membershipId,
+            name: String(row.name || '').trim(),
+          });
+        }
+        return normalized;
+      };
 
-        const dedupeByMembership = (rows) => {
-          const seen = new Set();
-          const normalized = [];
-          for (const row of rows) {
-            const membershipId = String(row.membership_number_id || '').trim();
-            if (!membershipId || seen.has(membershipId)) continue;
-            seen.add(membershipId);
-            normalized.push({
-              membership_number_id: membershipId,
-              name: String(row.name || '').trim(),
-            });
-          }
-          return normalized;
-        };
+      const { data, error } = await supabase
+        .from('personal_data_sheet')
+        .select('membership_number_id, surname, first_name, middle_name, permanent_address, contact_number, email, tin_number, created_at')
+        .not('membership_number_id', 'is', null)
+        .order('created_at', { ascending: false })
+        .limit(2000);
 
-        const { data, error } = await supabase
-          .from('personal_data_sheet')
-          .select('membership_number_id, surname, first_name, middle_name, permanent_address, contact_number, email, tin_number, created_at')
-          .not('membership_number_id', 'is', null)
-          .order('created_at', { ascending: false })
+      let options = [];
+      if (!error) {
+        options = dedupeByMembership(
+          (data || []).map((row) => ({
+            membership_number_id: row.membership_number_id,
+            name: [row.first_name, row.middle_name, row.surname]
+              .filter(Boolean)
+              .join(' ')
+              .replace(/\s+/g, ' ')
+              .trim(),
+          }))
+        );
+      }
+
+      // Fallback: if personal_data_sheet is blocked by RLS or empty, use member table names.
+      if (!options.length) {
+        const { data: memberRows, error: memberError } = await supabase
+          .from('member')
+          .select('membership_id, first_name, middle_initial, last_name')
+          .not('membership_id', 'is', null)
+          .order('membership_id', { ascending: true })
           .limit(2000);
 
-        let options = [];
-        if (!error) {
+        if (!memberError) {
           options = dedupeByMembership(
-            (data || []).map((row) => ({
-              membership_number_id: row.membership_number_id,
-              name: [row.first_name, row.middle_name, row.surname]
+            (memberRows || []).map((row) => ({
+              membership_number_id: row.membership_id,
+              name: [row.first_name, row.middle_initial, row.last_name]
                 .filter(Boolean)
                 .join(' ')
                 .replace(/\s+/g, ' ')
@@ -120,49 +140,26 @@ const LoanApprovalDetails = () => {
             }))
           );
         }
-
-        // Fallback: if personal_data_sheet is blocked by RLS or empty, use member table names.
-        if (!options.length) {
-          const { data: memberRows, error: memberError } = await supabase
-            .from('member')
-            .select('membership_id, first_name, middle_initial, last_name')
-            .not('membership_id', 'is', null)
-            .order('membership_id', { ascending: true })
-            .limit(2000);
-
-          if (!memberError) {
-            options = dedupeByMembership(
-              (memberRows || []).map((row) => ({
-                membership_number_id: row.membership_id,
-                name: [row.first_name, row.middle_initial, row.last_name]
-                  .filter(Boolean)
-                  .join(' ')
-                  .replace(/\s+/g, ' ')
-                  .trim(),
-              }))
-            );
-          }
-        }
-
-        if (isMounted) {
-          setCoMakerMemberOptions(options);
-        }
-      } catch (_err) {
-        if (isMounted) {
-          setCoMakerMemberOptions([]);
-        }
-      } finally {
-        if (isMounted) {
-          setCoMakerMemberLoading(false);
-        }
       }
-    };
 
-    loadCoMakerMembers();
+      setCoMakerMemberOptions(options);
+    } catch (_err) {
+      setCoMakerMemberOptions([]);
+    } finally {
+      setCoMakerMemberLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+    if (isMounted) {
+      loadCoMakerMembers();
+    }
+
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [loadCoMakerMembers]);
 
   useEffect(() => {
     let isMounted = true;
@@ -357,6 +354,20 @@ const LoanApprovalDetails = () => {
 
   const updateCoMakerField = (index, field, value) => {
     setCoMakerDetails((prev) => prev.map((item, i) => (i === index ? { ...item, [field]: value } : item)));
+  };
+
+  const updateCoMakerSearch = (index, value) => {
+    setCoMakerSearch((prev) => prev.map((item, i) => (i === index ? value : item)));
+  };
+
+  const filteredCoMakerOptions = (index) => {
+    const query = String(coMakerSearch[index] || '').trim().toLowerCase();
+    if (!query) return coMakerMemberOptions;
+    return coMakerMemberOptions.filter((option) => {
+      const name = String(option.name || '').toLowerCase();
+      const membership = String(option.membership_number_id || '').toLowerCase();
+      return name.includes(query) || membership.includes(query);
+    });
   };
 
   const handleCoMakerMemberSelect = async (index, membershipNumberId) => {
@@ -665,6 +676,24 @@ const LoanApprovalDetails = () => {
                         <div key={`co-maker-${index}`} className="border border-gray-200 rounded-lg p-3 bg-white">
                           <p className="text-xs font-bold text-gray-700 mb-2">Co-Maker {index + 1}</p>
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <div className="md:col-span-2 flex gap-2">
+                              <input
+                                type="text"
+                                value={coMakerSearch[index] || ''}
+                                onChange={(e) => updateCoMakerSearch(index, e.target.value)}
+                                placeholder="Search by name, surname, or membership number"
+                                disabled={coMakerMemberLoading}
+                                className="border border-gray-300 rounded px-3 py-2 text-sm flex-1 disabled:bg-gray-100"
+                              />
+                              <button
+                                type="button"
+                                onClick={loadCoMakerMembers}
+                                disabled={coMakerMemberLoading}
+                                className="px-3 py-2 text-xs font-semibold border border-gray-300 rounded bg-white hover:bg-gray-50 disabled:opacity-60"
+                              >
+                                Refresh
+                              </button>
+                            </div>
                             <select
                               value={row.membership_number_id || ''}
                               onChange={(e) => handleCoMakerMemberSelect(index, e.target.value)}
@@ -677,7 +706,7 @@ const LoanApprovalDetails = () => {
                               {!coMakerMemberLoading && coMakerMemberOptions.length === 0 ? (
                                 <option value="" disabled>No members available</option>
                               ) : null}
-                              {coMakerMemberOptions.map((option) => (
+                              {filteredCoMakerOptions(index).map((option) => (
                                 <option key={option.membership_number_id} value={option.membership_number_id}>
                                   {(option.name || 'Unnamed Member')} ({option.membership_number_id})
                                 </option>

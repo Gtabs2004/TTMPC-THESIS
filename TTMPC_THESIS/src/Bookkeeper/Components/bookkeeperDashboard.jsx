@@ -54,11 +54,11 @@ const lineChartData = [
 ];
 
 const recentActivities = [
-  { id: 1, title: "Payment received", name: "Maria Santos", amount: "₱4,500", time: "10 Mins ago", color: "bg-green-500" },
-  { id: 2, title: "Bonus loan disbursed", name: "Juan Dela Cruz", amount: "₱50,000", time: "32 Mins ago", color: "bg-blue-400" },
-  { id: 3, title: "Share capital updated", name: "Rosa Reyes", amount: "₱2,000", time: "1 hour ago", color: "bg-purple-400" },
-  { id: 4, title: "Late payment flagged", name: "Pedro Garcia", amount: "₱3,200", time: "2 hours ago", color: "bg-red-400" },
-  { id: 5, title: "Kiosk application received", name: "Carlos Rivera", amount: "₱20,000", time: "3 hours ago", color: "bg-blue-400" },
+  { id: 1, title: "Payment received", name: "Maria Santos", amount: "\u20B14,500", time: "10 Mins ago", color: "bg-green-500" },
+  { id: 2, title: "Bonus loan disbursed", name: "Juan Dela Cruz", amount: "\u20B150,000", time: "32 Mins ago", color: "bg-blue-400" },
+  { id: 3, title: "Share capital updated", name: "Rosa Reyes", amount: "\u20B12,000", time: "1 hour ago", color: "bg-purple-400" },
+  { id: 4, title: "Late payment flagged", name: "Pedro Garcia", amount: "\u20B13,200", time: "2 hours ago", color: "bg-red-400" },
+  { id: 5, title: "Kiosk application received", name: "Carlos Rivera", amount: "\u20B120,000", time: "3 hours ago", color: "bg-blue-400" },
 ];
 
 const Dashboard = () => {
@@ -71,6 +71,7 @@ const Dashboard = () => {
     { name: "Loan Approval", icon: FileText },
     { name: "Manage Loans", icon: CreditCard },
     { name: "Payments", icon: CreditCard },
+    { name: "Savings Transactions", icon: CreditCard },
     { name: "Accounting", icon: Calculator },
     { name: "MIGS Scoring", icon: Activity },
     { name: "Reports", icon: BarChart3 },
@@ -87,32 +88,6 @@ const Dashboard = () => {
     }
   };
 
-  // KPI Card Component
-  const KPICard = ({ icon: Icon, label, value, trend, trendValue, trendComparison }) => (
-    <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100 flex flex-col justify-between">
-      <div className="flex justify-between items-start">
-        <span className="text-gray-500 text-sm font-medium">{label}</span>
-        <div className="p-2 bg-green-50 text-green-500 rounded-lg">
-          <Icon size={18} />
-        </div>
-      </div>
-      <div className="mt-4">
-        <h3 className="text-3xl font-bold text-gray-800">{value}</h3>
-        <div className="flex items-center mt-2 text-xs">
-          {trend === "up" ? (
-            <TrendingUp size={14} className="text-green-500 mr-1" />
-          ) : (
-            <TrendingDown size={14} className="text-red-500 mr-1" />
-          )}
-          <span className={`${trend === "up" ? "text-green-500" : "text-red-500"} font-medium`}>
-            {trendValue}
-          </span>
-          <span className="text-gray-400 ml-1">{trendComparison}</span>
-        </div>
-      </div>
-    </div>
-  );
-
   return (
     <div className="flex min-h-screen bg-gray-50">
       {/* SIDEBAR */}
@@ -128,26 +103,42 @@ const Dashboard = () => {
         <hr className="w-full border-gray-200 mb-6" />
 
         <nav className="flex flex-col gap-2 text-sm flex-grow">
-          {menuItems.map((item) => {
-            const Icon = item.icon;
-            const to = `/${item.name.toLowerCase().replace(/\s+/g, "-")}`;
-            return (
-              <NavLink
-                key={item.name}
-                to={to}
-                className={({ isActive }) =>
-                  `flex items-center gap-3 p-2 rounded-md transition-colors ${
-                    isActive
-                      ? "bg-green-50 text-green-700 font-semibold"
-                      : "text-gray-700 hover:bg-green-50 hover:text-green-700"
-                  }`
-                }
-              >
-                <Icon size={20} />
-                <span>{item.name}</span>
-              </NavLink>
-            );
-          })}
+          {(() => {
+            const routeMap = {
+              Dashboard: "/dashboard",
+              "Manage Member": "/manage-member",
+              "Loan Approval": "/bookkeeper-loan-approval",
+              "Manage Loans": "/manage-loans",
+              Payments: "/payments",
+              "Savings Transactions": "/bookkeeper-savings-transactions",
+              Accounting: "/accounting",
+              MIGS: "/migs",
+              Reports: "/reports",
+              "Audit Trail": "/audit-trail",
+            };
+
+            return menuItems.map((item) => {
+              const Icon = item.icon;
+              const to = routeMap[item.name] || `/${item.name.toLowerCase().replace(/\s+/g, "-")}`;
+
+              return (
+                <NavLink
+                  key={item.name}
+                  to={to}
+                  className={({ isActive }) =>
+                    `flex items-center gap-3 p-2 rounded-md transition-colors ${
+                      isActive
+                        ? "bg-green-50 text-green-700 font-semibold"
+                        : "text-gray-700 hover:bg-green-50 hover:text-green-700"
+                    }`
+                  }
+                >
+                  <Icon size={20} />
+                  <span>{item.name}</span>
+                </NavLink>
+              );
+            });
+          })()}
         </nav>
 
         <button
@@ -181,21 +172,82 @@ const Dashboard = () => {
           <PortalTopbarIdentity className="text-sm font-medium text-gray-700" fallbackRole="Bookkeeper" />
         </header>
 
+        
         <main className="p-8">
           
           {/* Top KPI Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
-            {/* Card 1 - Active Loans */}
-            <KPICard icon={Users} label="Active Loans" value="142" trend="up" trendValue="+12" trendComparison="vs last month" />
+            {/* Card 1 */}
+            <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100 flex flex-col justify-between">
+              <div className="flex justify-between items-start">
+                <span className="text-gray-500 text-sm font-medium">Active Loans</span>
+                <div className="p-2 bg-green-50 text-green-500 rounded-lg">
+                  <Users size={18} />
+                </div>
+              </div>
+              <div className="mt-4">
+                <h3 className="text-3xl font-bold text-gray-800">142</h3>
+                <div className="flex items-center mt-2 text-xs">
+                  <TrendingUp size={14} className="text-green-500 mr-1" />
+                  <span className="text-green-500 font-medium">+8</span>
+                  <span className="text-gray-400 ml-1">vs last month</span>
+                </div>
+              </div>
+            </div>
 
-            {/* Card 2 - Collections Today */}
-            <KPICard icon={Calendar} label="Collections Today" value="₱48,750" trend="up" trendValue="+8.2%" trendComparison="vs last month" />
+            {/* Card 2 */}
+            <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100 flex flex-col justify-between">
+              <div className="flex justify-between items-start">
+                <span className="text-gray-500 text-sm font-medium">Collections Today</span>
+                <div className="p-2 bg-blue-50 text-blue-500 rounded-lg">
+                  <Calendar size={18} />
+                </div>
+              </div>
+              <div className="mt-4">
+                <h3 className="text-3xl font-bold text-gray-800">{"\u20B1"}48,750</h3>
+                <div className="flex items-center mt-2 text-xs">
+                  <TrendingUp size={14} className="text-green-500 mr-1" />
+                  <span className="text-green-500 font-medium">+15.2%</span>
+                  <span className="text-gray-400 ml-1">vs last month</span>
+                </div>
+              </div>
+            </div>
 
-            {/* Card 3 - Delinquent Accounts */}
-            <KPICard icon={AlertTriangle} label="Delinquent Accounts" value="18" trend="down" trendValue="-3" trendComparison="vs last month" />
+            {/* Card 3 */}
+            <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100 flex flex-col justify-between">
+              <div className="flex justify-between items-start">
+                <span className="text-gray-500 text-sm font-medium">Delinquent Accounts</span>
+                <div className="p-2 bg-red-50 text-red-500 rounded-lg">
+                  <AlertTriangle size={18} />
+                </div>
+              </div>
+              <div className="mt-4">
+                <h3 className="text-3xl font-bold text-gray-800">3</h3>
+                <div className="flex items-center mt-2 text-xs">
+                  <TrendingDown size={14} className="text-red-500 mr-1" />
+                  <span className="text-red-500 font-medium">-2</span>
+                  <span className="text-gray-400 ml-1">vs last month</span>
+                </div>
+              </div>
+            </div>
 
-            {/* Card 4 - Total Share Capital */}
-            <KPICard icon={PiggyBank} label="Total Share Capital" value="₱2.5M" trend="up" trendValue="+₱150k" trendComparison="vs last month" />
+            {/* Card 4 */}
+            <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100 flex flex-col justify-between">
+              <div className="flex justify-between items-start">
+                <span className="text-gray-500 text-sm font-medium">Total Share Capital</span>
+                <div className="p-2 bg-purple-50 text-purple-500 rounded-lg">
+                  <PiggyBank size={18} />
+                </div>
+              </div>
+              <div className="mt-4">
+                <h3 className="text-3xl font-bold text-gray-800">{"\u20B1"}2.85M</h3>
+                <div className="flex items-center mt-2 text-xs">
+                  <TrendingUp size={14} className="text-green-500 mr-1" />
+                  <span className="text-green-500 font-medium">+{"\u20B1"}45,000</span>
+                  <span className="text-gray-400 ml-1">vs last month</span>
+                </div>
+              </div>
+            </div>
           </div>
 
           {/* Middle Charts Section */}
@@ -216,7 +268,7 @@ const Dashboard = () => {
                   <BarChart data={barChartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
                     <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: "#9ca3af", fontSize: 12 }} dy={10} />
-                    <YAxis axisLine={false} tickLine={false} tick={{ fill: "#9ca3af", fontSize: 12 }} tickFormatter={(val) => `₱${val / 1000}k`} />
+                    <YAxis axisLine={false} tickLine={false} tick={{ fill: "#9ca3af", fontSize: 12 }} tickFormatter={(val) => `\u20B1${val / 1000}k`} />
                     <Bar dataKey="value" fill="#10b981" radius={[4, 4, 0, 0]} barSize={28} />
                   </BarChart>
                 </ResponsiveContainer>
