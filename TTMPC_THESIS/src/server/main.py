@@ -306,7 +306,18 @@ def resolve_member_by_ref(member_ref: str) -> dict | None:
             .limit(1)
             .execute()
         )
-        return (by_membership_response.data or [None])[0]
+        by_membership_row = (by_membership_response.data or [None])[0]
+        if by_membership_row:
+            return by_membership_row
+
+        by_membership_ilike_response = (
+            supabase.table("member")
+            .select("*")
+            .ilike("membership_id", clean_ref)
+            .limit(1)
+            .execute()
+        )
+        return (by_membership_ilike_response.data or [None])[0]
     except Exception:
         return None
 
