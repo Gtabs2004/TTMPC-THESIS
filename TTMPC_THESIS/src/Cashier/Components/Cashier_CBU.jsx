@@ -69,7 +69,7 @@ const Cashier_CBU = () => {
   };
 
   const formatCurrency = (value) =>
-    `â‚±${Number(value || 0).toLocaleString(undefined, {
+    `₱${Number(value || 0).toLocaleString(undefined, {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     })}`;
