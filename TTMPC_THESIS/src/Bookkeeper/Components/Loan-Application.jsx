@@ -56,6 +56,7 @@ const menuItems = [
             <p className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold">
               Bookkeeper Portal
             </p>
+             <PortalSidebarIdentity className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold" fallbackPortal="Bookkeeper Portal" fallbackRole="Bookkeeper" />
           </div>
         </div>
 
