@@ -65,6 +65,7 @@ import Cashier_Payments from "./Cashier/Components/Cashier_Payments";
 import Cashier_Disbursement from "./Cashier/Components/Cashier_Disbursement";
 import Manage_Member from "./Bookkeeper/Components/Manage-Member";
 import Manager_Manage_Member from "./Manager/Components/Manage-Member";
+import Savings_Forms from "./LOANFORMS/Savings_Forms";
 
 
 
@@ -144,6 +145,7 @@ export const router = createBrowserRouter([
     {path: "/cashier-withdrawals", element:<Cashier_Withdrawals/>},
     {path: "/payments-cashier", element:<Cashier_Payments/>},
     {path: "/cashier-payments", element:<Cashier_Payments/>},
-    {path: "/cashier-disbursement", element:<Cashier_Disbursement/>}
+    {path: "/cashier-disbursement", element:<Cashier_Disbursement/>},
+    {path: "/savings_forms", element:<Savings_Forms/>}
     
 ]);
