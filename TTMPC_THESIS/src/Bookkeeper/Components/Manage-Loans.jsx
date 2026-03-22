@@ -351,27 +351,25 @@ const ManageLoans = () => {
             )}
           </div>
 
-          <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-sm">
-            <table className="min-w-full text-sm">
-              <thead className="bg-gray-50 text-gray-700">
+          <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-lg">
+            <table className="min-w-full">
+              <thead className="bg-gradient-to-r from-green-50 to-emerald-50 border-b border-gray-200">
                 <tr>
-                  <th className="px-4 py-3 text-left font-semibold">Loan ID</th>
-                  <th className="px-4 py-3 text-left font-semibold">Member Name</th>
-                  <th className="px-4 py-3 text-left font-semibold">Loan Type</th>
-                  <th className="px-4 py-3 text-left font-semibold">Loan Amount</th>
-                  <th className="px-4 py-3 text-left font-semibold">Interest</th>
-                  <th className="px-4 py-3 text-left font-semibold">Term</th>
-                  <th className="px-4 py-3 text-left font-semibold">Amortization</th>
-                  <th className="px-4 py-3 text-left font-semibold">Remaining Balance</th>
-                  <th className="px-4 py-3 text-left font-semibold">Due Date</th>
-                  <th className="px-4 py-3 text-left font-semibold">Status</th>
-                  <th className="px-4 py-3 text-left font-semibold">Ledger</th>
+                  <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Loan ID</th>
+                  <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Member Name</th>
+                  <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Loan Type</th>
+                  <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Loan Amount</th>
+                  <th className="px-6 py-4 text-right text-xs font-bold text-gray-700 uppercase tracking-wider">Interest</th>
+                  <th className="px-6 py-4 text-right text-xs font-bold text-gray-700 uppercase tracking-wider">Amortization</th>
+                  <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Remaining Balance</th>
+                  <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Due Date</th>
+                  <th className="px-6 py-4 text-center text-xs font-bold text-gray-700 uppercase tracking-wider">Action</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="divide-y divide-gray-100">
                 {filteredLoans.length === 0 && (
                   <tr>
-                    <td colSpan={11} className="px-4 py-8 text-center text-gray-500">
+                    <td colSpan={9} className="px-6 py-12 text-center text-gray-500 font-medium">
                       No loans found.
                     </td>
                   </tr>
@@ -379,32 +377,26 @@ const ManageLoans = () => {
 
                 {filteredLoans.map((loan) => {
                   return (
-                    <tr key={loan.loan_id} className="border-t border-gray-100">
-                      <td className="px-4 py-3 text-xs text-gray-600">{loan.loan_id}</td>
-                      <td className="px-4 py-3 text-gray-800 font-medium">{loan.member_name}</td>
-                      <td className="px-4 py-3">
-                        <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${getLoanTypeStyle(loan.loan_type_code)}`}>
+                    <tr key={loan.loan_id}>
+                      <td className="px-6 py-4 text-sm font-mono text-gray-600">{loan.loan_id}</td>
+                      <td className="px-6 py-4 text-sm text-gray-800 font-semibold">{loan.member_name}</td>
+                      <td className="px-6 py-4">
+                        <span className={`inline-flex rounded-full px-3 py-1.5 text-xs font-semibold ${getLoanTypeStyle(loan.loan_type_code)}`}>
                           {loan.loan_type}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-gray-700">{formatCurrency(loan.loan_amount)}</td>
-                      <td className="px-4 py-3 text-gray-700">{loan.interest_rate}%</td>
-                      <td className="px-4 py-3 text-gray-700">{loan.term_months} months</td>
-                      <td className="px-4 py-3 text-gray-700">{formatCurrency(loan.amortization)}</td>
-                      <td className="px-4 py-3 text-gray-700">{formatCurrency(loan.remaining_balance)}</td>
-                      <td className="px-4 py-3 text-gray-700">{loan.due_date}</td>
-                      <td className="px-4 py-3">
-                        <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${getStatusStyle(loan.status)}`}>
-                          {loan.status}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3">
+                      <td className="px-6 py-4 text-sm text-gray-700 text-right font-medium">{formatCurrency(loan.loan_amount)}</td>
+                      <td className="px-6 py-4 text-sm text-gray-700 text-right font-medium">{loan.interest_rate}%</td>
+                      <td className="px-6 py-4 text-sm text-gray-700 text-right font-medium">{formatCurrency(loan.amortization)}</td>
+                      <td className="px-6 py-4 text-sm text-gray-700 text-right font-semibold">{formatCurrency(loan.remaining_balance)}</td>
+                      <td className="px-6 py-4 text-sm text-gray-700">{loan.due_date}</td>
+                      <td className="px-6 py-4 text-center">
                         <button
                           type="button"
                           onClick={() => navigate(`/bookkeeper-loan-ledger/${loan.loan_id}`, { state: { loan } })}
-                          className="inline-flex items-center gap-1 rounded-md border border-gray-300 px-3 py-2 text-xs text-gray-700 hover:bg-gray-50"
+                          className="inline-flex items-center gap-1.5 rounded-lg bg-green-50 px-4 py-2 text-xs font-semibold text-green-700 border border-green-200 hover:bg-green-100 hover:border-green-300 hover:text-green-800 transition-all duration-150"
                         >
-                          <Eye size={14} /> View Ledger
+                          <Eye size={14} /> View
                         </button>
                       </td>
                     </tr>

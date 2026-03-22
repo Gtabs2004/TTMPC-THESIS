@@ -299,40 +299,36 @@ const Cashier_CBU = () => {
               />
             </div>
 
-            <div className="overflow-x-auto rounded-xl border border-gray-200">
-              <table className="w-full text-left border-collapse">
+            <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-lg">
+              <table className="w-full">
                 <thead>
-                  <tr className="border-b border-gray-100 bg-white text-[10px] uppercase font-bold text-gray-400 tracking-wider">
-                    <th className="px-4 py-3">Member ID</th>
-                    <th className="px-4 py-3">Member Name</th>
-                    <th className="px-4 py-3">Current Balance</th>
-                    <th className="px-4 py-3">Starting Point</th>
-                    <th className="px-4 py-3">Current Shares</th>
-                    <th className="px-4 py-3">Action</th>
+                  <tr className="border-b border-gray-200 bg-gradient-to-r from-green-50 to-emerald-50">
+                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Member ID</th>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Member Name</th>
+                    <th className="px-6 py-4 text-center text-xs font-bold text-gray-700 uppercase tracking-wider">Current Balance</th>
+                    <th className="px-6 py-4 text-center text-xs font-bold text-gray-700 uppercase tracking-wider">Action</th>
                   </tr>
-                </thead>
-                <tbody className="text-sm text-gray-700 divide-y divide-gray-50">
+                </thead>  
+                <tbody className="divide-y divide-gray-100">
                   {filteredMembers.length === 0 && (
                     <tr>
-                      <td colSpan={6} className="px-4 py-6 text-center text-gray-500">No member accounts matched your search.</td>
+                      <td colSpan={4} className="px-6 py-12 text-center text-gray-500 font-medium">No member accounts matched your search.</td>
                     </tr>
                   )}
                   {paginatedMembers.map((member) => {
                     const currentBal = Number(member.current_balance || 0);
                     return (
-                      <tr key={member.member_uuid || member.member_id} className="hover:bg-gray-50 transition-colors bg-white">
-                        <td className="px-4 py-3 font-mono text-xs text-gray-700">{member.member_id}</td>
-                        <td className="px-4 py-3 font-semibold text-gray-900">{member.member_name}</td>
-                        <td className="px-4 py-3 font-semibold text-gray-700">{formatCurrency(currentBal)}</td>
-                        <td className="px-4 py-3 text-gray-600">{member.is_new_member ? `${formatCurrency(member.starting_capital)} (New Member)` : "Existing Capital"}</td>
-                        <td className="px-4 py-3 text-gray-700">{Number(member.current_shares || 0).toFixed(2)} shares</td>
-                        <td className="px-4 py-3">
+                      <tr key={member.member_uuid || member.member_id}>
+                        <td className="px-6 py-4 text-sm font-mono text-gray-600">{member.member_id}</td>
+                        <td className="px-6 py-4 text-sm font-semibold text-gray-900">{member.member_name}</td>
+                        <td className="px-6 py-4 text-sm font-semibold text-gray-700 text-center">{formatCurrency(currentBal)}</td>
+                        <td className="px-6 py-4 text-center">
                           <button
                             type="button"
                             onClick={() => proceedToDepositPage(member)}
-                            className="inline-flex items-center gap-2 rounded-lg bg-[#389734] px-3 py-2 text-xs font-bold text-white hover:bg-green-700"
+                            className="inline-flex items-center gap-2 rounded-lg bg-green-50 px-4 py-2 text-xs font-bold text-green-700 border border-green-200 hover:bg-green-100 hover:border-green-300 hover:text-green-800 transition-all duration-150"
                           >
-                            <ArrowRightCircle className="w-4 h-4" /> Proceed to Deposit
+                            <ArrowRightCircle className="w-4 h-4" /> Deposit
                           </button>
                         </td>
                       </tr>
