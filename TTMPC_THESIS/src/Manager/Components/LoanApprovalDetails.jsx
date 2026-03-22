@@ -25,6 +25,11 @@ const CustomCheckbox = ({ checked, onChange, label }) => (
   </label>
 );
 
+const EMPTY_CO_MAKERS = [
+  { membership_number_id: '', name: '', id_no: '', address: '', mobile: '', email: '' },
+  { membership_number_id: '', name: '', id_no: '', address: '', mobile: '', email: '' },
+];
+
 const LoanApprovalDetails = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -41,6 +46,9 @@ const LoanApprovalDetails = () => {
   const [activeModal, setActiveModal] = useState(null);
   const [remarks, setRemarks] = useState('');
   const [bookkeeperInternalRemarks, setBookkeeperInternalRemarks] = useState('');
+  const [coMakerDetails, setCoMakerDetails] = useState(EMPTY_CO_MAKERS);
+  const [coMakerMemberOptions, setCoMakerMemberOptions] = useState([]);
+  const [coMakerMemberLoading, setCoMakerMemberLoading] = useState(false);
   const [sendSms, setSendSms] = useState(true);
   const [sendEmail, setSendEmail] = useState(true);
   const [loanDetails, setLoanDetails] = useState(null);
@@ -69,6 +77,92 @@ const LoanApprovalDetails = () => {
     if (label.includes('consolidated') || code === 'CONSOLIDATED') return 0.083;
     return null;
   };
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadCoMakerMembers = async () => {
+      try {
+        setCoMakerMemberLoading(true);
+
+        const dedupeByMembership = (rows) => {
+          const seen = new Set();
+          const normalized = [];
+          for (const row of rows) {
+            const membershipId = String(row.membership_number_id || '').trim();
+            if (!membershipId || seen.has(membershipId)) continue;
+            seen.add(membershipId);
+            normalized.push({
+              membership_number_id: membershipId,
+              name: String(row.name || '').trim(),
+            });
+          }
+          return normalized;
+        };
+
+        const { data, error } = await supabase
+          .from('personal_data_sheet')
+          .select('membership_number_id, surname, first_name, middle_name, permanent_address, contact_number, email, tin_number, created_at')
+          .not('membership_number_id', 'is', null)
+          .order('created_at', { ascending: false })
+          .limit(2000);
+
+        let options = [];
+        if (!error) {
+          options = dedupeByMembership(
+            (data || []).map((row) => ({
+              membership_number_id: row.membership_number_id,
+              name: [row.first_name, row.middle_name, row.surname]
+                .filter(Boolean)
+                .join(' ')
+                .replace(/\s+/g, ' ')
+                .trim(),
+            }))
+          );
+        }
+
+        // Fallback: if personal_data_sheet is blocked by RLS or empty, use member table names.
+        if (!options.length) {
+          const { data: memberRows, error: memberError } = await supabase
+            .from('member')
+            .select('membership_id, first_name, middle_initial, last_name')
+            .not('membership_id', 'is', null)
+            .order('membership_id', { ascending: true })
+            .limit(2000);
+
+          if (!memberError) {
+            options = dedupeByMembership(
+              (memberRows || []).map((row) => ({
+                membership_number_id: row.membership_id,
+                name: [row.first_name, row.middle_initial, row.last_name]
+                  .filter(Boolean)
+                  .join(' ')
+                  .replace(/\s+/g, ' ')
+                  .trim(),
+              }))
+            );
+          }
+        }
+
+        if (isMounted) {
+          setCoMakerMemberOptions(options);
+        }
+      } catch (_err) {
+        if (isMounted) {
+          setCoMakerMemberOptions([]);
+        }
+      } finally {
+        if (isMounted) {
+          setCoMakerMemberLoading(false);
+        }
+      }
+    };
+
+    loadCoMakerMembers();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -128,6 +222,7 @@ const LoanApprovalDetails = () => {
               bookkeeper_internal_remarks,
               bookkeeper_reviewed_at,
               manager_review_requested_at,
+              raw_payload,
               loan_purpose,
               source_of_income,
               member:member_id (
@@ -183,9 +278,25 @@ const LoanApprovalDetails = () => {
           ? monthlyAmortization * termMonths
           : principalAmount + resolvedTotalInterest;
 
+        const rawCoMakers = data.raw_payload?.optionalFields?.bookkeeper_loan_details?.coMakers
+          ?? data.raw_payload?.coMakers
+          ?? [];
+        const normalizedCoMakers = [0, 1].map((index) => {
+          const row = rawCoMakers[index] || {};
+          return {
+            membership_number_id: row.membership_number_id || '',
+            name: row.name || '',
+            id_no: row.id_no || '',
+            address: row.address || '',
+            mobile: row.mobile || row.contact_no || '',
+            email: row.email || '',
+          };
+        });
+
         const mapped = {
           id: data.control_number,
           sourceTable: tableName,
+          rawPayload: data.raw_payload || {},
           memberName,
           status: formatStatus(data.loan_status || data.application_status),
           summary: {
@@ -196,6 +307,7 @@ const LoanApprovalDetails = () => {
             loanPurpose: data.loan_purpose || data.raw_payload?.optionalFields?.loan_purpose || 'N/A',
             employerPosition: data.source_of_income || data.raw_payload?.optionalFields?.source_of_income || 'N/A',
             bookkeeperInternalRemarks: data.bookkeeper_internal_remarks || 'No internal remarks submitted.',
+            bookkeeperCoMakers: normalizedCoMakers,
             bookkeeperReviewedAt: data.bookkeeper_reviewed_at || null,
             managerReviewRequestedAt: data.manager_review_requested_at || null,
           },
@@ -215,6 +327,7 @@ const LoanApprovalDetails = () => {
 
         if (isMounted) {
           setLoanDetails(mapped);
+          setCoMakerDetails(normalizedCoMakers);
         }
       } catch (err) {
         if (isMounted) {
@@ -242,6 +355,69 @@ const LoanApprovalDetails = () => {
     setSendEmail(true);
   };
 
+  const updateCoMakerField = (index, field, value) => {
+    setCoMakerDetails((prev) => prev.map((item, i) => (i === index ? { ...item, [field]: value } : item)));
+  };
+
+  const handleCoMakerMemberSelect = async (index, membershipNumberId) => {
+    const selected = coMakerMemberOptions.find((item) => item.membership_number_id === membershipNumberId);
+
+    setCoMakerDetails((prev) => prev.map((item, i) => {
+      if (i !== index) return item;
+      if (!selected) return { ...item, membership_number_id: '' };
+
+      return {
+        ...item,
+        membership_number_id: selected.membership_number_id,
+        name: selected.name || '',
+        id_no: '',
+        address: '',
+        mobile: '',
+        email: '',
+      };
+    }));
+
+    if (!membershipNumberId) {
+      return;
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('personal_data_sheet')
+        .select('surname, first_name, middle_name, tin_number, contact_number, email, permanent_address, created_at')
+        .eq('membership_number_id', membershipNumberId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (error || !data) {
+        return;
+      }
+
+      const fullName = [data.first_name, data.middle_name, data.surname]
+        .filter(Boolean)
+        .join(' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+      const tinValue = String(data.tin_number || '').trim();
+
+      setCoMakerDetails((prev) => prev.map((item, i) => {
+        if (i !== index) return item;
+        return {
+          ...item,
+          membership_number_id: membershipNumberId,
+          name: fullName || item.name,
+          id_no: tinValue ? `TIN-${tinValue}` : item.id_no,
+          address: String(data.permanent_address || '').trim() || item.address,
+          mobile: data.contact_number ? String(data.contact_number).trim() : item.mobile,
+          email: String(data.email || '').trim() || item.email,
+        };
+      }));
+    } catch (_err) {
+      // Keep the selected option values when deep fetch fails.
+    }
+  };
+
   const applyLoanStatusUpdate = async (modalType) => {
     if (!loanDetails?.id) return;
 
@@ -253,6 +429,15 @@ const LoanApprovalDetails = () => {
     if (isBookkeeperFlow && modalType === 'recommend') {
       if (!bookkeeperInternalRemarks.trim()) {
         setActionError('Please enter internal remarks before sending to Manager.');
+        return;
+      }
+
+      const hasAtLeastOneCoMaker = coMakerDetails.some((row) => (
+        String(row.membership_number_id || '').trim().length > 0
+        || String(row.name || '').trim().length > 0
+      ));
+      if (!hasAtLeastOneCoMaker) {
+        setActionError('Please enter at least one co-maker under Bookkeeper Internal Review.');
         return;
       }
     }
@@ -268,16 +453,45 @@ const LoanApprovalDetails = () => {
 
       const updatePayload = { loan_status: nextStatus, application_status: nextStatus };
       if (isBookkeeperFlow && modalType === 'recommend') {
+        const normalizedCoMakers = coMakerDetails
+          .map((row) => ({
+            membership_number_id: String(row.membership_number_id || '').trim() || null,
+            name: String(row.name || '').trim() || null,
+            id_no: String(row.id_no || '').trim() || null,
+            address: String(row.address || '').trim() || null,
+            mobile: String(row.mobile || '').trim() || null,
+            email: String(row.email || '').trim().toLowerCase() || null,
+            liability_status: 'active',
+          }))
+          .filter((row) => row.membership_number_id || row.name || row.id_no || row.address || row.mobile || row.email);
+
+        const existingRawPayload = loanDetails.rawPayload && typeof loanDetails.rawPayload === 'object'
+          ? loanDetails.rawPayload
+          : {};
+        const existingOptionalFields = existingRawPayload.optionalFields && typeof existingRawPayload.optionalFields === 'object'
+          ? existingRawPayload.optionalFields
+          : {};
+
         updatePayload.bookkeeper_internal_remarks = bookkeeperInternalRemarks.trim();
         updatePayload.bookkeeper_reviewed_at = new Date().toISOString();
         updatePayload.manager_review_requested_at = new Date().toISOString();
+        updatePayload.raw_payload = {
+          ...existingRawPayload,
+          optionalFields: {
+            ...existingOptionalFields,
+            bookkeeper_loan_details: {
+              ...(existingOptionalFields.bookkeeper_loan_details || {}),
+              coMakers: normalizedCoMakers,
+            },
+          },
+        };
       }
 
       const { data: updatedRows, error } = await supabase
         .from(loanDetails.sourceTable || 'loans')
         .update(updatePayload)
         .eq('control_number', loanDetails.id)
-        .select('control_number, loan_status, bookkeeper_internal_remarks, bookkeeper_reviewed_at, manager_review_requested_at')
+        .select('control_number, loan_status, bookkeeper_internal_remarks, bookkeeper_reviewed_at, manager_review_requested_at, raw_payload')
         .limit(1);
 
       if (error) {
@@ -293,9 +507,11 @@ const LoanApprovalDetails = () => {
       setLoanDetails((prev) => prev ? {
         ...prev,
         status: formatStatus(nextStatus),
+        rawPayload: updatedRow.raw_payload || prev.rawPayload,
         summary: {
           ...prev.summary,
           bookkeeperInternalRemarks: updatedRow.bookkeeper_internal_remarks || prev.summary.bookkeeperInternalRemarks,
+          bookkeeperCoMakers: coMakerDetails,
           bookkeeperReviewedAt: updatedRow.bookkeeper_reviewed_at || prev.summary.bookkeeperReviewedAt,
           managerReviewRequestedAt: updatedRow.manager_review_requested_at || prev.summary.managerReviewRequestedAt,
         },
@@ -438,6 +654,80 @@ const LoanApprovalDetails = () => {
                 <div>
                   <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Internal Remarks</p>
                   <p className="text-sm text-gray-700 whitespace-pre-wrap">{loanDetails.summary.bookkeeperInternalRemarks}</p>
+                </div>
+
+                <div className="border-t border-gray-200 pt-3">
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-3">Co-Makers (Loan Details)</p>
+                  <div className="space-y-4">
+                    {[0, 1].map((index) => {
+                      const row = coMakerDetails[index] || EMPTY_CO_MAKERS[index];
+                      return (
+                        <div key={`co-maker-${index}`} className="border border-gray-200 rounded-lg p-3 bg-white">
+                          <p className="text-xs font-bold text-gray-700 mb-2">Co-Maker {index + 1}</p>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <select
+                              value={row.membership_number_id || ''}
+                              onChange={(e) => handleCoMakerMemberSelect(index, e.target.value)}
+                              disabled={!isBookkeeperFlow || coMakerMemberLoading}
+                              className="border border-gray-300 rounded px-3 py-2 text-sm md:col-span-2 disabled:bg-gray-100"
+                            >
+                              <option value="">
+                                {coMakerMemberLoading ? 'Loading members...' : 'Select Member (from Personal Data Sheet)'}
+                              </option>
+                              {!coMakerMemberLoading && coMakerMemberOptions.length === 0 ? (
+                                <option value="" disabled>No members available</option>
+                              ) : null}
+                              {coMakerMemberOptions.map((option) => (
+                                <option key={option.membership_number_id} value={option.membership_number_id}>
+                                  {(option.name || 'Unnamed Member')} ({option.membership_number_id})
+                                </option>
+                              ))}
+                            </select>
+                            <input
+                              type="text"
+                              value={row.name}
+                              onChange={(e) => updateCoMakerField(index, 'name', e.target.value)}
+                              placeholder="Full name"
+                              disabled={!isBookkeeperFlow}
+                              className="border border-gray-300 rounded px-3 py-2 text-sm disabled:bg-gray-100"
+                            />
+                            <input
+                              type="text"
+                              value={row.id_no}
+                              onChange={(e) => updateCoMakerField(index, 'id_no', e.target.value)}
+                              placeholder="ID number"
+                              disabled={!isBookkeeperFlow}
+                              className="border border-gray-300 rounded px-3 py-2 text-sm disabled:bg-gray-100"
+                            />
+                            <input
+                              type="text"
+                              value={row.mobile}
+                              onChange={(e) => updateCoMakerField(index, 'mobile', e.target.value)}
+                              placeholder="Mobile number"
+                              disabled={!isBookkeeperFlow}
+                              className="border border-gray-300 rounded px-3 py-2 text-sm disabled:bg-gray-100"
+                            />
+                            <input
+                              type="email"
+                              value={row.email}
+                              onChange={(e) => updateCoMakerField(index, 'email', e.target.value)}
+                              placeholder="Email"
+                              disabled={!isBookkeeperFlow}
+                              className="border border-gray-300 rounded px-3 py-2 text-sm disabled:bg-gray-100"
+                            />
+                            <input
+                              type="text"
+                              value={row.address}
+                              onChange={(e) => updateCoMakerField(index, 'address', e.target.value)}
+                              placeholder="Address"
+                              disabled={!isBookkeeperFlow}
+                              className="border border-gray-300 rounded px-3 py-2 text-sm md:col-span-2 disabled:bg-gray-100"
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
             </div>
@@ -629,6 +919,9 @@ const LoanApprovalDetails = () => {
                     onChange={(e) => setBookkeeperInternalRemarks(e.target.value)}
                   ></textarea>
                 </div>
+                <p className="text-xs text-gray-500 mb-4">
+                  Co-maker details are encoded under Bookkeeper Internal Review and will be forwarded to Manager with this recommendation.
+                </p>
               </>
             )}
 

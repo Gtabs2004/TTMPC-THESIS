@@ -56,6 +56,14 @@ const numberToWords = (num) => {
 
   return words.trim().replace(/\s+/g, ' ');
 };
+
+const CONSOLIDATED_LOAN_AMOUNT_OPTIONS = Array.from(
+  { length: ((470000 - 10000) / 5000) + 1 },
+  (_, index) => String(10000 + (index * 5000))
+);
+
+const formatLoanAmountOption = (amount) => Number(amount).toLocaleString('en-PH');
+
 function Consolidated_Loan() {
 
   const inputStyles = "border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-[#66B538] outline-none w-full bg-white text-sm transition-all";
@@ -93,33 +101,31 @@ function Consolidated_Loan() {
     monthly_amortization: '',
     total_interest: '',
     source_of_income: '',
-    payment_start_date: '',
     user_email: '',
     borrower_id_type: '',
     borrower_id_number: '',
-    cm_oath_borrower: '',
-    cm_oath_amount_words: '',
-    cm_oath_amount_numeric: '',
-    cm1_name: '', 
-    cm1_id_type: '',
-    cm1_id_no: '',
-    cm1_address: '',
-    cm1_email: '',
-    cm1_mobile: '',
-    cm2_name: '',
-    cm2_id_type: '',
-    cm2_id_no: '',
-    cm2_address: '',
-    cm2_email: '',
-    cm2_mobile: '',
   });
 
   // 2. HANDLER: Update State
   const handleChange = (e) => {
     const { name, value } = e.target;
     const normalizedValue = name === 'tin_no' ? formatTinNumber(value) : value;
-    setFormData(prev => ({ ...prev, [name]: normalizedValue }));
+    setFormData((prev) => {
+      if (name === 'civil_status' && String(value || '').trim().toLowerCase() !== 'married') {
+        return {
+          ...prev,
+          civil_status: value,
+          spouse_name: '',
+          spouse_occupation: '',
+        };
+      }
+
+      return { ...prev, [name]: normalizedValue };
+    });
   };
+
+  const isMarriedCivilStatus = String(formData.civil_status || '').trim().toLowerCase() === 'married';
+  const hasComputedAmortization = Number(formData.monthly_amortization || 0) > 0;
 
   useEffect(() => {
     let isMounted = true;
@@ -134,7 +140,11 @@ function Consolidated_Loan() {
           return;
         }
 
-        setFormData((prev) => ({
+        setFormData((prev) => {
+          const tinValue = profile.tin_number ?? profile.tin_no ?? prev.tin_no;
+          const tinFormatted = formatTinNumber(tinValue);
+
+          return {
           ...prev,
           user_email: userEmail || prev.user_email,
           surname: profile.surname ?? profile.last_name ?? prev.surname,
@@ -146,7 +156,9 @@ function Consolidated_Loan() {
           age: profile.age?.toString() ?? prev.age,
           civil_status: profile.civil_status ?? prev.civil_status,
           gender: profile.gender ?? prev.gender,
-          tin_no: formatTinNumber(profile.tin_number ?? profile.tin_no ?? prev.tin_no),
+          tin_no: tinFormatted,
+          borrower_id_type: tinValue ? 'TIN' : prev.borrower_id_type,
+          borrower_id_number: tinFormatted || prev.borrower_id_number,
           gsis_sss_no: profile.gsis_sss_no ?? prev.gsis_sss_no,
           employer_name: profile.employer_name ?? profile.occupation ?? prev.employer_name,
           office_address: profile.office_address ?? prev.office_address,
@@ -154,7 +166,8 @@ function Consolidated_Loan() {
           spouse_occupation: profile.spouse_occupation ?? prev.spouse_occupation,
           latest_net_pay: (profile.latest_net_pay ?? profile.annual_income)?.toString() ?? prev.latest_net_pay,
           share_capital: profile.share_capital?.toString() ?? prev.share_capital,
-        }));
+          };
+        });
       } catch (_err) {
         // Prefill is optional; form remains manually fillable on failure.
       }
@@ -180,19 +193,6 @@ function Consolidated_Loan() {
   }, [formData.loan_amount_numeric]);
 
   useEffect(() => {
-    const borrowerName = `${formData.first_name || ''} ${formData.middle_name || ''} ${formData.surname || ''}`
-      .trim()
-      .replace(/\s+/g, ' ');
-
-    setFormData((prev) => ({
-      ...prev,
-      cm_oath_borrower: borrowerName,
-      cm_oath_amount_numeric: prev.loan_amount_numeric || '',
-      cm_oath_amount_words: prev.loan_amount_words || '',
-    }));
-  }, [formData.first_name, formData.middle_name, formData.surname, formData.loan_amount_numeric, formData.loan_amount_words]);
-
-  useEffect(() => {
     const principal = Number(formData.loan_amount_numeric || 0);
     const term = Number(formData.loan_term_months || 0);
 
@@ -215,7 +215,7 @@ function Consolidated_Loan() {
     }, 350);
 
     return () => clearTimeout(timer);
-  }, [formData.loan_amount_numeric, formData.loan_term_months, formData.payment_start_date]);
+  }, [formData.loan_amount_numeric, formData.loan_term_months]);
 
   // 3. LOGIC: Database Insertion
   const handleSubmit = async (e) => {
@@ -240,27 +240,8 @@ function Consolidated_Loan() {
           loan_purpose: formData.loan_purpose || null,
           monthly_amortization: formData.monthly_amortization || null,
           source_of_income: formData.source_of_income || null,
-          payment_start_date: formData.payment_start_date || null,
           consolidated_notes: null,
         },
-        coMakers: [
-          {
-            email: formData.cm1_email,
-            name: formData.cm1_name,
-            id_no: formData.cm1_id_no,
-            address: formData.cm1_address,
-            mobile: formData.cm1_mobile,
-            liability_status: 'active',
-          },
-          {
-            email: formData.cm2_email,
-            name: formData.cm2_name,
-            id_no: formData.cm2_id_no,
-            address: formData.cm2_address,
-            mobile: formData.cm2_mobile,
-            liability_status: 'active',
-          },
-        ],
       });
 
       alert("Loan Application Submitted Successfully!");
@@ -350,8 +331,12 @@ function Consolidated_Loan() {
             <div><label className={labelStyles}>GSIS/SSS No. <span className="text-red-500">*</span></label><input type="text" name="gsis_sss_no" value={formData.gsis_sss_no} onChange={handleChange} className={inputStyles} required /></div>
             <div className="md:col-span-2"><label className={labelStyles}>Employer's Name <span className="text-red-500">*</span></label><input type="text" name="employer_name" value={formData.employer_name} onChange={handleChange} className={inputStyles} required /></div>
             <div className="md:col-span-1"><label className={labelStyles}>Office Address <span className="text-red-500">*</span></label><input type="text" name="office_address" value={formData.office_address} onChange={handleChange} className={inputStyles} required /></div>
-            <div className="md:col-span-2"><label className={labelStyles}>Name of Spouse <span className="text-red-500">*</span></label><input type="text" name="spouse_name" value={formData.spouse_name} onChange={handleChange} className={inputStyles} /></div>
-            <div className="md:col-span-1"><label className={labelStyles}>Spouse's Occupation <span className="text-red-500">*</span></label><input type="text" name="spouse_occupation" value={formData.spouse_occupation} onChange={handleChange} className={inputStyles} /></div>
+            {isMarriedCivilStatus ? (
+              <>
+                <div className="md:col-span-2"><label className={labelStyles}>Name of Spouse <span className="text-red-500">*</span></label><input type="text" name="spouse_name" value={formData.spouse_name} onChange={handleChange} className={inputStyles} required /></div>
+                <div className="md:col-span-1"><label className={labelStyles}>Spouse's Occupation <span className="text-red-500">*</span></label><input type="text" name="spouse_occupation" value={formData.spouse_occupation} onChange={handleChange} className={inputStyles} required /></div>
+              </>
+            ) : null}
           </div>
         </div>
 
@@ -373,14 +358,20 @@ function Consolidated_Loan() {
                 className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-[#66B538] outline-none bg-white text-sm transition-all mx-2 w-[22rem] inline-block align-middle" 
               />
               <div className="inline-flex items-center relative mr-2 align-middle">
-                <span className="absolute left-3 text-gray-400 text-xs font-medium">Php</span>
-                <input 
-                  type="number" 
-                  name="loan_amount_numeric" 
-                  value={formData.loan_amount_numeric} 
-                  onChange={handleChange} 
-                  className="border border-gray-300 rounded-md pl-10 pr-3 py-1.5 focus:ring-2 focus:ring-[#66B538] outline-none bg-white text-sm transition-all w-40" 
-                />
+                <select
+                  name="loan_amount_numeric"
+                  value={formData.loan_amount_numeric}
+                  onChange={handleChange}
+                  className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-[#66B538] outline-none bg-white text-sm transition-all w-48"
+                  required
+                >
+                  <option value="">Select Amount</option>
+                  {CONSOLIDATED_LOAN_AMOUNT_OPTIONS.map((amount) => (
+                    <option key={amount} value={amount}>
+                      {formatLoanAmountOption(amount)}
+                    </option>
+                  ))}
+                </select>
               </div>
               for the purpose of
               <select 
@@ -431,7 +422,11 @@ function Consolidated_Loan() {
                 name="monthly_amortization" 
                 value={formData.monthly_amortization} 
                 readOnly 
-                className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-[#66B538] outline-none bg-gray-50 text-sm transition-all mx-2 w-48 inline-block align-middle" 
+                className={`border rounded-md px-3 py-1.5 focus:ring-2 focus:ring-[#66B538] outline-none text-sm transition-all mx-2 w-48 inline-block align-middle ${
+                  hasComputedAmortization
+                    ? 'border-[#66B538] bg-[#E9F7DE] text-[#2E7D32] font-semibold'
+                    : 'border-gray-300 bg-gray-50 text-gray-700'
+                }`}
               />
               , which I promise to pay the amount to <strong>Tubungan Teachers' Multi Purpose Cooperative</strong>
               
@@ -474,23 +469,22 @@ function Consolidated_Loan() {
               <br className="hidden md:block" />
 
               <div className="inline-flex items-center relative mr-2 align-middle">
-                <span className="absolute left-3 text-gray-400 text-xs font-medium">Php</span>
-                <input 
-                  type="number" 
-                  name="loan_amount_numeric" 
-                  value={formData.loan_amount_numeric} 
-                  onChange={handleChange} 
-                  className="border border-gray-300 rounded-md pl-10 pr-3 py-1.5 focus:ring-2 focus:ring-[#66B538] outline-none bg-white text-sm transition-all w-48" 
-                />
+                <select
+                  name="loan_amount_numeric"
+                  value={formData.loan_amount_numeric}
+                  onChange={handleChange}
+                  className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-[#66B538] outline-none bg-white text-sm transition-all w-48"
+                  required
+                >
+                  <option value="">Select Amount</option>
+                  {CONSOLIDATED_LOAN_AMOUNT_OPTIONS.map((amount) => (
+                    <option key={amount} value={amount}>
+                      {formatLoanAmountOption(amount)}
+                    </option>
+                  ))}
+                </select>
               </div>
-              from <span className="text-blue-600 font-medium">my monthly salary every month OR from my monthly income</span> to begin on 
-              <input 
-                type="date" 
-                name="payment_start_date" 
-                value={formData.payment_start_date} 
-                onChange={handleChange} 
-                className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-[#66B538] outline-none bg-white text-sm transition-all mx-2 w-40 inline-block align-middle text-gray-600" 
-              />
+              from <span className="text-blue-600 font-medium">my monthly salary every month OR from my monthly income </span>
               and until the loan is fully paid.
               
               <br className="hidden md:block" />
@@ -518,11 +512,11 @@ function Consolidated_Loan() {
             <div className="flex flex-wrap gap-6 mt-8">
               <div className="w-64">
                 <label className={labelStyles}>Valid ID/Gov't. Issued ID <span className="text-red-500">*</span></label>
-                <input type="text" name="borrower_id_type" value={formData.borrower_id_type} onChange={handleChange} className={inputStyles} />
+                <input type="text" name="borrower_id_type" value={formData.borrower_id_type} readOnly className={`${inputStyles} bg-gray-50 cursor-not-allowed`} />
               </div>
               <div className="w-64">
                 <label className={labelStyles}>ID Number <span className="text-red-500">*</span></label>
-                <input type="text" name="borrower_id_number" value={formData.borrower_id_number} onChange={handleChange} className={inputStyles} />
+                <input type="text" name="borrower_id_number" value={formData.borrower_id_number} readOnly className={`${inputStyles} bg-gray-50 cursor-not-allowed`} />
               </div>
             </div>
 
@@ -540,104 +534,14 @@ function Consolidated_Loan() {
           </div>
         </div>
 
-        {/* Section 5: CO-MAKERS' OATH */}
-        <div className="mt-8 bg-white rounded-lg shadow-md overflow-hidden max-w-6xl mx-auto w-full mb-8">
-          <div className={sectionHeader}>
-            <span className="bg-white text-[#66B538] rounded-full w-6 h-6 flex items-center justify-center text-sm">5</span>
-            CO-MAKERS' OATH
-          </div>
-          <div className="p-8 text-sm text-gray-800">
-            
-            {/* Form paragraph with inline inputs */}
-            <div className="leading-[3.5rem] mb-10">
-              We,
-              <input 
-                type="text" 
-                name="cm1_name" 
-                value={formData.cm1_name} 
-                onChange={handleChange} 
-                className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-[#66B538] outline-none bg-white text-sm transition-all mx-2 w-64 inline-block align-middle" 
-              />
-              and
-              <input 
-                type="text" 
-                name="cm2_name" 
-                value={formData.cm2_name} 
-                onChange={handleChange} 
-                className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-[#66B538] outline-none bg-white text-sm transition-all mx-2 w-64 inline-block align-middle" 
-              />
-              the co-makers of
-              <input 
-                type="text" 
-                name="cm_oath_borrower" 
-                value={formData.cm_oath_borrower} 
-                readOnly
-                className="border border-gray-300 rounded-md px-3 py-1.5 outline-none bg-gray-50 text-sm transition-all mx-2 w-[22rem] inline-block align-middle cursor-not-allowed" 
-              />
-              
-              <br className="hidden xl:block" />
-              
-              <span className="leading-loose block mt-2 text-justify">
-                hereby voluntarily and willingly, bind ourselves to pay jointly and solidarily all his/her unpaid obligations to <strong>Tubungan Teachers' Multi Purpose Cooperative (TTMPC)</strong> pursuant to the terms attached in this loan application, in case he/she fails to pay his/her obligations for any reason whatsoever. In case this happens we hereby authorize you to deduct from our salaries OR collect from us personally the amount of 
-                
-                <input 
-                  type="text" 
-                  name="cm_oath_amount_words" 
-                  value={formData.cm_oath_amount_words} 
-                  readOnly
-                  className="border border-gray-300 rounded-md px-3 py-1.5 outline-none bg-gray-50 text-sm transition-all mx-2 w-64 inline-block align-middle cursor-not-allowed" 
-                />
-                
-                <div className="inline-flex items-center relative mr-2 align-middle">
-                  <span className="absolute left-3 text-gray-400 text-xs font-medium">Php</span>
-                  <input 
-                    type="number" 
-                    name="cm_oath_amount_numeric" 
-                    value={formData.cm_oath_amount_numeric} 
-                    readOnly
-                    className="border border-gray-300 rounded-md pl-10 pr-3 py-1.5 outline-none bg-gray-50 text-sm transition-all w-40 cursor-not-allowed" 
-                  />
-                </div>
-                
-                every month until the amount is paid in full.
-              </span>
-            </div>
-
-            {/* Co-Maker 1 */}
-            <h3 className="font-bold text-md mb-4 tracking-wide text-gray-900">Co-Maker 1</h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-4">
-              <div><label className={labelStyles}>Valid ID/Gov't. Issued ID <span className="text-red-500">*</span></label><input type="text" name="cm1_id_type" value={formData.cm1_id_type} onChange={handleChange} className={inputStyles} /></div>
-              <div><label className={labelStyles}>ID Number <span className="text-red-500">*</span></label><input type="text" name="cm1_id_no" value={formData.cm1_id_no} onChange={handleChange} className={inputStyles} /></div>
-              <div><label className={labelStyles}>Residence Address <span className="text-red-500">*</span></label><input type="text" name="cm1_address" value={formData.cm1_address} onChange={handleChange} className={inputStyles} /></div>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-              <div><label className={labelStyles}>Email Address <span className="text-red-500">*</span></label><input type="email" name="cm1_email" value={formData.cm1_email} onChange={handleChange} className={inputStyles} /></div>
-              <div><label className={labelStyles}>Mobile No. <span className="text-red-500">*</span></label><input type="text" name="cm1_mobile" value={formData.cm1_mobile} onChange={handleChange} className={inputStyles} /></div>
-            </div>
-
-            {/* Co-Maker 2 */}
-            <h3 className="font-bold text-md mb-4 tracking-wide text-gray-900">Co-Maker 2</h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-4">
-              <div><label className={labelStyles}>Valid ID/Gov't. Issued ID <span className="text-red-500">*</span></label><input type="text" name="cm2_id_type" value={formData.cm2_id_type} onChange={handleChange} className={inputStyles} /></div>
-              <div><label className={labelStyles}>ID Number <span className="text-red-500">*</span></label><input type="text" name="cm2_id_no" value={formData.cm2_id_no} onChange={handleChange} className={inputStyles} /></div>
-              <div><label className={labelStyles}>Residence Address <span className="text-red-500">*</span></label><input type="text" name="cm2_address" value={formData.cm2_address} onChange={handleChange} className={inputStyles} /></div>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-              <div><label className={labelStyles}>Email Address <span className="text-red-500">*</span></label><input type="email" name="cm2_email" value={formData.cm2_email} onChange={handleChange} className={inputStyles} /></div>
-              <div><label className={labelStyles}>Mobile No. <span className="text-red-500">*</span></label><input type="text" name="cm2_mobile" value={formData.cm2_mobile} onChange={handleChange} className={inputStyles} /></div>
-            </div>
-
-           
-            <div className="flex justify-end pt-4 border-t border-gray-100">
-              <button 
-                type="submit" 
-                disabled={loading}
-                className="bg-[#66B538] text-white px-6 py-2 rounded hover:bg-[#5aa12b] transition-colors font-bold disabled:opacity-50 cursor-pointer"
-              >
-                {loading ? "Processing..." : "Submit Application"}
-              </button>
-            </div>
-          </div>
+        <div className="mt-8 max-w-6xl mx-auto w-full mb-8 flex justify-end">
+          <button 
+            type="submit" 
+            disabled={loading}
+            className="bg-[#66B538] text-white px-6 py-2 rounded hover:bg-[#5aa12b] transition-colors font-bold disabled:opacity-50 cursor-pointer"
+          >
+            {loading ? "Processing..." : "Submit Application"}
+          </button>
         </div>
       </form>
     </div>

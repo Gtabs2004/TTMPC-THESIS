@@ -264,17 +264,17 @@ function Membership_Form() {
                 </div>
 
                  <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1">GSIS Number <span className="text-red-500">*</span></label>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1">GSIS Number</label>
                   <input type="text" name="gsis_number" value={formdata.gsis_number} onChange={handleChange} className="w-full border border-gray-300 rounded-md p-2.5 text-sm focus:ring-1 focus:ring-green-500 outline-none" />
                 </div>
 
                   <div>
-                    <label className="block text-xs font-semibold text-gray-600 mb-1">Father Name</label>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1">Father's Name</label>
                     <input type="text" name="father_name" value={formdata.father_name} onChange={handleChange} className="w-full border border-gray-300 rounded-md p-2.5 text-sm focus:ring-1 focus:ring-green-500 outline-none" />
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold text-gray-600 mb-1">Mother Name</label>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1">Mother's Name</label>
                     <input type="text" name="mother_name" value={formdata.mother_name} onChange={handleChange} className="w-full border border-gray-300 rounded-md p-2.5 text-sm focus:ring-1 focus:ring-green-500 outline-none" />
                   </div>
               </div>
