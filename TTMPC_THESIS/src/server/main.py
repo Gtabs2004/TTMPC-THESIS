@@ -240,6 +240,15 @@ def build_sequence_id(prefix: str, sequence_number: int) -> str:
     return f"{prefix}{safe_seq:03d}"
 
 
+def build_bod_resolution_number(reference_value: str | None, membership_date_value: str | None) -> str:
+    clean_ref = "".join(ch for ch in str(reference_value or "").upper() if ch.isalnum())
+    suffix = clean_ref[-6:] if clean_ref else datetime.utcnow().strftime("%H%M%S")
+    year = str(membership_date_value or "")[:4]
+    if not year.isdigit():
+        year = str(datetime.utcnow().year)
+    return f"BOD-RES-{year}-{suffix}"
+
+
 def compute_missed_due_dates(due_date: str | None) -> Decimal:
     if not due_date:
         return Decimal("0")
@@ -397,13 +406,13 @@ def resolve_monthly_rate_decimal(loan_type: str, interest_rate_percent: Decimal 
         return Decimal(str(interest_rate_percent)) / Decimal("100")
 
     if loan_type == "consolidated":
-        return Decimal("0.00083")
+        return Decimal("0.0083")
     if loan_type == "emergency":
         return Decimal("0.02")
     if loan_type == "bonus":
         return Decimal("0.02")
 
-    return Decimal("0.00083")
+    return Decimal("0.0083")
 
 
 @app.post("/api/loans/compute")
@@ -423,7 +432,7 @@ async def compute_loan(payload: LoanComputeRequest):
 
     if payload.loan_type == "consolidated":
         principal_component = money(principal / Decimal(term))
-        interest_component = money(principal * Decimal("0.00083"))
+        interest_component = money(principal * Decimal("0.0083"))
         monthly_amortization = money(principal_component + interest_component)
 
         service_fee = money(Decimal(((int(principal) - 1) // 50000) + 1) * Decimal("100"))
@@ -1989,12 +1998,33 @@ async def get_secretary_membership_record_details(member_ref: str):
             if part
         ).strip()
 
+        date_of_membership_value = (
+            (member_row or {}).get("membership_date")
+            or (pds_row or {}).get("date_of_membership")
+            or (member_row or {}).get("created_at")
+            or (pds_row or {}).get("created_at")
+            or ""
+        )
+
+        bod_resolution_value = (
+            (member_row or {}).get("bod_resolution_number")
+            or (pds_row or {}).get("BOD_resolution_number")
+            or ""
+        )
+        if not str(bod_resolution_value).strip():
+            reference_value = (
+                (latest_application or {}).get("id")
+                or (pds_row or {}).get("personal_data_sheet_id")
+                or membership_number
+            )
+            bod_resolution_value = build_bod_resolution_number(reference_value, date_of_membership_value)
+
         details = {
             "member_uuid": member_uuid,
             "name": full_name or "Membership Record",
             "membership_number": membership_number,
-            "date_of_membership": (member_row or {}).get("membership_date") or (pds_row or {}).get("date_of_membership") or (member_row or {}).get("created_at") or (pds_row or {}).get("created_at") or "",
-            "bod_resolution_number": (member_row or {}).get("bod_resolution_number") or (pds_row or {}).get("BOD_resolution_number") or "",
+            "date_of_membership": date_of_membership_value,
+            "bod_resolution_number": bod_resolution_value,
             "number_of_shares": decimal_to_float(shares_value),
             "amount": decimal_to_float(amount_value or 0),
             "initial_paid_up_capital": decimal_to_float(paid_up_value or 0),

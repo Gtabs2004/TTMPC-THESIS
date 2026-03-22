@@ -93,16 +93,8 @@ function Bonus_Loan() {
     source_of_income: '',
     user_email: '',
     payment_start_date: '',
-    cm1_name: '',
-    cm1_id_no: '',
-    cm1_address: '',
-    cm1_email: '',
-    cm1_mobile: '',
-    cm2_name: '',
-    cm2_id_no: '',
-    cm2_address: '',
-    cm2_email: '',
-    cm2_mobile: '',
+    borrower_id_type: '',
+    borrower_id_number: '',
     bonus_amount_words: '',
     bonus_amount_numeric: '',
   });
@@ -111,6 +103,15 @@ function Bonus_Loan() {
     const { name, value } = e.target;
     const normalizedValue = name === 'tin_no' ? formatTinNumber(value) : value;
     setFormData((prev) => {
+      if (name === 'civil_status' && String(value || '').trim().toLowerCase() !== 'married') {
+        return {
+          ...prev,
+          civil_status: value,
+          spouse_name: '',
+          spouse_occupation: '',
+        };
+      }
+
       if (name === 'bonus_amount_numeric' || name === 'loan_amount_numeric') {
         return {
           ...prev,
@@ -122,6 +123,8 @@ function Bonus_Loan() {
       return { ...prev, [name]: normalizedValue };
     });
   };
+
+  const isMarriedCivilStatus = String(formData.civil_status || '').trim().toLowerCase() === 'married';
 
   useEffect(() => {
     let isMounted = true;
@@ -137,7 +140,11 @@ function Bonus_Loan() {
           return;
         }
 
-        setFormData((prev) => ({
+        setFormData((prev) => {
+          const tinValue = profile.tin_number ?? profile.tin_no ?? prev.tin_no;
+          const tinFormatted = formatTinNumber(tinValue);
+
+          return {
           ...prev,
           surname: profile.surname ?? profile.last_name ?? prev.surname,
           first_name: profile.first_name ?? prev.first_name,
@@ -148,7 +155,9 @@ function Bonus_Loan() {
           age: profile.age?.toString() ?? prev.age,
           civil_status: profile.civil_status ?? prev.civil_status,
           gender: profile.gender ?? prev.gender,
-          tin_no: formatTinNumber(profile.tin_number ?? profile.tin_no ?? prev.tin_no),
+          tin_no: tinFormatted,
+          borrower_id_type: tinValue ? 'TIN' : prev.borrower_id_type,
+          borrower_id_number: tinFormatted || prev.borrower_id_number,
           gsis_sss_no: profile.gsis_sss_no ?? prev.gsis_sss_no,
           employer_name: profile.employer_name ?? profile.occupation ?? prev.employer_name,
           office_address: profile.office_address ?? prev.office_address,
@@ -156,7 +165,8 @@ function Bonus_Loan() {
           spouse_occupation: profile.spouse_occupation ?? prev.spouse_occupation,
           latest_net_pay: (profile.latest_net_pay ?? profile.annual_income)?.toString() ?? prev.latest_net_pay,
           share_capital: profile.share_capital?.toString() ?? prev.share_capital,
-        }));
+          };
+        });
 
         if (userEmail) {
           setFormData((prev) => ({ ...prev, user_email: userEmail }));
@@ -267,24 +277,6 @@ function Bonus_Loan() {
           bonus_amount_words: formData.bonus_amount_words || null,
           bonus_amount_numeric: formData.bonus_amount_numeric || null,
         },
-        coMakers: [
-          {
-            email: formData.cm1_email,
-            name: formData.cm1_name,
-            id_no: formData.cm1_id_no,
-            address: formData.cm1_address,
-            mobile: formData.cm1_mobile,
-            liability_status: 'active',
-          },
-          {
-            email: formData.cm2_email,
-            name: formData.cm2_name,
-            id_no: formData.cm2_id_no,
-            address: formData.cm2_address,
-            mobile: formData.cm2_mobile,
-            liability_status: 'active',
-          },
-        ],
       });
 
       alert('Bonus Loan Application Submitted Successfully!');
@@ -358,8 +350,12 @@ function Bonus_Loan() {
             <div><label className={labelStyles}>GSIS/SSS No. *</label><input name="gsis_sss_no" value={formData.gsis_sss_no} onChange={handleChange} className={inputStyles} required /></div>
             <div><label className={labelStyles}>Employer Name *</label><input name="employer_name" value={formData.employer_name} onChange={handleChange} className={inputStyles} required /></div>
             <div><label className={labelStyles}>Office Address *</label><input name="office_address" value={formData.office_address} onChange={handleChange} className={inputStyles} required /></div>
-            <div><label className={labelStyles}>Spouse Name</label><input name="spouse_name" value={formData.spouse_name} onChange={handleChange} className={inputStyles} /></div>
-            <div><label className={labelStyles}>Spouse Occupation</label><input name="spouse_occupation" value={formData.spouse_occupation} onChange={handleChange} className={inputStyles} /></div>
+            {isMarriedCivilStatus ? (
+              <>
+                <div><label className={labelStyles}>Spouse Name *</label><input name="spouse_name" value={formData.spouse_name} onChange={handleChange} className={inputStyles} required /></div>
+                <div><label className={labelStyles}>Spouse Occupation *</label><input name="spouse_occupation" value={formData.spouse_occupation} onChange={handleChange} className={inputStyles} required /></div>
+              </>
+            ) : null}
           </div>
         </div>
 

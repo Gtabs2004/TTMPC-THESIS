@@ -323,7 +323,7 @@ export async function fetchLoanPrefill() {
       latest_net_pay: r.latest_net_pay ?? r.salary ?? r.annual_income ?? null,
       share_capital: r.share_capital ?? null,
       share_capital_fallback: r.share_capital_fallback ?? null,
-      membership_id: r.membership_id ?? m.membership_id ?? null,
+      membership_id: r.membership_id ?? r.membership_number_id ?? m.membership_id ?? null,
       email: r.email ?? user.email,
     };
   };
@@ -409,6 +409,25 @@ export async function fetchLoanPrefill() {
     // fall through to table lookups
   }
 
+  // Source 1.5: personal_data_sheet by membership number (includes spouse fields)
+  if (memberRow?.membership_id) {
+    try {
+      const { data: pdsByMembership, error: pdsMembershipError } = await supabase
+        .from('personal_data_sheet')
+        .select('*')
+        .eq('membership_number_id', memberRow.membership_id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (!pdsMembershipError && pdsByMembership) {
+        profile = mergeProfile(profile, normalizeProfile(pdsByMembership, memberRow));
+      }
+    } catch (_err) {
+      // Keep prefill resilient when personal_data_sheet is not available via RLS.
+    }
+  }
+
   // Source 2: latest application by membership_id (always try, then merge)
   if (memberRow?.membership_id) {
     const { data: appByMembership, error: appMembershipError } = await supabase
@@ -436,6 +455,25 @@ export async function fetchLoanPrefill() {
 
     if (!appByEmailError && appByEmail) {
       profile = mergeProfile(profile, normalizeProfile(appByEmail, memberRow));
+    }
+  }
+
+  // Source 3.5: personal_data_sheet by email fallback
+  if (user.email) {
+    try {
+      const { data: pdsByEmail, error: pdsByEmailError } = await supabase
+        .from('personal_data_sheet')
+        .select('*')
+        .ilike('email', user.email)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (!pdsByEmailError && pdsByEmail) {
+        profile = mergeProfile(profile, normalizeProfile(pdsByEmail, memberRow));
+      }
+    } catch (_err) {
+      // Keep prefill resilient when personal_data_sheet email lookup fails.
     }
   }
 

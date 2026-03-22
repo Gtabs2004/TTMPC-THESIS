@@ -93,23 +93,28 @@ function Emergency_Loan() {
     source_of_income: '',
     payment_start_date: '',
     user_email: '',
-    cm1_name: '',
-    cm1_address: '',
-    cm1_contact_no: '',
-    cm1_designation: '',
-    cm1_latest_net_pay: '',
-    cm2_name: '',
-    cm2_address: '',
-    cm2_contact_no: '',
-    cm2_designation: '',
-    cm2_latest_net_pay: '',
+    borrower_id_type: '',
+    borrower_id_number: '',
   });
 
   const handleChange = (e) => {
     const { name, value } = e.target;
     const normalizedValue = name === 'tin_no' ? formatTinNumber(value) : value;
-    setFormData((prev) => ({ ...prev, [name]: normalizedValue }));
+    setFormData((prev) => {
+      if (name === 'civil_status' && String(value || '').trim().toLowerCase() !== 'married') {
+        return {
+          ...prev,
+          civil_status: value,
+          spouse_name: '',
+          spouse_occupation: '',
+        };
+      }
+
+      return { ...prev, [name]: normalizedValue };
+    });
   };
+
+  const isMarriedCivilStatus = String(formData.civil_status || '').trim().toLowerCase() === 'married';
 
   useEffect(() => {
     let isMounted = true;
@@ -124,7 +129,11 @@ function Emergency_Loan() {
           return;
         }
 
-        setFormData((prev) => ({
+        setFormData((prev) => {
+          const tinValue = profile.tin_number ?? profile.tin_no ?? prev.tin_no;
+          const tinFormatted = formatTinNumber(tinValue);
+
+          return {
           ...prev,
           user_email: userEmail || prev.user_email,
           surname: profile.surname ?? profile.last_name ?? prev.surname,
@@ -136,7 +145,9 @@ function Emergency_Loan() {
           age: profile.age?.toString() ?? prev.age,
           civil_status: profile.civil_status ?? prev.civil_status,
           gender: profile.gender ?? prev.gender,
-          tin_no: formatTinNumber(profile.tin_number ?? profile.tin_no ?? prev.tin_no),
+          tin_no: tinFormatted,
+          borrower_id_type: tinValue ? 'TIN' : prev.borrower_id_type,
+          borrower_id_number: tinFormatted || prev.borrower_id_number,
           gsis_sss_no: profile.gsis_sss_no ?? prev.gsis_sss_no,
           employer_name: profile.employer_name ?? profile.occupation ?? prev.employer_name,
           office_address: profile.office_address ?? prev.office_address,
@@ -144,7 +155,8 @@ function Emergency_Loan() {
           spouse_occupation: profile.spouse_occupation ?? prev.spouse_occupation,
           latest_net_pay: (profile.latest_net_pay ?? profile.annual_income)?.toString() ?? prev.latest_net_pay,
           share_capital: profile.share_capital?.toString() ?? prev.share_capital,
-        }));
+          };
+        });
       } catch (_err) {
         // Prefill is optional; form remains manually fillable on failure.
       }
@@ -237,20 +249,6 @@ function Emergency_Loan() {
           emergency_reason: formData.loan_purpose || null,
           emergency_notes: null,
         },
-        coMakers: [
-          {
-            name: formData.cm1_name,
-            address: formData.cm1_address,
-            contact_no: formData.cm1_contact_no,
-            liability_status: 'active',
-          },
-          {
-            name: formData.cm2_name,
-            address: formData.cm2_address,
-            contact_no: formData.cm2_contact_no,
-            liability_status: 'active',
-          },
-        ],
       });
 
       alert('Emergency Loan Application Submitted Successfully!');
@@ -321,8 +319,12 @@ function Emergency_Loan() {
             <div><label className={labelStyles}>GSIS/SSS No. *</label><input name="gsis_sss_no" value={formData.gsis_sss_no} onChange={handleChange} className={inputStyles} required /></div>
             <div><label className={labelStyles}>Employer Name *</label><input name="employer_name" value={formData.employer_name} onChange={handleChange} className={inputStyles} required /></div>
             <div><label className={labelStyles}>Office Address *</label><input name="office_address" value={formData.office_address} onChange={handleChange} className={inputStyles} required /></div>
-            <div><label className={labelStyles}>Spouse Name</label><input name="spouse_name" value={formData.spouse_name} onChange={handleChange} className={inputStyles} /></div>
-            <div><label className={labelStyles}>Spouse Occupation</label><input name="spouse_occupation" value={formData.spouse_occupation} onChange={handleChange} className={inputStyles} /></div>
+            {isMarriedCivilStatus ? (
+              <>
+                <div><label className={labelStyles}>Spouse Name *</label><input name="spouse_name" value={formData.spouse_name} onChange={handleChange} className={inputStyles} required /></div>
+                <div><label className={labelStyles}>Spouse Occupation *</label><input name="spouse_occupation" value={formData.spouse_occupation} onChange={handleChange} className={inputStyles} required /></div>
+              </>
+            ) : null}
           </div>
         </div>
 
@@ -414,72 +416,9 @@ function Emergency_Loan() {
 
           </div>
         </div>
-       {/* Section 3: CO-MAKER'S INFORMATION */}
-        <div className="mt-8 bg-white rounded-lg shadow-md overflow-hidden max-w-6xl mx-auto w-full mb-8">
-          <div className={sectionHeader}>
-            <span className="bg-white text-[#66B538] rounded-full w-6 h-6 flex items-center justify-center text-sm">3</span>
-            CO-MAKER'S INFORMATION
-          </div>
-          <div className="p-8 text-sm text-gray-800">
-
-            {/* Co-Maker 1 */}
-            <h3 className="font-bold text-md mb-4 tracking-wide text-gray-900">Co-Maker 1</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
-              <div>
-                <label className={labelStyles}>Name <span className="text-red-500">*</span></label>
-                <input type="text" name="cm1_name" value={formData.cm1_name} onChange={handleChange} className={inputStyles} />
-              </div>
-              <div>
-                <label className={labelStyles}>Address <span className="text-red-500">*</span></label>
-                <input type="text" name="cm1_address" value={formData.cm1_address} onChange={handleChange} className={inputStyles} />
-              </div>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
-              <div>
-                <label className={labelStyles}>Contact No. <span className="text-red-500">*</span></label>
-                <input type="text" name="cm1_contact_no" value={formData.cm1_contact_no} onChange={handleChange} className={inputStyles} />
-              </div>
-              <div>
-                <label className={labelStyles}>Designation <span className="text-red-500">*</span></label>
-                <input type="text" name="cm1_designation" value={formData.cm1_designation} onChange={handleChange} className={inputStyles} />
-              </div>
-              <div>
-                <label className={labelStyles}>Latest Net Pay <span className="text-red-500">*</span></label>
-                <input type="number" name="cm1_latest_net_pay" value={formData.cm1_latest_net_pay} onChange={handleChange} className={inputStyles} />
-              </div>
-            </div>
-
-            {/* Co-Maker 2 */}
-            <h3 className="font-bold text-md mb-4 tracking-wide text-gray-900">Co-Maker 2</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
-              <div>
-                <label className={labelStyles}>Name <span className="text-red-500">*</span></label>
-                <input type="text" name="cm2_name" value={formData.cm2_name} onChange={handleChange} className={inputStyles} />
-              </div>
-              <div>
-                <label className={labelStyles}>Address <span className="text-red-500">*</span></label>
-                <input type="text" name="cm2_address" value={formData.cm2_address} onChange={handleChange} className={inputStyles} />
-              </div>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-4">
-              <div>
-                <label className={labelStyles}>Contact No. <span className="text-red-500">*</span></label>
-                <input type="text" name="cm2_contact_no" value={formData.cm2_contact_no} onChange={handleChange} className={inputStyles} />
-              </div>
-              <div>
-                <label className={labelStyles}>Designation <span className="text-red-500">*</span></label>
-                <input type="text" name="cm2_designation" value={formData.cm2_designation} onChange={handleChange} className={inputStyles} />
-              </div>
-              <div>
-                <label className={labelStyles}>Latest Net Pay <span className="text-red-500">*</span></label>
-                <input type="number" name="cm2_latest_net_pay" value={formData.cm2_latest_net_pay} onChange={handleChange} className={inputStyles} />
-              </div>
-            </div>
-        </div>    
-        </div>
          <div className="mt-8 bg-white rounded-lg shadow-md overflow-hidden max-w-6xl mx-auto w-full mb-8">
           <div className={sectionHeader}>
-            <span className="bg-white text-[#66B538] rounded-full w-6 h-6 flex items-center justify-center text-sm">4</span>
+            <span className="bg-white text-[#66B538] rounded-full w-6 h-6 flex items-center justify-center text-sm">3</span>
             DEED OF ASSIGNMENT
           </div>
           <div className="p-8 text-sm text-gray-800">
