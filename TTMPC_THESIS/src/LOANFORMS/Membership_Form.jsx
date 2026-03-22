@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
+import { formatTinNumber, TIN_FORMATTED_MAX_LENGTH } from './tinFormat';
 
 
 
@@ -62,6 +63,7 @@ function Membership_Form() {
 
   const handleChange = (e) =>{
     const { name, value } = e.target;
+    const normalizedValue = name === 'tin_number' ? formatTinNumber(value) : value;
     
     // Clear family information fields when "Single" is selected
     if (name === 'civil_status' && value === 'Single') {
@@ -75,7 +77,7 @@ function Membership_Form() {
         number_of_dependents: '',
       }));
     } else {
-      setFormdata(prev => ({ ...prev, [name]: value }));
+      setFormdata(prev => ({ ...prev, [name]: normalizedValue }));
     }
   }
 
@@ -258,21 +260,14 @@ function Membership_Form() {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div>
                   <label className="block text-xs font-semibold text-gray-600 mb-1">Taxpayer's Identification Number (TIN) <span className="text-red-500">*</span></label>
-                  <input type="text" name="tin_number" value={formdata.tin_number} onChange={handleChange} className="w-full border border-gray-300 rounded-md p-2.5 text-sm focus:ring-1 focus:ring-green-500 outline-none" />
+                  <input type="text" name="tin_number" value={formdata.tin_number} onChange={handleChange} inputMode="numeric" maxLength={TIN_FORMATTED_MAX_LENGTH} placeholder="123-456-789-000" className="w-full border border-gray-300 rounded-md p-2.5 text-sm focus:ring-1 focus:ring-green-500 outline-none" />
                 </div>
 
                  <div>
                   <label className="block text-xs font-semibold text-gray-600 mb-1">GSIS Number <span className="text-red-500">*</span></label>
                   <input type="text" name="gsis_number" value={formdata.gsis_number} onChange={handleChange} className="w-full border border-gray-300 rounded-md p-2.5 text-sm focus:ring-1 focus:ring-green-500 outline-none" />
                 </div>
-              </div>
-            </section>
 
-            
-            {!isSingleCivilStatus && (
-              <section>
-                <h3 className="text-sm font-bold text-slate-700 uppercase mb-4">Family Information</h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-4">
                   <div>
                     <label className="block text-xs font-semibold text-gray-600 mb-1">Father Name</label>
                     <input type="text" name="father_name" value={formdata.father_name} onChange={handleChange} className="w-full border border-gray-300 rounded-md p-2.5 text-sm focus:ring-1 focus:ring-green-500 outline-none" />
@@ -282,6 +277,14 @@ function Membership_Form() {
                     <label className="block text-xs font-semibold text-gray-600 mb-1">Mother Name</label>
                     <input type="text" name="mother_name" value={formdata.mother_name} onChange={handleChange} className="w-full border border-gray-300 rounded-md p-2.5 text-sm focus:ring-1 focus:ring-green-500 outline-none" />
                   </div>
+              </div>
+            </section>
+
+            
+            {!isSingleCivilStatus && (
+              <section>
+                <h3 className="text-sm font-bold text-slate-700 uppercase mb-4">Family Information</h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-4">
 
                   <div>
                     <label className="block text-xs font-semibold text-gray-600 mb-1">Maiden Name (if married)</label>

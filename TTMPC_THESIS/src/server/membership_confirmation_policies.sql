@@ -87,6 +87,153 @@ BEGIN
   END IF;
 END $$;
 
+-- Cleanup policy: when an auth user is deleted, remove related membership records.
+-- This avoids orphaned rows in membership-related tables.
+CREATE OR REPLACE FUNCTION public.cleanup_membership_related_data_on_auth_delete()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, auth
+AS $$
+DECLARE
+  v_user_id uuid := OLD.id;
+  v_email text := lower(btrim(coalesce(OLD.email, '')));
+  v_membership_id text := NULL;
+BEGIN
+  -- Resolve membership id before deleting member row.
+  IF to_regclass('public.member') IS NOT NULL THEN
+    IF EXISTS (
+      SELECT 1
+      FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND table_name = 'member'
+        AND column_name = 'membership_id'
+    ) THEN
+      SELECT m.membership_id
+      INTO v_membership_id
+      FROM public.member m
+      WHERE m.id = v_user_id
+      LIMIT 1;
+    END IF;
+  END IF;
+
+  IF v_membership_id IS NULL
+     AND to_regclass('public.member_applications') IS NOT NULL
+     AND EXISTS (
+       SELECT 1
+       FROM information_schema.columns
+       WHERE table_schema = 'public'
+         AND table_name = 'member_applications'
+         AND column_name = 'membership_id'
+     )
+     AND EXISTS (
+       SELECT 1
+       FROM information_schema.columns
+       WHERE table_schema = 'public'
+         AND table_name = 'member_applications'
+         AND column_name = 'email'
+     )
+     AND v_email <> ''
+  THEN
+    SELECT ma.membership_id
+    INTO v_membership_id
+    FROM public.member_applications ma
+    WHERE lower(coalesce(ma.email, '')) = v_email
+      AND ma.membership_id IS NOT NULL
+    ORDER BY ma.created_at DESC NULLS LAST
+    LIMIT 1;
+  END IF;
+
+  -- Delete account table rows.
+  IF to_regclass('public.member_account') IS NOT NULL THEN
+    DELETE FROM public.member_account
+    WHERE (v_email <> '' AND lower(coalesce(email, '')) = v_email)
+       OR user_id = v_user_id;
+  END IF;
+
+  IF to_regclass('public.member_accounts') IS NOT NULL THEN
+    DELETE FROM public.member_accounts
+    WHERE (v_email <> '' AND lower(coalesce(email, '')) = v_email)
+       OR user_id = v_user_id;
+  END IF;
+
+  -- Delete application rows.
+  IF to_regclass('public.member_applications') IS NOT NULL THEN
+    IF v_membership_id IS NOT NULL THEN
+      DELETE FROM public.member_applications
+      WHERE membership_id = v_membership_id
+         OR (v_email <> '' AND lower(coalesce(email, '')) = v_email);
+    ELSE
+      DELETE FROM public.member_applications
+      WHERE v_email <> '' AND lower(coalesce(email, '')) = v_email;
+    END IF;
+  END IF;
+
+  IF to_regclass('public.membership_application') IS NOT NULL THEN
+    IF EXISTS (
+      SELECT 1
+      FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND table_name = 'membership_application'
+        AND column_name = 'membership_id'
+    ) AND EXISTS (
+      SELECT 1
+      FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND table_name = 'membership_application'
+        AND column_name = 'email'
+    ) THEN
+      IF v_membership_id IS NOT NULL THEN
+        DELETE FROM public.membership_application
+        WHERE membership_id = v_membership_id
+           OR (v_email <> '' AND lower(coalesce(email, '')) = v_email);
+      ELSE
+        DELETE FROM public.membership_application
+        WHERE v_email <> '' AND lower(coalesce(email, '')) = v_email;
+      END IF;
+    ELSIF EXISTS (
+      SELECT 1
+      FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND table_name = 'membership_application'
+        AND column_name = 'email'
+    ) THEN
+      DELETE FROM public.membership_application
+      WHERE v_email <> '' AND lower(coalesce(email, '')) = v_email;
+    END IF;
+  END IF;
+
+  -- Delete personal data sheet rows linked by membership id or email.
+  IF to_regclass('public.personal_data_sheet') IS NOT NULL THEN
+    IF v_membership_id IS NOT NULL THEN
+      DELETE FROM public.personal_data_sheet
+      WHERE membership_number_id = v_membership_id
+         OR (v_email <> '' AND lower(coalesce(email, '')) = v_email);
+    ELSE
+      DELETE FROM public.personal_data_sheet
+      WHERE v_email <> '' AND lower(coalesce(email, '')) = v_email;
+    END IF;
+  END IF;
+
+  -- Delete member profile last (after deriving membership id).
+  IF to_regclass('public.member') IS NOT NULL THEN
+    DELETE FROM public.member WHERE id = v_user_id;
+  END IF;
+
+  IF to_regclass('public.members') IS NOT NULL THEN
+    DELETE FROM public.members WHERE id = v_user_id;
+  END IF;
+
+  RETURN OLD;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_cleanup_membership_data_on_auth_delete ON auth.users;
+CREATE TRIGGER trg_cleanup_membership_data_on_auth_delete
+AFTER DELETE ON auth.users
+FOR EACH ROW
+EXECUTE FUNCTION public.cleanup_membership_related_data_on_auth_delete();
+
 DROP POLICY IF EXISTS "bod_insert_member" ON member;
 CREATE POLICY "bod_insert_member"
 ON member
@@ -125,10 +272,44 @@ CREATE TABLE IF NOT EXISTS public.capital_build_up (
 DROP TRIGGER IF EXISTS trg_seed_cbu_on_member_applications ON public.member_applications;
 
 DO $$
+DECLARE
+  trig record;
 BEGIN
   IF to_regclass('public.membership_application') IS NOT NULL THEN
     EXECUTE 'DROP TRIGGER IF EXISTS trg_seed_cbu_on_membership_application ON public.membership_application';
   END IF;
+
+  -- Safety cleanup: remove any trigger on membership tables that appears to auto-seed CBU.
+  FOR trig IN
+    SELECT
+      n.nspname AS schema_name,
+      c.relname AS table_name,
+      t.tgname AS trigger_name
+    FROM pg_trigger t
+    JOIN pg_class c ON c.oid = t.tgrelid
+    JOIN pg_namespace n ON n.oid = c.relnamespace
+    JOIN pg_proc p ON p.oid = t.tgfoid
+    WHERE NOT t.tgisinternal
+      AND n.nspname = 'public'
+      AND c.relname IN ('member_applications', 'membership_application')
+      AND (
+        lower(t.tgname) LIKE '%cbu%'
+        OR lower(t.tgname) LIKE '%capital%'
+        OR lower(p.proname) LIKE '%cbu%'
+        OR lower(p.proname) LIKE '%capital_build%'
+      )
+  LOOP
+    EXECUTE format(
+      'DROP TRIGGER IF EXISTS %I ON %I.%I',
+      trig.trigger_name,
+      trig.schema_name,
+      trig.table_name
+    );
+  END LOOP;
+
+  EXECUTE 'DROP FUNCTION IF EXISTS public.seed_cbu_on_membership_approval()';
+  EXECUTE 'DROP FUNCTION IF EXISTS public.seed_cbu_on_member_approval()';
+  EXECUTE 'DROP FUNCTION IF EXISTS public.seed_cbu_on_membership_application()';
 END $$;
 
 CREATE OR REPLACE FUNCTION public.is_cbu_staff()

@@ -89,25 +89,40 @@ def generate_membership_id(supabase: Client) -> str:
 		.execute()
 	)
 
+	def _extract_membership_number(raw_membership_id: Any) -> int | None:
+		membership_id = str(raw_membership_id or "").strip().upper()
+		if not membership_id:
+			return None
+
+		match = re.match(r"^(?:TTMPCM[_-]|TTMPC_M_)(\d{1,9})$", membership_id)
+		if not match:
+			return None
+
+		try:
+			return int(match.group(1))
+		except Exception:
+			return None
+
+	def _format_membership_id(number: int) -> str:
+		# Requested style: TTMPCM_000, auto-expands digits for larger numbers.
+		width = max(3, len(str(number)))
+		return f"TTMPCM_{number:0{width}d}"
+
 	max_existing_number = 0
 	for row in (response.data or []):
-		membership_id = str(row.get("membership_id") or "").strip()
-		match = re.match(r"^(?:TTMPC_M_|TTMPCM-)(\d{1,6})$", membership_id)
-		if not match:
+		numeric_part = _extract_membership_number(row.get("membership_id"))
+		if numeric_part is None:
 			continue
-		try:
-			max_existing_number = max(max_existing_number, int(match.group(1)))
-		except Exception:
-			continue
+		max_existing_number = max(max_existing_number, numeric_part)
 
 	new_number = max_existing_number + 1
 
-	if new_number > 99999:
-		raise MembershipConfirmationError("Membership ID sequence exceeded 5 digits.")
+	if new_number > 999999999:
+		raise MembershipConfirmationError("Membership ID sequence exceeded supported digits.")
 
 	# Guard against unexpected collisions if historical data has out-of-order timestamps.
 	for _ in range(1000):
-		candidate = f"TTMPCM-{new_number:05d}"
+		candidate = _format_membership_id(new_number)
 		member_check = (
 			supabase.table(member_table)
 			.select("id")
@@ -120,6 +135,24 @@ def generate_membership_id(supabase: Client) -> str:
 		new_number += 1
 
 	raise MembershipConfirmationError("Unable to generate a unique membership ID. Please retry.")
+
+
+def normalize_membership_id_format(raw_membership_id: Any) -> str | None:
+	membership_id = str(raw_membership_id or "").strip().upper()
+	if not membership_id:
+		return None
+
+	match = re.match(r"^(?:TTMPCM[_-]|TTMPC_M_)(\d{1,9})$", membership_id)
+	if not match:
+		return None
+
+	try:
+		number = int(match.group(1))
+	except Exception:
+		return None
+
+	width = max(3, len(str(number)))
+	return f"TTMPCM_{number:0{width}d}"
 
 def get_next_membership_id() -> str:
 	supabase, _, _ = _load_runtime_config()
@@ -149,6 +182,8 @@ def _application_is_eligible(data: dict[str, Any], force: bool) -> bool:
 		"training 1",
 		"1st training completed",
 		"first training completed",
+		"passed 1st training",
+		"passed first training",
 		"2nd_training_completed",
 		"2nd training completed",
 		"2nd training",
@@ -425,6 +460,12 @@ def mark_application_as_approved(
 	try:
 		supabase.table(application_table).update(payload).eq("application_id", application_id).execute()
 	except Exception as err:
+		err_text = str(err)
+		if "capital_build_up_cbu_deposit_id_uk" in err_text or "Key (cbu_deposit_id)=" in err_text:
+			raise MembershipConfirmationError(
+				"Membership status update triggered a legacy CBU auto-insert and failed due to duplicate cbu_deposit_id. "
+				"Disable CBU seeding triggers by running src/server/one_training_policy_update.sql in Supabase, then retry."
+			)
 		raise MembershipConfirmationError(
 			f"Unable to update {application_table} for application {application_id}: {err}"
 		)
@@ -619,7 +660,7 @@ def send_confirmation_email(
 			<p>Dear {first_name},</p>
 			<p>Congratulations!</p>
 			<p>
-			  You have successfully completed the required trainings and your
+			  You have successfully completed the required first training and your
 			  membership has now been officially activated.
 			</p>
 			<p>Welcome as a Bona Fide Member.</p>
@@ -708,7 +749,7 @@ def confirm_membership(application_id: str, confirmed_by_user_id: str, force: bo
 
 		existing_member = get_member_by_user_id(supabase, auth_user_id)
 		if existing_member:
-			membership_id = existing_member.get("membership_id") or membership_id
+			membership_id = normalize_membership_id_format(existing_member.get("membership_id")) or existing_member.get("membership_id") or membership_id
 			created_member = update_existing_member(
 				supabase,
 				auth_user_id,
