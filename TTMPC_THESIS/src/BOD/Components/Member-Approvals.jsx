@@ -385,12 +385,13 @@ const Member_Approvals = () => {
         </header>
 
         <main className="p-8">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6 hidden" >
             <div className="bg-white border border-gray-100 rounded-xl p-5 flex items-center gap-4 shadow-sm">
               <div className="w-12 h-12 rounded-lg bg-[#EAF5EC] flex items-center justify-center flex-shrink-0">
                 <UserPlus className="text-[#2C7A3F] w-6 h-6" />
               </div>
-              <div className="flex flex-col">
+              
+             <div className="flex flex-col">
                 <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">New This Month</h3>
                 <p className="text-2xl font-extrabold text-slate-800 mt-0.5">45</p>
               </div>
@@ -465,16 +466,6 @@ const Member_Approvals = () => {
                 <h2 className="text-lg font-bold text-gray-800">
                   {activeTab} Attendance &amp; Evaluation
                 </h2>
-                <div className="flex items-center gap-3">
-                  <button className="flex items-center gap-1.5 px-4 py-2 rounded-lg border border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
-                    <Download className="w-4 h-4" />
-                    Export List
-                  </button>
-                  <button className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-[#2C7A3F] text-white text-sm font-medium hover:bg-green-800 transition-colors">
-                    <CalendarDays className="w-4 h-4" />
-                    Schedule Training
-                  </button>
-                </div>
               </div>
             ) : (
               <div className="flex justify-between items-center px-6 py-4">
