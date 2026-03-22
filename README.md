@@ -221,27 +221,27 @@ Future Enhancements:
 <table align="center" style="border-collapse: collapse;">
   <tr>
     <td align="center" width="250" style="padding: 20px;">
-      <img src="https://github.com/user-attachments/assets/10e96111-0581-45d6-a368-639aa8427138" width="150" style="border-radius: 50%; margin-bottom: 10px;"><br>
+      <img src="https://github.com/user-attachments/assets/10e96111-0581-45d6-a368-639aa8427138" width="120" style="border-radius: 50%; margin-bottom: 10px;"><br>
       <b>Ashley Nicole Bulotaolo</b><br>
       <span style="color: #555;">UI/UX Designer</span>
     </td>
     <td align="center" width="250" style="padding: 20px;">
-      <img src="https://github.com/user-attachments/assets/d700431d-0861-494f-bb09-f174e3e92454" width="150" style="border-radius: 50%; margin-bottom: 10px;"><br>
+      <img src="https://github.com/user-attachments/assets/d700431d-0861-494f-bb09-f174e3e92454" width="120" style="border-radius: 50%; margin-bottom: 10px;"><br>
       <b>Romelyn Delos Reyes</b><br>
       <span style="color: #555;">Analytics & Documentation</span>
     </td>
     <td align="center" width="250" style="padding: 20px;">
-      <img src="https://github.com/user-attachments/assets/ee5b31e6-28c0-4805-b672-19817c34edbb" width="150" style="border-radius: 50%; margin-bottom: 10px;"><br>
+      <img src="https://github.com/user-attachments/assets/ee5b31e6-28c0-4805-b672-19817c34edbb" width="120" style="border-radius: 50%; margin-bottom: 10px;"><br>
       <b>Nash Ervine Siaton</b><br>
       <span style="color: #555;">Frontend Developer</span>
     </td>
     <td align="center" width="250" style="padding: 20px;">
-      <img src="https://github.com/user-attachments/assets/c8a2ccce-3439-4025-b525-8e555964d467" width="150" style="border-radius: 50%; margin-bottom: 10px;"><br>
+      <img src="https://github.com/user-attachments/assets/c8a2ccce-3439-4025-b525-8e555964d467" width="120" style="border-radius: 50%; margin-bottom: 10px;"><br>
       <b>Gero Antoni Tabiolo</b><br>
       <span style="color: #555;">Backend Developer</span>
     </td>
     <td align="center" width="250" style="padding: 20px;">
-      <img src="https://github.com/user-attachments/assets/0fb19a81-15ba-41d2-9fb7-9065da058ea9" width="150" style="border-radius: 50%; margin-bottom: 10px;"><br>
+      <img src="https://github.com/user-attachments/assets/0fb19a81-15ba-41d2-9fb7-9065da058ea9" width="120" style="border-radius: 50%; margin-bottom: 10px;"><br>
       <b>Erden Jhed Teope</b><br> 
       <span style="color: #555;">Analytics & Documentation</span>
     </td>
