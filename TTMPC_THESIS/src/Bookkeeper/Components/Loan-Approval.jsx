@@ -158,7 +158,7 @@ const BookkeeperLoanApproval = () => {
       source: loan.source,
       name: memberName,
       type: loanTypeName,
-      amount: loan.loan_amount ? `P${Number(loan.loan_amount).toLocaleString()}` : "P0",
+      amount: loan.loan_amount ? `\u20B1${Number(loan.loan_amount).toLocaleString()}` : "\u20B10",
       term: `${loan.term || 0} Months`,
       status: migsStatus,
       date: loan.application_date

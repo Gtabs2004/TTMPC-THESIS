@@ -46,10 +46,10 @@ const distributionData = [
 ];
 
 const recentActivity = [
-  { id: 1, name: "Robert C. Santos", loanId: "#LN-8921", type: "Consolidated", amount: "₱50,000.00", date: "Oct 22, 2023", status: "PENDING DISBURSEMENT", statusColor: "bg-yellow-100 text-yellow-700" },
-  { id: 2, name: "Maria Elena Cruz", loanId: "#LN-8918", type: "Emergency", amount: "₱15,000.00", date: "Oct 21, 2023", status: "DISBURSED", statusColor: "bg-green-100 text-green-700" },
-  { id: 3, name: "Juan Dela Cruz", loanId: "#LN-8915", type: "Consolidated", amount: "₱100,000.00", date: "Oct 20, 2023", status: "APPROVED", statusColor: "bg-blue-100 text-blue-700" },
-  { id: 4, name: "Liza Soberano", loanId: "#LN-8912", type: "Bonus", amount: "₱20,000.00", date: "Oct 19, 2023", status: "SCHEDULED", statusColor: "bg-gray-100 text-gray-600" },
+  { id: 1, name: "Robert C. Santos", loanId: "#LN-8921", type: "Consolidated", amount: "\u20B150,000.00", date: "Oct 22, 2023", status: "PENDING DISBURSEMENT", statusColor: "bg-yellow-100 text-yellow-700" },
+  { id: 2, name: "Maria Elena Cruz", loanId: "#LN-8918", type: "Emergency", amount: "\u20B115,000.00", date: "Oct 21, 2023", status: "DISBURSED", statusColor: "bg-green-100 text-green-700" },
+  { id: 3, name: "Juan Dela Cruz", loanId: "#LN-8915", type: "Consolidated", amount: "\u20B1100,000.00", date: "Oct 20, 2023", status: "APPROVED", statusColor: "bg-blue-100 text-blue-700" },
+  { id: 4, name: "Liza Soberano", loanId: "#LN-8912", type: "Bonus", amount: "\u20B120,000.00", date: "Oct 19, 2023", status: "SCHEDULED", statusColor: "bg-gray-100 text-gray-600" },
 ];
 
 const Treasurer_Dashboard = () => {
@@ -182,7 +182,7 @@ const Treasurer_Dashboard = () => {
               <div className="p-2 bg-green-50 text-green-500 rounded-lg w-max mb-3"><ArrowUpRight size={20} /></div>
               <h3 className="text-gray-400 text-xs font-semibold mb-1">Loans Released Today</h3>
               <div className="flex items-baseline gap-2">
-                <p className="font-bold text-2xl text-gray-800">₱85k</p>
+                <p className="font-bold text-2xl text-gray-800">{"\u20B1"}85k</p>
                 <span className="text-xs font-bold text-green-500">Active</span>
               </div>
             </div>
@@ -192,7 +192,7 @@ const Treasurer_Dashboard = () => {
               <div className="p-2 bg-teal-50 text-teal-500 rounded-lg w-max mb-3"><Wallet size={20} /></div>
               <h3 className="text-gray-400 text-xs font-semibold mb-1">Total Cash Disbursed</h3>
               <div className="flex items-baseline gap-2">
-                <p className="font-bold text-2xl text-gray-800">₱1.24M</p>
+                <p className="font-bold text-2xl text-gray-800">{"\u20B1"}1.24M</p>
                 <span className="text-xs font-bold text-gray-400 uppercase">Feb</span>
               </div>
             </div>
@@ -231,7 +231,7 @@ const Treasurer_Dashboard = () => {
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
                     <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: "#9ca3af", fontSize: 12 }} dy={10} />
-                    <YAxis axisLine={false} tickLine={false} tick={{ fill: "#9ca3af", fontSize: 12 }} tickFormatter={(val) => `₱${val / 1000}k`} />
+                    <YAxis axisLine={false} tickLine={false} tick={{ fill: "#9ca3af", fontSize: 12 }} tickFormatter={(val) => `\u20B1${val / 1000}k`} />
                     <Area 
                       type="monotone" 
                       dataKey="value" 

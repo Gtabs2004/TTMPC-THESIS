@@ -652,25 +652,50 @@ def send_confirmation_email(
 		password_html = f"<p><strong>Temporary Password:</strong> {default_password}</p>"
 
 	payload = {
-		"from": resend_from_email,
-		"to": [to_email],
-		"subject": "Membership Confirmation",
-		"html": f"""
-		  <div style=\"font-family: Arial, sans-serif; color: #111827;\">
-			<p>Dear {first_name},</p>
-			<p>Congratulations!</p>
-			<p>
-			  You have successfully completed the required first training and your
-			  membership has now been officially activated.
-			</p>
-			<p>Welcome as a Bona Fide Member.</p>
-			<p><strong>Membership ID:</strong> {membership_id}</p>
-			{password_html}
-			<p>Thank you.</p>
-		  </div>
-		""",
-	}
+    "from": resend_from_email,
+    "to": [to_email],
+    "subject": "🌟 Welcome to the Inner Circle: Your Membership is Active!",
+    "html": f"""
+    <div style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; color: #111827; line-height: 1.6; max-width: 600px; margin: 0 auto; border: 1px solid #e5e7eb; border-radius: 12px; overflow: hidden;">
+        
+        <div style="background-color: #111827; padding: 30px; text-align: center;">
+            <h1 style="color: #ffffff; margin: 0; font-size: 24px; letter-spacing: 1px;">MEMBERSHIP ACTIVATED</h1>
+        </div>
 
+        <div style="padding: 40px 30px;">
+            <p style="font-size: 18px; margin-top: 0;">Hi <strong>{first_name}</strong>,</p>
+            
+            <p>Congratulations! We are proud to announce that you have successfully completed your initial training requirements.</p>
+            
+            <p>Your status has been officially upgraded. You are now recognized as a <strong>Bona Fide Member</strong>, granting you full access to our professional community and exclusive resources.</p>
+
+            <div style="background-color: #f9fafb; border: 1px solid #d1d5db; padding: 25px; border-radius: 8px; margin: 30px 0;">
+                <h3 style="margin-top: 0; font-size: 14px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em;">Your Access Credentials</h3>
+                <p style="margin: 10px 0; font-size: 16px;"><strong>Membership ID:</strong> <span style="font-family: monospace; color: #2563eb;">{to_email}</span></p>
+                <div style="margin-top: 10px;">
+                    {password_html}
+                </div>
+            </div>
+
+            <h3 style="font-size: 18px; color: #111827;">WElcome to TTMPC</h3>
+            <p style="margin-bottom: 20px;">Now that you're officially in, here is what you can do next:</p>
+            <ul style="padding-left: 20px; color: #4b5563;">
+                <li style="margin-bottom: 10px;"><strong>Access the Dashboard:</strong> View your exclusive member-only content.</li>
+                <li style="margin-bottom: 10px;"><strong>Complete Your Profile:</strong> Let the community know who you are.</li>
+            </ul>
+
+            <div style="text-align: center; margin-top: 40px;">
+                <a href="memberlogin" style="background-color: #2563eb; color: #ffffff; padding: 14px 28px; text-decoration: none; border-radius: 6px; font-weight: 600; display: inline-block;">Log In to Member Portal</a>
+            </div>
+        </div>
+
+        <div style="background-color: #f3f4f6; padding: 20px; text-align: center; font-size: 12px; color: #9ca3af;">
+            <p style="margin: 0;">You are receiving this because you completed the training at Your Organization.</p>
+            <p style="margin: 5px 0;">&copy; 2026 Your Company Name. All rights reserved.</p>
+        </div>
+    </div>
+    """,
+}
 	req = urlrequest.Request(
 		"https://api.resend.com/emails",
 		data=json.dumps(payload).encode("utf-8"),

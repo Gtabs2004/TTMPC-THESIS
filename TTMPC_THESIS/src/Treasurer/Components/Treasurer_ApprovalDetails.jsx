@@ -47,7 +47,7 @@ const Treasurer_ApprovalDetails = () => {
 
   const formatCurrency = (value) => {
     const amount = Number(value || 0);
-    return `₱${amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    return `\u20B1${amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
 
   const formatStatus = (value) => {
@@ -78,7 +78,7 @@ const Treasurer_ApprovalDetails = () => {
 
       const { data, error } = await supabase
         .from('member')
-        .select('first_name, last_name, is_bona_fide')
+        .select('first_name, last_name, is_bona_fide, membership_id')
         .eq('id', memberId)
         .maybeSingle();
 
@@ -142,12 +142,14 @@ const Treasurer_ApprovalDetails = () => {
               bookkeeper_internal_remarks,
               bookkeeper_reviewed_at,
               manager_review_requested_at,
+              raw_payload,
               loan_purpose,
               source_of_income,
               member:member_id (
                 first_name,
                 last_name,
-                is_bona_fide
+                is_bona_fide,
+                membership_id
               ),
               loan_type:loan_type_id (
                 name
@@ -174,6 +176,40 @@ const Treasurer_ApprovalDetails = () => {
         const memberName = isKoicaSource
           ? (data.full_name || 'Unknown Applicant')
           : (`${firstName} ${lastName}`.trim() || 'Unknown Member');
+
+        const normalizeText = (value) => {
+          const normalized = String(value || '').trim();
+          if (!normalized) return '';
+          if (normalized.toLowerCase() === 'n/a') return '';
+          return normalized;
+        };
+
+        let resolvedEmployerPosition = normalizeText(data.source_of_income)
+          || normalizeText(data.raw_payload?.optionalFields?.source_of_income);
+
+        if (!resolvedEmployerPosition && !isKoicaSource) {
+          const membershipNumberId = String(resolvedMember?.membership_id || '').trim();
+          if (membershipNumberId) {
+            const { data: pdsRow, error: pdsError } = await supabase
+              .from('personal_data_sheet')
+              .select('employer_name, position, occupation, created_at')
+              .eq('membership_number_id', membershipNumberId)
+              .order('created_at', { ascending: false })
+              .limit(1)
+              .maybeSingle();
+
+            if (!pdsError && pdsRow) {
+              resolvedEmployerPosition = normalizeText(pdsRow.employer_name)
+                || normalizeText(pdsRow.position)
+                || normalizeText(pdsRow.occupation);
+            }
+          }
+        }
+
+        if (!resolvedEmployerPosition) {
+          resolvedEmployerPosition = 'N/A';
+        }
+
         const principalAmount = Number(data.principal_amount ?? data.loan_amount ?? 0);
         const monthlyAmortization = Number(
           data.monthly_amortization
@@ -205,6 +241,21 @@ const Treasurer_ApprovalDetails = () => {
           ? monthlyAmortization * termMonths
           : principalAmount + resolvedTotalInterest;
 
+        const rawCoMakers = data.raw_payload?.optionalFields?.bookkeeper_loan_details?.coMakers
+          ?? data.raw_payload?.coMakers
+          ?? [];
+        const normalizedCoMakers = [0, 1].map((index) => {
+          const row = rawCoMakers[index] || {};
+          return {
+            membership_number_id: row.membership_number_id || '',
+            name: row.name || '',
+            id_no: row.id_no || '',
+            address: row.address || '',
+            mobile: row.mobile || row.contact_no || '',
+            email: row.email || '',
+          };
+        });
+
         const mapped = {
           id: data.control_number,
           sourceTable: tableName,
@@ -219,8 +270,12 @@ const Treasurer_ApprovalDetails = () => {
             term: `${data.term || 0} Months`,
             migsStatus: isKoicaSource ? 'N/A' : (resolvedMember?.is_bona_fide ? 'MIGS' : 'NON-MIGS'),
             loanPurpose: data.loan_purpose || data.raw_payload?.optionalFields?.loan_purpose || 'N/A',
-            employerPosition: data.source_of_income || data.raw_payload?.optionalFields?.source_of_income || 'N/A',
+            employerPosition: resolvedEmployerPosition,
             bookkeeperInternalRemarks: data.bookkeeper_internal_remarks || 'No internal remarks submitted.',
+            bookkeeperCoMakers: normalizedCoMakers,
+            managerApprovalStatus: String(data.loan_status || data.application_status || '').trim().toLowerCase() === 'to be disbursed'
+              ? 'Approved by Manager'
+              : 'Pending Manager Review',
             bookkeeperReviewedAt: data.bookkeeper_reviewed_at || null,
             managerReviewRequestedAt: data.manager_review_requested_at || null,
           },
@@ -481,6 +536,41 @@ const Treasurer_ApprovalDetails = () => {
                   <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Internal Remarks</p>
                   <p className="text-sm text-gray-700 whitespace-pre-wrap">{loanDetails.summary.bookkeeperInternalRemarks}</p>
                 </div>
+                <div className="border-t border-gray-200 pt-3">
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Manager Approval</p>
+                  <p className="text-sm font-semibold text-green-700">{loanDetails.summary.managerApprovalStatus}</p>
+                </div>
+                <div className="border-t border-gray-200 pt-3">
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-3">Co-Makers (Loan Details)</p>
+                  <div className="space-y-3">
+                    {(loanDetails.summary.bookkeeperCoMakers || []).map((row, index) => {
+                      const hasValue = String(row.membership_number_id || '').trim()
+                        || String(row.name || '').trim()
+                        || String(row.id_no || '').trim()
+                        || String(row.mobile || '').trim()
+                        || String(row.email || '').trim()
+                        || String(row.address || '').trim();
+
+                      return (
+                        <div key={`treasurer-co-maker-${index}`} className="border border-gray-200 rounded-lg p-3 bg-white">
+                          <p className="text-xs font-bold text-gray-700 mb-2">Co-Maker {index + 1}</p>
+                          {hasValue ? (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs text-gray-700">
+                              <p><span className="font-semibold">Membership No:</span> {row.membership_number_id || 'N/A'}</p>
+                              <p><span className="font-semibold">Name:</span> {row.name || 'N/A'}</p>
+                              <p><span className="font-semibold">ID No:</span> {row.id_no || 'N/A'}</p>
+                              <p><span className="font-semibold">Mobile:</span> {row.mobile || 'N/A'}</p>
+                              <p><span className="font-semibold">Email:</span> {row.email || 'N/A'}</p>
+                              <p className="md:col-span-2"><span className="font-semibold">Address:</span> {row.address || 'N/A'}</p>
+                            </div>
+                          ) : (
+                            <p className="text-xs text-gray-500">No co-maker details provided.</p>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
                 {loanDetails.summary.bookkeeperReviewedAt ? (
                   <div className="border-t border-gray-200 pt-3">
                     <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Reviewed At</p>
@@ -546,7 +636,7 @@ const Treasurer_ApprovalDetails = () => {
                 {/* Financial Impact Assessment */}
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-semibold text-gray-700">Financial Impact Assessment</span>
-                  <span className="text-xs font-bold text-gray-800">Projected Interest Revenue: ₱100,000.00</span>
+                  <span className="text-xs font-bold text-gray-800">Projected Interest Revenue: {"\u20B1"}100,000.00</span>
                 </div>
                 {/* Recommendation Status */}
                 <div className="flex items-center justify-between">
