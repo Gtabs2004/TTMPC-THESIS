@@ -429,13 +429,13 @@ const Member_Loans = () => {
               </div>
 
               <div className="flex justify-between items-center mt-8 pt-6 border-t border-gray-100">
-                <span className="font-bold text-gray-900">Total Monthly Payment</span>
+                <span className="font-bold text-gray-900">Total Monthly Ammortization</span>
                 <span className="text-xl font-black text-[#1D6021]">{latestLoan?.payment || 'N/A'}</span>
               </div>
 
-              <div className="mt-8 bg-[#F8F9FA] p-4 rounded-xl flex items-start gap-3 border border-gray-100">
-                <Info className="w-4 h-4 text-[#1D6021] shrink-0 mt-0.5" />
-                <p className="text-[11px] text-gray-500 font-medium leading-relaxed">
+              <div className="mt-8 bg-[#F8F9FA] p-4 rounded-xl flex items-start gap-3 border border-gray-100 hidden">
+                <Info className="w-4 h-4 text-[#1D6021] shrink-0 mt-0.5 hidden" />
+                <p className="text-[11px] text-gray-500 font-medium leading-relaxed hidden">
                   Repayments are automatically deducted from your DepEd payroll on the 15th of every month. For discrepancies, please visit the nearest TTMPC branch.
                 </p>
               </div>

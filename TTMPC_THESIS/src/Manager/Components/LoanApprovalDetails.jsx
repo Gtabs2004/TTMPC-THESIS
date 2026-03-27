@@ -10,7 +10,10 @@ import {
   FileImage, 
   X, 
   Check, 
-  FileEdit 
+  FileEdit,
+  Upload,
+  ExternalLink,
+  Loader2,
 } from 'lucide-react';
 
 const CustomCheckbox = ({ checked, onChange, label }) => (
@@ -29,6 +32,30 @@ const EMPTY_CO_MAKERS = [
   { membership_number_id: '', name: '', id_no: '', address: '', mobile: '', email: '' },
   { membership_number_id: '', name: '', id_no: '', address: '', mobile: '', email: '' },
 ];
+
+const SUPPORTING_DOCS_BUCKET = 'Supporting_Documents';
+
+const sanitizeFilename = (name) => {
+  return String(name || 'file')
+    .trim()
+    .replace(/[^a-zA-Z0-9._-]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+};
+
+const normalizeSupportingDocuments = (rawPayload) => {
+  const docs = rawPayload?.optionalFields?.bookkeeper_loan_details?.supporting_documents;
+  if (!Array.isArray(docs)) return [];
+
+  return docs
+    .map((entry) => ({
+      doc_type: String(entry?.doc_type || 'photo').trim() || 'photo',
+      file_name: String(entry?.file_name || '').trim() || 'Uploaded file',
+      storage_path: String(entry?.storage_path || '').trim(),
+      uploaded_at: entry?.uploaded_at || null,
+      uploaded_by_role: String(entry?.uploaded_by_role || '').trim() || 'bookkeeper',
+    }))
+    .filter((entry) => entry.storage_path);
+};
 
 const LoanApprovalDetails = () => {
   const { id } = useParams();
@@ -53,6 +80,10 @@ const LoanApprovalDetails = () => {
   const [sendSms, setSendSms] = useState(true);
   const [sendEmail, setSendEmail] = useState(true);
   const [loanDetails, setLoanDetails] = useState(null);
+  const [supportingDocs, setSupportingDocs] = useState([]);
+  const [supportingDocUrls, setSupportingDocUrls] = useState({});
+  const [docLoading, setDocLoading] = useState(false);
+  const [docError, setDocError] = useState('');
 
   const formatCurrency = (value) => {
     const amount = Number(value || 0);
@@ -325,6 +356,7 @@ const LoanApprovalDetails = () => {
         if (isMounted) {
           setLoanDetails(mapped);
           setCoMakerDetails(normalizedCoMakers);
+          setSupportingDocs(normalizeSupportingDocuments(mapped.rawPayload || {}));
         }
       } catch (err) {
         if (isMounted) {
@@ -342,6 +374,124 @@ const LoanApprovalDetails = () => {
       isMounted = false;
     };
   }, [id]);
+
+  useEffect(() => {
+    let active = true;
+
+    const loadSignedUrls = async () => {
+      if (!supportingDocs.length) {
+        if (active) setSupportingDocUrls({});
+        return;
+      }
+
+      const resolved = {};
+      for (const doc of supportingDocs) {
+        const path = String(doc.storage_path || '').trim();
+        if (!path) continue;
+
+        const { data, error } = await supabase.storage
+          .from(SUPPORTING_DOCS_BUCKET)
+          .createSignedUrl(path, 60 * 60);
+
+        if (!error && data?.signedUrl) {
+          resolved[path] = data.signedUrl;
+        }
+      }
+
+      if (active) {
+        setSupportingDocUrls(resolved);
+      }
+    };
+
+    loadSignedUrls();
+    return () => {
+      active = false;
+    };
+  }, [supportingDocs]);
+
+  const handleSupportingDocumentUpload = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file || !loanDetails?.id) return;
+
+    if (!isBookkeeperFlow) {
+      setDocError('Only Bookkeeper can upload supporting documents in this view.');
+      event.target.value = '';
+      return;
+    }
+
+    try {
+      setDocLoading(true);
+      setDocError('');
+
+      const safeName = sanitizeFilename(file.name);
+      const storagePath = `loan_supporting_documents/${loanDetails.id}/${Date.now()}_${safeName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from(SUPPORTING_DOCS_BUCKET)
+        .upload(storagePath, file, { upsert: false, contentType: file.type || 'application/octet-stream' });
+
+      if (uploadError) {
+        throw new Error(uploadError.message || 'Failed to upload supporting document.');
+      }
+
+      const existingRawPayload = loanDetails.rawPayload && typeof loanDetails.rawPayload === 'object'
+        ? loanDetails.rawPayload
+        : {};
+      const existingOptionalFields = existingRawPayload.optionalFields && typeof existingRawPayload.optionalFields === 'object'
+        ? existingRawPayload.optionalFields
+        : {};
+      const existingBookkeeperDetails = existingOptionalFields.bookkeeper_loan_details
+        && typeof existingOptionalFields.bookkeeper_loan_details === 'object'
+        ? existingOptionalFields.bookkeeper_loan_details
+        : {};
+
+      const nextDocuments = [
+        {
+          doc_type: 'photo',
+          file_name: file.name,
+          storage_path: storagePath,
+          uploaded_at: new Date().toISOString(),
+          uploaded_by_role: 'bookkeeper',
+        },
+        ...supportingDocs,
+      ];
+
+      const updatePayload = {
+        raw_payload: {
+          ...existingRawPayload,
+          optionalFields: {
+            ...existingOptionalFields,
+            bookkeeper_loan_details: {
+              ...existingBookkeeperDetails,
+              supporting_documents: nextDocuments,
+            },
+          },
+        },
+      };
+
+      const { data: updatedRows, error: updateError } = await supabase
+        .from(loanDetails.sourceTable || 'loans')
+        .update(updatePayload)
+        .eq('control_number', loanDetails.id)
+        .select('raw_payload')
+        .limit(1);
+
+      if (updateError) {
+        throw new Error(updateError.message || 'Failed to save supporting document metadata.');
+      }
+
+      const updatedRawPayload = updatedRows?.[0]?.raw_payload || updatePayload.raw_payload;
+      const normalized = normalizeSupportingDocuments(updatedRawPayload);
+
+      setLoanDetails((prev) => prev ? { ...prev, rawPayload: updatedRawPayload } : prev);
+      setSupportingDocs(normalized);
+    } catch (err) {
+      setDocError(err.message || 'Unable to upload supporting document.');
+    } finally {
+      setDocLoading(false);
+      event.target.value = '';
+    }
+  };
 
   const closeModal = () => {
     setActiveModal(null);
@@ -803,24 +953,67 @@ const LoanApprovalDetails = () => {
               <h2 className="flex items-center text-lg font-bold text-gray-800 mb-4">
                 <Paperclip className="w-5 h-5 mr-2 text-[#1D6021]" /> Supporting Documents
               </h2>
-              <div className="grid grid-cols-3 gap-4">
-                <div className="bg-[#F8F9FA] border-2 border-dashed border-gray-200 rounded-xl p-6 flex flex-col items-center justify-center cursor-pointer hover:bg-gray-50 transition-colors">
-                  <FileImage className="w-6 h-6 text-gray-400 mb-2" />
-                  <p className="text-[9px] font-bold text-gray-500 uppercase tracking-wider">Kiosk Submission</p>
+              {isBookkeeperFlow && (
+                <label className="mb-4 inline-flex cursor-pointer items-center gap-2 rounded-lg border border-green-200 bg-green-50 px-4 py-2 text-sm font-semibold text-[#1D6021] hover:bg-green-100 transition-colors">
+                  {docLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                  {docLoading ? 'Uploading...' : 'Upload Photo'}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    disabled={docLoading}
+                    onChange={handleSupportingDocumentUpload}
+                  />
+                </label>
+              )}
+
+              {docError ? (
+                <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                  {docError}
                 </div>
-                <div className="bg-[#F8F9FA] border-2 border-dashed border-gray-200 rounded-xl p-6 flex flex-col items-center justify-center cursor-pointer hover:bg-gray-50 transition-colors">
-                  <FileImage className="w-6 h-6 text-gray-400 mb-2" />
-                  <p className="text-[9px] font-bold text-gray-500 uppercase tracking-wider">Payslip 1</p>
+              ) : null}
+
+              {supportingDocs.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-gray-300 bg-[#F8F9FA] p-6 text-sm text-gray-500">
+                  No supporting photos uploaded yet.
                 </div>
-                <div className="bg-[#F8F9FA] border-2 border-dashed border-gray-200 rounded-xl p-6 flex flex-col items-center justify-center cursor-pointer hover:bg-gray-50 transition-colors">
-                  <FileImage className="w-6 h-6 text-gray-400 mb-2" />
-                  <p className="text-[9px] font-bold text-gray-500 uppercase tracking-wider">Payslip 2</p>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {supportingDocs.map((doc, index) => {
+                    const previewUrl = supportingDocUrls[doc.storage_path] || '';
+                    const isImage = /\.(png|jpg|jpeg|gif|webp|bmp|svg)$/i.test(String(doc.file_name || ''));
+
+                    return (
+                      <div key={`${doc.storage_path}-${index}`} className="rounded-xl border border-gray-200 bg-white p-3">
+                        <div className="mb-2 h-40 overflow-hidden rounded-lg bg-gray-100 flex items-center justify-center">
+                          {previewUrl && isImage ? (
+                            <img src={previewUrl} alt={doc.file_name} className="h-full w-full object-cover" />
+                          ) : (
+                            <FileImage className="w-8 h-8 text-gray-400" />
+                          )}
+                        </div>
+                        <p className="truncate text-xs font-semibold text-gray-700">{doc.file_name}</p>
+                        <p className="text-[11px] text-gray-500 mt-1">
+                          {doc.uploaded_at ? new Date(doc.uploaded_at).toLocaleString() : 'Upload date unavailable'}
+                        </p>
+                        {previewUrl ? (
+                          <a
+                            href={previewUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="mt-2 inline-flex items-center gap-1 text-xs font-bold text-[#1D6021] hover:underline"
+                          >
+                            <ExternalLink className="w-3.5 h-3.5" /> Open
+                          </a>
+                        ) : null}
+                      </div>
+                    );
+                  })}
                 </div>
+              )}
               </div>
             </div>
           </div>
-
-        </div>
 
         {/* Footer Actions */}
         <div className="bg-[#F8F9FA] border-t border-gray-200 p-6 flex justify-end gap-4">

@@ -37,7 +37,7 @@ const Member_Services = () => {
           {/* Savings Card */}
           <Link 
             to="/savings_services" 
-            className="bg-white h-56 w-56 rounded-2xl flex flex-col items-center justify-center cursor-pointer shadow-sm border border-slate-100 hover:shadow-lg hover:border-[#A0D284] transition-all group"
+            className="bg-white h-56 w-56 rounded-2xl flex flex-col items-center justify-center cursor-pointer shadow-sm border border-slate-100 hover:shadow-lg hover:border-[#A0D284] transition-all group hidden"
           >
             <div className="bg-[#F0FDF4] p-5 rounded-full mb-4 group-hover:scale-110 transition-transform duration-300">
               <PiggyBank size={40} className="text-[#66B538]" strokeWidth={2} />
@@ -59,7 +59,7 @@ const Member_Services = () => {
           {/* Payments Card */}
           <Link 
             to="/Bonus_Loan" 
-            className="bg-white h-56 w-56 rounded-2xl flex flex-col items-center justify-center cursor-pointer shadow-sm border border-slate-100 hover:shadow-lg hover:border-[#A0D284] transition-all group"
+            className="bg-white h-56 w-56 rounded-2xl flex flex-col items-center justify-center cursor-pointer shadow-sm border border-slate-100 hover:shadow-lg hover:border-[#A0D284] transition-all group hidden"
           >
             <div className="bg-[#F0FDF4] p-5 rounded-full mb-4 group-hover:scale-110 transition-transform duration-300">
               <Receipt size={40} className="text-[#66B538]" strokeWidth={2} />

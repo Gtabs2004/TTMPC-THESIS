@@ -41,7 +41,7 @@ CREATE TABLE IF NOT EXISTS public.ledger_transactions (
 	source_id text NOT NULL,
 	membership_number_id text,
 	account_type text,
-	entry_type text NOT NULL,
+	entry_type text NOT NULL,   
 	amount numeric(14,2) NOT NULL,
 	running_balance numeric(14,2),
 	posted_at timestamptz NOT NULL DEFAULT now(),
