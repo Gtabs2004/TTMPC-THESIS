@@ -11,8 +11,26 @@ import {
   X, 
   Check, 
   FileEdit,
-  AlertCircle
+  AlertCircle,
+  ExternalLink,
 } from 'lucide-react';
+
+const SUPPORTING_DOCS_BUCKET = 'Supporting_Documents';
+
+const normalizeSupportingDocuments = (rawPayload) => {
+  const docs = rawPayload?.optionalFields?.bookkeeper_loan_details?.supporting_documents;
+  if (!Array.isArray(docs)) return [];
+
+  return docs
+    .map((entry) => ({
+      doc_type: String(entry?.doc_type || 'photo').trim() || 'photo',
+      file_name: String(entry?.file_name || '').trim() || 'Uploaded file',
+      storage_path: String(entry?.storage_path || '').trim(),
+      uploaded_at: entry?.uploaded_at || null,
+      uploaded_by_role: String(entry?.uploaded_by_role || '').trim() || 'bookkeeper',
+    }))
+    .filter((entry) => entry.storage_path);
+};
 
 const CustomCheckbox = ({ checked, onChange, label }) => (
   <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer mb-2 w-fit">
@@ -44,6 +62,8 @@ const Treasurer_ApprovalDetails = () => {
   const [sendSms, setSendSms] = useState(true);
   const [sendEmail, setSendEmail] = useState(true);
   const [loanDetails, setLoanDetails] = useState(null);
+  const [supportingDocs, setSupportingDocs] = useState([]);
+  const [supportingDocUrls, setSupportingDocUrls] = useState({});
 
   const formatCurrency = (value) => {
     const amount = Number(value || 0);
@@ -259,6 +279,7 @@ const Treasurer_ApprovalDetails = () => {
         const mapped = {
           id: data.control_number,
           sourceTable: tableName,
+          rawPayload: data.raw_payload || {},
           memberName,
           loanType: resolvedLoanType,
           loanAmount: Number(data.loan_amount ?? principalAmount ?? 0),
@@ -295,6 +316,7 @@ const Treasurer_ApprovalDetails = () => {
 
         if (isMounted) {
           setLoanDetails(mapped);
+          setSupportingDocs(normalizeSupportingDocuments(mapped.rawPayload || {}));
         }
       } catch (err) {
         if (isMounted) {
@@ -312,6 +334,40 @@ const Treasurer_ApprovalDetails = () => {
       isMounted = false;
     };
   }, [id]);
+
+  useEffect(() => {
+    let active = true;
+
+    const loadSignedUrls = async () => {
+      if (!supportingDocs.length) {
+        if (active) setSupportingDocUrls({});
+        return;
+      }
+
+      const resolved = {};
+      for (const doc of supportingDocs) {
+        const path = String(doc.storage_path || '').trim();
+        if (!path) continue;
+
+        const { data, error } = await supabase.storage
+          .from(SUPPORTING_DOCS_BUCKET)
+          .createSignedUrl(path, 60 * 60);
+
+        if (!error && data?.signedUrl) {
+          resolved[path] = data.signedUrl;
+        }
+      }
+
+      if (active) {
+        setSupportingDocUrls(resolved);
+      }
+    };
+
+    loadSignedUrls();
+    return () => {
+      active = false;
+    };
+  }, [supportingDocs]);
 
   const closeModal = () => {
     setActiveModal(null);
@@ -651,20 +707,44 @@ const Treasurer_ApprovalDetails = () => {
               <h2 className="flex items-center text-lg font-bold text-gray-800 mb-4">
                 <Paperclip className="w-5 h-5 mr-2 text-[#1D6021]" /> Supporting Documents
               </h2>
-              <div className="grid grid-cols-3 gap-4">
-                <div className="bg-[#F8F9FA] border-2 border-dashed border-gray-200 rounded-xl p-6 flex flex-col items-center justify-center cursor-pointer hover:bg-gray-50 transition-colors">
-                  <FileImage className="w-6 h-6 text-gray-400 mb-2" />
-                  <p className="text-[9px] font-bold text-gray-500 uppercase tracking-wider">Kiosk Submission</p>
+              {supportingDocs.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-gray-300 bg-[#F8F9FA] p-6 text-sm text-gray-500">
+                  No supporting photos uploaded yet.
                 </div>
-                <div className="bg-[#F8F9FA] border-2 border-dashed border-gray-200 rounded-xl p-6 flex flex-col items-center justify-center cursor-pointer hover:bg-gray-50 transition-colors">
-                  <FileImage className="w-6 h-6 text-gray-400 mb-2" />
-                  <p className="text-[9px] font-bold text-gray-500 uppercase tracking-wider">Payslip 1</p>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {supportingDocs.map((doc, index) => {
+                    const previewUrl = supportingDocUrls[doc.storage_path] || '';
+                    const isImage = /\.(png|jpg|jpeg|gif|webp|bmp|svg)$/i.test(String(doc.file_name || ''));
+
+                    return (
+                      <div key={`${doc.storage_path}-${index}`} className="rounded-xl border border-gray-200 bg-white p-3">
+                        <div className="mb-2 h-40 overflow-hidden rounded-lg bg-gray-100 flex items-center justify-center">
+                          {previewUrl && isImage ? (
+                            <img src={previewUrl} alt={doc.file_name} className="h-full w-full object-cover" />
+                          ) : (
+                            <FileImage className="w-8 h-8 text-gray-400" />
+                          )}
+                        </div>
+                        <p className="truncate text-xs font-semibold text-gray-700">{doc.file_name}</p>
+                        <p className="text-[11px] text-gray-500 mt-1">
+                          {doc.uploaded_at ? new Date(doc.uploaded_at).toLocaleString() : 'Upload date unavailable'}
+                        </p>
+                        {previewUrl ? (
+                          <a
+                            href={previewUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="mt-2 inline-flex items-center gap-1 text-xs font-bold text-[#1D6021] hover:underline"
+                          >
+                            <ExternalLink className="w-3.5 h-3.5" /> Open
+                          </a>
+                        ) : null}
+                      </div>
+                    );
+                  })}
                 </div>
-                <div className="bg-[#F8F9FA] border-2 border-dashed border-gray-200 rounded-xl p-6 flex flex-col items-center justify-center cursor-pointer hover:bg-gray-50 transition-colors">
-                  <FileImage className="w-6 h-6 text-gray-400 mb-2" />
-                  <p className="text-[9px] font-bold text-gray-500 uppercase tracking-wider">Payslip 2</p>
-                </div>
-              </div>
+              )}
             </div>
           </div>
 

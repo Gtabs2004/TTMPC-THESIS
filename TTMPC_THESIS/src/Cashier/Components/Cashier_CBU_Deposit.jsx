@@ -20,7 +20,7 @@ import logo from "../../assets/img/ttmpc logo.png";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 const SHARE_VALUE = 1000;
-const STARTING_CAPITAL = 500;
+const STARTING_CAPITAL = 0;
 
 const formatCurrency = (value) =>
   `₱${Number(value || 0).toLocaleString(undefined, {
@@ -71,7 +71,7 @@ const Cashier_CBU_Deposit = () => {
 
   const currentBalance = selectedMember
     ? selectedMember.is_new_member
-      ? Number(selectedMember.starting_capital || STARTING_CAPITAL)
+      ? 0
       : Number(selectedMember.current_balance || 0)
     : 0;
   const amount = Number(depositAmount || 0);
@@ -292,7 +292,7 @@ const Cashier_CBU_Deposit = () => {
               <div>
                 <p className="text-xs uppercase tracking-wider text-gray-500 font-bold mb-2">Starting Point</p>
                 <div className="h-11 rounded-lg border border-gray-200 bg-gray-50 px-3 flex items-center text-sm font-semibold text-gray-700">
-                  {selectedMember?.is_new_member ? `${formatCurrency(selectedMember?.starting_capital || STARTING_CAPITAL)} (New)` : "Existing Capital"}
+                  {selectedMember?.is_new_member ? `${formatCurrency(STARTING_CAPITAL)} (New)` : "Existing Capital"}
                 </div>
               </div>
             </div>
@@ -345,23 +345,9 @@ const Cashier_CBU_Deposit = () => {
                 />
               </div>
 
-
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-5">
-              <div className="rounded-lg border border-gray-200 bg-white p-4">
-                <p className="text-[10px] uppercase tracking-wider text-gray-500 font-bold mb-2">Total Balance After Deposit</p>
-                <p className="text-lg font-black text-gray-900">{formatCurrency(totalBalance)}</p>
-              </div>
-              <div className="rounded-lg border border-gray-200 bg-white p-4">
-                <p className="text-[10px] uppercase tracking-wider text-gray-500 font-bold mb-2">Computed Shares</p>
-                <p className="text-lg font-black text-[#1F3E35]">{Number.isFinite(totalShares) ? totalShares.toFixed(2) : "0.00"}</p>
-              </div>
-              <div className="rounded-lg border border-gray-200 bg-white p-4">
-                <p className="text-[10px] uppercase tracking-wider text-gray-500 font-bold mb-2">Share Rule</p>
-                <p className="text-sm font-bold text-gray-700">₱1,000 = 1 Share</p>
-              </div>
-            </div>
+            
 
             <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 mb-5 text-sm text-gray-700 flex items-start gap-2">
               <Calculator className="w-4 h-4 mt-0.5 text-[#389734]" />

@@ -179,7 +179,7 @@ const BookkeeperLoanApproval = () => {
           <img src="src/assets/img/ttmpc logo.png" alt="Logo" className="h-12 w-auto" />
           <div className="flex flex-col">
             <h1 className="text-xl font-bold text-[#389734]">TTMPC</h1>
-             <PortalSidebarIdentity className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold" fallbackPortal="Bookkeeper Portal" fallbackRole="Bookkeeper" />
+            <p className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold">Bookkeeper Portal</p>
           </div>
         </div>
 
