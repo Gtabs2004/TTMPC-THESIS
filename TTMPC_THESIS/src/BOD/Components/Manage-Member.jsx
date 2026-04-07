@@ -163,7 +163,7 @@ const BOD_Manage_Member = () => {
                         <td className="px-4 py-3 text-gray-700">{r.address}</td>
                         <td className="px-4 py-3 text-right">
                           <button
-                            onClick={() => navigate(`/member_details?member_id=${encodeURIComponent(String(r.member_id || ""))}`, { state: { member: r } })}
+                            onClick={() => navigate(`/member_details?member_id=${encodeURIComponent(String(r.member_id || ""))}&portal=bod`, { state: { member: r, portal: "bod" } })}
                             className="text-[#1D6021] font-bold hover:underline transition-all"
                           >
                             View

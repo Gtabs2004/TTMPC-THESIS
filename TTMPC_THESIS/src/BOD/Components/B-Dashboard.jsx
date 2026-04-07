@@ -63,6 +63,14 @@ const Dashboard_BOD = () => {
     { section: "SECRETARY", items: [{ name: "Training Attendance", icon: CalendarCheck }, { name: "Membership Records", icon: Archive }] }
   ];
 
+  const routeMap = {
+    "Dashboard": "/BOD-dashboard",
+    "Member Approvals": "/member-approvals",
+    "Manage Member": "/bod-manage-member",
+    "Training Attendance": "/Secretary_Attendance",
+    "Membership Records": "/Secretary_Records",
+  };
+
   const handleSignOut = async (e) => {
     e.preventDefault();
     try { await signOut(); navigate("/"); } catch (err) { console.error("Failed to sign out:", err); }
@@ -87,7 +95,7 @@ const Dashboard_BOD = () => {
               <p className="text-xs font-bold text-gray-400 px-2 uppercase tracking-wider">{sectionGroup.section}</p>
               {sectionGroup.items.map((item) => {
                 const Icon = item.icon;
-                const to = `/${item.name.toLowerCase().replace(/\s+/g, '-')}`;
+                const to = routeMap[item.name];
                 return (
                   <NavLink key={item.name} to={to} className={({ isActive }) => `flex items-center gap-3 p-2 rounded-md transition-colors ${isActive ? 'bg-green-50 text-green-700 font-semibold' : 'text-gray-700 hover:bg-green-50 hover:text-green-700'}`}>
                     <Icon size={20} /><span>{item.name}</span>
