@@ -20,6 +20,16 @@ const Member_Details = () => {
     return fromQuery ? String(fromQuery) : '';
   }, [location]);
 
+  const returnPath = useMemo(() => {
+    const statePortal = String(location.state?.portal || '').toLowerCase();
+    const params = new URLSearchParams(location.search);
+    const queryPortal = String(params.get('portal') || '').toLowerCase();
+    const portal = statePortal || queryPortal;
+
+    if (portal === 'bod') return '/bod-manage-member';
+    return '/manage-member';
+  }, [location]);
+
   useEffect(() => {
     async function loadRecord() {
       if (!membershipId) {
@@ -66,7 +76,7 @@ const Member_Details = () => {
   return (
     <div className="p-8 bg-gray-50 min-h-screen">
       <button 
-        onClick={() => navigate('/manage-member')}
+        onClick={() => navigate(returnPath)}
         className="flex items-center text-sm text-[#1a4a2f] font-semibold mb-4 hover:underline"
       >
         <ArrowLeft className="w-4 h-4 mr-2" /> Back to members
