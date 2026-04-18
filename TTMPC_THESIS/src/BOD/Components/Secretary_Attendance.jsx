@@ -24,14 +24,14 @@ const Secretary_Attendance = () => {
   const navigate = useNavigate();
   
   // --- STATE ---
-  const [activeTab, setActiveTab] = useState("1st Training");
+  const [activeTab, setActiveTab] = useState("Training");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedMember, setSelectedMember] = useState(null);
   const [editedRemark, setEditedRemark] = useState("");
   const [tableData, setTableData] = useState({
     Pending: [],
-    "1st Training": [],
-    Rejected: [],
+    Training: [],
+    "For Revision": [],
   });
   const [portalRole, setPortalRole] = useState("");
   const [savingAttendance, setSavingAttendance] = useState(false);
@@ -56,11 +56,17 @@ const Secretary_Attendance = () => {
   ];
 
   const normalizeStatus = (value) => {
-    const normalized = String(value || "").trim().toLowerCase();
+    const normalized = String(value || "")
+      .trim()
+      .toLowerCase()
+      .replace(/[_-]+/g, " ")
+      .replace(/\s+/g, " ");
+
     if (normalized === "pending") return "Pending";
-    if (["1st training", "first training", "training 1"].includes(normalized)) return "1st Training";
-    if (["2nd training", "second training", "training 2"].includes(normalized)) return "1st Training";
-    if (normalized === "rejected") return "Rejected";
+    if (["training", "1st training", "first training", "training 1", "2nd training", "second training", "training 2"].includes(normalized)) return "Training";
+    if (["for revision", "revision"].includes(normalized)) return "For Revision";
+    // Keep legacy rejected records visible under revision workflow.
+    if (normalized === "rejected") return "For Revision";
     return "Pending";
   };
 
@@ -131,8 +137,8 @@ const Secretary_Attendance = () => {
 
     const grouped = {
       Pending: [],
-      "1st Training": [],
-      Rejected: [],
+      Training: [],
+      "For Revision": [],
     };
 
     for (const row of data || []) {
@@ -219,11 +225,11 @@ const Secretary_Attendance = () => {
 
   const tabs = [
     { name: "Pending", count: tableData["Pending"].length, color: "bg-green-600" },
-    { name: "1st Training", count: tableData["1st Training"].length, color: "bg-blue-500" },
-    { name: "Rejected", count: tableData["Rejected"].length, color: "bg-red-500" }
+    { name: "Training", count: tableData["Training"].length, color: "bg-blue-500" },
+    { name: "For Revision", count: tableData["For Revision"].length, color: "bg-amber-500" }
   ];
   const isSecretary = portalRole === "secretary";
-  const visibleTabs = isSecretary ? ["Pending", "1st Training"] : tabs.map((tab) => tab.name);
+  const visibleTabs = isSecretary ? ["Pending", "Training", "For Revision"] : tabs.map((tab) => tab.name);
 
   const handleSignOut = async (e) => {
     e.preventDefault();
@@ -395,7 +401,7 @@ const Secretary_Attendance = () => {
                 <ClipboardList className="text-[#D97706] w-6 h-6" />
               </div>
               <div className="flex flex-col">
-                <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">PASSED 1ST TRAINING</h3>
+                <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">PASSED TRAINING</h3>
                 <p className="text-2xl font-extrabold text-slate-800 mt-0.5">6</p>
               </div>
             </div>
@@ -486,7 +492,7 @@ const Secretary_Attendance = () => {
                             ${row.status === 'Present' ? 'text-green-600' : row.status === 'Absent' ? 'text-red-500' : 'text-gray-600'}
                           `}
                           value={row.status}
-                          disabled={activeTab !== '1st Training'}
+                          disabled={activeTab !== 'Training'}
                           onChange={(e) => handleAttendanceStatusChange(row, e.target.value)}
                           style={{
                             backgroundImage: `url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%239CA3AF%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E")`,
