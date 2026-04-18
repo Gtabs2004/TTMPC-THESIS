@@ -21,6 +21,76 @@ import {
   History
 } from 'lucide-react';
 
+const styles = `
+  @keyframes fadeInUp {
+    from {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  @keyframes slideInLeft {
+    from {
+      opacity: 0;
+      transform: translateX(-20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+
+  @keyframes spin-slow {
+    from {
+      transform: rotate(0deg);
+    }
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  .animate-fade-in-up {
+    animation: fadeInUp 0.6s ease-out;
+  }
+
+  .animate-fade-in {
+    animation: fadeIn 0.4s ease-out;
+  }
+
+  .animate-slide-in-left {
+    animation: slideInLeft 0.5s ease-out;
+  }
+
+  .animate-spin-slow {
+    animation: spin-slow 1.5s linear;
+  }
+
+  .transition-all-smooth {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  tbody tr {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  tbody tr:hover {
+    transform: translateX(2px);
+  }
+`;
+
 const Members_Profile = () => {
   const { session, signOut } = UserAuth();
   const navigate = useNavigate();
@@ -243,6 +313,7 @@ const Members_Profile = () => {
 
   return (
     <div className="relative flex min-h-screen bg-[#F8F9FA]">
+      <style>{styles}</style>
       {isSidebarOpen ? (
         <button
           aria-label="Close sidebar overlay"
@@ -360,7 +431,7 @@ const Members_Profile = () => {
         </header>
    
         {/* Scrollable Page Content */}
-        <main className="p-4 sm:p-6 lg:p-8 overflow-y-auto">
+        <main className="p-4 sm:p-6 lg:p-8 overflow-y-auto pb-28 lg:pb-0">
           
           {/* Top Profile Header Card */}
           <div className="bg-white p-4 sm:p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col sm:flex-row items-center justify-between mb-8 gap-4">
@@ -567,6 +638,49 @@ const Members_Profile = () => {
             </form>
           </div>
         ) : null}
+
+        {/* Bottom Navigation - Mobile Only */}
+        <nav className="fixed bottom-0 left-0 right-0 lg:hidden bg-white border-t border-gray-200 px-2 py-2">
+          <div className="max-w-lg mx-auto">
+            <div className="flex items-center justify-around gap-1">
+              {(() => {
+                const routeMap = {
+                  "Dashboard": "/member-dashboard",
+                  "Member Loans": "/member-loans",
+                  "Loan Lifecycle": "/member-lifecycle",
+                  "Member Profile": "/members-profile",
+                  "Member Savings": "/member-savings"
+                };
+
+                return menuItems.map((item) => {
+                  const Icon = item.icon;
+                  const to = routeMap[item.name] || `/${item.name.toLowerCase().replace(/\s+/g, '-')}`;
+
+                  return (
+                    <NavLink
+                      key={item.name}
+                      to={to}
+                      className={({ isActive }) =>
+                        `flex flex-col items-center justify-center px-2.5 py-2 rounded-full transition-all ${
+                          isActive
+                            ? 'bg-[#1D6021] text-white'
+                            : 'text-gray-600 hover:text-[#1D6021]'
+                        }`
+                      }
+                    >
+                      {({ isActive }) => (
+                        <>
+                          <Icon size={20} strokeWidth={isActive ? 2.5 : 2} className="mb-1" />
+                          <span className="text-[10px] font-semibold">{item.name.split(' ')[0]}</span>
+                        </>
+                      )}
+                    </NavLink>
+                  );
+                });
+              })()}
+            </div>
+          </div>
+        </nav>
       </div>
     </div>
   );

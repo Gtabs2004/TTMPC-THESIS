@@ -21,6 +21,76 @@ import {
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 
+const styles = `
+  @keyframes fadeInUp {
+    from {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  @keyframes slideInLeft {
+    from {
+      opacity: 0;
+      transform: translateX(-20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+
+  @keyframes spin-slow {
+    from {
+      transform: rotate(0deg);
+    }
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  .animate-fade-in-up {
+    animation: fadeInUp 0.6s ease-out;
+  }
+
+  .animate-fade-in {
+    animation: fadeIn 0.4s ease-out;
+  }
+
+  .animate-slide-in-left {
+    animation: slideInLeft 0.5s ease-out;
+  }
+
+  .animate-spin-slow {
+    animation: spin-slow 1.5s linear;
+  }
+
+  .transition-all-smooth {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  tbody tr {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  tbody tr:hover {
+    transform: translateX(2px);
+  }
+`;
+
 const formatCurrency = (value) =>
   `PHP ${Number(value || 0).toLocaleString(undefined, {
     minimumFractionDigits: 2,
@@ -228,6 +298,7 @@ const Member_Lifecycle = () => {
 
   return (
     <div className="relative flex min-h-screen bg-[#F8F9FA]">
+      <style>{styles}</style>
       {isSidebarOpen ? (
         <button
           aria-label="Close sidebar overlay"
@@ -329,7 +400,7 @@ const Member_Lifecycle = () => {
           </div>
         </header>
 
-        <main className="p-4 sm:p-6 lg:p-8 overflow-y-auto">
+        <main className="p-4 sm:p-6 lg:p-8 overflow-y-auto pb-28 lg:pb-0">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6 gap-3">
             <div>
               <h1 className="hidden lg:block font-extrabold text-[#1a4a2f] text-2xl">Loan Lifecycle View</h1>
@@ -342,30 +413,32 @@ const Member_Lifecycle = () => {
             <button
               type="button"
               onClick={loadLifecycleData}
-              className="inline-flex items-center gap-2 rounded-lg bg-[#1D6021] px-4 py-2 text-sm font-bold text-white hover:bg-[#154718]"
+              className="inline-flex items-center gap-2 rounded-lg bg-[#1D6021] px-4 py-2 text-sm font-bold text-white hover:bg-[#154718] transition-all-smooth hover:scale-105 active:scale-95"
             >
-              <RefreshCw size={14} /> Refresh Now
+              <RefreshCw size={14} className={loading ? 'animate-spin-slow' : ''} /> Refresh Now
             </button>
           </div>
 
           {error ? (
-            <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
+            <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 animate-fade-in-up">
+              {error}
+            </div>
           ) : null}
 
           {loading ? (
-            <div className="mb-4 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700">
+            <div className="mb-4 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700 animate-fade-in-up">
               Syncing member loan lifecycle data...
             </div>
           ) : null}
 
           {scheduleWarning ? (
-            <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 animate-fade-in-up">
               {scheduleWarning}
             </div>
           ) : null}
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 mb-6">
-            <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-100 shadow-sm p-4 sm:p-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 mb-6 animate-fade-in-up">
+            <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-100 shadow-sm p-4 sm:p-6 transition-all-smooth hover:shadow-lg">
               <div className="flex items-center gap-2 mb-4">
                 <Users className="w-5 h-5 text-[#1D6021]" />
                 <h2 className="font-bold text-gray-900">Complete Member Details</h2>
@@ -384,54 +457,54 @@ const Member_Lifecycle = () => {
               </div>
             </div>
 
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 sm:p-6">
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 sm:p-6 transition-all-smooth hover:shadow-lg">
               <div className="flex items-center gap-2 mb-4">
                 <ShieldCheck className="w-5 h-5 text-[#1D6021]" />
                 <h2 className="font-bold text-gray-900">Process Summary</h2>
               </div>
               <div className="space-y-3 text-sm">
-                <p className="flex items-center justify-between"><span className="text-gray-600">Active Loans</span><span className="font-bold">{summary.active}</span></p>
-                <p className="flex items-center justify-between"><span className="text-gray-600">Completed Loans</span><span className="font-bold">{summary.completed}</span></p>
-                <p className="flex items-center justify-between"><span className="text-gray-600">Recorded Payments</span><span className="font-bold">{payments.length}</span></p>
-                <p className="flex items-center justify-between"><span className="text-gray-600">Total Paid</span><span className="font-bold text-[#1D6021]">{formatCurrency(summary.totalPaid)}</span></p>
+                <p className="flex items-center justify-between transition-all-smooth hover:translate-x-1"><span className="text-gray-600">Active Loans</span><span className="font-bold">{summary.active}</span></p>
+                <p className="flex items-center justify-between transition-all-smooth hover:translate-x-1"><span className="text-gray-600">Completed Loans</span><span className="font-bold">{summary.completed}</span></p>
+                <p className="flex items-center justify-between transition-all-smooth hover:translate-x-1"><span className="text-gray-600">Recorded Payments</span><span className="font-bold">{payments.length}</span></p>
+                <p className="flex items-center justify-between transition-all-smooth hover:translate-x-1"><span className="text-gray-600">Total Paid</span><span className="font-bold text-[#1D6021]">{formatCurrency(summary.totalPaid)}</span></p>
               </div>
             </div>
-          </div>
+          </div> 
 
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm mb-6 overflow-x-auto">
             <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-2">
               <CalendarClock className="w-4 h-4 text-[#1D6021]" />
               <h3 className="font-bold text-gray-900">Loan Lifecycle Timeline</h3>
             </div>
-            <table className="min-w-210 text-sm">
-              <thead className="bg-gray-50 text-gray-600 uppercase text-[11px] tracking-wider">
+            <table className="min-w-210 text-sm w-full">
+              <thead className="bg-gray-50/50 text-[11px] uppercase text-gray-500 font-bold tracking-wider">
                 <tr>
-                  <th className="px-4 py-3 text-left">Loan ID</th>
-                  <th className="px-4 py-3 text-left">Type</th>
-                  <th className="px-4 py-3 text-left">Current Status</th>
-                  <th className="px-4 py-3 text-left">Approval Stage</th>
-                  <th className="px-4 py-3 text-left">Applied</th>
-                  <th className="px-4 py-3 text-left">Disbursed</th>
+                  <th className="px-6 py-4 text-left">Loan ID</th>
+                  <th className="px-6 py-4 text-left">Type</th>
+                  <th className="px-6 py-4 text-left">Current Status</th>
+                  <th className="px-6 py-4 text-left">Approval Stage</th>
+                  <th className="px-6 py-4 text-left">Applied</th>
+                  <th className="px-6 py-4 text-left">Disbursed</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="divide-y divide-gray-100">
                 {loans.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-4 py-8 text-center text-gray-500">No loan lifecycle records found.</td>
+                    <td colSpan={6} className="px-6 py-8 text-center text-gray-500">No loan lifecycle records found.</td>
                   </tr>
                 ) : (
                   loans.map((loan) => (
-                    <tr key={loan.loan_id} className="border-t border-gray-100">
-                      <td className="px-4 py-3 font-semibold text-gray-800">{loan.loan_id}</td>
-                      <td className="px-4 py-3 text-gray-700">{loan.loan_type}</td>
-                      <td className="px-4 py-3">
-                        <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${statusBadgeClass(loan.loan_status)}`}>
+                    <tr key={loan.loan_id} className="hover:bg-gray-50/50 transition-colors">
+                      <td className="px-6 py-4 font-semibold text-gray-900">{loan.loan_id}</td>
+                      <td className="px-6 py-4 text-gray-700">{loan.loan_type}</td>
+                      <td className="px-6 py-4">
+                        <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold transition-all-smooth hover:scale-105 ${statusBadgeClass(loan.loan_status)}`}>
                           {loan.loan_status}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-gray-700">{loan.approval_stage}</td>
-                      <td className="px-4 py-3 text-gray-600">{formatDate(loan.application_date)}</td>
-                      <td className="px-4 py-3 text-gray-600">{formatDate(loan.disbursal_date)}</td>
+                      <td className="px-6 py-4 text-gray-700">{loan.approval_stage}</td>
+                      <td className="px-6 py-4 text-gray-600">{formatDate(loan.application_date)}</td>
+                      <td className="px-6 py-4 text-gray-600">{formatDate(loan.disbursal_date)}</td>
                     </tr>
                   ))
                 )}
@@ -439,40 +512,40 @@ const Member_Lifecycle = () => {
             </table>
           </div>
 
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-x-auto">
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-x-auto animate-fade-in-up transition-all-smooth hover:shadow-lg">
             <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-2">
               <Wallet className="w-4 h-4 text-[#1D6021]" />
               <h3 className="font-bold text-gray-900">Recorded Loan Payments (Real-Time)</h3>
             </div>
-            <table className="min-w-215 text-sm">
-              <thead className="bg-gray-50 text-gray-600 uppercase text-[11px] tracking-wider">
+            <table className="min-w-215 text-sm w-full">
+              <thead className="bg-gray-50/50 text-[11px] uppercase text-gray-500 font-bold tracking-wider">
                 <tr>
-                  <th className="px-4 py-3 text-left">Date Paid</th>
-                  <th className="px-4 py-3 text-left">Loan ID</th>
-                  <th className="px-4 py-3 text-left">Reference</th>
-                  <th className="px-4 py-3 text-left">Amount</th>
-                  <th className="px-4 py-3 text-left">Penalty</th>
-                  <th className="px-4 py-3 text-left">Remaining</th>
-                  <th className="px-4 py-3 text-left">Validation Status</th>
+                  <th className="px-6 py-4 text-left">Date Paid</th>
+                  <th className="px-6 py-4 text-left">Loan ID</th>
+                  <th className="px-6 py-4 text-left">Reference</th>
+                  <th className="px-6 py-4 text-left">Amount</th>
+                  <th className="px-6 py-4 text-left">Penalty</th>
+                  <th className="px-6 py-4 text-left">Remaining</th>
+                  <th className="px-6 py-4 text-left">Validation Status</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="divide-y divide-gray-100">
                 {payments.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="px-4 py-8 text-center text-gray-500">No payment records available yet.</td>
+                    <td colSpan={7} className="px-6 py-8 text-center text-gray-500">No payment records available yet.</td>
                   </tr>
                 ) : (
                   payments.map((row, idx) => (
-                    <tr key={`${row.loan_id}-${row.payment_id}-${idx}`} className="border-t border-gray-100">
-                      <td className="px-4 py-3 text-gray-600">{formatDate(row.payment_date)}</td>
-                      <td className="px-4 py-3 text-gray-800 font-medium">{row.loan_id}</td>
-                      <td className="px-4 py-3 text-gray-700">{row.reference_no}</td>
-                      <td className="px-4 py-3 text-gray-700">{formatCurrency(row.amount_paid)}</td>
-                      <td className="px-4 py-3 text-gray-700">{formatCurrency(row.penalties)}</td>
-                      <td className="px-4 py-3 text-gray-700">{formatCurrency(row.remaining_after)}</td>
-                      <td className="px-4 py-3">
-                        <span className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold ${statusBadgeClass(row.confirmation_status)}`}>
-                          <CheckCircle2 size={12} /> {row.confirmation_status}
+                    <tr key={`${row.loan_id}-${row.payment_id}-${idx}`} className="hover:bg-gray-50/50 transition-colors">
+                      <td className="px-6 py-4 text-gray-600">{formatDate(row.payment_date)}</td>
+                      <td className="px-6 py-4 text-gray-900 font-semibold">{row.loan_id}</td>
+                      <td className="px-6 py-4 text-gray-700 font-medium">{row.reference_no}</td>
+                      <td className="px-6 py-4 text-gray-700 font-medium">{formatCurrency(row.amount_paid)}</td>
+                      <td className="px-6 py-4 text-gray-700">{formatCurrency(row.penalties)}</td>
+                      <td className="px-6 py-4 text-gray-700">{formatCurrency(row.remaining_after)}</td>
+                      <td className="px-6 py-4">
+                        <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold transition-all-smooth hover:scale-105 ${statusBadgeClass(row.confirmation_status)}`}>
+                          <CheckCircle2 size={12} className="hidden sm:inline" /> {row.confirmation_status}
                         </span>
                       </td>
                     </tr>
@@ -482,39 +555,39 @@ const Member_Lifecycle = () => {
             </table>
           </div>
 
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-x-auto mt-6">
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-x-auto mt-6 animate-fade-in-up transition-all-smooth hover:shadow-lg">
             <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-2">
               <CalendarClock className="w-4 h-4 text-[#1D6021]" />
               <h3 className="font-bold text-gray-900">Loan Schedule</h3>
             </div>
-            <table className="min-w-225 text-sm">
-              <thead className="bg-gray-50 text-gray-600 uppercase text-[11px] tracking-wider">
+            <table className="min-w-225 text-sm w-full">
+              <thead className="bg-gray-50/50 text-[11px] uppercase text-gray-500 font-bold tracking-wider">
                 <tr>
-                  <th className="px-4 py-3 text-left">Loan ID</th>
-                  <th className="px-4 py-3 text-left">Installment</th>
-                  <th className="px-4 py-3 text-left">Due Date</th>
-                  <th className="px-4 py-3 text-left">Expected Principal</th>
-                  <th className="px-4 py-3 text-left">Expected Interest</th>
-                  <th className="px-4 py-3 text-left">Expected Amount</th>
-                  <th className="px-4 py-3 text-left">Schedule Status</th>
+                  <th className="px-6 py-4 text-left">Loan ID</th>
+                  <th className="px-6 py-4 text-left">Installment</th>
+                  <th className="px-6 py-4 text-left">Due Date</th>
+                  <th className="px-6 py-4 text-left">Expected Principal</th>
+                  <th className="px-6 py-4 text-left">Expected Interest</th>
+                  <th className="px-6 py-4 text-left">Expected Amount</th>
+                  <th className="px-6 py-4 text-left">Schedule Status</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="divide-y divide-gray-100">
                 {schedules.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="px-4 py-8 text-center text-gray-500">No loan schedule records available.</td>
+                    <td colSpan={7} className="px-6 py-8 text-center text-gray-500">No loan schedule records available.</td>
                   </tr>
                 ) : (
                   schedules.map((row, idx) => (
-                    <tr key={`${row.loan_id}-${row.installment_no}-${idx}`} className="border-t border-gray-100">
-                      <td className="px-4 py-3 text-gray-800 font-medium">{row.loan_id}</td>
-                      <td className="px-4 py-3 text-gray-700">#{row.installment_no || "-"}</td>
-                      <td className="px-4 py-3 text-gray-600">{formatDate(row.due_date)}</td>
-                      <td className="px-4 py-3 text-gray-700">{formatCurrency(row.expected_principal)}</td>
-                      <td className="px-4 py-3 text-gray-700">{formatCurrency(row.expected_interest)}</td>
-                      <td className="px-4 py-3 text-gray-700">{formatCurrency(row.expected_amount)}</td>
-                      <td className="px-4 py-3">
-                        <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${statusBadgeClass(row.schedule_status)}`}>
+                    <tr key={`${row.loan_id}-${row.installment_no}-${idx}`} className="hover:bg-gray-50/50 transition-colors">
+                      <td className="px-6 py-4 text-gray-900 font-semibold">{row.loan_id}</td>
+                      <td className="px-6 py-4 text-gray-700 font-medium">#{row.installment_no || "-"}</td>
+                      <td className="px-6 py-4 text-gray-600">{formatDate(row.due_date)}</td>
+                      <td className="px-6 py-4 text-gray-700 font-medium">{formatCurrency(row.expected_principal)}</td>
+                      <td className="px-6 py-4 text-gray-700 font-medium">{formatCurrency(row.expected_interest)}</td>
+                      <td className="px-6 py-4 text-gray-900 font-semibold text-[#1D6021]">{formatCurrency(row.expected_amount)}</td>
+                      <td className="px-6 py-4">
+                        <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold transition-all-smooth hover:scale-105 ${statusBadgeClass(row.schedule_status)}`}>
                           {row.schedule_status}
                         </span>
                       </td>
@@ -525,6 +598,49 @@ const Member_Lifecycle = () => {
             </table>
           </div>
         </main>
+
+        {/* Bottom Navigation - Mobile Only */}
+        <nav className="fixed bottom-0 left-0 right-0 lg:hidden bg-white border-t border-gray-200 px-2 py-2">
+          <div className="max-w-lg mx-auto">
+            <div className="flex items-center justify-around gap-1">
+              {(() => {
+                const routeMap = {
+                  "Dashboard": "/member-dashboard",
+                  "Member Loans": "/member-loans",
+                  "Loan Lifecycle": "/member-lifecycle",
+                  "Member Profile": "/members-profile",
+                  "Member Savings": "/member-savings"
+                };
+
+                return menuItems.map((item) => {
+                  const Icon = item.icon;
+                  const to = routeMap[item.name] || `/${item.name.toLowerCase().replace(/\s+/g, '-')}`;
+
+                  return (
+                    <NavLink
+                      key={item.name}
+                      to={to}
+                      className={({ isActive }) =>
+                        `flex flex-col items-center justify-center px-2.5 py-2 rounded-full transition-all ${
+                          isActive
+                            ? 'bg-[#1D6021] text-white'
+                            : 'text-gray-600 hover:text-[#1D6021]'
+                        }`
+                      }
+                    >
+                      {({ isActive }) => (
+                        <>
+                          <Icon size={20} strokeWidth={isActive ? 2.5 : 2} className="mb-1" />
+                          <span className="text-[10px] font-semibold">{item.name.split(' ')[0]}</span>
+                        </>
+                      )}
+                    </NavLink>
+                  );
+                });
+              })()}
+            </div>
+          </div>
+        </nav>
       </div>
     </div>
   );
