@@ -11,7 +11,7 @@ const MemberApprovalDetails = () => {
   const navigate = useNavigate();
 
   // Modal State
-  const [activeModal, setActiveModal] = useState(null); // 'reject', 'revise', 'proceed', or null
+  const [activeModal, setActiveModal] = useState(null); // 'revise', 'proceed', or null
   const [remarks, setRemarks] = useState('');
   const [sendSms, setSendSms] = useState(true);
   const [sendEmail, setSendEmail] = useState(true);
@@ -66,8 +66,8 @@ const MemberApprovalDetails = () => {
     if (normalized === 'pending') return 'Pending';
     if (normalized === 'rejected') return 'Rejected';
     if (normalized === 'approved') return 'Approved';
-    if (normalized === '1st training' || normalized === 'first training' || normalized === 'training 1') return '1st Training';
-    if (normalized === '2nd training' || normalized === 'second training' || normalized === 'training 2') return '1st Training';
+    if (normalized === '1st training' || normalized === 'first training' || normalized === 'training 1' || normalized === 'training') return 'Training';
+    if (normalized === '2nd training' || normalized === 'second training' || normalized === 'training 2') return 'Official Member';
     if (normalized === 'official member' || normalized === 'member') return 'Official Member';
     return value || 'Pending';
   };
@@ -137,8 +137,8 @@ const MemberApprovalDetails = () => {
   }, [memberRow]);
 
   const getProceedConfig = (status) => {
-    if (status === 'Pending') return { title: 'Proceed to 1st Training', nextStatus: '1st Training', button: 'Proceed to 1st Training' };
-    if (status === '1st Training') return { title: 'Mark as Official Member', nextStatus: 'Official Member', button: 'Confirm & Complete' };
+    if (status === 'Pending') return { title: 'Proceed to Training', nextStatus: 'Training', button: 'Proceed to Training' };
+    if (status === 'Training') return { title: 'Mark as Official Member', nextStatus: 'Official Member', button: 'Confirm & Complete' };
     return null;
   };
 
@@ -186,6 +186,11 @@ const MemberApprovalDetails = () => {
 
   const applyStatusUpdate = async (nextStatus) => {
     if (!memberRow) return;
+
+    if (nextStatus === 'For Revision' && !remarks.trim()) {
+      setActionError('Revision instructions are required before sending for revision.');
+      return;
+    }
 
     if (nextStatus === 'Official Member') {
       setSaving(true);
@@ -245,10 +250,6 @@ const MemberApprovalDetails = () => {
 
     if (remarks.trim()) {
       payload.remarks = remarks.trim();
-    }
-
-    if (nextStatus === 'Rejected' && remarks.trim()) {
-      payload.rejection_reason = remarks.trim();
     }
 
     const { data, error } = await supabase
@@ -371,7 +372,7 @@ const MemberApprovalDetails = () => {
             <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${
                 member.status === 'Pending' ? 'bg-orange-100 text-orange-600' :
                 member.status === 'Official Member' || member.status === 'Approved' ? 'bg-green-100 text-green-700' :
-                member.status === '1st Training' ? 'bg-blue-100 text-blue-700' :
+                member.status === 'Training' ? 'bg-blue-100 text-blue-700' :
                 'bg-red-100 text-red-700'
               }`}>
               • {member.status}
@@ -455,14 +456,6 @@ const MemberApprovalDetails = () => {
       {/* --- BOTTOM ACTION BUTTONS --- */}
       <div className="flex flex-wrap justify-end gap-4 mt-8 bg-white p-6 rounded-xl border border-gray-100 shadow-sm">
         <button 
-          onClick={() => setActiveModal('reject')} 
-          disabled={saving || member.status === 'Official Member'}
-          className="flex items-center text-[#DC2626] bg-red-50 border border-red-200 hover:bg-red-100 transition-colors font-bold rounded-lg px-6 py-2.5 text-sm"
-        >
-          <X className="w-4 h-4 mr-2" strokeWidth={2.5} /> Reject Application
-        </button>
-        
-        <button 
           onClick={() => setActiveModal('revise')} 
           disabled={saving || member.status === 'Official Member'}
           className="flex items-center text-[#D97706] bg-yellow-50 border border-yellow-200 hover:bg-yellow-100 transition-colors font-bold rounded-lg px-6 py-2.5 text-sm"
@@ -494,28 +487,6 @@ const MemberApprovalDetails = () => {
             >
               <X className="w-5 h-5" />
             </button>
-
-            {activeModal === 'reject' && (
-              <>
-                <h3 className="text-xl font-bold text-gray-900 mb-4">Reject Membership Application</h3>
-                <p className="text-sm text-gray-600 mb-6">
-                  Are you sure you want to reject the application of <span className="font-bold text-gray-900">{member.name}</span>? This action is permanent and cannot be undone.
-                </p>
-                
-                <div className="mb-6">
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Reason for Rejection <span className="text-red-500">*</span>
-                  </label>
-                  <textarea 
-                    rows="4"
-                    className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-[#1D6021] focus:border-[#1D6021] outline-none"
-                    placeholder="Provide a detailed reason for board's decision..."
-                    value={remarks}
-                    onChange={(e) => setRemarks(e.target.value)}
-                  ></textarea>
-                </div>
-              </>
-            )}
 
             {activeModal === 'revise' && (
               <>
@@ -583,15 +554,6 @@ const MemberApprovalDetails = () => {
                 Cancel
               </button>
               
-              {activeModal === 'reject' && (
-                <button
-                  onClick={() => applyStatusUpdate('Rejected')}
-                  disabled={saving || notifying}
-                  className="px-6 py-2.5 rounded-lg bg-[#DC2626] hover:bg-red-700 text-white font-medium text-sm transition-colors w-1/2 disabled:opacity-60"
-                >
-                  {saving ? 'Saving...' : notifying ? 'Sending Email...' : 'Confirm Rejection'}
-                </button>
-              )}
               {activeModal === 'revise' && (
                 <button
                   onClick={() => applyStatusUpdate('For Revision')}

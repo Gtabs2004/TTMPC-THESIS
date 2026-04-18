@@ -31,6 +31,12 @@ const Member_Approvals = () => {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
+  const [tabCounts, setTabCounts] = useState({
+    Pending: 0,
+    Training: 0,
+    "For Revision": 0,
+    "Official Member": 0,
+  });
   const LIMIT = 10;
 
   const getStatusOrClause = (statusTab, roleOverride) => {
@@ -39,14 +45,11 @@ const Member_Approvals = () => {
     if (tab === "Pending") {
       return "application_status.eq.pending,application_status.eq.Pending,application_status.eq.PENDING";
     }
-    if (tab === "1st Training") {
-      return "application_status.eq.1st Training,application_status.eq.1st_training,application_status.eq.first training,application_status.eq.training 1,application_status.eq.2nd training,application_status.eq.2nd_training_completed,application_status.eq.second training completed";
-    }
-    if (tab === "Rejected") {
-      return "application_status.eq.rejected,application_status.eq.Rejected,application_status.eq.REJECTED";
+    if (tab === "Training") {
+      return "application_status.eq.training,application_status.eq.1st Training,application_status.eq.1st_training,application_status.eq.first training,application_status.eq.training 1";
     }
     if (tab === "For Revision") {
-      return "application_status.eq.for revision,application_status.eq.For Revision,application_status.eq.revision,application_status.eq.Revision";
+      return "application_status.eq.for revision,application_status.eq.For Revision,application_status.eq.revision,application_status.eq.Revision,application_status.eq.for_revision,application_status.eq.For_Revision,application_status.eq.for-revision,application_status.eq.For-Revision";
     }
     if (tab === "Official Member") {
       return "application_status.eq.official member,application_status.eq.Official Member,application_status.eq.member,application_status.eq.Member";
@@ -115,6 +118,38 @@ const Member_Approvals = () => {
     }
   };
 
+  const fetchTabCounts = async (roleOverride = portalRole) => {
+    const tabsForCounts = ["Pending", "Training", "For Revision", "Official Member"];
+
+    const countResults = await Promise.all(
+      tabsForCounts.map(async (tab) => {
+        let countQuery = supabase
+          .from("member_applications")
+          .select("application_id", { count: "exact", head: true });
+
+        const statusClause = getStatusOrClause(tab, roleOverride);
+        if (statusClause) {
+          countQuery = countQuery.or(statusClause);
+        }
+
+        const { count, error } = await countQuery;
+        if (error) {
+          console.error(`Supabase count error for ${tab}:`, error);
+          return [tab, 0];
+        }
+
+        return [tab, count || 0];
+      })
+    );
+
+    const nextCounts = countResults.reduce((acc, [tab, count]) => {
+      acc[tab] = count;
+      return acc;
+    }, {});
+
+    setTabCounts((prev) => ({ ...prev, ...nextCounts }));
+  };
+
   useEffect(() => {
     const checkSessionAndFetch = async () => {
       const {
@@ -128,6 +163,7 @@ const Member_Approvals = () => {
         setPortalRole(role);
         // Use resolved role directly to avoid stale state during first load.
         fetchData(1, role);
+        fetchTabCounts(role);
       } else {
         console.warn("No active session! RLS will block the query.");
       }
@@ -140,6 +176,11 @@ const Member_Approvals = () => {
     if (!portalRole) return;
     fetchData(page, portalRole);
   }, [portalRole, page, activeTab]);
+
+  useEffect(() => {
+    if (!portalRole) return;
+    fetchTabCounts(portalRole);
+  }, [portalRole]);
 
   useEffect(() => {
     setPage(1);
@@ -182,10 +223,9 @@ const Member_Approvals = () => {
       .replace(/\s+/g, " ");
 
     if (normalized === "pending") return "Pending";
-    if (normalized === "rejected") return "Rejected";
     if (normalized === "for revision" || normalized === "revision") return "For Revision";
-    if (normalized === "1st training" || normalized === "first training" || normalized === "training 1") return "1st Training";
-    if (normalized === "2nd training" || normalized === "second training" || normalized === "training 2") return "1st Training";
+    if (normalized === "1st training" || normalized === "first training" || normalized === "training 1" || normalized === "training") return "Training";
+    if (normalized === "2nd training" || normalized === "second training" || normalized === "training 2") return "Official Member";
     if (normalized === "official member" || normalized === "member") return "Official Member";
     return "Pending";
   };
@@ -247,7 +287,7 @@ const Member_Approvals = () => {
       const firstTrainingSchedule = getRuleSchedule(app.created_at || new Date().toISOString());
       let computedTrainingDate = "Not scheduled";
       const normalized = normalizeStatus(app.application_status);
-      if (normalized === "1st Training") {
+      if (normalized === "Training") {
         computedTrainingDate = formatDisplayDate(firstTrainingSchedule.toISOString());
       }
 
@@ -276,19 +316,21 @@ const Member_Approvals = () => {
   const tabData = useMemo(() => {
     return {
       Pending: formattedRows.filter((row) => row.status === "Pending"),
-      "1st Training": formattedRows.filter((row) => row.status === "1st Training"),
+      Training: formattedRows.filter((row) => row.status === "Training"),
       "For Revision": formattedRows.filter((row) => row.status === "For Revision"),
-      Rejected: formattedRows.filter((row) => row.status === "Rejected"),
       "Official Member": formattedRows.filter((row) => row.status === "Official Member"),
     };
   }, [formattedRows]);
 
-  const isTrainingTab = activeTab === "1st Training";
+  const isTrainingTab = activeTab === "Training";
   const isSecretary = portalRole === "secretary";
   const canUseBodActions = !isSecretary;
   const visibleTabs = isSecretary
     ? ["Pending"]
-    : ["Pending", "1st Training", "Rejected", "For Revision", "Official Member"];
+    : ["Pending", "Training", "For Revision", "Official Member"];
+
+  const nonTrainingColSpan =
+    activeTab === "Pending" ? 4 : activeTab === "For Revision" ? 5 : 3;
 
   // Show page groups like 1-5, 6-10, 11-15.
   const visiblePageNumbers = useMemo(() => {
@@ -428,35 +470,28 @@ const Member_Approvals = () => {
                 className={`flex items-center gap-2 pb-3 px-1 border-b-2 font-semibold text-sm transition-colors ${activeTab === "Pending" ? "border-[#2C7A3F] text-[#2C7A3F]" : "border-transparent text-gray-500 hover:text-gray-700"}`}
               >
                 Pending
-                <span className={`text-[10px] px-2 py-0.5 rounded-full text-white ${activeTab === "Pending" ? "bg-[#2C7A3F]" : "bg-gray-400"}`}>{tabData["Pending"].length}</span>
+                <span className={`text-[10px] px-2 py-0.5 rounded-full text-white ${activeTab === "Pending" ? "bg-[#2C7A3F]" : "bg-gray-400"}`}>{tabCounts["Pending"]}</span>
               </button>)}
-              {visibleTabs.includes("1st Training") && (<button 
-                onClick={() => setActiveTab("1st Training")}
-                className={`flex items-center gap-2 pb-3 px-1 border-b-2 font-semibold text-sm transition-colors ${activeTab === "1st Training" ? "border-[#2C7A3F] text-[#2C7A3F]" : "border-transparent text-gray-400 hover:text-gray-700"}`}
+              {visibleTabs.includes("Training") && (<button 
+                onClick={() => setActiveTab("Training")}
+                className={`flex items-center gap-2 pb-3 px-1 border-b-2 font-semibold text-sm transition-colors ${activeTab === "Training" ? "border-[#2C7A3F] text-[#2C7A3F]" : "border-transparent text-gray-400 hover:text-gray-700"}`}
               >
                 Training
-                <span className={`text-[10px] px-2 py-0.5 rounded-full ${activeTab === "1st Training" ? "bg-[#2C7A3F] text-white" : "bg-gray-100 text-gray-500"}`}>{tabData["1st Training"].length}</span>
-              </button>)}
-              {visibleTabs.includes("Rejected") && (<button 
-                onClick={() => setActiveTab("Rejected")}
-                className={`flex items-center gap-2 pb-3 px-1 border-b-2 font-semibold text-sm transition-colors ${activeTab === "Rejected" ? "border-[#2C7A3F] text-[#2C7A3F]" : "border-transparent text-gray-400 hover:text-gray-700"}`}
-              >
-                Rejected
-                <span className={`text-[10px] px-2 py-0.5 rounded-full ${activeTab === "Rejected" ? "bg-red-500 text-white" : "bg-red-100 text-red-500"}`}>{tabData["Rejected"].length}</span>
+                <span className={`text-[10px] px-2 py-0.5 rounded-full ${activeTab === "Training" ? "bg-[#2C7A3F] text-white" : "bg-gray-100 text-gray-500"}`}>{tabCounts["Training"]}</span>
               </button>)}
               {visibleTabs.includes("For Revision") && (<button
                 onClick={() => setActiveTab("For Revision")}
                 className={`flex items-center gap-2 pb-3 px-1 border-b-2 font-semibold text-sm transition-colors ${activeTab === "For Revision" ? "border-[#2C7A3F] text-[#2C7A3F]" : "border-transparent text-gray-400 hover:text-gray-700"}`}
               >
                 For Revision
-                <span className={`text-[10px] px-2 py-0.5 rounded-full ${activeTab === "For Revision" ? "bg-amber-500 text-white" : "bg-amber-100 text-amber-600"}`}>{tabData["For Revision"].length}</span>
+                <span className={`text-[10px] px-2 py-0.5 rounded-full ${activeTab === "For Revision" ? "bg-amber-500 text-white" : "bg-amber-100 text-amber-600"}`}>{tabCounts["For Revision"]}</span>
               </button>)}
               {visibleTabs.includes("Official Member") && (<button
                 onClick={() => setActiveTab("Official Member")}
                 className={`flex items-center gap-2 pb-3 px-1 border-b-2 font-semibold text-sm transition-colors ${activeTab === "Official Member" ? "border-[#2C7A3F] text-[#2C7A3F]" : "border-transparent text-gray-400 hover:text-gray-700"}`}
               >
                 Official Member
-                <span className={`text-[10px] px-2 py-0.5 rounded-full ${activeTab === "Official Member" ? "bg-green-600 text-white" : "bg-green-100 text-green-700"}`}>{tabData["Official Member"].length}</span>
+                <span className={`text-[10px] px-2 py-0.5 rounded-full ${activeTab === "Official Member" ? "bg-green-600 text-white" : "bg-green-100 text-green-700"}`}>{tabCounts["Official Member"]}</span>
               </button>)}
             </div>
 
@@ -504,12 +539,6 @@ const Member_Approvals = () => {
                         <th className="px-6 py-4">Member Name</th>
                         <th className="px-6 py-4">Annual Income</th>
                         {activeTab === "Pending" && <th className="px-6 py-4">Submitted Date</th>}
-                        {activeTab === "Rejected" && (
-                          <>
-                            <th className="px-6 py-4">Submitted Date</th> 
-                            <th className="px-6 py-4">Rejection Reason</th>
-                          </>
-                        )}
                         {activeTab === "For Revision" && (
                           <>
                             <th className="px-6 py-4">Submitted Date</th>
@@ -523,7 +552,7 @@ const Member_Approvals = () => {
                 <tbody className="divide-y divide-gray-100 cursor-pointer">
                   {tabData[activeTab].length === 0 && (
                     <tr>
-                      <td colSpan={isTrainingTab ? 4 : activeTab === "Pending" ? 4 : 5} className="px-6 py-10 text-center text-gray-500">
+                      <td colSpan={isTrainingTab ? 4 : nonTrainingColSpan} className="px-6 py-10 text-center text-gray-500">
                         No {activeTab.toLowerCase()} applications on this page.
                       </td>
                     </tr>
@@ -603,16 +632,6 @@ const Member_Approvals = () => {
                           </td>
                           {activeTab === "Pending" && (
                             <td className="px-6 py-4 whitespace-nowrap text-gray-500">{row.date}</td>
-                          )}
-                          {activeTab === "Rejected" && (
-                            <>
-                              <td className="px-6 py-4 whitespace-nowrap text-gray-500">{row.date}</td>
-                              <td className="px-6 py-4 whitespace-nowrap">
-                                <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-600">
-                                  {row.reason}
-                                </span>
-                              </td>
-                            </>
                           )}
                           {activeTab === "For Revision" && (
                             <>
