@@ -77,10 +77,13 @@ const Cashier_Dashboard = () => {
   };
 
   return (
-    <div className="flex min-h-screen bg-[#FAFAFA]">
+    // FIX 1: Strict h-screen and overflow-hidden on the main wrapper
+    <div className="flex h-screen w-full bg-[#FAFAFA] overflow-hidden">
+      
       {/* SIDEBAR */}
-      <aside className="bg-white w-64 p-4 flex flex-col border-r border-gray-200 shrink-0">
-        <div className="flex flex-row items-start gap-2 mb-6">
+      {/* FIX 2: Ensure sidebar is h-full and can scroll internally if menus get too long */}
+      <aside className="bg-white w-64 h-full p-4 flex flex-col border-r border-gray-200 shrink-0 overflow-y-auto">
+        <div className="flex flex-row items-start gap-2 mb-6 shrink-0">
           <img src={logo} alt="Logo" className="h-12 w-auto" />
           <div className="flex flex-col">
             <h1 className="text-xl font-bold text-[#389734]">TTMPC</h1>
@@ -88,7 +91,7 @@ const Cashier_Dashboard = () => {
           </div>
         </div>
 
-        <hr className="w-full border-gray-200 mb-6" />
+        <hr className="w-full border-gray-200 mb-6 shrink-0" />
 
         <nav className="flex flex-col gap-2 text-sm grow">
           {menuItems.map((item) => {
@@ -152,15 +155,18 @@ const Cashier_Dashboard = () => {
 
         <button
           onClick={handleSignOut}
-          className="mt-auto w-full rounded p-2 text-xs bg-green-600 hover:bg-green-700 text-white font-bold transition-colors"
+          className="mt-6 shrink-0 w-full rounded p-2 text-xs bg-green-600 hover:bg-green-700 text-white font-bold transition-colors"
         >
           Sign out
         </button>
       </aside>
 
       {/* MAIN CONTENT AREA */}
-      <div className="flex-1 flex flex-col min-w-0 h-screen overflow-y-auto">
-        <header className="bg-white h-16 shadow-sm flex items-center justify-end px-8 shrink-0">
+      {/* FIX 3: Clean flex-1 with its own internal scroll */}
+      <div className="flex-1 flex flex-col h-full relative overflow-y-auto overflow-x-hidden">
+        
+        {/* FIX 4: Sticky header so it stays put while scrolling the dashboard */}
+        <header className="sticky top-0 z-10 bg-white h-16 shadow-sm flex items-center justify-end px-8 shrink-0">
           <div className="relative">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400" />
             <input
@@ -173,12 +179,12 @@ const Cashier_Dashboard = () => {
             <Bell className="w-5 h-5" />
             <span className="absolute top-1 right-1 block h-2 w-2 rounded-full bg-red-500 ring-2 ring-white"></span>
           </button>
-          <img src="src/assets/img/bookkeeper-profile.png" alt="Profile" className="ml-4 w-8 h-8 rounded-full bg-gray-200" />
-          <PortalTopbarIdentity className="font-medium text-sm text-gray-700" fallbackRole="Cashier" />
+          <img src="src/assets/img/bookkeeper-profile.png" alt="Profile" className="ml-4 w-8 h-8 rounded-full bg-gray-200 object-cover" />
+          <PortalTopbarIdentity className="font-medium text-sm text-gray-700 ml-2" fallbackRole="Cashier" />
         </header>
 
         {/* DASHBOARD CONTENT */}
-        <main className="p-8 max-w-7xl mx-auto w-full">
+        <main className="p-8 max-w-7xl mx-auto w-full pb-12">
           
           {/* Top KPI Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
@@ -244,10 +250,10 @@ const Cashier_Dashboard = () => {
           </div>
 
           {/* Main Grid: Left Side (2/3) + Right Side (1/3) */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 flex-1">
             
             {/* LEFT COLUMN: Summary & Chart */}
-            <div className="lg:col-span-2 flex flex-col gap-6">
+            <div className="lg:col-span-2 flex flex-col gap-6 min-w-0">
               
               {/* Header for Summary */}
               <div className="flex justify-between items-center px-2">
@@ -310,11 +316,10 @@ const Cashier_Dashboard = () => {
               {/* Liquidity Map Chart */}
               <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 mt-2">
                 <h3 className="text-xs font-bold text-gray-600 tracking-widest uppercase mb-6">Cashier Liquidity Map</h3>
-                <div className="h-40 w-full">
+                <div className="h-52 w-full">
                   <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={1}>
                     <BarChart data={liquidityData} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
                       <YAxis hide domain={[0, 'dataMax']} />
-                      {/* Using Cell to color the highest bar differently based on the mockup */}
                       <Bar dataKey="value" radius={[4, 4, 0, 0]} barSize={80}>
                         {liquidityData.map((entry, index) => (
                           <Cell key={`cell-${index}`} fill={entry.value === 100 ? '#064e3b' : '#a7c0a9'} />
@@ -333,12 +338,12 @@ const Cashier_Dashboard = () => {
 
             {/* RIGHT COLUMN: Recent Activity */}
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 flex flex-col h-full">
-              <div className="p-6 border-b border-gray-50">
+              <div className="p-6 border-b border-gray-50 shrink-0">
                 <h3 className="text-lg font-bold text-gray-800">Recent Activity</h3>
                 <p className="text-xs text-gray-400 mt-1">Last updated: 3 mins ago</p>
               </div>
               
-              <div className="flex-1 p-6 flex flex-col gap-6">
+              <div className="flex-1 p-6 flex flex-col gap-6 overflow-y-auto">
                 {recentActivity.map((item) => (
                   <div key={item.id} className="flex items-center justify-between">
                     <div className="flex items-center gap-4">
@@ -361,7 +366,7 @@ const Cashier_Dashboard = () => {
                 ))}
               </div>
 
-              <div className="p-4 border-t border-gray-50 mt-auto">
+              <div className="p-4 border-t border-gray-50 mt-auto shrink-0">
                 <button className="w-full py-3 text-sm font-bold text-green-800 hover:bg-green-50 rounded-xl transition-colors">
                   View Complete Ledger
                 </button>
