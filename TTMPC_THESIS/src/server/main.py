@@ -97,12 +97,14 @@ class MembershipConfirmationRequest(BaseModel):
     application_id: str
     confirmed_by_user_id: str
     force: bool = False
+    send_email: bool = True
 
 
 class MembershipBatchConfirmationRequest(BaseModel):
     confirmed_by_user_id: str
     max_items: int = 50
     force: bool = False
+    send_email: bool = True
 
 
 class LoanComputeBaseRequest(BaseModel):
@@ -3372,6 +3374,7 @@ async def confirm_membership_endpoint(payload: MembershipConfirmationRequest):
             payload.application_id,
             confirmed_by_user_id=payload.confirmed_by_user_id,
             force=payload.force,
+            send_email=payload.send_email,
         )
         return {"success": True, "data": result}
     except MembershipConfirmationError as err:
@@ -3387,6 +3390,7 @@ async def confirm_membership_batch_endpoint(payload: MembershipBatchConfirmation
             confirmed_by_user_id=payload.confirmed_by_user_id,
             max_items=payload.max_items,
             force=payload.force,
+            send_email=payload.send_email,
         )
         return {"success": True, "data": result}
     except MembershipConfirmationError as err:

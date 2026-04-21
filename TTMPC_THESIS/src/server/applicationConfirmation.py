@@ -721,7 +721,12 @@ def send_confirmation_email(
 		return {"sent": False, "reason": f"Email service unreachable: {err.reason}"}
 
 
-def confirm_membership(application_id: str, confirmed_by_user_id: str, force: bool = False) -> dict[str, Any]:
+def confirm_membership(
+	application_id: str,
+	confirmed_by_user_id: str,
+	force: bool = False,
+	send_email: bool = True,
+) -> dict[str, Any]:
 	try:
 		supabase, resend_api_key, resend_from_email = _load_runtime_config()
 		member_table = _resolve_member_table(supabase)
@@ -812,14 +817,20 @@ def confirm_membership(application_id: str, confirmed_by_user_id: str, force: bo
 			membership_date,
 		)
 
-		email_result = send_confirmation_email(
-			to_email=application_data.get("email") or "",
-			first_name=application_data.get("first_name") or "Applicant",
-			membership_id=membership_id,
-			default_password=temp_password_for_email,
-			resend_api_key=resend_api_key,
-			resend_from_email=resend_from_email,
-		)
+		if send_email:
+			email_result = send_confirmation_email(
+				to_email=application_data.get("email") or "",
+				first_name=application_data.get("first_name") or "Applicant",
+				membership_id=membership_id,
+				default_password=temp_password_for_email,
+				resend_api_key=resend_api_key,
+				resend_from_email=resend_from_email,
+			)
+		else:
+			email_result = {
+				"sent": False,
+				"reason": "Email sending disabled by request.",
+			}
 
 		return {
 			"application_id": row_application_id,
@@ -852,6 +863,7 @@ def confirm_membership_batch(
 	confirmed_by_user_id: str,
 	max_items: int = 50,
 	force: bool = False,
+	send_email: bool = True,
 ) -> dict[str, Any]:
 	if max_items <= 0:
 		raise MembershipConfirmationError("max_items must be greater than 0.")
@@ -910,7 +922,12 @@ def confirm_membership_batch(
 	for item in candidates:
 		app_id = item["application_id"]
 		try:
-			result = confirm_membership(app_id, confirmed_by_user_id=confirmed_by_user_id, force=force)
+			result = confirm_membership(
+				app_id,
+				confirmed_by_user_id=confirmed_by_user_id,
+				force=force,
+				send_email=send_email,
+			)
 			success_count += 1
 			results.append(
 				{
