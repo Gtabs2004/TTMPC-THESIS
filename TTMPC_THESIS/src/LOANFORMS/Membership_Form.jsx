@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
 import { formatTinNumber, TIN_FORMATTED_MAX_LENGTH } from './tinFormat';
+import SmartDateInput from '../components/SmartDateInput';
 
 
 
@@ -201,8 +202,14 @@ function Membership_Form() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1">Date of Birth <span className="text-red-500">*</span></label>
-                  <input type="date" name="date_of_birth" value={formdata.date_of_birth} onChange={handleChange} className="w-full border border-gray-300 rounded-md p-2.5 text-sm text-gray-500 focus:ring-1 focus:ring-green-500 outline-none" />
+                  <SmartDateInput
+                    mode="dob"
+                    name="date_of_birth"
+                    value={formdata.date_of_birth}
+                    onChange={(isoDate) => setFormdata((prev) => ({ ...prev, date_of_birth: isoDate || '' }))}
+                    label="Date of Birth"
+                    required
+                  />
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-gray-600 mb-1">Age <span className="text-red-500">*</span></label>
@@ -296,8 +303,13 @@ function Membership_Form() {
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold text-gray-600 mb-1">Spouse Date of Birth</label>
-                    <input type="date" name="spouse_date_of_birth" value={formdata.spouse_date_of_birth} onChange={handleChange} className="w-full border border-gray-300 rounded-md p-2.5 text-sm focus:ring-1 focus:ring-green-500 outline-none" />
+                    <SmartDateInput
+                      mode="dob"
+                      name="spouse_date_of_birth"
+                      value={formdata.spouse_date_of_birth}
+                      onChange={(isoDate) => setFormdata((prev) => ({ ...prev, spouse_date_of_birth: isoDate || '' }))}
+                      label="Spouse Date of Birth"
+                    />
                   </div>
                   <div>
                     <label className="block text-xs font-semibold text-gray-600 mb-1">Spouse's Occupation</label>
