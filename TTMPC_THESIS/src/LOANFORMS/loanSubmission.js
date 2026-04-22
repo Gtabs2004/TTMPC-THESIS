@@ -15,16 +15,68 @@ const toFloat = (value) => {
   return Number.isNaN(parsed) ? null : parsed;
 };
 
-const resolveInterestRate = (loanTypeCode, interestRate) => {
+const LOAN_TYPE_NAME_VARIANTS = {
+  CONSOLIDATED: ['Consolidated Loan', 'Consolidated'],
+  BONUS: ['Bonus Loan', 'Bonus'],
+  EMERGENCY: ['Emergency Loan', 'Emergency'],
+  KOICA: ['KOICA Loan', 'Agri-Business Financial Facility Loan', 'ABFF Loan', 'KOICA'],
+  NONMEMBER_BONUS: ['Nonmember Bonus Loan', 'Non-member Bonus Loan', 'Non Member Bonus Loan'],
+};
+
+const resolveInterestRate = async (loanTypeCode, interestRate) => {
   const parsed = toFloat(interestRate);
   if (parsed !== null) return parsed;
 
   const code = String(loanTypeCode || '').trim().toUpperCase();
-  if (code === 'CONSOLIDATED') return 0.083;
-  if (code === 'EMERGENCY') return 2;
-  if (code === 'BONUS') return 2;
-  if (code === 'NONMEMBER_BONUS') return 2;
-  return null;
+  if (!code) return null;
+
+  const extractRate = (row) => {
+    const rate = toFloat(
+      row?.interest_rate
+      ?? row?.InterestRate
+      ?? row?.interestrate
+      ?? row?.interestRate
+    );
+    return rate !== null && rate > 0 ? rate : null;
+  };
+
+  const tryByCode = async () => {
+    const { data, error } = await supabase
+      .from('loan_types')
+      .select('*')
+      .eq('code', code)
+      .limit(1)
+      .maybeSingle();
+
+    if (error) return null;
+    return extractRate(data);
+  };
+
+  const tryByNameVariants = async () => {
+    const variants = LOAN_TYPE_NAME_VARIANTS[code] || [code];
+    for (const name of variants) {
+      const { data, error } = await supabase
+        .from('loan_types')
+        .select('*')
+        .ilike('name', name)
+        .limit(1)
+        .maybeSingle();
+
+      if (!error) {
+        const rate = extractRate(data);
+        if (rate !== null) return rate;
+      }
+    }
+    return null;
+  };
+
+  const byCode = await tryByCode();
+  if (byCode !== null) return byCode;
+
+  const byName = await tryByNameVariants();
+  if (byName !== null) return byName;
+
+  throw new Error(`Interest rate is not configured in loan_types for ${code}.`);
 };
 
 export const createUniqueControlNumber = (prefix = 'LN') => {
@@ -525,6 +577,7 @@ export async function submitUnifiedLoan({
   optionalFields = {},
   coMakers = [],
 }) {
+  const resolvedInterestRate = await resolveInterestRate(loanTypeCode, interestRate);
   const normalizedLoanStatus = normalizeLoanStatus(loanStatus);
   const normalizedApplicationStatus = normalizeApplicationStatus(applicationStatus);
   const normalizedApplicationType = normalizeApplicationType(applicationType ?? applicationStatus);
@@ -544,7 +597,7 @@ export async function submitUnifiedLoan({
       loan_type_code: String(loanTypeCode || '').trim().toUpperCase() || null,
       loan_amount: toFloat(loanAmount),
       principal_amount: toFloat(principalAmount ?? loanAmount),
-      interest_rate: resolveInterestRate(loanTypeCode, interestRate),
+      interest_rate: resolvedInterestRate,
       term: toInt(term),
       loan_status: normalizedLoanStatus,
       application_status: normalizedApplicationStatus,
@@ -599,7 +652,7 @@ export async function submitUnifiedLoan({
     loan_type_id: loanTypeId,
     loan_amount: toFloat(loanAmount),
     principal_amount: toFloat(principalAmount ?? loanAmount),
-    interest_rate: resolveInterestRate(loanTypeCode, interestRate),
+    interest_rate: resolvedInterestRate,
     term: toInt(term),
     ...optionalFields,
     loan_status: normalizedLoanStatus,

@@ -5,6 +5,7 @@ import {
   Download, User, Users, Contact, Briefcase
 } from 'lucide-react';
 import { supabase } from '../../supabaseClient';
+import { formatTinNumber } from '../../LOANFORMS/tinFormat';
 
 const MemberApprovalDetails = () => {
   const { id } = useParams();
@@ -78,6 +79,7 @@ const MemberApprovalDetails = () => {
     const resolvedTin = String(
       memberRow.tin_number ?? memberRow.tin_no ?? memberRow.tin ?? ''
     ).trim();
+    const formattedTin = formatTinNumber(resolvedTin);
 
     const fullName = [memberRow.first_name, memberRow.middle_name, memberRow.surname]
       .map((part) => (part || '').trim())
@@ -111,7 +113,7 @@ const MemberApprovalDetails = () => {
       religion: memberRow.religion || 'N/A',
       heightWeight: `${memberRow.height || '-'} cm / ${memberRow.weight || '-'} kg`,
       bloodType: memberRow.blood_type || 'N/A',
-      tin: resolvedTin || 'N/A',
+      tin: formattedTin || 'N/A',
 
       // Family Information
       maidenName: memberRow.maiden_name || 'N/A',
