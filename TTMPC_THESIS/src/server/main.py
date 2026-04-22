@@ -260,6 +260,98 @@ def normalize_cashier_loan_type(loan_type_name: str | None) -> str:
     return "consolidated"
 
 
+LOAN_TYPE_NAME_VARIANTS = {
+    "CONSOLIDATED": ["consolidated", "consolidated loan"],
+    "EMERGENCY": ["emergency", "emergency loan"],
+    "BONUS": ["bonus", "bonus loan"],
+    "NONMEMBER_BONUS": ["nonmember bonus loan", "non-member bonus loan", "non member bonus loan"],
+    "KOICA": ["koica", "koica loan", "agri-business financial facility loan", "abff loan"],
+}
+
+
+def resolve_loan_type_code(loan_type: str, member_category: str | None = None) -> str:
+    normalized_type = str(loan_type or "").strip().lower()
+    normalized_category = str(member_category or "").strip().lower().replace("-", "_")
+
+    if normalized_type == "consolidated":
+        return "CONSOLIDATED"
+    if normalized_type == "emergency":
+        return "EMERGENCY"
+    if normalized_type == "bonus":
+        return "BONUS" if normalized_category == "regular" else "NONMEMBER_BONUS"
+
+    return str(loan_type or "").strip().upper()
+
+
+def fetch_loan_type_interest_rate_percent(loan_type_code: str | None, loan_type_name: str | None = None) -> Decimal | None:
+    if not supabase:
+        return None
+
+    code = str(loan_type_code or "").strip().upper()
+    name_text = str(loan_type_name or "").strip().lower()
+
+    if not code and not name_text:
+        return None
+
+    def extract_rate(row: dict | None) -> Decimal | None:
+        if not row:
+            return None
+
+        raw_rate = (
+            row.get("interest_rate")
+            if "interest_rate" in row
+            else row.get("InterestRate")
+            if "InterestRate" in row
+            else row.get("interestrate")
+            if "interestrate" in row
+            else row.get("interestRate")
+        )
+        if raw_rate is None:
+            return None
+
+        rate = Decimal(str(raw_rate))
+        return rate if rate > 0 else None
+
+    try:
+        try:
+            response = supabase.table("loan_types").select("*").execute()
+            rows = response.data or []
+        except Exception:
+            response = supabase.table("loan_types").select("*").execute()
+            rows = response.data or []
+
+        matched_row = None
+
+        if code:
+            for row in rows:
+                row_code = str(row.get("code") or "").strip().upper()
+                if row_code and row_code == code:
+                    matched_row = row
+                    break
+
+        if not matched_row and code:
+            variants = LOAN_TYPE_NAME_VARIANTS.get(code, [])
+            for row in rows:
+                row_name = str(row.get("name") or "").strip().lower()
+                if row_name in variants:
+                    matched_row = row
+                    break
+
+        if not matched_row and name_text:
+            for row in rows:
+                row_name = str(row.get("name") or "").strip().lower()
+                if row_name == name_text or (name_text and name_text in row_name):
+                    matched_row = row
+                    break
+
+        if not matched_row:
+            return None
+
+        return extract_rate(matched_row)
+    except Exception:
+        return None
+
+
 def build_sequence_id(prefix: str, sequence_number: int) -> str:
     safe_seq = max(int(sequence_number), 1)
     return f"{prefix}{safe_seq:03d}"
@@ -476,18 +568,21 @@ def build_single_schedule_row(
     }
 
 
-def resolve_monthly_rate_decimal(loan_type: str, interest_rate_percent: Decimal | None) -> Decimal:
+def resolve_monthly_rate_decimal(
+    loan_type: str,
+    interest_rate_percent: Decimal | None,
+    loan_type_code: str | None = None,
+    loan_type_name: str | None = None,
+) -> Decimal:
     if interest_rate_percent is not None and interest_rate_percent > 0:
         return Decimal(str(interest_rate_percent)) / Decimal("100")
 
-    if loan_type == "consolidated":
-        return Decimal("0.0083")
-    if loan_type == "emergency":
-        return Decimal("0.02")
-    if loan_type == "bonus":
-        return Decimal("0.02")
+    resolved_code = str(loan_type_code or "").strip().upper() or resolve_loan_type_code(loan_type)
+    configured_rate_percent = fetch_loan_type_interest_rate_percent(resolved_code, loan_type_name)
+    if configured_rate_percent is not None and configured_rate_percent > 0:
+        return configured_rate_percent / Decimal("100")
 
-    return Decimal("0.0083")
+    return Decimal("0")
 
 
 @app.post("/api/loans/compute")
@@ -506,8 +601,12 @@ async def compute_loan(payload: LoanComputeRequest):
     monthly_amortization = Decimal("0")
 
     if payload.loan_type == "consolidated":
+        monthly_rate = resolve_monthly_rate_decimal("consolidated", None, loan_type_code="CONSOLIDATED")
+        if monthly_rate <= 0:
+            raise HTTPException(status_code=400, detail="Interest rate for CONSOLIDATED is not configured in loan_types.")
+
         principal_component = money(principal / Decimal(term))
-        interest_component = money(principal * Decimal("0.0083"))
+        interest_component = money(principal * monthly_rate)
         monthly_amortization = money(principal_component + interest_component)
 
         service_fee = money(Decimal(((int(principal) - 1) // 50000) + 1) * Decimal("100"))
@@ -527,12 +626,16 @@ async def compute_loan(payload: LoanComputeRequest):
             )
 
     elif payload.loan_type == "emergency":
+        monthly_rate = resolve_monthly_rate_decimal("emergency", None, loan_type_code="EMERGENCY")
+        if monthly_rate <= 0:
+            raise HTTPException(status_code=400, detail="Interest rate for EMERGENCY is not configured in loan_types.")
+
         principal_component = money(principal / Decimal(term))
         service_fee = money(Decimal("100"))
         cbu_deduction = money(principal * Decimal("0.02"))
 
         for installment_no in range(1, term + 1):
-            interest_component = money((principal / Decimal(term)) * Decimal("0.02") * Decimal(term - installment_no))
+            interest_component = money((principal / Decimal(term)) * monthly_rate * Decimal(term - installment_no))
             expected_amount = money(principal_component + interest_component)
             monthly_breakdown.append(
                 MonthlyBreakdownRow(
@@ -549,7 +652,10 @@ async def compute_loan(payload: LoanComputeRequest):
 
     elif payload.loan_type == "bonus":
         member_category = str(payload.member_category).strip().lower()
-        monthly_rate = Decimal("0.02") if member_category == "regular" else Decimal("0.03")
+        loan_type_code = resolve_loan_type_code("bonus", member_category)
+        monthly_rate = resolve_monthly_rate_decimal("bonus", None, loan_type_code=loan_type_code)
+        if monthly_rate <= 0:
+            raise HTTPException(status_code=400, detail=f"Interest rate for {loan_type_code} is not configured in loan_types.")
 
         principal_component = money(principal / Decimal(term))
         interest_component = money(principal * monthly_rate)
@@ -1153,7 +1259,14 @@ async def disburse_cashier_loan(loan_id: str, payload: CashierDisbursementReques
         loan_type_name = (loan_row.get("loan_type") or {}).get("name")
         normalized_loan_type = normalize_cashier_loan_type(loan_type_name)
         interest_rate_percent = Decimal(str(loan_row.get("interest_rate") or 0)) if loan_row.get("interest_rate") is not None else None
-        monthly_rate_decimal = resolve_monthly_rate_decimal(normalized_loan_type, interest_rate_percent)
+        monthly_rate_decimal = resolve_monthly_rate_decimal(
+            normalized_loan_type,
+            interest_rate_percent,
+            loan_type_code=resolve_loan_type_code(normalized_loan_type),
+            loan_type_name=loan_type_name,
+        )
+        if monthly_rate_decimal <= 0:
+            raise HTTPException(status_code=400, detail="Loan interest rate is not configured in loan_types.")
 
         existing_schedule_response = (
             supabase.table("loan_schedules")
@@ -3016,7 +3129,14 @@ async def approve_bookkeeper_payment(payment_id: str, payload: BookkeeperPayment
         loan_type_name = (loan_row.get("loan_type") or {}).get("name")
         normalized_loan_type = normalize_cashier_loan_type(loan_type_name)
         interest_rate_percent = Decimal(str(loan_row.get("interest_rate") or 0)) if loan_row.get("interest_rate") is not None else None
-        monthly_rate_decimal = resolve_monthly_rate_decimal(normalized_loan_type, interest_rate_percent)
+        monthly_rate_decimal = resolve_monthly_rate_decimal(
+            normalized_loan_type,
+            interest_rate_percent,
+            loan_type_code=resolve_loan_type_code(normalized_loan_type),
+            loan_type_name=loan_type_name,
+        )
+        if monthly_rate_decimal <= 0:
+            raise HTTPException(status_code=400, detail="Loan interest rate is not configured in loan_types.")
 
         schedule_internal_id = str(payment_row.get("schedule_id") or "").strip()
         current_schedule_response = (

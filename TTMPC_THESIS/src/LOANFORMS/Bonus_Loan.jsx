@@ -244,7 +244,6 @@ function Bonus_Loan() {
         applicationDate: formData.date_applied,
         loanAmount: formData.loan_amount_numeric,
         principalAmount: formData.loan_amount_numeric,
-        interestRate: 2,
         term: formData.loan_term_months,
         requireMemberProfile: !isNonMemberBonus,
         applicantProfile: isNonMemberBonus

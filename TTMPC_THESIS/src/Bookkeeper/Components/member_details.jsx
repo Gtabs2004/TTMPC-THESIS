@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Phone, Calendar } from 'lucide-react';
+import { formatTinNumber } from '../../LOANFORMS/tinFormat';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000';
 
@@ -133,7 +134,7 @@ const Member_Details = () => {
           </div>
           <div>
             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">TIN Number</p>
-            <p className="font-medium text-gray-800">{asText(record?.tin_number)}</p>
+            <p className="font-medium text-gray-800">{formatTinNumber(record?.tin_number) || 'N/A'}</p>
           </div>
           <div>
             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Occupation</p>

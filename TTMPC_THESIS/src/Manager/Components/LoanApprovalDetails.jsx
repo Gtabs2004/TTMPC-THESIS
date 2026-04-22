@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '../../supabaseClient';
+import { formatTinNumber } from '../../LOANFORMS/tinFormat';
 import { 
   ArrowLeft, 
   User, 
@@ -100,13 +101,48 @@ const LoanApprovalDetails = () => {
       .join(' ');
   };
 
-  const inferInterestRate = (loanTypeLabel, loanTypeCode) => {
-    const label = String(loanTypeLabel || '').trim().toLowerCase();
+  const resolveInterestRateFromLoanTypes = async (loanTypeLabel, loanTypeCode) => {
     const code = String(loanTypeCode || '').trim().toUpperCase();
+    const label = String(loanTypeLabel || '').trim().toLowerCase();
 
-    if (label.includes('bonus') || code === 'BONUS' || code === 'NONMEMBER_BONUS') return 2;
-    if (label.includes('emergency') || code === 'EMERGENCY') return 2;
-    if (label.includes('consolidated') || code === 'CONSOLIDATED') return 0.083;
+    const pickRate = (row) => {
+      const rate = Number(
+        row?.interest_rate
+        ?? row?.InterestRate
+        ?? row?.interestrate
+        ?? row?.interestRate
+      );
+      return Number.isFinite(rate) && rate > 0 ? rate : null;
+    };
+
+    if (code) {
+      const { data, error } = await supabase
+        .from('loan_types')
+        .select('*')
+        .eq('code', code)
+        .limit(1)
+        .maybeSingle();
+
+      if (!error) {
+        const rate = pickRate(data);
+        if (rate !== null) return rate;
+      }
+    }
+
+    if (label) {
+      const { data, error } = await supabase
+        .from('loan_types')
+        .select('*')
+        .ilike('name', `%${label}%`)
+        .limit(1)
+        .maybeSingle();
+
+      if (!error) {
+        const rate = pickRate(data);
+        if (rate !== null) return rate;
+      }
+    }
+
     return null;
   };
 
@@ -285,7 +321,10 @@ const LoanApprovalDetails = () => {
         const resolvedLoanType = isKoicaSource
           ? (data.loan_type_code === 'NONMEMBER_BONUS' ? 'Nonmember Bonus Loan' : 'ABFF Loan')
           : (data.loan_type?.name || 'N/A');
-        const effectiveInterestRate = data.interest_rate ?? inferInterestRate(resolvedLoanType, data.loan_type_code);
+        let effectiveInterestRate = data.interest_rate;
+        if (effectiveInterestRate === null || effectiveInterestRate === undefined) {
+          effectiveInterestRate = await resolveInterestRateFromLoanTypes(resolvedLoanType, data.loan_type_code);
+        }
 
         const hasStoredTotalInterest = data.total_interest !== null && data.total_interest !== undefined;
         let resolvedTotalInterest = hasStoredTotalInterest
@@ -561,6 +600,7 @@ const LoanApprovalDetails = () => {
         .replace(/\s+/g, ' ')
         .trim();
       const tinValue = String(data.tin_number || '').trim();
+      const tinFormatted = formatTinNumber(tinValue);
 
       setCoMakerDetails((prev) => prev.map((item, i) => {
         if (i !== index) return item;
@@ -568,7 +608,7 @@ const LoanApprovalDetails = () => {
           ...item,
           membership_number_id: membershipNumberId,
           name: fullName || item.name,
-          id_no: tinValue ? `TIN-${tinValue}` : item.id_no,
+          id_no: tinFormatted ? `TIN-${tinFormatted}` : item.id_no,
           address: String(data.permanent_address || '').trim() || item.address,
           mobile: data.contact_number ? String(data.contact_number).trim() : item.mobile,
           email: String(data.email || '').trim() || item.email,

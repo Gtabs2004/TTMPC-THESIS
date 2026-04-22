@@ -232,7 +232,6 @@ function Consolidated_Loan() {
         applicationDate: formData.date_applied,
         loanAmount: formData.loan_amount_numeric,
         principalAmount: formData.loan_amount_numeric,
-        interestRate: 0.083,
         term: formData.loan_term_months,
         optionalFields: {
           total_interest: formData.total_interest || null,

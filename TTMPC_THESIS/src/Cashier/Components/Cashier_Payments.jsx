@@ -71,9 +71,10 @@ const formatSequenceId = (prefix, sequenceNumber) => {
 };
 
 const getMonthlyInterestRate = (loan) => {
-  if (loan.loan_type === "consolidated") return 0.00083;
-  if (loan.loan_type === "emergency") return 0.02; 
-  if (loan.loan_type === "bonus") return loan.is_migs_member ? 0.02 : 0.03; 
+  const ratePercent = Number(loan?.interest_rate);
+  if (Number.isFinite(ratePercent) && ratePercent > 0) {
+    return ratePercent / 100;
+  }
   return 0;
 };
 
@@ -221,6 +222,7 @@ const Cashier_Payments = () => {
         const normalizedLoan = {
           ...loan,
           loan_type: normalizeLoanType(loan.loan_type),
+          interest_rate: Number(loan.interest_rate || 0),
           is_migs_member: Boolean(loan.is_migs_member),
           loan_amount: Number(loan.loan_amount || 0),
           term_months: Number(loan.term_months || 0),
