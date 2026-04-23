@@ -1,76 +1,43 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { supabase } from '../supabaseClient'; // Make sure this path is correct
-import { Mail, Lock, AlertCircle } from 'lucide-react'; 
+import { supabase } from '../supabaseClient'; 
+import { UserAuth } from '../contex/AuthContext'; // Import your central auth context
+import { User, Lock, AlertCircle } from 'lucide-react'; // Changed Mail to User
 
 const Verification = () => {
   const navigate = useNavigate();
+  const { signInWithIdentifier } = UserAuth(); // Use the hybrid login logic we built
 
-  const [email, setEmail] = useState("");
+  const [membershipId, setMembershipId] = useState(""); // Changed from email
   const [password, setPassword] = useState("");
   
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [emailError, setEmailError] = useState("");
 
-  const getMemberAccountByEmail = async (normalizedEmail) => {
-    for (const tableName of ["member_accounts", "member_account"]) {
-      const { data, error } = await supabase
-        .from(tableName)
-        .select("*")
-        .ilike("email", normalizedEmail)
-        .limit(1)
-        .maybeSingle();
-
-      if (!error && data) {
-        return { account: data, tableName, error: null };
-      }
-    }
-
-    return { account: null, tableName: null, error: null };
-  };
-
-  const validateEmail = (value) => {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (value && !emailRegex.test(value)) {
-      setEmailError("Please enter a valid email address");
-    } else {
-      setEmailError("");
-    }
-  };
-
-  // --- STEP 1: VERIFY EMAIL & PASSWORD ---
+  // --- STEP 1: VERIFY BY MEMBERSHIP ID ---
   const handleVerifyClick = async (e) => {
     e.preventDefault();
     setError("");
 
-    if (!email.trim() || !password.trim()) {
-      setError("Please enter your email and password");
+    if (!membershipId.trim() || !password.trim()) {
+      setError("Please enter your membership ID and password");
       return;
     }
 
     setIsLoading(true);
     try {
-      const normalizedEmail = email.trim().toLowerCase();
+      const cleanId = membershipId.trim();
 
-      // Authenticate first. Any valid auth user can access kiosk regardless of role.
-      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-        email: normalizedEmail,
-        password,
-      });
+      // This uses our "Silent Lookup" logic to handle both Officers and Members
+      const result = await signInWithIdentifier(cleanId, password);
 
-      if (authError) {
-        setError("Invalid email or password. Please try again.");
-        return;
+      if (result.success) {
+        // Success! Redirect to the kiosk services
+        navigate('/member_services');
+      } else {
+        // Show specific error from auth logic
+        setError(result.error || "Verification failed. Please try again.");
       }
-
-      const authenticatedEmail = authData?.user?.email?.trim().toLowerCase() || normalizedEmail;
-      const { account } = await getMemberAccountByEmail(authenticatedEmail);
-      if (account?.is_temporary || account?.needs_change) {
-        console.log('ALERT: Please change your default password.');
-      }
-
-      navigate('/member_services');
     } catch (err) {
       setError("Verification failed. Please check your connection.");
       console.error("Verification error:", err);
@@ -103,30 +70,16 @@ const Verification = () => {
             <form className="space-y-5" onSubmit={handleVerifyClick}>
               <div>
                 <label className="flex items-center gap-2 text-sm font-semibold text-gray-900 mb-2">
-                  <Mail className="w-4 h-4 text-gray-500" />
-                  Email Address
+                  <User className="w-4 h-4 text-gray-500" />
+                  Membership ID
                 </label>
                 <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => {
-                    setEmail(e.target.value);
-                    validateEmail(e.target.value);
-                  }}
-                  onBlur={() => validateEmail(email)}
-                  placeholder="john.doe@example.com"
-                  className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 transition duration-200 text-sm ${
-                    emailError 
-                      ? 'border-red-300 focus:ring-red-200 focus:border-red-400' 
-                      : 'border-gray-300 focus:ring-[#66B538] focus:ring-opacity-20 focus:border-[#66B538]'
-                  }`}
+                  type="text"
+                  value={membershipId}
+                  onChange={(e) => setMembershipId(e.target.value)}
+                  placeholder="e.g., TTMPC-001"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#66B538] focus:ring-opacity-20 focus:border-[#66B538] transition duration-200 text-sm"
                 />
-                {emailError && (
-                  <p className="text-red-600 text-xs mt-1 flex items-center gap-1">
-                    <AlertCircle className="w-3 h-3" />
-                    {emailError}
-                  </p>
-                )}
               </div>
 
               <div>

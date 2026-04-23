@@ -7,6 +7,29 @@ const AuthContext = createContext();
 
 export const AuthContextProvider = ({ children }) => {
   const [session, setSession] = useState(undefined);
+  const [memberUser, setMemberUser] = useState(() => {
+    try {
+      const raw = localStorage.getItem("memberUser");
+      return raw ? JSON.parse(raw) : null;
+    } catch (_err) {
+      return null;
+    }
+  });
+
+  const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000").replace(/\/$/, "");
+
+  const persistMemberUser = (user) => {
+    setMemberUser(user || null);
+    try {
+      if (user) {
+        localStorage.setItem("memberUser", JSON.stringify(user));
+      } else {
+        localStorage.removeItem("memberUser");
+      }
+    } catch (_err) {
+      // Ignore localStorage failures; in-memory state still works for this tab.
+    }
+  };
 
   const getAccountByEmail = async (normalizedEmail) => {
     const { data, error } = await supabase
@@ -131,8 +154,84 @@ export const AuthContextProvider = ({ children }) => {
     }
   };
 
+ const signInWithIdentifier = async (membershipId, password) => {
+  const cleanId = String(membershipId || "").trim();
+  if (!cleanId) return { success: false, error: "Membership ID is required." };
+
+  try {
+    // Resolve account metadata through backend so login does not depend on client-side RLS visibility.
+    const resolveResponse = await fetch(`${apiBaseUrl}/api/member/resolve-login-email`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ identifier: cleanId }),
+    });
+
+    const resolveBody = await resolveResponse.json();
+    if (!resolveResponse.ok) {
+      return { success: false, error: resolveBody.detail || "Membership ID not found." };
+    }
+
+    const account = resolveBody?.data || {};
+    const role = String(account.role || "").trim() || "Member";
+    const email = String(account.email || "").trim().toLowerCase();
+
+    if (role !== 'Member') {
+      if (!email) {
+        return { success: false, error: "Officer account has no linked email." };
+      }
+
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (authError) return { success: false, error: authError.message };
+      return { success: true, role, data: authData };
+    }
+
+    // Prefer Supabase auth for Member when an email-auth record exists.
+    if (email) {
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (!authError) {
+        persistMemberUser(null);
+        return { success: true, role: "Member", data: authData };
+      }
+    }
+
+    // Legacy/local member fallback using backend hash verification.
+    const response = await fetch(`${apiBaseUrl}/api/member/login-with-id`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        membership_id: cleanId,
+        password,
+      }),
+    });
+
+    const body = await response.json();
+    if (!response.ok) return { success: false, error: body.detail || "Login failed." };
+
+    const memberData = {
+      membership_id: body.membership_id,
+      role: "Member",
+      token: body.access_token,
+      user_id: body.user_id || null,
+    };
+
+    persistMemberUser(memberData);
+    return { success: true, role: "Member", data: memberData };
+  } catch (err) {
+    console.error("Login error:", err);
+    return { success: false, error: "Connection error. Please try again." };
+  }
+};
   // Sign out
   const signOut = async () => {
+    persistMemberUser(null);
     const { error } = await supabase.auth.signOut();
     if (error) {
       console.error("Error signing out:", error);
@@ -140,21 +239,38 @@ export const AuthContextProvider = ({ children }) => {
   };
 
   // Listen for auth changes
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-    });
+ useEffect(() => {
+  // Check session on mount
+  supabase.auth.getSession().then(({ data: { session } }) => {
+    setSession(session);
+    // ONLY clear memberUser if there is NO session AND we aren't 
+    // currently holding a valid member token in localStorage.
+    if (!session && !localStorage.getItem("memberUser")) {
+      persistMemberUser(null);
+    }
+  });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-    });
+  const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    setSession(session);
+    // Change this logic: Only wipe memberUser if the event is a SIGN_OUT
+    if (_event === "SIGNED_OUT") {
+      persistMemberUser(null);
+    }
+  });
 
-    return () => subscription.unsubscribe();
-  }, []);
+  return () => subscription.unsubscribe();
+}, []);
 
   return (
     <AuthContext.Provider
-      value={{ signUpNewUser, signInUser, session, signOut }}
+      value={{
+        signUpNewUser,
+        signInUser,
+        signInWithIdentifier,
+        session,
+        memberUser,
+        signOut,
+      }}
     >
       {children}
     </AuthContext.Provider>

@@ -1,6 +1,7 @@
 import { supabase } from '../supabaseClient';
 
 const ACCOUNT_TABLE_CANDIDATES = ['member_account', 'member_accounts'];
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000').replace(/\/$/, '');
 let activeAccountTables = null;
 
 const toInt = (value) => {
@@ -143,28 +144,80 @@ const normalizeApplicationType = (value) => {
   return 'new';
 };
 
+const getStoredMemberUser = () => {
+  try {
+    const raw = localStorage.getItem('memberUser');
+    return raw ? JSON.parse(raw) : null;
+  } catch (_err) {
+    return null;
+  }
+};
+
 async function getCurrentUser() {
+  let memberUser = null;
+  try {
+    const raw = localStorage.getItem('memberUser');
+    memberUser = raw ? JSON.parse(raw) : null;
+  } catch (_err) {
+    memberUser = null;
+  }
+
   const {
     data: { user },
     error,
   } = await supabase.auth.getUser();
 
-  if (error) throw error;
+  if (error && !memberUser?.user_id) throw error;
+
+  const memberRole = String(memberUser?.role || '').trim().toLowerCase();
+  if (memberUser?.user_id && memberRole === 'member') {
+    return {
+      id: memberUser.user_id,
+      email: user?.email || null,
+      role: 'Member',
+    };
+  }
+
   if (!user) {
     throw new Error('Please log in to submit a loan application.');
   }
 
-  return user;
+  return {
+    id: user.id,
+    email: user.email || null,
+    role: null,
+  };
 }
 
 async function getCurrentUserIfAny() {
+  let memberUser = null;
+  try {
+    const raw = localStorage.getItem('memberUser');
+    memberUser = raw ? JSON.parse(raw) : null;
+  } catch (_err) {
+    memberUser = null;
+  }
+
   const {
     data: { user },
     error,
   } = await supabase.auth.getUser();
 
-  if (error) return null;
-  return user || null;
+  const memberRole = String(memberUser?.role || '').trim().toLowerCase();
+  if (memberUser?.user_id && memberRole === 'member') {
+    return {
+      id: memberUser.user_id,
+      email: user?.email || null,
+      role: 'Member',
+    };
+  }
+
+  if (error || !user) return null;
+  return {
+    id: user.id,
+    email: user.email || null,
+    role: null,
+  };
 }
 
 async function getMemberIdForUser(userId) {
@@ -496,7 +549,7 @@ export async function fetchLoanPrefill() {
   }
 
   // Source 3: latest application by email (always try, then merge)
-  {
+  if (user.email) {
     const { data: appByEmail, error: appByEmailError } = await supabase
       .from('member_applications')
       .select('*')
@@ -662,6 +715,32 @@ export async function submitUnifiedLoan({
     disbursal_date: normalizeDateToIso(disbursalDate),
     user_email: user.email,
   };
+
+  const memberSession = getStoredMemberUser();
+  const isMemberLocalSession =
+    String(memberSession?.role || '').trim().toLowerCase() === 'member' &&
+    String(memberSession?.user_id || '').trim() === String(memberId || '').trim();
+
+  if (isMemberLocalSession) {
+    const response = await fetch(`${API_BASE_URL}/api/member/loans/submit`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        payload,
+        co_makers: coMakerRows,
+      }),
+    });
+
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(body?.detail || 'Loan submission failed via backend endpoint.');
+    }
+
+    return {
+      controlNumber,
+      insertedCoMakers: coMakerRows.length,
+    };
+  }
 
   const { error: loanInsertError } = await supabase.from('loans').insert([payload]);
   if (loanInsertError) throw loanInsertError;

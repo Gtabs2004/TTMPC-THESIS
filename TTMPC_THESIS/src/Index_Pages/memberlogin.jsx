@@ -4,30 +4,29 @@ import { UserAuth } from '../contex/AuthContext';
 import { Mail, Lock } from 'lucide-react';
 
 function MemberLogin() {
-  const [email, setEmail] = useState('');
+  const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const { signInUser } = UserAuth();
+  const { signInWithIdentifier, signOut } = UserAuth();
   const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError('');
-    setLoading(true);
+  e.preventDefault();
+  setError('');
+  setLoading(true);
 
-    const result = await signInUser(email, password);
+  const result = await signInWithIdentifier(identifier, password);
 
-    if (result.success) {
-      navigate('/member-dashboard');
-    } else {
-      setError(result.error || 'Login failed. Please try again.');
-    }
+  if (result.success) {
+    navigate('/member-dashboard');
+  } else {
+    setError(result.error || 'Login failed. Please try again.');
+  }
 
-    setLoading(false);
-  };
-
+  setLoading(false);
+};
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
       
@@ -52,24 +51,24 @@ function MemberLogin() {
           <form onSubmit={handleSubmit} className="space-y-6">
 
             
-            {/* EMAIL FIELD */}
+            {/* IDENTIFIER FIELD */}
             <div>
-              <label htmlFor="email" className="block text-sm font-semibold text-gray-700">
-                Email Address
+              <label htmlFor="identifier" className="block text-sm font-semibold text-gray-700">
+                Membership ID
               </label>
               <div className="mt-2 relative rounded-md shadow-sm">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                   <Mail className="h-5 w-5 text-gray-400" />
                 </div>
                 <input
-                  id="email"
-                  name="email"
-                  type="email"
-                  placeholder="you@example.com"
-                  autoComplete="email"
+                  id="identifier"
+                  name="identifier"
+                  type="text"
+                  placeholder="TTMPC-001"
+                  autoComplete="username"
                   required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  value={identifier}
+                  onChange={(e) => setIdentifier(e.target.value)}
                   className="block w-full pl-10 pr-3 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#66B538] focus:border-[#66B538] sm:text-sm transition-colors bg-gray-50 focus:bg-white text-gray-900 placeholder-gray-400"
                 />
               </div>

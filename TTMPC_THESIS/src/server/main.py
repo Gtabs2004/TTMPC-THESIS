@@ -2,12 +2,15 @@ import os
 import json
 import io
 import calendar
+import hmac
+import secrets
 from datetime import date, datetime, timedelta
 from decimal import Decimal, ROUND_HALF_UP
-from typing import Annotated, Literal, Union
+from typing import Annotated, Any, Literal, Union
 from fastapi import FastAPI, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, model_validator
+import bcrypt
 from supabase import create_client, Client
 from dotenv import load_dotenv
 from urllib import request as urlrequest
@@ -105,6 +108,20 @@ class MembershipBatchConfirmationRequest(BaseModel):
     max_items: int = 50
     force: bool = False
     send_email: bool = True
+
+
+class MemberIdentifierLoginRequest(BaseModel):
+    identifier: str = Field(..., min_length=1)
+
+
+class MemberIdLoginRequest(BaseModel):
+    membership_id: str = Field(..., min_length=1)
+    password: str = Field(..., min_length=1)
+
+
+class MemberLoanSubmitRequest(BaseModel):
+    payload: dict[str, Any]
+    co_makers: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class LoanComputeBaseRequest(BaseModel):
@@ -3485,6 +3502,267 @@ async def login(user_data: LoginRequest):
     except Exception as e:
         print(f" Server Error: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/member/resolve-login-email")
+async def resolve_member_login_email(payload: MemberIdentifierLoginRequest):
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+
+    identifier = str(payload.identifier or "").strip()
+    if not identifier:
+        raise HTTPException(status_code=400, detail="identifier is required")
+
+    if "@" in identifier:
+        raise HTTPException(status_code=400, detail="Email identifiers should use direct auth login.")
+
+    try:
+        member_response = (
+            supabase.table("member")
+            .select("id,membership_id")
+            .eq("membership_id", identifier)
+            .limit(1)
+            .execute()
+        )
+    except Exception as err:
+        raise HTTPException(status_code=500, detail=f"Unable to query member table: {err}")
+
+    if not member_response.data:
+        raise HTTPException(status_code=404, detail="Membership ID not found.")
+
+    member_row = member_response.data[0]
+    member_user_id = member_row.get("id")
+    if not member_user_id:
+        raise HTTPException(status_code=500, detail="Member record is missing id.")
+
+    for account_table in ["member_account", "member_accounts"]:
+        try:
+            account_response = (
+                supabase.table(account_table)
+                .select("user_id,email,role")
+                .eq("user_id", member_user_id)
+                .limit(1)
+                .execute()
+            )
+        except Exception:
+            continue
+
+        if account_response.data:
+            account_row = account_response.data[0]
+            role = str(account_row.get("role") or "").strip() or "Member"
+            email = str(account_row.get("email") or "").strip().lower()
+            if not email and role.lower() != "member":
+                raise HTTPException(status_code=409, detail="Officer account exists but email is empty.")
+
+            return {
+                "success": True,
+                "data": {
+                    "membership_id": identifier,
+                    "user_id": account_row.get("user_id") or member_user_id,
+                    "email": email,
+                    "role": role,
+                    "account_table": account_table,
+                },
+            }
+
+    raise HTTPException(
+        status_code=404,
+        detail="No linked member account/email found for this membership ID.",
+    )
+
+
+ACCOUNT_TABLE_CANDIDATES = ["member_account", "member_accounts"]
+MEMBER_ROLE_LABEL = "member"
+
+
+def _first_non_empty_string(source: dict, keys: list[str]) -> str | None:
+    for key in keys:
+        raw_value = source.get(key)
+        if raw_value is None:
+            continue
+        text = str(raw_value).strip()
+        if text:
+            return text
+    return None
+
+
+def _query_member_by_membership_id(clean_membership_id: str) -> dict | None:
+    try:
+        response = (
+            supabase.table("member")
+            .select("id,membership_id")
+            .eq("membership_id", clean_membership_id)
+            .limit(1)
+            .execute()
+        )
+        if response.data:
+            return response.data[0]
+    except Exception:
+        pass
+
+    try:
+        fallback_response = (
+            supabase.table("member")
+            .select("id,membership_id")
+            .ilike("membership_id", clean_membership_id)
+            .limit(1)
+            .execute()
+        )
+        if fallback_response.data:
+            return fallback_response.data[0]
+    except Exception:
+        return None
+
+    return None
+
+
+def _query_account_row(member_user_id: str, membership_id: str) -> tuple[dict | None, str | None]:
+    for account_table in ACCOUNT_TABLE_CANDIDATES:
+        for user_key in ["user_id", "auth_user_id"]:
+            try:
+                response = (
+                    supabase.table(account_table)
+                    .select("*")
+                    .eq(user_key, member_user_id)
+                    .limit(1)
+                    .execute()
+                )
+                if response.data:
+                    return response.data[0], account_table
+            except Exception:
+                continue
+
+        try:
+            fallback_by_membership = (
+                supabase.table(account_table)
+                .select("*")
+                .ilike("membership_id", membership_id)
+                .limit(1)
+                .execute()
+            )
+            if fallback_by_membership.data:
+                return fallback_by_membership.data[0], account_table
+        except Exception:
+            continue
+
+    return None, None
+
+
+def _verify_member_password(input_password: str, account_row: dict) -> bool:
+    stored_hash = _first_non_empty_string(
+        account_row,
+        ["password_hash", "PasswordHash", "passwordHash"],
+    )
+    if stored_hash:
+        try:
+            return bcrypt.checkpw(input_password.encode("utf-8"), stored_hash.encode("utf-8"))
+        except Exception:
+            return False
+
+    stored_password = _first_non_empty_string(
+        account_row,
+        ["password", "Password"],
+    )
+    if not stored_password:
+        return False
+
+    if stored_password.startswith(("$2a$", "$2b$", "$2y$")):
+        try:
+            return bcrypt.checkpw(input_password.encode("utf-8"), stored_password.encode("utf-8"))
+        except Exception:
+            return False
+
+    return hmac.compare_digest(stored_password, input_password)
+
+
+@app.post("/api/member/login-with-id")
+async def member_login_with_id(payload: MemberIdLoginRequest):
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+
+    clean_membership_id = str(payload.membership_id or "").strip()
+    input_password = str(payload.password or "")
+
+    if not clean_membership_id or not input_password:
+        raise HTTPException(status_code=400, detail="membership_id and password are required.")
+
+    member_row = _query_member_by_membership_id(clean_membership_id)
+    if not member_row:
+        raise HTTPException(status_code=401, detail="Invalid membership credentials.")
+
+    member_user_id = str(member_row.get("id") or "").strip()
+    canonical_membership_id = str(member_row.get("membership_id") or clean_membership_id).strip()
+    if not member_user_id:
+        raise HTTPException(status_code=401, detail="Invalid membership credentials.")
+
+    account_row, account_table = _query_account_row(member_user_id, canonical_membership_id)
+    if not account_row:
+        raise HTTPException(status_code=401, detail="Invalid membership credentials.")
+
+    role = str(account_row.get("role") or "").strip() or "Member"
+    if role.lower() != MEMBER_ROLE_LABEL:
+        raise HTTPException(status_code=403, detail="This account must use officer login.")
+
+    if not _verify_member_password(input_password, account_row):
+        raise HTTPException(status_code=401, detail="Invalid membership credentials.")
+
+    return {
+        "success": True,
+        "membership_id": canonical_membership_id,
+        "role": "Member",
+        "user_id": member_user_id,
+        "account_table": account_table,
+        "access_token": secrets.token_urlsafe(32),
+    }
+
+
+@app.post("/api/member/loans/submit")
+async def member_submit_loan(payload: MemberLoanSubmitRequest):
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+
+    loan_payload = dict(payload.payload or {})
+    member_id = str(loan_payload.get("member_id") or "").strip()
+    control_number = str(loan_payload.get("control_number") or "").strip()
+
+    if not member_id:
+        raise HTTPException(status_code=400, detail="member_id is required.")
+    if not control_number:
+        raise HTTPException(status_code=400, detail="control_number is required.")
+
+    try:
+        member_check = (
+            supabase.table("member")
+            .select("id")
+            .eq("id", member_id)
+            .limit(1)
+            .maybe_single()
+            .execute()
+        )
+        if not member_check.data:
+            raise HTTPException(status_code=404, detail="Member profile not found.")
+
+        loan_insert = supabase.table("loans").insert([loan_payload]).execute()
+
+        normalized_co_makers: list[dict[str, Any]] = []
+        for row in payload.co_makers or []:
+            item = dict(row or {})
+            item["loan_id"] = str(item.get("loan_id") or control_number)
+            normalized_co_makers.append(item)
+
+        if normalized_co_makers:
+            supabase.table("co_makers").insert(normalized_co_makers).execute()
+
+        return {
+            "success": True,
+            "control_number": control_number,
+            "loan_rows": len(loan_insert.data or []),
+            "co_maker_rows": len(normalized_co_makers),
+        }
+    except HTTPException:
+        raise
+    except Exception as err:
+        raise HTTPException(status_code=400, detail=f"Loan submission failed: {err}")
 
 
 @app.post("/api/confirm-membership")

@@ -4,13 +4,13 @@ import { UserAuth } from '../contex/AuthContext';
 import { Mail, Lock, User } from 'lucide-react';
 
 function Login() {
-  const [email, setEmail] = useState('');
+  const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [role, setRole] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const { signInUser } = UserAuth();
+  const { signInWithIdentifier } = UserAuth();
   const navigate = useNavigate();
 
   const getRoleRoute = (roleValue) => {
@@ -29,7 +29,7 @@ function Login() {
     setError('');
     setLoading(true);
 
-    const result = await signInUser(email, password);
+    const result = await signInWithIdentifier(identifier, password);
 
     if (result.success) {
       const accountRole = (result.role || '').toLowerCase();
@@ -108,24 +108,24 @@ function Login() {
               </div>
             </div>
             
-            {/* EMAIL FIELD */}
+            {/* IDENTIFIER FIELD */}
             <div>
-              <label htmlFor="email" className="block text-sm font-semibold text-gray-700">
-                Email Address
+              <label htmlFor="identifier" className="block text-sm font-semibold text-gray-700">
+                Membership ID
               </label>
               <div className="mt-2 relative rounded-md shadow-sm">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                   <Mail className="h-5 w-5 text-gray-400" />
                 </div>
                 <input
-                  id="email"
-                  name="email"
-                  type="email"
-                  placeholder="you@example.com"
-                  autoComplete="email"
+                  id="identifier"
+                  name="identifier"
+                  type="text"
+                  placeholder="TTMPCM_001"
+                  autoComplete="username"
                   required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  value={identifier}
+                  onChange={(e) => setIdentifier(e.target.value)}
                   className="block w-full pl-10 pr-3 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#66B538] focus:border-[#66B538] sm:text-sm transition-colors bg-gray-50 focus:bg-white text-gray-900 placeholder-gray-400"
                 />
               </div>
