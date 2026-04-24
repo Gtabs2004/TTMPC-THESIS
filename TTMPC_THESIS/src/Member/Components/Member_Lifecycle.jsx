@@ -3,6 +3,7 @@ import { NavLink, useNavigate } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
 import { supabase } from "../../supabaseClient";
 import { resolveMemberContextFromSessionUser } from "../../utils/sessionIdentity";
+import { loadMemberAvatarSignedUrl } from "../../utils/memberAvatar";
 import {
   Activity,
   Bell,
@@ -16,6 +17,7 @@ import {
   RefreshCw,
   Search,
   ShieldCheck,
+  User,
   Users,
   Wallet,
 } from "lucide-react";
@@ -152,6 +154,8 @@ const Member_Lifecycle = () => {
   const [loans, setLoans] = useState([]);
   const [payments, setPayments] = useState([]);
   const [schedules, setSchedules] = useState([]);
+  const [memberLabel, setMemberLabel] = useState('Member');
+  const [avatarUrl, setAvatarUrl] = useState('');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   const menuItems = [
@@ -188,6 +192,7 @@ const Member_Lifecycle = () => {
       const memberId = account?.user_id || sessionUser.id;
       const authEmail = sessionUser?.email || "";
       if (!memberId) throw new Error("Please sign in again to load your loan lifecycle.");
+      const signedAvatarUrl = await loadMemberAvatarSignedUrl(supabase, sessionUser.id);
 
       setFetchStage("Loading lifecycle data from backend...");
       const lifecycleResponse = await fetch(`${API_BASE_URL}/api/member/lifecycle/${encodeURIComponent(memberId)}`, {
@@ -216,6 +221,8 @@ const Member_Lifecycle = () => {
         salaryGrade: profileRow.salary_grade || "N/A",
         address: profileRow.address || "N/A",
       });
+      setMemberLabel(profileRow.full_name || 'Member');
+      setAvatarUrl(signedAvatarUrl || '');
 
       const normalizedLoans = backendLoans.map((loan) => ({
         loan_id: loan.loan_id,
@@ -271,6 +278,8 @@ const Member_Lifecycle = () => {
       setLoans([]);
       setPayments([]);
       setSchedules([]);
+      setMemberLabel('Member');
+      setAvatarUrl('');
       setFetchStage("Fetch failed.");
     } finally {
       setLoading(false);
@@ -398,9 +407,15 @@ const Member_Lifecycle = () => {
 
           <div className="flex items-center gap-2 sm:gap-3 border-l border-gray-200 pl-2 sm:pl-4 cursor-pointer">
             <div className="w-8 h-8 rounded-full bg-gray-200 overflow-hidden border border-gray-300">
-              <img src="src/assets/img/member-profile.png" alt="Profile" className="w-full h-full object-cover" />
+              {avatarUrl ? (
+                <img src={avatarUrl} alt="Profile" className="w-full h-full object-cover" />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center bg-gray-100 text-gray-500">
+                  <User className="w-4 h-4" />
+                </div>
+              )}
             </div>
-            <p className="hidden sm:block text-sm font-bold text-gray-700">Member</p>
+            <p className="hidden sm:block text-sm font-bold text-gray-700">{memberLabel}</p>
           </div>
           </div>
         </header>

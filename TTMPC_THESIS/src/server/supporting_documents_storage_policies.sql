@@ -89,3 +89,53 @@ ON storage.objects
 FOR ALL
 USING (auth.role() = 'service_role')
 WITH CHECK (auth.role() = 'service_role');
+
+-- Member avatar uploads under profiles/{auth.uid()}/...
+DROP POLICY IF EXISTS supporting_documents_member_profiles_select ON storage.objects;
+CREATE POLICY supporting_documents_member_profiles_select
+ON storage.objects
+FOR SELECT
+TO authenticated
+USING (
+  bucket_id = 'Supporting_Documents'
+  AND split_part(name, '/', 1) = 'profiles'
+  AND split_part(name, '/', 2) = auth.uid()::text
+);
+
+DROP POLICY IF EXISTS supporting_documents_member_profiles_insert ON storage.objects;
+CREATE POLICY supporting_documents_member_profiles_insert
+ON storage.objects
+FOR INSERT
+TO authenticated
+WITH CHECK (
+  bucket_id = 'Supporting_Documents'
+  AND split_part(name, '/', 1) = 'profiles'
+  AND split_part(name, '/', 2) = auth.uid()::text
+);
+
+DROP POLICY IF EXISTS supporting_documents_member_profiles_update ON storage.objects;
+CREATE POLICY supporting_documents_member_profiles_update
+ON storage.objects
+FOR UPDATE
+TO authenticated
+USING (
+  bucket_id = 'Supporting_Documents'
+  AND split_part(name, '/', 1) = 'profiles'
+  AND split_part(name, '/', 2) = auth.uid()::text
+)
+WITH CHECK (
+  bucket_id = 'Supporting_Documents'
+  AND split_part(name, '/', 1) = 'profiles'
+  AND split_part(name, '/', 2) = auth.uid()::text
+);
+
+DROP POLICY IF EXISTS supporting_documents_member_profiles_delete ON storage.objects;
+CREATE POLICY supporting_documents_member_profiles_delete
+ON storage.objects
+FOR DELETE
+TO authenticated
+USING (
+  bucket_id = 'Supporting_Documents'
+  AND split_part(name, '/', 1) = 'profiles'
+  AND split_part(name, '/', 2) = auth.uid()::text
+);

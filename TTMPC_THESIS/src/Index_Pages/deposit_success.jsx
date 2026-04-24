@@ -82,7 +82,7 @@ const Deposit_Success = () => {
                   Done
                 </Link>
                 <Link 
-                  to="/Loan_Kiosk" 
+                  to="/loan_kiosk" 
                   className="w-full flex items-center justify-center bg-[#F1F5F9] hover:bg-[#e2e8f0] text-[#1e293b] font-bold text-sm py-3.5 px-4 rounded-xl transition-colors"
                 >
                   Return to Home

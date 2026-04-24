@@ -37,7 +37,7 @@ const Non_Member = () => {
                 <Gift size={48} className="text-green-600 mb-4" />
                 <h1>Bonus Loan</h1>
                 </Link>
-            <Link to="/Membership_Form" className="bg-white h-50 w-50 rounded-2xl font-bold flex text-center 
+            <Link to="/membership_form" className="bg-white h-50 w-50 rounded-2xl font-bold flex text-center 
             items-center justify-center flex-col cursor-pointer">
                 <Library size={48} className="text-green-600 mb-4" />
                 <h1>Apply for <br></br>Membership</h1>

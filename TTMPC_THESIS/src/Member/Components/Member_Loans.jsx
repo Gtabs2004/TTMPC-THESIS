@@ -3,6 +3,7 @@ import { useNavigate, NavLink } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
 import { supabase } from "../../supabaseClient";
 import { resolveMemberContextFromSessionUser } from "../../utils/sessionIdentity";
+import { loadMemberAvatarSignedUrl } from "../../utils/memberAvatar";
 import { 
   LayoutDashboard, 
   Users, 
@@ -18,7 +19,8 @@ import {
   Calculator,
   ArrowRight,
   Info,
-  History
+  History,
+  User
 } from 'lucide-react';
 
 const styles = `
@@ -97,6 +99,8 @@ const Member_Loans = () => {
   const [loans, setLoans] = useState([]);
   const [loadingLoans, setLoadingLoans] = useState(true);
   const [loanError, setLoanError] = useState('');
+  const [memberLabel, setMemberLabel] = useState('Member');
+  const [avatarUrl, setAvatarUrl] = useState('');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   const menuItems = [
@@ -152,6 +156,12 @@ const Member_Loans = () => {
         const memberId = account?.user_id || sessionUser.id;
         if (!memberId) throw new Error('Please sign in again to load your loans.');
 
+        const fullName = [memberRow?.first_name, memberRow?.middle_name, memberRow?.surname]
+          .filter(Boolean)
+          .join(' ')
+          .trim();
+        const signedAvatarUrl = await loadMemberAvatarSignedUrl(supabase, sessionUser.id);
+
         const { data, error } = await supabase
           .from('loans')
           .select(`
@@ -195,10 +205,14 @@ const Member_Loans = () => {
 
         if (isMounted) {
           setLoans(rows);
+          setMemberLabel(fullName || 'Member');
+          setAvatarUrl(signedAvatarUrl || '');
         }
       } catch (err) {
         if (isMounted) {
           setLoanError(err.message || 'Unable to load loan records.');
+          setMemberLabel('Member');
+          setAvatarUrl('');
         }
       } finally {
         if (isMounted) {
@@ -342,9 +356,15 @@ const Member_Loans = () => {
           
           <div className="flex items-center gap-2 sm:gap-3 border-l border-gray-200 pl-2 sm:pl-4 cursor-pointer">
             <div className="w-8 h-8 rounded-full bg-gray-200 overflow-hidden border border-gray-300">
-               <img src="src/assets/img/member-profile.png" alt="Member Profile" className="w-full h-full object-cover" />
+              {avatarUrl ? (
+                <img src={avatarUrl} alt="Member Profile" className="w-full h-full object-cover" />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center bg-gray-100 text-gray-500">
+                  <User className="w-4 h-4" />
+                </div>
+              )}
             </div>
-            <p className="hidden sm:block text-sm font-bold text-gray-700">Member</p>
+            <p className="hidden sm:block text-sm font-bold text-gray-700">{memberLabel}</p>
           </div>
           </div>
         </header>

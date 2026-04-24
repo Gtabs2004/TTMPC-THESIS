@@ -836,7 +836,7 @@ def send_confirmation_email(
 
             <div style="background-color: #f9fafb; border: 1px solid #d1d5db; padding: 25px; border-radius: 8px; margin: 30px 0;">
                 <h3 style="margin-top: 0; font-size: 14px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em;">Your Access Credentials</h3>
-                <p style="margin: 10px 0; font-size: 16px;"><strong>Membership ID:</strong> <span style="font-family: monospace; color: #2563eb;">{to_email}</span></p>
+				<p style="margin: 10px 0; font-size: 16px;"><strong>Membership ID:</strong> <span style="font-family: monospace; color: #2563eb;">{membership_id}</span></p>
                 <div style="margin-top: 10px;">
                     {password_html}
                 </div>
@@ -850,7 +850,7 @@ def send_confirmation_email(
             </ul>
 
             <div style="text-align: center; margin-top: 40px;">
-                <a href="memberlogin" style="background-color: #2563eb; color: #ffffff; padding: 14px 28px; text-decoration: none; border-radius: 6px; font-weight: 600; display: inline-block;">Log In to Member Portal</a>
+				<a href="/memberlogin" style="background-color: #2563eb; color: #ffffff; padding: 14px 28px; text-decoration: none; border-radius: 6px; font-weight: 600; display: inline-block;">Log In to Member Portal</a>
             </div>
         </div>
 

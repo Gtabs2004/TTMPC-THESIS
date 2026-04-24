@@ -178,9 +178,17 @@ const Secretary_Attendance = () => {
   };
 
   const upsertAttendanceLog = async (member, currentTab) => {
-    const { data: authData } = await supabase.auth.getUser();
     const normalizedTab = String(currentTab || "").trim().toLowerCase();
-    const resolvedTrainingStage = normalizedTab.includes("training") ? "Training" : currentTab;
+
+    if (normalizedTab !== "training") {
+      return {
+        ok: true,
+        skipped: true,
+      };
+    }
+
+    const { data: authData } = await supabase.auth.getUser();
+    const resolvedTrainingStage = "Training";
 
     const payload = {
       application_id: member.applicationId || member.id,

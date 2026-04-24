@@ -3,6 +3,7 @@ import { useNavigate, NavLink } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
 import { supabase } from "../../supabaseClient";
 import { resolveMemberContextFromSessionUser } from "../../utils/sessionIdentity";
+import { loadMemberAvatarSignedUrl } from "../../utils/memberAvatar";
 import { 
   LayoutDashboard, 
   Users, 
@@ -104,6 +105,7 @@ const Members_Profile = () => {
   const [profile, setProfile] = useState(null);
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [profileError, setProfileError] = useState('');
+  const [avatarUrl, setAvatarUrl] = useState('');
   const [isTemporaryAccount, setIsTemporaryAccount] = useState(false);
   const [accountTableName, setAccountTableName] = useState('member_account');
   const [resolvedMemberId, setResolvedMemberId] = useState('');
@@ -193,6 +195,7 @@ const Members_Profile = () => {
 
         const temporaryFlag = Boolean(account?.is_temporary);
         const accountTable = account?.table || 'member_account';
+        const signedAvatarUrl = await loadMemberAvatarSignedUrl(supabase, sessionUser.id);
 
         let appRow = null;
         if (account?.membership_id) {
@@ -244,12 +247,16 @@ const Members_Profile = () => {
 
         if (isMounted) {
           setProfile(mapped);
+          setAvatarUrl(signedAvatarUrl || '');
           setIsTemporaryAccount(temporaryFlag);
           setAccountTableName(accountTable);
           setResolvedMemberId(memberId);
         }
       } catch (err) {
-        if (isMounted) setProfileError(err.message || 'Unable to load profile data.');
+        if (isMounted) {
+          setProfileError(err.message || 'Unable to load profile data.');
+          setAvatarUrl('');
+        }
       } finally {
         if (isMounted) setLoadingProfile(false);
       }
@@ -431,7 +438,13 @@ const Members_Profile = () => {
           
           <div className="flex items-center gap-2 sm:gap-3 border-l border-gray-200 pl-2 sm:pl-4 cursor-pointer">
             <div className="w-8 h-8 rounded-full bg-gray-200 overflow-hidden border border-gray-300">
-               <img src="src/assets/img/member-profile.png" alt="Member Profile" className="w-full h-full object-cover" />
+              {avatarUrl ? (
+                <img src={avatarUrl} alt="Member Profile" className="w-full h-full object-cover" />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center bg-gray-100 text-gray-500">
+                  <User className="w-4 h-4" />
+                </div>
+              )}
             </div>
             <p className="hidden sm:block text-sm font-bold text-gray-700">{profile?.fullName || 'Member'}</p>
           </div>
@@ -445,7 +458,13 @@ const Members_Profile = () => {
           <div className="bg-white p-4 sm:p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col sm:flex-row items-center justify-between mb-8 gap-4">
             <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-6 text-center sm:text-left">
               <div className="w-20 h-20 rounded-full bg-[#EAF1EB] overflow-hidden border border-gray-200">
-                <img src="src/assets/img/member-profile.png" alt={profile?.fullName || 'Member profile'} className="w-full h-full object-cover" />
+                {avatarUrl ? (
+                  <img src={avatarUrl} alt={profile?.fullName || 'Member profile'} className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-gray-500 bg-gray-100">
+                    <User className="w-8 h-8" />
+                  </div>
+                )}
               </div>
               <div>
                 <h1 className="text-xl sm:text-2xl font-black text-gray-900 mb-2">{profile?.fullName || 'Loading...'}</h1>
