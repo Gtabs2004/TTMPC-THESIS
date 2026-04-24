@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
 import { supabase } from "../../supabaseClient";
+import { resolveMemberContextFromSessionUser } from "../../utils/sessionIdentity";
 import {
   Activity,
   Bell,
@@ -180,8 +181,12 @@ const Member_Lifecycle = () => {
       const { data: authData, error: authError } = await supabase.auth.getUser();
       if (authError) throw authError;
 
-      const memberId = authData?.user?.id;
-      const authEmail = authData?.user?.email || "";
+      const sessionUser = authData?.user;
+      if (!sessionUser?.id) throw new Error("Please sign in again to load your loan lifecycle.");
+
+      const { account, member: memberRow } = await resolveMemberContextFromSessionUser(sessionUser);
+      const memberId = account?.user_id || sessionUser.id;
+      const authEmail = sessionUser?.email || "";
       if (!memberId) throw new Error("Please sign in again to load your loan lifecycle.");
 
       setFetchStage("Loading lifecycle data from backend...");

@@ -258,6 +258,7 @@ BEGIN
         FROM public.member_account ma
         WHERE (
           ma.user_id = $1
+          OR ma.auth_user_id = $1
           OR lower(coalesce(ma.email, '''')) = lower(coalesce($2, ''''))
         )
           AND lower(coalesce(ma.role, '''')) = ANY ($3)
@@ -278,6 +279,7 @@ BEGIN
         FROM public.member_accounts ma
         WHERE (
           ma.user_id = $1
+          OR ma.auth_user_id = $1
           OR lower(coalesce(ma.email, '''')) = lower(coalesce($2, ''''))
         )
           AND lower(coalesce(ma.role, '''')) = ANY ($3)
@@ -398,7 +400,12 @@ BEGIN
       TO authenticated
       WITH CHECK (
         lower(coalesce(user_email, '''')) = lower(auth.email())
-        AND member_id = auth.uid()
+        AND EXISTS (
+          SELECT 1
+          FROM public.member_account ma
+          WHERE (ma.auth_user_id = auth.uid() OR ma.user_id = auth.uid())
+            AND ma.user_id = loans.member_id
+        )
       )
     ';
 
@@ -410,7 +417,12 @@ BEGIN
       TO authenticated
       USING (
         lower(coalesce(user_email, '''')) = lower(auth.email())
-        OR member_id = auth.uid()
+        OR EXISTS (
+          SELECT 1
+          FROM public.member_account ma
+          WHERE (ma.auth_user_id = auth.uid() OR ma.user_id = auth.uid())
+            AND ma.user_id = loans.member_id
+        )
       )
     ';
 
@@ -424,7 +436,7 @@ BEGIN
         public.has_portal_role(
           auth.uid(),
           auth.email(),
-          ARRAY[''manager'', ''bod'', ''bookkeeper'', ''treasurer'']
+          ARRAY[''manager'', ''bod'', ''bookkeeper'', ''treasurer'', ''cashier'']
         )
       )
     ';
@@ -437,10 +449,10 @@ BEGIN
       FOR UPDATE
       TO authenticated
       USING (
-        public.has_portal_role(auth.uid(), auth.email(), ARRAY[''manager'', ''bookkeeper'', ''treasurer''])
+        public.has_portal_role(auth.uid(), auth.email(), ARRAY[''manager'', ''bookkeeper'', ''treasurer'', ''cashier''])
       )
       WITH CHECK (
-        public.has_portal_role(auth.uid(), auth.email(), ARRAY[''manager'', ''bookkeeper'', ''treasurer''])
+        public.has_portal_role(auth.uid(), auth.email(), ARRAY[''manager'', ''bookkeeper'', ''treasurer'', ''cashier''])
       )
     ';
 
@@ -477,7 +489,15 @@ BEGIN
           SELECT 1
           FROM public.loans l
           WHERE l.control_number = co_makers.loan_id
-            AND (lower(coalesce(l.user_email, '''')) = lower(auth.email()) OR l.member_id = auth.uid())
+            AND (
+              lower(coalesce(l.user_email, '''')) = lower(auth.email())
+              OR EXISTS (
+                SELECT 1
+                FROM public.member_account ma
+                WHERE (ma.auth_user_id = auth.uid() OR ma.user_id = auth.uid())
+                  AND ma.user_id = l.member_id
+              )
+            )
         )
       )
     ';
@@ -493,7 +513,15 @@ BEGIN
           SELECT 1
           FROM public.loans l
           WHERE l.control_number = co_makers.loan_id
-            AND (lower(coalesce(l.user_email, '''')) = lower(auth.email()) OR l.member_id = auth.uid())
+            AND (
+              lower(coalesce(l.user_email, '''')) = lower(auth.email())
+              OR EXISTS (
+                SELECT 1
+                FROM public.member_account ma
+                WHERE (ma.auth_user_id = auth.uid() OR ma.user_id = auth.uid())
+                  AND ma.user_id = l.member_id
+              )
+            )
         )
       )
     ';

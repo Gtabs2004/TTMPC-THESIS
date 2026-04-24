@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
 import { supabase } from "../../supabaseClient";
+import { resolveMemberContextFromSessionUser } from "../../utils/sessionIdentity";
 import { 
   LayoutDashboard, 
   Users, 
@@ -91,6 +92,8 @@ const styles = `
   }
 `;
 
+const MEMBER_NOTIF_SETTINGS_KEY = 'member_profile_notification_settings';
+
 const Members_Profile = () => {
   const { session, signOut } = UserAuth();
   const navigate = useNavigate();
@@ -103,6 +106,7 @@ const Members_Profile = () => {
   const [profileError, setProfileError] = useState('');
   const [isTemporaryAccount, setIsTemporaryAccount] = useState(false);
   const [accountTableName, setAccountTableName] = useState('member_account');
+  const [resolvedMemberId, setResolvedMemberId] = useState('');
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -140,6 +144,29 @@ const Members_Profile = () => {
   );
 
   useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(MEMBER_NOTIF_SETTINGS_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (typeof parsed?.smsNotif === 'boolean') setSmsNotif(parsed.smsNotif);
+      if (typeof parsed?.emailNotif === 'boolean') setEmailNotif(parsed.emailNotif);
+    } catch (_error) {
+      // Ignore malformed local preference data.
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(
+        MEMBER_NOTIF_SETTINGS_KEY,
+        JSON.stringify({ smsNotif, emailNotif })
+      );
+    } catch (_error) {
+      // Ignore persistence failures.
+    }
+  }, [smsNotif, emailNotif]);
+
+  useEffect(() => {
     let isMounted = true;
 
     const formatDate = (value) => {
@@ -156,43 +183,23 @@ const Members_Profile = () => {
 
         const { data: authData, error: authError } = await supabase.auth.getUser();
         if (authError) throw authError;
-        const memberId = authData?.user?.id;
-        const authEmail = authData?.user?.email || '';
+        const sessionUser = authData?.user;
+        if (!sessionUser?.id) throw new Error('Please sign in again to load your profile.');
+
+        const { account, member: memberRow } = await resolveMemberContextFromSessionUser(sessionUser);
+        const authEmail = sessionUser?.email || '';
+        const memberId = account?.user_id || sessionUser.id;
         if (!memberId) throw new Error('Please sign in again to load your profile.');
 
-        let temporaryFlag = false;
-        let accountTable = 'member_account';
-
-        const accountQueries = ['member_account', 'member_accounts'];
-        for (const tableName of accountQueries) {
-          const { data: accountRow, error: accountError } = await supabase
-            .from(tableName)
-            .select('is_temporary')
-            .eq('user_id', memberId)
-            .limit(1)
-            .maybeSingle();
-
-          if (!accountError && accountRow) {
-            temporaryFlag = Boolean(accountRow.is_temporary);
-            accountTable = tableName;
-            break;
-          }
-        }
-
-        const { data: memberRow, error: memberError } = await supabase
-          .from('member')
-          .select('*')
-          .eq('id', memberId)
-          .maybeSingle();
-
-        if (memberError) throw memberError;
+        const temporaryFlag = Boolean(account?.is_temporary);
+        const accountTable = account?.table || 'member_account';
 
         let appRow = null;
-        if (memberRow?.membership_id) {
+        if (account?.membership_id) {
           const { data, error } = await supabase
             .from('member_applications')
             .select('*')
-            .eq('membership_id', memberRow.membership_id)
+            .eq('membership_id', account.membership_id)
             .order('created_at', { ascending: false })
             .limit(1)
             .maybeSingle();
@@ -212,8 +219,8 @@ const Members_Profile = () => {
 
         const fullName = [
           appRow?.first_name || memberRow?.first_name,
-          appRow?.middle_name || memberRow?.middle_initial,
-          appRow?.surname || appRow?.last_name || memberRow?.last_name,
+          appRow?.middle_name || memberRow?.middle_name,
+          appRow?.surname || appRow?.last_name || memberRow?.surname,
         ]
           .filter(Boolean)
           .join(' ')
@@ -221,24 +228,25 @@ const Members_Profile = () => {
 
         const mapped = {
           fullName,
-          memberId: memberRow?.membership_id || 'N/A',
-          dateOfBirth: formatDate(appRow?.date_of_birth),
-          gender: appRow?.gender || 'N/A',
-          civilStatus: appRow?.civil_status || 'N/A',
-          memberType: memberRow?.is_bona_fide ? 'Regular Member' : 'Member',
-          joinedDate: formatDate(memberRow?.membership_date || memberRow?.created_at || appRow?.created_at),
+          memberId: account?.membership_id || memberRow?.membership_number_id || 'N/A',
+          dateOfBirth: formatDate(appRow?.date_of_birth || memberRow?.date_of_birth),
+          gender: appRow?.gender || memberRow?.gender || 'N/A',
+          civilStatus: appRow?.civil_status || memberRow?.civil_status || 'N/A',
+          memberType: 'Member',
+          joinedDate: formatDate(memberRow?.date_of_membership || memberRow?.created_at || appRow?.created_at),
           employer: appRow?.employer_name || 'N/A',
-          position: appRow?.position || appRow?.occupation || 'N/A',
+          position: appRow?.position || memberRow?.position || appRow?.occupation || memberRow?.occupation || 'N/A',
           salaryGrade: appRow?.salary_grade || 'N/A',
-          mobile: appRow?.contact_number || 'N/A',
-          email: appRow?.email || authEmail || 'N/A',
-          address: appRow?.permanent_address || 'N/A',
+          mobile: appRow?.contact_number || memberRow?.contact_number || 'N/A',
+          email: appRow?.email || memberRow?.email || authEmail || 'N/A',
+          address: appRow?.permanent_address || memberRow?.permanent_address || 'N/A',
         };
 
         if (isMounted) {
           setProfile(mapped);
           setIsTemporaryAccount(temporaryFlag);
           setAccountTableName(accountTable);
+          setResolvedMemberId(memberId);
         }
       } catch (err) {
         if (isMounted) setProfileError(err.message || 'Unable to load profile data.');
@@ -290,7 +298,7 @@ const Members_Profile = () => {
       if (updateAuthError) throw updateAuthError;
 
       const { data: authData } = await supabase.auth.getUser();
-      const memberId = authData?.user?.id;
+      const memberId = resolvedMemberId || authData?.user?.id;
       if (memberId) {
         const { error: updateFlagError } = await supabase
           .from(accountTableName)
@@ -425,7 +433,7 @@ const Members_Profile = () => {
             <div className="w-8 h-8 rounded-full bg-gray-200 overflow-hidden border border-gray-300">
                <img src="src/assets/img/member-profile.png" alt="Member Profile" className="w-full h-full object-cover" />
             </div>
-            <p className="hidden sm:block text-sm font-bold text-gray-700">Member</p>
+            <p className="hidden sm:block text-sm font-bold text-gray-700">{profile?.fullName || 'Member'}</p>
           </div>
           </div>
         </header>
@@ -437,7 +445,7 @@ const Members_Profile = () => {
           <div className="bg-white p-4 sm:p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col sm:flex-row items-center justify-between mb-8 gap-4">
             <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-6 text-center sm:text-left">
               <div className="w-20 h-20 rounded-full bg-[#EAF1EB] overflow-hidden border border-gray-200">
-                <img src="src/assets/img/member-profile.png" alt="Juan Dela Cruz" className="w-full h-full object-cover" />
+                <img src="src/assets/img/member-profile.png" alt={profile?.fullName || 'Member profile'} className="w-full h-full object-cover" />
               </div>
               <div>
                 <h1 className="text-xl sm:text-2xl font-black text-gray-900 mb-2">{profile?.fullName || 'Loading...'}</h1>
@@ -449,10 +457,22 @@ const Members_Profile = () => {
                 </div>
               </div>
             </div>
-            <button className="mt-4 sm:mt-0 flex items-center justify-center gap-2 bg-[#1D6021] text-white hover:bg-[#154718] transition-colors font-bold rounded-lg px-6 py-2.5 text-sm">
-              <Pencil className="w-4 h-4" /> Edit Profile
+            <button onClick={handleOpenChangePassword} className="mt-4 sm:mt-0 flex items-center justify-center gap-2 bg-[#1D6021] text-white hover:bg-[#154718] transition-colors font-bold rounded-lg px-6 py-2.5 text-sm">
+              <Pencil className="w-4 h-4" /> {isTemporaryAccount ? 'Update Password' : 'Account Security'}
             </button>
           </div>
+
+          {isTemporaryAccount ? (
+            <div className="mb-6 p-4 rounded-xl border border-amber-200 bg-amber-50 text-sm text-amber-800 font-semibold flex items-center justify-between gap-3">
+              <span>Your account is still using a temporary password. Update it now for security.</span>
+              <button
+                onClick={handleOpenChangePassword}
+                className="px-3 py-1.5 rounded-lg bg-amber-600 text-white text-xs font-bold hover:bg-amber-700"
+              >
+                Change Password
+              </button>
+            </div>
+          ) : null}
 
           {profileError ? (
             <div className="mb-6 p-4 rounded-xl border border-red-200 bg-red-50 text-sm text-red-700">

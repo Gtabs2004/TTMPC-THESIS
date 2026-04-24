@@ -224,6 +224,18 @@ BEGIN
         AND table_name = 'member_account'
         AND column_name = 'user_id'
     ) THEN
+      IF NOT EXISTS (
+        SELECT 1
+        FROM pg_constraint
+        WHERE conname = 'member_account_user_id_key'
+          AND conrelid = 'public.member_account'::regclass
+      ) THEN
+        EXECUTE '
+          ALTER TABLE public.member_account
+          ADD CONSTRAINT member_account_user_id_key UNIQUE (user_id)
+        ';
+      END IF;
+
       EXECUTE '
         ALTER TABLE public.member_profile
         ADD CONSTRAINT member_profile_member_account_fk
@@ -258,6 +270,18 @@ BEGIN
         AND table_name = 'member_accounts'
         AND column_name = 'user_id'
     ) THEN
+      IF NOT EXISTS (
+        SELECT 1
+        FROM pg_constraint
+        WHERE conname = 'member_accounts_user_id_key'
+          AND conrelid = 'public.member_accounts'::regclass
+      ) THEN
+        EXECUTE '
+          ALTER TABLE public.member_accounts
+          ADD CONSTRAINT member_accounts_user_id_key UNIQUE (user_id)
+        ';
+      END IF;
+
       EXECUTE '
         ALTER TABLE public.member_profile
         ADD CONSTRAINT member_profile_member_account_fk
@@ -466,9 +490,9 @@ BEGIN
       AND tablename = 'member_profile'
       AND policyname = 'member_profile_authenticated_select_own'
   ) THEN
-    EXECUTE 'ALTER POLICY member_profile_authenticated_select_own ON public.member_profile USING (membership_number_id = auth.uid() OR member_account = auth.uid())';
+    EXECUTE 'ALTER POLICY member_profile_authenticated_select_own ON public.member_profile USING (EXISTS (SELECT 1 FROM public.member_account ma WHERE (ma.auth_user_id = auth.uid() OR ma.user_id = auth.uid()) AND (ma.user_id = public.member_profile.membership_number_id OR ma.user_id = public.member_profile.member_account)))';
   ELSE
-    EXECUTE 'CREATE POLICY member_profile_authenticated_select_own ON public.member_profile FOR SELECT TO authenticated USING (membership_number_id = auth.uid() OR member_account = auth.uid())';
+    EXECUTE 'CREATE POLICY member_profile_authenticated_select_own ON public.member_profile FOR SELECT TO authenticated USING (EXISTS (SELECT 1 FROM public.member_account ma WHERE (ma.auth_user_id = auth.uid() OR ma.user_id = auth.uid()) AND (ma.user_id = public.member_profile.membership_number_id OR ma.user_id = public.member_profile.member_account)))';
   END IF;
 END $$;
 
@@ -481,9 +505,9 @@ BEGIN
       AND tablename = 'member_profile'
       AND policyname = 'member_profile_authenticated_upsert_own'
   ) THEN
-    EXECUTE 'ALTER POLICY member_profile_authenticated_upsert_own ON public.member_profile WITH CHECK (membership_number_id = auth.uid() OR member_account = auth.uid())';
+    EXECUTE 'ALTER POLICY member_profile_authenticated_upsert_own ON public.member_profile WITH CHECK (EXISTS (SELECT 1 FROM public.member_account ma WHERE (ma.auth_user_id = auth.uid() OR ma.user_id = auth.uid()) AND (ma.user_id = public.member_profile.membership_number_id OR ma.user_id = public.member_profile.member_account)))';
   ELSE
-    EXECUTE 'CREATE POLICY member_profile_authenticated_upsert_own ON public.member_profile FOR INSERT TO authenticated WITH CHECK (membership_number_id = auth.uid() OR member_account = auth.uid())';
+    EXECUTE 'CREATE POLICY member_profile_authenticated_upsert_own ON public.member_profile FOR INSERT TO authenticated WITH CHECK (EXISTS (SELECT 1 FROM public.member_account ma WHERE (ma.auth_user_id = auth.uid() OR ma.user_id = auth.uid()) AND (ma.user_id = public.member_profile.membership_number_id OR ma.user_id = public.member_profile.member_account)))';
   END IF;
 END $$;
 
@@ -496,9 +520,9 @@ BEGIN
       AND tablename = 'member_profile'
       AND policyname = 'member_profile_authenticated_update_own'
   ) THEN
-    EXECUTE 'ALTER POLICY member_profile_authenticated_update_own ON public.member_profile USING (membership_number_id = auth.uid() OR member_account = auth.uid()) WITH CHECK (membership_number_id = auth.uid() OR member_account = auth.uid())';
+    EXECUTE 'ALTER POLICY member_profile_authenticated_update_own ON public.member_profile USING (EXISTS (SELECT 1 FROM public.member_account ma WHERE (ma.auth_user_id = auth.uid() OR ma.user_id = auth.uid()) AND (ma.user_id = public.member_profile.membership_number_id OR ma.user_id = public.member_profile.member_account))) WITH CHECK (EXISTS (SELECT 1 FROM public.member_account ma WHERE (ma.auth_user_id = auth.uid() OR ma.user_id = auth.uid()) AND (ma.user_id = public.member_profile.membership_number_id OR ma.user_id = public.member_profile.member_account)))';
   ELSE
-    EXECUTE 'CREATE POLICY member_profile_authenticated_update_own ON public.member_profile FOR UPDATE TO authenticated USING (membership_number_id = auth.uid() OR member_account = auth.uid()) WITH CHECK (membership_number_id = auth.uid() OR member_account = auth.uid())';
+    EXECUTE 'CREATE POLICY member_profile_authenticated_update_own ON public.member_profile FOR UPDATE TO authenticated USING (EXISTS (SELECT 1 FROM public.member_account ma WHERE (ma.auth_user_id = auth.uid() OR ma.user_id = auth.uid()) AND (ma.user_id = public.member_profile.membership_number_id OR ma.user_id = public.member_profile.member_account))) WITH CHECK (EXISTS (SELECT 1 FROM public.member_account ma WHERE (ma.auth_user_id = auth.uid() OR ma.user_id = auth.uid()) AND (ma.user_id = public.member_profile.membership_number_id OR ma.user_id = public.member_profile.member_account)))';
   END IF;
 END $$;
 
@@ -616,9 +640,9 @@ BEGIN
       AND tablename = 'member_classification_temporal'
       AND policyname = 'member_classification_temporal_authenticated_select_own'
   ) THEN
-    EXECUTE 'ALTER POLICY member_classification_temporal_authenticated_select_own ON public.member_classification_temporal USING (membership_number_id = auth.uid())';
+    EXECUTE 'ALTER POLICY member_classification_temporal_authenticated_select_own ON public.member_classification_temporal USING (EXISTS (SELECT 1 FROM public.member_account ma WHERE (ma.auth_user_id = auth.uid() OR ma.user_id = auth.uid()) AND ma.user_id = public.member_classification_temporal.membership_number_id))';
   ELSE
-    EXECUTE 'CREATE POLICY member_classification_temporal_authenticated_select_own ON public.member_classification_temporal FOR SELECT TO authenticated USING (membership_number_id = auth.uid())';
+    EXECUTE 'CREATE POLICY member_classification_temporal_authenticated_select_own ON public.member_classification_temporal FOR SELECT TO authenticated USING (EXISTS (SELECT 1 FROM public.member_account ma WHERE (ma.auth_user_id = auth.uid() OR ma.user_id = auth.uid()) AND ma.user_id = public.member_classification_temporal.membership_number_id))';
   END IF;
 END $$;
 
@@ -631,9 +655,9 @@ BEGIN
       AND tablename = 'member_classification_temporal'
       AND policyname = 'member_classification_temporal_authenticated_insert_own'
   ) THEN
-    EXECUTE 'ALTER POLICY member_classification_temporal_authenticated_insert_own ON public.member_classification_temporal WITH CHECK (membership_number_id = auth.uid())';
+    EXECUTE 'ALTER POLICY member_classification_temporal_authenticated_insert_own ON public.member_classification_temporal WITH CHECK (EXISTS (SELECT 1 FROM public.member_account ma WHERE (ma.auth_user_id = auth.uid() OR ma.user_id = auth.uid()) AND ma.user_id = public.member_classification_temporal.membership_number_id))';
   ELSE
-    EXECUTE 'CREATE POLICY member_classification_temporal_authenticated_insert_own ON public.member_classification_temporal FOR INSERT TO authenticated WITH CHECK (membership_number_id = auth.uid())';
+    EXECUTE 'CREATE POLICY member_classification_temporal_authenticated_insert_own ON public.member_classification_temporal FOR INSERT TO authenticated WITH CHECK (EXISTS (SELECT 1 FROM public.member_account ma WHERE (ma.auth_user_id = auth.uid() OR ma.user_id = auth.uid()) AND ma.user_id = public.member_classification_temporal.membership_number_id))';
   END IF;
 END $$;
 
@@ -646,9 +670,9 @@ BEGIN
       AND tablename = 'member_classification_temporal'
       AND policyname = 'member_classification_temporal_authenticated_update_own'
   ) THEN
-    EXECUTE 'ALTER POLICY member_classification_temporal_authenticated_update_own ON public.member_classification_temporal USING (membership_number_id = auth.uid()) WITH CHECK (membership_number_id = auth.uid())';
+    EXECUTE 'ALTER POLICY member_classification_temporal_authenticated_update_own ON public.member_classification_temporal USING (EXISTS (SELECT 1 FROM public.member_account ma WHERE (ma.auth_user_id = auth.uid() OR ma.user_id = auth.uid()) AND ma.user_id = public.member_classification_temporal.membership_number_id)) WITH CHECK (EXISTS (SELECT 1 FROM public.member_account ma WHERE (ma.auth_user_id = auth.uid() OR ma.user_id = auth.uid()) AND ma.user_id = public.member_classification_temporal.membership_number_id))';
   ELSE
-    EXECUTE 'CREATE POLICY member_classification_temporal_authenticated_update_own ON public.member_classification_temporal FOR UPDATE TO authenticated USING (membership_number_id = auth.uid()) WITH CHECK (membership_number_id = auth.uid())';
+    EXECUTE 'CREATE POLICY member_classification_temporal_authenticated_update_own ON public.member_classification_temporal FOR UPDATE TO authenticated USING (EXISTS (SELECT 1 FROM public.member_account ma WHERE (ma.auth_user_id = auth.uid() OR ma.user_id = auth.uid()) AND ma.user_id = public.member_classification_temporal.membership_number_id)) WITH CHECK (EXISTS (SELECT 1 FROM public.member_account ma WHERE (ma.auth_user_id = auth.uid() OR ma.user_id = auth.uid()) AND ma.user_id = public.member_classification_temporal.membership_number_id))';
   END IF;
 END $$;
 

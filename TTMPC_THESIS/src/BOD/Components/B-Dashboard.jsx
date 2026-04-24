@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
 // Assuming AuthContext and PortalIdentity are standard imports in your project
 import { UserAuth } from "../../contex/AuthContext";
@@ -57,6 +57,12 @@ const COLORS = ['#2C7A3F', '#4ADE80', '#9CA3AF'];
 const Dashboard_BOD = () => {
   const { session, signOut } = UserAuth();
   const navigate = useNavigate();
+  const [chartsReady, setChartsReady] = useState(false);
+
+  useEffect(() => {
+    const frameId = window.requestAnimationFrame(() => setChartsReady(true));
+    return () => window.cancelAnimationFrame(frameId);
+  }, []);
 
   const menuItems = [
     { section: "BOD", items: [{ name: "Dashboard", icon: LayoutDashboard }, { name: "Member Approvals", icon: Users }, { name: "Manage Member", icon: Users }] },
@@ -109,7 +115,7 @@ const Dashboard_BOD = () => {
       </aside>
 
       {/* MAIN CONTENT AREA */}
-      <div className="flex-1 flex flex-col h-screen overflow-hidden">
+      <div className="flex-1 min-w-0 flex flex-col h-screen overflow-hidden">
         {/* TOPBAR */}
         <header className="bg-white h-16 shadow-sm flex items-center justify-end px-8 border-b border-gray-100 shrink-0">
           <div className="relative">
@@ -191,12 +197,12 @@ const Dashboard_BOD = () => {
           </div>
 
           {/* ROW 2: STRATEGIC TRENDS */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8 min-w-0">
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 min-w-0">
               <h3 className="text-lg font-bold text-gray-800 mb-1">Seasonal Loan Demand & Risk Forecast</h3>
               <p className="text-sm text-gray-500 mb-4">Monthly demand trends with seasonal risk indicators</p>
               <div className="h-72">
-                <ResponsiveContainer width="100%" height="100%">
+                {chartsReady ? <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={240}>
                   <ComposedChart data={seasonalData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="0" vertical={false} stroke="#f0f0f0" />
                     <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#9CA3AF' }} />
@@ -207,15 +213,15 @@ const Dashboard_BOD = () => {
                     <Line type="monotone" dataKey="forecast" name="Forecast" stroke="#059669" strokeWidth={2} strokeDasharray="5 5" dot={false} />
                     <Area type="monotone" dataKey="riskZone" name="Risk Zone" fill="#FECACA" stroke="#DC2626" strokeWidth={1} />
                   </ComposedChart>
-                </ResponsiveContainer>
+                </ResponsiveContainer> : <div className="h-full w-full rounded-lg bg-gray-50" />}
               </div>
             </div>
 
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 min-w-0">
               <h3 className="text-lg font-bold text-gray-800 mb-1">Delinquency Trajectory (30/60/90 Days)</h3>
               <p className="text-sm text-gray-500 mb-4">Stacked delinquency aging by month</p>
               <div className="h-72">
-                <ResponsiveContainer width="100%" height="100%">
+                {chartsReady ? <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={240}>
                   <BarChart data={delinquencyData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="0" vertical={false} stroke="#f0f0f0" />
                     <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#9CA3AF' }} />
@@ -226,19 +232,19 @@ const Dashboard_BOD = () => {
                     <Bar dataKey="60-Day" stackId="a" fill="#F97316" />
                     <Bar dataKey="90-Day" stackId="a" fill="#EF4444" radius={[0, 0, 0, 0]} />
                   </BarChart>
-                </ResponsiveContainer>
+                </ResponsiveContainer> : <div className="h-full w-full rounded-lg bg-gray-50" />}
               </div>
             </div>
           </div>
 
           {/* ROW 3: DEMOGRAPHICS & DIAGNOSTICS */}
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 mb-8 min-w-0">
             
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 min-w-0">
               <h3 className="text-sm font-bold text-gray-800 mb-1">Member Churn / Dropout</h3>
               <p className="text-xs text-gray-500 mb-4">Monthly attrition trend</p>
               <div className="h-48">
-                <ResponsiveContainer width="100%" height="100%">
+                {chartsReady ? <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={160}>
                   <LineChart data={seasonalData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="0" vertical={false} stroke="#f0f0f0" />
                     <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#9CA3AF' }} />
@@ -246,12 +252,12 @@ const Dashboard_BOD = () => {
                     <Tooltip cursor={{ fill: '#f9fafb' }} contentStyle={{ borderRadius: '12px', border: '1px solid #E5E7EB', boxShadow: '0 10px 25px -5px rgb(0 0 0 / 0.1)', backgroundColor: '#FFFFFF', padding: '12px' }} />
                     <Line type="monotone" dataKey="riskZone" name="Dropout Vol." stroke="#DC2626" strokeWidth={3} dot={{ fill: '#DC2626', r: 4 }} activeDot={{ r: 6 }} />
                   </LineChart>
-                </ResponsiveContainer>
+                </ResponsiveContainer> : <div className="h-full w-full rounded-lg bg-gray-50" />}
               </div>
             </div>
 
             {/* UPDATED GENDER CHART */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 flex flex-col items-center">
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 flex flex-col items-center min-w-0">
               <div className="w-full flex justify-between items-center mb-4">
                  <div>
                    <h3 className="text-sm font-bold text-gray-800">Gender Distribution</h3>
@@ -260,7 +266,7 @@ const Dashboard_BOD = () => {
                  <span className="text-xs font-medium bg-green-50 text-green-700 px-3 py-1 rounded-lg">100 Members</span>
               </div>
               <div className="h-48 w-full">
-                <ResponsiveContainer width="100%" height="100%">
+                {chartsReady ? <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={160}>
                   <PieChart>
                     <Pie 
                       data={genderData} 
@@ -276,15 +282,15 @@ const Dashboard_BOD = () => {
                     <Tooltip contentStyle={{ borderRadius: '12px', border: '1px solid #E5E7EB', boxShadow: '0 10px 25px -5px rgb(0 0 0 / 0.1)', backgroundColor: '#FFFFFF', padding: '12px' }} formatter={(value) => `${value} members`} />
                     <Legend verticalAlign="bottom" height={36} iconType="circle" wrapperStyle={{ paddingTop: '16px' }} />
                   </PieChart>
-                </ResponsiveContainer>
+                </ResponsiveContainer> : <div className="h-full w-full rounded-lg bg-gray-50" />}
               </div>
             </div>
 
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 min-w-0">
               <h3 className="text-sm font-bold text-gray-800 mb-1">Debt Capacity vs Repayment Health</h3>
               <p className="text-xs text-gray-500 mb-4">Member clusters by debt and repayment speed</p>
               <div className="h-48">
-                <ResponsiveContainer width="100%" height="100%">
+                {chartsReady ? <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={160}>
                   <ScatterChart margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="0" vertical={false} stroke="#f0f0f0" />
                     <XAxis type="number" dataKey="debt" name="Debt (₱)" tickFormatter={(val) => `${val/1000}k`} axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#9CA3AF' }} />
@@ -292,7 +298,7 @@ const Dashboard_BOD = () => {
                     <Tooltip cursor={{ strokeDasharray: '0' }} contentStyle={{ borderRadius: '12px', border: '1px solid #E5E7EB', boxShadow: '0 10px 25px -5px rgb(0 0 0 / 0.1)', backgroundColor: '#FFFFFF', padding: '12px' }} />
                     <Scatter name="Members" data={scatterData} fill="#10B981" />
                   </ScatterChart>
-                </ResponsiveContainer>
+                </ResponsiveContainer> : <div className="h-full w-full rounded-lg bg-gray-50" />}
               </div>
             </div>
 

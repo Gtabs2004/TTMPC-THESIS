@@ -81,20 +81,32 @@ def get_application_data_by_application_id(
 
 def generate_membership_id(supabase: Client) -> str:
 	member_table = _resolve_member_table(supabase)
-	response = (
+	member_response = (
 		supabase.table(member_table)
 		.select("membership_id")
 		.order("created_at", desc=True)
-		.limit(1000)
+		.limit(5000)
 		.execute()
 	)
+
+	pds_response = None
+	try:
+		pds_response = (
+			supabase.table("personal_data_sheet")
+			.select("membership_number_id")
+			.limit(5000)
+			.execute()
+		)
+	except Exception:
+		# Table may not exist in some deployments; member table remains the primary source.
+		pds_response = None
 
 	def _extract_membership_number(raw_membership_id: Any) -> int | None:
 		membership_id = str(raw_membership_id or "").strip().upper()
 		if not membership_id:
 			return None
 
-		match = re.match(r"^(?:TTMPCM[_-]|TTMPC_M_)(\d{1,9})$", membership_id)
+		match = re.match(r"^(?:TTMPC[-_]?M?[_-]?)(\d{1,9})$", membership_id)
 		if not match:
 			return None
 
@@ -104,13 +116,19 @@ def generate_membership_id(supabase: Client) -> str:
 			return None
 
 	def _format_membership_id(number: int) -> str:
-		# Requested style: TTMPCM_000, auto-expands digits for larger numbers.
+		# Requested style: TTMPC-000, auto-expands digits for larger numbers.
 		width = max(3, len(str(number)))
-		return f"TTMPCM_{number:0{width}d}"
+		return f"TTMPC-{number:0{width}d}"
 
 	max_existing_number = 0
-	for row in (response.data or []):
+	for row in (member_response.data or []):
 		numeric_part = _extract_membership_number(row.get("membership_id"))
+		if numeric_part is None:
+			continue
+		max_existing_number = max(max_existing_number, numeric_part)
+
+	for row in ((pds_response.data or []) if pds_response else []):
+		numeric_part = _extract_membership_number(row.get("membership_number_id"))
 		if numeric_part is None:
 			continue
 		max_existing_number = max(max_existing_number, numeric_part)
@@ -130,7 +148,24 @@ def generate_membership_id(supabase: Client) -> str:
 			.limit(1)
 			.execute()
 		)
-		if not member_check.data:
+		if member_check.data:
+			new_number += 1
+			continue
+
+		pds_conflict = False
+		try:
+			pds_check = (
+				supabase.table("personal_data_sheet")
+				.select("membership_number_id")
+				.eq("membership_number_id", candidate)
+				.limit(1)
+				.execute()
+			)
+			pds_conflict = bool(pds_check.data)
+		except Exception:
+			pds_conflict = False
+
+		if not pds_conflict:
 			return candidate
 		new_number += 1
 
@@ -142,7 +177,7 @@ def normalize_membership_id_format(raw_membership_id: Any) -> str | None:
 	if not membership_id:
 		return None
 
-	match = re.match(r"^(?:TTMPCM[_-]|TTMPC_M_)(\d{1,9})$", membership_id)
+	match = re.match(r"^(?:TTMPC[-_]?M?[_-]?)(\d{1,9})$", membership_id)
 	if not match:
 		return None
 
@@ -152,7 +187,7 @@ def normalize_membership_id_format(raw_membership_id: Any) -> str | None:
 		return None
 
 	width = max(3, len(str(number)))
-	return f"TTMPCM_{number:0{width}d}"
+	return f"TTMPC-{number:0{width}d}"
 
 def get_next_membership_id() -> str:
 	supabase, _, _ = _load_runtime_config()
@@ -171,7 +206,34 @@ def _get_middle_initial(middle_name: str | None, middle_initial: str | None) -> 
 	return None
 
 
-def _application_is_eligible(data: dict[str, Any], force: bool) -> bool:
+def _has_present_attendance(supabase: Client, application_id: str | None) -> bool:
+	clean_application_id = str(application_id or "").strip()
+	if not clean_application_id:
+		return False
+
+	try:
+		response = (
+			supabase.table("attendance_logs")
+			.select("status,attendance_status")
+			.eq("application_id", clean_application_id)
+			.limit(100)
+			.execute()
+		)
+	except Exception:
+		return False
+
+	for row in (response.data or []):
+		status_values = [
+			str(row.get("status") or "").strip().lower(),
+			str(row.get("attendance_status") or "").strip().lower(),
+		]
+		if "present" in status_values:
+			return True
+
+	return False
+
+
+def _application_is_eligible(data: dict[str, Any], force: bool, supabase: Client | None = None) -> bool:
 	if force:
 		return True
 
@@ -190,7 +252,13 @@ def _application_is_eligible(data: dict[str, Any], force: bool) -> bool:
 		"second training completed",
 		"official member",
 	}
-	return status_value in accepted
+	if status_value in accepted:
+		return True
+
+	if status_value in {"training", "1st training", "first training"} and supabase is not None:
+		return _has_present_attendance(supabase, data.get("application_id"))
+
+	return False
 
 
 def ensure_confirmer_is_bod(supabase: Client, confirmer_user_id: str) -> dict[str, Any]:
@@ -198,17 +266,43 @@ def ensure_confirmer_is_bod(supabase: Client, confirmer_user_id: str) -> dict[st
 	if not clean_id:
 		raise MembershipConfirmationError("confirmed_by_user_id is required for confirmation.")
 
-	for account_table in ["member_account", "member_accounts"]:
+	account_candidates = ["member_account", "member_accounts"]
+	auth_email = None
+	try:
+		admin_api = getattr(supabase, "auth", None)
+		admin_api = getattr(admin_api, "admin", None) if admin_api is not None else None
+		get_user_by_id = getattr(admin_api, "get_user_by_id", None)
+		if callable(get_user_by_id):
+			user_result = get_user_by_id(clean_id)
+			user_obj = getattr(user_result, "user", None) or getattr(user_result, "data", None)
+			if isinstance(user_obj, dict):
+				auth_email = str(user_obj.get("email") or "").strip().lower() or None
+			else:
+				auth_email = str(getattr(user_obj, "email", "") or "").strip().lower() or None
+	except Exception:
+		auth_email = None
+
+	for account_table in account_candidates:
 		try:
 			account_response = (
 				supabase.table(account_table)
-				.select("user_id, role")
-				.eq("user_id", clean_id)
+				.select("user_id, auth_user_id, role")
+				.or_(f"user_id.eq.{clean_id},auth_user_id.eq.{clean_id}")
 				.limit(1)
 				.execute()
 			)
 		except Exception:
-			continue
+			# Backward compatibility for schemas where auth_user_id may be missing.
+			try:
+				account_response = (
+					supabase.table(account_table)
+					.select("user_id, role")
+					.eq("user_id", clean_id)
+					.limit(1)
+					.execute()
+				)
+			except Exception:
+				continue
 
 		if not account_response.data:
 			continue
@@ -223,7 +317,32 @@ def ensure_confirmer_is_bod(supabase: Client, confirmer_user_id: str) -> dict[st
 			"table": account_table,
 		}
 
-	raise MembershipConfirmationError("Confirmer account was not found in member_account/member_accounts.")
+	if auth_email:
+		for account_table in account_candidates:
+			try:
+				account_response = (
+					supabase.table(account_table)
+					.select("user_id, auth_user_id, role, email")
+					.ilike("email", auth_email)
+					.limit(1)
+					.execute()
+				)
+				if not account_response.data:
+					continue
+				role_value = str(account_response.data[0].get("role") or "").strip()
+				if role_value.lower() == "bod":
+					return {
+						"user_id": clean_id,
+						"role": role_value,
+						"table": account_table,
+						"email": auth_email,
+					}
+			except Exception:
+				continue
+
+	raise MembershipConfirmationError(
+		"Confirmer account was not found in member_account/member_accounts. Check that the BOD user exists in member_account with role BOD or has a matching auth email."
+	)
 
 
 def _build_default_password(last_name: str | None) -> str:
@@ -296,15 +415,20 @@ def set_new_account_temporary(
 	supabase: Client,
 	auth_user_id: str,
 	email: str | None,
+	membership_id: str | None = None,
 ) -> dict[str, Any]:
 	clean_email = str(email or "").strip().lower()
 
 	for account_table in ["member_account", "member_accounts"]:
 		# First, try update path (row already exists via trigger or prior process).
 		try:
+			update_payload = {"is_temporary": True}
+			if membership_id:
+				update_payload["membership_id"] = membership_id
+			
 			update_response = (
 				supabase.table(account_table)
-				.update({"is_temporary": True})
+				.update(update_payload)
 				.eq("user_id", auth_user_id)
 				.execute()
 			)
@@ -314,17 +438,21 @@ def set_new_account_temporary(
 					"mode": "updated",
 					"is_temporary": True,
 				}
-		except Exception:
+		except Exception as update_err:
 			pass
 
-		# If no row exists, attempt a minimal insert fallback.
+		# If no row exists, attempt insert with all required fields.
 		try:
 			insert_payload = {
 				"user_id": auth_user_id,
+				"auth_user_id": auth_user_id,  # Also store the UUID
 				"email": clean_email,
-				"role": "Member",
+				"role": "member",
 				"is_temporary": True,
 			}
+			if membership_id:
+				insert_payload["membership_id"] = membership_id
+			
 			insert_response = supabase.table(account_table).insert(insert_payload).execute()
 			if insert_response.data:
 				return {
@@ -332,7 +460,8 @@ def set_new_account_temporary(
 					"mode": "inserted",
 					"is_temporary": True,
 				}
-		except Exception:
+		except Exception as insert_err:
+			print(f"[DEBUG] Could not insert into {account_table}: {insert_err}")
 			continue
 
 	return {
@@ -594,12 +723,14 @@ def upsert_personal_data_sheet(
 def update_confirmed_account_role_to_member(
 	supabase: Client,
 	auth_user_id: str,
+	membership_id: str | None = None,
+	email: str | None = None,
 ) -> dict[str, Any]:
 	for account_table in ["member_account", "member_accounts"]:
 		try:
 			account_response = (
 				supabase.table(account_table)
-				.select("user_id, role")
+				.select("user_id, role, email, auth_user_id, membership_id")
 				.eq("user_id", auth_user_id)
 				.limit(1)
 				.execute()
@@ -608,28 +739,60 @@ def update_confirmed_account_role_to_member(
 			continue
 
 		if not account_response.data:
-			continue
+			# Try to create if it doesn't exist
+			try:
+				create_payload = {
+					"user_id": auth_user_id,
+					"auth_user_id": auth_user_id,
+					"role": "member",
+					"email": email,
+					"is_temporary": False,
+				}
+				if membership_id:
+					create_payload["membership_id"] = membership_id
+				
+				supabase.table(account_table).insert(create_payload).execute()
+				return {
+					"created": True,
+					"table": account_table,
+					"role": "member",
+				}
+			except Exception as create_err:
+				print(f"[DEBUG] Could not create member_account in {account_table}: {create_err}")
+				continue
 
-		current_role = str(account_response.data[0].get("role") or "").strip()
-		if current_role.lower() == "bod":
-			supabase.table(account_table).update({"role": "Member"}).eq("user_id", auth_user_id).execute()
-			return {
-				"updated": True,
-				"table": account_table,
-				"from": current_role,
-				"to": "Member",
-			}
+		# Row exists, update it with any missing fields
+		current_role = str(account_response.data[0].get("role") or "").strip().lower()
+		update_payload = {"role": "member"}
+		
+		# Ensure auth_user_id is stored
+		if not account_response.data[0].get("auth_user_id"):
+			update_payload["auth_user_id"] = auth_user_id
+		
+		# Update membership_id if provided and missing
+		if membership_id and not account_response.data[0].get("membership_id"):
+			update_payload["membership_id"] = membership_id
+		
+		# Update email if provided and missing
+		if email and not account_response.data[0].get("email"):
+			update_payload["email"] = email
+
+		if update_payload:
+			try:
+				supabase.table(account_table).update(update_payload).eq("user_id", auth_user_id).execute()
+			except Exception as update_err:
+				print(f"[DEBUG] Could not update {account_table}: {update_err}")
 
 		return {
-			"updated": False,
+			"updated": True,
 			"table": account_table,
-			"current_role": current_role,
+			"role": "member",
 		}
 
 	return {
 		"updated": False,
 		"table": None,
-		"reason": "member account row not found",
+		"reason": "member account row not found or write blocked",
 	}
 
 
@@ -745,7 +908,7 @@ def confirm_membership(
 		if existing.data:
 			raise MembershipConfirmationError(f"Membership ID {membership_id} is already in use.")
 
-		if not _application_is_eligible(application_data, force):
+		if not _application_is_eligible(application_data, force, supabase=supabase):
 			current_status = application_data.get("training_status") or application_data.get("application_status")
 			raise MembershipConfirmationError(
 				f"Application is not eligible for confirmation. Current status: {current_status}"
@@ -772,6 +935,7 @@ def confirm_membership(
 				supabase,
 				auth_user_id,
 				application_data.get("email"),
+				membership_id=membership_id,  # Pass membership_id so member_account gets it too
 			)
 		temp_password_for_email = generated_password or _build_default_password(
 			application_data.get("last_name") or application_data.get("surname")
@@ -801,7 +965,12 @@ def confirm_membership(
 			application_table,
 			membership_id,
 		)
-		role_update_result = update_confirmed_account_role_to_member(supabase, auth_user_id)
+		role_update_result = update_confirmed_account_role_to_member(
+			supabase, 
+			auth_user_id,
+			membership_id=membership_id,
+			email=application_data.get("email"),
+		)
 
 		persisted_member = get_member_by_user_id(supabase, auth_user_id)
 		if not persisted_member:
@@ -898,7 +1067,7 @@ def confirm_membership_batch(
 			if status_now in {"member", "official member"}:
 				continue
 
-			if not force and not _application_is_eligible(row, force=False):
+			if not force and not _application_is_eligible(row, force=False, supabase=supabase):
 				continue
 
 			seen_ids.add(app_id)

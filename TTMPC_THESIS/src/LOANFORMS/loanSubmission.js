@@ -1,8 +1,5 @@
 import { supabase } from '../supabaseClient';
 
-const ACCOUNT_TABLE_CANDIDATES = ['member_account', 'member_accounts'];
-let activeAccountTables = null;
-
 const toInt = (value) => {
   if (value === null || value === undefined || value === '') return null;
   const parsed = parseInt(value, 10);
@@ -30,13 +27,27 @@ const resolveInterestRate = async (loanTypeCode, interestRate) => {
   const code = String(loanTypeCode || '').trim().toUpperCase();
   if (!code) return null;
 
+  const normalizeRatePercent = (rate, row) => {
+    if (rate === null || rate <= 0) return null;
+    const rowCode = String(row?.code || '').trim().toUpperCase();
+    const effectiveCode = rowCode || code;
+
+    // Backward compatibility for consolidated decimal monthly format (e.g., 0.083).
+    if (effectiveCode === 'CONSOLIDATED' && rate > 0 && rate < 1) {
+      return rate * 100;
+    }
+
+    return rate;
+  };
+
   const extractRate = (row) => {
-    const rate = toFloat(
+    const rawRate = toFloat(
       row?.interest_rate
       ?? row?.InterestRate
       ?? row?.interestrate
       ?? row?.interestRate
     );
+    const rate = normalizeRatePercent(rawRate, row);
     return rate !== null && rate > 0 ? rate : null;
   };
 
@@ -297,41 +308,6 @@ async function resolveCoMakerMemberId(email) {
 
     return null;
   };
-
-  if (!activeAccountTables) {
-    const discovered = [];
-    for (const tableName of ACCOUNT_TABLE_CANDIDATES) {
-      const { error } = await supabase.from(tableName).select('user_id').limit(1);
-      if (!error) {
-        discovered.push(tableName);
-      }
-    }
-    activeAccountTables = discovered;
-  }
-
-  for (const tableName of activeAccountTables) {
-    const { data, error } = await supabase
-      .from(tableName)
-      .select('user_id')
-      .ilike('email', normalizedEmail)
-      .limit(1)
-      .maybeSingle();
-
-    if (error || !data?.user_id) {
-      continue;
-    }
-
-    const { data: memberRow, error: memberError } = await supabase
-      .from('member')
-      .select('id')
-      .eq('id', data.user_id)
-      .limit(1)
-      .maybeSingle();
-
-    if (!memberError && memberRow?.id) {
-      return memberRow.id;
-    }
-  }
 
   return resolveFromMemberApplications();
 }

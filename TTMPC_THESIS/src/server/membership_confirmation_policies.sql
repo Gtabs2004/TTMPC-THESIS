@@ -29,7 +29,8 @@ BEGIN
     SELECT lower(btrim(coalesce(ma.role, '')))
     INTO v_role
     FROM public.member_account ma
-    WHERE ma.user_id = auth.uid()
+     WHERE ma.user_id = auth.uid()
+       OR ma.auth_user_id = auth.uid()
        OR lower(coalesce(ma.email, '')) = lower(coalesce(auth.email(), ''))
     LIMIT 1;
 
@@ -42,7 +43,8 @@ BEGIN
     SELECT lower(btrim(coalesce(ma.role, '')))
     INTO v_role
     FROM public.member_accounts ma
-    WHERE ma.user_id = auth.uid()
+     WHERE ma.user_id = auth.uid()
+       OR ma.auth_user_id = auth.uid()
        OR lower(coalesce(ma.email, '')) = lower(coalesce(auth.email(), ''))
     LIMIT 1;
 
@@ -243,7 +245,7 @@ WITH CHECK (
   EXISTS (
     SELECT 1
     FROM member_account ma
-    WHERE ma.user_id = auth.uid()
+    WHERE (ma.user_id = auth.uid() OR ma.auth_user_id = auth.uid())
       AND lower(coalesce(ma.role, '')) = 'bod'
   )
 );
@@ -326,7 +328,8 @@ BEGIN
     SELECT lower(btrim(coalesce(ma.role, '')))
     INTO v_role
     FROM public.member_account ma
-    WHERE ma.user_id = auth.uid()
+     WHERE ma.user_id = auth.uid()
+       OR ma.auth_user_id = auth.uid()
        OR lower(coalesce(ma.email, '')) = lower(coalesce(auth.email(), ''))
     LIMIT 1;
 
@@ -339,7 +342,8 @@ BEGIN
     SELECT lower(btrim(coalesce(ma.role, '')))
     INTO v_role
     FROM public.member_accounts ma
-    WHERE ma.user_id = auth.uid()
+     WHERE ma.user_id = auth.uid()
+       OR ma.auth_user_id = auth.uid()
        OR lower(coalesce(ma.email, '')) = lower(coalesce(auth.email(), ''))
     LIMIT 1;
 
@@ -389,7 +393,14 @@ CREATE POLICY cbu_member_select_own
 ON public.capital_build_up
 FOR SELECT
 TO authenticated
-USING (member_id = auth.uid());
+USING (
+  EXISTS (
+    SELECT 1
+    FROM public.member_account ma
+    WHERE (ma.auth_user_id = auth.uid() OR ma.user_id = auth.uid())
+      AND ma.user_id = member_id
+  )
+);
 
 DO $$
 BEGIN
@@ -403,7 +414,7 @@ BEGIN
       ON public.member_account
       FOR SELECT
       TO authenticated
-      USING (user_id = auth.uid())
+      USING (user_id = auth.uid() OR auth_user_id = auth.uid())
     ';
 
     EXECUTE 'DROP POLICY IF EXISTS "authenticated update own account" ON public.member_account';
@@ -412,8 +423,8 @@ BEGIN
       ON public.member_account
       FOR UPDATE
       TO authenticated
-      USING (user_id = auth.uid())
-      WITH CHECK (user_id = auth.uid())
+      USING (user_id = auth.uid() OR auth_user_id = auth.uid())
+      WITH CHECK (user_id = auth.uid() OR auth_user_id = auth.uid())
     ';
   END IF;
 
@@ -427,7 +438,7 @@ BEGIN
       ON public.member_accounts
       FOR SELECT
       TO authenticated
-      USING (user_id = auth.uid())
+      USING (user_id = auth.uid() OR auth_user_id = auth.uid())
     ';
 
     EXECUTE 'DROP POLICY IF EXISTS "authenticated update own accounts" ON public.member_accounts';
@@ -436,8 +447,8 @@ BEGIN
       ON public.member_accounts
       FOR UPDATE
       TO authenticated
-      USING (user_id = auth.uid())
-      WITH CHECK (user_id = auth.uid())
+      USING (user_id = auth.uid() OR auth_user_id = auth.uid())
+      WITH CHECK (user_id = auth.uid() OR auth_user_id = auth.uid())
     ';
   END IF;
 END $$;
