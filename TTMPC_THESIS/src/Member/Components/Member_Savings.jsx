@@ -3,6 +3,7 @@ import { useNavigate, NavLink } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
 import { supabase } from "../../supabaseClient";
 import { resolveMemberContextFromSessionUser } from "../../utils/sessionIdentity";
+import { loadMemberAvatarSignedUrl } from "../../utils/memberAvatar";
 import { 
   LayoutDashboard, 
   Users, 
@@ -20,6 +21,7 @@ import {
   PlusCircle,
   TrendingUp,
   MinusCircle,
+  User,
 } from 'lucide-react';
 
 const styles = `
@@ -110,6 +112,7 @@ const Member_Savings = () => {
   const [timeDeposit, setTimeDeposit] = useState(0);
   const [ledgerData, setLedgerData] = useState([]);
   const [memberLabel, setMemberLabel] = useState('Member');
+  const [avatarUrl, setAvatarUrl] = useState('');
 
   const menuItems = [
     { name: "Dashboard", icon: LayoutDashboard },
@@ -153,6 +156,7 @@ const Member_Savings = () => {
           .filter(Boolean)
           .join(' ')
           .trim();
+        const signedAvatarUrl = await loadMemberAvatarSignedUrl(supabase, sessionUser.id);
 
         const { data: cbuRow, error: cbuError } = await supabase
           .from('capital_build_up')
@@ -231,6 +235,7 @@ const Member_Savings = () => {
 
         if (isMounted) {
           setMemberLabel(fullName || 'Member');
+          setAvatarUrl(signedAvatarUrl || '');
           setRegularSavings(openingRegularSavings);
           setTimeDeposit(computedTimeDeposit);
           setLedgerData(mappedLedger);
@@ -238,6 +243,7 @@ const Member_Savings = () => {
       } catch (err) {
         if (isMounted) {
           setSavingsError(err?.message || 'Unable to load savings data.');
+          setAvatarUrl('');
           setLedgerData([]);
           setRegularSavings(0);
           setTimeDeposit(0);
@@ -379,7 +385,13 @@ const Member_Savings = () => {
           
           <div className="flex items-center gap-2 sm:gap-3 border-l border-gray-200 pl-2 sm:pl-4 cursor-pointer">
             <div className="w-8 h-8 rounded-full bg-gray-200 overflow-hidden border border-gray-300">
-               <img src="src/assets/img/member-profile.png" alt="Profile" className="w-full h-full object-cover" />
+              {avatarUrl ? (
+                <img src={avatarUrl} alt="Profile" className="w-full h-full object-cover" />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center bg-gray-100 text-gray-500">
+                  <User className="w-4 h-4" />
+                </div>
+              )}
             </div>
             <p className="hidden sm:block text-sm font-bold text-gray-700">{memberLabel}</p>
           </div>

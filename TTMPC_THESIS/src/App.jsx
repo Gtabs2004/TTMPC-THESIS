@@ -86,7 +86,7 @@
               <Link to="/">About Us</Link>
             </li>
             <li>
-              <Link to="/Loan_Kiosk">Services</Link>
+              <Link to="/loan_kiosk">Services</Link>
             </li>
             <li>
               <Link to="/">FAQs</Link>
@@ -95,7 +95,7 @@
               <Link to="/">Contact Us</Link>
             </li>
             <li className="bg-[#E9F7DE] text-[#66B538] p-3 rounded-3xl cursor-pointer">
-              <Link to="/Membership_Form">Be a Member</Link>
+              <Link to="/membership_form">Be a Member</Link>
             </li>
             <li className="bg-[#66B538] text-white rounded-3xl px-10 py-3 cursor-pointer">
               <Link to="/role_selection">Login</Link>

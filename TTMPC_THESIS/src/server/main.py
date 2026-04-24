@@ -800,7 +800,7 @@ async def get_cashier_loans_for_payments():
         for payment in payments_rows:
             loan_key = str(payment.get("loan_id") or "")
             status = str(payment.get("confirmation_status") or "confirmed").strip().lower()
-            is_confirmed = status in {"confirmed", "bookkeeper_confirmed", "approved"}
+            is_confirmed = status in {"validated", "confirmed", "bookkeeper_confirmed", "approved"}
             if not is_confirmed:
                 continue
             confirmed_paid_by_loan[loan_key] = confirmed_paid_by_loan.get(loan_key, Decimal("0")) + Decimal(str(payment.get("amount_paid") or 0))
@@ -850,6 +850,13 @@ async def get_cashier_loans_for_payments():
                 if fallback_rate is not None and fallback_rate > 0:
                     resolved_interest_rate_percent = fallback_rate
 
+            if remaining_balance <= 0:
+                repayment_status = "Fully Paid"
+            elif confirmed_paid > 0:
+                repayment_status = "Partially Paid"
+            else:
+                repayment_status = "Unpaid"
+
             mapped_loans.append(
                 {
                     "loan_id": control_number,
@@ -867,7 +874,7 @@ async def get_cashier_loans_for_payments():
                     "delayed_deadline": delayed_deadline.isoformat() if delayed_deadline else None,
                     "is_delayed": is_delayed,
                     "remaining_balance": decimal_to_float(remaining_balance),
-                    "loan_status": "Fully Paid" if remaining_balance <= 0 else "Unpaid",
+                    "loan_status": repayment_status,
                 }
             )
 

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
 import { supabase } from "../../supabaseClient";
@@ -18,7 +18,8 @@ import {
   Calendar,
   ArrowUpRight,
   CheckCircle2,
-  History
+  History,
+  User
 } from 'lucide-react';
 
 const styles = `
@@ -101,8 +102,12 @@ const MemberDashboard = () => {
   const [nextDueDate, setNextDueDate] = useState(null);
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [profileError, setProfileError] = useState("");
+  const [avatarUrl, setAvatarUrl] = useState("");
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [avatarUploadError, setAvatarUploadError] = useState("");
   const [isTemporaryAccount, setIsTemporaryAccount] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const fileInputRef = useRef(null);
 
   const menuItems = [
     { name: "Dashboard", icon: LayoutDashboard },
@@ -148,6 +153,36 @@ const MemberDashboard = () => {
     return date.toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
   };
 
+  const resolveAvatarDisplayUrl = async (storedAvatarValue, userId) => {
+    const rawValue = String(storedAvatarValue || '').trim();
+    if (!rawValue || !userId) return '';
+
+    const publicMarker = '/storage/v1/object/public/Supporting_Documents/';
+    let objectPath = rawValue;
+
+    if (rawValue.startsWith('http')) {
+      const markerIndex = rawValue.indexOf(publicMarker);
+      if (markerIndex === -1) {
+        return rawValue;
+      }
+      objectPath = decodeURIComponent(rawValue.slice(markerIndex + publicMarker.length));
+    }
+
+    if (!objectPath.startsWith(`profiles/${userId}/`)) {
+      return '';
+    }
+
+    const { data, error } = await supabase.storage
+      .from('Supporting_Documents')
+      .createSignedUrl(objectPath, 60 * 60 * 24 * 7);
+
+    if (error) {
+      return rawValue.startsWith('http') ? rawValue : '';
+    }
+
+    return data?.signedUrl || '';
+  };
+
   useEffect(() => {
     let isMounted = true;
 
@@ -168,6 +203,16 @@ const MemberDashboard = () => {
         if (!memberId) throw new Error('Please sign in again to load your dashboard.');
 
         const temporaryFlag = Boolean(account?.is_temporary);
+
+        const { data: profileRow, error: profileFetchError } = await supabase
+          .from('profiles')
+          .select('avatar_url')
+          .eq('id', sessionUser.id)
+          .maybeSingle();
+
+        if (profileFetchError && profileFetchError.code !== 'PGRST116') {
+          throw profileFetchError;
+        }
 
         let latestApplication = null;
         if (account?.membership_id) {
@@ -333,6 +378,8 @@ const MemberDashboard = () => {
           .sort((a, b) => new Date(b.timestamp || 0).getTime() - new Date(a.timestamp || 0).getTime())
           .slice(0, 6);
 
+        const resolvedAvatarUrl = await resolveAvatarDisplayUrl(profileRow?.avatar_url, sessionUser.id);
+
         if (isMounted) {
           setProfile({
             fullName,
@@ -348,11 +395,13 @@ const MemberDashboard = () => {
           setTotalSavings(shareCapital + savingsAccountTotal);
           setNextDueDate(derivedNextDueDate);
           setRecentTransactions(latestTransactions);
+          setAvatarUrl(resolvedAvatarUrl);
         }
       } catch (err) {
         if (isMounted) {
           setProfileError(err.message || 'Unable to load member dashboard data.');
           setRecentTransactions([]);
+          setAvatarUrl('');
         }
       } finally {
         if (isMounted) {
@@ -390,6 +439,59 @@ const MemberDashboard = () => {
 
   const nextPaymentDate = nextDueDate ? formatDate(nextDueDate) : (activeLoans[0]?.application_date ? formatDate(activeLoans[0].application_date) : 'N/A');
 
+  const handleOpenFilePicker = () => {
+    if (uploadingAvatar) return;
+    fileInputRef.current?.click();
+  };
+
+  const handleAvatarFileChange = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+
+    if (!file) return;
+
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    if (authError || !authData?.user?.id) {
+      setAvatarUploadError('Please sign in again before uploading your photo.');
+      return;
+    }
+
+    const userId = authData.user.id;
+    setAvatarUploadError('');
+    setUploadingAvatar(true);
+
+    try {
+      const extension = (file.name.split('.').pop() || 'jpg').toLowerCase();
+      const storagePath = `profiles/${userId}/avatar.${extension}`;
+      const { error: uploadError } = await supabase.storage
+        .from('Supporting_Documents')
+        .upload(storagePath, file, {
+          cacheControl: '3600',
+          upsert: true,
+        });
+
+      if (uploadError) throw uploadError;
+
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .upsert({ id: userId, avatar_url: storagePath }, { onConflict: 'id' });
+
+      if (updateError) throw updateError;
+
+      const { data: signedData, error: signedError } = await supabase.storage
+        .from('Supporting_Documents')
+        .createSignedUrl(storagePath, 60 * 60 * 24 * 7);
+
+      if (signedError) throw signedError;
+
+      setAvatarUrl(signedData?.signedUrl || '');
+    } catch (err) {
+      setAvatarUploadError(err?.message || 'Unable to upload profile photo.');
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
+
   const daysUntilNextDue = useMemo(() => {
     if (!nextDueDate) return null;
     const due = new Date(nextDueDate);
@@ -410,7 +512,7 @@ const MemberDashboard = () => {
   );
 
   return (
-   <div className="relative flex min-h-screen bg-[#F8F9FA]">
+  <div className="relative flex h-screen overflow-hidden bg-[#F8F9FA]">
       <style>{styles}</style>
       {isSidebarOpen ? (
         <button
@@ -521,7 +623,13 @@ const MemberDashboard = () => {
           
           <div className="flex items-center gap-2 sm:gap-3 border-l border-gray-200 pl-2 sm:pl-4 cursor-pointer">
             <div className="w-8 h-8 rounded-full bg-gray-200 overflow-hidden border border-gray-300">
-               <img src="src/assets/img/member-profile.png" alt="Profile" className="w-full h-full object-cover" />
+              {avatarUrl ? (
+                <img src={avatarUrl} alt="Profile" className="w-full h-full object-cover" />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center bg-gray-100 text-gray-500">
+                  <User className="w-4 h-4" />
+                </div>
+              )}
             </div>
             <p className="hidden sm:block text-sm font-bold text-gray-700">{profile?.fullName || 'Member'}</p>
           </div>
@@ -551,7 +659,13 @@ const MemberDashboard = () => {
             <div className="bg-white p-4 sm:p-6 rounded-2xl shadow-sm border border-gray-100 lg:col-span-2 flex flex-col sm:flex-row items-center sm:items-start gap-4 sm:gap-6 relative">
               <div className="relative">
                 <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full border-4 border-[#EAF1EB] overflow-hidden bg-gray-100">
-                  <img src="src/assets/img/member-profile.png" alt={profile?.fullName || 'Member profile'} className="w-full h-full object-cover" />
+                  {avatarUrl ? (
+                    <img src={avatarUrl} alt={profile?.fullName || 'Member profile'} className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-gray-500">
+                      <User className="w-10 h-10" />
+                    </div>
+                  )}
                 </div>
                 <div className="absolute bottom-1 right-1 w-4 h-4 bg-green-500 border-2 border-white rounded-full"></div>
               </div>
@@ -580,9 +694,35 @@ const MemberDashboard = () => {
                   <p className="text-xs text-red-600 font-semibold mb-3">{profileError}</p>
                 ) : null}
 
-                <button onClick={() => navigate('/members-profile')} className="flex items-center justify-center gap-2 border border-[#1D6021] text-[#1D6021] hover:bg-[#EAF1EB] transition-colors font-bold rounded-lg px-4 py-2 text-sm">
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    onClick={handleOpenFilePicker}
+                    disabled={uploadingAvatar}
+                    className="flex items-center justify-center gap-2 border border-[#1D6021] text-[#1D6021] hover:bg-[#EAF1EB] transition-colors font-bold rounded-lg px-4 py-2 text-sm disabled:opacity-60 disabled:cursor-not-allowed"
+                  >
+                    {uploadingAvatar ? (
+                      <>
+                        <span className="inline-block h-4 w-4 rounded-full border-2 border-[#1D6021] border-t-transparent animate-spin" />
+                        Uploading...
+                      </>
+                    ) : (
+                      'Change Photo'
+                    )}
+                  </button>
+                  <button onClick={() => navigate('/members-profile')} className="flex items-center justify-center gap-2 border border-[#1D6021] text-[#1D6021] hover:bg-[#EAF1EB] transition-colors font-bold rounded-lg px-4 py-2 text-sm">
                   <Pencil className="w-4 h-4" /> Edit Profile
-                </button>
+                  </button>
+                </div>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleAvatarFileChange}
+                />
+                {avatarUploadError ? (
+                  <p className="text-xs text-red-600 font-semibold mt-3">{avatarUploadError}</p>
+                ) : null}
               </div>
             </div>
 
