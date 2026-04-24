@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
 import { PortalSidebarIdentity, PortalTopbarIdentity } from "../../components/PortalIdentity";
 import { 
@@ -19,6 +19,7 @@ import {
   Archive
 } from 'lucide-react';
 import { supabase } from "../../supabaseClient";
+import { resolveAccountFromSessionUser } from "../../utils/sessionIdentity";
 import logo from "../../assets/img/ttmpc logo.png";
 
 
@@ -31,6 +32,8 @@ const Member_Approvals = () => {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
+  const [authReady, setAuthReady] = useState(false);
+  const fetchRequestIdRef = useRef(0);
   const [tabCounts, setTabCounts] = useState({
     Pending: 0,
     Training: 0,
@@ -39,50 +42,47 @@ const Member_Approvals = () => {
   });
   const LIMIT = 10;
 
+  // LOGIC FIX: Added 'Training' to match your SQL Insert exactly
   const getStatusOrClause = (statusTab, roleOverride) => {
     const tab = roleOverride === "secretary" ? "Pending" : statusTab;
 
+    const buildStatusClause = (values) => {
+      const uniqueValues = [...new Set(values)];
+      return uniqueValues.map((value) => `application_status.eq.${value}`).join(",");
+    };
+
     if (tab === "Pending") {
-      return "application_status.eq.pending,application_status.eq.Pending,application_status.eq.PENDING";
+      return buildStatusClause(["pending", "Pending", "PENDING"]);
     }
     if (tab === "Training") {
-      return "application_status.eq.training,application_status.eq.1st Training,application_status.eq.1st_training,application_status.eq.first training,application_status.eq.training 1";
+      return buildStatusClause([
+        "Training", // Matches your INSERT
+        "training",
+        "1st Training",
+        "1st_training",
+        "training 1",
+      ]);
     }
     if (tab === "For Revision") {
-      return "application_status.eq.for revision,application_status.eq.For Revision,application_status.eq.revision,application_status.eq.Revision,application_status.eq.for_revision,application_status.eq.For_Revision,application_status.eq.for-revision,application_status.eq.For-Revision";
+      return buildStatusClause(["for revision", "For Revision", "revision", "Revision"]);
     }
     if (tab === "Official Member") {
-      return "application_status.eq.official member,application_status.eq.Official Member,application_status.eq.member,application_status.eq.Member";
+      return buildStatusClause(["official member", "Official Member", "member", "Member"]);
     }
     return "";
   };
 
   const resolvePortalRole = async (sessionUser) => {
     if (!sessionUser?.id && !sessionUser?.email) return "";
-
-    const tableCandidates = ["member_account", "member_accounts"];
-    for (const table of tableCandidates) {
-      const byUserId = sessionUser?.id
-        ? await supabase.from(table).select("role").eq("user_id", sessionUser.id).limit(1).maybeSingle()
-        : { data: null, error: null };
-
-      if (!byUserId.error && byUserId.data?.role) {
-        return String(byUserId.data.role).trim().toLowerCase();
-      }
-
-      const byEmail = sessionUser?.email
-        ? await supabase.from(table).select("role").ilike("email", sessionUser.email).limit(1).maybeSingle()
-        : { data: null, error: null };
-
-      if (!byEmail.error && byEmail.data?.role) {
-        return String(byEmail.data.role).trim().toLowerCase();
-      }
+    const account = await resolveAccountFromSessionUser(sessionUser);
+    if (account?.role) {
+      return String(account.role).trim().toLowerCase();
     }
-
     return "";
   };
 
   const fetchData = async (pageNumber = 1, roleOverride = portalRole) => {
+    const requestId = ++fetchRequestIdRef.current;
     const from = (pageNumber - 1) * LIMIT;
     const to = from + LIMIT - 1;
 
@@ -97,28 +97,22 @@ const Member_Approvals = () => {
       query = query.or(statusClause);
     }
 
-    // IMPORTANT: do not use `data`/`error` before this line.
-    // Accessing them earlier causes a Temporal Dead Zone ReferenceError.
     const { data, count, error } = await query;
 
+    if (requestId !== fetchRequestIdRef.current) return;
     if (error) {
       console.error("Supabase Error:", error);
       return;
     }
 
-    console.log("Supabase Data:", data);
     setApplications(data || []);
     const resolvedCount = count || 0;
-    const resolvedTotalPages = Math.max(1, Math.ceil(resolvedCount / LIMIT));
     setTotalCount(resolvedCount);
-    setTotalPages(resolvedTotalPages);
-
-    if (pageNumber > resolvedTotalPages) {
-      setPage(resolvedTotalPages);
-    }
+    setTotalPages(Math.max(1, Math.ceil(resolvedCount / LIMIT)));
   };
 
   const fetchTabCounts = async (roleOverride = portalRole) => {
+    const requestId = fetchRequestIdRef.current;
     const tabsForCounts = ["Pending", "Training", "For Revision", "Official Member"];
 
     const countResults = await Promise.all(
@@ -133,17 +127,13 @@ const Member_Approvals = () => {
         }
 
         const { count, error } = await countQuery;
-        if (error) {
-          console.error(`Supabase count error for ${tab}:`, error);
-          return [tab, 0];
-        }
-
-        return [tab, count || 0];
+        if (requestId !== fetchRequestIdRef.current) return { tab, count: 0 };
+        return { tab, count: count || 0, error };
       })
     );
 
-    const nextCounts = countResults.reduce((acc, [tab, count]) => {
-      acc[tab] = count;
+    const nextCounts = countResults.reduce((acc, result) => {
+      acc[result.tab] = result.count;
       return acc;
     }, {});
 
@@ -152,42 +142,33 @@ const Member_Approvals = () => {
 
   useEffect(() => {
     const checkSessionAndFetch = async () => {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-
-      console.log("Current User:", session?.user?.email);
-
+      const { data: { session } } = await supabase.auth.getSession();
       if (session) {
         const role = await resolvePortalRole(session.user);
         setPortalRole(role);
-        // Use resolved role directly to avoid stale state during first load.
         fetchData(1, role);
         fetchTabCounts(role);
-      } else {
-        console.warn("No active session! RLS will block the query.");
       }
+      setAuthReady(true);
     };
-
     checkSessionAndFetch();
   }, []);
 
   useEffect(() => {
-    if (!portalRole) return;
+    if (!authReady) return;
     fetchData(page, portalRole);
-  }, [portalRole, page, activeTab]);
+  }, [authReady, portalRole, page, activeTab]);
 
   useEffect(() => {
-    if (!portalRole) return;
+    if (!authReady) return;
     fetchTabCounts(portalRole);
-  }, [portalRole]);
+  }, [authReady, portalRole]);
 
   useEffect(() => {
     setPage(1);
   }, [activeTab]);
 
-
- const menuItems = [
+  const menuItems = [
     {
       section: "BOD",
       items: [
@@ -207,41 +188,19 @@ const Member_Approvals = () => {
   
   const handleSignOut = async (e) => {
     e.preventDefault();
-    try {
-      navigate("/");
-    } catch (err) {
-      console.error("Failed to sign out:", err);
-    }
+    navigate("/");
   };
 
-  const normalizeStatus = (value) => {
-    const normalized = (value || "")
-      .toString()
-      .trim()
-      .toLowerCase()
-      .replace(/[_-]+/g, " ")
-      .replace(/\s+/g, " ");
-
+  const normalizeStatus = (applicationStatus, trainingStatus) => {
+    const normalized = (applicationStatus || "").toLowerCase().trim();
     if (normalized === "pending") return "Pending";
+    if (normalized === "training" || normalized === "1st training") return "Training";
     if (normalized === "for revision" || normalized === "revision") return "For Revision";
-    if (normalized === "1st training" || normalized === "first training" || normalized === "training 1" || normalized === "training") return "Training";
-    if (normalized === "2nd training" || normalized === "second training" || normalized === "training 2") return "Official Member";
     if (normalized === "official member" || normalized === "member") return "Official Member";
     return "Pending";
   };
 
-  const formatDisplayDate = (value) => {
-    if (!value) return "Not scheduled";
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return value;
-
-    return date.toLocaleDateString("en-US", {
-      month: "long",
-      day: "numeric",
-      year: "numeric",
-    });
-  };
-
+  // Business Logic: 3rd Saturday of March and Sept
   const getThirdSaturday = (year, monthIndex) => {
     const firstDay = new Date(year, monthIndex, 1);
     const dayOfWeek = firstDay.getDay();
@@ -251,30 +210,14 @@ const Member_Approvals = () => {
 
   const getRuleSchedule = (referenceDateInput) => {
     const referenceDate = new Date(referenceDateInput);
-    const fallbackDate = Number.isNaN(referenceDate.getTime()) ? new Date() : referenceDate;
+    const fallbackDate = isNaN(referenceDate.getTime()) ? new Date() : referenceDate;
     const year = fallbackDate.getFullYear();
-
     const marchSchedule = getThirdSaturday(year, 2);
     const septemberSchedule = getThirdSaturday(year, 8);
 
     if (fallbackDate <= marchSchedule) return marchSchedule;
     if (fallbackDate <= septemberSchedule) return septemberSchedule;
-
     return getThirdSaturday(year + 1, 2);
-  };
-
-  const getNextRuleSchedule = (currentScheduleDate) => {
-    const date = new Date(currentScheduleDate);
-    if (Number.isNaN(date.getTime())) {
-      return getRuleSchedule(new Date().toISOString());
-    }
-
-    const year = date.getFullYear();
-    const month = date.getMonth();
-
-    if (month === 2) return getThirdSaturday(year, 8);
-    if (month === 8) return getThirdSaturday(year + 1, 2);
-    return getRuleSchedule(date.toISOString());
   };
 
   const formattedRows = useMemo(() => {
@@ -284,62 +227,36 @@ const Member_Approvals = () => {
         .filter(Boolean)
         .join(" ");
 
-      const firstTrainingSchedule = getRuleSchedule(app.created_at || new Date().toISOString());
-      let computedTrainingDate = "Not scheduled";
-      const normalized = normalizeStatus(app.application_status);
-      if (normalized === "Training") {
-        computedTrainingDate = formatDisplayDate(firstTrainingSchedule.toISOString());
-      }
+      const trainingSchedule = getRuleSchedule(app.created_at);
+      const normalizedStatusValue = normalizeStatus(app.application_status);
 
       return {
         id: app.application_id,
         name: fullName || "Unnamed Applicant",
         email: app.email || "-",
-        annualIncome: app.annual_income || "N/A",
-        date: app.created_at
-          ? new Date(app.created_at).toLocaleDateString("en-US", {
-              month: "short",
-              day: "numeric",
-              year: "numeric",
-            })
-          : "-",
-        reason: app.rejection_reason || app.remarks || "No reason provided",
-        trainingDate: computedTrainingDate,
+        annualIncome: app.annual_income ? `₱${Number(app.annual_income).toLocaleString()}` : "N/A",
+        date: app.created_at ? new Date(app.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "-",
+        reason: app.remarks || "No reason provided",
+        trainingDate: normalizedStatusValue === "Training" ? trainingSchedule.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) : "Not scheduled",
         attendance: app.attendance_status || "Pending",
         result: app.evaluation_result || "Pending",
-        secretaryRemarks: app.remarks || app.evaluation_remarks || "No secretary remarks yet.",
-        status: normalizeStatus(app.application_status),
+        secretaryRemarks: app.remarks || "No secretary remarks yet.",
+        status: normalizedStatusValue,
       };
     });
   }, [applications]);
 
-  const tabData = useMemo(() => {
-    return {
-      Pending: formattedRows.filter((row) => row.status === "Pending"),
-      Training: formattedRows.filter((row) => row.status === "Training"),
-      "For Revision": formattedRows.filter((row) => row.status === "For Revision"),
-      "Official Member": formattedRows.filter((row) => row.status === "Official Member"),
-    };
-  }, [formattedRows]);
-
+  const rowsForActiveTab = formattedRows;
   const isTrainingTab = activeTab === "Training";
   const isSecretary = portalRole === "secretary";
   const canUseBodActions = !isSecretary;
-  const visibleTabs = isSecretary
-    ? ["Pending"]
-    : ["Pending", "Training", "For Revision", "Official Member"];
+  const visibleTabs = isSecretary ? ["Pending"] : ["Pending", "Training", "For Revision", "Official Member"];
 
-  const nonTrainingColSpan =
-    activeTab === "Pending" ? 4 : activeTab === "For Revision" ? 5 : 3;
-
-  // Show page groups like 1-5, 6-10, 11-15.
   const visiblePageNumbers = useMemo(() => {
     const safeTotal = Math.max(1, totalPages);
     const safePage = Math.min(Math.max(1, page), safeTotal);
-
     const start = Math.floor((safePage - 1) / 5) * 5 + 1;
     const end = Math.min(start + 4, safeTotal);
-
     return Array.from({ length: end - start + 1 }, (_, i) => start + i);
   }, [page, totalPages]);
 
@@ -347,7 +264,7 @@ const Member_Approvals = () => {
     <div className="flex min-h-screen bg-[#F8FAFC]">
       <aside className="bg-white w-64 p-4 flex flex-col border-r border-gray-200">
         <div className="flex flex-row items-start gap-2 mb-6">
-          <img src="src/assets/img/ttmpc logo.png" alt="Logo" className="h-12 w-auto" />
+          <img src={logo} alt="Logo" className="h-12 w-auto" />
           <div className="flex flex-col">
             <h1 className="text-xl font-bold text-[#389734]">TTMPC</h1>
             <PortalSidebarIdentity className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold" fallbackPortal="BOD Portal" fallbackRole="BOD" />
@@ -357,88 +274,56 @@ const Member_Approvals = () => {
         <hr className="w-full border-gray-200 mb-6" />
 
         <nav className="flex flex-col gap-2 text-sm flex-grow">
-                  {(() => {
-                    const routeMap = {
-                      "Dashboard": "/BOD-dashboard",
-                      "Member Approvals": "/member-approvals",
-                      "Manage Member": "/bod-manage-member",
-                      "Training Attendance": "/Secretary_Attendance",
-                      "Membership Records": "/Secretary_Records"
-                    };
+          {menuItems.map((sectionGroup) => (
+            <div key={sectionGroup.section} className="mb-4 flex flex-col gap-2">
+              <p className="text-xs font-bold text-gray-400 px-2 uppercase tracking-wider">{sectionGroup.section}</p>
+              {sectionGroup.items.map((item) => {
+                const Icon = item.icon;
+                const routeMap = { "Dashboard": "/BOD-dashboard", "Member Approvals": "/member-approvals", "Manage Member": "/bod-manage-member", "Training Attendance": "/Secretary_Attendance", "Membership Records": "/Secretary_Records" };
+                const to = routeMap[item.name] || `/${item.name.toLowerCase().replace(/\s+/g, '-')}`;
+                return (
+                  <NavLink key={item.name} to={to} className={({ isActive }) => `flex items-center gap-3 p-2 rounded-md transition-colors ${isActive ? 'bg-green-50 text-green-700 font-semibold' : 'text-gray-700 hover:bg-green-50 hover:text-green-700'}`}>
+                    <Icon size={20} />
+                    <span>{item.name}</span>
+                  </NavLink>
+                );
+              })}
+            </div>
+          ))}
+        </nav>
         
-                    // 1. Map through the section categories first
-                    return menuItems.map((sectionGroup) => (
-                      <div key={sectionGroup.section} className="mb-4 flex flex-col gap-2">
-                        {/* Optional: You can display the section name here if you want */}
-                        <p className="text-xs font-bold text-gray-400 px-2 uppercase tracking-wider">
-                          {sectionGroup.section}
-                        </p>
-                        
-                        {/* 2. Then map through the actual items inside that section */}
-                        {sectionGroup.items.map((item) => {
-                          const Icon = item.icon;
-                          const to = routeMap[item.name] || `/${item.name.toLowerCase().replace(/\s+/g, '-')}`;
-        
-                          return (
-                            <NavLink
-                              key={item.name}
-                              to={to}
-                              className={({ isActive }) =>
-                                `flex items-center gap-3 p-2 rounded-md transition-colors ${
-                                  isActive
-                                    ? 'bg-green-50 text-green-700 font-semibold'
-                                    : 'text-gray-700 hover:bg-green-50 hover:text-green-700'
-                                }`
-                              }
-                            >
-                              <Icon size={20} />
-                              <span>{item.name}</span>
-                            </NavLink>
-                          );
-                        })}
-                      </div>
-                    ));
-                  })()}
-                </nav>
-        
-        <button
-          onClick={handleSignOut}
-          className="mt-auto w-full rounded p-2 text-xs bg-[#2C7A3F] hover:bg-green-800 text-white font-bold transition-colors"
-        >
-          Sign out
-        </button>
+        <button onClick={handleSignOut} className="mt-auto w-full rounded p-2 text-xs bg-[#2C7A3F] hover:bg-green-800 text-white font-bold transition-colors">Sign out</button>
       </aside>
 
       <div className="flex-1 flex flex-col">
         <header className="bg-white h-16 shadow-sm flex items-center justify-end px-8 border-b border-gray-100">
           <div className="relative">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400"/>
-            <input type="text" className="bg-gray-50 w-52 h-10 rounded-lg border border-gray-200 pl-10 pr-4 
-            py-1 text-sm focus:outline-none focus:ring-2 focus:ring-[#2C7A3F]" placeholder="Search..."></input>
+            <input type="text" className="bg-gray-50 w-52 h-10 rounded-lg border border-gray-200 pl-10 pr-4 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-[#2C7A3F]" placeholder="Search..."></input>
           </div>
           <button className="ml-6 relative p-1 rounded-full text-gray-500 hover:bg-gray-100 transition-colors">
             <Bell className="w-5 h-5"/>
             <span className="absolute top-1 right-1 block h-2 w-2 rounded-full bg-red-500 ring-2 ring-white"></span>
           </button>
           <div className="flex items-center ml-4 gap-2 border-l border-gray-200 pl-4">
-            <img src="src/assets/img/bookkeeper-profile.png" alt="Profile" className="w-8 h-8 rounded-full bg-gray-200"></img>
+            <div className="w-8 h-8 rounded-full bg-gray-200 overflow-hidden">
+               <img src="src/assets/img/bookkeeper-profile.png" alt="Profile" className="w-full h-full object-cover"></img>
+            </div>
             <PortalTopbarIdentity className="text-sm font-medium text-gray-700" fallbackRole="BOD" />
           </div>
         </header>
 
         <main className="p-8">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6 hidden" >
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6" >
             <div className="bg-white border border-gray-100 rounded-xl p-5 flex items-center gap-4 shadow-sm">
               <div className="w-12 h-12 rounded-lg bg-[#EAF5EC] flex items-center justify-center flex-shrink-0">
                 <UserPlus className="text-[#2C7A3F] w-6 h-6" />
               </div>
-              
-             <div className="flex flex-col">
+              <div className="flex flex-col">
                 <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">New This Month</h3>
                 <p className="text-2xl font-extrabold text-slate-800 mt-0.5">45</p>
               </div>
             </div>
-
             <div className="bg-white border border-gray-100 rounded-xl p-5 flex items-center gap-4 shadow-sm">
               <div className="w-12 h-12 rounded-lg bg-[#FFF4E5] flex items-center justify-center flex-shrink-0">
                 <ClipboardList className="text-[#D97706] w-6 h-6" />
@@ -447,9 +332,7 @@ const Member_Approvals = () => {
                 <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Avg Process Time</h3>
                 <p className="text-2xl font-extrabold text-slate-800 mt-0.5">2.4 Days</p>
               </div>
-              
             </div>
-
             <div className="bg-white border border-gray-100 rounded-xl p-5 flex items-center gap-4 shadow-sm">
               <div className="w-12 h-12 rounded-lg bg-[#EAF5EC] flex items-center justify-center flex-shrink-0">
                 <BadgeCheck className="text-[#2C7A3F] w-6 h-6" />
@@ -459,68 +342,28 @@ const Member_Approvals = () => {
                 <p className="text-2xl font-extrabold text-slate-800 mt-0.5">94.2%</p>
               </div>
             </div>
-
-           
           </div>
 
           <div className="bg-white border border-gray-100 rounded-xl shadow-sm overflow-hidden">
             <div className="flex items-center gap-6 px-6 pt-4 border-b border-gray-100">
-              {visibleTabs.includes("Pending") && (<button 
-                onClick={() => setActiveTab("Pending")}
-                className={`flex items-center gap-2 pb-3 px-1 border-b-2 font-semibold text-sm transition-colors ${activeTab === "Pending" ? "border-[#2C7A3F] text-[#2C7A3F]" : "border-transparent text-gray-500 hover:text-gray-700"}`}
-              >
-                Pending
-                <span className={`text-[10px] px-2 py-0.5 rounded-full text-white ${activeTab === "Pending" ? "bg-[#2C7A3F]" : "bg-gray-400"}`}>{tabCounts["Pending"]}</span>
-              </button>)}
-              {visibleTabs.includes("Training") && (<button 
-                onClick={() => setActiveTab("Training")}
-                className={`flex items-center gap-2 pb-3 px-1 border-b-2 font-semibold text-sm transition-colors ${activeTab === "Training" ? "border-[#2C7A3F] text-[#2C7A3F]" : "border-transparent text-gray-400 hover:text-gray-700"}`}
-              >
-                Training
-                <span className={`text-[10px] px-2 py-0.5 rounded-full ${activeTab === "Training" ? "bg-[#2C7A3F] text-white" : "bg-gray-100 text-gray-500"}`}>{tabCounts["Training"]}</span>
-              </button>)}
-              {visibleTabs.includes("For Revision") && (<button
-                onClick={() => setActiveTab("For Revision")}
-                className={`flex items-center gap-2 pb-3 px-1 border-b-2 font-semibold text-sm transition-colors ${activeTab === "For Revision" ? "border-[#2C7A3F] text-[#2C7A3F]" : "border-transparent text-gray-400 hover:text-gray-700"}`}
-              >
-                For Revision
-                <span className={`text-[10px] px-2 py-0.5 rounded-full ${activeTab === "For Revision" ? "bg-amber-500 text-white" : "bg-amber-100 text-amber-600"}`}>{tabCounts["For Revision"]}</span>
-              </button>)}
-              {visibleTabs.includes("Official Member") && (<button
-                onClick={() => setActiveTab("Official Member")}
-                className={`flex items-center gap-2 pb-3 px-1 border-b-2 font-semibold text-sm transition-colors ${activeTab === "Official Member" ? "border-[#2C7A3F] text-[#2C7A3F]" : "border-transparent text-gray-400 hover:text-gray-700"}`}
-              >
-                Official Member
-                <span className={`text-[10px] px-2 py-0.5 rounded-full ${activeTab === "Official Member" ? "bg-green-600 text-white" : "bg-green-100 text-green-700"}`}>{tabCounts["Official Member"]}</span>
-              </button>)}
+              {visibleTabs.map(tab => (
+                <button 
+                  key={tab}
+                  onClick={() => setActiveTab(tab)}
+                  className={`flex items-center gap-2 pb-3 px-1 border-b-2 font-semibold text-sm transition-colors ${activeTab === tab ? "border-[#2C7A3F] text-[#2C7A3F]" : "border-transparent text-gray-500 hover:text-gray-700"}`}
+                >
+                  {tab}
+                  <span className={`text-[10px] px-2 py-0.5 rounded-full text-white ${activeTab === tab ? "bg-[#2C7A3F]" : "bg-gray-400"}`}>{tabCounts[tab]}</span>
+                </button>
+              ))}
             </div>
 
-            
-            {isTrainingTab ? (
-              <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-                <h2 className="text-lg font-bold text-gray-800">
-                  {activeTab} Attendance &amp; Evaluation
-                </h2>
-              </div>
-            ) : (
-              <div className="flex justify-between items-center px-6 py-4">
-                <div className="flex items-center gap-2 text-sm text-gray-500">
-                  <span>Filter by Annual Income:</span>
-                  <div className="relative">
-                    <select className="appearance-none bg-white border border-gray-200 text-gray-700 py-1.5 pl-3 pr-8 rounded-md focus:outline-none focus:ring-1 focus:ring-[#2C7A3F] text-sm font-medium cursor-pointer">
-                      <option>All</option>
-                      <option>Below ₱50,000</option>
-                      <option>₱50,000 - ₱100,000</option>
-                      <option>Above ₱100,000</option>
-                    </select>
-                    <ChevronDown className="absolute right-2.5 top-2 w-4 h-4 text-gray-400 pointer-events-none" />
-                  </div>
-                </div>
-                <div className="text-xs text-gray-400">
-                  Showing {totalCount === 0 ? 0 : (page - 1) * LIMIT + 1}-{Math.min(page * LIMIT, totalCount)} of {totalCount} {activeTab.toLowerCase()} applications
-                </div>
-              </div>
-            )}
+            <div className="flex justify-between items-center px-6 py-4">
+               <h2 className="text-lg font-bold text-gray-800">{isTrainingTab ? `${activeTab} Attendance & Evaluation` : `${activeTab} Applications`}</h2>
+               <div className="text-xs text-gray-400">
+                  Showing {totalCount === 0 ? 0 : (page - 1) * LIMIT + 1}-{Math.min(page * LIMIT, totalCount)} of {totalCount} applications
+               </div>
+            </div>
 
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm">
@@ -538,156 +381,63 @@ const Member_Approvals = () => {
                         <th className="px-6 py-4">Application ID</th>
                         <th className="px-6 py-4">Member Name</th>
                         <th className="px-6 py-4">Annual Income</th>
-                        {activeTab === "Pending" && <th className="px-6 py-4">Submitted Date</th>}
-                        {activeTab === "For Revision" && (
-                          <>
-                            <th className="px-6 py-4">Submitted Date</th>
-                            <th className="px-6 py-4">Revision Notes</th>
-                          </>
-                        )}
+                        <th className="px-6 py-4">Submitted Date</th>
+                        {activeTab === "For Revision" && <th className="px-6 py-4">Revision Notes</th>}
                       </>
                     )}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100 cursor-pointer">
-                  {tabData[activeTab].length === 0 && (
-                    <tr>
-                      <td colSpan={isTrainingTab ? 4 : nonTrainingColSpan} className="px-6 py-10 text-center text-gray-500">
-                        No {activeTab.toLowerCase()} applications on this page.
-                      </td>
-                    </tr>
+                <tbody className="divide-y divide-gray-100">
+                  {rowsForActiveTab.length === 0 ? (
+                    <tr><td colSpan="5" className="px-6 py-10 text-center text-gray-500">No {activeTab.toLowerCase()} records found.</td></tr>
+                  ) : (
+                    rowsForActiveTab.map((row, index) => (
+                      <tr key={index} className="hover:bg-gray-50 transition-colors">
+                        {isTrainingTab ? (
+                          <>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <button onClick={() => canUseBodActions && navigate(`/member-approvals/${row.id}`)} className={`text-left font-semibold ${canUseBodActions ? 'text-gray-800 hover:text-blue-600 hover:underline' : 'text-gray-500'}`}>{row.name}</button>
+                              <div className="text-xs text-gray-400">{row.email}</div>
+                            </td>
+                            <td className="px-6 py-4 text-gray-600">{row.trainingDate}</td>
+                            <td className="px-6 py-4">
+                              <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border ${row.attendance === "Present" ? "border-green-300 bg-green-50 text-green-700" : "border-red-300 bg-red-50 text-red-600"}`}>
+                                <span className={`w-1.5 h-1.5 rounded-full ${row.attendance === "Present" ? "bg-green-500" : "bg-red-500"}`} />
+                                {row.attendance}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4">
+                              <button onClick={() => canUseBodActions && setSelectedEvaluationRow(row)} className={`px-3 py-1 rounded-full text-xs font-semibold border ${row.result === "Passed" ? "border-green-300 bg-green-50 text-green-700" : "border-yellow-300 bg-yellow-50 text-yellow-700"}`}>
+                                {row.result === "Pending" ? "View Remarks" : row.result}
+                              </button>
+                            </td>
+                          </>
+                        ) : (
+                          <>
+                            <td className="px-6 py-4 font-bold text-[#2C7A3F]">{row.id}</td>
+                            <td className="px-6 py-4">
+                              <button onClick={() => canUseBodActions && navigate(`/member-approvals/${row.id}`)} className="font-bold text-gray-800 hover:text-blue-600 hover:underline">{row.name}</button>
+                              <div className="text-xs text-gray-400">{row.email}</div>
+                            </td>
+                            <td className="px-6 py-4 text-gray-600 font-medium">{row.annualIncome}</td>
+                            <td className="px-6 py-4 text-gray-500">{row.date}</td>
+                            {activeTab === "For Revision" && <td className="px-6 py-4"><span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-700">{row.reason}</span></td>}
+                          </>
+                        )}
+                      </tr>
+                    ))
                   )}
-                  {tabData[activeTab].map((row, index) => (
-                    <tr key={index} className="hover:bg-gray-50 transition-colors">
-                      {isTrainingTab ? (
-                        <>
-                        
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <button
-                              type="button"
-                              disabled={!canUseBodActions}
-                              className={`text-left font-semibold ${canUseBodActions ? 'text-gray-800 hover:text-blue-600 hover:underline' : 'text-gray-500 cursor-not-allowed'}`}
-                              onClick={() => canUseBodActions && row.id && navigate(`/member-approvals/${row.id}`)}
-                              title={canUseBodActions ? '' : 'Secretary has read-only access in Member Approvals.'}
-                            >
-                              {row.name}
-                            </button>
-                            <div className="text-xs text-gray-400">{row.email}</div>
-                          </td>
-                         
-                          <td className="px-6 py-4 whitespace-nowrap text-gray-600">
-                            {row.trainingDate}
-                          </td>
-                         
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border ${
-                              row.attendance === "Present"
-                                ? "border-green-300 bg-green-50 text-green-700"
-                                : "border-red-300 bg-red-50 text-red-600"
-                            }`}>
-                              <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
-                                row.attendance === "Present" ? "bg-green-500" : "bg-red-500"
-                              }`} />
-                              {row.attendance}
-                            </span>
-                          </td>
-                         
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <button
-                              type="button"
-                              disabled={!canUseBodActions}
-                              onClick={() => canUseBodActions && setSelectedEvaluationRow(row)}
-                              className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold border transition ${canUseBodActions ? 'hover:shadow-sm hover:-translate-y-0.5' : 'cursor-not-allowed opacity-70'} ${
-                                row.result === "Passed"
-                                  ? "border-green-300 bg-green-50 text-green-700"
-                                  : row.result === "Pending"
-                                  ? "border-yellow-300 bg-yellow-50 text-yellow-700"
-                                  : "border-gray-300 bg-gray-50 text-gray-500"
-                              }`}
-                              title={canUseBodActions ? 'View evaluation details' : 'Secretary has read-only access in Member Approvals.'}
-                            >
-                              {row.result === "Pending" ? "View Remarks" : row.result}
-                            </button>
-                          </td>
-                        </>
-                      ) : (
-                        <>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <span className="font-bold text-[#2C7A3F]">{row.id}</span>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <button
-                              type="button"
-                              disabled={!canUseBodActions}
-                              className={`text-left font-bold ${canUseBodActions ? 'text-gray-800 hover:text-blue-600 hover:underline' : 'text-gray-500 cursor-not-allowed'}`}
-                              onClick={() => canUseBodActions && row.id && navigate(`/member-approvals/${row.id}`)}
-                              title={canUseBodActions ? '' : 'Secretary has read-only access in Member Approvals.'}
-                            >
-                              {row.name}
-                            </button>
-                            <div className="text-xs text-gray-400">{row.email}</div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-gray-600 font-medium">
-                            {row.annualIncome}
-                          </td>
-                          {activeTab === "Pending" && (
-                            <td className="px-6 py-4 whitespace-nowrap text-gray-500">{row.date}</td>
-                          )}
-                          {activeTab === "For Revision" && (
-                            <>
-                              <td className="px-6 py-4 whitespace-nowrap text-gray-500">{row.date}</td>
-                              <td className="px-6 py-4 whitespace-nowrap">
-                                <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-700">
-                                  {row.reason}
-                                </span>
-                              </td>
-                            </>
-                          )}
-                        </>
-                      )}
-                    </tr>
-                  ))}
                 </tbody>
               </table>
             </div>
 
             <div className="flex items-center justify-center gap-2 py-6 border-t border-gray-50">
-              <button
-                type="button"
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                disabled={page === 1}
-                className="w-8 h-8 rounded-full border border-gray-300 bg-white text-gray-500 flex items-center justify-center transition-colors hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                title="Previous page"
-              >
-                <ChevronLeft className="w-4 h-4" />
-              </button>
-
-              {visiblePageNumbers.map((pageNumber) => (
-                <button
-                  key={pageNumber}
-                  type="button"
-                  onClick={() => setPage(pageNumber)}
-                  className={`w-8 h-8 rounded-full border text-xs font-semibold flex items-center justify-center transition-colors ${
-                    page === pageNumber
-                      ? "bg-[#16A34A] text-white border-[#16A34A]"
-                      : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"
-                  }`}
-                >
-                  {pageNumber}
-                </button>
+              <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="w-8 h-8 rounded-full border flex items-center justify-center disabled:opacity-50"><ChevronLeft size={16}/></button>
+              {visiblePageNumbers.map(n => (
+                <button key={n} onClick={() => setPage(n)} className={`w-8 h-8 rounded-full border text-xs font-semibold ${page === n ? "bg-[#16A34A] text-white" : "bg-white text-gray-600"}`}>{n}</button>
               ))}
-
-              <button
-                type="button"
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                disabled={page === totalPages}
-                className="w-8 h-8 rounded-full border border-gray-300 bg-white text-gray-500 flex items-center justify-center transition-colors hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                title="Next page"
-              >
-                <ChevronRight className="w-4 h-4" />
-              </button>
+              <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages} className="w-8 h-8 rounded-full border flex items-center justify-center disabled:opacity-50"><ChevronRight size={16}/></button>
             </div>
-
           </div>
         </main>
       </div>
@@ -696,40 +446,15 @@ const Member_Approvals = () => {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl p-6">
             <div className="flex items-start justify-between mb-4">
-              <div>
-                <h3 className="text-xl font-bold text-gray-900">Evaluation Result Details</h3>
-                <p className="text-sm text-gray-500 mt-1">Review Secretary remarks for this training record.</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setSelectedEvaluationRow(null)}
-                className="text-gray-500 hover:text-gray-800 text-sm font-semibold"
-              >
-                Close
-              </button>
+              <h3 className="text-xl font-bold text-gray-900">Evaluation Result Details</h3>
+              <button onClick={() => setSelectedEvaluationRow(null)} className="text-gray-500 hover:text-gray-800 text-sm font-semibold">Close</button>
             </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4 text-sm">
-              <div>
-                <p className="text-gray-400 text-xs font-bold uppercase tracking-wider">Member</p>
-                <p className="text-gray-800 font-semibold">{selectedEvaluationRow.name}</p>
-              </div>
-              <div>
-                <p className="text-gray-400 text-xs font-bold uppercase tracking-wider">Training Schedule</p>
-                <p className="text-gray-800 font-semibold">{selectedEvaluationRow.trainingDate}</p>
-              </div>
-              <div>
-                <p className="text-gray-400 text-xs font-bold uppercase tracking-wider">Attendance</p>
-                <p className="text-gray-800 font-semibold">{selectedEvaluationRow.attendance}</p>
-              </div>
-              <div>
-                <p className="text-gray-400 text-xs font-bold uppercase tracking-wider">Evaluation Result</p>
-                <p className="text-gray-800 font-semibold">{selectedEvaluationRow.result}</p>
-              </div>
+            <div className="grid grid-cols-2 gap-4 mb-4 text-sm">
+              <div><p className="text-gray-400 text-xs font-bold uppercase">Member</p><p className="font-semibold">{selectedEvaluationRow.name}</p></div>
+              <div><p className="text-gray-400 text-xs font-bold uppercase">Attendance</p><p className="font-semibold">{selectedEvaluationRow.attendance}</p></div>
             </div>
-
-            <div className="border border-gray-200 rounded-lg p-4 bg-gray-50">
-              <p className="text-gray-400 text-xs font-bold uppercase tracking-wider mb-2">Secretary Remarks</p>
+            <div className="border rounded-lg p-4 bg-gray-50">
+              <p className="text-gray-400 text-xs font-bold uppercase mb-2">Secretary Remarks</p>
               <p className="text-gray-800 text-sm whitespace-pre-wrap">{selectedEvaluationRow.secretaryRemarks}</p>
             </div>
           </div>

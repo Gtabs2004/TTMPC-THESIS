@@ -293,23 +293,40 @@ def fetch_loan_type_interest_rate_percent(loan_type_code: str | None, loan_type_
     if not code and not name_text:
         return None
 
+    def normalize_rate_percent(raw_rate: Decimal, row: dict | None, fallback_code: str) -> Decimal:
+        rate_value = Decimal(str(raw_rate))
+        if rate_value <= 0:
+            return Decimal("0")
+
+        # Backward compatibility: consolidated rates were historically stored as decimal monthly values (e.g., 0.083).
+        row_code = str((row or {}).get("code") or "").strip().upper()
+        effective_code = row_code or fallback_code
+        if effective_code == "CONSOLIDATED" and Decimal("0") < rate_value < Decimal("1"):
+            return rate_value * Decimal("100")
+
+        return rate_value
+
     def extract_rate(row: dict | None) -> Decimal | None:
         if not row:
             return None
 
-        raw_rate = (
-            row.get("interest_rate")
-            if "interest_rate" in row
-            else row.get("InterestRate")
-            if "InterestRate" in row
-            else row.get("interestrate")
-            if "interestrate" in row
-            else row.get("interestRate")
+        raw_rate = next(
+            (
+                value
+                for value in (
+                    row.get("interest_rate"),
+                    row.get("InterestRate"),
+                    row.get("interestrate"),
+                    row.get("interestRate"),
+                )
+                if value is not None
+            ),
+            None,
         )
         if raw_rate is None:
             return None
 
-        rate = Decimal(str(raw_rate))
+        rate = normalize_rate_percent(Decimal(str(raw_rate)), row, code)
         return rate if rate > 0 else None
 
     try:
@@ -824,6 +841,14 @@ async def get_cashier_loans_for_payments():
             is_delayed = bool(delayed_deadline and today_date > delayed_deadline)
 
             is_migs = bool(member.get("is_bona_fide"))
+            resolved_interest_rate_percent = Decimal(str(loan.get("interest_rate") or 0)) if loan.get("interest_rate") is not None else Decimal("0")
+            if resolved_interest_rate_percent <= 0:
+                fallback_rate = fetch_loan_type_interest_rate_percent(
+                    resolve_loan_type_code(normalized_loan_type),
+                    loan_type_name,
+                )
+                if fallback_rate is not None and fallback_rate > 0:
+                    resolved_interest_rate_percent = fallback_rate
 
             mapped_loans.append(
                 {
@@ -834,7 +859,7 @@ async def get_cashier_loans_for_payments():
                     "loan_type": normalized_loan_type,
                     "is_migs_member": is_migs,
                     "loan_amount": decimal_to_float(principal_amount),
-                    "interest_rate": decimal_to_float(loan.get("interest_rate") or 0),
+                    "interest_rate": decimal_to_float(resolved_interest_rate_percent),
                     "term_months": int(loan.get("term") or 0),
                     "amortization": decimal_to_float((loan.get("monthly_amortization") or 0)),
                     "due_date": next_schedule.get("due_date") if next_schedule else None,

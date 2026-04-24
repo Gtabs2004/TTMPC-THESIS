@@ -71,7 +71,14 @@ const formatSequenceId = (prefix, sequenceNumber) => {
 };
 
 const getMonthlyInterestRate = (loan) => {
-  const ratePercent = Number(loan?.interest_rate);
+  let ratePercent = Number(loan?.interest_rate);
+  const loanType = String(loan?.loan_type || '').trim().toLowerCase();
+
+  // Backward compatibility for consolidated decimal monthly format (e.g., 0.083).
+  if (loanType === 'consolidated' && Number.isFinite(ratePercent) && ratePercent > 0 && ratePercent < 1) {
+    ratePercent *= 100;
+  }
+
   if (Number.isFinite(ratePercent) && ratePercent > 0) {
     return ratePercent / 100;
   }

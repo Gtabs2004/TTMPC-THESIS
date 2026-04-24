@@ -3,6 +3,7 @@ import { useNavigate, NavLink } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
 import { PortalSidebarIdentity, PortalTopbarIdentity } from "../../components/PortalIdentity";
 import { supabase } from "../../supabaseClient";
+import { resolveAccountFromSessionUser } from "../../utils/sessionIdentity";
 import { 
   LayoutDashboard, 
   Users, 
@@ -110,15 +111,8 @@ const Secretary_Attendance = () => {
     const user = authData?.user;
     if (!user) return "";
 
-    for (const table of ["member_account", "member_accounts"]) {
-      const byUserId = await supabase.from(table).select("role").eq("user_id", user.id).limit(1).maybeSingle();
-      if (!byUserId.error && byUserId.data?.role) return String(byUserId.data.role).trim().toLowerCase();
-
-      const byEmail = user.email
-        ? await supabase.from(table).select("role").ilike("email", user.email).limit(1).maybeSingle()
-        : { data: null, error: null };
-      if (!byEmail.error && byEmail.data?.role) return String(byEmail.data.role).trim().toLowerCase();
-    }
+    const account = await resolveAccountFromSessionUser(user);
+    if (account?.role) return String(account.role).trim().toLowerCase();
 
     return "";
   };
@@ -185,18 +179,21 @@ const Secretary_Attendance = () => {
 
   const upsertAttendanceLog = async (member, currentTab) => {
     const { data: authData } = await supabase.auth.getUser();
+    const normalizedTab = String(currentTab || "").trim().toLowerCase();
+    const resolvedTrainingStage = normalizedTab.includes("training") ? "Training" : currentTab;
+
     const payload = {
       application_id: member.applicationId || member.id,
       member_name: member.name,
       member_email: member.email,
-      training_stage: currentTab,
+      training_stage: resolvedTrainingStage,
       attendance_status: member.status,
       remarks: editedRemark,
       recorded_at: new Date().toISOString(),
       recorded_by: authData?.user?.id || null,
     };
 
-    const tableCandidates = ["attendance_logs", "ATTENDANCE_LOGS"];
+    const tableCandidates = ["attendance_logs"];
     for (const tableName of tableCandidates) {
       const upsertTry = await supabase.from(tableName).upsert(payload, { onConflict: "application_id,training_stage" });
       if (!upsertTry.error) return { ok: true };

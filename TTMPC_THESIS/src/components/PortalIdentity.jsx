@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { UserAuth } from "../contex/AuthContext";
-import { supabase } from "../supabaseClient";
+import { resolveAccountFromSessionUser } from "../utils/sessionIdentity";
 
 const ROLE_LABELS = {
   bookkeeper: "Bookkeeper",
@@ -32,45 +32,23 @@ function usePortalIdentity(fallbackPortal = "Portal", fallbackRole = "User") {
     let isMounted = true;
 
     const resolveRole = async () => {
-      const uid = session?.user?.id;
-      const email = userEmail;
+      const sessionUser = session?.user;
 
-      if (!uid && !email) {
+      if (!sessionUser?.id && !userEmail) {
         if (isMounted) setResolvedRole("");
         return;
       }
 
       try {
-        const byUserId = uid
-          ? await supabase
-              .from("member_account")
-              .select("role")
-              .eq("user_id", uid)
-              .limit(1)
-              .maybeSingle()
-          : { data: null, error: null };
+        const account = await resolveAccountFromSessionUser(sessionUser);
 
-        if (!byUserId?.error && byUserId?.data?.role) {
-          if (isMounted) setResolvedRole(normalizeRole(byUserId.data.role));
-          return;
-        }
-
-        const byEmail = email
-          ? await supabase
-              .from("member_account")
-              .select("role")
-              .ilike("email", email)
-              .limit(1)
-              .maybeSingle()
-          : { data: null, error: null };
-
-        if (!byEmail?.error && byEmail?.data?.role) {
-          if (isMounted) setResolvedRole(normalizeRole(byEmail.data.role));
+        if (account?.role) {
+          if (isMounted) setResolvedRole(normalizeRole(account.role));
           return;
         }
 
         const fallbackMetaRole =
-          session?.user?.user_metadata?.role || session?.user?.app_metadata?.role || "";
+          sessionUser?.user_metadata?.role || sessionUser?.app_metadata?.role || "";
 
         if (isMounted) setResolvedRole(normalizeRole(fallbackMetaRole));
       } catch (_err) {

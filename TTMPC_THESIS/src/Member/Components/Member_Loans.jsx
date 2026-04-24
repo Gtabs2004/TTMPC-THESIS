@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
 import { supabase } from "../../supabaseClient";
+import { resolveMemberContextFromSessionUser } from "../../utils/sessionIdentity";
 import { 
   LayoutDashboard, 
   Users, 
@@ -144,7 +145,11 @@ const Member_Loans = () => {
         const { data: authData, error: authError } = await supabase.auth.getUser();
         if (authError) throw authError;
 
-        const memberId = authData?.user?.id;
+        const sessionUser = authData?.user;
+        if (!sessionUser?.id) throw new Error('Please sign in again to load your loans.');
+
+        const { account, member: memberRow } = await resolveMemberContextFromSessionUser(sessionUser);
+        const memberId = account?.user_id || sessionUser.id;
         if (!memberId) throw new Error('Please sign in again to load your loans.');
 
         const { data, error } = await supabase

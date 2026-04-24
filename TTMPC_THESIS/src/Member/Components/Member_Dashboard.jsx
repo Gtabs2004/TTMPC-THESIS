@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
 import { supabase } from "../../supabaseClient";
+import { resolveMemberContextFromSessionUser } from "../../utils/sessionIdentity";
 import { 
   LayoutDashboard, 
   Users, 
@@ -17,7 +18,6 @@ import {
   Calendar,
   ArrowUpRight,
   CheckCircle2,
-  LogIn,
   History
 } from 'lucide-react';
 
@@ -96,6 +96,9 @@ const MemberDashboard = () => {
   const navigate = useNavigate();
   const [profile, setProfile] = useState(null);
   const [memberLoans, setMemberLoans] = useState([]);
+  const [recentTransactions, setRecentTransactions] = useState([]);
+  const [totalSavings, setTotalSavings] = useState(0);
+  const [nextDueDate, setNextDueDate] = useState(null);
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [profileError, setProfileError] = useState("");
   const [isTemporaryAccount, setIsTemporaryAccount] = useState(false);
@@ -119,14 +122,6 @@ const MemberDashboard = () => {
     }
   };
 
-  const recentTransactions = [
-    { id: 1, date: "Oct 25, 2023", desc: "Share Capital Contribution", category: "EQUITY", type: "equity", amount: "₱2,000.00" },
-    { id: 2, date: "Oct 15, 2023", desc: "Savings Deposit", category: "SAVINGS", type: "savings", amount: "₱5,000.00" },
-    { id: 3, date: "Sep 30, 2023", desc: "Loan Repayment - Multi Purpose", category: "LOAN", type: "loan", amount: "₱3,500.00" },
-    { id: 4, date: "Sep 15, 2023", desc: "Dividend Credit", category: "EARNING", type: "earning", amount: "+ ₱1,250.75", highlight: true },
-    { id: 5, date: "Aug 30, 2023", desc: "Loan Interest Payment", category: "INTEREST", type: "interest", amount: "₱420.00" },
-  ];
-
   const getCategoryStyle = (type) => {
     switch(type) {
       case 'equity': return 'bg-blue-50 text-blue-600';
@@ -146,6 +141,13 @@ const MemberDashboard = () => {
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   };
 
+  const formatDateTime = (value) => {
+    if (!value) return 'N/A';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return 'N/A';
+    return date.toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  };
+
   useEffect(() => {
     let isMounted = true;
 
@@ -157,40 +159,22 @@ const MemberDashboard = () => {
         const { data: authData, error: authError } = await supabase.auth.getUser();
         if (authError) throw authError;
 
-        const memberId = authData?.user?.id;
-        const authEmail = authData?.user?.email || '';
+        const sessionUser = authData?.user;
+        if (!sessionUser?.id) throw new Error('Please sign in again to load your dashboard.');
+
+        const { account, member: memberRow } = await resolveMemberContextFromSessionUser(sessionUser);
+        const authEmail = sessionUser?.email || '';
+        const memberId = account?.user_id || sessionUser.id;
         if (!memberId) throw new Error('Please sign in again to load your dashboard.');
 
-        let temporaryFlag = false;
-        const accountQueries = ['member_account', 'member_accounts'];
-        for (const tableName of accountQueries) {
-          const { data: accountRow, error: accountError } = await supabase
-            .from(tableName)
-            .select('is_temporary')
-            .eq('user_id', memberId)
-            .limit(1)
-            .maybeSingle();
-
-          if (!accountError && accountRow) {
-            temporaryFlag = Boolean(accountRow.is_temporary);
-            break;
-          }
-        }
-
-        const { data: memberRow, error: memberError } = await supabase
-          .from('member')
-          .select('*')
-          .eq('id', memberId)
-          .maybeSingle();
-
-        if (memberError) throw memberError;
+        const temporaryFlag = Boolean(account?.is_temporary);
 
         let latestApplication = null;
-        if (memberRow?.membership_id) {
+        if (account?.membership_id) {
           const { data, error } = await supabase
             .from('member_applications')
             .select('*')
-            .eq('membership_id', memberRow.membership_id)
+            .eq('membership_id', account.membership_id)
             .order('created_at', { ascending: false })
             .limit(1)
             .maybeSingle();
@@ -241,30 +225,134 @@ const MemberDashboard = () => {
 
         const fullName = [
           memberRow?.first_name || latestApplication?.first_name,
-          latestApplication?.middle_name || memberRow?.middle_initial,
-          memberRow?.last_name || latestApplication?.surname || latestApplication?.last_name,
+          memberRow?.middle_name || latestApplication?.middle_name,
+          memberRow?.surname || latestApplication?.surname || latestApplication?.last_name,
         ]
           .filter(Boolean)
           .join(' ')
           .trim() || 'Member';
         const shareCapital = Number(cbuRow?.starting_share_capital ?? 0);
+        const membershipId = String(account?.membership_id || memberRow?.membership_number_id || '').trim();
+
+        let savingsAccountTotal = 0;
+        if (membershipId) {
+          const { data: savingsRows } = await supabase
+            .from('Savings_Transactions')
+            .select('Balance, Savings_Amount, Amount')
+            .eq('membership_number_id', membershipId);
+
+          savingsAccountTotal = (savingsRows || []).reduce((sum, row) => {
+            const amount = Number(row?.Balance ?? row?.Savings_Amount ?? row?.Amount ?? 0);
+            return sum + (Number.isFinite(amount) ? amount : 0);
+          }, 0);
+        }
+
+        const loanIds = normalizedLoans
+          .map((loan) => String(loan.control_number || '').trim())
+          .filter(Boolean);
+
+        let derivedNextDueDate = null;
+        if (loanIds.length) {
+          const { data: scheduleRows } = await supabase
+            .from('loan_schedules')
+            .select('loan_id, due_date, schedule_status, expected_amount')
+            .in('loan_id', loanIds)
+            .order('due_date', { ascending: true });
+
+          const nextSchedule = (scheduleRows || []).find((row) => {
+            const status = String(row?.schedule_status || '').trim().toLowerCase();
+            return !['paid', 'fully paid', 'completed'].includes(status);
+          });
+          derivedNextDueDate = nextSchedule?.due_date || null;
+        }
+
+        const transactionRows = [];
+        if (shareCapital > 0) {
+          transactionRows.push({
+            id: 'share-capital',
+            timestamp: cbuRow?.transaction_date || memberRow?.created_at || new Date().toISOString(),
+            date: formatDate(cbuRow?.transaction_date || memberRow?.created_at),
+            desc: 'Share Capital Contribution',
+            category: 'EQUITY',
+            type: 'equity',
+            amount: `+${formatCurrency(shareCapital).replace('₱ ', '₱')}`,
+            highlight: true,
+          });
+        }
+
+        if (membershipId) {
+          const { data: savingsQueueRows } = await supabase
+            .from('savings_transaction_queue')
+            .select('transaction_id, transaction_type, amount, requested_at, transaction_status')
+            .eq('membership_number_id', membershipId)
+            .order('requested_at', { ascending: false })
+            .limit(6);
+
+          (savingsQueueRows || []).forEach((row) => {
+            const isWithdraw = String(row?.transaction_type || '').toLowerCase() === 'withdraw';
+            const amount = Number(row?.amount || 0);
+            transactionRows.push({
+              id: row?.transaction_id || `savings-${Math.random()}`,
+              timestamp: row?.requested_at,
+              date: formatDate(row?.requested_at),
+              desc: isWithdraw ? 'Savings Withdrawal' : 'Savings Deposit',
+              category: 'SAVINGS',
+              type: 'savings',
+              amount: `${isWithdraw ? '-' : '+'}${formatCurrency(Math.abs(amount)).replace('₱ ', '₱')}`,
+              highlight: !isWithdraw,
+            });
+          });
+        }
+
+        if (loanIds.length) {
+          const { data: paymentRows } = await supabase
+            .from('loan_payments')
+            .select('id, payment_date, amount_paid, penalties, loan_id')
+            .in('loan_id', loanIds)
+            .order('payment_date', { ascending: false })
+            .limit(6);
+
+          (paymentRows || []).forEach((row) => {
+            const paid = Number(row?.amount_paid || 0);
+            const penalties = Number(row?.penalties || 0);
+            const totalPaid = paid + penalties;
+            transactionRows.push({
+              id: row?.id || `loan-${Math.random()}`,
+              timestamp: row?.payment_date,
+              date: formatDate(row?.payment_date),
+              desc: `Loan Repayment (${row?.loan_id || 'Loan'})`,
+              category: 'LOAN',
+              type: 'loan',
+              amount: `-${formatCurrency(totalPaid).replace('₱ ', '₱')}`,
+              highlight: false,
+            });
+          });
+        }
+
+        const latestTransactions = transactionRows
+          .sort((a, b) => new Date(b.timestamp || 0).getTime() - new Date(a.timestamp || 0).getTime())
+          .slice(0, 6);
 
         if (isMounted) {
           setProfile({
             fullName,
-            membershipId: memberRow?.membership_id || 'N/A',
-            joinDate: formatDate(memberRow?.membership_date || memberRow?.created_at || latestApplication?.created_at),
-            memberType: memberRow?.is_bona_fide ? 'Regular Member' : 'Member',
-            isActive: memberRow?.is_bona_fide !== false,
-            migsPercent: memberRow?.is_bona_fide ? 95 : 70,
+            membershipId: account?.membership_id || memberRow?.membership_number_id || 'N/A',
+            joinDate: formatDate(memberRow?.date_of_membership || memberRow?.created_at || latestApplication?.created_at),
+            memberType: 'Member',
+            isActive: true,
+            migsPercent: 95,
             shareCapital,
           });
           setIsTemporaryAccount(temporaryFlag);
           setMemberLoans(normalizedLoans);
+          setTotalSavings(shareCapital + savingsAccountTotal);
+          setNextDueDate(derivedNextDueDate);
+          setRecentTransactions(latestTransactions);
         }
       } catch (err) {
         if (isMounted) {
           setProfileError(err.message || 'Unable to load member dashboard data.');
+          setRecentTransactions([]);
         }
       } finally {
         if (isMounted) {
@@ -300,7 +388,26 @@ const MemberDashboard = () => {
     [activeLoans]
   );
 
-  const nextPaymentDate = activeLoans[0]?.application_date ? formatDate(activeLoans[0].application_date) : 'N/A';
+  const nextPaymentDate = nextDueDate ? formatDate(nextDueDate) : (activeLoans[0]?.application_date ? formatDate(activeLoans[0].application_date) : 'N/A');
+
+  const daysUntilNextDue = useMemo(() => {
+    if (!nextDueDate) return null;
+    const due = new Date(nextDueDate);
+    if (Number.isNaN(due.getTime())) return null;
+    const now = new Date();
+    const diffMs = due.getTime() - now.getTime();
+    return Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
+  }, [nextDueDate]);
+
+  const recentActivities = useMemo(
+    () => recentTransactions.slice(0, 3).map((tx) => ({
+      id: tx.id,
+      title: tx.desc,
+      subtitle: `${tx.amount} • ${formatDateTime(tx.timestamp)}`,
+      type: tx.type,
+    })),
+    [recentTransactions]
+  );
 
   return (
    <div className="relative flex min-h-screen bg-[#F8F9FA]">
@@ -416,7 +523,7 @@ const MemberDashboard = () => {
             <div className="w-8 h-8 rounded-full bg-gray-200 overflow-hidden border border-gray-300">
                <img src="src/assets/img/member-profile.png" alt="Profile" className="w-full h-full object-cover" />
             </div>
-            <p className="hidden sm:block text-sm font-bold text-gray-700">Member</p>
+            <p className="hidden sm:block text-sm font-bold text-gray-700">{profile?.fullName || 'Member'}</p>
           </div>
           </div>
         </header>
@@ -444,7 +551,7 @@ const MemberDashboard = () => {
             <div className="bg-white p-4 sm:p-6 rounded-2xl shadow-sm border border-gray-100 lg:col-span-2 flex flex-col sm:flex-row items-center sm:items-start gap-4 sm:gap-6 relative">
               <div className="relative">
                 <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full border-4 border-[#EAF1EB] overflow-hidden bg-gray-100">
-                  <img src="src/assets/img/member-profile.png" alt="Juan Dela Cruz" className="w-full h-full object-cover" />
+                  <img src="src/assets/img/member-profile.png" alt={profile?.fullName || 'Member profile'} className="w-full h-full object-cover" />
                 </div>
                 <div className="absolute bottom-1 right-1 w-4 h-4 bg-green-500 border-2 border-white rounded-full"></div>
               </div>
@@ -473,7 +580,7 @@ const MemberDashboard = () => {
                   <p className="text-xs text-red-600 font-semibold mb-3">{profileError}</p>
                 ) : null}
 
-                <button className="flex items-center justify-center gap-2 border border-[#1D6021] text-[#1D6021] hover:bg-[#EAF1EB] transition-colors font-bold rounded-lg px-4 py-2 text-sm">
+                <button onClick={() => navigate('/members-profile')} className="flex items-center justify-center gap-2 border border-[#1D6021] text-[#1D6021] hover:bg-[#EAF1EB] transition-colors font-bold rounded-lg px-4 py-2 text-sm">
                   <Pencil className="w-4 h-4" /> Edit Profile
                 </button>
               </div>
@@ -517,9 +624,9 @@ const MemberDashboard = () => {
                 <PiggyBank className="w-4 h-4 text-blue-600" />
               </div>
               <p className="text-xs font-bold text-gray-500 mb-1">Total Savings</p>
-              <h3 className="text-xl sm:text-2xl font-black text-gray-900 mb-2">₱ 67,676.76</h3>
-              <p className="text-[10px] font-bold text-green-600 flex items-center mt-auto">
-                <ArrowUpRight className="w-3 h-3 mr-0.5" /> +₱ 2,500.00 new deposit
+              <h3 className="text-xl sm:text-2xl font-black text-gray-900 mb-2">{formatCurrency(totalSavings)}</h3>
+              <p className="text-[10px] font-semibold text-gray-500 flex items-center mt-auto">
+                Based on share capital and savings account balances
               </p>
             </div>
 
@@ -538,7 +645,7 @@ const MemberDashboard = () => {
             {/* Next Payment (Green Card) */}
             <div className="bg-[#2C7A3F] p-5 sm:p-6 rounded-2xl shadow-sm flex flex-col text-white relative overflow-hidden">
               <div className="absolute top-6 right-6 bg-white/20 px-2 py-1 rounded text-[9px] font-bold tracking-wider uppercase">
-                Due in 5 Days
+                {daysUntilNextDue === null ? 'No due date' : `Due in ${daysUntilNextDue} day${daysUntilNextDue === 1 ? '' : 's'}`}
               </div>
               <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center mb-4 backdrop-blur-sm">
                 <Calendar className="w-4 h-4 text-white" />
@@ -575,7 +682,7 @@ const MemberDashboard = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {recentTransactions.map((tx) => (
+                    {recentTransactions.length ? recentTransactions.map((tx) => (
                       <tr key={tx.id} className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors last:border-0">
                         <td className="p-5 text-xs text-gray-500 font-medium">{tx.date}</td>
                         <td className="p-5 text-sm font-bold text-gray-800">{tx.desc}</td>
@@ -588,7 +695,11 @@ const MemberDashboard = () => {
                           {tx.amount}
                         </td>
                       </tr>
-                    ))}
+                    )) : (
+                      <tr>
+                        <td colSpan={4} className="p-6 text-sm text-gray-500 text-center">No transactions yet.</td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
                 </div>
@@ -602,38 +713,23 @@ const MemberDashboard = () => {
                 <h4 className="font-bold text-gray-900 mb-6">Recent Activity</h4>
                 
                 <div className="space-y-6 flex-1">
-                  {/* Activity Item 1 */}
-                  <div className="flex items-start gap-4">
-                    <div className="w-8 h-8 rounded-full bg-green-50 flex items-center justify-center flex-shrink-0 mt-0.5">
-                      <ArrowUpRight className="w-4 h-4 text-green-600" />
+                  {recentActivities.length ? recentActivities.map((activity) => (
+                    <div key={activity.id} className="flex items-start gap-4">
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 ${activity.type === 'loan' ? 'bg-blue-50' : activity.type === 'savings' ? 'bg-green-50' : 'bg-orange-50'}`}>
+                        {activity.type === 'loan' ? (
+                          <CheckCircle2 className="w-4 h-4 text-blue-600" />
+                        ) : (
+                          <ArrowUpRight className={`w-4 h-4 ${activity.type === 'savings' ? 'text-green-600' : 'text-orange-600'}`} />
+                        )}
+                      </div>
+                      <div>
+                        <p className="text-sm font-bold text-gray-900">{activity.title}</p>
+                        <p className="text-xs text-gray-500 font-medium mt-0.5">{activity.subtitle}</p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-sm font-bold text-gray-900">Savings Deposit</p>
-                      <p className="text-xs text-gray-500 font-medium mt-0.5">₱ 2,000.00 • Yesterday</p>
-                    </div>
-                  </div>
-
-                  {/* Activity Item 2 */}
-                  <div className="flex items-start gap-4">
-                    <div className="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center flex-shrink-0 mt-0.5">
-                      <CheckCircle2 className="w-4 h-4 text-blue-600" />
-                    </div>
-                    <div>
-                      <p className="text-sm font-bold text-gray-900">Loan Repayment</p>
-                      <p className="text-xs text-gray-500 font-medium mt-0.5">₱ 8,245.00 • Oct 15, 2023</p>
-                    </div>
-                  </div>
-
-                  {/* Activity Item 3 */}
-                  <div className="flex items-start gap-4">
-                    <div className="w-8 h-8 rounded-full bg-orange-50 flex items-center justify-center flex-shrink-0 mt-0.5">
-                      <LogIn className="w-4 h-4 text-orange-600" />
-                    </div>
-                    <div>
-                      <p className="text-sm font-bold text-gray-900">Portal Login</p>
-                      <p className="text-xs text-gray-500 font-medium mt-0.5">IP: 192.168.1.1 • Oct 14, 2023</p>
-                    </div>
-                  </div>
+                  )) : (
+                    <p className="text-sm text-gray-500">No recent activity yet.</p>
+                  )}
                 </div>
 
                 <button className="w-full mt-6 bg-[#F8F9FA] hover:bg-gray-100 text-gray-700 font-bold text-sm py-2.5 rounded-lg transition-colors">

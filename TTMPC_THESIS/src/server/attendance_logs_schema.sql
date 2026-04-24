@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS public.attendance_logs (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   CONSTRAINT attendance_logs_stage_check CHECK (
-    training_stage IN ('1st Training')
+    training_stage IN ('Training', '1st Training')
   ),
   CONSTRAINT attendance_logs_status_check CHECK (
     attendance_status IN ('Present', 'Absent', 'Pending')
@@ -45,7 +45,12 @@ WHERE meeting_date IS NULL
 UPDATE public.attendance_logs
 SET meeting_type = 'PMES'
 WHERE (meeting_type IS NULL OR btrim(meeting_type) = '')
-  AND training_stage = '1st Training';
+  AND training_stage IN ('Training', '1st Training');
+
+-- Normalize legacy value to canonical stage label used by current UI.
+UPDATE public.attendance_logs
+SET training_stage = 'Training'
+WHERE training_stage = '1st Training';
 
 UPDATE public.attendance_logs
 SET status = attendance_status
@@ -58,7 +63,7 @@ LANGUAGE plpgsql
 AS $$
 BEGIN
   IF (NEW.meeting_type IS NULL OR btrim(NEW.meeting_type) = '')
-     AND NEW.training_stage = '1st Training' THEN
+      AND NEW.training_stage IN ('Training', '1st Training') THEN
     NEW.meeting_type := 'PMES';
   END IF;
 
@@ -86,6 +91,20 @@ END $$;
 -- Keep additive constraints idempotent and non-breaking to current flow.
 DO $$
 BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'attendance_logs_stage_check'
+      AND conrelid = 'public.attendance_logs'::regclass
+  ) THEN
+    ALTER TABLE public.attendance_logs
+      DROP CONSTRAINT attendance_logs_stage_check;
+  END IF;
+
+  ALTER TABLE public.attendance_logs
+    ADD CONSTRAINT attendance_logs_stage_check
+    CHECK (training_stage IN ('Training', '1st Training'));
+
   IF NOT EXISTS (
     SELECT 1
     FROM pg_constraint

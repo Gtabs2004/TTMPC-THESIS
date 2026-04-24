@@ -1,6 +1,8 @@
-import React from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
+import { supabase } from "../../supabaseClient";
+import { resolveMemberContextFromSessionUser } from "../../utils/sessionIdentity";
 import { 
   LayoutDashboard, 
   Users, 
@@ -17,11 +19,7 @@ import {
   Download,
   PlusCircle,
   TrendingUp,
-  FilePlus,
-  BarChart3,
   MinusCircle,
-  ChevronLeft,
-  ChevronRight
 } from 'lucide-react';
 
 const styles = `
@@ -94,10 +92,24 @@ const styles = `
   }
 `;
 
+const formatCurrency = (value) => `₱${Number(value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const formatDate = (value) => {
+  if (!value) return 'N/A';
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return 'N/A';
+  return d.toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' });
+};
+
 const Member_Savings = () => {
   const { session, signOut } = UserAuth();
   const navigate = useNavigate();
-  const [isSidebarOpen, setIsSidebarOpen] = React.useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [loadingSavings, setLoadingSavings] = useState(true);
+  const [savingsError, setSavingsError] = useState('');
+  const [regularSavings, setRegularSavings] = useState(0);
+  const [timeDeposit, setTimeDeposit] = useState(0);
+  const [ledgerData, setLedgerData] = useState([]);
+  const [memberLabel, setMemberLabel] = useState('Member');
 
   const menuItems = [
     { name: "Dashboard", icon: LayoutDashboard },
@@ -117,25 +129,139 @@ const Member_Savings = () => {
     }
   };
 
-  // Mock data for the savings ledger table
-  const ledgerData = [
-    { id: 1, date: "Nov 15, 2023", type: "Monthly Deposit (Regular)", typeIcon: "plus", amount: "+₱5,000.00", amountColor: "text-green-600", balance: "₱85,420.50" },
-    { id: 2, date: "Oct 31, 2023", type: "Interest Credit (Time Deposit)", typeIcon: "trend", amount: "+₱1,250.00", amountColor: "text-green-600", balance: "₱80,420.50" },
-    { id: 3, date: "Oct 15, 2023", type: "Monthly Deposit (Regular)", typeIcon: "plus", amount: "+₱5,000.00", amountColor: "text-green-600", balance: "₱79,170.50" },
-    { id: 4, date: "Sep 30, 2023", type: "New Time Deposit Placement", typeIcon: "new", amount: "₱0.00", amountColor: "text-gray-900", balance: "₱74,170.50" },
-    { id: 5, date: "Sep 15, 2023", type: "Monthly Deposit (Regular)", typeIcon: "plus", amount: "+₱5,000.00", amountColor: "text-green-600", balance: "₱74,170.50" },
-    { id: 6, date: "Aug 31, 2023", type: "Dividend Payout Credit", typeIcon: "chart", amount: "+₱2,145.50", amountColor: "text-green-600", balance: "₱69,170.50" },
-    { id: 7, date: "Aug 15, 2023", type: "Monthly Deposit (Regular)", typeIcon: "plus", amount: "+₱5,000.00", amountColor: "text-green-600", balance: "₱67,025.00" },
-    { id: 8, date: "Jul 15, 2023", type: "Partial Withdrawal", typeIcon: "minus", amount: "-₱10,000.00", amountColor: "text-red-500", balance: "₱62,025.00" },
-  ];
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadSavings = async () => {
+      try {
+        setLoadingSavings(true);
+        setSavingsError('');
+
+        const { data: authData, error: authError } = await supabase.auth.getUser();
+        if (authError) throw authError;
+
+        const sessionUser = authData?.user;
+        if (!sessionUser?.id) throw new Error('Please sign in again to load your savings.');
+
+        const { account, member: memberRow } = await resolveMemberContextFromSessionUser(sessionUser);
+        const memberId = account?.user_id || sessionUser.id;
+        const membershipId = String(account?.membership_id || memberRow?.membership_number_id || '').trim();
+
+        if (!memberId) throw new Error('Unable to resolve member account for savings.');
+
+        const fullName = [memberRow?.first_name, memberRow?.middle_name, memberRow?.surname]
+          .filter(Boolean)
+          .join(' ')
+          .trim();
+
+        const { data: cbuRow, error: cbuError } = await supabase
+          .from('capital_build_up')
+          .select('starting_share_capital, transaction_date')
+          .eq('member_id', memberId)
+          .order('transaction_date', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (cbuError) throw cbuError;
+
+        const openingRegularSavings = Number(cbuRow?.starting_share_capital || 0);
+
+        let savingsAccounts = [];
+        if (membershipId) {
+          const { data: accountRows, error: accountError } = await supabase
+            .from('Savings_Transactions')
+            .select('Savings_ID, Account_Number, Balance, Savings_Amount, Amount, created_at, membership_number_id')
+            .eq('membership_number_id', membershipId)
+            .order('created_at', { ascending: false });
+
+          if (!accountError && Array.isArray(accountRows)) {
+            savingsAccounts = accountRows;
+          }
+        }
+
+        const computedTimeDeposit = savingsAccounts.reduce((sum, row) => {
+          const balance = Number(row?.Balance ?? row?.Savings_Amount ?? row?.Amount ?? 0);
+          return sum + (Number.isFinite(balance) ? balance : 0);
+        }, 0);
+
+        let queueRows = [];
+        if (membershipId) {
+          const { data: queueData, error: queueError } = await supabase
+            .from('savings_transaction_queue')
+            .select('transaction_id, transaction_type, amount, transaction_status, requested_at')
+            .eq('membership_number_id', membershipId)
+            .order('requested_at', { ascending: true });
+
+          if (!queueError && Array.isArray(queueData)) {
+            queueRows = queueData;
+          }
+        }
+
+        let runningBalance = openingRegularSavings;
+        const mappedLedger = queueRows.map((row, index) => {
+          const rawAmount = Number(row?.amount || 0);
+          const isWithdraw = String(row?.transaction_type || '').toLowerCase() === 'withdraw';
+          const signedAmount = isWithdraw ? -Math.abs(rawAmount) : Math.abs(rawAmount);
+          runningBalance += signedAmount;
+
+          return {
+            id: row?.transaction_id || `txn-${index + 1}`,
+            date: formatDate(row?.requested_at),
+            type: isWithdraw ? 'Savings Withdrawal' : 'Savings Deposit',
+            typeIcon: isWithdraw ? 'minus' : 'plus',
+            amount: `${signedAmount >= 0 ? '+' : '-'}${formatCurrency(Math.abs(signedAmount))}`,
+            amountColor: signedAmount >= 0 ? 'text-green-600' : 'text-red-500',
+            balance: formatCurrency(runningBalance),
+            status: String(row?.transaction_status || 'pending_verification'),
+          };
+        }).reverse();
+
+        if (mappedLedger.length === 0) {
+          mappedLedger.push({
+            id: 'opening-balance',
+            date: formatDate(cbuRow?.transaction_date),
+            type: 'Opening Share Capital',
+            typeIcon: 'trend',
+            amount: `+${formatCurrency(openingRegularSavings)}`,
+            amountColor: 'text-green-600',
+            balance: formatCurrency(openingRegularSavings),
+            status: 'posted',
+          });
+        }
+
+        if (isMounted) {
+          setMemberLabel(fullName || 'Member');
+          setRegularSavings(openingRegularSavings);
+          setTimeDeposit(computedTimeDeposit);
+          setLedgerData(mappedLedger);
+        }
+      } catch (err) {
+        if (isMounted) {
+          setSavingsError(err?.message || 'Unable to load savings data.');
+          setLedgerData([]);
+          setRegularSavings(0);
+          setTimeDeposit(0);
+        }
+      } finally {
+        if (isMounted) {
+          setLoadingSavings(false);
+        }
+      }
+    };
+
+    loadSavings();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const totalSavings = useMemo(() => regularSavings + timeDeposit, [regularSavings, timeDeposit]);
 
   // Helper function to render the correct icon per transaction type
   const renderTransactionIcon = (type) => {
     switch(type) {
       case 'plus': return <PlusCircle className="w-4 h-4 text-green-600" />;
       case 'trend': return <TrendingUp className="w-4 h-4 text-green-600" />;
-      case 'new': return <FilePlus className="w-4 h-4 text-yellow-500" />;
-      case 'chart': return <BarChart3 className="w-4 h-4 text-green-600" />;
       case 'minus': return <MinusCircle className="w-4 h-4 text-red-500" />;
       default: return <PlusCircle className="w-4 h-4 text-gray-400" />;
     }
@@ -255,7 +381,7 @@ const Member_Savings = () => {
             <div className="w-8 h-8 rounded-full bg-gray-200 overflow-hidden border border-gray-300">
                <img src="src/assets/img/member-profile.png" alt="Profile" className="w-full h-full object-cover" />
             </div>
-            <p className="hidden sm:block text-sm font-bold text-gray-700">Member</p>
+            <p className="hidden sm:block text-sm font-bold text-gray-700">{memberLabel}</p>
           </div>
           </div>
         </header>
@@ -271,7 +397,7 @@ const Member_Savings = () => {
                 <Wallet className="w-5 h-5 text-[#1D6021]" />
               </div>
               <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">Regular Savings</p>
-              <h3 className="text-2xl sm:text-3xl font-black text-gray-900">₱85,420.50</h3>
+              <h3 className="text-2xl sm:text-3xl font-black text-gray-900">{formatCurrency(regularSavings)}</h3>
             </div>
 
             {/* Time Deposit Card */}
@@ -280,7 +406,7 @@ const Member_Savings = () => {
                 <CalendarDays className="w-5 h-5 text-[#1D6021]" />
               </div>
               <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">Time Deposit</p>
-              <h3 className="text-2xl sm:text-3xl font-black text-gray-900">₱150,000.00</h3>
+              <h3 className="text-2xl sm:text-3xl font-black text-gray-900">{formatCurrency(timeDeposit)}</h3>
             </div>
 
             {/* Total Savings Card */}
@@ -289,9 +415,15 @@ const Member_Savings = () => {
                 <Banknote className="w-5 h-5 text-white" />
               </div>
               <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">Total Savings</p>
-              <h3 className="text-2xl sm:text-3xl font-black text-gray-900">₱235,420.50</h3>
+              <h3 className="text-2xl sm:text-3xl font-black text-gray-900">{formatCurrency(totalSavings)}</h3>
             </div>
           </div>
+
+          {savingsError ? (
+            <div className="mb-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+              {savingsError}
+            </div>
+          ) : null}
 
           {/* Savings Ledger Container */}
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col">
@@ -319,7 +451,15 @@ const Member_Savings = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {ledgerData.map((row) => (
+                  {loadingSavings ? (
+                    <tr>
+                      <td colSpan={4} className="p-6 text-center text-sm text-gray-500">Loading savings ledger...</td>
+                    </tr>
+                  ) : ledgerData.length === 0 ? (
+                    <tr>
+                      <td colSpan={4} className="p-6 text-center text-sm text-gray-500">No savings transactions yet.</td>
+                    </tr>
+                  ) : ledgerData.map((row) => (
                     <tr key={row.id} className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors last:border-0">
                       <td className="p-5 text-sm text-gray-500 font-medium whitespace-nowrap">{row.date}</td>
                       <td className="p-5 text-sm font-bold text-gray-700 flex items-center gap-3">
@@ -338,31 +478,10 @@ const Member_Savings = () => {
               </table>
             </div>
 
-            {/* Pagination / Footer */}
-            <div className="p-5 border-t border-gray-100 flex items-center justify-center gap-2">
-              <button
-                className="w-8 h-8 flex items-center justify-center rounded-full border border-gray-300 bg-white text-gray-500 transition-colors hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                disabled
-              >
-                <ChevronLeft className="w-4 h-4" />
-              </button>
-
-              {[1, 2, 3, 4, 5].map((page) => (
-                <button
-                  key={page}
-                  className={`w-8 h-8 flex items-center justify-center rounded-full border text-xs font-semibold transition-colors ${
-                    page === 1
-                      ? "bg-[#16A34A] text-white border-[#16A34A]"
-                      : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"
-                  }`}
-                >
-                  {page}
-                </button>
-              ))}
-
-              <button className="w-8 h-8 flex items-center justify-center rounded-full border border-gray-300 bg-white text-gray-500 transition-colors hover:bg-gray-50">
-                <ChevronRight className="w-4 h-4" />
-              </button>
+            {/* Footer */}
+            <div className="p-5 border-t border-gray-100 flex items-center justify-between text-xs font-medium text-gray-500">
+              <span>Entries: {ledgerData.length}</span>
+              <span>Regular + Time Deposit = {formatCurrency(totalSavings)}</span>
             </div>
 
           </div>
