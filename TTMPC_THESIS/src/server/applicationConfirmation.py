@@ -432,16 +432,18 @@ def set_new_account_temporary(
 				.eq("user_id", auth_user_id)
 				.execute()
 			)
-			if update_response.data:
+			# Check if update actually affected a row (data is non-empty list)
+			if update_response.data and len(update_response.data) > 0:
 				return {
 					"table": account_table,
 					"mode": "updated",
 					"is_temporary": True,
 				}
 		except Exception as update_err:
+			# Update failed (e.g., table doesn't exist), try insert
 			pass
 
-		# If no row exists, attempt insert with all required fields.
+		# If update didn't affect any rows, attempt insert with all required fields.
 		try:
 			insert_payload = {
 				"user_id": auth_user_id,
@@ -454,7 +456,7 @@ def set_new_account_temporary(
 				insert_payload["membership_id"] = membership_id
 			
 			insert_response = supabase.table(account_table).insert(insert_payload).execute()
-			if insert_response.data:
+			if insert_response.data and len(insert_response.data) > 0:
 				return {
 					"table": account_table,
 					"mode": "inserted",
