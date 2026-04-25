@@ -25,14 +25,15 @@ const LoanApplication = () => {
   
 const menuItems = [
     { name: "Dashboard", icon: LayoutDashboard },
-    { name: "Member Records", icon: Users },
-    { name: "Loan Application", icon: FileText },
+    { name: "Manage Member", icon: Users },
+    { name: "Loan Approval", icon: FileText },
     { name: "Manage Loans", icon: CreditCard },
     { name: "Payments", icon: CreditCard },
     { name: "Accounting", icon: Calculator },
     { name: "MIGS Scoring", icon: Activity },
     { name: "Reports", icon: BarChart3 },
     { name: "Audit Trail", icon: History },
+    { name: "Grocery", icon: CreditCard },
   ];
  
 
@@ -67,14 +68,15 @@ const menuItems = [
   {(() => {
     const routeMap = {
       Dashboard: "/dashboard",
-      "Member Records": "/records",
-      "Loan Application": "/loan-application",
-      "Manage Loans":"/manage-loans",
+      "Manage Member": "/manage-member",
+      "Loan Approval": "/bookkeeper-loan-approval",
+      "Manage Loans": "/manage-loans",
       Payments: "/payments",
       Accounting: "/accounting",
-      MIGS: "/migs",
+      "MIGS Scoring": "/migs",
       Reports: "/reports",
       "Audit Trail": "/audit-trail",
+      Grocery: "/grocery",
     };
 
     return menuItems.map((item) => {

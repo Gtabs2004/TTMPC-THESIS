@@ -25,58 +25,8 @@ const Manage_Member = () => {
     { name: "MIGS Scoring", icon: Activity },
     { name: "Reports", icon: BarChart3 },
     { name: "Audit Trail", icon: History },
+    { name: "Grocery", icon: CreditCard },
   ];
-
-  useEffect(() => {
-    async function loadData() {
-      setLoading(true);
-      setError("");
-      try {
-        const response = await fetch(`${API_BASE_URL}/api/personal_data_sheet`, { method: "GET", headers: { Accept: "application/json" } });
-        const payload = await response.json().catch(() => ({}));
-        if (!response.ok || !payload?.success) {
-          throw new Error(payload?.detail || payload?.message || "Failed to load personal datasheet.");
-        }
-        setRows(Array.isArray(payload.data) ? payload.data : []);
-      } catch (err) {
-        setError(err?.message || "Unable to load personal datasheet.");
-        setRows([]);
-      } finally {
-        setLoading(false);
-      }
-    }
-    loadData();
-  }, []);
-
-  const filtered = useMemo(() => {
-    const key = String(query || "").trim().toLowerCase();
-    if (!key) return rows;
-    return rows.filter((r) =>
-      String(r.member_id || "").toLowerCase().includes(key) ||
-      String(r.full_name || "").toLowerCase().includes(key) ||
-      String(r.email || "").toLowerCase().includes(key)
-    );
-  }, [query, rows]);
-
-  const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE));
-  const paginatedRows = useMemo(() => {
-    const start = (currentPage - 1) * ITEMS_PER_PAGE;
-    return filtered.slice(start, start + ITEMS_PER_PAGE);
-  }, [filtered, currentPage]);
-
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [query, rows]);
-
-  const handleSignOut = async (e) => {
-    e.preventDefault();
-    try {
-      await signOut();
-      navigate("/");
-    } catch (err) {
-      console.error("Failed to sign out:", err);
-    }
-  };
 
   const routeMap = {
     Dashboard: "/dashboard",
@@ -85,9 +35,10 @@ const Manage_Member = () => {
     "Manage Loans": "/manage-loans",
     Payments: "/payments",
     Accounting: "/accounting",
-    "MIGS Scoring": "/migs-scoring",
+    "MIGS Scoring": "/migs",
     Reports: "/reports",
     "Audit Trail": "/audit-trail",
+    Grocery: "/grocery",
   };
 
   return (

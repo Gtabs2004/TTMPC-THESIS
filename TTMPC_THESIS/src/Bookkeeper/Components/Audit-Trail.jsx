@@ -37,6 +37,7 @@ const AuditTrail = () => {
     { name: "MIGS Scoring", icon: Activity },
     { name: "Reports", icon: BarChart3 },
     { name: "Audit Trail", icon: History },
+    { name: "Grocery", icon: CreditCard },
   ];
 
   const handleSignOut = async (e) => {
@@ -121,12 +122,13 @@ const AuditTrail = () => {
               Dashboard: "/dashboard",
               "Manage Member": "/manage-member",
               "Loan Approval": "/bookkeeper-loan-approval",
-              "Manage Loans":"/manage-loans",
+              "Manage Loans": "/manage-loans",
               Payments: "/payments",
               Accounting: "/accounting",
-              MIGS: "/migs",
+              "MIGS Scoring": "/migs",
               Reports: "/reports",
               "Audit Trail": "/audit-trail",
+              Grocery: "/grocery",
             };
 
             return menuItems.map((item) => {

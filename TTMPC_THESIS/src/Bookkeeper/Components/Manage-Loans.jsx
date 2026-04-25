@@ -61,11 +61,12 @@ const ManageLoans = () => {
     { name: "Manage Member", icon: Users },
     { name: "Loan Approval", icon: FileText },
     { name: "Manage Loans", icon: CreditCard },
-    { name: "Payments", icon: Wallet },
+    { name: "Payments", icon: CreditCard },
     { name: "Accounting", icon: Calculator },
     { name: "MIGS Scoring", icon: Activity },
     { name: "Reports", icon: BarChart3 },
     { name: "Audit Trail", icon: History },
+    { name: "Grocery", icon: CreditCard },
   ];
 
   const routeMap = {
@@ -75,9 +76,10 @@ const ManageLoans = () => {
     "Manage Loans": "/manage-loans",
     Payments: "/payments",
     Accounting: "/accounting",
-    "MIGS Scoring": "/migs-scoring",
+    "MIGS Scoring": "/migs",
     Reports: "/reports",
     "Audit Trail": "/audit-trail",
+    Grocery: "/grocery",
   };
 
   const dashboardStats = useMemo(() => {
