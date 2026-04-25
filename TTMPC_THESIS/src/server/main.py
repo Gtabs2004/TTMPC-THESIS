@@ -3804,11 +3804,11 @@ def build_loan_pdf_response(
         def build_text_commands() -> str:
             commands: list[str] = []
 
-            def add_text(x: float, y: float, text: str, font_size: float = 7.5) -> None:
+            def add_text(x: float, y: float, text: str, font_size: float = 7.5, font_name: str = "/F1") -> None:
                 content = clean(text)
                 if not content:
                     return
-                commands.append(f"BT /F1 {font_size:.2f} Tf {x:.2f} {y:.2f} Td ({escape_pdf_text(content)}) Tj ET")
+                commands.append(f"BT {font_name} {font_size:.2f} Tf {x:.2f} {y:.2f} Td ({escape_pdf_text(content)}) Tj ET")
 
             def add_wrapped_text(x: float, y: float, text: str, max_width: float, font_size: float = 7.0, line_height: float = 8.5, max_lines: int = 2) -> None:
                 lines = wrap_text_by_words(text, max_width, font_size, max_lines=max_lines)
@@ -3816,14 +3816,14 @@ def build_loan_pdf_response(
                     add_text(x, y - (index * line_height), line, font_size)
 
             def add_checkbox(x: float, y: float) -> None:
-                add_text(x, y, "X", 10.0)
+                add_text(x, y, "3", 15.0, "/F2")
 
             def render_common_identity_fields() -> str:
                 application_type = clean(payload.application_type).lower()
                 if application_type == "new":
                     add_checkbox(page_width * 0.03, top_y)
                 elif application_type == "renewal":
-                    add_checkbox(page_width * 0.14, top_y)
+                    add_checkbox(page_width * 0.10, top_y)
 
                 add_text(page_width * 0.23, top_y - 8, clean(payload.control_no), 7.5)
                 add_text(page_width * 0.105, page_height * 0.915, format_date(payload.date_applied), 7.5)
@@ -3950,6 +3950,14 @@ def build_loan_pdf_response(
                                 NameObject("/Type"): NameObject("/Font"),
                                 NameObject("/Subtype"): NameObject("/Type1"),
                                 NameObject("/BaseFont"): NameObject("/Helvetica"),
+                            }
+                        )
+                        ,
+                        NameObject("/F2"): DictionaryObject(
+                            {
+                                NameObject("/Type"): NameObject("/Font"),
+                                NameObject("/Subtype"): NameObject("/Type1"),
+                                NameObject("/BaseFont"): NameObject("/ZapfDingbats"),
                             }
                         )
                     }
