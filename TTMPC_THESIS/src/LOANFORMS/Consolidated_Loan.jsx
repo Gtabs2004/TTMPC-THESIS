@@ -69,9 +69,12 @@ function Consolidated_Loan() {
   const inputStyles = "border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-[#66B538] outline-none w-full bg-white text-sm transition-all";
   const labelStyles = "block text-xs font-bold text-gray-700 mb-1";
   const sectionHeader = "bg-[#66B538] text-white px-4 py-2 rounded-t-lg flex items-center gap-2 font-bold uppercase tracking-wide";
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000';
+  const PDF_PREVIEW_WINDOW_NAME = 'consolidated-loan-preview';
 
   // 1. STATE LOGIC: Form Data State
   const [loading, setLoading] = useState(false);
+  const [printing, setPrinting] = useState(false);
   const [formData, setFormData] = useState({
     application_type: 'New',
     control_no: generateControlNumber(),
@@ -122,6 +125,40 @@ function Consolidated_Loan() {
 
       return { ...prev, [name]: normalizedValue };
     });
+  };
+
+  const handlePrintPdf = async () => {
+    setPrinting(true);
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/loans/consolidated/print-pdf`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/pdf',
+        },
+        body: JSON.stringify(formData),
+      });
+
+      if (!response.ok) {
+        const errorBody = await response.json().catch(() => ({}));
+        throw new Error(errorBody?.detail || errorBody?.message || 'Unable to generate the consolidated loan PDF.');
+      }
+
+      const blob = await response.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const previewWindow = window.open(objectUrl, PDF_PREVIEW_WINDOW_NAME);
+
+      if (previewWindow) {
+        previewWindow.focus();
+      }
+
+      setTimeout(() => URL.revokeObjectURL(objectUrl), 30000);
+    } catch (error) {
+      alert(`Print Error: ${error.message}`);
+    } finally {
+      setPrinting(false);
+    }
   };
 
   const isMarriedCivilStatus = String(formData.civil_status || '').trim().toLowerCase() === 'married';
@@ -535,8 +572,16 @@ function Consolidated_Loan() {
 
         <div className="mt-8 max-w-6xl mx-auto w-full mb-8 flex justify-end">
           <button 
+            type="button" 
+            onClick={handlePrintPdf}
+            disabled={printing || loading}
+            className="mr-3 border border-[#66B538] text-[#66B538] px-6 py-2 rounded hover:bg-[#E9F7DE] transition-colors font-bold disabled:opacity-50 cursor-pointer"
+          >
+            {printing ? "Preparing PDF..." : "Print PDF"}
+          </button>
+          <button 
             type="submit" 
-            disabled={loading}
+            disabled={loading || printing}
             className="bg-[#66B538] text-white px-6 py-2 rounded hover:bg-[#5aa12b] transition-colors font-bold disabled:opacity-50 cursor-pointer"
           >
             {loading ? "Processing..." : "Submit Application"}

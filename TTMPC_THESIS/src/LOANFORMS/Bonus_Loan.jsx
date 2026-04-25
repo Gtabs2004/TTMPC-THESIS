@@ -55,6 +55,9 @@ function Bonus_Loan() {
     return params.get('loanType')?.toUpperCase() === 'NONMEMBER_BONUS';
   }, [location.search]);
 
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000';
+  const PDF_PREVIEW_WINDOW_NAME = isNonMemberBonus ? 'nonmember-bonus-loan-preview' : 'bonus-loan-preview';
+
   const resolvedLoanTypeCode = isNonMemberBonus ? 'NONMEMBER_BONUS' : 'BONUS';
 
   const inputStyles = 'border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-[#66B538] outline-none w-full bg-white text-sm';
@@ -62,6 +65,7 @@ function Bonus_Loan() {
   const sectionHeader = 'bg-[#66B538] text-white px-4 py-2 rounded-t-lg flex items-center gap-2 font-bold uppercase tracking-wide';
 
   const [loading, setLoading] = useState(false);
+  const [printing, setPrinting] = useState(false);
   const [formData, setFormData] = useState({
     application_type: 'New',
     control_no: createUniqueControlNumber(isNonMemberBonus ? 'NMBL' : 'BL'),
@@ -125,6 +129,40 @@ function Bonus_Loan() {
   };
 
   const isMarriedCivilStatus = String(formData.civil_status || '').trim().toLowerCase() === 'married';
+
+  const handlePrintPdf = async () => {
+    setPrinting(true);
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/loans/bonus/print-pdf`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/pdf',
+        },
+        body: JSON.stringify(formData),
+      });
+
+      if (!response.ok) {
+        const errorBody = await response.json().catch(() => ({}));
+        throw new Error(errorBody?.detail || errorBody?.message || 'Unable to generate the bonus loan PDF.');
+      }
+
+      const blob = await response.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const previewWindow = window.open(objectUrl, PDF_PREVIEW_WINDOW_NAME);
+
+      if (previewWindow) {
+        previewWindow.focus();
+      }
+
+      setTimeout(() => URL.revokeObjectURL(objectUrl), 30000);
+    } catch (error) {
+      alert(`Print Error: ${error.message}`);
+    } finally {
+      setPrinting(false);
+    }
+  };
 
   useEffect(() => {
     let isMounted = true;
@@ -547,8 +585,11 @@ function Bonus_Loan() {
             </div>
 
           </div>
-          <div className="p-8 pt-0">
-            <button type="submit" disabled={loading} className="bg-[#66B538] text-white px-5 py-2 rounded hover:bg-[#5aa12b] transition-colors text-sm font-semibold disabled:opacity-50">
+          <div className="p-8 pt-0 flex flex-wrap gap-3 justify-end">
+            <button type="button" onClick={handlePrintPdf} disabled={printing || loading} className="bg-white border border-[#66B538] text-[#66B538] px-5 py-2 rounded hover:bg-[#EEF6F1] transition-colors text-sm font-semibold disabled:opacity-50">
+              {printing ? 'Printing...' : 'Print PDF'}
+            </button>
+            <button type="submit" disabled={loading || printing} className="bg-[#66B538] text-white px-5 py-2 rounded hover:bg-[#5aa12b] transition-colors text-sm font-semibold disabled:opacity-50">
               {loading ? 'Processing...' : 'Submit Application'}
             </button>
           </div>

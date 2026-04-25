@@ -13,6 +13,7 @@ from dotenv import load_dotenv
 from urllib import request as urlrequest
 from urllib.error import HTTPError, URLError
 from applicationConfirmation import MembershipConfirmationError, confirm_membership, confirm_membership_batch, get_next_membership_id
+from pypdf.generic import DecodedStreamObject, DictionaryObject, NameObject
 
 # 1. Load Environment Variables
 # Load from project root .env explicitly for consistent behavior.
@@ -91,6 +92,53 @@ class MembershipFormPdfRequest(BaseModel):
     position: str | None = None
     annual_income: str | None = None
     other_income: str | None = None
+
+
+class LoanPdfRequest(BaseModel):
+    application_type: str | None = None
+    control_no: str | None = None
+    date_applied: str | None = None
+    surname: str | None = None
+    first_name: str | None = None
+    middle_name: str | None = None
+    contact_no: str | None = None
+    latest_net_pay: str | None = None
+    share_capital: str | None = None
+    residence_address: str | None = None
+    date_of_birth: str | None = None
+    age: str | None = None
+    civil_status: str | None = None
+    gender: str | None = None
+    tin_no: str | None = None
+    gsis_sss_no: str | None = None
+    employer_name: str | None = None
+    office_address: str | None = None
+    spouse_name: str | None = None
+    spouse_occupation: str | None = None
+    loan_amount_words: str | None = None
+    loan_amount_numeric: str | None = None
+    loan_purpose: str | None = None
+    loan_purpose_other: str | None = None
+    loan_term_months: str | None = None
+    monthly_amortization: str | None = None
+    source_of_income: str | None = None
+    user_email: str | None = None
+    borrower_id_type: str | None = None
+    borrower_id_number: str | None = None
+    bonus_amount_words: str | None = None
+    bonus_amount_numeric: str | None = None
+
+
+class ConsolidatedLoanPdfRequest(LoanPdfRequest):
+    pass
+
+
+class BonusLoanPdfRequest(LoanPdfRequest):
+    pass
+
+
+class EmergencyLoanPdfRequest(LoanPdfRequest):
+    pass
 
 
 class MembershipConfirmationRequest(BaseModel):
@@ -3643,3 +3691,322 @@ async def print_membership_form_pdf(payload: MembershipFormPdfRequest):
         raise err
     except Exception as err:
         raise HTTPException(status_code=500, detail=f"Failed to generate printable membership PDF: {err}")
+
+def build_loan_pdf_response(
+    payload: LoanPdfRequest,
+    template_filename: str,
+    output_filename: str,
+    loan_kind: str,
+):
+    try:
+        try:
+            from pypdf import PdfReader, PdfWriter
+        except ModuleNotFoundError:
+            raise HTTPException(
+                status_code=500,
+                detail="pypdf is not installed in the backend runtime environment.",
+            )
+
+        def clean(value: str | None) -> str:
+            return str(value or "").strip()
+
+        def format_date(value: str | None) -> str:
+            raw_value = clean(value)
+            if not raw_value:
+                return ""
+
+            for pattern in ("%Y-%m-%d", "%Y/%m/%d", "%m/%d/%Y", "%d/%m/%Y"):
+                try:
+                    return datetime.strptime(raw_value, pattern).strftime("%m/%d/%Y")
+                except ValueError:
+                    continue
+
+            return raw_value
+
+        def format_amount(value: str | None) -> str:
+            raw_value = clean(value).replace(",", "")
+            if not raw_value:
+                return ""
+
+            try:
+                amount = float(raw_value)
+            except ValueError:
+                return clean(value)
+
+            if amount.is_integer():
+                return f"{int(amount):,}"
+            return f"{amount:,.2f}".rstrip("0").rstrip(".")
+
+        def loan_purpose_text() -> str:
+            purpose = clean(payload.loan_purpose)
+            purpose_other = clean(payload.loan_purpose_other)
+            if purpose.lower() == "others" and purpose_other:
+                return f"Others: {purpose_other}"
+            return purpose
+
+        def escape_pdf_text(value: str) -> str:
+            return (
+                value.replace("\\", "\\\\")
+                .replace("(", "\\(")
+                .replace(")", "\\)")
+                .replace("\r", " ")
+                .replace("\n", " ")
+            )
+
+        def estimate_max_chars(max_width: float, font_size: float) -> int:
+            return max(1, int(max_width / max(font_size * 0.45, 1)))
+
+        def wrap_text_by_words(text: str, max_width: float, font_size: float, max_lines: int = 2) -> list[str]:
+            content = clean(text)
+            if not content:
+                return []
+
+            max_chars = estimate_max_chars(max_width, font_size)
+            words = content.split()
+            lines: list[str] = []
+            current_line = ""
+
+            for word in words:
+                candidate = word if not current_line else f"{current_line} {word}"
+                if len(candidate) <= max_chars:
+                    current_line = candidate
+                    continue
+
+                if current_line:
+                    lines.append(current_line)
+                else:
+                    lines.append(word[:max_chars])
+                    word = word[max_chars:]
+
+                current_line = word
+                if len(lines) >= max_lines:
+                    break
+
+            if current_line and len(lines) < max_lines:
+                lines.append(current_line)
+
+            return lines[:max_lines]
+
+        def truncate_to_width(text: str, max_width: float, font_size: float) -> str:
+            content = clean(text)
+            if not content:
+                return ""
+
+            max_chars = estimate_max_chars(max_width, font_size)
+            if len(content) <= max_chars:
+                return content
+
+            if max_chars <= 3:
+                return content[:max_chars]
+
+            return content[: max_chars - 3].rstrip() + "..."
+
+        def build_text_commands() -> str:
+            commands: list[str] = []
+
+            def add_text(x: float, y: float, text: str, font_size: float = 7.5) -> None:
+                content = clean(text)
+                if not content:
+                    return
+                commands.append(f"BT /F1 {font_size:.2f} Tf {x:.2f} {y:.2f} Td ({escape_pdf_text(content)}) Tj ET")
+
+            def add_wrapped_text(x: float, y: float, text: str, max_width: float, font_size: float = 7.0, line_height: float = 8.5, max_lines: int = 2) -> None:
+                lines = wrap_text_by_words(text, max_width, font_size, max_lines=max_lines)
+                for index, line in enumerate(lines):
+                    add_text(x, y - (index * line_height), line, font_size)
+
+            def add_checkbox(x: float, y: float) -> None:
+                add_text(x, y, "X", 10.0)
+
+            def render_common_identity_fields() -> str:
+                application_type = clean(payload.application_type).lower()
+                if application_type == "new":
+                    add_checkbox(page_width * 0.03, top_y)
+                elif application_type == "renewal":
+                    add_checkbox(page_width * 0.14, top_y)
+
+                add_text(page_width * 0.23, top_y - 8, clean(payload.control_no), 7.5)
+                add_text(page_width * 0.105, page_height * 0.915, format_date(payload.date_applied), 7.5)
+
+                add_text(left_x, info_y - 20, clean(payload.surname), 7.0)
+                add_text(page_width * 0.125, info_y - 20, clean(payload.first_name), 7.0)
+                add_text(page_width * 0.245, info_y - 20, clean(payload.middle_name), 7.0)
+
+                add_text(page_width * 0.125, info_y - 50, clean(payload.contact_no), 7.0)
+                add_wrapped_text(page_width * 0.125, page_height * 0.75, clean(payload.residence_address), page_width * 0.26, 7.0, 8.2, 2)
+                add_text(page_width * 0.115, page_height * 0.72, format_amount(payload.latest_net_pay), 7.0)
+                add_text(page_width * 0.245, page_height * 0.72, format_amount(payload.share_capital), 7.0)
+                add_text(page_width * 0.105, page_height * 0.70, format_date(payload.date_of_birth), 7.0)
+                add_text(page_width *0.205, page_height * 0.70, clean(payload.age), 7.0)
+                add_text(page_width * 0.105, page_height * 0.67, clean(payload.civil_status), 7.0)
+                add_text(page_width *0.205, page_height *0.67, clean(payload.gender), 7.0)
+                add_text(page_width *0.105, page_height * 0.65, clean(payload.tin_no), 7.0)
+                add_text(page_width * 0.105, page_height * 0.62, clean(payload.gsis_sss_no), 7.0)
+                add_wrapped_text(page_width *0.120, page_height * 0.60, clean(payload.employer_name), page_width * 0.26, 7.0, 8.2, 2)
+                add_wrapped_text(page_width *0.120, page_height * 0.58, clean(payload.office_address), page_width * 0.26, 7.0, 8.2, 2)
+
+                if clean(payload.spouse_name):
+                    add_wrapped_text(page_width *0.120, page_height * 0.56, clean(payload.spouse_name), page_width * 0.26, 7.0, 8.2, 1)
+                if clean(payload.spouse_occupation):
+                    add_wrapped_text(page_width *0.120, page_height * 0.54, clean(payload.spouse_occupation), page_width * 0.26, 7.0, 8.2, 1)
+
+                borrower_name = " ".join(part for part in [clean(payload.first_name), clean(payload.middle_name), ".", clean(payload.surname)] if part)
+                add_text(page_width * 0.125, page_height * 0.09, borrower_name, 9.0)
+                return borrower_name
+
+            def render_consolidated_fields() -> None:
+                render_common_identity_fields()
+                add_wrapped_text(page_width *0.245, page_height * 0.41, clean(payload.loan_amount_words), page_width * 0.24, 7.0, 8.2, 2)
+                add_text(page_width * 0.245, page_height * 0.38, format_amount(payload.loan_amount_numeric), 7.0)
+                add_wrapped_text(page_width * 0.155, page_height * 0.36, loan_purpose_text(), page_width * 0.16, 7.0, 8.2, 2)
+                add_text(page_width * 0.255, page_height * 0.33, clean(payload.loan_term_months), 7.0)
+                add_text(page_width * 0.205, page_height * 0.31, format_amount(payload.monthly_amortization), 7.0)
+
+                borrower_name = " ".join(part for part in [clean(payload.first_name), clean(payload.middle_name), ".", clean(payload.surname)] if part)
+                add_text(page_width * 0.405, info_y - 8, borrower_name, 9.0)
+                add_wrapped_text(page_width *0.455,  info_y - 35, clean(payload.loan_amount_words), page_width * 0.24, 7.0, 8.2, 2)
+                add_text(page_width *0.565, info_y - 50, format_amount(payload.loan_amount_numeric), 7.0)
+                add_text(page_width *0.455, page_height * 0.50, borrower_name, 10.0)
+
+                footer_email = clean(payload.user_email)
+                if footer_email:
+                    email_parts = footer_email.split("@", 1)
+                    if len(email_parts) == 2:
+                        add_text(center_x, footer_y + 4, f"{email_parts[0]}@", 8.6)
+                        add_text(center_x, footer_y - 4, email_parts[1], 8.6)
+                    else:
+                        add_wrapped_text(center_x, footer_y + 2, footer_email, page_width * 0.09, 7.2, 7.2, 3)
+                add_text(page_width * 0.48, footer_y, clean(payload.contact_no), 8.6)
+                add_wrapped_text(page_width * 0.58, footer_y, clean(payload.residence_address), page_width * 0.13, 8.6, 8.2, 2)
+
+            def render_bonus_fields() -> None:
+                render_common_identity_fields()
+                add_wrapped_text(page_width * 0.245, page_height * 0.41, clean(payload.loan_amount_words), page_width * 0.24, 7.0, 8.2, 2)
+                add_text(page_width * 0.245, page_height * 0.38, format_amount(payload.loan_amount_numeric), 7.0)
+                add_wrapped_text(page_width * 0.155, page_height * 0.36, loan_purpose_text(), page_width * 0.16, 7.0, 8.2, 2)
+                add_text(page_width * 0.255, page_height * 0.33, clean(payload.loan_term_months), 7.0)
+                add_text(page_width * 0.205, page_height * 0.31, format_amount(payload.monthly_amortization), 7.0)
+
+                bonus_words = clean(payload.bonus_amount_words) or clean(payload.loan_amount_words)
+                bonus_numeric = clean(payload.bonus_amount_numeric) or clean(payload.loan_amount_numeric)
+                add_wrapped_text(page_width * 0.21, page_height * 0.23, bonus_words, page_width * 0.28, 7.0, 8.2, 2)
+                add_text(page_width * 0.22, page_height * 0.20, format_amount(bonus_numeric), 7.0)
+
+            def render_emergency_fields() -> None:
+                render_common_identity_fields()
+                add_wrapped_text(page_width * 0.245, page_height * 0.41, clean(payload.loan_amount_words), page_width * 0.24, 7.0, 8.2, 2)
+                add_text(page_width * 0.245, page_height * 0.38, format_amount(payload.loan_amount_numeric), 7.0)
+                add_wrapped_text(page_width * 0.155, page_height * 0.36, loan_purpose_text(), page_width * 0.16, 7.0, 8.2, 2)
+                add_text(page_width * 0.255, page_height * 0.33, clean(payload.loan_term_months), 7.0)
+                add_text(page_width * 0.205, page_height * 0.31, format_amount(payload.monthly_amortization), 7.0)
+
+            if loan_kind == "consolidated":
+                render_consolidated_fields()
+            elif loan_kind == "bonus":
+                render_bonus_fields()
+            elif loan_kind == "emergency":
+                render_emergency_fields()
+            else:
+                raise HTTPException(status_code=400, detail=f"Unsupported loan kind: {loan_kind}")
+
+            return "\n".join(commands)
+
+        amount_value = clean(payload.loan_amount_numeric)
+        amount_number = 0.0
+        try:
+            amount_number = float(amount_value.replace(",", "")) if amount_value else 0.0
+        except ValueError:
+            amount_number = 0.0
+
+        template_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "PDF", template_filename))
+
+        if not os.path.exists(template_path):
+            raise HTTPException(status_code=404, detail=f"{template_filename} not found.")
+
+        reader = PdfReader(template_path)
+        if not reader.pages:
+            raise HTTPException(status_code=400, detail=f"{template_filename} has no pages.")
+
+        base_page = reader.pages[0]
+        page_width = float(base_page.mediabox.width)
+        page_height = float(base_page.mediabox.height)
+
+        left_x = page_width * 0.045
+        center_x = page_width * 0.365
+
+        top_y = page_height * 0.945
+        info_y = page_height * 0.86
+        lower_y = page_height * 0.23
+        footer_y = page_height * 0.12
+
+        overlay_writer = PdfWriter()
+        overlay_page = overlay_writer.add_blank_page(width=page_width, height=page_height)
+        overlay_page[NameObject("/Resources")] = DictionaryObject(
+            {
+                NameObject("/Font"): DictionaryObject(
+                    {
+                        NameObject("/F1"): DictionaryObject(
+                            {
+                                NameObject("/Type"): NameObject("/Font"),
+                                NameObject("/Subtype"): NameObject("/Type1"),
+                                NameObject("/BaseFont"): NameObject("/Helvetica"),
+                            }
+                        )
+                    }
+                )
+            }
+        )
+
+        content_stream = DecodedStreamObject()
+        content_stream.set_data(build_text_commands().encode("utf-8"))
+        overlay_page[NameObject("/Contents")] = content_stream
+
+        overlay_buffer = io.BytesIO()
+        overlay_writer.write(overlay_buffer)
+        overlay_buffer.seek(0)
+
+        overlay_reader = PdfReader(overlay_buffer)
+        overlay_page = overlay_reader.pages[0]
+        base_page.merge_page(overlay_page)
+
+        writer = PdfWriter()
+        writer.add_page(base_page)
+        for page in reader.pages[1:]:
+            writer.add_page(page)
+
+        output = io.BytesIO()
+        writer.write(output)
+        output.seek(0)
+
+        return Response(
+            content=output.getvalue(),
+            media_type="application/pdf",
+            headers={"Content-Disposition": f'inline; filename="{output_filename}"'},
+        )
+    except HTTPException as err:
+        raise err
+    except Exception as err:
+        raise HTTPException(status_code=500, detail=f"Failed to generate printable {loan_kind} loan PDF: {err}")
+
+
+@app.post("/api/loans/consolidated/print-pdf")
+async def print_consolidated_loan_pdf(payload: ConsolidatedLoanPdfRequest):
+    amount_value = str(payload.loan_amount_numeric or "").strip().replace(",", "")
+    amount_number = 0.0
+    try:
+        amount_number = float(amount_value) if amount_value else 0.0
+    except ValueError:
+        amount_number = 0.0
+
+    template_filename = "CONSOLIDATED LOAN-500,000 AND UP.pdf" if amount_number >= 500000 else "CONSOLIDATED LOAN -A4.pdf"
+    return build_loan_pdf_response(payload, template_filename, "CONSOLIDATED_LOAN_FILLED.pdf", "consolidated")
+
+
+@app.post("/api/loans/bonus/print-pdf")
+async def print_bonus_loan_pdf(payload: BonusLoanPdfRequest):
+    return build_loan_pdf_response(payload, "BONUS LOAN A4.pdf", "BONUS_LOAN_FILLED.pdf", "bonus")
+
+
+@app.post("/api/loans/emergency/print-pdf")
+async def print_emergency_loan_pdf(payload: EmergencyLoanPdfRequest):
+    return build_loan_pdf_response(payload, "EMERGENCY LOAN A4.pdf", "EMERGENCY_LOAN_FILLED.pdf", "emergency")
