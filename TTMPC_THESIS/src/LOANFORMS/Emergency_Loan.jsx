@@ -57,11 +57,14 @@ const numberToWords = (num) => {
 
 
 function Emergency_Loan() {
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000';
+  const PDF_PREVIEW_WINDOW_NAME = 'emergency-loan-preview';
   const inputStyles = 'border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-[#66B538] outline-none w-full bg-white text-sm transition-all';
   const labelStyles = 'block text-xs font-bold text-gray-700 mb-1';
   const sectionHeader = 'bg-[#66B538] text-white px-4 py-2 rounded-t-lg flex items-center gap-2 font-bold uppercase tracking-wide';
 
   const [loading, setLoading] = useState(false);
+  const [printing, setPrinting] = useState(false);
   const [formData, setFormData] = useState({
     application_type: 'New',
     control_no: generateControlNumber(),
@@ -115,6 +118,40 @@ function Emergency_Loan() {
   };
 
   const isMarriedCivilStatus = String(formData.civil_status || '').trim().toLowerCase() === 'married';
+
+  const handlePrintPdf = async () => {
+    setPrinting(true);
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/loans/emergency/print-pdf`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/pdf',
+        },
+        body: JSON.stringify(formData),
+      });
+
+      if (!response.ok) {
+        const errorBody = await response.json().catch(() => ({}));
+        throw new Error(errorBody?.detail || errorBody?.message || 'Unable to generate the emergency loan PDF.');
+      }
+
+      const blob = await response.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const previewWindow = window.open(objectUrl, PDF_PREVIEW_WINDOW_NAME);
+
+      if (previewWindow) {
+        previewWindow.focus();
+      }
+
+      setTimeout(() => URL.revokeObjectURL(objectUrl), 30000);
+    } catch (error) {
+      alert(`Print Error: ${error.message}`);
+    } finally {
+      setPrinting(false);
+    }
+  };
 
   useEffect(() => {
     let isMounted = true;
@@ -475,8 +512,11 @@ function Emergency_Loan() {
             </div>
 
           </div>
-           <div className="p-8 pt-0">
-            <button type="submit" disabled={loading} className="bg-[#66B538] text-white px-5 py-2 rounded hover:bg-[#5aa12b] transition-colors text-sm font-semibold disabled:opacity-50 float-right mb-12">
+           <div className="p-8 pt-0 flex flex-wrap gap-3 justify-end">
+            <button type="button" onClick={handlePrintPdf} disabled={printing || loading} className="bg-white border border-[#66B538] text-[#66B538] px-5 py-2 rounded hover:bg-[#EEF6F1] transition-colors text-sm font-semibold disabled:opacity-50 float-right mb-12">
+              {printing ? 'Printing...' : 'Print PDF'}
+            </button>
+            <button type="submit" disabled={loading || printing} className="bg-[#66B538] text-white px-5 py-2 rounded hover:bg-[#5aa12b] transition-colors text-sm font-semibold disabled:opacity-50 float-right mb-12">
               {loading ? 'Processing...' : 'Submit Application'}
             </button>
           </div>
