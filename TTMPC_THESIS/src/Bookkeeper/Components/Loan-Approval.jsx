@@ -38,6 +38,7 @@ const BookkeeperLoanApproval = () => {
     { name: "MIGS Scoring", icon: Activity },
     { name: "Reports", icon: BarChart3 },
     { name: "Audit Trail", icon: History },
+    { name: "Grocery", icon: CreditCard },
   ];
 
   useEffect(() => {
@@ -194,9 +195,10 @@ const BookkeeperLoanApproval = () => {
               "Manage Loans": "/manage-loans",
               Payments: "/payments",
               Accounting: "/accounting",
-              "MIGS Scoring": "/migs-scoring",
+              "MIGS Scoring": "/migs",
               Reports: "/reports",
               "Audit Trail": "/audit-trail",
+              Grocery: "/grocery",
             };
 
             return menuItems.map((item) => {

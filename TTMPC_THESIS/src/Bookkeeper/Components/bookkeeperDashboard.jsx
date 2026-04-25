@@ -71,12 +71,25 @@ const Dashboard = () => {
     { name: "Loan Approval", icon: FileText },
     { name: "Manage Loans", icon: CreditCard },
     { name: "Payments", icon: CreditCard },
-    { name: "Savings Transactions", icon: CreditCard },
     { name: "Accounting", icon: Calculator },
     { name: "MIGS Scoring", icon: Activity },
     { name: "Reports", icon: BarChart3 },
     { name: "Audit Trail", icon: History },
+    { name: "Grocery", icon: CreditCard },
   ];
+
+  const routeMap = {
+    Dashboard: "/dashboard",
+    "Manage Member": "/manage-member",
+    "Loan Approval": "/bookkeeper-loan-approval",
+    "Manage Loans": "/manage-loans",
+    Payments: "/payments",
+    Accounting: "/accounting",
+    "MIGS Scoring": "/migs",
+    Reports: "/reports",
+    "Audit Trail": "/audit-trail",
+    Grocery: "/grocery",
+  };
 
   const handleSignOut = async (e) => {
     e.preventDefault();
@@ -110,11 +123,11 @@ const Dashboard = () => {
               "Loan Approval": "/bookkeeper-loan-approval",
               "Manage Loans": "/manage-loans",
               Payments: "/payments",
-              "Savings Transactions": "/bookkeeper-savings-transactions",
               Accounting: "/accounting",
-              MIGS: "/migs",
+              "MIGS Scoring": "/migs",
               Reports: "/reports",
               "Audit Trail": "/audit-trail",
+              Grocery: "/grocery",
             };
 
             return menuItems.map((item) => {
