@@ -250,7 +250,7 @@ const Member_Approvals = () => {
   const isTrainingTab = activeTab === "Training";
   const isSecretary = portalRole === "secretary";
   const canUseBodActions = !isSecretary;
-  const visibleTabs = isSecretary ? ["Pending"] : ["Pending", "Training", "For Revision", "Official Member"];
+  const visibleTabs = isSecretary ? ["Pending"] : ["Pending", "Training", "For Revision"];
 
   const visiblePageNumbers = useMemo(() => {
     const safeTotal = Math.max(1, totalPages);

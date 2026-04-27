@@ -14,7 +14,9 @@ import {
   ClipboardList,
   BadgeCheck,
   Download,
-  Archive
+  Archive,
+  CalendarDays,
+  Clock3
 } from 'lucide-react';
 import logo from "../../assets/img/ttmpc logo.png";
 
@@ -29,6 +31,8 @@ const Secretary_Attendance = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedMember, setSelectedMember] = useState(null);
   const [editedRemark, setEditedRemark] = useState("");
+  const [editedMeetingDate, setEditedMeetingDate] = useState("");
+  const [editedMeetingTime, setEditedMeetingTime] = useState("");
   const [tableData, setTableData] = useState({
     Pending: [],
     Training: [],
@@ -66,9 +70,10 @@ const Secretary_Attendance = () => {
     if (normalized === "pending") return "Pending";
     if (["training", "1st training", "first training", "training 1", "2nd training", "second training", "training 2"].includes(normalized)) return "Training";
     if (["for revision", "revision"].includes(normalized)) return "For Revision";
+    if (["member", "official member", "approved", "completed", "active"].includes(normalized)) return null;
     // Keep legacy rejected records visible under revision workflow.
     if (normalized === "rejected") return "For Revision";
-    return "Pending";
+    return null;
   };
 
   const formatDisplayDate = (value) => {
@@ -76,6 +81,50 @@ const Secretary_Attendance = () => {
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) return "Not scheduled";
     return date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  };
+
+  const formatDisplayTime = (value) => {
+    if (!value) return "";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "";
+    return date.toLocaleTimeString("en-US", {
+      hour: "numeric",
+      minute: "2-digit",
+    });
+  };
+
+  const formatDateInputValue = (value) => {
+    if (!value) return "";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "";
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  };
+
+  const formatTimeInputValue = (value) => {
+    if (!value) return "";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "";
+    const hours = String(date.getHours()).padStart(2, "0");
+    const minutes = String(date.getMinutes()).padStart(2, "0");
+    return `${hours}:${minutes}`;
+  };
+
+  const buildRecordedAt = (dateValue, timeValue, fallbackValue = new Date()) => {
+    const baseDate = dateValue ? new Date(`${dateValue}T00:00:00`) : new Date(fallbackValue);
+
+    if (Number.isNaN(baseDate.getTime())) {
+      return new Date().toISOString();
+    }
+
+    if (timeValue) {
+      const [hours, minutes] = timeValue.split(":");
+      baseDate.setHours(Number(hours) || 0, Number(minutes) || 0, 0, 0);
+    }
+
+    return baseDate.toISOString();
   };
 
   const getThirdSaturday = (year, monthIndex) => {
@@ -119,14 +168,32 @@ const Secretary_Attendance = () => {
 
   const fetchAttendanceRows = async () => {
     setPageError("");
-    const { data, error } = await supabase
-      .from("member_applications")
-      .select("application_id, first_name, middle_name, surname, email, created_at, application_status, attendance_status, remarks")
-      .order("created_at", { ascending: false });
+    const [{ data, error }, logsResponse] = await Promise.all([
+      supabase
+        .from("member_applications")
+        .select("application_id, first_name, middle_name, surname, email, created_at, application_status, attendance_status, remarks")
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("attendance_logs")
+        .select("application_id, attendance_status, remarks, meeting_date, recorded_at, training_stage")
+        .eq("training_stage", "Training")
+        .order("recorded_at", { ascending: false }),
+    ]);
 
     if (error) {
       setPageError(error.message || "Unable to load attendance records.");
       return;
+    }
+
+    if (logsResponse.error) {
+      console.warn("Unable to load attendance_logs entries:", logsResponse.error.message || logsResponse.error);
+    }
+
+    const attendanceLogMap = new Map();
+    for (const log of logsResponse.data || []) {
+      if (!attendanceLogMap.has(log.application_id)) {
+        attendanceLogMap.set(log.application_id, log);
+      }
     }
 
     const grouped = {
@@ -144,17 +211,25 @@ const Secretary_Attendance = () => {
         .filter(Boolean)
         .join(" ") || "Unnamed Applicant";
 
+      const attendanceLog = attendanceLogMap.get(row.application_id);
       const firstTrainingSchedule = getRuleSchedule(row.created_at || new Date().toISOString());
-      const scheduleDate = firstTrainingSchedule;
+      const scheduleDate = attendanceLog?.meeting_date
+        ? new Date(attendanceLog.meeting_date)
+        : firstTrainingSchedule;
+      const scheduleTime = attendanceLog?.recorded_at ? formatDisplayTime(attendanceLog.recorded_at) : "";
 
       grouped[status].push({
         id: row.application_id,
         applicationId: row.application_id,
         name: fullName,
         email: row.email || "-",
-        schedule: `${formatDisplayDate(scheduleDate.toISOString())} - 9:00 AM`,
+        schedule: attendanceLog
+          ? `${formatDisplayDate(scheduleDate.toISOString())}${scheduleTime ? ` · ${scheduleTime}` : ""}`
+          : formatDisplayDate(scheduleDate.toISOString()),
+        meetingDate: attendanceLog?.meeting_date || "",
+        recordedAt: attendanceLog?.recorded_at || "",
         status: row.attendance_status || "Pending",
-        remarks: row.remarks || "",
+        remarks: attendanceLog?.remarks || row.remarks || "",
       });
     }
 
@@ -179,6 +254,12 @@ const Secretary_Attendance = () => {
 
   const upsertAttendanceLog = async (member, currentTab) => {
     const normalizedTab = String(currentTab || "").trim().toLowerCase();
+    const resolvedMeetingDate = member.meetingDate || editedMeetingDate || "";
+    const resolvedRecordedAt = buildRecordedAt(
+      resolvedMeetingDate,
+      member.meetingTime || editedMeetingTime,
+      member.recordedAt ? new Date(member.recordedAt) : new Date()
+    );
 
     if (normalizedTab !== "training") {
       return {
@@ -196,8 +277,9 @@ const Secretary_Attendance = () => {
       member_email: member.email,
       training_stage: resolvedTrainingStage,
       attendance_status: member.status,
-      remarks: editedRemark,
-      recorded_at: new Date().toISOString(),
+      remarks: member.remarks ?? editedRemark,
+      meeting_date: resolvedMeetingDate || null,
+      recorded_at: resolvedRecordedAt,
       recorded_by: authData?.user?.id || null,
     };
 
@@ -250,6 +332,8 @@ const Secretary_Attendance = () => {
   const openModal = (member) => {
     setSelectedMember(member);
     setEditedRemark(member.remarks);
+    setEditedMeetingDate(member.meetingDate || formatDateInputValue(member.recordedAt));
+    setEditedMeetingTime(formatTimeInputValue(member.recordedAt));
     setIsModalOpen(true);
   };
 
@@ -257,6 +341,8 @@ const Secretary_Attendance = () => {
     setIsModalOpen(false);
     setSelectedMember(null);
     setEditedRemark("");
+    setEditedMeetingDate("");
+    setEditedMeetingTime("");
   };
 
   const saveRemark = async () => {
@@ -547,17 +633,63 @@ const Secretary_Attendance = () => {
             
             {/* Modal Body */}
             <div className="p-6">
-              {/* Info Row */}
-              <div className="flex justify-between mb-6">
-                <div>
-                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Member Name</p>
-                  <p className="font-bold text-gray-800">{selectedMember.name}</p>
-                </div>
-                <div>
-                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Training Date</p>
-                  <p className="font-medium text-gray-800 text-sm">{selectedMember.schedule.split(' - ')[0]}</p>
+              <div className="mb-6 rounded-xl border border-green-100 bg-green-50/70 p-4">
+                <div className="flex items-start gap-3">
+                  <div className="rounded-lg bg-white p-2 text-[#1B5E20] shadow-sm">
+                    <CalendarDays size={18} />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-green-700">Training Session</p>
+                    <p className="mt-1 text-sm text-green-900">
+                      Optional date and time fields below let you override the default schedule for this attendance record.
+                    </p>
+                  </div>
                 </div>
               </div>
+
+              {/* Info Row */}
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 mb-6">
+                <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Member Name</p>
+                  <p className="font-bold text-gray-800">{selectedMember.name}</p>
+                  <p className="text-sm text-gray-500 mt-1">{selectedMember.email}</p>
+                </div>
+                <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Current Schedule</p>
+                  <p className="font-medium text-gray-800 text-sm">{selectedMember.schedule}</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                <div>
+                  <label className="mb-2 flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-gray-400">
+                    <CalendarDays size={14} />
+                    Optional Training Date
+                  </label>
+                  <input
+                    type="date"
+                    className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#65B741]"
+                    value={editedMeetingDate}
+                    onChange={(e) => setEditedMeetingDate(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="mb-2 flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-gray-400">
+                    <Clock3 size={14} />
+                    Optional Training Time
+                  </label>
+                  <input
+                    type="time"
+                    className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#65B741]"
+                    value={editedMeetingTime}
+                    onChange={(e) => setEditedMeetingTime(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <p className="mb-6 text-xs text-gray-500">
+                Leave both fields blank to keep the existing default schedule behavior.
+              </p>
 
               {/* Status Row */}
               <div className="mb-6">
