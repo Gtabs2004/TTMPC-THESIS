@@ -1,5 +1,11 @@
 import { supabase } from '../supabaseClient';
 
+// DEPLOYMENT_TOGGLE: RENEWAL_SIMULATION_HELPER_START
+// This file is dedicated to renewal simulation behavior in the Consolidated loan form.
+// To remove simulation for production, remove the import/effect/UI blocks marked in Consolidated_Loan.jsx,
+// then remove this helper module.
+// DEPLOYMENT_TOGGLE: RENEWAL_SIMULATION_HELPER_END
+
 const toNumber = (value) => {
   const num = Number(value);
   return Number.isFinite(num) ? num : 0;

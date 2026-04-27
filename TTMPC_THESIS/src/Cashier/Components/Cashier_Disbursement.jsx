@@ -252,6 +252,7 @@ const Cashier_Disbursement = () => {
                   <th className="px-4 py-3 text-left font-semibold">Loan ID</th>
                   <th className="px-4 py-3 text-left font-semibold">Member Name</th>
                   <th className="px-4 py-3 text-left font-semibold">Loan Type</th>
+                  <th className="px-4 py-3 text-left font-semibold">Application</th>
                   <th className="px-4 py-3 text-left font-semibold">Principal</th>
                   <th className="px-4 py-3 text-left font-semibold">Interest</th>
                   <th className="px-4 py-3 text-left font-semibold">Term</th>
@@ -262,7 +263,7 @@ const Cashier_Disbursement = () => {
               <tbody>
                 {readyLoans.length === 0 && !loading && (
                   <tr>
-                    <td colSpan={8} className="px-4 py-8 text-center text-gray-500">
+                    <td colSpan={9} className="px-4 py-8 text-center text-gray-500">
                       No loans are currently in ready for disbursement status.
                     </td>
                   </tr>
@@ -273,6 +274,11 @@ const Cashier_Disbursement = () => {
                     <td className="px-4 py-3 text-xs text-gray-700">{loan.loan_id}</td>
                     <td className="px-4 py-3 text-gray-700">{loan.member_name}</td>
                     <td className="px-4 py-3 text-gray-700">{loan.loan_type}</td>
+                    <td className="px-4 py-3 text-gray-700">
+                      <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${String(loan.application_type || '').trim().toLowerCase() === 'renewal' ? 'bg-emerald-100 text-emerald-700' : 'bg-sky-100 text-sky-700'}`}>
+                        {String(loan.application_type || '').trim().toLowerCase() === 'renewal' ? 'Renewal' : 'New'}
+                      </span>
+                    </td>
                     <td className="px-4 py-3 text-gray-700">{formatCurrency(loan.principal_amount || loan.loan_amount)}</td>
                     <td className="px-4 py-3 text-gray-700">{Number(loan.interest_rate || 0)}%</td>
                     <td className="px-4 py-3 text-gray-700">{loan.term_months} months</td>

@@ -154,6 +154,42 @@ const normalizeApplicationType = (value) => {
   return 'new';
 };
 
+const isActiveLoanStatusForRenewal = (value) => {
+  const status = String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ');
+
+  if (!status) return false;
+
+  return [
+    'released',
+    'partially paid',
+    'to be disbursed',
+    'ready for disbursement',
+    'approved',
+    'active',
+    'ongoing',
+  ].includes(status);
+};
+
+async function findActiveLoanForRenewal({ memberId, loanTypeId }) {
+  if (!memberId || !loanTypeId) return null;
+
+  const { data, error } = await supabase
+    .from('loans')
+    .select('control_number, loan_status, application_date')
+    .eq('member_id', memberId)
+    .eq('loan_type_id', loanTypeId)
+    .order('application_date', { ascending: false })
+    .limit(50);
+
+  if (error) throw error;
+
+  return (data || []).find((row) => isActiveLoanStatusForRenewal(row?.loan_status)) || null;
+}
+
 async function getCurrentUser() {
   const {
     data: { user },
@@ -833,7 +869,7 @@ export async function submitUnifiedLoan({
     const memberIdForCoMaker = normalizedEmail ? await resolveCoMakerMemberId(normalizedEmail) : null;
 
     coMakerRows.push({
-      loan_id: controlNumber,
+      loan_id: null,
       member_id: memberIdForCoMaker,
       liability_status: coMaker.liability_status || 'active',
       date_signed: normalizeDateToIso(coMaker.date_signed) ?? new Date().toISOString(),
@@ -847,6 +883,7 @@ export async function submitUnifiedLoan({
   }
 
   const loanTypeId = await getLoanTypeId(loanTypeCode);
+  const isRenewal = normalizedApplicationType === 'renewal';
 
   const payload = {
     control_number: controlNumber,
@@ -865,19 +902,57 @@ export async function submitUnifiedLoan({
     user_email: user.email,
   };
 
-  const { error: loanInsertError } = await supabase.from('loans').insert([payload]);
-  if (loanInsertError) throw loanInsertError;
+  let finalControlNumber = controlNumber;
 
-  if (coMakerRows.length) {
+  if (isRenewal) {
+    const activeLoan = await findActiveLoanForRenewal({ memberId, loanTypeId });
+    if (!activeLoan?.control_number) {
+      throw new Error('No active loan found for renewal. Please ensure the member has an existing active loan for this type.');
+    }
+
+    finalControlNumber = activeLoan.control_number;
+
+    const renewalPayload = {
+      ...payload,
+      control_number: finalControlNumber,
+    };
+
+    const { error: loanUpdateError } = await supabase
+      .from('loans')
+      .update(renewalPayload)
+      .eq('control_number', finalControlNumber)
+      .eq('member_id', memberId);
+
+    if (loanUpdateError) throw loanUpdateError;
+  } else {
+    const { error: loanInsertError } = await supabase.from('loans').insert([payload]);
+    if (loanInsertError) throw loanInsertError;
+  }
+
+  const normalizedCoMakers = coMakerRows.map((row) => ({
+    ...row,
+    loan_id: finalControlNumber,
+  }));
+
+  if (normalizedCoMakers.length) {
+    if (isRenewal) {
+      const { error: coMakerDeleteError } = await supabase
+        .from('co_makers')
+        .delete()
+        .eq('loan_id', finalControlNumber);
+
+      if (coMakerDeleteError) throw coMakerDeleteError;
+    }
+
     const { error: coMakerError } = await supabase
       .from('co_makers')
-      .insert(coMakerRows);
+      .insert(normalizedCoMakers);
 
     if (coMakerError) throw coMakerError;
   }
 
   return {
-    controlNumber,
-    insertedCoMakers: coMakerRows.length,
+    controlNumber: finalControlNumber,
+    insertedCoMakers: normalizedCoMakers.length,
   };
 }

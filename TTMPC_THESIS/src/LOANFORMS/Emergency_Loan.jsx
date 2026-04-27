@@ -2,6 +2,22 @@ import React, { useEffect, useState } from 'react';
 import { fetchLoanPrefill, submitUnifiedLoan } from './loanSubmission';
 import { buildEmergencyPayload, computeLoan } from './loanComputeApi';
 import { formatTinNumber, TIN_FORMATTED_MAX_LENGTH } from './tinFormat';
+import SmartDateInput from '../components/SmartDateInput';
+
+const computeAgeFromDob = (dobValue) => {
+  if (!dobValue) return '';
+  const dob = new Date(dobValue);
+  if (Number.isNaN(dob.getTime())) return '';
+
+  const today = new Date();
+  let age = today.getFullYear() - dob.getFullYear();
+  const monthDiff = today.getMonth() - dob.getMonth();
+  const hasNotHadBirthday = monthDiff < 0 || (monthDiff === 0 && today.getDate() < dob.getDate());
+  if (hasNotHadBirthday) age -= 1;
+
+  if (!Number.isFinite(age) || age < 0) return '';
+  return String(age);
+};
 
 const generateControlNumber = () => {
   const now = new Date();
@@ -205,6 +221,14 @@ function Emergency_Loan() {
     };
   }, []);
 
+  useEffect(() => {
+    const computedAge = computeAgeFromDob(formData.date_of_birth);
+    setFormData((prev) => {
+      if (prev.age === computedAge) return prev;
+      return { ...prev, age: computedAge };
+    });
+  }, [formData.date_of_birth]);
+
   // Auto-fill loan_amount_words when loan_amount_numeric changes
   useEffect(() => {
     if (formData.loan_amount_numeric) {
@@ -347,8 +371,17 @@ function Emergency_Loan() {
             <div><label className={labelStyles}>Latest Net Pay *</label><input type="number" name="latest_net_pay" value={formData.latest_net_pay} onChange={handleChange} className={inputStyles} required /></div>
             <div><label className={labelStyles}>Share Capital *</label><input type="number" name="share_capital" value={formData.share_capital} onChange={handleChange} className={inputStyles} required /></div>
             <div className="md:col-span-3"><label className={labelStyles}>Residence Address *</label><input name="residence_address" value={formData.residence_address} onChange={handleChange} className={inputStyles} required /></div>
-            <div><label className={labelStyles}>Date of Birth *</label><input type="date" name="date_of_birth" value={formData.date_of_birth} onChange={handleChange} className={inputStyles} required /></div>
-            <div><label className={labelStyles}>Age *</label><input type="number" name="age" value={formData.age} onChange={handleChange} className={inputStyles} required /></div>
+            <div>
+              <SmartDateInput
+                mode="dob"
+                name="date_of_birth"
+                value={formData.date_of_birth}
+                onChange={(isoDate) => setFormData((prev) => ({ ...prev, date_of_birth: isoDate || '' }))}
+                label="Date of Birth"
+                required
+              />
+            </div>
+            <div><label className={labelStyles}>Age *</label><input type="number" name="age" value={formData.age} readOnly className={inputStyles} required /></div>
             <div><label className={labelStyles}>Civil Status *</label><input name="civil_status" value={formData.civil_status} onChange={handleChange} className={inputStyles} required /></div>
             <div><label className={labelStyles}>Gender *</label><input name="gender" value={formData.gender} onChange={handleChange} className={inputStyles} required /></div>
             <div><label className={labelStyles}>TIN No. *</label><input name="tin_no" value={formData.tin_no} onChange={handleChange} inputMode="numeric" maxLength={TIN_FORMATTED_MAX_LENGTH} placeholder="123-456-789-000" className={inputStyles} required /></div>

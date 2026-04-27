@@ -169,6 +169,7 @@ const Treasurer_ApprovalDetails = () => {
               term,
               loan_status,
               application_status,
+              application_type,
               bookkeeper_internal_remarks,
               bookkeeper_reviewed_at,
               manager_review_requested_at,
@@ -327,6 +328,9 @@ const Treasurer_ApprovalDetails = () => {
             loanType: resolvedLoanType,
             recommendedAmount: formatCurrency(data.loan_amount),
             term: `${data.term || 0} Months`,
+            applicationType: isKoicaSource
+              ? 'N/A'
+              : (String(data.application_type || '').trim().toLowerCase() === 'renewal' ? 'Renewal' : 'New'),
             migsStatus: isKoicaSource ? 'N/A' : (resolvedMember?.is_bona_fide ? 'MIGS' : 'NON-MIGS'),
             loanPurpose: data.loan_purpose || data.raw_payload?.optionalFields?.loan_purpose || 'N/A',
             employerPosition: resolvedEmployerPosition,
@@ -579,6 +583,12 @@ const Treasurer_ApprovalDetails = () => {
                 <div>
                   <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Term</p>
                   <p className="font-bold text-gray-800">{loanDetails.summary.term}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Application Type</p>
+                  <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${loanDetails.summary.applicationType === 'Renewal' ? 'bg-emerald-100 text-emerald-700' : 'bg-sky-100 text-sky-700'}`}>
+                    {loanDetails.summary.applicationType}
+                  </span>
                 </div>
                 <div>
                   <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">MIGS Status</p>

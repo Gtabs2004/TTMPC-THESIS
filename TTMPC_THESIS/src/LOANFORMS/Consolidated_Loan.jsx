@@ -1,8 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { fetchLoanPrefill, submitUnifiedLoan } from './loanSubmission';
 import { buildConsolidatedPayload, computeLoan } from './loanComputeApi';
+// DEPLOYMENT_TOGGLE: RENEWAL_SIMULATION_IMPORT_START (remove for production rollout if simulation is disabled)
 import { runRenewalSimulation } from './renewalSimulation';
+// DEPLOYMENT_TOGGLE: RENEWAL_SIMULATION_IMPORT_END
 import { formatTinNumber, TIN_FORMATTED_MAX_LENGTH } from './tinFormat';
+import SmartDateInput from '../components/SmartDateInput';
 
 // Function to generate control number: CL-YYYYMMDD-XXXX
 const generateControlNumber = () => {
@@ -65,6 +68,21 @@ const CONSOLIDATED_LOAN_AMOUNT_OPTIONS = Array.from(
 
 const formatLoanAmountOption = (amount) => Number(amount).toLocaleString('en-PH');
 
+const computeAgeFromDob = (dobValue) => {
+  if (!dobValue) return '';
+  const dob = new Date(dobValue);
+  if (Number.isNaN(dob.getTime())) return '';
+
+  const today = new Date();
+  let age = today.getFullYear() - dob.getFullYear();
+  const monthDiff = today.getMonth() - dob.getMonth();
+  const hasNotHadBirthday = monthDiff < 0 || (monthDiff === 0 && today.getDate() < dob.getDate());
+  if (hasNotHadBirthday) age -= 1;
+
+  if (!Number.isFinite(age) || age < 0) return '';
+  return String(age);
+};
+
 function Consolidated_Loan() {
 
   const inputStyles = "border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-[#66B538] outline-none w-full bg-white text-sm transition-all";
@@ -78,9 +96,12 @@ function Consolidated_Loan() {
   const [printing, setPrinting] = useState(false);
   const [computedLoan, setComputedLoan] = useState(null);
   const [memberMeta, setMemberMeta] = useState({ memberId: null, isBonaFide: null });
+  // DEPLOYMENT_TOGGLE: RENEWAL_SIMULATION_STATE_START
   const [renewalSimDate, setRenewalSimDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [renewalSimLoading, setRenewalSimLoading] = useState(false);
   const [renewalSimResult, setRenewalSimResult] = useState(null);
+  const [simulateSixMonthPaid, setSimulateSixMonthPaid] = useState(false);
+  // DEPLOYMENT_TOGGLE: RENEWAL_SIMULATION_STATE_END
   const [formData, setFormData] = useState({
     application_type: 'New',
     control_no: generateControlNumber(),
@@ -242,6 +263,14 @@ function Consolidated_Loan() {
   }, [formData.loan_amount_numeric]);
 
   useEffect(() => {
+    const computedAge = computeAgeFromDob(formData.date_of_birth);
+    setFormData((prev) => {
+      if (prev.age === computedAge) return prev;
+      return { ...prev, age: computedAge };
+    });
+  }, [formData.date_of_birth]);
+
+  useEffect(() => {
     const principal = Number(formData.loan_amount_numeric || 0);
     const term = Number(formData.loan_term_months || 0);
 
@@ -268,6 +297,7 @@ function Consolidated_Loan() {
     return () => clearTimeout(timer);
   }, [formData.loan_amount_numeric, formData.loan_term_months]);
 
+  // DEPLOYMENT_TOGGLE: RENEWAL_SIMULATION_EFFECT_START
   useEffect(() => {
     let alive = true;
 
@@ -300,6 +330,7 @@ function Consolidated_Loan() {
       alive = false;
     };
   }, [isRenewalApplication, memberMeta.memberId, renewalSimDate]);
+  // DEPLOYMENT_TOGGLE: RENEWAL_SIMULATION_EFFECT_END
 
   // 3. LOGIC: Database Insertion
   const handleSubmit = async (e) => {
@@ -369,6 +400,7 @@ function Consolidated_Loan() {
     return loanAmountNumber > shareCapitalNumber * policyMultiplier;
   }, [loanAmountNumber, shareCapitalNumber, policyMultiplier]);
 
+  // DEPLOYMENT_TOGGLE: RENEWAL_SIMULATION_DERIVED_VALUES_START
   const renewalDeductions = useMemo(() => {
     const existingBalance = Number(renewalSimResult?.existingBalance || 0);
     const unpaidInterest = Number(renewalSimResult?.unpaidInterest || 0);
@@ -390,6 +422,22 @@ function Consolidated_Loan() {
       netProceeds,
     };
   }, [renewalSimResult, computedLoan, loanAmountNumber]);
+
+  const effectiveContributions = useMemo(() => {
+    const paidMonths = simulateSixMonthPaid
+      ? 6
+      : Number(renewalSimResult?.contributions?.paidMonths ?? 0);
+    const satisfied = simulateSixMonthPaid
+      ? true
+      : Boolean(renewalSimResult?.contributions?.satisfied);
+
+    return { paidMonths, satisfied };
+  }, [simulateSixMonthPaid, renewalSimResult]);
+
+  const effectiveViableForRenewal = useMemo(() => {
+    return Boolean(effectiveContributions.satisfied) && Boolean(renewalSimResult?.hasActiveLoan);
+  }, [effectiveContributions, renewalSimResult]);
+  // DEPLOYMENT_TOGGLE: RENEWAL_SIMULATION_DERIVED_VALUES_END
 
   return (
     <div className="flex flex-col min-h-screen bg-gray-100 pb-20">
@@ -432,6 +480,7 @@ function Consolidated_Loan() {
               </div>
             </div>
 
+            {/* DEPLOYMENT_TOGGLE: RENEWAL_SIMULATION_UI_START */}
             {/* Renewal Simulation Tools (supplemental; no structural change to existing form sections) */}
             {isRenewalApplication ? (
             <div className="mt-4 bg-white rounded-xl p-5 border border-gray-200 shadow-sm">
@@ -441,6 +490,15 @@ function Consolidated_Loan() {
                   <p className="text-[11px] text-gray-500 mt-1">
                     Select a date to simulate 6-month contribution history and renewal refinancing deductions.
                   </p>
+                  <label className="mt-2 inline-flex items-center gap-2 text-[11px] text-gray-700 font-semibold">
+                    <input
+                      type="checkbox"
+                      checked={simulateSixMonthPaid}
+                      onChange={(e) => setSimulateSixMonthPaid(e.target.checked)}
+                      className="h-4 w-4 accent-[#66B538]"
+                    />
+                    Simulate paid 6 months already
+                  </label>
                 </div>
                 <div className="w-full md:w-64">
                   <label className="block text-[10px] uppercase font-bold text-gray-500">Simulation Date</label>
@@ -459,10 +517,10 @@ function Consolidated_Loan() {
                   <p className="text-sm font-semibold text-gray-800 mt-1">
                     {renewalSimLoading
                       ? 'Checking...'
-                      : (renewalSimResult?.contributions?.satisfied ? 'Satisfied' : 'Not yet')}
+                      : (effectiveContributions.satisfied ? 'Satisfied' : 'Not yet')}
                   </p>
                   <p className="text-[11px] text-gray-500 mt-1">
-                    Paid months: {renewalSimResult?.contributions?.paidMonths ?? 0}/6
+                    Paid months: {effectiveContributions.paidMonths}/6
                   </p>
                 </div>
 
@@ -482,8 +540,8 @@ function Consolidated_Loan() {
 
                 <div className="rounded-lg border border-gray-100 p-4 bg-gray-50">
                   <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Renewal Status</p>
-                  <p className={`text-sm font-extrabold mt-1 ${renewalSimResult?.viableForRenewal ? 'text-green-700' : 'text-gray-700'}`}>
-                    {renewalSimResult?.viableForRenewal ? 'Viable for Renewal' : 'Not viable'}
+                  <p className={`text-sm font-extrabold mt-1 ${effectiveViableForRenewal ? 'text-green-700' : 'text-gray-700'}`}>
+                    {effectiveViableForRenewal ? 'Viable for Renewal' : 'Not viable'}
                   </p>
                   <p className="text-[11px] text-gray-500 mt-1">Requires 6 paid months + an active loan.</p>
                 </div>
@@ -545,6 +603,7 @@ function Consolidated_Loan() {
               </div>
             </div>
             ) : null}
+            {/* DEPLOYMENT_TOGGLE: RENEWAL_SIMULATION_UI_END */}
           </div>
         </section>
 
@@ -569,8 +628,17 @@ function Consolidated_Loan() {
               <div className="relative"><span className="absolute left-3 top-2 text-gray-400 text-xs">₱</span><input type="number" name="share_capital" value={formData.share_capital} onChange={handleChange} className={`${inputStyles} pl-7`} required /></div>
             </div>
             <div className="md:col-span-3"><label className={labelStyles}>Residence Address <span className="text-red-500">*</span></label><input type="text" name="residence_address" value={formData.residence_address} onChange={handleChange} className={inputStyles} required /></div>
-            <div><label className={labelStyles}>Date of Birth <span className="text-red-500">*</span></label><input type="date" name="date_of_birth" value={formData.date_of_birth} onChange={handleChange} className={inputStyles} required /></div>
-            <div><label className={labelStyles}>Age <span className="text-red-500">*</span></label><input type="number" name="age" value={formData.age} onChange={handleChange} className={inputStyles} required /></div>
+            <div>
+              <SmartDateInput
+                mode="dob"
+                name="date_of_birth"
+                value={formData.date_of_birth}
+                onChange={(isoDate) => setFormData((prev) => ({ ...prev, date_of_birth: isoDate || '' }))}
+                label="Date of Birth"
+                required
+              />
+            </div>
+            <div><label className={labelStyles}>Age <span className="text-red-500">*</span></label><input type="number" name="age" value={formData.age} readOnly className={inputStyles} required /></div>
             <div>
               <label className={labelStyles}>Civil Status <span className="text-red-500">*</span></label>
               <select name="civil_status" value={formData.civil_status} onChange={handleChange} className={inputStyles} required><option value="">Select Status</option><option>Single</option><option>Married</option><option>Widowed</option></select>

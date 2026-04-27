@@ -55,6 +55,7 @@ const Treasurer_Approval = () => {
           loan_amount,
           term,
           loan_status,
+          application_type,
           manager_review_requested_at,
           application_date,
           member:member_id (
@@ -187,6 +188,9 @@ const Treasurer_Approval = () => {
       source: loan.source,
       name: memberName,
       type: loanTypeName,
+      applicationType: isKoica
+        ? 'N/A'
+        : (String(loan.application_type || 'new').trim().toLowerCase() === 'renewal' ? 'Renewal' : 'New'),
       amount: loan.loan_amount ? `\u20B1${Number(loan.loan_amount).toLocaleString()}` : "\u20B10",
       term: `${loan.term || 0} Months`,
       status: migsStatus,
@@ -319,6 +323,7 @@ const Treasurer_Approval = () => {
                     <th className="p-5 font-bold">Loan ID</th>
                     <th className="p-5 font-bold">Member Name</th>
                     <th className="p-5 font-bold">Loan Type</th>
+                    <th className="p-5 font-bold">Application</th>
                     <th className="p-5 font-bold">Amount</th>
                     <th className="p-5 font-bold">Term</th>
                     <th className="p-5 font-bold">MIGS Status</th>
@@ -330,19 +335,19 @@ const Treasurer_Approval = () => {
                 <tbody>
                   {loading ? (
                     <tr>
-                      <td colSpan="9" className="p-5 text-center text-gray-500">
+                      <td colSpan="10" className="p-5 text-center text-gray-500">
                         Loading applications...
                       </td>
                     </tr>
                   ) : fetchError ? (
                     <tr>
-                      <td colSpan="9" className="p-5 text-center text-red-600">
+                      <td colSpan="10" className="p-5 text-center text-red-600">
                         Failed to load loans: {fetchError}
                       </td>
                     </tr>
                   ) : displayLoans.length === 0 ? (
                     <tr>
-                      <td colSpan="9" className="p-5 text-center text-gray-500">
+                      <td colSpan="10" className="p-5 text-center text-gray-500">
                         No loans found.
                       </td>
                     </tr>
@@ -354,6 +359,11 @@ const Treasurer_Approval = () => {
                         <td className="p-5 text-sm">
                           <span className={`px-3 py-1.5 rounded-full text-xs font-bold ${getLoanTypeStyle(loan.type)}`}>
                             {loan.type}
+                          </span>
+                        </td>
+                        <td className="p-5 text-sm">
+                          <span className={`px-3 py-1.5 rounded-full text-[11px] font-bold tracking-wider ${loan.applicationType === 'Renewal' ? 'bg-emerald-100 text-emerald-700' : 'bg-sky-100 text-sky-700'}`}>
+                            {loan.applicationType}
                           </span>
                         </td>
                         <td className="p-5 text-sm font-bold text-gray-900">{loan.amount}</td>

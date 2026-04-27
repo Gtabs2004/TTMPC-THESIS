@@ -962,7 +962,7 @@ async def get_cashier_ready_for_disbursement_loans():
         response = (
             supabase.table("loans")
             .select(
-                "control_number,loan_amount,principal_amount,interest_rate,term,loan_status,application_status,application_date," \
+                "control_number,loan_amount,principal_amount,interest_rate,term,loan_status,application_status,application_type,application_date," \
                 "member:member_id(first_name,last_name),loan_type:loan_type_id(name)"
             )
             .order("application_date", desc=True)
@@ -990,6 +990,7 @@ async def get_cashier_ready_for_disbursement_loans():
                     "term_months": int(row.get("term") or 0),
                     "loan_status": row.get("loan_status") or "ready for disbursement",
                     "application_status": row.get("application_status") or row.get("loan_status") or "ready for disbursement",
+                    "application_type": row.get("application_type") or "new",
                     "application_date": row.get("application_date"),
                 }
             )
