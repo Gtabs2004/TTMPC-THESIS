@@ -6,6 +6,8 @@ import { Mail, Lock, AlertCircle } from 'lucide-react';
 const Verification = () => {
   const navigate = useNavigate();
 
+  const missingAccountTables = new Set();
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   
@@ -13,14 +15,27 @@ const Verification = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [emailError, setEmailError] = useState("");
 
+  const isMissingTableError = (error) => {
+    const code = String(error?.code || '').toUpperCase();
+    const message = String(error?.message || '').toLowerCase();
+    return code === 'PGRST205' || message.includes('could not find the table') || message.includes('not found');
+  };
+
   const getMemberAccountByEmail = async (normalizedEmail) => {
-    for (const tableName of ["member_accounts", "member_account"]) {
+    for (const tableName of ["member_account", "member_accounts"]) {
+      if (missingAccountTables.has(tableName)) continue;
+
       const { data, error } = await supabase
         .from(tableName)
         .select("*")
         .ilike("email", normalizedEmail)
         .limit(1)
         .maybeSingle();
+
+      if (error && isMissingTableError(error)) {
+        missingAccountTables.add(tableName);
+        continue;
+      }
 
       if (!error && data) {
         return { account: data, tableName, error: null };

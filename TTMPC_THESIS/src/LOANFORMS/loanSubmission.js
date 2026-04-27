@@ -178,32 +178,235 @@ async function getCurrentUserIfAny() {
   return user || null;
 }
 
-async function getMemberIdForUser(userId) {
+const isMissingTableError = (error) => {
+  const code = String(error?.code || '').toUpperCase();
+  const message = String(error?.message || '').toLowerCase();
+  return code === 'PGRST205' || message.includes('could not find the table') || message.includes('not found');
+};
+
+const isMissingColumnError = (error) => {
+  const code = String(error?.code || '').toUpperCase();
+  const message = String(error?.message || '').toLowerCase();
+  return code === 'PGRST204' || message.includes('could not find the') || message.includes('column');
+};
+
+async function findMemberByMembershipId(membershipId) {
+  const normalizedMembershipId = String(membershipId || '').trim();
+  if (!normalizedMembershipId) return null;
+
   const { data, error } = await supabase
     .from('member')
-    .select('id')
-    .eq('id', userId)
+    .select('id, membership_id')
+    .eq('membership_id', normalizedMembershipId)
     .limit(1)
     .maybeSingle();
 
   if (error) throw error;
-  if (!data?.id) {
+  return data || null;
+}
+
+async function resolveMemberRowForUser(user) {
+  const authUserId = String(user?.id || '').trim();
+  const authEmail = String(user?.email || '').trim().toLowerCase();
+
+  // Fast path for projects where member.id == auth user id.
+  if (authUserId) {
+    const { data: byDirectId, error: directError } = await supabase
+      .from('member')
+      .select('id, membership_id')
+      .eq('id', authUserId)
+      .limit(1)
+      .maybeSingle();
+
+    if (!directError && byDirectId?.id) {
+      return byDirectId;
+    }
+  }
+
+  // Optional schema support where member has auth_user_id.
+  if (authUserId) {
+    const { data: byAuthUserId, error: byAuthError } = await supabase
+      .from('member')
+      .select('id, membership_id')
+      .eq('auth_user_id', authUserId)
+      .limit(1)
+      .maybeSingle();
+
+    if (!byAuthError && byAuthUserId?.id) {
+      return byAuthUserId;
+    }
+
+    if (byAuthError && !isMissingColumnError(byAuthError)) {
+      // Unexpected member table error should be visible to caller.
+      throw byAuthError;
+    }
+  }
+
+  const accountTables = ['member_account', 'member_accounts'];
+  let accountRow = null;
+
+  for (const tableName of accountTables) {
+    if (authUserId) {
+      const { data, error } = await supabase
+        .from(tableName)
+        .select('user_id, auth_user_id, membership_id, email')
+        .eq('auth_user_id', authUserId)
+        .limit(1)
+        .maybeSingle();
+
+      if (error && isMissingTableError(error)) {
+        continue;
+      }
+      if (error) {
+        throw error;
+      }
+      if (data) {
+        accountRow = data;
+        break;
+      }
+    }
+
+    if (authUserId) {
+      const { data, error } = await supabase
+        .from(tableName)
+        .select('user_id, auth_user_id, membership_id, email')
+        .eq('user_id', authUserId)
+        .limit(1)
+        .maybeSingle();
+
+      if (error && isMissingTableError(error)) {
+        continue;
+      }
+      if (error) {
+        throw error;
+      }
+      if (data) {
+        accountRow = data;
+        break;
+      }
+    }
+
+    if (authEmail) {
+      const { data, error } = await supabase
+        .from(tableName)
+        .select('user_id, auth_user_id, membership_id, email')
+        .ilike('email', authEmail)
+        .limit(1)
+        .maybeSingle();
+
+      if (error && isMissingTableError(error)) {
+        continue;
+      }
+      if (error) {
+        throw error;
+      }
+      if (data) {
+        accountRow = data;
+        break;
+      }
+    }
+  }
+
+  // Policy-aligned shortcut: loan insert checks member_account.user_id = loans.member_id.
+  // Use this mapping directly so submission still works even when member SELECT is restricted by RLS.
+  if (accountRow?.user_id) {
+    return {
+      id: accountRow.user_id,
+      membership_id: accountRow.membership_id || null,
+    };
+  }
+
+  if (accountRow?.membership_id) {
+    const byMembership = await findMemberByMembershipId(accountRow.membership_id);
+    if (byMembership?.id) return byMembership;
+  }
+
+  if (accountRow?.user_id) {
+    const { data: byAccountUserId, error: accountUserIdError } = await supabase
+      .from('member')
+      .select('id, membership_id')
+      .eq('id', accountRow.user_id)
+      .limit(1)
+      .maybeSingle();
+
+    if (!accountUserIdError && byAccountUserId?.id) {
+      return byAccountUserId;
+    }
+  }
+
+  // Fallback: resolve membership from latest member application by authenticated email.
+  if (authEmail) {
+    const { data: latestApplication, error: appError } = await supabase
+      .from('member_applications')
+      .select('membership_id')
+      .ilike('email', authEmail)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (!appError && latestApplication?.membership_id) {
+      const byMembershipFromApp = await findMemberByMembershipId(latestApplication.membership_id);
+      if (byMembershipFromApp?.id) return byMembershipFromApp;
+    }
+  }
+
+  // Fallback: resolve membership from personal data sheet by authenticated email.
+  if (authEmail) {
+    const { data: pdsRow, error: pdsError } = await supabase
+      .from('personal_data_sheet')
+      .select('membership_number_id')
+      .ilike('email', authEmail)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (!pdsError && pdsRow?.membership_number_id) {
+      const byMembershipFromPds = await findMemberByMembershipId(pdsRow.membership_number_id);
+      if (byMembershipFromPds?.id) return byMembershipFromPds;
+    }
+  }
+
+  // Optional fallback for schemas that keep email in member.
+  if (authEmail) {
+    const { data: byMemberEmail, error: byMemberEmailError } = await supabase
+      .from('member')
+      .select('id, membership_id')
+      .ilike('email', authEmail)
+      .limit(1)
+      .maybeSingle();
+
+    if (byMemberEmailError && !isMissingColumnError(byMemberEmailError)) {
+      throw byMemberEmailError;
+    }
+
+    if (!byMemberEmailError && byMemberEmail?.id) {
+      return byMemberEmail;
+    }
+  }
+
+  return null;
+}
+
+async function getMemberIdForUser(userId) {
+  const user = typeof userId === 'string'
+    ? { id: userId }
+    : (userId || {});
+
+  const memberRow = await resolveMemberRowForUser(user);
+  if (!memberRow?.id) {
     throw new Error('No member profile found for the logged-in account.');
   }
 
-  return data.id;
+  return memberRow.id;
 }
 
 async function getOptionalMemberIdForUser(userId) {
-  const { data, error } = await supabase
-    .from('member')
-    .select('id')
-    .eq('id', userId)
-    .limit(1)
-    .maybeSingle();
+  const user = typeof userId === 'string'
+    ? { id: userId }
+    : (userId || {});
 
-  if (error) throw error;
-  return data?.id || null;
+  const memberRow = await resolveMemberRowForUser(user);
+  return memberRow?.id || null;
 }
 
 async function getLoanTypeId(loanTypeCode) {
@@ -329,6 +532,7 @@ export async function fetchLoanPrefill() {
 
     return {
       member_id: m.id ?? null,
+      is_bona_fide: m.is_bona_fide ?? r.is_bona_fide ?? null,
       surname: r.surname ?? r.last_name ?? m.last_name ?? null,
       first_name: r.first_name ?? m.first_name ?? null,
       middle_name: r.middle_name ?? r.middle_initial ?? m.middle_initial ?? null,
@@ -373,15 +577,37 @@ export async function fetchLoanPrefill() {
   let latestShareCapital = null;
   let shareCapitalFallbackLabel = null;
 
-  const { data: memberData, error: memberError } = await supabase
-    .from('member')
-    .select('id, membership_id, first_name, last_name, middle_initial')
-    .eq('id', user.id)
-    .limit(1)
-    .maybeSingle();
+  try {
+    const resolvedMemberRow = await resolveMemberRowForUser(user);
+    if (resolvedMemberRow?.id) {
+      memberRow = {
+        id: resolvedMemberRow.id,
+        membership_id: resolvedMemberRow.membership_id ?? null,
+        first_name: resolvedMemberRow.first_name ?? null,
+        last_name: resolvedMemberRow.last_name ?? null,
+        middle_initial: resolvedMemberRow.middle_initial ?? null,
+        is_bona_fide: resolvedMemberRow.is_bona_fide ?? null,
+      };
+    }
+  } catch (_err) {
+    // Keep prefill resilient when member/account linkage lookup is restricted.
+  }
 
-  if (!memberError && memberData) {
-    memberRow = memberData;
+  // Try to enrich member details when member table is readable under current RLS.
+  if (memberRow?.id) {
+    const { data: memberData, error: memberError } = await supabase
+      .from('member')
+      .select('id, membership_id, first_name, last_name, middle_initial, is_bona_fide')
+      .eq('id', memberRow.id)
+      .limit(1)
+      .maybeSingle();
+
+    if (!memberError && memberData) {
+      memberRow = {
+        ...memberRow,
+        ...memberData,
+      };
+    }
   }
 
   // Source 0: authoritative latest share capital from capital_build_up.
@@ -597,8 +823,8 @@ export async function submitUnifiedLoan({
 
   const user = await getCurrentUser();
   const memberId = requireMemberProfile
-    ? await getMemberIdForUser(user.id)
-    : await getOptionalMemberIdForUser(user.id);
+    ? await getMemberIdForUser(user)
+    : await getOptionalMemberIdForUser(user);
 
   const coMakerRows = [];
 

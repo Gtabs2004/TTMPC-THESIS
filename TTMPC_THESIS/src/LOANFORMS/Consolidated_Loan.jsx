@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { fetchLoanPrefill, submitUnifiedLoan } from './loanSubmission';
 import { buildConsolidatedPayload, computeLoan } from './loanComputeApi';
+import { runRenewalSimulation } from './renewalSimulation';
 import { formatTinNumber, TIN_FORMATTED_MAX_LENGTH } from './tinFormat';
 
 // Function to generate control number: CL-YYYYMMDD-XXXX
@@ -75,6 +76,11 @@ function Consolidated_Loan() {
   // 1. STATE LOGIC: Form Data State
   const [loading, setLoading] = useState(false);
   const [printing, setPrinting] = useState(false);
+  const [computedLoan, setComputedLoan] = useState(null);
+  const [memberMeta, setMemberMeta] = useState({ memberId: null, isBonaFide: null });
+  const [renewalSimDate, setRenewalSimDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [renewalSimLoading, setRenewalSimLoading] = useState(false);
+  const [renewalSimResult, setRenewalSimResult] = useState(null);
   const [formData, setFormData] = useState({
     application_type: 'New',
     control_no: generateControlNumber(),
@@ -163,6 +169,7 @@ function Consolidated_Loan() {
 
   const isMarriedCivilStatus = String(formData.civil_status || '').trim().toLowerCase() === 'married';
   const hasComputedAmortization = Number(formData.monthly_amortization || 0) > 0;
+  const isRenewalApplication = formData.application_type === 'Renewal';
 
   useEffect(() => {
     let isMounted = true;
@@ -176,6 +183,11 @@ function Consolidated_Loan() {
           setFormData((prev) => ({ ...prev, user_email: userEmail || prev.user_email }));
           return;
         }
+
+        setMemberMeta({
+          memberId: profile.member_id ?? null,
+          isBonaFide: profile.is_bona_fide ?? null,
+        });
 
         setFormData((prev) => {
           const tinValue = profile.tin_number ?? profile.tin_no ?? prev.tin_no;
@@ -241,6 +253,7 @@ function Consolidated_Loan() {
     const timer = setTimeout(async () => {
       try {
         const data = await computeLoan(buildConsolidatedPayload(formData));
+        setComputedLoan(data || null);
         setFormData((prev) => ({
           ...prev,
           monthly_amortization: data?.monthly_amortization ? String(data.monthly_amortization) : prev.monthly_amortization,
@@ -248,11 +261,45 @@ function Consolidated_Loan() {
         }));
       } catch (_err) {
         // Keep form usable even if compute API is temporarily unavailable.
+        setComputedLoan(null);
       }
     }, 350);
 
     return () => clearTimeout(timer);
   }, [formData.loan_amount_numeric, formData.loan_term_months]);
+
+  useEffect(() => {
+    let alive = true;
+
+    const run = async () => {
+      if (!isRenewalApplication || !memberMeta.memberId || !renewalSimDate) {
+        setRenewalSimResult(null);
+        setRenewalSimLoading(false);
+        return;
+      }
+
+      setRenewalSimLoading(true);
+      try {
+        const result = await runRenewalSimulation({
+          memberId: memberMeta.memberId,
+          asOfDate: renewalSimDate,
+          loanTypeCode: 'CONSOLIDATED',
+          monthsRequired: 6,
+        });
+
+        if (alive) setRenewalSimResult(result);
+      } catch (_err) {
+        if (alive) setRenewalSimResult(null);
+      } finally {
+        if (alive) setRenewalSimLoading(false);
+      }
+    };
+
+    run();
+    return () => {
+      alive = false;
+    };
+  }, [isRenewalApplication, memberMeta.memberId, renewalSimDate]);
 
   // 3. LOGIC: Database Insertion
   const handleSubmit = async (e) => {
@@ -276,6 +323,11 @@ function Consolidated_Loan() {
           loan_purpose: formData.loan_purpose || null,
           monthly_amortization: formData.monthly_amortization || null,
           source_of_income: formData.source_of_income || null,
+          net_proceeds: isRenewalApplication ? (computedLoan?.net_proceeds ?? null) : null,
+          service_fee: isRenewalApplication ? (computedLoan?.deductions?.service_fee ?? null) : null,
+          insurance_fee: isRenewalApplication ? (computedLoan?.deductions?.insurance_fee ?? null) : null,
+          notarial_fee: isRenewalApplication ? (computedLoan?.deductions?.notarial_fee ?? null) : null,
+          cbu_deduction: isRenewalApplication ? (computedLoan?.deductions?.cbu_deduction ?? null) : null,
           consolidated_notes: null,
         },
       });
@@ -288,6 +340,56 @@ function Consolidated_Loan() {
       setLoading(false);
     }
   };
+
+  const fmtMoney = (value) => {
+    const number = Number(value || 0);
+    return `₱${Number.isFinite(number) ? number.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00'}`;
+  };
+
+  const policyMultiplier = useMemo(() => {
+    if (memberMeta.isBonaFide === true) return 5;
+    if (memberMeta.isBonaFide === false) return 3;
+    return 3;
+  }, [memberMeta.isBonaFide]);
+
+  const loanAmountNumber = Number(formData.loan_amount_numeric || 0);
+  const shareCapitalNumber = Number(formData.share_capital || 0);
+  const takeHomePayNumber = Number(formData.latest_net_pay || 0);
+  const monthlyAmortNumber = Number(formData.monthly_amortization || 0);
+
+  const takeHomeEligibilityPass = useMemo(() => {
+    if (!loanAmountNumber) return true;
+    if (!Number.isFinite(monthlyAmortNumber) || monthlyAmortNumber <= 0) return true;
+    if (!Number.isFinite(takeHomePayNumber) || takeHomePayNumber <= 0) return false;
+    return monthlyAmortNumber <= takeHomePayNumber * 0.4;
+  }, [loanAmountNumber, monthlyAmortNumber, takeHomePayNumber]);
+
+  const debtCeilingExceeded = useMemo(() => {
+    if (!loanAmountNumber || !shareCapitalNumber) return false;
+    return loanAmountNumber > shareCapitalNumber * policyMultiplier;
+  }, [loanAmountNumber, shareCapitalNumber, policyMultiplier]);
+
+  const renewalDeductions = useMemo(() => {
+    const existingBalance = Number(renewalSimResult?.existingBalance || 0);
+    const unpaidInterest = Number(renewalSimResult?.unpaidInterest || 0);
+    const serviceFee = Number(computedLoan?.deductions?.service_fee || 0);
+    const insuranceFee = Number(computedLoan?.deductions?.insurance_fee || 0);
+    const notarialFee = Number(computedLoan?.deductions?.notarial_fee || 0);
+    const cbuDeduction = Number(computedLoan?.deductions?.cbu_deduction || 0);
+    const total = existingBalance + unpaidInterest + serviceFee + insuranceFee + notarialFee + cbuDeduction;
+    const netProceeds = Math.max(0, loanAmountNumber - total);
+
+    return {
+      existingBalance,
+      unpaidInterest,
+      serviceFee,
+      insuranceFee,
+      notarialFee,
+      cbuDeduction,
+      total,
+      netProceeds,
+    };
+  }, [renewalSimResult, computedLoan, loanAmountNumber]);
 
   return (
     <div className="flex flex-col min-h-screen bg-gray-100 pb-20">
@@ -329,6 +431,120 @@ function Consolidated_Loan() {
                 </div>
               </div>
             </div>
+
+            {/* Renewal Simulation Tools (supplemental; no structural change to existing form sections) */}
+            {isRenewalApplication ? (
+            <div className="mt-4 bg-white rounded-xl p-5 border border-gray-200 shadow-sm">
+              <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+                <div className="flex-1">
+                  <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">Renewal Simulation</p>
+                  <p className="text-[11px] text-gray-500 mt-1">
+                    Select a date to simulate 6-month contribution history and renewal refinancing deductions.
+                  </p>
+                </div>
+                <div className="w-full md:w-64">
+                  <label className="block text-[10px] uppercase font-bold text-gray-500">Simulation Date</label>
+                  <input
+                    type="date"
+                    value={renewalSimDate}
+                    onChange={(e) => setRenewalSimDate(e.target.value)}
+                    className="border border-gray-300 rounded px-3 py-1.5 w-full"
+                  />
+                </div>
+              </div>
+
+              <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="rounded-lg border border-gray-100 p-4 bg-gray-50">
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">6-Month Contributions</p>
+                  <p className="text-sm font-semibold text-gray-800 mt-1">
+                    {renewalSimLoading
+                      ? 'Checking...'
+                      : (renewalSimResult?.contributions?.satisfied ? 'Satisfied' : 'Not yet')}
+                  </p>
+                  <p className="text-[11px] text-gray-500 mt-1">
+                    Paid months: {renewalSimResult?.contributions?.paidMonths ?? 0}/6
+                  </p>
+                </div>
+
+                <div className="rounded-lg border border-gray-100 p-4 bg-gray-50">
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Current Loan</p>
+                  <p className="text-sm font-semibold text-gray-800 mt-1">
+                    {renewalSimLoading
+                      ? 'Checking...'
+                      : (renewalSimResult?.hasActiveLoan ? 'Found' : 'None')}
+                  </p>
+                  <p className="text-[11px] text-gray-500 mt-1">
+                    {renewalSimResult?.activeLoan?.control_number
+                      ? `${renewalSimResult.activeLoan.control_number} (${renewalSimResult.activeLoan.loan_status || 'active'})`
+                      : '—'}
+                  </p>
+                </div>
+
+                <div className="rounded-lg border border-gray-100 p-4 bg-gray-50">
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Renewal Status</p>
+                  <p className={`text-sm font-extrabold mt-1 ${renewalSimResult?.viableForRenewal ? 'text-green-700' : 'text-gray-700'}`}>
+                    {renewalSimResult?.viableForRenewal ? 'Viable for Renewal' : 'Not viable'}
+                  </p>
+                  <p className="text-[11px] text-gray-500 mt-1">Requires 6 paid months + an active loan.</p>
+                </div>
+              </div>
+
+              <div className="mt-4 grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <div className="rounded-lg border border-gray-100 p-4">
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Eligibility (Take Home Pay)</p>
+                  <p className={`text-sm font-semibold mt-1 ${takeHomeEligibilityPass ? 'text-green-700' : 'text-red-600'}`}>
+                    {takeHomeEligibilityPass ? 'Pass' : 'Fail'}
+                  </p>
+                  <p className="text-[11px] text-gray-500 mt-1">
+                    Rule: Monthly Amortization ≤ Take Home Pay × 0.40
+                  </p>
+                  <div className="mt-2 text-[11px] text-gray-600">
+                    <div>Monthly Amortization: <span className="font-semibold">{fmtMoney(monthlyAmortNumber)}</span></div>
+                    <div>Take Home Pay: <span className="font-semibold">{fmtMoney(takeHomePayNumber)}</span></div>
+                    <div>40% Threshold: <span className="font-semibold">{fmtMoney(takeHomePayNumber * 0.4)}</span></div>
+                  </div>
+                </div>
+
+                <div className="rounded-lg border border-gray-100 p-4">
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Debt Ceiling (Share Capital)</p>
+                  <p className={`text-sm font-semibold mt-1 ${debtCeilingExceeded ? 'text-red-600' : 'text-green-700'}`}>
+                    {debtCeilingExceeded ? 'Exceeded' : 'Within limit'}
+                  </p>
+                  <p className="text-[11px] text-gray-500 mt-1">
+                    Policy: {policyMultiplier}× for {policyMultiplier === 5 ? 'MIGS' : 'Non-MIGS'} (based on member standing)
+                  </p>
+                  <div className="mt-2 text-[11px] text-gray-600">
+                    <div>Requested Amount: <span className="font-semibold">{fmtMoney(loanAmountNumber)}</span></div>
+                    <div>Share Capital: <span className="font-semibold">{fmtMoney(shareCapitalNumber)}</span></div>
+                    <div>Max Allowed: <span className="font-semibold">{fmtMoney(shareCapitalNumber * policyMultiplier)}</span></div>
+                    <div>Debt Capacity: <span className="font-semibold">{fmtMoney(Math.max(0, (shareCapitalNumber * policyMultiplier) - (renewalDeductions.netProceeds || 0)))}</span></div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-4 rounded-lg border border-gray-100 p-4 bg-gray-50">
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Renewal Net Proceeds (Refinance Simulation)</p>
+                <p className="text-[11px] text-gray-500 mt-1">
+                  New Loan Amount − (Existing Balance + Unpaid Interest + Insurance + Service Fee + Notarial Fee + CBU Deduction)
+                </p>
+
+                <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3 text-[11px]">
+                  <div className="flex items-center justify-between"><span className="text-gray-600">New Loan Amount</span><span className="font-semibold text-gray-800">{fmtMoney(loanAmountNumber)}</span></div>
+                  <div className="flex items-center justify-between"><span className="text-gray-600">Existing Active Balance</span><span className="font-semibold text-gray-800">{fmtMoney(renewalDeductions.existingBalance)}</span></div>
+                  <div className="flex items-center justify-between"><span className="text-gray-600">Unpaid Interest</span><span className="font-semibold text-gray-800">{fmtMoney(renewalDeductions.unpaidInterest)}</span></div>
+                  <div className="flex items-center justify-between"><span className="text-gray-600">CLIMBS Insurance</span><span className="font-semibold text-gray-800">{fmtMoney(renewalDeductions.insuranceFee)}</span></div>
+                  <div className="flex items-center justify-between"><span className="text-gray-600">Service Fee</span><span className="font-semibold text-gray-800">{fmtMoney(renewalDeductions.serviceFee)}</span></div>
+                  <div className="flex items-center justify-between"><span className="text-gray-600">Notarial Fee</span><span className="font-semibold text-gray-800">{fmtMoney(renewalDeductions.notarialFee)}</span></div>
+                  <div className="flex items-center justify-between"><span className="text-gray-600">CBU Deduction</span><span className="font-semibold text-gray-800">{fmtMoney(renewalDeductions.cbuDeduction)}</span></div>
+                </div>
+
+                <div className="mt-3 pt-3 border-t border-gray-200 flex items-center justify-between">
+                  <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Net Proceeds (Cash Released)</span>
+                  <span className="text-sm font-extrabold text-[#2E7D32]">{fmtMoney(renewalDeductions.netProceeds)}</span>
+                </div>
+              </div>
+            </div>
+            ) : null}
           </div>
         </section>
 
@@ -581,12 +797,20 @@ function Consolidated_Loan() {
           </button>
           <button 
             type="submit" 
-            disabled={loading || printing}
+            disabled={loading || printing || (isRenewalApplication && debtCeilingExceeded)}
             className="bg-[#66B538] text-white px-6 py-2 rounded hover:bg-[#5aa12b] transition-colors font-bold disabled:opacity-50 cursor-pointer"
           >
             {loading ? "Processing..." : "Submit Application"}
           </button>
         </div>
+
+        {isRenewalApplication && debtCeilingExceeded ? (
+          <div className="-mt-6 max-w-6xl mx-auto w-full px-4">
+            <p className="text-xs text-red-600 font-semibold">
+              Submit is disabled: requested loan exceeds the {policyMultiplier}× share capital ceiling.
+            </p>
+          </div>
+        ) : null}
       </form>
     </div>
   );

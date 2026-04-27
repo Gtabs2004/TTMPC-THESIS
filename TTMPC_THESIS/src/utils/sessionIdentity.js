@@ -1,6 +1,7 @@
 import { supabase } from "../supabaseClient";
 
 const ACCOUNT_TABLES = ["member_account", "member_accounts"];
+const MISSING_ACCOUNT_TABLES = new Set();
 
 const normalizeValue = (value) => String(value || "").trim();
 const normalizeEmail = (value) => normalizeValue(value).toLowerCase();
@@ -16,11 +17,19 @@ const safeMaybeSingle = async (query) => {
 
 const buildAccountSelect = "user_id, auth_user_id, role, email, membership_id, is_temporary";
 
+const isMissingTableError = (error) => {
+  const code = String(error?.code || "").toUpperCase();
+  const message = String(error?.message || "").toLowerCase();
+  return code === "PGRST205" || message.includes("could not find the table") || message.includes("not found");
+};
+
 export async function resolveAccountFromSessionUser(sessionUser) {
   const authUserId = normalizeValue(sessionUser?.id);
   const email = normalizeEmail(sessionUser?.email);
 
   for (const tableName of ACCOUNT_TABLES) {
+    if (MISSING_ACCOUNT_TABLES.has(tableName)) continue;
+
     if (authUserId) {
       const byAuthUserId = await safeMaybeSingle(
         supabase
@@ -30,6 +39,11 @@ export async function resolveAccountFromSessionUser(sessionUser) {
           .limit(1)
           .maybeSingle()
       );
+
+      if (isMissingTableError(byAuthUserId.error)) {
+        MISSING_ACCOUNT_TABLES.add(tableName);
+        continue;
+      }
 
       if (!byAuthUserId.error && byAuthUserId.data) {
         return { ...byAuthUserId.data, table: tableName };
@@ -46,6 +60,11 @@ export async function resolveAccountFromSessionUser(sessionUser) {
           .maybeSingle()
       );
 
+      if (isMissingTableError(byUserId.error)) {
+        MISSING_ACCOUNT_TABLES.add(tableName);
+        continue;
+      }
+
       if (!byUserId.error && byUserId.data) {
         return { ...byUserId.data, table: tableName };
       }
@@ -60,6 +79,11 @@ export async function resolveAccountFromSessionUser(sessionUser) {
           .limit(1)
           .maybeSingle()
       );
+
+      if (isMissingTableError(byEmail.error)) {
+        MISSING_ACCOUNT_TABLES.add(tableName);
+        continue;
+      }
 
       if (!byEmail.error && byEmail.data) {
         return { ...byEmail.data, table: tableName };

@@ -85,6 +85,29 @@ const LoanApprovalDetails = () => {
   const [supportingDocUrls, setSupportingDocUrls] = useState({});
   const [docLoading, setDocLoading] = useState(false);
   const [docError, setDocError] = useState('');
+  const [deductionInputs, setDeductionInputs] = useState({
+    serviceFee: '',
+    insuranceFee: '',
+    notarialFee: '',
+    cbuDeduction: '',
+  });
+
+  const toMoneyNumber = (value) => {
+    const num = Number(value);
+    return Number.isFinite(num) ? num : 0;
+  };
+
+  const roundToCents = (value) => Math.round(toMoneyNumber(value) * 100) / 100;
+
+  const computeDefaultDeductions = (principalAmount) => {
+    const principal = Math.max(0, toMoneyNumber(principalAmount));
+    return {
+      serviceFee: roundToCents((principal / 50000) * 100),
+      insuranceFee: roundToCents((principal / 1000) * 1.35),
+      notarialFee: 100,
+      cbuDeduction: roundToCents(principal * 0.02),
+    };
+  };
 
   const formatCurrency = (value) => {
     const amount = Number(value || 0);
@@ -105,14 +128,26 @@ const LoanApprovalDetails = () => {
     const code = String(loanTypeCode || '').trim().toUpperCase();
     const label = String(loanTypeLabel || '').trim().toLowerCase();
 
+    const normalizeRatePercent = (rate, fallbackCode = '') => {
+      const numericRate = Number(rate);
+      if (!Number.isFinite(numericRate) || numericRate <= 0) return null;
+
+      const effectiveCode = String(fallbackCode || code).trim().toUpperCase();
+      if (effectiveCode === 'CONSOLIDATED' && numericRate > 0 && numericRate < 1) {
+        return numericRate * 100;
+      }
+
+      return numericRate;
+    };
+
     const pickRate = (row) => {
-      const rate = Number(
+      const rawRate = Number(
         row?.interest_rate
         ?? row?.InterestRate
         ?? row?.interestrate
         ?? row?.interestRate
       );
-      return Number.isFinite(rate) && rate > 0 ? rate : null;
+      return normalizeRatePercent(rawRate, row?.code || code);
     };
 
     if (code) {
@@ -278,6 +313,11 @@ const LoanApprovalDetails = () => {
               loan_amount,
               principal_amount,
               interest_rate,
+              net_proceeds,
+              service_fee,
+              insurance_fee,
+              notarial_fee,
+              cbu_deduction,
               total_interest,
               monthly_amortization,
               term,
@@ -295,7 +335,8 @@ const LoanApprovalDetails = () => {
                 is_bona_fide
               ),
               loan_type:loan_type_id (
-                name
+                name,
+                code
               )
             `)
             .eq('control_number', id)
@@ -312,6 +353,19 @@ const LoanApprovalDetails = () => {
           ? (data.full_name || 'Unknown Applicant')
           : (`${firstName} ${lastName}`.trim() || 'Unknown Member');
         const principalAmount = Number(data.principal_amount ?? data.loan_amount ?? 0);
+        const serviceFee = Number(data.service_fee ?? data.raw_payload?.optionalFields?.service_fee ?? 0);
+        const insuranceFee = Number(data.insurance_fee ?? data.raw_payload?.optionalFields?.insurance_fee ?? 0);
+        const notarialFee = Number(data.notarial_fee ?? data.raw_payload?.optionalFields?.notarial_fee ?? 0);
+        const cbuDeduction = Number(data.cbu_deduction ?? data.raw_payload?.optionalFields?.cbu_deduction ?? 0);
+        const computedTotalDeductions = [serviceFee, insuranceFee, notarialFee, cbuDeduction]
+          .map((n) => (Number.isFinite(n) ? n : 0))
+          .reduce((sum, n) => sum + n, 0);
+
+        const storedNetProceeds = Number(data.net_proceeds ?? data.raw_payload?.optionalFields?.net_proceeds ?? NaN);
+        const resolvedNetProceeds = Number.isFinite(storedNetProceeds)
+          ? storedNetProceeds
+          : Math.max(0, principalAmount - computedTotalDeductions);
+
         const monthlyAmortization = Number(
           data.monthly_amortization
           ?? data.raw_payload?.optionalFields?.monthly_amortization
@@ -321,9 +375,22 @@ const LoanApprovalDetails = () => {
         const resolvedLoanType = isKoicaSource
           ? (data.loan_type_code === 'NONMEMBER_BONUS' ? 'Nonmember Bonus Loan' : 'ABFF Loan')
           : (data.loan_type?.name || 'N/A');
-        let effectiveInterestRate = data.interest_rate;
+        const normalizeInterestRatePercent = (rate, fallbackCode = '') => {
+          const numericRate = Number(rate);
+          if (!Number.isFinite(numericRate) || numericRate <= 0) return null;
+
+          const effectiveCode = String(fallbackCode || '').trim().toUpperCase();
+          if (effectiveCode === 'CONSOLIDATED' && numericRate > 0 && numericRate < 1) {
+            return numericRate * 100;
+          }
+
+          return numericRate;
+        };
+
+        const effectiveLoanTypeCode = String(data.loan_type_code || data.loan_type?.code || '').trim().toUpperCase();
+        let effectiveInterestRate = normalizeInterestRatePercent(data.interest_rate, effectiveLoanTypeCode);
         if (effectiveInterestRate === null || effectiveInterestRate === undefined) {
-          effectiveInterestRate = await resolveInterestRateFromLoanTypes(resolvedLoanType, data.loan_type_code);
+          effectiveInterestRate = await resolveInterestRateFromLoanTypes(resolvedLoanType, effectiveLoanTypeCode);
         }
 
         const hasStoredTotalInterest = data.total_interest !== null && data.total_interest !== undefined;
@@ -379,11 +446,24 @@ const LoanApprovalDetails = () => {
             managerReviewRequestedAt: data.manager_review_requested_at || null,
           },
           computation: {
+            principalRaw: principalAmount,
             principal: formatCurrency(principalAmount),
-            interestRate: effectiveInterestRate !== null ? `${Number(effectiveInterestRate)}% Monthly` : 'N/A',
+            interestRate: Number.isFinite(Number(effectiveInterestRate)) ? `${Number(effectiveInterestRate).toFixed(2)}% Monthly` : 'N/A',
             totalInterest: formatCurrency(resolvedTotalInterest),
             totalPayable: formatCurrency(totalPayable),
             monthlyAmortization: formatCurrency(monthlyAmortization),
+            serviceFeeRaw: serviceFee,
+            serviceFee: formatCurrency(serviceFee),
+            insuranceFeeRaw: insuranceFee,
+            insuranceFee: formatCurrency(insuranceFee),
+            notarialFeeRaw: notarialFee,
+            notarialFee: formatCurrency(notarialFee),
+            cbuDeductionRaw: cbuDeduction,
+            cbuDeduction: formatCurrency(cbuDeduction),
+            totalDeductionsRaw: computedTotalDeductions,
+            totalDeductions: formatCurrency(computedTotalDeductions),
+            netProceedsRaw: resolvedNetProceeds,
+            netProceeds: formatCurrency(resolvedNetProceeds),
           },
           risk: {
             prevLoans: { value: 'N/A', label: 'NOT YET COMPUTED', color: 'text-gray-500' },
@@ -393,7 +473,20 @@ const LoanApprovalDetails = () => {
         };
 
         if (isMounted) {
+          const hasStoredDeduction = [serviceFee, insuranceFee, notarialFee, cbuDeduction]
+            .some((value) => toMoneyNumber(value) > 0);
+          const defaultDeductions = computeDefaultDeductions(principalAmount);
+          const initialDeductions = hasStoredDeduction
+            ? { serviceFee, insuranceFee, notarialFee, cbuDeduction }
+            : defaultDeductions;
+
           setLoanDetails(mapped);
+          setDeductionInputs({
+            serviceFee: String(roundToCents(initialDeductions.serviceFee)),
+            insuranceFee: String(roundToCents(initialDeductions.insuranceFee)),
+            notarialFee: String(roundToCents(initialDeductions.notarialFee)),
+            cbuDeduction: String(roundToCents(initialDeductions.cbuDeduction)),
+          });
           setCoMakerDetails(normalizedCoMakers);
           setSupportingDocs(normalizeSupportingDocuments(mapped.rawPayload || {}));
         }
@@ -541,6 +634,22 @@ const LoanApprovalDetails = () => {
     setSendEmail(true);
   };
 
+  const updateDeductionField = (field, value) => {
+    const normalized = String(value || '').replace(/[^0-9.]/g, '');
+    setDeductionInputs((prev) => ({ ...prev, [field]: normalized }));
+  };
+
+  const applyDefaultDeductionValues = () => {
+    const principal = toMoneyNumber(loanDetails?.computation?.principalRaw);
+    const defaults = computeDefaultDeductions(principal);
+    setDeductionInputs({
+      serviceFee: String(roundToCents(defaults.serviceFee)),
+      insuranceFee: String(roundToCents(defaults.insuranceFee)),
+      notarialFee: String(roundToCents(defaults.notarialFee)),
+      cbuDeduction: String(roundToCents(defaults.cbuDeduction)),
+    });
+  };
+
   const updateCoMakerField = (index, field, value) => {
     setCoMakerDetails((prev) => prev.map((item, i) => (i === index ? { ...item, [field]: value } : item)));
   };
@@ -654,6 +763,14 @@ const LoanApprovalDetails = () => {
 
       const updatePayload = { loan_status: nextStatus, application_status: nextStatus };
       if (isBookkeeperFlow && modalType === 'recommend') {
+        const serviceFeeValue = roundToCents(Math.max(0, toMoneyNumber(deductionInputs.serviceFee)));
+        const insuranceFeeValue = roundToCents(Math.max(0, toMoneyNumber(deductionInputs.insuranceFee)));
+        const notarialFeeValue = roundToCents(Math.max(0, toMoneyNumber(deductionInputs.notarialFee)));
+        const cbuDeductionValue = roundToCents(Math.max(0, toMoneyNumber(deductionInputs.cbuDeduction)));
+        const totalDeductionValue = roundToCents(serviceFeeValue + insuranceFeeValue + notarialFeeValue + cbuDeductionValue);
+        const principalValue = roundToCents(Math.max(0, toMoneyNumber(loanDetails?.computation?.principalRaw)));
+        const netProceedsValue = roundToCents(Math.max(0, principalValue - totalDeductionValue));
+
         const normalizedCoMakers = coMakerDetails
           .map((row) => ({
             membership_number_id: String(row.membership_number_id || '').trim() || null,
@@ -676,10 +793,22 @@ const LoanApprovalDetails = () => {
         updatePayload.bookkeeper_internal_remarks = bookkeeperInternalRemarks.trim();
         updatePayload.bookkeeper_reviewed_at = new Date().toISOString();
         updatePayload.manager_review_requested_at = new Date().toISOString();
+        if ((loanDetails.sourceTable || 'loans') === 'loans') {
+          updatePayload.service_fee = serviceFeeValue;
+          updatePayload.insurance_fee = insuranceFeeValue;
+          updatePayload.notarial_fee = notarialFeeValue;
+          updatePayload.cbu_deduction = cbuDeductionValue;
+          updatePayload.net_proceeds = netProceedsValue;
+        }
         updatePayload.raw_payload = {
           ...existingRawPayload,
           optionalFields: {
             ...existingOptionalFields,
+            service_fee: serviceFeeValue,
+            insurance_fee: insuranceFeeValue,
+            notarial_fee: notarialFeeValue,
+            cbu_deduction: cbuDeductionValue,
+            net_proceeds: netProceedsValue,
             bookkeeper_loan_details: {
               ...(existingOptionalFields.bookkeeper_loan_details || {}),
               coMakers: normalizedCoMakers,
@@ -688,11 +817,15 @@ const LoanApprovalDetails = () => {
         };
       }
 
+      const updateSelect = (loanDetails.sourceTable || 'loans') === 'loans'
+        ? 'control_number, loan_status, bookkeeper_internal_remarks, bookkeeper_reviewed_at, manager_review_requested_at, raw_payload, net_proceeds, service_fee, insurance_fee, notarial_fee, cbu_deduction'
+        : 'control_number, loan_status, bookkeeper_internal_remarks, bookkeeper_reviewed_at, manager_review_requested_at, raw_payload';
+
       const { data: updatedRows, error } = await supabase
         .from(loanDetails.sourceTable || 'loans')
         .update(updatePayload)
         .eq('control_number', loanDetails.id)
-        .select('control_number, loan_status, bookkeeper_internal_remarks, bookkeeper_reviewed_at, manager_review_requested_at, raw_payload')
+        .select(updateSelect)
         .limit(1);
 
       if (error) {
@@ -753,6 +886,24 @@ const LoanApprovalDetails = () => {
       </div>
     );
   }
+
+  const principalForDeductions = roundToCents(Math.max(0, toMoneyNumber(loanDetails?.computation?.principalRaw)));
+  const serviceFeeForDisplay = isBookkeeperFlow
+    ? roundToCents(Math.max(0, toMoneyNumber(deductionInputs.serviceFee)))
+    : roundToCents(Math.max(0, toMoneyNumber(loanDetails?.computation?.serviceFeeRaw)));
+  const insuranceFeeForDisplay = isBookkeeperFlow
+    ? roundToCents(Math.max(0, toMoneyNumber(deductionInputs.insuranceFee)))
+    : roundToCents(Math.max(0, toMoneyNumber(loanDetails?.computation?.insuranceFeeRaw)));
+  const notarialFeeForDisplay = isBookkeeperFlow
+    ? roundToCents(Math.max(0, toMoneyNumber(deductionInputs.notarialFee)))
+    : roundToCents(Math.max(0, toMoneyNumber(loanDetails?.computation?.notarialFeeRaw)));
+  const cbuDeductionForDisplay = isBookkeeperFlow
+    ? roundToCents(Math.max(0, toMoneyNumber(deductionInputs.cbuDeduction)))
+    : roundToCents(Math.max(0, toMoneyNumber(loanDetails?.computation?.cbuDeductionRaw)));
+  const totalDeductionForDisplay = roundToCents(
+    serviceFeeForDisplay + insuranceFeeForDisplay + notarialFeeForDisplay + cbuDeductionForDisplay
+  );
+  const netProceedsForDisplay = roundToCents(Math.max(0, principalForDeductions - totalDeductionForDisplay));
 
   return (
     <div className="p-8 bg-gray-50 min-h-screen relative">
@@ -973,6 +1124,94 @@ const LoanApprovalDetails = () => {
                     <span className="text-gray-600 font-medium">Total Interest</span>
                     <span className="font-bold text-gray-800">{loanDetails.computation.totalInterest}</span>
                   </div>
+
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600 font-medium">Service Fee</span>
+                    {isBookkeeperFlow ? (
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={deductionInputs.serviceFee}
+                        onChange={(e) => updateDeductionField('serviceFee', e.target.value)}
+                        className="w-36 rounded border border-gray-300 px-2 py-1 text-right text-xs font-bold text-gray-800 bg-white"
+                      />
+                    ) : (
+                      <span className="font-bold text-gray-800">{loanDetails.computation.serviceFee}</span>
+                    )}
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600 font-medium">CLIMBS Insurance</span>
+                    {isBookkeeperFlow ? (
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={deductionInputs.insuranceFee}
+                        onChange={(e) => updateDeductionField('insuranceFee', e.target.value)}
+                        className="w-36 rounded border border-gray-300 px-2 py-1 text-right text-xs font-bold text-gray-800 bg-white"
+                      />
+                    ) : (
+                      <span className="font-bold text-gray-800">{loanDetails.computation.insuranceFee}</span>
+                    )}
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600 font-medium">Notarial Fee</span>
+                    {isBookkeeperFlow ? (
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={deductionInputs.notarialFee}
+                        onChange={(e) => updateDeductionField('notarialFee', e.target.value)}
+                        className="w-36 rounded border border-gray-300 px-2 py-1 text-right text-xs font-bold text-gray-800 bg-white"
+                      />
+                    ) : (
+                      <span className="font-bold text-gray-800">{loanDetails.computation.notarialFee}</span>
+                    )}
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600 font-medium">CBU Deduction</span>
+                    {isBookkeeperFlow ? (
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={deductionInputs.cbuDeduction}
+                        onChange={(e) => updateDeductionField('cbuDeduction', e.target.value)}
+                        className="w-36 rounded border border-gray-300 px-2 py-1 text-right text-xs font-bold text-gray-800 bg-white"
+                      />
+                    ) : (
+                      <span className="font-bold text-gray-800">{loanDetails.computation.cbuDeduction}</span>
+                    )}
+                  </div>
+
+                  {isBookkeeperFlow ? (
+                    <div className="rounded-lg border border-green-200 bg-green-50 p-3 text-[11px] text-gray-700">
+                      <p className="font-bold text-[#1D6021] mb-2">Suggested Formula</p>
+                      <p>Service Fee: 100.00 every 50,000 loan amount</p>
+                      <p>CLIMBS Insurance: 1.35 per 1,000 loan amount</p>
+                      <p>CBU Deduction: 2% of the applied amount</p>
+                      <p>Notarial Fee: 100.00 fixed</p>
+                      <button
+                        type="button"
+                        onClick={applyDefaultDeductionValues}
+                        className="mt-2 inline-flex items-center rounded border border-[#1D6021] px-2 py-1 text-[10px] font-bold text-[#1D6021] hover:bg-green-100"
+                      >
+                        Apply Suggested Values
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
+
+                <div className="border-t border-gray-300 pt-4 mb-4 flex justify-between items-center">
+                  <span className="font-bold text-gray-900">Total Deductions</span>
+                  <span className="font-bold text-gray-900">{formatCurrency(totalDeductionForDisplay)}</span>
+                </div>
+
+                <div className="border-t border-gray-300 pt-4 mb-4 flex justify-between items-center">
+                  <span className="font-bold text-gray-900">Net Proceeds</span>
+                  <span className="font-bold text-gray-900">{formatCurrency(netProceedsForDisplay)}</span>
                 </div>
                 <div className="border-t border-gray-300 pt-4 mb-4 flex justify-between items-center">
                   <span className="font-bold text-gray-900">Total Payable (All Months)</span>
