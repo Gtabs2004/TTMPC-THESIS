@@ -195,6 +195,7 @@ const Cashier_Payments = () => {
   const [paymentRecords, setPaymentRecords] = useState([]);
   const [loadingLoans, setLoadingLoans] = useState(false);
   
+  
   // Filtering and sorting
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -266,6 +267,7 @@ const Cashier_Payments = () => {
       ],
     },
     { name: "Withdrawals", icon: Banknote, path: "/Cashier_Withdrawals" },
+    { name: "Grocery", icon: Banknote, path: "/Cashier_Grocery" },
   ];
 
   useEffect(() => {

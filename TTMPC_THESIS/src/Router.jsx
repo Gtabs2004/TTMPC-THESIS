@@ -69,6 +69,7 @@ import Manager_Manage_Member from "./Manager/Components/Manage-Member";
 import Savings_Forms from "./LOANFORMS/Savings_Forms";
 import Grocery from "./Bookkeeper/Components/Grocery";
 import Grocery_Ledger from "./Bookkeeper/Components/Grocery-Ledger";
+import Cashier_Grocery from "./Cashier/Components/Cashier_Grocery";
 
 
 
@@ -152,5 +153,6 @@ export const router = createBrowserRouter([
     {path: "/cashier-disbursement", element:<Cashier_Disbursement/>},
     {path: "/savings_forms", element:<Savings_Forms/>},
     {path: "/grocery", element:<Grocery/>},
-    {path: "/grocery-ledger", element:<Grocery_Ledger/>}
+    {path: "/grocery-ledger", element:<Grocery_Ledger/>},
+    {path: "/Cashier_Grocery", element:<Cashier_Grocery/>},
 ]);

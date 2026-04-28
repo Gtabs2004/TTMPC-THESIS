@@ -49,6 +49,7 @@ const Cashier_Withdrawals = () => {
       ]
     },
     { name: "Withdrawals", icon: Banknote, path: "/Cashier_Withdrawals" },
+    { name: "Grocery", icon: Banknote, path: "/Cashier_Grocery" },
   ];
 
   const handleSignOut = async (e) => {

@@ -45,6 +45,7 @@ const Cashier_Disbursement = () => {
       ],
     },
     { name: "Withdrawals", icon: Banknote, path: "/Cashier_Withdrawals" },
+    { name: "Grocery", icon: Banknote, path: "/Cashier_Grocery" },
   ];
 
   useEffect(() => {
