@@ -436,32 +436,38 @@ const BookkeeperPayments = () => {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-            <div className="rounded-xl bg-white border border-gray-200 shadow-sm p-4">
+            <div className="rounded-lg bg-white border border-gray-200 p-4">
               <div className="flex items-center justify-between">
                 <p className="text-xs uppercase tracking-wide text-gray-500 font-semibold">Total Active Loans</p>
-                <CreditCard size={16} className="text-[#2C7A3F]" />
+                <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center">
+                  <CreditCard size={20} className="text-blue-600" />
+                </div>
               </div>
               <h2 className="mt-2 text-2xl font-bold text-gray-800">{dashboardStats.totalActiveLoans}</h2>
             </div>
 
-            <div className="rounded-xl bg-white border border-gray-200 shadow-sm p-4">
+            <div className="rounded-lg bg-white border border-gray-200 p-4">
               <div className="flex items-center justify-between">
                 <p className="text-xs uppercase tracking-wide text-gray-500 font-semibold">Outstanding Balance</p>
-                <Wallet size={16} className="text-[#2C7A3F]" />
+                <div className="w-10 h-10 rounded-lg bg-amber-100 flex items-center justify-center">
+                  <Wallet size={20} className="text-amber-600" />
+                </div>
               </div>
               <h2 className="mt-2 text-2xl font-bold text-gray-800">{formatCurrency(dashboardStats.totalOutstanding)}</h2>
             </div>
 
-            <div className="rounded-xl bg-white border border-gray-200 shadow-sm p-4">
+            <div className="rounded-lg bg-white border border-gray-200 p-4">
               <div className="flex items-center justify-between">
                 <p className="text-xs uppercase tracking-wide text-gray-500 font-semibold">Collected This Month</p>
-                <Coins size={16} className="text-[#2C7A3F]" />
+                <div className="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center">
+                  <Coins size={20} className="text-green-600" />
+                </div>
               </div>
               <h2 className="mt-2 text-2xl font-bold text-gray-800">{formatCurrency(dashboardStats.collectedThisMonth)}</h2>
             </div>
           </div>
 
-          <div className="rounded-xl bg-white border border-gray-200 shadow-sm mb-4 p-3">
+          <div className="rounded-lg bg-white border border-gray-200 mb-4 p-3">
             <div className="flex flex-wrap gap-2">
               {tabItems.map((tab) => (
                 <button
@@ -470,7 +476,7 @@ const BookkeeperPayments = () => {
                   onClick={() => setActiveTab(tab.key)}
                   className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition-colors ${
                     activeTab === tab.key
-                      ? "bg-green-100 text-green-700"
+                      ? "bg-green-600 text-white"
                       : "bg-gray-100 text-gray-600 hover:bg-gray-200"
                   }`}
                 >
@@ -483,7 +489,7 @@ const BookkeeperPayments = () => {
             </div>
           </div>
 
-          <div className="rounded-xl bg-white border border-gray-200 shadow-sm mb-4 p-4">
+          <div className="rounded-lg bg-white border border-gray-200 mb-4 p-4">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               <div className="flex flex-wrap items-center gap-2">
                 <select
@@ -523,26 +529,26 @@ const BookkeeperPayments = () => {
               </div>
             </div>
 
-            <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+            <div className="mt-3 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
               Business Rules: Non-Member accounts are limited to Bonus loans. KOICA users are limited to KOICA or ABF loans.
             </div>
 
             {feedback && (
-              <div className="mt-3 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
+              <div className="mt-3 rounded border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
                 {feedback}
               </div>
             )}
 
             {loading && (
-              <div className="mt-3 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700">
+              <div className="mt-3 rounded border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700">
                 Syncing payment queue and loan ledger data...
               </div>
             )}
           </div>
 
-          <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-sm">
+          <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white">
             <table className="min-w-full text-sm">
-              <thead className="bg-gray-50 text-gray-700">
+              <thead className="bg-gray-100 text-gray-700">
                 {activeTab === "active" || activeTab === "fully_paid" ? (
                   <tr>
                     <th className="px-4 py-3 text-left font-semibold">Loan ID</th>
@@ -577,8 +583,8 @@ const BookkeeperPayments = () => {
                 )}
 
                 {(activeTab === "active" || activeTab === "fully_paid") &&
-                  filteredLoanRows.map((loan) => (
-                    <tr key={loan.loan_id} className="border-t border-gray-100">
+                  filteredLoanRows.map((loan, index) => (
+                    <tr key={loan.loan_id} className={`border-t border-gray-100 ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
                       <td className="px-4 py-3 text-xs text-gray-700">{loan.loan_id}</td>
                       <td className="px-4 py-3 text-gray-800 font-medium">{loan.member_name}</td>
                       <td className="px-4 py-3">
@@ -607,11 +613,11 @@ const BookkeeperPayments = () => {
                   ))}
 
                 {!(activeTab === "active" || activeTab === "fully_paid") &&
-                  filteredPaymentRows.map((item) => {
+                  filteredPaymentRows.map((item, index) => {
                     const loan = loanById.get(item.loan_id);
 
                     return (
-                      <tr key={item.payment_id} className="border-t border-gray-100 align-top">
+                      <tr key={item.payment_id} className={`border-t border-gray-100 align-top ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
                         <td className="px-4 py-3 text-xs text-gray-700">{item.payment_id}</td>
                         <td className="px-4 py-3 text-gray-800 font-medium">{loan?.member_name || "Unknown Member"}</td>
                         <td className="px-4 py-3 text-gray-700">
@@ -675,7 +681,7 @@ const BookkeeperPayments = () => {
 
       {showRejectModal && selectedRejectPayment && (
         <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
-          <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
+          <div className="w-full max-w-md rounded-lg bg-white p-6 border border-gray-200">
             <h2 className="text-lg font-bold text-gray-800 mb-4">Reject Payment</h2>
             <p className="text-sm text-gray-600 mb-3">
               Provide reason for rejecting payment {selectedRejectPayment.payment_id}.

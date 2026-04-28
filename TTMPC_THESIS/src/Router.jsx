@@ -88,7 +88,7 @@ export const router = createBrowserRouter([
     {path: "/loan-application", element: <LoanApplication/>},
     {path: "/bookkeeper-loan-approval", element: <BookkeeperLoanApproval/>},
     {path: "/bookkeeper-loan-ledger/:loanId", element: <LoanLedger/>},
-    {path: "/migs-scoring", element: <MIGS/>},
+    {path: "/migs", element: <MIGS/>},
     {path: "/payments", element: <BookkeeperPayments/>},
     {path: "/bookkeeper-savings-transactions", element: <BookkeeperSavingsTransactions/>},
     {path: "/reports", element: <Reports/>},
