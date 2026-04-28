@@ -235,7 +235,7 @@ const Reports = () => {
               </div>
               
               <div className="flex-1 w-full h-48 border-b border-gray-50 pb-2">
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={1}>
                   <BarChart data={barChartData} margin={{ top: 10, right: 10, left: 10, bottom: 0 }} barGap={6}>
                     <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#9ca3af' }} dy={10} />
                     <Tooltip cursor={{fill: '#f8fafc'}} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
@@ -252,7 +252,7 @@ const Reports = () => {
               <p className="text-xs text-gray-400 mb-6">Distribution & Risk Assessment</p>
               
               <div className="h-32 w-full relative flex items-center justify-center mb-6">
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={1}>
                   <PieChart>
                     <Pie
                       data={pieChartData}
@@ -314,7 +314,7 @@ const Reports = () => {
             </div>
             
             <div className="w-full h-40 border-b border-gray-50 pb-2">
-              <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={1}>
                 <LineChart data={lineChartData} margin={{ top: 5, right: 10, left: 10, bottom: 0 }}>
                   <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#9ca3af' }} dy={10} />
                   <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />

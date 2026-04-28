@@ -41,6 +41,60 @@ const Manage_Member = () => {
     Grocery: "/grocery",
   };
 
+  useEffect(() => {
+    async function loadData() {
+      setLoading(true);
+      setError("");
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/personal_data_sheet`, {
+          method: "GET",
+          headers: { Accept: "application/json" },
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok || !payload?.success) {
+          throw new Error(payload?.detail || payload?.message || "Failed to load personal datasheet.");
+        }
+        setRows(Array.isArray(payload.data) ? payload.data : []);
+      } catch (err) {
+        setError(err?.message || "Unable to load personal datasheet.");
+        setRows([]);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadData();
+  }, []);
+
+  const filtered = useMemo(() => {
+    const key = String(query || "").trim().toLowerCase();
+    if (!key) return rows;
+    return rows.filter((r) =>
+      String(r.member_id || "").toLowerCase().includes(key) ||
+      String(r.full_name || "").toLowerCase().includes(key) ||
+      String(r.email || "").toLowerCase().includes(key)
+    );
+  }, [query, rows]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE));
+  const paginatedRows = useMemo(() => {
+    const start = (currentPage - 1) * ITEMS_PER_PAGE;
+    return filtered.slice(start, start + ITEMS_PER_PAGE);
+  }, [filtered, currentPage]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [query, rows]);
+
+  const handleSignOut = async (e) => {
+    e.preventDefault();
+    try {
+      await signOut();
+      navigate("/");
+    } catch (err) {
+      console.error("Failed to sign out:", err);
+    }
+  };
+
   return (
     <div className="flex min-h-screen bg-gray-100">
       <aside className="bg-white w-64 p-4 flex flex-col border-r border-gray-200">
@@ -78,8 +132,13 @@ const Manage_Member = () => {
        <header className="bg-white h-16 shadow-sm flex items-center justify-end px-8 border-b border-gray-100">
                         <div className="relative">
                           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400"/>
-                          <input type="text" className="bg-gray-50 w-52 h-10 rounded-lg border border-gray-200 pl-10 pr-4 
-                          py-1 text-sm focus:outline-none focus:ring-2 focus:ring-[#2C7A3F]" placeholder="Search..."></input>
+                          <input
+                            value={query}
+                            onChange={(e) => setQuery(e.target.value)}
+                            type="text"
+                            className="bg-gray-50 w-52 h-10 rounded-lg border border-gray-200 pl-10 pr-4 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-[#2C7A3F]"
+                            placeholder="Search..."
+                          ></input>
                         </div>
                         <button className="ml-6 relative p-1 rounded-full text-gray-500 hover:bg-gray-100 transition-colors">
                           <Bell className="w-5 h-5"/>
