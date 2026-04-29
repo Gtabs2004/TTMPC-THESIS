@@ -28,15 +28,15 @@ import {
 
 // --- MOCK DATA FOR THE TABLE ---
 const MOCK_TRANSACTIONS = [
-  { id: 'GR-TTMPC-00001', memberId: 'TTMPCM-001', posId: 'POS - 001', date: 'Feb. 10, 2026 - 10:30 AM', amount: 'P1,100.00', txStatus: 'Completed', payment: 'Paid', balance: 'P0.00' },
-  { id: 'GR-TTMPC-00002', memberId: 'TTMPCM-002', posId: 'POS - 001', date: 'Feb. 10, 2026 - 10:45 AM', amount: 'P3,500.00', txStatus: 'Completed', payment: 'Paid', balance: 'P0.00' },
-  { id: 'GR-TTMPC-00003', memberId: 'TTMPCM-014', posId: 'POS - 001', date: 'Feb. 10, 2026 - 10:50 AM', amount: 'P1,350.00', txStatus: 'Completed', payment: 'Paid', balance: 'P0.00' },
-  { id: 'GR-TTMPC-00004', memberId: 'TTMPCM-124', posId: 'POS - 001', date: 'Feb. 10, 2026 - 10:55 AM', amount: 'P400.00', txStatus: 'Completed', payment: 'Paid', balance: 'P0.00' },
-  { id: 'GR-TTMPC-00005', memberId: 'TTMPCM-128', posId: 'POS - 001', date: 'Feb. 10, 2026 - 12:50 PM', amount: 'P2,500.00', txStatus: 'Pending', payment: 'On Credit', balance: 'P2,500.00' },
-  { id: 'GR-TTMPC-00006', memberId: 'TTMPCM-063', posId: 'POS - 001', date: 'Feb. 10, 2026 - 1:15 PM', amount: 'P1,100.00', txStatus: 'Completed', payment: 'Paid', balance: 'P0.00' },
-  { id: 'GR-TTMPC-00007', memberId: 'TTMPCM-046', posId: 'POS - 001', date: 'Feb. 10, 2026 - 1:40 PM', amount: 'P750.00', txStatus: 'Completed', payment: 'Paid', balance: 'P0.00' },
-  { id: 'GR-TTMPC-00008', memberId: 'TTMPCM-202', posId: 'POS - 001', date: 'Feb. 10, 2026 - 2:25 PM', amount: 'P650.00', txStatus: 'Completed', payment: 'Paid', balance: 'P0.00' },
-  { id: 'GR-TTMPC-00009', memberId: 'TTMPCM-182', posId: 'POS - 001', date: 'Feb. 10, 2026 - 2:38 PM', amount: 'P800.00', txStatus: 'Pending', payment: 'On Credit', balance: 'P800.00' },
+  { id: 'GR-TTMPC-00001', memberId: 'TTMPCM-001', date: 'Feb. 10, 2026 - 10:30 AM', amount: 'P1,100.00', txStatus: 'Completed', payment: 'Paid', balance: 'P0.00' },
+  { id: 'GR-TTMPC-00002', memberId: 'TTMPCM-002',  date: 'Feb. 10, 2026 - 10:45 AM', amount: 'P3,500.00', txStatus: 'Completed', payment: 'Paid', balance: 'P0.00' },
+  { id: 'GR-TTMPC-00003', memberId: 'TTMPCM-014',  date: 'Feb. 10, 2026 - 10:50 AM', amount: 'P1,350.00', txStatus: 'Completed', payment: 'Paid', balance: 'P0.00' },
+  { id: 'GR-TTMPC-00004', memberId: 'TTMPCM-124',  date: 'Feb. 10, 2026 - 10:55 AM', amount: 'P400.00', txStatus: 'Completed', payment: 'Paid', balance: 'P0.00' },
+  { id: 'GR-TTMPC-00005', memberId: 'TTMPCM-128',  date: 'Feb. 10, 2026 - 12:50 PM', amount: 'P2,500.00', txStatus: 'Pending', payment: 'On Credit', balance: 'P2,500.00' },
+  { id: 'GR-TTMPC-00006', memberId: 'TTMPCM-063',  date: 'Feb. 10, 2026 - 1:15 PM', amount: 'P1,100.00', txStatus: 'Completed', payment: 'Paid', balance: 'P0.00' },
+  { id: 'GR-TTMPC-00007', memberId: 'TTMPCM-046', date: 'Feb. 10, 2026 - 1:40 PM', amount: 'P750.00', txStatus: 'Completed', payment: 'Paid', balance: 'P0.00' },
+  { id: 'GR-TTMPC-00008', memberId: 'TTMPCM-202',  date: 'Feb. 10, 2026 - 2:25 PM', amount: 'P650.00', txStatus: 'Completed', payment: 'Paid', balance: 'P0.00' },
+  { id: 'GR-TTMPC-00009', memberId: 'TTMPCM-182',  date: 'Feb. 10, 2026 - 2:38 PM', amount: 'P800.00', txStatus: 'Pending', payment: 'On Credit', balance: 'P800.00' },
 ];
 
 const Grocery = () => {
@@ -295,11 +295,12 @@ const Grocery = () => {
                   <tr>
                     <th className="px-6 py-4">Grocery ID</th>
                     <th className="px-6 py-4">Member ID</th>
-                    <th className="px-6 py-4">POS ID</th>
+                 
                     <th className="px-6 py-4">Transaction Date</th>
                     <th className="px-6 py-4">Amount</th>
-                    <th className="px-6 py-4">TX Status</th>
                     <th className="px-6 py-4">Payment</th>
+                    <th className="px-6 py-4"> Status</th>
+                    
                     <th className="px-6 py-4">Balance</th>
                   </tr>
                 </thead>
@@ -308,14 +309,15 @@ const Grocery = () => {
                     <tr key={tx.id} className="hover:bg-gray-50/50 transition-colors">
                       <td className="px-6 py-4 font-medium text-gray-700">{tx.id}</td>
                       <td className="px-6 py-4 font-medium text-gray-700">{tx.memberId}</td>
-                      <td className="px-6 py-4 text-gray-500">{tx.posId}</td>
+                      
                       <td className="px-6 py-4 text-gray-500">{tx.date}</td>
                       <td className="px-6 py-4 font-medium text-gray-900">{tx.amount}</td>
                       <td className="px-6 py-4">
-                        <StatusBadge type="status" text={tx.txStatus} />
+                         <StatusBadge type="payment" text={tx.payment} />
+                        
                       </td>
                       <td className="px-6 py-4">
-                        <StatusBadge type="payment" text={tx.payment} />
+                        <StatusBadge type="status" text={tx.txStatus} />
                       </td>
                       <td className={`px-6 py-4 font-semibold ${tx.balance !== 'P0.00' ? 'text-red-500' : 'text-gray-900'}`}>
                         {tx.balance}
