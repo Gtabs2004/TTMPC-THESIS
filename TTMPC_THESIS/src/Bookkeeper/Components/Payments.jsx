@@ -481,7 +481,7 @@ const BookkeeperPayments = () => {
                   }`}
                 >
                   <span>{tab.label}</span>
-                  <span className="inline-flex items-center justify-center min-w-6 h-6 rounded-full bg-white border border-gray-200 text-xs font-semibold">
+                  <span className="inline-flex items-center justify-center min-w-6 h-6 rounded-full bg-white border border-gray-200 text-xs font-semibold text-black">
                     {tab.count}
                   </span>
                 </button>
@@ -546,65 +546,75 @@ const BookkeeperPayments = () => {
             )}
           </div>
 
-          <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white">
-            <table className="min-w-full text-sm">
-              <thead className="bg-gray-100 text-gray-700">
+          <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-lg">
+            <table className="min-w-full">
+              <thead className="bg-green-700 border-b border-gray-200">
                 {activeTab === "active" || activeTab === "fully_paid" ? (
                   <tr>
-                    <th className="px-4 py-3 text-left font-semibold">Loan ID</th>
-                    <th className="px-4 py-3 text-left font-semibold">Member Name</th>
-                    <th className="px-4 py-3 text-left font-semibold">Loan Type</th>
-                    <th className="px-4 py-3 text-left font-semibold">Loan Amount</th>
-                    <th className="px-4 py-3 text-left font-semibold">Remaining Balance</th>
-                    <th className="px-4 py-3 text-left font-semibold">Due Date</th>
-                    <th className="px-4 py-3 text-left font-semibold">Status</th>
-                    <th className="px-4 py-3 text-left font-semibold">Action</th>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Loan ID</th>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Member Name</th>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Loan Type</th>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Loan Amount</th>
+                    <th className="px-6 py-4 text-right text-xs font-bold text-white uppercase tracking-wider">Remaining Balance</th>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Due Date</th>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Status</th>
+                    <th className="px-6 py-4 text-center text-xs font-bold text-white uppercase tracking-wider">Action</th>
                   </tr>
                 ) : (
                   <tr>
-                    <th className="px-4 py-3 text-left font-semibold">Payment ID</th>
-                    <th className="px-4 py-3 text-left font-semibold">Member Name</th>
-                    <th className="px-4 py-3 text-left font-semibold">Loan Details</th>
-                    <th className="px-4 py-3 text-left font-semibold">Payment Amount</th>
-                    <th className="px-4 py-3 text-left font-semibold">Date Paid</th>
-                    <th className="px-4 py-3 text-left font-semibold">Entered By</th>
-                    <th className="px-4 py-3 text-left font-semibold">Status</th>
-                    <th className="px-4 py-3 text-left font-semibold">Action</th>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Payment ID</th>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Member Name</th>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Loan Details</th>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Payment Amount</th>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Date Paid</th>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Entered By</th>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Status</th>
+                    <th className="px-6 py-4 text-center text-xs font-bold text-white uppercase tracking-wider">Action</th>
                   </tr>
                 )}
               </thead>
-              <tbody>
+              <tbody className="divide-y divide-gray-200">
                 {activeRecordCount === 0 && (
                   <tr>
-                    <td colSpan={8} className="px-4 py-8 text-center text-gray-500">
-                      No records found for this tab.
+                    <td colSpan={8} className="px-6 py-16 text-center">
+                      <div className="flex flex-col items-center gap-2">
+                        <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center">
+                          <Eye size={24} className="text-gray-300" />
+                        </div>
+                        <p className="text-gray-500 font-medium">No records found for this tab</p>
+                        <p className="text-gray-400 text-sm">Try adjusting your filters</p>
+                      </div>
                     </td>
                   </tr>
                 )}
 
                 {(activeTab === "active" || activeTab === "fully_paid") &&
                   filteredLoanRows.map((loan, index) => (
-                    <tr key={loan.loan_id} className={`border-t border-gray-100 ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
-                      <td className="px-4 py-3 text-xs text-gray-700">{loan.loan_id}</td>
-                      <td className="px-4 py-3 text-gray-800 font-medium">{loan.member_name}</td>
-                      <td className="px-4 py-3">
-                        <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${getLoanTypeStyle(loan.loan_type_code)}`}>
+                    <tr key={loan.loan_id}>
+                      <td className="px-6 py-4 text-sm font-mono font-bold text-green-700">{loan.loan_id}</td>
+                      <td className="px-6 py-4 text-sm text-gray-800 font-semibold">{loan.member_name}</td>
+                      <td className="px-6 py-4">
+                        <span className={`inline-flex rounded-full px-3 py-1.5 text-xs font-bold ${getLoanTypeStyle(loan.loan_type_code)}`}>
                           {loan.loan_type}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-gray-700">{formatCurrency(loan.loan_amount)}</td>
-                      <td className="px-4 py-3 text-gray-700">{formatCurrency(loan.remaining_balance)}</td>
-                      <td className="px-4 py-3 text-gray-700">{loan.due_date}</td>
-                      <td className="px-4 py-3">
-                        <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${getStatusStyle(loan.status)}`}>
+                      <td className="px-6 py-4 text-sm text-gray-800 font-semibold">{formatCurrency(loan.loan_amount)}</td>
+                      <td className="px-6 py-4 text-sm text-right font-bold">
+                        <span className={loan.remaining_balance > 0 ? 'text-amber-600' : 'text-green-600'}>
+                          {formatCurrency(loan.remaining_balance)}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-700 font-medium">{loan.due_date}</td>
+                      <td className="px-6 py-4">
+                        <span className={`inline-flex rounded-full px-3 py-1.5 text-xs font-bold ${getStatusStyle(loan.status)}`}>
                           {loan.status}
                         </span>
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-6 py-4 text-center">
                         <button
                           type="button"
                           onClick={() => openLoanDetailsFromLoan(loan)}
-                          className="inline-flex items-center gap-1 rounded-md border border-gray-300 px-3 py-2 text-xs text-gray-700 hover:bg-gray-50"
+                          className="inline-flex items-center gap-1.5 rounded-lg bg-green-600 px-3 py-2 text-xs font-semibold text-white hover:bg-green-700 transition-colors cursor-pointer"
                         >
                           <Eye size={14} /> View Ledger
                         </button>
@@ -617,34 +627,34 @@ const BookkeeperPayments = () => {
                     const loan = loanById.get(item.loan_id);
 
                     return (
-                      <tr key={item.payment_id} className={`border-t border-gray-100 align-top ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
-                        <td className="px-4 py-3 text-xs text-gray-700">{item.payment_id}</td>
-                        <td className="px-4 py-3 text-gray-800 font-medium">{loan?.member_name || "Unknown Member"}</td>
-                        <td className="px-4 py-3 text-gray-700">
-                          <div className="text-xs text-gray-500">Loan ID: {item.loan_id}</div>
-                          <div className="mt-1">
-                            <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${getLoanTypeStyle(loan?.loan_type_code)}`}>
+                      <tr key={item.payment_id}>
+                        <td className="px-6 py-4 text-sm font-mono font-bold text-green-700">{item.payment_id}</td>
+                        <td className="px-6 py-4 text-sm text-gray-800 font-semibold">{loan?.member_name || "Unknown Member"}</td>
+                        <td className="px-6 py-4">
+                          <div className="text-xs text-gray-500 mb-1">Loan ID: {item.loan_id}</div>
+                          <div>
+                            <span className={`inline-flex rounded-full px-3 py-1.5 text-xs font-bold ${getLoanTypeStyle(loan?.loan_type_code)}`}>
                               {loan?.loan_type || "N/A"}
                             </span>
                           </div>
                         </td>
-                        <td className="px-4 py-3 text-gray-800">
+                        <td className="px-6 py-4 text-sm text-gray-800 font-semibold">
                           <div>{formatCurrency(item.payment_amount)}</div>
-                          <div className="text-xs text-gray-500">Penalty: {formatCurrency(item.penalties)}</div>
+                          <div className="text-xs text-gray-500 mt-1">Penalty: {formatCurrency(item.penalties)}</div>
                         </td>
-                        <td className="px-4 py-3 text-gray-700">{new Date(item.date_paid).toLocaleDateString()}</td>
-                        <td className="px-4 py-3 text-gray-700">{item.entered_by}</td>
-                        <td className="px-4 py-3">
-                          <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${getStatusStyle(item.confirmation_status)}`}>
+                        <td className="px-6 py-4 text-sm text-gray-700 font-medium">{new Date(item.date_paid).toLocaleDateString()}</td>
+                        <td className="px-6 py-4 text-sm text-gray-700 font-medium">{item.entered_by}</td>
+                        <td className="px-6 py-4">
+                          <span className={`inline-flex rounded-full px-3 py-1.5 text-xs font-bold ${getStatusStyle(item.confirmation_status)}`}>
                             {item.confirmation_status}
                           </span>
                         </td>
-                        <td className="px-4 py-3">
-                          <div className="flex flex-nowrap items-center gap-2 overflow-x-auto whitespace-nowrap pb-1">
+                        <td className="px-6 py-4 text-center">
+                          <div className="flex flex-nowrap items-center gap-2 justify-center overflow-x-auto">
                             <button
                               type="button"
                               onClick={() => openLoanDetailsFromPayment(item)}
-                              className="inline-flex shrink-0 items-center gap-1 rounded-md border border-gray-300 px-3 py-2 text-xs text-gray-700 hover:bg-gray-50"
+                              className="inline-flex items-center gap-1.5 rounded-lg bg-green-600 px-3 py-2 text-xs font-semibold text-white hover:bg-green-700 transition-colors cursor-pointer"
                             >
                               <Eye size={14} /> View
                             </button>
@@ -654,7 +664,7 @@ const BookkeeperPayments = () => {
                                   type="button"
                                   onClick={() => approvePayment(item.payment_id)}
                                   disabled={workingPaymentId === item.payment_id}
-                                  className="inline-flex shrink-0 items-center gap-1 rounded-md bg-green-600 px-3 py-2 text-xs text-white hover:bg-green-700"
+                                  className="inline-flex items-center gap-1.5 rounded-lg bg-green-600 px-3 py-2 text-xs font-semibold text-white hover:bg-green-700 disabled:opacity-50 transition-colors"
                                 >
                                   <CheckCircle size={14} /> {workingPaymentId === item.payment_id ? "Processing..." : "Approve"}
                                 </button>
@@ -662,7 +672,7 @@ const BookkeeperPayments = () => {
                                   type="button"
                                   onClick={() => openRejectFlow(item)}
                                   disabled={workingPaymentId === item.payment_id}
-                                  className="inline-flex shrink-0 items-center gap-1 rounded-md bg-red-600 px-3 py-2 text-xs text-white hover:bg-red-700"
+                                  className="inline-flex items-center gap-1.5 rounded-lg bg-red-600 px-3 py-2 text-xs font-semibold text-white hover:bg-red-700 disabled:opacity-50 transition-colors"
                                 >
                                   <XCircle size={14} /> Reject
                                 </button>
