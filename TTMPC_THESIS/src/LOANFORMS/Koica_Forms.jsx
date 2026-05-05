@@ -91,7 +91,7 @@ const Koica_Forms = () => {
     <div className="flex flex-col min-h-screen bg-[#F8F9FA] pb-20">
       <header className="w-full bg-[#f1fbe8] h-20 shadow-sm flex items-center px-6 border-b border-[#e5f4d8]">
         <div className="flex flex-row items-center gap-4">
-          <img src="src/assets/img/ttmpc logo.png" alt="Logo" className="h-12 w-auto" />
+          <img src="/assets/img/ttmpc logo.png" alt="Logo" className="h-12 w-auto" />
           <div className="flex flex-col">
             <h1 className="text-sm font-extrabold text-[#66B538] uppercase tracking-wide">Tubungan Teacher's Multi-Purpose Cooperative</h1>
             <p className="text-[#8bc766] text-xs font-medium">Loan Application Kiosk</p>

@@ -124,7 +124,7 @@ const BOD_Manage_Member = () => {
     <div className="flex min-h-screen bg-gray-100">
       <aside className="bg-white w-64 p-4 flex flex-col border-r border-gray-200">
         <div className="flex flex-row items-start gap-2 mb-6">
-          <img src="src/assets/img/ttmpc logo.png" alt="Logo" className="h-12 w-auto" />
+          <img src="/assets/img/ttmpc logo.png" alt="Logo" className="h-12 w-auto" />
           <div className="flex flex-col">
             <h1 className="text-xl font-bold text-[#389734]">TTMPC</h1>
             <PortalSidebarIdentity className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold" fallbackPortal="BOD Portal" fallbackRole="BOD" />
@@ -161,7 +161,7 @@ const BOD_Manage_Member = () => {
                            <span className="absolute top-1 right-1 block h-2 w-2 rounded-full bg-red-500 ring-2 ring-white"></span>
                          </button>
                          <div className="flex items-center ml-4 gap-2 border-l border-gray-200 pl-4">
-                           <img src="src/assets/img/bookkeeper-profile.png" alt="Profile" className="w-8 h-8 rounded-full bg-gray-200"></img>
+                           <img src="/assets/img/bookkeeper-profile.png" alt="Profile" className="w-8 h-8 rounded-full bg-gray-200"></img>
                            <PortalTopbarIdentity className="text-sm font-medium text-gray-700" fallbackRole="BOD" />
                          </div>
                        </header>
