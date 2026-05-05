@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
 import { PortalSidebarIdentity, PortalTopbarIdentity } from "../../components/PortalIdentity";
-import { LayoutDashboard, Users, CalendarCheck, Archive, Search, Bell, ChevronLeft, ChevronRight } from "lucide-react";
+import { LayoutDashboard, Users, CreditCard, CalendarCheck, Archive, Search, Bell, ChevronLeft, ChevronRight } from "lucide-react";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 const ITEMS_PER_PAGE = 10;
@@ -15,11 +15,13 @@ const BOD_Manage_Member = () => {
   const [error, setError] = useState("");
   const [query, setQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
+  const [loanSummaryByMemberId, setLoanSummaryByMemberId] = useState({});
 
   const menuItems = [
     { section: "BOD", items: [
       { name: "Dashboard", icon: LayoutDashboard },
       { name: "Member Approvals", icon: Users },
+      { name: "Manage Loans", icon: CreditCard },
       { name: "Manage Member", icon: Users },
     ]},
     { section: "SECRETARY", items: [
@@ -31,6 +33,7 @@ const BOD_Manage_Member = () => {
   const routeMap = {
     "Dashboard": "/BOD-dashboard",
     "Member Approvals": "/member-approvals",
+    "Manage Loans": "/bod-manage-loans",
     "Manage Member": "/bod-manage-member",
     "Training Attendance": "/Secretary_Attendance",
     "Membership Records": "/Secretary_Records",
@@ -40,20 +43,50 @@ const BOD_Manage_Member = () => {
     async function loadData() {
       setLoading(true);
       setError("");
+
       try {
-        const response = await fetch(`${API_BASE_URL}/api/personal_data_sheet`, { method: "GET", headers: { Accept: "application/json" } });
-        const payload = await response.json().catch(() => ({}));
-        if (!response.ok || !payload?.success) {
-          throw new Error(payload?.detail || payload?.message || "Failed to load personal datasheet.");
+        const [memberRes, loansRes] = await Promise.all([
+          fetch(`${API_BASE_URL}/api/personal_data_sheet`, { method: "GET", headers: { Accept: "application/json" } }),
+          fetch(`${API_BASE_URL}/api/bookkeeper/manage-loans`, { method: "GET", headers: { Accept: "application/json" } }),
+        ]);
+
+        const memberPayload = await memberRes.json().catch(() => ({}));
+        const loansPayload = await loansRes.json().catch(() => ({}));
+
+        if (!memberRes.ok || !memberPayload?.success) {
+          throw new Error(memberPayload?.detail || memberPayload?.message || "Failed to load personal datasheet.");
         }
-        setRows(Array.isArray(payload.data) ? payload.data : []);
+
+        const memberRows = Array.isArray(memberPayload.data) ? memberPayload.data : [];
+        const loanRows = Array.isArray(loansPayload?.data?.rows) ? loansPayload.data.rows : [];
+
+        const nextSummary = {};
+        loanRows.forEach((loan) => {
+          const memberId = String(loan.membership_id || "").trim();
+          if (!memberId) return;
+          if (!nextSummary[memberId]) {
+            nextSummary[memberId] = { paidCount: 0, activeCount: 0 };
+          }
+
+          const status = String(loan.status || "").toLowerCase();
+          if (status.includes("fully")) {
+            nextSummary[memberId].paidCount += 1;
+          } else {
+            nextSummary[memberId].activeCount += 1;
+          }
+        });
+
+        setRows(memberRows);
+        setLoanSummaryByMemberId(nextSummary);
       } catch (err) {
         setError(err?.message || "Unable to load personal datasheet.");
         setRows([]);
+        setLoanSummaryByMemberId({});
       } finally {
         setLoading(false);
       }
     }
+
     loadData();
   }, []);
 
@@ -147,30 +180,38 @@ const BOD_Manage_Member = () => {
                     <th className="px-4 py-3 text-left">Email</th>
                     <th className="px-4 py-3 text-left">Contact</th>
                     <th className="px-4 py-3 text-left">Address</th>
+                    <th className="px-4 py-3 text-left">Active Loans</th>
+                    <th className="px-4 py-3 text-left">Paid Loans</th>
                     <th className="px-4 py-3 text-right">Action</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filtered.length === 0 ? (
-                    <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-500">No personal datasheet records found.</td></tr>
+                    <tr><td colSpan={8} className="px-4 py-8 text-center text-gray-500">No personal datasheet records found.</td></tr>
                   ) : (
-                    paginatedRows.map((r) => (
-                      <tr key={String(r.id)} className="border-t border-gray-100">
-                        <td className="px-4 py-3 font-semibold text-gray-800">{r.member_id}</td>
-                        <td className="px-4 py-3 text-gray-700">{r.full_name}</td>
-                        <td className="px-4 py-3 text-gray-700">{r.email}</td>
-                        <td className="px-4 py-3 text-gray-700">{r.contact_number}</td>
-                        <td className="px-4 py-3 text-gray-700">{r.address}</td>
-                        <td className="px-4 py-3 text-right">
-                          <button
-                            onClick={() => navigate(`/member_details?member_id=${encodeURIComponent(String(r.member_id || ""))}&portal=bod`, { state: { member: r, portal: "bod" } })}
-                            className="text-[#1D6021] font-bold hover:underline transition-all"
-                          >
-                            View
-                          </button>
-                        </td>
-                      </tr>
-                    ))
+                    paginatedRows.map((r) => {
+                      const summary = loanSummaryByMemberId[String(r.member_id || "").trim()] || { paidCount: 0, activeCount: 0 };
+
+                      return (
+                        <tr key={String(r.id)} className="border-t border-gray-100">
+                          <td className="px-4 py-3 font-semibold text-gray-800">{r.member_id}</td>
+                          <td className="px-4 py-3 text-gray-700">{r.full_name}</td>
+                          <td className="px-4 py-3 text-gray-700">{r.email}</td>
+                          <td className="px-4 py-3 text-gray-700">{r.contact_number}</td>
+                          <td className="px-4 py-3 text-gray-700">{r.address}</td>
+                          <td className="px-4 py-3 text-gray-700">{summary.activeCount}</td>
+                          <td className="px-4 py-3 text-gray-700">{summary.paidCount}</td>
+                          <td className="px-4 py-3 text-right">
+                            <button
+                              onClick={() => navigate(`/member_details?member_id=${encodeURIComponent(String(r.member_id || ""))}&portal=bod`, { state: { member: r, portal: "bod" } })}
+                              className="text-[#1D6021] font-bold hover:underline transition-all"
+                            >
+                              View
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })
                   )}
                 </tbody>
               </table>

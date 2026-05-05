@@ -70,6 +70,7 @@ import Savings_Forms from "./LOANFORMS/Savings_Forms";
 import Grocery from "./Bookkeeper/Components/Grocery";
 import Grocery_Ledger from "./Bookkeeper/Components/Grocery-Ledger";
 import Cashier_Grocery from "./Cashier/Components/Cashier_Grocery";
+import BOD_Manage_Loans from "./BOD/Components/Manage-Loans";
 
 
 
@@ -135,6 +136,7 @@ export const router = createBrowserRouter([
     {path: "/Secretary_Attendance", element:<Secretary_Attendance/>},
     {path: "/Secretary_Records", element:<Secretary_Records/>},
     {path: "/bod-manage-member", element:<BOD_Manage_Member/>},
+    {path: "/bod-manage-loans", element:<BOD_Manage_Loans/>},
     {path: "/secretary-records", element:<Secretary_Records/>},
     {path: "/membership-records", element:<Secretary_Records/>},
     {path: "/record-details/:id", element:<Record_Details/>},
