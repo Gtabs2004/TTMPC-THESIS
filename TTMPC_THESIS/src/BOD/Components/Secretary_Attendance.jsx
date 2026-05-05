@@ -7,6 +7,7 @@ import { resolveAccountFromSessionUser } from "../../utils/sessionIdentity";
 import { 
   LayoutDashboard, 
   Users, 
+  CreditCard,
   CalendarCheck,
   Search,
   Bell,
@@ -48,6 +49,7 @@ const Secretary_Attendance = () => {
       items: [
         { name: "Dashboard", icon: LayoutDashboard },
         { name: "Member Approvals", icon: Users },
+        { name: "Manage Loans", icon: CreditCard },
         { name: "Manage Member", icon: Users },
       ]
     },
@@ -416,9 +418,10 @@ const Secretary_Attendance = () => {
             const routeMap = {
               "Dashboard": "/BOD-dashboard",
               "Member Approvals": "/member-approvals",
+              "Manage Loans": "/bod-manage-loans",
               "Manage Member": "/bod-manage-member",
               "Training Attendance": "/Secretary_Attendance",
-              "Membership Records": "/Secretary_Records",
+              "Membership Records": "/Secretary_Records"
             };
 
             return menuItems.map((sectionGroup) => (

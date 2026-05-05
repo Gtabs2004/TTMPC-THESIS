@@ -1586,7 +1586,7 @@ async def get_bookkeeper_manage_loans():
             supabase.table("loans")
             .select(
                 "control_number,loan_amount,principal_amount,interest_rate,term,loan_status,application_status,monthly_amortization,application_date," \
-                "member:member_id(first_name,last_name,is_bona_fide),loan_type:loan_type_id(code,name)"
+                "member:member_id(membership_id,first_name,last_name,is_bona_fide),loan_type:loan_type_id(code,name)"
             )
             .order("application_date", desc=True)
             .execute()
@@ -1659,6 +1659,7 @@ async def get_bookkeeper_manage_loans():
             member = row.get("member") or {}
             member_name = f"{member.get('first_name') or ''} {member.get('last_name') or ''}".strip() or "Unknown Member"
             member_type = "Member" if bool(member.get("is_bona_fide")) else "Non-Member"
+            membership_id = str(member.get("membership_id") or "").strip()
 
             loan_type = row.get("loan_type") or {}
             loan_type_name = loan_type.get("name") or "N/A"
@@ -1716,6 +1717,7 @@ async def get_bookkeeper_manage_loans():
             mapped_rows.append(
                 {
                     "loan_id": loan_id,
+                    "membership_id": membership_id,
                     "member_name": member_name,
                     "member_type": member_type,
                     "loan_type": loan_type_name,
@@ -1729,6 +1731,7 @@ async def get_bookkeeper_manage_loans():
                     "status": repayment_status,
                     "source_loan_status": row.get("loan_status"),
                     "source_application_status": row.get("application_status"),
+                    "application_date": row.get("application_date"),
                     "payment_history": payment_history,
                 }
             )
