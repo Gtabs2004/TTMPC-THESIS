@@ -300,7 +300,7 @@ function Emergency_Loan() {
     <div className="flex flex-col min-h-screen bg-gray-100 pb-20">
       <header className="w-full bg-[#E9F7DE] h-20 shadow-lg flex text-col px-6">
         <div className="flex flex-row items-center gap-4">
-          <img src="/assets/img/ttmpc logo.png" alt="Logo" className="h-12 w-auto" />
+          <img src="src/assets/img/ttmpc logo.png" alt="Logo" className="h-12 w-auto" />
           <div className="flex flex-col">
             <h1 className="text-sm font-bold text-[#66B538]">Tubungan Teacher's Multi-Purpose Cooperative</h1>
             <p className="text-[#A0D284] text-xs">Loan Application Kiosk</p>

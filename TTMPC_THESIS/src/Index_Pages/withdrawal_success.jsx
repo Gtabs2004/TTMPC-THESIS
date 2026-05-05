@@ -22,7 +22,7 @@ const Withdrawal_Success = () => {
         {/* Header - Kept exactly as you had it */}
         <header className="w-full bg-[#E9F7DE] h-20 shadow-sm flex justify-between items-center px-6 border-b border-[#D5EDB9]">
             <div className="flex flex-row items-center gap-3">
-              <img src="/assets/img/ttmpc logo.png" alt="Logo" className="h-12 w-auto" />
+              <img src="src/assets/img/ttmpc logo.png" alt="Logo" className="h-12 w-auto" />
               <div className="flex flex-col">
                 <h1 className="text-sm font-bold text-[#66B538]">Tubungan Teacher's Multi‑Purpose Cooperative</h1>
                 <p className="text-[#A0D284] text-xs">Loan Application Kiosk</p>

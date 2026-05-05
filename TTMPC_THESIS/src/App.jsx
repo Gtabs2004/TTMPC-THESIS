@@ -4,20 +4,20 @@
   const newsItems = [
     {
       id: 1,
-      imgSrc: '/assets/img/news_1.jpg',
+      imgSrc: 'src/assets/img/news_1.jpg',
       alt: 'Event 1',
       description: 'TTMPC officers personally revisit the trees they planted and nurtured.',
     },
     {
       id: 2,
-      imgSrc: '/assets/img/news_2.jpg',
+      imgSrc: 'src/assets/img/news_2.jpg',
       alt: 'Event 2',
       description:
         'TTMPC celebrates the 5th year of spreading cheer through Gift Giving Activity at Sibucauan Elementary School.',
     },
     {
       id: 3,
-      imgSrc: '/assets/img/news_3.jpg',
+      imgSrc: 'src/assets/img/news_3.jpg',
       alt: 'Event 3',
       description: 'TTMPC conducts 2025 Strategic Planning.',
     },
@@ -74,7 +74,7 @@
       <>
         <header className="bg-white h-20 flex flex-row shadow-lg sticky">
           <img
-            src="/assets/img/ttmpc logo.png"
+            src="src/assets/img/ttmpc logo.png"
             alt="Ttmpc Logo"
             className="h-12 w-auto flex items-start mt-3 ml-4"
           />
@@ -107,7 +107,7 @@
             Together, We Grow Stronger.
           </h1>
           <img
-            src="/assets/img/landing page.png"
+            src="src/assets/img/landing page.png"
             alt="Main Image"
             className="h-88 w-auto mb-20"
           />
@@ -115,7 +115,7 @@
         <div className="bg-white h-96 flex flex-row items-center">
           <div className="bg-[#E9F7DE] h-48 w-60 rounded-lg flex items-start ml-40 ">
             <img
-              src="/assets/img/1.png"
+              src="src/assets/img/1.png"
               alt="Product Image"
               className="h-full w-full object-cover rounded-lg"
             />
