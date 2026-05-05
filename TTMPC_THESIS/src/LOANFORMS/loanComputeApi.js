@@ -33,11 +33,16 @@ const normalizeRatePercent = (rate, row, fallbackCode = '') => {
   const effectiveCode = rowCode || String(fallbackCode || '').trim().toUpperCase();
 
   // Backward compatibility for consolidated decimal monthly format (e.g., 0.083).
-  if (effectiveCode === 'CONSOLIDATED' && rate > 0 && rate < 1) {
-    return rate * 100;
+   if (effectiveCode === 'CONSOLIDATED') {
+    // If rate > 1, it's stored as percentage (e.g., 8.30), convert to decimal (0.083)
+    if (rate > 1) {
+      return rate / 100;
+    }
+    // If rate is already 0-1 range, return as-is
+    if (rate > 0 && rate < 1) {
+      return rate;
+    }
   }
-
-  return rate;
 };
 
 const extractInterestRate = (row, fallbackCode = '') => {
