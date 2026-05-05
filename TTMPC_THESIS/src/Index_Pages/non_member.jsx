@@ -20,7 +20,7 @@ const Non_Member = () => {
     <div className="flex flex-col min-h-screen bg-gray-100">
         <header className="w-full bg-[#E9F7DE] h-20 shadow-lg flex text-col">
             <div className="flex flex-row items-start gap-2">
-            <img src="/assets/img/ttmpc logo.png" alt="Logo" className="h-12 w-auto ml-5 mt-4"/>
+            <img src="src/assets/img/ttmpc logo.png" alt="Logo" className="h-12 w-auto ml-5 mt-4"/>
             <div className="flex flex-col">
             <h1 className="text-sm font-bold text-[#66B538] mt-6">Tubungan Teacher's Multi‑Purpose Cooperative</h1>
             <p className="text-[#A0D284] text-xs">Loan Application Kiosk</p>
@@ -28,7 +28,7 @@ const Non_Member = () => {
             </div>
     </header>
      <main className="flex justify-center items-center flex-col">
-        <img src="/assets/img/ttmpc logo.png" className="w-auto h-40 mt-16"/>
+        <img src="src/assets/img/ttmpc logo.png" className="w-auto h-40 mt-16"/>
         <h1 className="text-sm font-semibold  ml-2">Loan Application Kiosk</h1>
         <p className="mt-4  text-lg font-bold ">Available Loan Services</p>
         <div className="flex flex-row gap-10 mt-10">

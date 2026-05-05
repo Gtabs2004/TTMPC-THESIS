@@ -182,7 +182,7 @@ const Cashier_Grocery = () => {
             <Bell className="w-5 h-5"/>
             <span className="absolute top-1 right-1 block h-2 w-2 rounded-full bg-red-500 ring-2 ring-white"></span>
           </button>
-          <img src="/assets/img/cashier-profile.png" alt="Profile" className="ml-4 w-8 h-8 rounded-full object-cover bg-gray-200" />
+          <img src="src/assets/img/cashier-profile.png" alt="Profile" className="ml-4 w-8 h-8 rounded-full object-cover bg-gray-200" />
           <PortalTopbarIdentity className="font-medium text-sm text-gray-700 ml-2" fallbackRole="Cashier" />
         </header>
 

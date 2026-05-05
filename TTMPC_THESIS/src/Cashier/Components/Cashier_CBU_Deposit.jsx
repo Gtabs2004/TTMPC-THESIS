@@ -241,7 +241,7 @@ const Cashier_CBU_Deposit = () => {
             <Bell className="w-5 h-5" />
             <span className="absolute top-1 right-1 block h-2 w-2 rounded-full bg-red-500 ring-2 ring-white"></span>
           </button>
-          <img src="/assets/img/bookkeeper-profile.png" alt="Profile" className="ml-4 w-8 h-8 rounded-full bg-gray-200" />
+          <img src="src/assets/img/bookkeeper-profile.png" alt="Profile" className="ml-4 w-8 h-8 rounded-full bg-gray-200" />
           <PortalTopbarIdentity className="text-sm font-medium text-gray-700" fallbackRole="Cashier" />
         </header>
 

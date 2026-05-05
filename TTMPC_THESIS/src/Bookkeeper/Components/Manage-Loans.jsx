@@ -228,7 +228,7 @@ const ManageLoans = () => {
             </button>
             <div className="flex items-center gap-3 pl-4 border-l border-gray-200">
               <img
-                src="/assets/img/bookkeeper-profile.png"
+                src="src/assets/img/bookkeeper-profile.png"
                 alt="Bookkeeper Profile"
                 className="w-8 h-8 rounded-full shadow-sm"
               />
