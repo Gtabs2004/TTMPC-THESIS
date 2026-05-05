@@ -83,7 +83,7 @@ const Verification = () => {
     <div className="flex flex-col min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
       <header className="w-full bg-[#E9F7DE] h-20 shadow-lg flex text-col px-6">
         <div className="flex flex-row items-center gap-4">
-          <img src="src/assets/img/ttmpc logo.png" alt="Logo" className="h-12 w-auto" />
+          <img src="/assets/img/ttmpc logo.png" alt="Logo" className="h-12 w-auto" />
           <div className="flex flex-col">
             <h1 className="text-sm font-bold text-[#66B538]">Tubungan Teacher's Multi‑Purpose Cooperative</h1>
             <p className="text-[#A0D284] text-xs">Loan Application Kiosk</p>
@@ -94,7 +94,7 @@ const Verification = () => {
       <main className="flex justify-center items-center flex-col flex-1 py-8 px-4">
         <div className="w-full max-w-md">
           <div className="text-center mb-8">
-            <img src="src/assets/img/ttmpc logo.png" className="w-auto h-24 mx-auto mb-4" alt="TTMPC Logo"/>
+            <img src="/assets/img/ttmpc logo.png" className="w-auto h-24 mx-auto mb-4" alt="TTMPC Logo"/>
             <h2 className="text-3xl font-bold text-gray-900 mb-2">Account Verification</h2>
             <p className="text-gray-600 text-sm leading-relaxed">Verify your identity to access your account and loan services</p>
           </div>

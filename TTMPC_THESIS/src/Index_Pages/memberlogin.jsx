@@ -34,7 +34,7 @@ function MemberLogin() {
       {/* Header & Logo */}
       <div className="sm:mx-auto sm:w-full sm:max-w-md flex flex-col items-center">
         <img
-          src="src/assets/img/ttmpc logo.png"
+          src="/assets/img/ttmpc logo.png"
           alt="TTMPC Logo"
           className="mx-auto h-24 w-auto drop-shadow-sm mb-6"
         />

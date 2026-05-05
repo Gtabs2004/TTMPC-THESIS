@@ -36,7 +36,7 @@ const Sign_Up = () => {
       {/* Header & Logo */}
       <div className="sm:mx-auto sm:w-full sm:max-w-sm">
         <img
-          src="src/assets/img/ttmpc logo.png"
+          src="/assets/img/ttmpc logo.png"
           alt="Your Company"
           className="ml-32 my-auto h-30 w-auto"
         />
