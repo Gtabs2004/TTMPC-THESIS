@@ -396,7 +396,7 @@ const BOD_Manage_Loans = () => {
           <div className="flex items-center justify-between mb-8">
             <div>
               <div className="flex items-center gap-3">
-                <BookOpen className="w-6 h-6 text-green-700" />
+                
                 <h1 className="font-bold text-2xl text-[#1a3b47]">Loan Ledger</h1>
               </div>
               <p className="text-sm text-gray-500 mt-1 ml-9">BOD view of approved, disbursed, paid, and pending loans</p>
