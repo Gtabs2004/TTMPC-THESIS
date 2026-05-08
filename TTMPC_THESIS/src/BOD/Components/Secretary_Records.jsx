@@ -21,7 +21,8 @@ import {
   Download,
   Archive 
 } from 'lucide-react';
-import logo from "../../assets/img/ttmpc logo.png"; 
+import logo from "../../assets/img/ttmpc logo.png";
+import NotificationBell from "./NotificationBell";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 
@@ -195,10 +196,7 @@ const Secretary_Records = () => {
                      placeholder="Search..."
                    />
                  </div>
-                 <button className="ml-6 relative p-1 rounded-full text-gray-500 hover:bg-gray-100 transition-colors">
-                   <Bell className="w-5 h-5"/>
-                   <span className="absolute top-1 right-1 block h-2 w-2 rounded-full bg-red-500 ring-2 ring-white"></span>
-                 </button>
+                 <NotificationBell />
                  <div className="flex items-center ml-4 gap-2 border-l border-gray-200 pl-4">
                    <img src="src/assets/img/bookkeeper-profile.png" alt="Profile" className="w-8 h-8 rounded-full bg-gray-200"></img>
                    <PortalTopbarIdentity className="text-sm font-medium text-gray-700" fallbackRole="BOD" />
