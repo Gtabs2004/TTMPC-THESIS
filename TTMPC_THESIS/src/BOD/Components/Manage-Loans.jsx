@@ -16,6 +16,7 @@ import {
   ChevronRight,
   ChevronUp,
 } from "lucide-react";
+import NotificationBell from "./NotificationBell";
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 const MEMBER_TONE_POOL = [
   "text-blue-600 bg-blue-50",
@@ -382,10 +383,7 @@ const BOD_Manage_Loans = () => {
               onChange={(event) => setSearchTerm(event.target.value)}
             />
           </div>
-          <button className="ml-6 relative p-1 rounded-full text-gray-500 hover:bg-gray-100 transition-colors">
-            <Bell className="w-5 h-5" />
-            <span className="absolute top-1 right-1 block h-2 w-2 rounded-full bg-red-500 ring-2 ring-white"></span>
-          </button>
+          <NotificationBell />
           <div className="flex items-center ml-4 gap-2 border-l border-gray-200 pl-4">
             <img src="src/assets/img/bookkeeper-profile.png" alt="Profile" className="w-8 h-8 rounded-full bg-gray-200" />
             <PortalTopbarIdentity className="text-sm font-medium text-gray-700" fallbackRole="BOD" />
@@ -396,7 +394,7 @@ const BOD_Manage_Loans = () => {
           <div className="flex items-center justify-between mb-8">
             <div>
               <div className="flex items-center gap-3">
-                <BookOpen className="w-6 h-6 text-green-700" />
+                
                 <h1 className="font-bold text-2xl text-[#1a3b47]">Loan Ledger</h1>
               </div>
               <p className="text-sm text-gray-500 mt-1 ml-9">BOD view of approved, disbursed, paid, and pending loans</p>

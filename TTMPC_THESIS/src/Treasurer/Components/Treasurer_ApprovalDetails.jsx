@@ -677,7 +677,7 @@ const Treasurer_ApprovalDetails = () => {
 
           {/* Right Column */}
           <div className="flex flex-col gap-8">
-            {/* Loan Computation Summary */}
+            {/* Loan Computation Summary (hidden for now)
             <div>
               <h2 className="flex items-center text-lg font-bold text-gray-800 mb-4">
                 <Calculator className="w-5 h-5 mr-2 text-[#1D6021]" /> Loan Computation Summary
@@ -710,6 +710,7 @@ const Treasurer_ApprovalDetails = () => {
                 </div>
               </div>
             </div>
+            */}
 
             {/* Treasurer's Disbursement Assessment */}
             <div className="bg-white rounded-xl border border-gray-200 p-6 mb-4">
