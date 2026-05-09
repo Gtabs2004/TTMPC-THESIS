@@ -171,16 +171,16 @@ const BOD_Manage_Member = () => {
             {error ? <p className="p-6 text-red-600">{error}</p> : null}
             {!loading && !error ? (
               <table className="w-full text-sm">
-                <thead className="bg-gray-50 text-gray-600 uppercase text-[11px] tracking-wider">
+                <thead className="bg-green-600 text-white uppercase text-[11px] tracking-wider text-center">
                   <tr>
-                    <th className="px-4 py-3 text-left">Member ID</th>
-                    <th className="px-4 py-3 text-left">Name</th>
-                    <th className="px-4 py-3 text-left">Email</th>
-                    <th className="px-4 py-3 text-left">Contact</th>
-                    <th className="px-4 py-3 text-left">Address</th>
-                    <th className="px-4 py-3 text-left">Active Loans</th>
-                    <th className="px-4 py-3 text-left">Paid Loans</th>
-                    <th className="px-4 py-3 text-right">Action</th>
+                    <th className="px-4 py-3 text-center">Member ID</th>
+                    <th className="px-4 py-3 text-center">Name</th>
+                    <th className="px-4 py-3 text-center">Email</th>
+                    <th className="px-4 py-3 text-center">Contact</th>
+                    <th className="px-4 py-3 text-center">Address</th>
+                    <th className="px-4 py-3 text-center">Active Loans</th>
+                    <th className="px-4 py-3 text-center">Paid Loans</th>
+                    <th className="px-4 py-3 text-center">Action</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -193,13 +193,13 @@ const BOD_Manage_Member = () => {
                       return (
                         <tr key={String(r.id)} className="border-t border-gray-100">
                           <td className="px-4 py-3 font-semibold text-gray-800">{r.member_id}</td>
-                          <td className="px-4 py-3 text-gray-700">{r.full_name}</td>
-                          <td className="px-4 py-3 text-gray-700">{r.email}</td>
-                          <td className="px-4 py-3 text-gray-700">{r.contact_number}</td>
-                          <td className="px-4 py-3 text-gray-700">{r.address}</td>
-                          <td className="px-4 py-3 text-gray-700">{summary.activeCount}</td>
-                          <td className="px-4 py-3 text-gray-700">{summary.paidCount}</td>
-                          <td className="px-4 py-3 text-right">
+                          <td className="px-4 py-3 text-gray-700 text-center">{r.full_name}</td>
+                          <td className="px-4 py-3 text-gray-700 text-center">{r.email}</td>
+                          <td className="px-4 py-3 text-gray-700 text-center">{r.contact_number}</td>
+                          <td className="px-4 py-3 text-gray-700 text-center">{r.address}</td>
+                          <td className="px-4 py-3 text-gray-700 text-center">{summary.activeCount}</td>
+                          <td className="px-4 py-3 text-gray-700 text-center">{summary.paidCount}</td>
+                          <td className="px-4 py-3 text-center">
                             <button
                               onClick={() => navigate(`/member_details?member_id=${encodeURIComponent(String(r.member_id || ""))}&portal=bod`, { state: { member: r, portal: "bod" } })}
                               className="text-[#1D6021] font-bold hover:underline transition-all"
