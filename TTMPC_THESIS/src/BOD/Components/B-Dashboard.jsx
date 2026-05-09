@@ -3,11 +3,12 @@ import { useNavigate, NavLink } from "react-router-dom";
 // Assuming AuthContext and PortalIdentity are standard imports in your project
 import { UserAuth } from "../../contex/AuthContext";
 import { PortalSidebarIdentity, PortalTopbarIdentity } from "../../components/PortalIdentity";
-import { 
+import {
   LayoutDashboard, Users, Archive, CalendarCheck, Search, Bell,
   Download, Calendar, TrendingUp, AlertCircle, CreditCard, HeartHandshake,
   Clock, ArrowUpRight, ArrowDownRight
 } from 'lucide-react';
+import NotificationBell from "./NotificationBell";
 import { 
   ComposedChart, Line, Area, BarChart, Bar, ScatterChart, Scatter, PieChart, Pie, Cell, 
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart // LineChart moved here to fix the import conflict
@@ -123,10 +124,7 @@ const Dashboard_BOD = () => {
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400"/>
             <input type="text" className="bg-gray-50 w-72 h-10 rounded-lg border border-gray-200 pl-10 pr-4 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-[#2C7A3F]" placeholder="Search..." />
           </div>
-          <button className="ml-6 relative p-1 rounded-full text-gray-500 hover:bg-gray-100 transition-colors">
-            <Bell className="w-5 h-5"/>
-            <span className="absolute top-1 right-1 block h-2 w-2 rounded-full bg-red-500 ring-2 ring-white"></span>
-          </button>
+          <NotificationBell />
           <img src="src/assets/img/bookkeeper-profile.png" alt="Profile" className="ml-4 w-8 h-8 rounded-full bg-gray-200" />
           <PortalTopbarIdentity className="text-sm font-medium text-gray-700" fallbackRole="BOD" />
         </header>
