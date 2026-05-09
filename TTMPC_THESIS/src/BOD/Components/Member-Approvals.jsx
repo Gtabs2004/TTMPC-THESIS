@@ -292,6 +292,7 @@ const Member_Approvals = () => {
                 );
               })}
             </div>
+            
           ))}
         </nav>
         
@@ -312,7 +313,6 @@ const Member_Approvals = () => {
             <PortalTopbarIdentity className="text-sm font-medium text-gray-700" fallbackRole="BOD" />
           </div>
         </header>
-
         <main className="p-8">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6" >
             <div className="bg-white border border-gray-100 rounded-xl p-5 flex items-center gap-4 shadow-sm">
