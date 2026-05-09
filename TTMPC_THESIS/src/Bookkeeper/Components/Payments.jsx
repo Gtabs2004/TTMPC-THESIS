@@ -469,8 +469,7 @@ const BookkeeperPayments = () => {
 
           <div className="rounded-lg bg-white border border-gray-200 mb-4 p-3">
             <div className="flex flex-wrap gap-2">
-              {tabItems.map((tab) => (
-                <button
+              {tabItems.map((tab) => ( <button
                   key={tab.key}
                   type="button"
                   onClick={() => setActiveTab(tab.key)}
@@ -485,6 +484,7 @@ const BookkeeperPayments = () => {
                     {tab.count}
                   </span>
                 </button>
+                  
               ))}
             </div>
           </div>
