@@ -449,7 +449,7 @@ def set_new_account_temporary(
 				"user_id": auth_user_id,
 				"auth_user_id": auth_user_id,  # Also store the UUID
 				"email": clean_email,
-				"role": "member",
+				"role": "Member",
 				"is_temporary": True,
 			}
 			if membership_id:
@@ -666,7 +666,21 @@ def upsert_personal_data_sheet(
 	except Exception:
 		return None
 
-	pds_id = str(application_data.get("application_id") or application_id or "").strip()
+	existing_pds_id = None
+	try:
+		existing_response = (
+			supabase.table("personal_data_sheet")
+			.select("personal_data_sheet_id")
+			.eq("membership_number_id", membership_id)
+			.limit(1)
+			.execute()
+		)
+		if existing_response.data:
+			existing_pds_id = existing_response.data[0].get("personal_data_sheet_id")
+	except Exception:
+		existing_pds_id = None
+
+	pds_id = str(existing_pds_id or application_data.get("application_id") or application_id or "").strip()
 	if not pds_id:
 		pds_id = f"TTMPCAP-{int(datetime.now(timezone.utc).timestamp())}"
 
@@ -713,7 +727,7 @@ def upsert_personal_data_sheet(
 
 	response = (
 		supabase.table("personal_data_sheet")
-		.upsert(filtered_payload, on_conflict="personal_data_sheet_id")
+		.upsert(filtered_payload, on_conflict="membership_number_id")
 		.execute()
 	)
 
@@ -746,7 +760,7 @@ def update_confirmed_account_role_to_member(
 				create_payload = {
 					"user_id": auth_user_id,
 					"auth_user_id": auth_user_id,
-					"role": "member",
+					"role": "Member",
 					"email": email,
 					"is_temporary": False,
 				}
@@ -765,7 +779,7 @@ def update_confirmed_account_role_to_member(
 
 		# Row exists, update it with any missing fields
 		current_role = str(account_response.data[0].get("role") or "").strip().lower()
-		update_payload = {"role": "member"}
+		update_payload = {"role": "Member"}
 		
 		# Ensure auth_user_id is stored
 		if not account_response.data[0].get("auth_user_id"):
