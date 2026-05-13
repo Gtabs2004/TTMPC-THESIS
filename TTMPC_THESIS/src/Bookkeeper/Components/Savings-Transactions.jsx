@@ -59,6 +59,7 @@ const BookkeeperSavingsTransactions = () => {
     { name: "Loan Approval", icon: FileText },
     { name: "Manage Loans", icon: CreditCard },
     { name: "Payments", icon: CreditCard },
+    { name: "Savings Withdrawals", icon: CreditCard },
     { name: "Accounting", icon: Calculator },
     { name: "MIGS Scoring", icon: Activity },
     { name: "Reports", icon: BarChart3 },
@@ -72,6 +73,7 @@ const BookkeeperSavingsTransactions = () => {
     "Loan Approval": "/bookkeeper-loan-approval",
     "Manage Loans": "/manage-loans",
     Payments: "/payments",
+    "Savings Withdrawals": "/bookkeeper-savings-transactions",
     Accounting: "/accounting",
     "MIGS Scoring": "/migs",
     Reports: "/reports",
@@ -79,10 +81,15 @@ const BookkeeperSavingsTransactions = () => {
     Grocery: "/grocery",
   };
 
+  const withdrawalRows = useMemo(
+    () => rows.filter((row) => String(row.transaction_type || "").toLowerCase() === "withdraw"),
+    [rows]
+  );
+
   const filteredRows = useMemo(() => {
     const normalizedSearch = searchTerm.trim().toLowerCase();
 
-    return rows
+    return withdrawalRows
       .filter((row) => String(row.transaction_status || "").toLowerCase() === activeTab)
       .filter((row) => {
         if (!normalizedSearch) return true;
@@ -92,15 +99,15 @@ const BookkeeperSavingsTransactions = () => {
           || String(row.member_name || "").toLowerCase().includes(normalizedSearch)
         );
       });
-  }, [rows, activeTab, searchTerm]);
+  }, [withdrawalRows, activeTab, searchTerm]);
 
   const tabCounts = useMemo(() => {
-    const pending = rows.filter((row) => String(row.transaction_status || "").toLowerCase() === "pending_verification").length;
-    const validated = rows.filter((row) => String(row.transaction_status || "").toLowerCase() === "validated").length;
-    const rejected = rows.filter((row) => String(row.transaction_status || "").toLowerCase() === "rejected").length;
+    const pending = withdrawalRows.filter((row) => String(row.transaction_status || "").toLowerCase() === "pending_verification").length;
+    const validated = withdrawalRows.filter((row) => String(row.transaction_status || "").toLowerCase() === "validated").length;
+    const rejected = withdrawalRows.filter((row) => String(row.transaction_status || "").toLowerCase() === "rejected").length;
 
     return { pending, validated, rejected };
-  }, [rows]);
+  }, [withdrawalRows]);
 
   async function fetchRows() {
     setLoading(true);
@@ -246,7 +253,7 @@ const BookkeeperSavingsTransactions = () => {
 
         <main className="p-8">
           <div className="flex items-center justify-between mb-6">
-            <h1 className="font-bold text-2xl text-gray-800">Savings Transaction Verification</h1>
+            <h1 className="font-bold text-2xl text-gray-800">Savings Withdrawal Verification</h1>
             <button
               onClick={fetchRows}
               disabled={loading}

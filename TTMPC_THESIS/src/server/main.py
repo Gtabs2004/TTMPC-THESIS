@@ -999,6 +999,132 @@ async def get_cashier_ready_for_disbursement_loans():
         raise HTTPException(status_code=500, detail=f"Failed to fetch ready disbursement loans: {err}")
 
 
+def _classify_migs(member: dict) -> str:
+    if not member:
+        return "Non-Member"
+    if member.get("is_bona_fide"):
+        return "MIGS"
+    return "Non-MIGS"
+
+
+def _normalize_disbursement_loan_type(raw: str) -> str:
+    text = (raw or "").strip().lower()
+    if "emergency" in text:
+        return "Emergency"
+    if "consolidated" in text:
+        return "Consolidated"
+    if "abff" in text or "koica" in text:
+        return "ABFF"
+    if "bonus" in text:
+        return "Bonus"
+    return (raw or "Other").title()
+
+
+@app.get("/api/treasurer/disbursements/released-loans")
+async def get_treasurer_released_loans():
+    """Read-only audit feed of loans already released by the Cashier."""
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+
+    try:
+        response = (
+            supabase.table("loans")
+            .select(
+                "control_number,loan_amount,principal_amount,interest_rate,term,loan_status,application_status," \
+                "application_date,disbursal_date,release_method,released_by,raw_payload," \
+                "member:member_id(membership_id,first_name,last_name,is_bona_fide)," \
+                "loan_type:loan_type_id(name)"
+            )
+            .order("disbursal_date", desc=True)
+            .execute()
+        )
+        rows = response.data or []
+    except Exception:
+        # Fallback if release_method / released_by columns are not present in the schema.
+        response = (
+            supabase.table("loans")
+            .select(
+                "control_number,loan_amount,principal_amount,interest_rate,term,loan_status,application_status," \
+                "application_date,disbursal_date,raw_payload," \
+                "member:member_id(membership_id,first_name,last_name,is_bona_fide)," \
+                "loan_type:loan_type_id(name)"
+            )
+            .order("disbursal_date", desc=True)
+            .execute()
+        )
+        rows = response.data or []
+
+    released = [
+        row for row in rows
+        if str(row.get("loan_status") or "").strip().lower() in {"released", "disbursed", "fully paid", "partially paid", "unpaid"}
+        and row.get("disbursal_date")
+    ]
+
+    def _document_status(loan_row: dict) -> tuple[bool, int]:
+        """Return (has_documents, document_count) from attached supporting documents.
+
+        A loan is considered complete once it has at least one file uploaded to
+        Supabase Storage under raw_payload.optionalFields.bookkeeper_loan_details.supporting_documents.
+        """
+        payload = loan_row.get("raw_payload") or {}
+        if not isinstance(payload, dict):
+            return False, 0
+        docs = (
+            (payload.get("optionalFields") or {}).get("bookkeeper_loan_details", {}) or {}
+        ).get("supporting_documents")
+        if not isinstance(docs, list):
+            return False, 0
+        count = sum(1 for d in docs if isinstance(d, dict) and str(d.get("storage_path") or "").strip())
+        return count > 0, count
+
+    mapped = []
+    total_released = Decimal("0")
+    today_iso = datetime.utcnow().date().isoformat()
+    released_today_total = Decimal("0")
+
+    for row in released:
+        member = row.get("member") or {}
+        loan_type_name = (row.get("loan_type") or {}).get("name")
+        loan_type = _normalize_disbursement_loan_type(loan_type_name)
+        migs = _classify_migs(member)
+        member_name = f"{member.get('first_name') or ''} {member.get('last_name') or ''}".strip() or "Unknown Member"
+        amount = Decimal(str(row.get("principal_amount") or row.get("loan_amount") or 0))
+        total_released += amount
+        disbursal_date = str(row.get("disbursal_date") or "")[:10] or None
+        if disbursal_date == today_iso:
+            released_today_total += amount
+
+        control_number = row.get("control_number")
+        has_documents, document_count = _document_status(row)
+
+        mapped.append({
+            "loan_id": control_number,
+            "member_id": member.get("membership_id"),
+            "member_name": member_name,
+            "loan_type": loan_type,
+            "loan_type_raw": loan_type_name,
+            "migs": migs,
+            "amount": decimal_to_float(amount),
+            "interest_rate": decimal_to_float(row.get("interest_rate") or 0),
+            "term_months": int(row.get("term") or 0),
+            "method": row.get("release_method") or "Cash",
+            "released_by": row.get("released_by") or "Cashier",
+            "approved_date": row.get("application_date"),
+            "released_date": disbursal_date,
+            "has_documents": has_documents,
+            "document_count": document_count,
+            "status": "Released",
+        })
+
+    summary = {
+        "total_released_count": len(mapped),
+        "total_released_amount": decimal_to_float(total_released),
+        "released_today_amount": decimal_to_float(released_today_total),
+    }
+
+    return {"success": True, "data": mapped, "summary": summary}
+
+
 @app.get("/api/cashier/cbu/members")
 async def get_cashier_cbu_members():
     if not supabase:
@@ -2444,7 +2570,7 @@ async def post_cashier_savings_deposit(savings_id: str, payload: CashierSavingsD
 
         account_response = (
             supabase.table("Savings_Transactions")
-            .select("Savings_ID,membership_number_id,Account_Name")
+            .select("Savings_ID,membership_number_id,Account_Name,Balance,Savings_Amount,Amount")
             .eq("Savings_ID", clean_savings_id)
             .limit(1)
             .execute()
@@ -2471,7 +2597,33 @@ async def post_cashier_savings_deposit(savings_id: str, payload: CashierSavingsD
             except Exception:
                 pass
 
+        transaction_amount = money(Decimal(str(payload.amount or 0)))
+        if transaction_amount <= 0:
+            raise HTTPException(status_code=400, detail="Deposit amount must be greater than zero.")
+
+        current_balance = Decimal(
+            str(
+                account_row.get("Balance")
+                if account_row.get("Balance") is not None
+                else (
+                    account_row.get("Savings_Amount")
+                    if account_row.get("Savings_Amount") is not None
+                    else account_row.get("Amount") or 0
+                )
+            )
+        )
+        new_balance = money(current_balance + transaction_amount)
+        db_balance_value = int(new_balance.to_integral_value(rounding=ROUND_HALF_UP))
+
+        (
+            supabase.table("Savings_Transactions")
+            .update({"Balance": db_balance_value, "Amount": db_balance_value})
+            .eq("Savings_ID", clean_savings_id)
+            .execute()
+        )
+
         transaction_id = get_next_savings_cashier_transaction_id()
+        posted_at_value = datetime.utcnow().isoformat()
         queue_payload = {
             "transaction_id": transaction_id,
             "savings_id": clean_savings_id,
@@ -2479,10 +2631,14 @@ async def post_cashier_savings_deposit(savings_id: str, payload: CashierSavingsD
             "member_name": str(account_row.get("Account_Name") or "").strip() or None,
             "account_type": "Savings Deposit",
             "transaction_type": "deposit",
-            "amount": decimal_to_float(money(Decimal(str(payload.amount)))),
-            "transaction_status": "pending_verification",
+            "amount": decimal_to_float(transaction_amount),
+            "transaction_status": "validated",
             "entered_by_role": "cashier",
-            "requested_at": datetime.utcnow().isoformat(),
+            "requested_at": posted_at_value,
+            "verified_at": posted_at_value,
+            "verified_by": "system",
+            "posted_at": posted_at_value,
+            "notes": "Auto-posted deposit",
         }
 
         queue_response = (
@@ -2492,16 +2648,39 @@ async def post_cashier_savings_deposit(savings_id: str, payload: CashierSavingsD
         )
         queued_row = (queue_response.data or [None])[0]
 
+        ledger_payload = {
+            "transaction_id": transaction_id,
+            "ledger_source": "Savings_Transactions",
+            "source_id": clean_savings_id,
+            "membership_number_id": membership_key,
+            "account_type": "Savings Deposit",
+            "entry_type": "credit",
+            "amount": decimal_to_float(transaction_amount),
+            "running_balance": decimal_to_float(new_balance),
+            "posted_at": posted_at_value,
+            "posted_by": "system",
+            "remarks": "Auto-posted deposit",
+        }
+        try:
+            (
+                supabase.table("ledger_transactions")
+                .insert(ledger_payload)
+                .execute()
+            )
+        except Exception:
+            pass
+
         return {
             "success": True,
             "data": {
                 "transaction_id": transaction_id,
                 "savings_id": clean_savings_id,
-                "amount_deposited": decimal_to_float(money(Decimal(str(payload.amount)))),
-                "transaction_status": "pending_verification",
+                "amount_deposited": decimal_to_float(transaction_amount),
+                "transaction_status": "validated",
+                "new_balance": decimal_to_float(new_balance),
                 "record": queued_row,
             },
-            "message": "Deposit submitted and is pending Bookkeeper verification.",
+            "message": "Deposit posted successfully.",
         }
     except HTTPException as err:
         raise err

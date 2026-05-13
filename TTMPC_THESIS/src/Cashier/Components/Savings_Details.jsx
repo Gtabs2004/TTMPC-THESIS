@@ -175,7 +175,7 @@ const Savings_Details = () => {
 
       setDepositAmount("");
       setShowDepositForm(false);
-      setDepositSuccess(result?.message || "Deposit submitted and pending Bookkeeper verification.");
+      setDepositSuccess(result?.message || "Deposit posted successfully.");
       await loadDetails();
     } catch (error) {
       setDepositError(error?.message || "Unable to complete deposit.");

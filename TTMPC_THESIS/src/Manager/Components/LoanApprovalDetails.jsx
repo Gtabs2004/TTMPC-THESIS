@@ -380,7 +380,9 @@ const LoanApprovalDetails = () => {
           },
           computation: {
             principal: formatCurrency(principalAmount),
-            interestRate: effectiveInterestRate !== null ? `${Number(effectiveInterestRate)}% Monthly` : 'N/A',
+            interestRate: effectiveInterestRate !== null
+              ? `${(Number(effectiveInterestRate) / 100).toFixed(3)}% Monthly`
+              : 'N/A',
             totalInterest: formatCurrency(resolvedTotalInterest),
             totalPayable: formatCurrency(totalPayable),
             monthlyAmortization: formatCurrency(monthlyAmortization),
@@ -954,7 +956,7 @@ const LoanApprovalDetails = () => {
 
           {/* Right Column */}
           <div className="flex flex-col gap-8">
-            {/* Loan Computation Summary (hidden for now)
+        
             <div>
               <h2 className="flex items-center text-lg font-bold text-gray-800 mb-4">
                 <Calculator className="w-5 h-5 mr-2 text-[#1D6021]" /> Loan Computation Summary
@@ -969,14 +971,6 @@ const LoanApprovalDetails = () => {
                     <span className="text-gray-600 font-medium">Interest Rate</span>
                     <span className="font-bold text-gray-800">{loanDetails.computation.interestRate}</span>
                   </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-600 font-medium">Total Interest</span>
-                    <span className="font-bold text-gray-800">{loanDetails.computation.totalInterest}</span>
-                  </div>
-                </div>
-                <div className="border-t border-gray-300 pt-4 mb-4 flex justify-between items-center">
-                  <span className="font-bold text-gray-900">Total Payable (All Months)</span>
-                  <span className="font-bold text-gray-900">{loanDetails.computation.totalPayable}</span>
                 </div>
                 <div className="border-t border-gray-300 pt-4 flex justify-between items-center">
                   <div>
@@ -987,7 +981,7 @@ const LoanApprovalDetails = () => {
                 </div>
               </div>
             </div>
-            */}
+          
 
             {/* Supporting Documents */}
             <div>
