@@ -130,8 +130,9 @@ export const AuthContextProvider = ({ children }) => {
 
   // Sign up
   const signUpNewUser = async (email, password, role = "treasurer") => {
+    const normalizedEmail = email.trim().toLowerCase();
     const { data, error } = await supabase.auth.signUp({
-      email: email.toLowerCase(),
+      email: normalizedEmail,
       password: password,
     });
 
@@ -144,7 +145,11 @@ export const AuthContextProvider = ({ children }) => {
     const { data: profileData, error: profileError } = await supabase
       .from("member_account")
       .insert([
-        { email: email.toLowerCase(), role: role }
+        {
+          email: normalizedEmail,
+          role: role,
+          auth_user_id: data?.user?.id || null,
+        }
       ]);
 
     if (profileError) {
@@ -160,63 +165,38 @@ export const AuthContextProvider = ({ children }) => {
     try {
       const normalizedEmail = email.trim().toLowerCase();
 
-      let { account: memberAccount, error: memberError } = await getAccountByEmail(normalizedEmail);
+      const authAttempt = await supabase.auth.signInWithPassword({
+        email: normalizedEmail,
+        password: password,
+      });
 
-      if (memberError) {
-        console.error("Error fetching member account:", memberError.message);
-        return { success: false, error: "Unable to verify account." };
-      }
-
-      let data;
-      let error;
-
-      // If pre-auth profile lookup misses (often due policy/timing), validate credentials first.
-      if (!memberAccount?.email) {
-        const authAttempt = await supabase.auth.signInWithPassword({
-          email: normalizedEmail,
-          password: password,
-        });
-
-        data = authAttempt.data;
-        error = authAttempt.error;
-
-        if (error) {
-          console.error("Sign-in error:", error.message);
-          return { success: false, error: error.message };
-        }
-
-        const authenticatedEmail =
-          authAttempt.data?.user?.email?.trim().toLowerCase() || normalizedEmail;
-
-        const profileAfterAuth = await getAccountByEmail(authenticatedEmail);
-        memberAccount = profileAfterAuth.account;
-        memberError = profileAfterAuth.error;
-
-        if (memberError) {
-          console.error("Error fetching member account after auth:", memberError.message);
-          return { success: false, error: "Unable to load account role." };
-        }
-
-        if (!memberAccount?.email) {
-          await supabase.auth.signOut();
-          return {
-            success: false,
-            error: "Authenticated, but account profile is missing in member_account.",
-          };
-        }
-      } else {
-        const authAttempt = await supabase.auth.signInWithPassword({
-          email: memberAccount.email.toLowerCase(),
-          password: password,
-        });
-
-        data = authAttempt.data;
-        error = authAttempt.error;
-      }
+      const data = authAttempt.data;
+      const error = authAttempt.error;
 
       if (error) {
         console.error("Sign-in error:", error.message);
         return { success: false, error: error.message };
+      }
+
+      const authenticatedEmail =
+        authAttempt.data?.user?.email?.trim().toLowerCase() || normalizedEmail;
+
+      const profileAfterAuth = await getAccountByEmail(authenticatedEmail);
+      const memberAccount = profileAfterAuth.account;
+      const memberError = profileAfterAuth.error;
+
+      if (memberError) {
+        console.error("Error fetching member account after auth:", memberError.message);
+        await supabase.auth.signOut();
+        return { success: false, error: "Unable to load account role." };
+      }
+
+      if (!memberAccount?.email) {
+        await supabase.auth.signOut();
+        return {
+          success: false,
+          error: "Authenticated, but account profile is missing in member_account.",
+        };
       }
 
       // On first login (is_temporary = true), backfill personal_data_sheet from member_applications

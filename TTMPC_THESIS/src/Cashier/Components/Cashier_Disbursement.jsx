@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
 import { PortalSidebarIdentity, PortalTopbarIdentity } from "../../components/PortalIdentity";
@@ -9,6 +9,12 @@ import {
   Banknote,
   ChevronDown,
   ChevronRight,
+  ArrowUpDown,
+  AlertCircle,
+  CheckCircle2,
+  Clock,
+  Filter,
+  RefreshCw,
 } from "lucide-react";
 import logo from "../../assets/img/ttmpc logo.png";
 
@@ -21,6 +27,12 @@ const formatCurrency = (value) =>
     minimumFractionDigits: 2,
   }).format(Number(value || 0));
 
+const toTitleCase = (value) => {
+  if (!value) return "-";
+  const text = String(value);
+  return text.charAt(0).toUpperCase() + text.slice(1);
+};
+
 const Cashier_Disbursement = () => {
   const { signOut } = UserAuth();
   const navigate = useNavigate();
@@ -30,6 +42,11 @@ const Cashier_Disbursement = () => {
   const [feedbackMessage, setFeedbackMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
   const [disbursingLoanId, setDisbursingLoanId] = useState("");
+
+  const [searchTerm, setSearchTerm] = useState("");
+  const [typeFilter, setTypeFilter] = useState("all");
+  const [sortConfig, setSortConfig] = useState({ key: "member_name", direction: "asc" });
+  const [showFilters, setShowFilters] = useState(false);
 
   const menuItems = [
     { name: "Dashboard", icon: LayoutDashboard, path: "/Cashier_Dashboard" },
@@ -116,6 +133,59 @@ const Cashier_Disbursement = () => {
     } catch (err) {
       console.error("Failed to sign out:", err);
     }
+  };
+
+  const loanTypes = useMemo(() => {
+    const types = new Set(readyLoans.map((l) => String(l.loan_type || "").toLowerCase()).filter(Boolean));
+    return ["all", ...Array.from(types)];
+  }, [readyLoans]);
+
+  const filteredAndSortedLoans = useMemo(() => {
+    const term = searchTerm.toLowerCase();
+    let filtered = readyLoans.filter((loan) => {
+      const matchesSearch =
+        !term ||
+        String(loan.member_name || "").toLowerCase().includes(term) ||
+        String(loan.loan_id || "").toLowerCase().includes(term) ||
+        String(loan.loan_type || "").toLowerCase().includes(term);
+
+      const matchesType =
+        typeFilter === "all" ||
+        String(loan.loan_type || "").toLowerCase() === typeFilter;
+
+      return matchesSearch && matchesType;
+    });
+
+    if (sortConfig.key) {
+      filtered = [...filtered].sort((a, b) => {
+        let aValue = a[sortConfig.key];
+        let bValue = b[sortConfig.key];
+
+        if (sortConfig.key === "principal_amount") {
+          aValue = Number(a.principal_amount || a.loan_amount || 0);
+          bValue = Number(b.principal_amount || b.loan_amount || 0);
+        }
+
+        if (typeof aValue === "number" && typeof bValue === "number") {
+          return sortConfig.direction === "asc" ? aValue - bValue : bValue - aValue;
+        }
+
+        aValue = String(aValue ?? "").toLowerCase();
+        bValue = String(bValue ?? "").toLowerCase();
+        return sortConfig.direction === "asc"
+          ? aValue.localeCompare(bValue)
+          : bValue.localeCompare(aValue);
+      });
+    }
+
+    return filtered;
+  }, [readyLoans, searchTerm, typeFilter, sortConfig]);
+
+  const handleSort = (key) => {
+    setSortConfig((prev) => ({
+      key,
+      direction: prev.key === key && prev.direction === "asc" ? "desc" : "asc",
+    }));
   };
 
   return (
@@ -217,85 +287,216 @@ const Cashier_Disbursement = () => {
         </header>
 
         <main className="p-8 overflow-auto">
-          <div className="flex items-center justify-between gap-3 mb-5">
-            <h1 className="text-2xl font-bold text-gray-800">Loan Disbursement</h1>
-            <button
-              type="button"
-              onClick={fetchReadyLoans}
-              className="rounded-md bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700"
-            >
-              Refresh
-            </button>
+          <div className="mb-8">
+            <div className="flex items-center justify-between gap-4 mb-6">
+              <div>
+                <h1 className="text-3xl font-bold text-gray-900">Loan Disbursement</h1>
+                <p className="text-sm text-gray-500 mt-1">Release approved loans and generate payment schedules</p>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2 px-3 py-1 bg-blue-50 border border-blue-200 rounded-lg text-xs text-blue-600 font-medium">
+                  {readyLoans.length} ready for disbursement
+                </div>
+                <button
+                  type="button"
+                  onClick={fetchReadyLoans}
+                  disabled={loading}
+                  className="flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 transition disabled:cursor-not-allowed disabled:bg-gray-300"
+                >
+                  <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
+                  Refresh
+                </button>
+              </div>
+            </div>
+
+            {loading && (
+              <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700 flex items-center gap-2">
+                <Clock size={16} />
+                Loading loans ready for disbursement...
+              </div>
+            )}
+
+            {feedbackMessage && (
+              <div className="mb-4 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700 flex items-start gap-2">
+                <CheckCircle2 size={16} className="mt-0.5 shrink-0" />
+                <span>{feedbackMessage}</span>
+              </div>
+            )}
+
+            {errorMessage && (
+              <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 flex items-start gap-2">
+                <AlertCircle size={16} className="mt-0.5 shrink-0" />
+                <span>{errorMessage}</span>
+              </div>
+            )}
+
+            <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+              <div className="flex-1">
+                <div className="relative">
+                  <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                  <input
+                    type="text"
+                    placeholder="Search by member name, loan ID, or loan type..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 pl-10 text-sm focus:border-green-500 focus:outline-none focus:ring-2 focus:ring-green-200 transition"
+                  />
+                </div>
+              </div>
+              <button
+                onClick={() => setShowFilters(!showFilters)}
+                className="flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 transition"
+              >
+                <Filter size={16} />
+                Filters
+              </button>
+            </div>
+
+            {showFilters && (
+              <div className="mb-6 rounded-lg border border-gray-200 bg-gray-50 p-4">
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Loan Type
+                    </label>
+                    <div className="flex flex-wrap gap-2">
+                      {loanTypes.map((type) => (
+                        <button
+                          key={type}
+                          onClick={() => setTypeFilter(type)}
+                          className={`rounded-full px-4 py-1.5 text-sm font-medium transition ${
+                            typeFilter === type
+                              ? "bg-green-600 text-white"
+                              : "bg-white border border-gray-300 text-gray-700 hover:border-green-500"
+                          }`}
+                        >
+                          {type === "all" ? "All Types" : toTitleCase(type)}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
-          {feedbackMessage && (
-            <div className="mb-4 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
-              {feedbackMessage}
-            </div>
-          )}
-
-          {errorMessage && (
-            <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-              {errorMessage}
-            </div>
-          )}
-
-          {loading && (
-            <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700">
-              Loading loans ready for disbursement...
-            </div>
-          )}
-
-          <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-sm">
-            <table className="min-w-full text-sm">
-              <thead className="bg-gray-50 text-gray-700">
-                <tr>
-                  <th className="px-4 py-3 text-left font-semibold">Loan ID</th>
-                  <th className="px-4 py-3 text-left font-semibold">Member Name</th>
-                  <th className="px-4 py-3 text-left font-semibold">Loan Type</th>
-                  <th className="px-4 py-3 text-left font-semibold">Principal</th>
-                  <th className="px-4 py-3 text-left font-semibold">Interest</th>
-                  <th className="px-4 py-3 text-left font-semibold">Term</th>
-                  <th className="px-4 py-3 text-left font-semibold">Status</th>
-                  <th className="px-4 py-3 text-left font-semibold">Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {readyLoans.length === 0 && !loading && (
-                  <tr>
-                    <td colSpan={8} className="px-4 py-8 text-center text-gray-500">
-                      No loans are currently in ready for disbursement status.
-                    </td>
-                  </tr>
-                )}
-
-                {readyLoans.map((loan) => (
-                  <tr key={loan.loan_id} className="border-t border-gray-100">
-                    <td className="px-4 py-3 text-xs text-gray-700">{loan.loan_id}</td>
-                    <td className="px-4 py-3 text-gray-700">{loan.member_name}</td>
-                    <td className="px-4 py-3 text-gray-700">{loan.loan_type}</td>
-                    <td className="px-4 py-3 text-gray-700">{formatCurrency(loan.principal_amount || loan.loan_amount)}</td>
-                    <td className="px-4 py-3 text-gray-700">{Number(loan.interest_rate || 0)}%</td>
-                    <td className="px-4 py-3 text-gray-700">{loan.term_months} months</td>
-                    <td className="px-4 py-3">
-                      <span className="inline-flex rounded-full px-3 py-1 text-xs font-semibold bg-blue-100 text-blue-700">
-                        {loan.loan_status}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
+          <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-gray-200 bg-linear-to-r from-gray-50 to-gray-100">
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700">
+                      Loan ID
+                    </th>
+                    <th className="px-6 py-4 text-left">
                       <button
-                        type="button"
-                        onClick={() => handleDisburseLoan(loan.loan_id)}
-                        disabled={disbursingLoanId === loan.loan_id}
-                        className="rounded-md bg-green-600 px-4 py-2 text-white transition-colors hover:bg-green-700 disabled:cursor-not-allowed disabled:bg-gray-300"
+                        onClick={() => handleSort("member_name")}
+                        className="flex items-center gap-2 text-xs font-semibold text-gray-700 hover:text-gray-900 transition group"
                       >
-                        {disbursingLoanId === loan.loan_id ? "Processing..." : "Disburse"}
+                        Member Name
+                        <ArrowUpDown size={14} className="opacity-0 group-hover:opacity-100 transition" />
                       </button>
-                    </td>
+                    </th>
+                    <th className="px-6 py-4 text-left">
+                      <button
+                        onClick={() => handleSort("loan_type")}
+                        className="flex items-center gap-2 text-xs font-semibold text-gray-700 hover:text-gray-900 transition group"
+                      >
+                        Loan Type
+                        <ArrowUpDown size={14} className="opacity-0 group-hover:opacity-100 transition" />
+                      </button>
+                    </th>
+                    <th className="px-6 py-4 text-left">
+                      <button
+                        onClick={() => handleSort("principal_amount")}
+                        className="flex items-center gap-2 text-xs font-semibold text-gray-700 hover:text-gray-900 transition group"
+                      >
+                        Principal
+                        <ArrowUpDown size={14} className="opacity-0 group-hover:opacity-100 transition" />
+                      </button>
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700">
+                      Interest
+                    </th>
+                    <th className="px-6 py-4 text-left">
+                      <button
+                        onClick={() => handleSort("term_months")}
+                        className="flex items-center gap-2 text-xs font-semibold text-gray-700 hover:text-gray-900 transition group"
+                      >
+                        Term
+                        <ArrowUpDown size={14} className="opacity-0 group-hover:opacity-100 transition" />
+                      </button>
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700">
+                      Status
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700">
+                      Action
+                    </th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {filteredAndSortedLoans.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} className="px-6 py-12 text-center">
+                        <div className="flex flex-col items-center gap-3">
+                          <Banknote size={40} className="text-gray-300" />
+                          <p className="text-sm text-gray-500">
+                            {readyLoans.length === 0
+                              ? "No loans are currently ready for disbursement"
+                              : "No loans match your search criteria"}
+                          </p>
+                          <p className="text-xs text-gray-400">
+                            Approved loans will appear here once they're ready to disburse
+                          </p>
+                        </div>
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredAndSortedLoans.map((loan) => (
+                      <tr key={loan.loan_id} className="hover:bg-green-50 transition">
+                        <td className="px-6 py-4 text-xs font-mono text-gray-700">
+                          <span className="inline-flex rounded bg-gray-100 px-2 py-1">
+                            {String(loan.loan_id).slice(0, 8)}...
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 text-sm font-medium text-gray-900">
+                          {loan.member_name}
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-700">
+                          {toTitleCase(loan.loan_type)}
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-700 font-semibold">
+                          {formatCurrency(loan.principal_amount || loan.loan_amount)}
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-700">
+                          {Number(loan.interest_rate || 0)}%
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-700">
+                          {loan.term_months} mo
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className="inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold bg-blue-100 text-blue-700">
+                            <CheckCircle2 size={12} />
+                            {loan.loan_status}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4">
+                          <button
+                            type="button"
+                            onClick={() => handleDisburseLoan(loan.loan_id)}
+                            disabled={disbursingLoanId === loan.loan_id}
+                            className="rounded-lg bg-green-600 px-4 py-2 text-xs font-semibold text-white hover:bg-green-700 transition disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500"
+                          >
+                            {disbursingLoanId === loan.loan_id ? "Processing..." : "Disburse"}
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         </main>
       </div>
@@ -304,7 +505,3 @@ const Cashier_Disbursement = () => {
 };
 
 export default Cashier_Disbursement;
-
-
-
-
