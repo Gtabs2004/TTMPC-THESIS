@@ -1,0 +1,71 @@
+WHAT-IFS AND STRICT CONSTRAINTS (DRAFT)
+
+Purpose: Enumerate error cases, constraints, and "what-if" scenarios the system should handle. Use this list for validation rules, API responses, and UI error handling.
+
+GLOBAL / SYSTEM-WIDE
+- What if the Supabase URL or key is missing? -> API should refuse to start or return 500 with actionable error.
+- What if service role key is missing in prod? -> Disable server-side admin flows; log critical error.
+- What if the same user is logged in on multiple tabs? -> Confirm session isolation or handle token refresh conflicts.
+- What if the database has missing columns from expected migrations? -> Return 500 with schema hint.
+- What if a record is deleted between read and write? -> Return 404 with retry guidance.
+- What if a request arrives with malformed JSON? -> Return 400 with validation error details.
+- What if a request exceeds rate limits or payload size? -> Return 413 or 429 with guidance.
+
+MEMBERSHIP / ACCOUNT
+- What if membership confirmation is called twice for the same application? -> Idempotent response or 409 conflict.
+- What if membership_id is missing or already taken? -> Block confirmation, return 409 with duplicate details.
+- What if the member_account row is missing for a confirmed member? -> Auto-repair or return 500 with remediation step.
+- What if an applicant has no training attendance data? -> Block approval; return 400 with missing requirement.
+- What if training status is legacy ("1st Training")? -> Normalize on read and handle on write.
+
+PERSONAL DATA SHEET (PDS)
+- What if a PDS record is missing for a member? -> Auto-create or return 404 with next action.
+- What if membership_number_id in PDS does not match member.membership_id? -> Flag mismatch and block updates.
+- What if email is missing? -> Allow but mark as incomplete for follow-up.
+
+LOANS / LOAN TYPES
+- What if loan_types is missing the configured rate? -> Return 400 with "interest rate not configured".
+- What if loan term is invalid (<=0 or outside permitted range)? -> Return 400 with rule details.
+- What if emergency loan amount exceeds cap? -> Return 400 and include cap value.
+- What if loan_status transitions out of sequence? -> Return 409 with expected workflow states.
+- What if disbursement attempted but no schedules exist? -> Block; create first schedule or return 409.
+- What if multiple active schedules exist? -> Resolve to one active and log cleanup.
+- What if the member is not eligible for the requested loan type? -> Return 403 with eligibility rule.
+- What if the member has an active loan that blocks new loans? -> Return 409 with existing loan details.
+- What if the member is not bona fide (non-MIGS) and requests a member-only loan? -> Return 403.
+- What if member status is inactive/suspended/terminated? -> Return 403.
+- What if member has missing required profile data (latest_net_pay, classification, employment)? -> Return 400 with missing fields list.
+
+LOAN PAYMENTS
+- What if cashier posts payment for a loan with no schedules? -> Block with 400.
+- What if payment schedule_id does not belong to loan_id? -> Block with 400.
+- What if payment amount is zero or negative? -> Block with 400.
+- What if payment is attempted after loan is fully paid? -> Return 409.
+- What if bookkeeper tries to re-approve a validated payment? -> Block with 409.
+- What if penalties/deficiency are negative? -> Block with 400.
+
+CBU (CAPITAL BUILD-UP)
+- What if member is not found when posting a CBU deposit? -> Return 404.
+- What if deposit amount is 0 or negative? -> Return 400.
+- What if cbu_deposit_id duplicates? -> Auto-generate next ID or 409.
+
+SAVINGS
+- What if savings account does not exist? -> Return 404.
+- What if withdrawal exceeds balance? -> Return 400 (insufficient funds).
+- What if member is not bona fide and tries to transact? -> Return 400.
+- What if a pending savings transaction is confirmed twice? -> Return 409.
+- What if transaction_type is invalid? -> Return 400.
+
+EMAIL / NOTIFICATIONS
+- What if RESEND_API_KEY is missing? -> Return 503 "Email disabled" and log.
+- What if email address is invalid? -> Return 400 with validation.
+
+SECURITY / RLS
+- What if a user without staff role accesses staff endpoints? -> Return 403.
+- What if RLS blocks a required update? -> Return 403 with policy hint.
+
+DATA INTEGRITY / REPORTING
+- What if member is missing related rows for lifecycle views? -> Return partial data with warnings.
+- What if payments exist with no corresponding ledger rows? -> Backfill or flag inconsistency.
+
+END
