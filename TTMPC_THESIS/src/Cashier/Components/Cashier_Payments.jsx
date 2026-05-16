@@ -111,9 +111,19 @@ const calculateAmortization = (loan) => {
 };
 
 const getDisplayedInterestRate = (loan) => {
-  const ratePercent = (getMonthlyInterestRate(loan) * 100).toFixed(2);
-  if (loan.loan_type === "emergency") return `${ratePercent}% (Diminishing)`;
-  if (loan.loan_type === "bonus") {
+  const rawRate = Number(loan?.interest_rate);
+  const loanType = String(loan?.loan_type || "").trim().toLowerCase();
+  const useRawDisplay = Number.isFinite(rawRate) && rawRate > 0 && rawRate < 1;
+  const useScaledDisplay =
+    loanType === "consolidated" && Number.isFinite(rawRate) && rawRate >= 1 && rawRate < 10;
+  const ratePercent = useRawDisplay
+    ? rawRate.toFixed(3)
+    : useScaledDisplay
+    ? (rawRate / 100).toFixed(3)
+    : (getMonthlyInterestRate(loan) * 100).toFixed(2);
+
+  if (loanType === "emergency") return `${ratePercent}% (Diminishing)`;
+  if (loanType === "bonus") {
     return `${ratePercent}% (${loan.is_migs_member ? "MIGS" : "Non-MIGS"})`;
   }
   return `${ratePercent}%`;
