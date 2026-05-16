@@ -266,11 +266,11 @@ const MIGS = () => {
                   <tr>
                     <th className="px-4 py-3 text-left font-semibold">Member Name</th>
                     <th className="px-4 py-3 text-left font-semibold">ID</th>
-                    <th className="px-4 py-3 text-right font-semibold">Capital</th>
-                    <th className="px-4 py-3 text-right font-semibold">Loan</th>
-                    <th className="px-4 py-3 text-right font-semibold">Savings</th>
+                    <th className="px-4 py-3 text-center font-semibold">Capital</th>
+                    <th className="px-4 py-3 text-center font-semibold">Loan</th>
+                    <th className="px-4 py-3 text-center font-semibold">Savings</th>
                     <th className="px-4 py-3 text-center font-semibold">Score</th>
-                    <th className="px-4 py-3 text-left font-semibold">Status</th>
+                    <th className="px-4 py-3 text-center font-semibold">Status</th>
                     <th className="px-4 py-3 text-center font-semibold">Action</th>
                   </tr>
                 </thead>
@@ -286,9 +286,9 @@ const MIGS = () => {
                       <tr key={String(r.id || r.member_id)} className="border-t border-gray-100 hover:bg-gray-50 transition-colors">
                         <td className="px-4 py-3 font-medium text-gray-800">{r.full_name}</td>
                         <td className="px-4 py-3 text-gray-600 font-mono text-[12px]">{r.member_id}</td>
-                        <td className="px-4 py-3 text-right text-gray-700">₱{(r.capital || 0).toLocaleString()}</td>
-                        <td className="px-4 py-3 text-right text-gray-700">₱{(r.loan_balance || 0).toLocaleString()}</td>
-                        <td className="px-4 py-3 text-right text-gray-700">₱{(r.savings_balance || 0).toLocaleString()}</td>
+                        <td className="px-4 py-3 text-center text-gray-700">₱{(r.capital || 0).toLocaleString()}</td>
+                        <td className="px-4 py-3 text-center text-gray-700">₱{(r.loan_balance || 0).toLocaleString()}</td>
+                        <td className="px-4 py-3 text-center text-gray-700">₱{(r.savings_balance || 0).toLocaleString()}</td>
                         <td className="px-4 py-3 text-center">
                           <div className="flex items-center justify-center gap-1">
                             <span className="font-bold text-gray-800">{r.migs_score || 0}</span>
@@ -296,7 +296,7 @@ const MIGS = () => {
                             <span className="text-gray-500">100</span>
                           </div>
                         </td>
-                        <td className="px-4 py-3">
+                        <td className="px-4 py-3 text-center">
                           <span className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold border ${getMIGSStatusColor(r.migs_status)}`}>
                             <span>{getMIGSStatusIcon(r.migs_status)}</span>
                             {r.migs_status === "MIGS Qualified" ? "MIGS Qualified" : "Non-MIGS"}
