@@ -268,14 +268,14 @@ const Cashier_Savings = () => {
           <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-left">
-                <thead>
+                <thead className="bg-green-600 text-white uppercase text-[13px] tracking-wider">
                   <tr>
-                    <th className="px-6 py-4 font-bold text-sm">Savings ID</th>
-                    <th className="px-6 py-4 font-bold text-sm">Member Name</th>
-                    <th className="px-6 py-4 font-bold text-sm">Amount</th>
-                    <th className="px-6 py-4 font-bold text-sm">Date Opened</th>
-                    <th className="px-6 py-4 font-bold text-sm">Status</th>
-                    <th className="px-6 py-4 font-bold text-sm text-right">Actions</th>
+                    <th className="px-6 py-4 font-semibold text-left">Savings ID</th>
+                    <th className="px-6 py-4 font-semibold text-left">Member Name</th>
+                    <th className="px-6 py-4 font-semibold text-right">Amount</th>
+                    <th className="px-6 py-4 font-semibold text-left">Date Opened</th>
+                    <th className="px-6 py-4 font-semibold text-center">Status</th>
+                    <th className="px-6 py-4 font-semibold text-center">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -293,34 +293,31 @@ const Cashier_Savings = () => {
                     filteredSavings.map((savings, index) => (
                       <tr 
                         key={savings.ID} 
-                        className={`border-b border-gray-100  ${
-                          index % 2 === 0 ? 'bg-white' : 'bg-gray-50'
-                        }`}
+                        className="border-t border-gray-100 hover:bg-gray-50 transition-colors"
                       >
                         <td className="px-6 py-4">
-                          <span className="font-semibold text-gray-900">{savings.ID}</span>
+                          <span className="font-mono text-sm text-gray-800">{savings.ID}</span>
                         </td>
                         <td className="px-6 py-4">
                           <span className="text-gray-800 font-medium">{savings.name}</span>
                         </td>
-                        <td className="px-6 py-4">
-                          <span className="text-gray-900 font-bold">{savings.amount}</span>
+                        <td className="px-6 py-4 text-right">
+                          <span className="text-gray-900 font-semibold">{savings.amount}</span>
                         </td>
                         <td className="px-6 py-4">
                           <span className="text-gray-600 text-sm">{savings.date}</span>
                         </td>
-                        <td className="px-6 py-4">
-                          <span className={`inline-flex px-3 py-1.5 rounded-full text-xs font-bold ${getStatusStyle(savings.status)}`}>
+                        <td className="px-6 py-4 text-center">
+                          <span className={`inline-flex px-3 py-1.5 rounded-full text-xs font-semibold border ${getStatusStyle(savings.status)}`}>
                             {savings.status}
                           </span>
                         </td>
-                        <td className="px-6 py-4 text-right">
+                        <td className="px-6 py-4 text-center">
                           <button 
                             onClick={() => navigate(`/Savings_Details/${savings.ID}`)}
-                            className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition-colors flex items-center gap-2 ml-auto cursor-pointer"
+                            className="px-4 py-1.5 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition-colors text-sm"
                             title="Review Savings"
                           >
-                            <CheckCircle size={16} />
                             Review
                           </button>
                         </td>

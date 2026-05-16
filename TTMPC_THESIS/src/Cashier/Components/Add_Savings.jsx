@@ -3,9 +3,9 @@
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000';
 
 function Add_Savings() {
-  const inputStyles = "border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-[#66B538] outline-none w-full bg-white text-sm transition-all";
+  const inputStyles = "border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-green-600 outline-none w-full bg-white text-sm transition-all";
   const labelStyles = "block text-xs font-bold text-gray-700 mb-1";
-  const sectionHeader = "bg-[#66B538] text-white px-4 py-2 flex items-center gap-2 font-bold uppercase tracking-wide";
+  const sectionHeader = "bg-green-600 text-white px-4 py-2 flex items-center gap-2 font-bold uppercase tracking-wide";
 
   // Form State
   const [formData, setFormData] = useState({
@@ -247,7 +247,7 @@ function Add_Savings() {
         {/* Section 1: ACCOUNT INFORMATION */}
         <div className="mt-8 bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden max-w-6xl mx-auto w-full">
           <div className={sectionHeader}>
-            <span className="bg-white text-[#66B538] rounded-full w-6 h-6 flex items-center justify-center text-sm">1</span>
+            <span className="bg-white text-green-600 rounded-full w-6 h-6 flex items-center justify-center text-sm">1</span>
             ACCOUNT INFORMATION
           </div>
           <div className="px-8 pt-6 pb-0">
@@ -307,7 +307,7 @@ function Add_Savings() {
         {/* Section 2: PERSONAL INFORMATION */}
         <div className="mt-8 bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden max-w-6xl mx-auto w-full">
           <div className={sectionHeader}>
-            <span className="bg-white text-[#66B538] rounded-full w-6 h-6 flex items-center justify-center text-sm">2</span>
+            <span className="bg-white text-green-600 rounded-full w-6 h-6 flex items-center justify-center text-sm">2</span>
             PERSONAL INFORMATION
           </div>
           <div className="p-8 space-y-6">
@@ -345,7 +345,7 @@ function Add_Savings() {
           
           <div className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden flex flex-col">
             <div className={sectionHeader}>
-              <span className="bg-white text-[#66B538] rounded-full w-6 h-6 flex items-center justify-center text-sm">3</span>
+              <span className="bg-white text-green-600 rounded-full w-6 h-6 flex items-center justify-center text-sm">3</span>
               EDUCATION & DEPENDENTS
             </div>
             <div className="p-8 grid grid-cols-1 sm:grid-cols-2 gap-6 flex-grow">
@@ -374,7 +374,7 @@ function Add_Savings() {
           {/* Section 4: FINANCIAL INFORMATION */}
           <div className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden flex flex-col">
             <div className={sectionHeader}>
-              <span className="bg-white text-[#66B538] rounded-full w-6 h-6 flex items-center justify-center text-sm">4</span>
+              <span className="bg-white text-green-600 rounded-full w-6 h-6 flex items-center justify-center text-sm">4</span>
               FINANCIAL INFORMATION
             </div>
             <div className="p-8 flex-grow flex flex-col justify-center">
@@ -386,7 +386,7 @@ function Add_Savings() {
                   name="annual_income" 
                   value={formData.annual_income} 
                   onChange={handleChange} 
-                  className="w-full h-full border border-gray-300 rounded-md pl-14 pr-4 text-2xl font-semibold focus:ring-2 focus:ring-[#66B538] outline-none bg-white transition-all" 
+                  className="w-full h-full border border-gray-300 rounded-md pl-14 pr-4 text-2xl font-semibold focus:ring-2 focus:ring-green-600 outline-none bg-white transition-all" 
                 />
               </div>
             </div>
@@ -397,7 +397,7 @@ function Add_Savings() {
         {/* Section 5: OCCUPATION DETAILS */}
         <div className="mt-8 bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden max-w-6xl mx-auto w-full">
           <div className={sectionHeader}>
-            <span className="bg-white text-[#66B538] rounded-full w-6 h-6 flex items-center justify-center text-sm">5</span>
+            <span className="bg-white text-green-600 rounded-full w-6 h-6 flex items-center justify-center text-sm">5</span>
             OCCUPATION DETAILS
           </div>
           <div className="p-8 grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -426,18 +426,18 @@ function Add_Savings() {
         {/* Section 6: NOMINATION DETAILS */}
         <div className="mt-8 bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden max-w-6xl mx-auto w-full mb-12">
           <div className={sectionHeader}>
-            <span className="bg-white text-[#66B538] rounded-full w-6 h-6 flex items-center justify-center text-sm">6</span>
+            <span className="bg-white text-green-600 rounded-full w-6 h-6 flex items-center justify-center text-sm">6</span>
             NOMINATION DETAILS
           </div>
           <div className="p-8 text-sm text-gray-800 space-y-6">
             
             <div className="space-y-3">
               <label className="flex items-center space-x-3 cursor-pointer">
-                <input type="checkbox" checked={formData.nominate} onChange={() => handleNominationChange('yes')} className="h-4 w-4 accent-[#66B538] rounded" />
+                <input type="checkbox" checked={formData.nominate} onChange={() => handleNominationChange('yes')} className="h-4 w-4 accent-green-600 rounded" />
                 <span>Yes, I want to nominate the following person.</span>
               </label>
               <label className="flex items-center space-x-3 cursor-pointer">
-                <input type="checkbox" checked={formData.do_not_nominate} onChange={() => handleNominationChange('no')} className="h-4 w-4 accent-[#66B538] rounded" />
+                <input type="checkbox" checked={formData.do_not_nominate} onChange={() => handleNominationChange('no')} className="h-4 w-4 accent-green-600 rounded" />
                 <span>No, I do not want to nominate anyone on my/our behalf.</span>
               </label>
             </div>
@@ -460,7 +460,7 @@ function Add_Savings() {
             </div>
 
             <div className="flex justify-end pt-6 border-t border-gray-100 mt-8">
-              <button type="submit" disabled={submitting} className="bg-[#66B538] disabled:opacity-60 text-white px-8 py-2.5 rounded-md hover:bg-[#5aa12b] transition-colors font-bold shadow-sm cursor-pointer">
+              <button type="submit" disabled={submitting} className="bg-green-600 disabled:opacity-60 text-white px-8 py-2.5 rounded-md hover:bg-green-700 transition-colors font-bold shadow-sm cursor-pointer">
                 {submitting ? 'Submitting...' : 'Submit Application'}
               </button>
             </div>

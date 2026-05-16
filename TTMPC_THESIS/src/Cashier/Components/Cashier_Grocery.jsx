@@ -307,22 +307,22 @@ const Cashier_Grocery = () => {
 
             {/* Table */}
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm whitespace-nowrap">
-                <thead className="bg-gray-50 text-gray-500 text-xs uppercase font-semibold">
+              <table className="w-full text-left text-sm">
+                <thead className="bg-green-600 text-white uppercase text-[13px] tracking-wider">
                   <tr>
-                    <th className="px-6 py-4">Grocery ID</th>
-                    <th className="px-6 py-4">Member ID</th>
-                    <th className="px-6 py-4">POS ID</th>
-                    <th className="px-6 py-4">Transaction Date</th>
-                    <th className="px-6 py-4">Amount</th>
-                    <th className="px-6 py-4">TX Status</th>
-                    <th className="px-6 py-4">Payment</th>
-                    <th className="px-6 py-4">Balance</th>
+                    <th className="px-6 py-4 font-semibold">Grocery ID</th>
+                    <th className="px-6 py-4 font-semibold">Member ID</th>
+                    <th className="px-6 py-4 font-semibold">POS ID</th>
+                    <th className="px-6 py-4 font-semibold">Transaction Date</th>
+                    <th className="px-6 py-4 font-semibold text-right">Amount</th>
+                    <th className="px-6 py-4 font-semibold text-center">TX Status</th>
+                    <th className="px-6 py-4 font-semibold text-center">Payment</th>
+                    <th className="px-6 py-4 font-semibold text-right">Balance</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {MOCK_TRANSACTIONS.map((tx) => (
-                    <tr key={tx.id} className="hover:bg-gray-50/50 transition-colors">
+                    <tr key={tx.id} className="hover:bg-gray-50 transition-colors">
                       <td className="px-6 py-4 font-medium text-gray-700">{tx.id}</td>
                       <td className="px-6 py-4 font-medium text-gray-700">{tx.memberId}</td>
                       <td className="px-6 py-4 text-gray-500">{tx.posId}</td>
