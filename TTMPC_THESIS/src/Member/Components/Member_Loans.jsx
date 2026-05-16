@@ -20,7 +20,8 @@ import {
   ArrowRight,
   Info,
   History,
-  User
+  User,
+  Receipt
 } from 'lucide-react';
 
 const styles = `
@@ -106,6 +107,7 @@ const Member_Loans = () => {
   const menuItems = [
     { name: "Dashboard", icon: LayoutDashboard },
     { name: "Member Loans", icon: Activity },
+    { name: "Statement of Account", icon: Receipt },
     { name: "Loan Lifecycle", icon: History },
     { name: "Member Profile", icon: Users },
     { name: "Member Savings", icon: CreditCard }
@@ -284,6 +286,7 @@ const Member_Loans = () => {
             const routeMap = {
               "Dashboard": "/member-dashboard",
               "Member Loans": "/member-loans",
+              "Statement of Account": "/member-statement-of-account",
               "Loan Lifecycle": "/member-lifecycle",
               "Member Profile": "/members-profile",
               "Member Savings": "/member-savings"
@@ -581,6 +584,7 @@ const Member_Loans = () => {
                 const routeMap = {
                   "Dashboard": "/member-dashboard",
                   "Member Loans": "/member-loans",
+                  "Statement of Account": "/member-statement-of-account",
                   "Loan Lifecycle": "/member-lifecycle",
                   "Member Profile": "/members-profile",
                   "Member Savings": "/member-savings"
