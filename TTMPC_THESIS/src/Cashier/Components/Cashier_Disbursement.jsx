@@ -383,54 +383,54 @@ const Cashier_Disbursement = () => {
           <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full">
-                <thead>
-                  <tr className="border-b border-gray-200 bg-linear-to-r from-gray-50 to-gray-100">
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700">
+                <thead className="bg-green-600 text-white uppercase text-[13px] tracking-wider">
+                  <tr>
+                    <th className="px-6 py-4 text-left font-semibold">
                       Loan ID
                     </th>
-                    <th className="px-6 py-4 text-left">
+                    <th className="px-6 py-4 text-left font-semibold">
                       <button
                         onClick={() => handleSort("member_name")}
-                        className="flex items-center gap-2 text-xs font-semibold text-gray-700 hover:text-gray-900 transition group"
+                        className="flex items-center gap-2 font-semibold hover:text-green-100 transition group"
                       >
                         Member Name
                         <ArrowUpDown size={14} className="opacity-0 group-hover:opacity-100 transition" />
                       </button>
                     </th>
-                    <th className="px-6 py-4 text-left">
+                    <th className="px-6 py-4 text-left font-semibold">
                       <button
                         onClick={() => handleSort("loan_type")}
-                        className="flex items-center gap-2 text-xs font-semibold text-gray-700 hover:text-gray-900 transition group"
+                        className="flex items-center gap-2 font-semibold hover:text-green-100 transition group"
                       >
                         Loan Type
                         <ArrowUpDown size={14} className="opacity-0 group-hover:opacity-100 transition" />
                       </button>
                     </th>
-                    <th className="px-6 py-4 text-left">
+                    <th className="px-6 py-4 text-left font-semibold">
                       <button
                         onClick={() => handleSort("principal_amount")}
-                        className="flex items-center gap-2 text-xs font-semibold text-gray-700 hover:text-gray-900 transition group"
+                        className="flex items-center gap-2 font-semibold hover:text-green-100 transition group"
                       >
                         Principal
                         <ArrowUpDown size={14} className="opacity-0 group-hover:opacity-100 transition" />
                       </button>
                     </th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700">
+                    <th className="px-6 py-4 text-left font-semibold">
                       Interest
                     </th>
-                    <th className="px-6 py-4 text-left">
+                    <th className="px-6 py-4 text-left font-semibold">
                       <button
                         onClick={() => handleSort("term_months")}
-                        className="flex items-center gap-2 text-xs font-semibold text-gray-700 hover:text-gray-900 transition group"
+                        className="flex items-center gap-2 font-semibold hover:text-green-100 transition group"
                       >
                         Term
                         <ArrowUpDown size={14} className="opacity-0 group-hover:opacity-100 transition" />
                       </button>
                     </th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700">
+                    <th className="px-6 py-4 text-left font-semibold">
                       Status
                     </th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700">
+                    <th className="px-6 py-4 text-left font-semibold">
                       Action
                     </th>
                   </tr>

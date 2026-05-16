@@ -312,7 +312,7 @@ const Member_StatementOfAccount = () => {
   };
 
   const kindStyles = {
-    consolidated: { ring: "border-blue-200", bg: "bg-blue-50", text: "text-blue-700", chip: "bg-blue-100 text-blue-700" },
+    consolidated: { ring: "border-green-200", bg: "bg-green-50", text: "text-green-700", chip: "bg-green-100 text-green-700" },
     emergency: { ring: "border-red-200", bg: "bg-red-50", text: "text-red-700", chip: "bg-red-100 text-red-700" },
     bonus: { ring: "border-amber-200", bg: "bg-amber-50", text: "text-amber-700", chip: "bg-amber-100 text-amber-700" },
   };
@@ -501,7 +501,7 @@ const Member_StatementOfAccount = () => {
           ) : (
             <>
               <div className="flex items-center justify-between mb-8">
-                <div className="flex items-center gap-4">
+                <div className=" gap-4">
                   <button
                     type="button"
                     onClick={() => setSelectedLoan(null)}
@@ -510,7 +510,7 @@ const Member_StatementOfAccount = () => {
                     <ArrowLeft className="w-4 h-4" /> Back to loans
                   </button>
                   <div>
-                    <h1 className="font-extrabold text-[#1a4a2f] text-xl sm:text-2xl">{selectedLoan.type}</h1>
+                    <h1 className="font-extrabold text-[#1a4a2f] text-xl sm:text-2xl mt-4">{selectedLoan.type}</h1>
                     <p className="text-[10px] font-mono text-gray-400">{selectedLoan.control_number}</p>
                   </div>
                 </div>
@@ -556,9 +556,9 @@ const Member_StatementOfAccount = () => {
                 <div className="overflow-x-auto">
                   <table className="w-full min-w-[1100px] text-left border-collapse">
                     <thead>
-                      <tr className="bg-[#FAF9FB] border-b border-gray-100 text-[9px] uppercase tracking-wider text-gray-400 font-bold">
+                      <tr className="bg-green-600 border-b border-gray-100 text-[11px] uppercase tracking-wider text-white font-bold">
                         <th className="p-5 font-bold">Payment Date</th>
-                        <th className="p-5 font-bold">Transaction / Reference ID</th>
+                        <th className="p-5 font-bold">Reference ID</th>
                         <th className="p-5 font-bold text-right">Principal Paid</th>
                         <th className="p-5 font-bold text-right">Interest Paid</th>
                         <th className="p-5 font-bold text-right">Deficiency</th>
@@ -588,7 +588,7 @@ const Member_StatementOfAccount = () => {
                             <td className="p-5 text-sm font-bold text-gray-700 text-right">{formatCurrency(r.principal_paid)}</td>
                             <td className="p-5 text-sm font-bold text-gray-700 text-right">{formatCurrency(r.interest_paid)}</td>
                             <td className="p-5 text-sm font-medium text-gray-600 text-right">{formatCurrency(r.deficiency)}</td>
-                            <td className="p-5 text-sm font-medium text-red-600 text-right">{formatCurrency(r.penalty)}</td>
+                            <td className="p-5 text-sm font-medium text-red-400 text-right">{formatCurrency(r.penalty)}</td>
                             <td className="p-5 text-sm font-black text-[#1D6021] text-right">{formatCurrency(r.total_amount_paid)}</td>
                             <td className="p-5 text-sm font-bold text-gray-900 text-right">{formatCurrency(r.outstanding_balance)}</td>
                           </tr>

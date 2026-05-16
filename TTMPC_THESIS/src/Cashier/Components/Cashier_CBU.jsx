@@ -302,12 +302,12 @@ const Cashier_CBU = () => {
 
             <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-lg">
               <table className="w-full">
-                <thead>
-                  <tr className="border-b border-gray-200 bg-gradient-to-r from-green-50 to-emerald-50">
-                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Member ID</th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Member Name</th>
-                    <th className="px-6 py-4 text-center text-xs font-bold text-gray-700 uppercase tracking-wider">Current Balance</th>
-                    <th className="px-6 py-4 text-center text-xs font-bold text-gray-700 uppercase tracking-wider">Action</th>
+                <thead className="bg-green-600 text-white uppercase text-[13px] tracking-wider">
+                  <tr>
+                    <th className="px-6 py-4 text-left font-semibold">Member ID</th>
+                    <th className="px-6 py-4 text-left font-semibold">Member Name</th>
+                    <th className="px-6 py-4 text-right font-semibold">Current Balance</th>
+                    <th className="px-6 py-4 text-center font-semibold">Action</th>
                   </tr>
                 </thead>  
                 <tbody className="divide-y divide-gray-100">
@@ -319,15 +319,15 @@ const Cashier_CBU = () => {
                   {paginatedMembers.map((member) => {
                     const currentBal = Number(member.current_balance || 0);
                     return (
-                      <tr key={member.member_uuid || member.member_id}>
+                      <tr key={member.member_uuid || member.member_id} className="hover:bg-gray-50 transition-colors">
                         <td className="px-6 py-4 text-sm font-mono text-gray-600">{member.member_id}</td>
                         <td className="px-6 py-4 text-sm font-semibold text-gray-900">{member.member_name}</td>
-                        <td className="px-6 py-4 text-sm font-semibold text-gray-700 text-center">{formatCurrency(currentBal)}</td>
+                        <td className="px-6 py-4 text-sm font-semibold text-gray-700 text-right">{formatCurrency(currentBal)}</td>
                         <td className="px-6 py-4 text-center">
                           <button
                             type="button"
                             onClick={() => proceedToDepositPage(member)}
-                            className="inline-flex items-center gap-2 rounded-lg bg-green-50 px-4 py-2 text-xs font-bold text-green-700 border border-green-200 hover:bg-green-100 hover:border-green-300 hover:text-green-800 transition-all duration-150"
+                            className="inline-flex items-center gap-2 rounded-lg bg-green-600 hover:bg-green-700 px-4 py-2 text-xs font-semibold text-white transition-colors"
                           >
                             <ArrowRightCircle className="w-4 h-4" /> Deposit
                           </button>
