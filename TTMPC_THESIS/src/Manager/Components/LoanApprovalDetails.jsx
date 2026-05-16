@@ -969,7 +969,7 @@ const LoanApprovalDetails = () => {
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-600 font-medium">Interest Rate</span>
-                    <span className="font-bold text-gray-800">{loanDetails.computation.interestRate}</span>
+                    <span className="font-bold text-gray-800">0.83%</span>
                   </div>
                 </div>
                 <div className="border-t border-gray-300 pt-4 flex justify-between items-center">
