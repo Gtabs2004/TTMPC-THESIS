@@ -85,6 +85,7 @@ const LoanApprovalDetails = () => {
   const [supportingDocUrls, setSupportingDocUrls] = useState({});
   const [docLoading, setDocLoading] = useState(false);
   const [docError, setDocError] = useState('');
+  const [simulatedBalance, setSimulatedBalance] = useState(null);
 
   const formatCurrency = (value) => {
     const amount = Number(value || 0);
@@ -1247,5 +1248,12 @@ const LoanApprovalDetails = () => {
     </div>
   );
 };
+
+  const parseCurrency = (value) => {
+    if (value === null || value === undefined) return 0;
+    const cleaned = String(value).replace(/[^0-9.-]+/g, '');
+    const n = Number(cleaned);
+    return Number.isFinite(n) ? n : 0;
+  };
 
 export default LoanApprovalDetails;

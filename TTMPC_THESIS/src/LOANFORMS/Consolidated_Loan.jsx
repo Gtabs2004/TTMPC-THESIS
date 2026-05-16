@@ -223,6 +223,12 @@ function Consolidated_Loan() {
   const overrideSixMonthsPaid = () => setSixMonthOverride(true);
 
   const sixMonthsPaid = sixMonthOverride || (existingLoan?.paidMonths ?? 0) >= MIN_PAID_MONTHS_FOR_RENEWAL;
+  const simulatedRemainingBalance = (() => {
+    const balance = Number(existingLoan?.remainingBalance || 0);
+    const monthly = Number(existingLoan?.monthlyAmortization || 0);
+    if (!sixMonthOverride || monthly <= 0) return balance;
+    return Math.max(balance - (monthly * MIN_PAID_MONTHS_FOR_RENEWAL), 0);
+  })();
   const [riskCategories, setRiskCategories] = useState({});
 
   useEffect(() => {
@@ -287,7 +293,7 @@ function Consolidated_Loan() {
     }
 
     const multiplier = memberClass === 'MIGS' ? 5 : 3;
-    const existingBalance = isRenewal ? Number(existingLoan?.remainingBalance || 0) : 0;
+    const existingBalance = isRenewal ? Number(simulatedRemainingBalance || 0) : 0;
     // Net Proceeds: NEW = hardcoded 0 ; RENEWAL = New Loan Amount − Existing Active Balance − Deductions
     const netProceeds = isRenewal
       ? (principal - existingBalance - RENEWAL_DEDUCTIONS)
@@ -398,7 +404,7 @@ function Consolidated_Loan() {
     const memberClass = String(formData.member_class || 'NON-MIGS').toUpperCase();
     const multiplier = memberClass === 'MIGS' ? 5 : 3;
     if (isRenewal) {
-      const balance = Number(existingLoan?.remainingBalance || 0);
+      const balance = Number(simulatedRemainingBalance || 0);
       return ((shareCapital * multiplier) + balance + RENEWAL_DEDUCTIONS) / 2;
     }
     return shareCapital * multiplier;
@@ -714,7 +720,7 @@ function Consolidated_Loan() {
                     </div>
                     <div>
                       <div className="text-[10px] uppercase font-bold text-gray-500">Remaining Balance</div>
-                      <div className="font-semibold">₱{Number(existingLoan.remainingBalance || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                      <div className="font-semibold">₱{Number(simulatedRemainingBalance || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
                     </div>
                     <div>
                       <div className="text-[10px] uppercase font-bold text-gray-500">Paid Months</div>

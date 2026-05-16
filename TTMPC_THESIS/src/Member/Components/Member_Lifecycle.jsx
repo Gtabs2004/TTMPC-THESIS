@@ -20,6 +20,7 @@ import {
   User,
   Users,
   Wallet,
+  Receipt,
 } from "lucide-react";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
@@ -161,6 +162,7 @@ const Member_Lifecycle = () => {
   const menuItems = [
     { name: "Dashboard", icon: LayoutDashboard },
     { name: "Member Loans", icon: Activity },
+    { name: "Statement of Account", icon: Receipt },
     { name: "Loan Lifecycle", icon: History },
     { name: "Member Profile", icon: Users },
     { name: "Member Savings", icon: CreditCard },
@@ -169,6 +171,7 @@ const Member_Lifecycle = () => {
   const routeMap = {
     Dashboard: "/member-dashboard",
     "Member Loans": "/member-loans",
+    "Statement of Account": "/member-statement-of-account",
     "Loan Lifecycle": "/member-lifecycle",
     "Member Profile": "/members-profile",
     "Member Savings": "/member-savings",
@@ -627,6 +630,7 @@ const Member_Lifecycle = () => {
                 const routeMap = {
                   "Dashboard": "/member-dashboard",
                   "Member Loans": "/member-loans",
+                  "Statement of Account": "/member-statement-of-account",
                   "Loan Lifecycle": "/member-lifecycle",
                   "Member Profile": "/members-profile",
                   "Member Savings": "/member-savings"
