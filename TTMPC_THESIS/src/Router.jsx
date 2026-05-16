@@ -71,6 +71,7 @@ import Grocery from "./Bookkeeper/Components/Grocery";
 import Grocery_Ledger from "./Bookkeeper/Components/Grocery-Ledger";
 import Cashier_Grocery from "./Cashier/Components/Cashier_Grocery";
 import BOD_Manage_Loans from "./BOD/Components/Manage-Loans";
+import MIGSDetails from "./Bookkeeper/Components/MIGS-Details";
 
 
 
@@ -90,6 +91,7 @@ export const router = createBrowserRouter([
     {path: "/bookkeeper-loan-approval", element: <BookkeeperLoanApproval/>},
     {path: "/bookkeeper-loan-ledger/:loanId", element: <LoanLedger/>},
     {path: "/migs", element: <MIGS/>},
+    {path: "/migs-evaluate", element: <MIGSDetails/>},
     {path: "/payments", element: <BookkeeperPayments/>},
     {path: "/bookkeeper-savings-transactions", element: <BookkeeperSavingsTransactions/>},
     {path: "/reports", element: <Reports/>},
