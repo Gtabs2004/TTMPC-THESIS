@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 
 function Savings_Forms() {
   const inputStyles = "border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-[#66B538] outline-none w-full bg-white text-sm transition-all";
@@ -68,7 +68,7 @@ function Savings_Forms() {
       
       <header className="w-full bg-[#E9F7DE] h-20 shadow-sm flex items-center px-6">
         <div className="flex flex-row items-center gap-4">
-          <img src="src/assets/img/ttmpc logo.png" alt="Logo" className="h-12 w-auto" onError={(e) => e.target.style.display='none'} />
+          <img src="/img/ttmpc logo.png" alt="Logo" className="h-12 w-auto" onError={(e) => e.target.style.display='none'} />
           <div className="flex flex-col">
             <h1 className="text-sm font-bold text-[#66B538]">Tubungan Teacher's Multi‑Purpose Cooperative</h1>
             <p className="text-[#A0D284] text-xs">Loan Application Kiosk</p>

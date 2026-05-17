@@ -414,7 +414,7 @@ const BookkeeperPayments = () => {
             <span className="absolute top-1 right-1 block h-2 w-2 rounded-full bg-red-500 ring-2 ring-white"></span>
           </button>
           <img
-            src="src/assets/img/bookkeeper-profile.png"
+            src="/img/bookkeeper-profile.png"
             alt="Bookkeeper Profile"
             className="ml-4 w-8 h-8 rounded-full"
           />

@@ -476,7 +476,7 @@ const Secretary_Attendance = () => {
             <input type="text" className="bg-gray-50 w-52 h-10 rounded-lg border border-gray-300 px-4 py-1 focus:outline-none focus:ring-2 focus:ring-green-500" />
           </div>
           <NotificationBell />
-          <img src="src/assets/img/bookkeeper-profile.png" alt="Bookkeeper Profile" className="ml-4 w-8 h-8 rounded-full" />
+          <img src="/img/bookkeeper-profile.png" alt="Bookkeeper Profile" className="ml-4 w-8 h-8 rounded-full" />
           <PortalTopbarIdentity className="text-sm font-medium text-gray-700" fallbackRole="Secretary" />
         </header>
 

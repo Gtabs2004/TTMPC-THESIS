@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { UserAuth } from '../contex/AuthContext';
 import { Mail, Lock } from 'lucide-react';
@@ -34,7 +34,7 @@ function MemberLogin() {
       {/* Header & Logo */}
       <div className="sm:mx-auto sm:w-full sm:max-w-md flex flex-col items-center">
         <img
-          src="src/assets/img/ttmpc logo.png"
+          src="/img/ttmpc logo.png"
           alt="TTMPC Logo"
           className="mx-auto h-24 w-auto drop-shadow-sm mb-6"
         />
