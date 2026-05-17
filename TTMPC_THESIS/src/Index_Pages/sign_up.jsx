@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { UserAuth } from '../contex/AuthContext';
 
@@ -36,7 +36,7 @@ const Sign_Up = () => {
       {/* Header & Logo */}
       <div className="sm:mx-auto sm:w-full sm:max-w-sm">
         <img
-          src="src/assets/img/ttmpc logo.png"
+          src="/img/ttmpc logo.png"
           alt="Your Company"
           className="ml-32 my-auto h-30 w-auto"
         />
