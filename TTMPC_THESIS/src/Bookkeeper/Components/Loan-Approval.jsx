@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
+import { useNotification } from "../../contex/NotificationContext";
 import { supabase } from "../../supabaseClient";
 import {
   LayoutDashboard,
@@ -24,9 +25,9 @@ import { PortalSidebarIdentity, PortalTopbarIdentity } from "../../components/Po
 const BookkeeperLoanApproval = () => {
   const { signOut } = UserAuth();
   const navigate = useNavigate();
+  const { addNotification } = useNotification();
   const [loans, setLoans] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [fetchError, setFetchError] = useState("");
 
   const menuItems = [
     { name: "Dashboard", icon: LayoutDashboard },
@@ -49,7 +50,6 @@ const BookkeeperLoanApproval = () => {
   const fetchLoans = async () => {
     try {
       setLoading(true);
-      setFetchError("");
 
       const { data: loansData, error: loansError } = await supabase
         .from("loans")
@@ -107,9 +107,10 @@ const BookkeeperLoanApproval = () => {
         .sort((a, b) => new Date(b.application_date || 0) - new Date(a.application_date || 0));
 
       setLoans(combinedQueue);
+      addNotification("Loan applications loaded successfully", "success");
     } catch (err) {
       console.error("Error fetching loans:", err.message);
-      setFetchError(err.message || "Unable to load loans.");
+      addNotification(err.message || "Unable to load loans.", "error");
     } finally {
       setLoading(false);
     }
@@ -294,7 +295,7 @@ const BookkeeperLoanApproval = () => {
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr className="bg-[#FAF9FB] border-b border-gray-200 text-[10px] uppercase tracking-wider text-[#2A2A48] font-extrabold">
+                  <tr className="bg-green-700 border-8px border-gray-200 text-[10px] uppercase tracking-wider text-white font-extrabold">
                     <th className="p-5 font-bold">Loan ID</th>
                     <th className="p-5 font-bold">Member Name</th>
                     <th className="p-5 font-bold">Loan Type</th>

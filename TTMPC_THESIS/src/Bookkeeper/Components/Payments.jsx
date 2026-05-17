@@ -1,6 +1,7 @@
 ﻿import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
+import { useNotification } from "../../contex/NotificationContext";
 import { PortalSidebarIdentity, PortalTopbarIdentity } from "../../components/PortalIdentity";
 import {
   LayoutDashboard,
@@ -51,6 +52,7 @@ const getStatusStyle = (status) => {
 const BookkeeperPayments = () => {
   const { signOut } = UserAuth();
   const navigate = useNavigate();
+  const { addNotification } = useNotification();
 
   const [loans, setLoans] = useState([]);
   const [payments, setPayments] = useState([]);
@@ -59,7 +61,6 @@ const BookkeeperPayments = () => {
   const [loanTypeFilter, setLoanTypeFilter] = useState("all");
   const [memberTypeFilter, setMemberTypeFilter] = useState("all");
   const [selectedRejectPayment, setSelectedRejectPayment] = useState(null);
-  const [feedback, setFeedback] = useState("");
   const [rejectReason, setRejectReason] = useState("");
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -210,7 +211,6 @@ const BookkeeperPayments = () => {
 
   async function fetchPendingPayments() {
     setLoading(true);
-    setFeedback("");
 
     try {
       const [pendingRes, loansRes] = await Promise.all([
@@ -254,10 +254,11 @@ const BookkeeperPayments = () => {
 
       setLoans(loanRows);
       setPayments([...queueRows, ...historyRows]);
+      addNotification("Payment data synced successfully", "success");
     } catch (error) {
       setLoans([]);
       setPayments([]);
-      setFeedback(error?.message || "Unable to sync payments queue.");
+      addNotification(error?.message || "Unable to sync payments queue.", "error");
     } finally {
       setLoading(false);
     }
@@ -265,7 +266,6 @@ const BookkeeperPayments = () => {
 
   async function approvePayment(paymentId) {
     setWorkingPaymentId(paymentId);
-    setFeedback("");
 
     try {
       const response = await fetch(`${API_BASE_URL}/api/bookkeeper/payments/${encodeURIComponent(paymentId)}/approve`, {
@@ -282,10 +282,10 @@ const BookkeeperPayments = () => {
         throw new Error(payload?.detail || payload?.message || "Failed to validate payment.");
       }
 
-      setFeedback(`Payment ${paymentId} validated and confirmed. Ledger is now updated.`);
+      addNotification(`Payment ${paymentId} validated and confirmed. Ledger is now updated.`, "success");
       await fetchPendingPayments();
     } catch (error) {
-      setFeedback(error?.message || "Failed to validate payment.");
+      addNotification(error?.message || "Failed to validate payment.", "error");
     } finally {
       setWorkingPaymentId("");
     }
@@ -293,7 +293,6 @@ const BookkeeperPayments = () => {
 
   async function rejectPayment(paymentId, reason) {
     setWorkingPaymentId(paymentId);
-    setFeedback("");
 
     try {
       const response = await fetch(`${API_BASE_URL}/api/bookkeeper/payments/${encodeURIComponent(paymentId)}/reject`, {
@@ -310,10 +309,10 @@ const BookkeeperPayments = () => {
         throw new Error(payload?.detail || payload?.message || "Failed to reject payment.");
       }
 
-      setFeedback(`Payment ${paymentId} rejected.`);
+      addNotification(`Payment ${paymentId} rejected.`, "warning");
       await fetchPendingPayments();
     } catch (error) {
-      setFeedback(error?.message || "Failed to reject payment.");
+      addNotification(error?.message || "Failed to reject payment.", "error");
     } finally {
       setWorkingPaymentId("");
     }
@@ -535,12 +534,6 @@ const BookkeeperPayments = () => {
               Business Rules: Non-Member accounts are limited to Bonus loans. KOICA users are limited to KOICA or ABF loans.
             </div>
 
-            {feedback && (
-              <div className="mt-3 rounded border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
-                {feedback}
-              </div>
-            )}
-
             {loading && (
               <div className="mt-3 rounded border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700">
                 Syncing payment queue and loan ledger data...
@@ -548,8 +541,8 @@ const BookkeeperPayments = () => {
             )}
           </div>
 
-          <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-lg">
-            <table className="min-w-full">
+          <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-lg enhanced-table">
+            <table className="min-w-full enhanced-table">
               <thead className="bg-green-700 border-b border-gray-200">
                 {activeTab === "active" || activeTab === "fully_paid" ? (
                   <tr>
@@ -592,11 +585,11 @@ const BookkeeperPayments = () => {
 
                 {(activeTab === "active" || activeTab === "fully_paid") &&
                   filteredLoanRows.map((loan, index) => (
-                    <tr key={loan.loan_id}>
+                    <tr key={loan.loan_id} className="table-row-enter hover:bg-green-50 transition-colors duration-200">
                       <td className="px-6 py-4 text-sm font-mono font-bold text-green-700">{loan.loan_id}</td>
                       <td className="px-6 py-4 text-sm text-gray-800 font-semibold">{loan.member_name}</td>
                       <td className="px-6 py-4">
-                        <span className={`inline-flex rounded-full px-3 py-1.5 text-xs font-bold ${getLoanTypeStyle(loan.loan_type_code)}`}>
+                        <span className={`badge-animated ${getLoanTypeStyle(loan.loan_type_code)}`}>
                           {loan.loan_type}
                         </span>
                       </td>
@@ -608,7 +601,7 @@ const BookkeeperPayments = () => {
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-700 font-medium">{loan.due_date}</td>
                       <td className="px-6 py-4">
-                        <span className={`inline-flex rounded-full px-3 py-1.5 text-xs font-bold ${getStatusStyle(loan.status)}`}>
+                        <span className={`status-badge ${getStatusStyle(loan.status)}`}>
                           {loan.status}
                         </span>
                       </td>
@@ -616,7 +609,7 @@ const BookkeeperPayments = () => {
                         <button
                           type="button"
                           onClick={() => openLoanDetailsFromLoan(loan)}
-                          className="inline-flex items-center gap-1.5 rounded-lg bg-green-600 px-3 py-2 text-xs font-semibold text-white hover:bg-green-700 transition-colors cursor-pointer"
+                          className="btn-enhanced inline-flex items-center gap-1.5 rounded-lg bg-green-600 px-3 py-2 text-xs font-semibold text-white hover:bg-green-700"
                         >
                           <Eye size={14} /> View Ledger
                         </button>
@@ -629,13 +622,13 @@ const BookkeeperPayments = () => {
                     const loan = loanById.get(item.loan_id);
 
                     return (
-                      <tr key={item.payment_id}>
+                      <tr key={item.payment_id} className="table-row-enter hover:bg-green-50 transition-colors duration-200">
                         <td className="px-6 py-4 text-sm font-mono font-bold text-green-700">{item.payment_id}</td>
                         <td className="px-6 py-4 text-sm text-gray-800 font-semibold">{loan?.member_name || "Unknown Member"}</td>
                         <td className="px-6 py-4">
                           <div className="text-xs text-gray-500 mb-1">Loan ID: {item.loan_id}</div>
                           <div>
-                            <span className={`inline-flex rounded-full px-3 py-1.5 text-xs font-bold ${getLoanTypeStyle(loan?.loan_type_code)}`}>
+                            <span className={`badge-animated ${getLoanTypeStyle(loan?.loan_type_code)}`}>
                               {loan?.loan_type || "N/A"}
                             </span>
                           </div>
@@ -647,7 +640,7 @@ const BookkeeperPayments = () => {
                         <td className="px-6 py-4 text-sm text-gray-700 font-medium">{new Date(item.date_paid).toLocaleDateString()}</td>
                         <td className="px-6 py-4 text-sm text-gray-700 font-medium">{item.entered_by}</td>
                         <td className="px-6 py-4">
-                          <span className={`inline-flex rounded-full px-3 py-1.5 text-xs font-bold ${getStatusStyle(item.confirmation_status)}`}>
+                          <span className={`status-badge ${getStatusStyle(item.confirmation_status)}`}>
                             {item.confirmation_status}
                           </span>
                         </td>
@@ -656,7 +649,7 @@ const BookkeeperPayments = () => {
                             <button
                               type="button"
                               onClick={() => openLoanDetailsFromPayment(item)}
-                              className="inline-flex items-center gap-1.5 rounded-lg bg-green-600 px-3 py-2 text-xs font-semibold text-white hover:bg-green-700 transition-colors cursor-pointer"
+                              className="btn-enhanced inline-flex items-center gap-1.5 rounded-lg bg-green-600 px-3 py-2 text-xs font-semibold text-white hover:bg-green-700"
                             >
                               <Eye size={14} /> View
                             </button>
@@ -666,7 +659,7 @@ const BookkeeperPayments = () => {
                                   type="button"
                                   onClick={() => approvePayment(item.payment_id)}
                                   disabled={workingPaymentId === item.payment_id}
-                                  className="inline-flex items-center gap-1.5 rounded-lg bg-green-600 px-3 py-2 text-xs font-semibold text-white hover:bg-green-700 disabled:opacity-50 transition-colors"
+                                  className="btn-enhanced inline-flex items-center gap-1.5 rounded-lg bg-green-600 px-3 py-2 text-xs font-semibold text-white hover:bg-green-700 disabled:opacity-50"
                                 >
                                   <CheckCircle size={14} /> {workingPaymentId === item.payment_id ? "Processing..." : "Approve"}
                                 </button>
@@ -674,7 +667,7 @@ const BookkeeperPayments = () => {
                                   type="button"
                                   onClick={() => openRejectFlow(item)}
                                   disabled={workingPaymentId === item.payment_id}
-                                  className="inline-flex items-center gap-1.5 rounded-lg bg-red-600 px-3 py-2 text-xs font-semibold text-white hover:bg-red-700 disabled:opacity-50 transition-colors"
+                                  className="btn-enhanced inline-flex items-center gap-1.5 rounded-lg bg-red-600 px-3 py-2 text-xs font-semibold text-white hover:bg-red-700 disabled:opacity-50"
                                 >
                                   <XCircle size={14} /> Reject
                                 </button>

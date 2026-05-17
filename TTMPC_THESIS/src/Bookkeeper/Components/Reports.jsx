@@ -1,6 +1,7 @@
 ﻿import React from "react";
 import { useNavigate, NavLink } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
+import { useNotification } from "../../contex/NotificationContext";
 import { PortalSidebarIdentity, PortalTopbarIdentity } from "../../components/PortalIdentity";
 import { 
   LayoutDashboard, 
@@ -31,6 +32,7 @@ import {
 const Reports = () => {
   const { session, signOut } = UserAuth();
   const navigate = useNavigate();
+  const { addNotification } = useNotification();
   
   const menuItems = [
     { name: "Dashboard", icon: LayoutDashboard },
@@ -328,14 +330,14 @@ const Reports = () => {
           </div>
 
           {/* Recent Executive Reports Table */}
-          <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden mb-8">
-            <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center">
+          <div className="bg-white rounded-xl border border-gray-100 shadow-md overflow-hidden mb-8 enhanced-table">
+            <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gradient-to-r from-green-50 to-gray-50">
               <h2 className="text-xs font-bold text-gray-900 uppercase tracking-wide">Recent Executive Reports</h2>
-              <button className="text-xs font-bold text-[#166534] hover:underline">Full Archive</button>
+              <button className="text-xs font-bold text-green-700 hover:text-green-900 transition-colors">Full Archive</button>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm">
-                <thead className="bg-gray-50 text-[10px] uppercase text-gray-400 font-bold tracking-wider">
+                <thead className="bg-gradient-to-r from-green-700 to-green-600 text-white text-[10px] uppercase font-bold tracking-wider">
                   <tr>
                     <th className="px-6 py-3">Report Name</th>
                     <th className="px-6 py-3">Category</th>
@@ -343,21 +345,21 @@ const Reports = () => {
                     <th className="px-6 py-3 text-right">Action</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100">
+                <tbody className="divide-y divide-gray-200">
                   {reportList.map((report, idx) => (
-                    <tr key={idx} className="hover:bg-gray-50 transition-colors">
+                    <tr key={idx} className="table-row-enter hover:bg-green-50 transition-colors duration-200">
                       <td className="px-6 py-4 flex items-center gap-3">
                         <FileText className="text-red-500" size={16} />
                         <span className="font-medium text-gray-800">{report.name}</span>
                       </td>
                       <td className="px-6 py-4">
-                        <span className={`px-2 py-1 rounded text-[10px] font-bold tracking-wide ${report.catColor}`}>
+                        <span className={`badge-animated px-2 py-1 rounded text-[10px] font-bold tracking-wide ${report.catColor}`}>
                           {report.category}
                         </span>
                       </td>
                       <td className="px-6 py-4 text-gray-500 font-medium text-xs">{report.date}</td>
                       <td className="px-6 py-4 text-right">
-                        <button className="inline-flex items-center gap-1.5 text-xs font-bold text-[#166534] hover:text-green-800 transition-colors">
+                        <button className="btn-enhanced inline-flex items-center gap-1.5 text-xs font-bold text-green-700 hover:text-green-900 transition-colors">
                           <FileDown size={14} />
                           Export PDF
                         </button>

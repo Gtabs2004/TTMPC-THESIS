@@ -265,7 +265,7 @@ const Grocery = () => {
 
             {/* Table Toolbar */}
             <div className="p-6 flex flex-col md:flex-row justify-between items-center gap-4 border-b border-gray-100">
-              <h2 className="text-xl font-bold text-[#1a3b47]">Grocery Transactions</h2>
+              
               
               <div className="flex flex-1 justify-end items-center gap-3 w-full md:w-auto">
                 <div className="relative max-w-sm w-full">
@@ -293,7 +293,7 @@ const Grocery = () => {
             {/* Table */}
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm whitespace-nowrap">
-                <thead className="bg-gray-50 text-gray-500 text-xs uppercase font-semibold">
+                <thead className="bg-green-700 text-white text-xs uppercase font-semibold">
                   <tr>
                     <th className="px-6 py-4">Grocery ID</th>
                     <th className="px-6 py-4">Member ID</th>

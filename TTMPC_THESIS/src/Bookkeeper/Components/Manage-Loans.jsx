@@ -1,6 +1,7 @@
 ﻿import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
+import { useNotification } from "../../contex/NotificationContext";
 import { PortalSidebarIdentity, PortalTopbarIdentity } from "../../components/PortalIdentity";
 import {
   LayoutDashboard,
@@ -47,6 +48,7 @@ const getStatusStyle = (status) => {
 const ManageLoans = () => {
   const { signOut } = UserAuth();
   const navigate = useNavigate();
+  const { addNotification } = useNotification();
 
   const [loans, setLoans] = useState([]);
   const [activeTab, setActiveTab] = useState("active");
@@ -54,7 +56,6 @@ const ManageLoans = () => {
   const [loanTypeFilter, setLoanTypeFilter] = useState("all");
   const [memberTypeFilter, setMemberTypeFilter] = useState("all");
   const [loading, setLoading] = useState(false);
-  const [loadError, setLoadError] = useState("");
 
   const menuItems = [
     { name: "Dashboard", icon: LayoutDashboard },
@@ -140,8 +141,9 @@ const ManageLoans = () => {
 
       const rows = Array.isArray(result?.data?.rows) ? result.data.rows : [];
       setLoans(rows);
+      addNotification("Loans data synced successfully", "success");
     } catch (error) {
-      setLoadError(error?.message || "Unable to sync approved loans from backend.");
+      addNotification(error?.message || "Unable to sync approved loans from backend.", "error");
       setLoans([]);
     } finally {
       setLoading(false);
@@ -369,16 +371,9 @@ const ManageLoans = () => {
                 Syncing approved loans from server...
               </div>
             )}
-
-            {!!loadError && (
-              <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 flex items-start gap-2">
-                <span className="font-semibold mt-0.5">Error:</span>
-                {loadError}
-              </div>
-            )}
           </div>
 
-          <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-lg">
+          <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-lg enhanced-table">
             <table className="min-w-full">
               <thead className="bg-green-700 border-b border-gray-200 ">
                 <tr>
@@ -410,11 +405,11 @@ const ManageLoans = () => {
 
                 {filteredLoans.map((loan, index) => {
                   return (
-                    <tr>
+                    <tr key={loan.loan_id} className="table-row-enter hover:bg-green-50 transition-colors duration-200">
                       <td className="px-6 py-4 text-sm font-mono font-bold text-green-700">{loan.loan_id}</td>
                       <td className="px-6 py-4 text-sm text-gray-800 font-semibold">{loan.member_name}</td>
                       <td className="px-6 py-4">
-                        <span className={`inline-flex rounded-full px-3 py-1.5 text-xs font-bold ${getLoanTypeStyle(loan.loan_type_code)}`}>
+                        <span className={`badge-animated ${getLoanTypeStyle(loan.loan_type_code)}`}>
                           {loan.loan_type}
                         </span>
                       </td>
@@ -431,7 +426,7 @@ const ManageLoans = () => {
                         <button
                           type="button"
                           onClick={() => navigate(`/bookkeeper-loan-ledger/${loan.loan_id}`, { state: { loan } })}
-                          className="inline-flex items-center gap-1.5 rounded-lg bg-green-600 px-3 py-2 text-xs font-semibold text-white hover:bg-green-700 transition-colors cursor-pointer"
+                          className="btn-enhanced inline-flex items-center gap-1.5 rounded-lg bg-green-600 px-3 py-2 text-xs font-semibold text-white hover:bg-green-700"
                         >
                           <Eye size={14} /> View
                         </button>
