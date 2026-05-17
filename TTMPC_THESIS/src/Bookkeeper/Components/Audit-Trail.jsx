@@ -1,6 +1,7 @@
 ﻿import React from "react";
 import { useNavigate, NavLink } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
+import { useNotification } from "../../contex/NotificationContext";
 import { PortalSidebarIdentity, PortalTopbarIdentity } from "../../components/PortalIdentity";
 import { 
   LayoutDashboard, 
@@ -257,7 +258,7 @@ const AuditTrail = () => {
             {/* Table */}
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm whitespace-nowrap">
-                <thead className="bg-gray-50/50 text-[10px] uppercase text-gray-500 font-bold tracking-wider">
+                <thead className="bg-green-700 text-white text-[10px] uppercase rounded-sm font-bold tracking-wider">
                   <tr>
                     <th className="px-6 py-4">Log ID</th>
                     <th className="px-6 py-4">Date & Time</th>

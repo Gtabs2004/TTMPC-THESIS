@@ -5,14 +5,18 @@ import './index.css'
 import { RouterProvider } from 'react-router-dom'
 import { router } from './Router.jsx'
 import { AuthContextProvider } from "./contex/AuthContext.jsx";
+import { NotificationProvider } from "./contex/NotificationContext.jsx";
+import NotificationContainer from "./components/NotificationContainer.jsx";
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <>
-     <AuthContextProvider>
-       <RouterProvider router={router} />
-     </AuthContextProvider>
-     
+     <NotificationProvider>
+       <AuthContextProvider>
+         <NotificationContainer />
+         <RouterProvider router={router} />
+       </AuthContextProvider>
+     </NotificationProvider>
     </>
   </StrictMode>
 )

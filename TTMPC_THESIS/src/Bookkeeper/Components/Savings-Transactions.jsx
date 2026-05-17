@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
+import { useNotification } from "../../contex/NotificationContext";
 import { PortalSidebarIdentity, PortalTopbarIdentity } from "../../components/PortalIdentity";
 import {
   LayoutDashboard,
@@ -45,10 +46,10 @@ const getStatusStyle = (status) => {
 const BookkeeperSavingsTransactions = () => {
   const { signOut } = UserAuth();
   const navigate = useNavigate();
+  const { addNotification } = useNotification();
 
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [feedback, setFeedback] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
   const [activeTab, setActiveTab] = useState("pending_verification");
   const [workingId, setWorkingId] = useState("");
@@ -111,7 +112,6 @@ const BookkeeperSavingsTransactions = () => {
 
   async function fetchRows() {
     setLoading(true);
-    setFeedback("");
     try {
       const response = await fetch(`${API_BASE_URL}/api/bookkeeper/savings-transactions`);
       const payload = await response.json().catch(() => ({}));
@@ -119,9 +119,10 @@ const BookkeeperSavingsTransactions = () => {
         throw new Error(payload?.detail || "Failed to load savings transaction queue.");
       }
       setRows(Array.isArray(payload.data) ? payload.data : []);
+      addNotification("Savings transactions loaded successfully", "success");
     } catch (error) {
       setRows([]);
-      setFeedback(error?.message || "Unable to load savings transaction queue.");
+      addNotification(error?.message || "Unable to load savings transaction queue.", "error");
     } finally {
       setLoading(false);
     }
@@ -143,7 +144,6 @@ const BookkeeperSavingsTransactions = () => {
 
   const confirmPost = async (transactionId) => {
     setWorkingId(transactionId);
-    setFeedback("");
     try {
       const response = await fetch(`${API_BASE_URL}/api/bookkeeper/savings-transactions/${encodeURIComponent(transactionId)}/confirm`, {
         method: "POST",
@@ -156,10 +156,10 @@ const BookkeeperSavingsTransactions = () => {
       if (!response.ok || !payload?.success) {
         throw new Error(payload?.detail || "Failed to confirm transaction.");
       }
-      setFeedback(payload?.message || "Transaction confirmed and posted.");
+      addNotification(payload?.message || "Transaction confirmed and posted.", "success");
       await fetchRows();
     } catch (error) {
-      setFeedback(error?.message || "Unable to confirm transaction.");
+      addNotification(error?.message || "Unable to confirm transaction.", "error");
     } finally {
       setWorkingId("");
     }
@@ -168,7 +168,6 @@ const BookkeeperSavingsTransactions = () => {
   const rejectTransaction = async (transactionId) => {
     const reason = window.prompt("Reason for rejection:", "Rejected by Bookkeeper") || "Rejected by Bookkeeper";
     setWorkingId(transactionId);
-    setFeedback("");
     try {
       const response = await fetch(`${API_BASE_URL}/api/bookkeeper/savings-transactions/${encodeURIComponent(transactionId)}/reject`, {
         method: "POST",
@@ -181,10 +180,10 @@ const BookkeeperSavingsTransactions = () => {
       if (!response.ok || !payload?.success) {
         throw new Error(payload?.detail || "Failed to reject transaction.");
       }
-      setFeedback(payload?.message || "Transaction rejected.");
+      addNotification(payload?.message || "Transaction rejected.", "warning");
       await fetchRows();
     } catch (error) {
-      setFeedback(error?.message || "Unable to reject transaction.");
+      addNotification(error?.message || "Unable to reject transaction.", "error");
     } finally {
       setWorkingId("");
     }
@@ -264,12 +263,6 @@ const BookkeeperSavingsTransactions = () => {
             </button>
           </div>
 
-          {feedback ? (
-            <div className="mb-4 rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm text-gray-700">
-              {feedback}
-            </div>
-          ) : null}
-
           <div className="bg-white rounded-lg border border-gray-200 p-4 mb-4 flex flex-wrap gap-3 items-center">
             <input
               value={searchTerm}
@@ -298,10 +291,10 @@ const BookkeeperSavingsTransactions = () => {
             </button>
           </div>
 
-          <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+          <div className="border border-gray-200 rounded-xl shadow-lg overflow-hidden enhanced-table">
             <div className="overflow-x-auto">
               <table className="w-full text-left">
-                <thead>
+                <thead className="bg-gradient-to-r from-green-700 to-green-600 text-white uppercase text-[8px] tracking-wider">
                   <tr>
                     <th className="px-6 py-4 font-bold text-sm">Transaction ID</th>
                     <th className="px-6 py-4 font-bold text-sm">Member</th>
@@ -313,7 +306,7 @@ const BookkeeperSavingsTransactions = () => {
                     <th className="px-6 py-4 font-bold text-sm text-right">Actions</th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="divide-y divide-gray-200">
                   {loading ? (
                     <tr>
                       <td colSpan="8" className="px-6 py-8 text-center text-gray-500">Loading savings transactions...</td>
@@ -324,19 +317,19 @@ const BookkeeperSavingsTransactions = () => {
                     </tr>
                   ) : (
                     filteredRows.map((row) => (
-                      <tr key={row.transaction_id} className="border-b border-gray-100">
+                      <tr key={row.transaction_id} className="table-row-enter hover:bg-green-50 transition-colors duration-200">
                         <td className="px-6 py-4 font-semibold text-gray-900">{row.transaction_id}</td>
                         <td className="px-6 py-4 text-gray-800">{row.member_name || "Unknown Member"}</td>
                         <td className="px-6 py-4 text-gray-800">{row.savings_id}</td>
                         <td className="px-6 py-4">
-                          <span className="inline-flex px-3 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-700">
+                          <span className="badge-animated bg-gray-100 text-gray-700">
                             {row.account_type || row.transaction_type}
                           </span>
                         </td>
                         <td className="px-6 py-4 font-bold text-gray-900">{formatCurrency(row.amount)}</td>
                         <td className="px-6 py-4 text-gray-600 text-sm">{formatDate(row.requested_at)}</td>
                         <td className="px-6 py-4">
-                          <span className={`inline-flex px-3 py-1 rounded-full text-xs font-semibold ${getStatusStyle(row.transaction_status)}`}>
+                          <span className={`status-badge ${getStatusStyle(row.transaction_status)}`}>
                             {row.transaction_status}
                           </span>
                         </td>
@@ -346,7 +339,7 @@ const BookkeeperSavingsTransactions = () => {
                               <button
                                 onClick={() => confirmPost(row.transaction_id)}
                                 disabled={workingId === row.transaction_id}
-                                className="px-3 py-1.5 rounded-md bg-green-600 hover:bg-green-700 text-white text-xs font-semibold inline-flex items-center gap-1"
+                                className="btn-enhanced px-3 py-1.5 rounded-md bg-green-600 hover:bg-green-700 text-white text-xs font-semibold inline-flex items-center gap-1"
                               >
                                 <CheckCircle size={14} />
                                 Confirm Post
@@ -354,7 +347,7 @@ const BookkeeperSavingsTransactions = () => {
                               <button
                                 onClick={() => rejectTransaction(row.transaction_id)}
                                 disabled={workingId === row.transaction_id}
-                                className="px-3 py-1.5 rounded-md bg-red-600 hover:bg-red-700 text-white text-xs font-semibold inline-flex items-center gap-1"
+                                className="btn-enhanced px-3 py-1.5 rounded-md bg-red-600 hover:bg-red-700 text-white text-xs font-semibold inline-flex items-center gap-1"
                               >
                                 <XCircle size={14} />
                                 Reject

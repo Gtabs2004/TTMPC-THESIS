@@ -1,6 +1,7 @@
 ﻿import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
+import { useNotification } from "../../contex/NotificationContext";
 import { PortalSidebarIdentity, PortalTopbarIdentity } from "../../components/PortalIdentity";
 import {
   LayoutDashboard,
@@ -24,9 +25,9 @@ const ITEMS_PER_PAGE = 10;
 const MIGS = () => {
   const { session, signOut } = UserAuth();
   const navigate = useNavigate();
+  const { addNotification } = useNotification();
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
   const [query, setQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState("All Status");
@@ -79,6 +80,7 @@ const MIGS = () => {
     setTimeout(() => {
       setRows(mockData);
       setLoading(false);
+      addNotification("MIGS scoring data loaded successfully", "success");
     }, 500);
   }, []);
 
@@ -257,12 +259,9 @@ const MIGS = () => {
             {loading ? (
               <p className="p-6 text-blue-700 text-center">Loading MIGS scoring data...</p>
             ) : null}
-            {error ? (
-              <p className="p-6 text-red-600 text-center">{error}</p>
-            ) : null}
-            {!loading && !error ? (
-              <table className="w-full text-sm">
-                <thead className="bg-green-600 text-white text-center uppercase text-[13px] tracking-wider border-b border-gray-200">
+            {!loading ? (
+              <table className="w-full text-sm enhanced-table">
+                <thead className="bg-gradient-to-r from-green-700 to-green-600 text-white text-center uppercase text-[13px] tracking-wider border-b border-gray-200">
                   <tr>
                     <th className="px-4 py-3 text-left font-semibold">Member Name</th>
                     <th className="px-4 py-3 text-left font-semibold">ID</th>
@@ -274,7 +273,7 @@ const MIGS = () => {
                     <th className="px-4 py-3 text-center font-semibold">Action</th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="divide-y divide-gray-200">
                   {filtered.length === 0 ? (
                     <tr>
                       <td colSpan={8} className="px-4 py-8 text-center text-gray-500">
@@ -283,7 +282,7 @@ const MIGS = () => {
                     </tr>
                   ) : (
                     paginatedRows.map((r) => (
-                      <tr key={String(r.id || r.member_id)} className="border-t border-gray-100 hover:bg-gray-50 transition-colors">
+                      <tr key={String(r.id || r.member_id)} className="table-row-enter hover:bg-green-50 transition-colors duration-200">
                         <td className="px-4 py-3 font-medium text-gray-800">{r.full_name}</td>
                         <td className="px-4 py-3 text-gray-600 font-mono text-[12px]">{r.member_id}</td>
                         <td className="px-4 py-3 text-center text-gray-700">₱{(r.capital || 0).toLocaleString()}</td>
@@ -297,7 +296,7 @@ const MIGS = () => {
                           </div>
                         </td>
                         <td className="px-4 py-3 text-center">
-                          <span className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold border ${getMIGSStatusColor(r.migs_status)}`}>
+                          <span className={`badge-animated inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold border ${getMIGSStatusColor(r.migs_status)}`}>
                             <span>{getMIGSStatusIcon(r.migs_status)}</span>
                             {r.migs_status === "MIGS Qualified" ? "MIGS Qualified" : "Non-MIGS"}
                           </span>
@@ -305,7 +304,7 @@ const MIGS = () => {
                         <td className="px-4 py-3 text-center">
                           <button
                             onClick={() => navigate(`/migs-evaluate?member_id=${encodeURIComponent(String(r.member_id || ""))}`)}
-                            className="text-[#1D6021] font-bold hover:text-[#0d4a1a] transition-colors flex items-center justify-center gap-1"
+                            className="btn-enhanced text-[#1D6021] font-bold hover:text-[#0d4a1a] transition-colors flex items-center justify-center gap-1"
                           >
                             <Eye className="w-4 h-4" />
                             Evaluate
@@ -320,7 +319,7 @@ const MIGS = () => {
           </div>
 
           {/* Pagination */}
-          {!loading && !error && filtered.length > 0 ? (
+          {!loading && filtered.length > 0 ? (
             <div className="flex items-center justify-center p-6 gap-2 border-t border-gray-100 mt-4">
               <button
                 className="w-8 h-8 flex items-center justify-center rounded-full border border-gray-300 bg-white text-gray-500 transition-colors hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
