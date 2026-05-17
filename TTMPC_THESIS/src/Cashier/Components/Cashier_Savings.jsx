@@ -268,7 +268,7 @@ const Cashier_Savings = () => {
           <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-left">
-                <thead className="bg-green-600 text-white uppercase text-[13px] tracking-wider">
+                <thead className="bg-[#66B538] text-white uppercase text-[13px] tracking-wider">
                   <tr>
                     <th className="px-6 py-4 font-semibold text-left">Savings ID</th>
                     <th className="px-6 py-4 font-semibold text-left">Member Name</th>

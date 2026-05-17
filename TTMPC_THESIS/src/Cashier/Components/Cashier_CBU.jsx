@@ -302,7 +302,7 @@ const Cashier_CBU = () => {
 
             <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-lg">
               <table className="w-full">
-                <thead className="bg-green-600 text-white uppercase text-[13px] tracking-wider">
+                <thead className="bg-[#66B538] text-white uppercase text-[13px] tracking-wider">
                   <tr>
                     <th className="px-6 py-4 text-left font-semibold">Member ID</th>
                     <th className="px-6 py-4 text-left font-semibold">Member Name</th>
@@ -327,7 +327,7 @@ const Cashier_CBU = () => {
                           <button
                             type="button"
                             onClick={() => proceedToDepositPage(member)}
-                            className="inline-flex items-center gap-2 rounded-lg bg-green-600 hover:bg-green-700 px-4 py-2 text-xs font-semibold text-white transition-colors"
+                            className="inline-flex items-center gap-2 rounded-lg bg-[#66B538] px-4 py-2 text-xs font-semibold text-white transition-colors cursor-pointer"
                           >
                             <ArrowRightCircle className="w-4 h-4" /> Deposit
                           </button>

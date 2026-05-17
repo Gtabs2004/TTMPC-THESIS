@@ -367,7 +367,7 @@ const Member_Approvals = () => {
 
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm">
-                <thead className="bg-[#F8FAFC] text-gray-500 text-[11px] uppercase font-bold tracking-wider">
+                <thead className="bg-[#66B538] text-white text-[13px] uppercase font-bold tracking-wider">
                   <tr>
                     {isTrainingTab ? (
                       <>

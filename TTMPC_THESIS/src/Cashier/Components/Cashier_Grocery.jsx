@@ -308,7 +308,7 @@ const Cashier_Grocery = () => {
             {/* Table */}
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm">
-                <thead className="bg-green-600 text-white uppercase text-[13px] tracking-wider">
+                <thead className="bg-[#66B538] text-white uppercase text-[13px] tracking-wider">
                   <tr>
                     <th className="px-6 py-4 font-semibold">Grocery ID</th>
                     <th className="px-6 py-4 font-semibold">Member ID</th>

@@ -268,7 +268,7 @@ const Loan_Approval = () => {
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr className="bg-[#FAF9FB] border-b border-gray-200 text-[10px] uppercase tracking-wider text-[#2A2A48] font-extrabold">
+                  <tr className="bg-[#66B538] border-b border-gray-200 text-[10px] uppercase tracking-wider text-[#2A2A48] font-extrabold text-white">
                     <th className="p-5 font-bold">Loan ID</th>
                     <th className="p-5 font-bold">Member Name</th>
                     <th className="p-5 font-bold">Loan Type</th>

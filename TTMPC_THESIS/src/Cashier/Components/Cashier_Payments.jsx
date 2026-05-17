@@ -620,7 +620,7 @@ const Cashier_Payments = () => {
           <div className="mb-8 rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full">
-                <thead className="bg-green-600 text-white uppercase text-[13px] tracking-wider">
+                <thead className="bg-[#66B538] text-white uppercase text-[13px] tracking-wider">
                   <tr>
                     <th className="px-6 py-4 text-left font-semibold">
                       <button
@@ -652,25 +652,25 @@ const Cashier_Payments = () => {
                         <ArrowUpDown size={14} className="opacity-0 group-hover:opacity-100 transition" />
                       </button>
                     </th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700">
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-white">
                       Amortization
                     </th>
                     <th className="px-6 py-4 text-left">
                       <button
                         onClick={() => handleSort("due_date")}
-                        className="flex items-center gap-2 text-xs font-semibold text-gray-700 hover:text-gray-900 transition group"
+                        className="flex items-center gap-2 text-xs font-semibold text-white hover:text-gray-900 transition group"
                       >
                         Due Date
                         <ArrowUpDown size={14} className="opacity-0 group-hover:opacity-100 transition" />
                       </button>
                     </th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700">
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-white">
                       Delay Status
                     </th>
                     <th className="px-6 py-4 text-left">
                       <button
                         onClick={() => handleSort("remaining_balance")}
-                        className="flex items-center gap-2 text-xs font-semibold text-gray-700 hover:text-gray-900 transition group"
+                        className="flex items-center gap-2 text-xs font-semibold text-white hover:text-gray-900 transition group"
                       >
                         Balance
                         <ArrowUpDown size={14} className="opacity-0 group-hover:opacity-100 transition" />
@@ -679,13 +679,13 @@ const Cashier_Payments = () => {
                     <th className="px-6 py-4 text-left">
                       <button
                         onClick={() => handleSort("loan_status")}
-                        className="flex items-center gap-2 text-xs font-semibold text-gray-700 hover:text-gray-900 transition group"
+                        className="flex items-center gap-2 text-xs font-semibold text-white hover:text-gray-900 transition group"
                       >
                         Status
                         <ArrowUpDown size={14} className="opacity-0 group-hover:opacity-100 transition" />
                       </button>
                     </th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700">
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-white">
                       Action
                     </th>
                   </tr>
@@ -963,7 +963,7 @@ const Cashier_Payments = () => {
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
-                  <thead className="bg-green-600 text-white uppercase text-[13px] tracking-wider">
+                  <thead className="bg-[#66B538] text-white uppercase text-[13px] tracking-wider">
                     <tr>
                       <th className="px-6 py-3 text-left font-semibold">
                         Payment ID
