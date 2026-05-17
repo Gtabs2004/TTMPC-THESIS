@@ -28,6 +28,7 @@ const BookkeeperLoanApproval = () => {
   const { addNotification } = useNotification();
   const [loans, setLoans] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState(null);
 
   const menuItems = [
     { name: "Dashboard", icon: LayoutDashboard },
@@ -49,6 +50,7 @@ const BookkeeperLoanApproval = () => {
 
   const fetchLoans = async () => {
     try {
+      setFetchError(null);
       setLoading(true);
 
       const { data: loansData, error: loansError } = await supabase
@@ -110,6 +112,7 @@ const BookkeeperLoanApproval = () => {
       addNotification("Loan applications loaded successfully", "success");
     } catch (err) {
       console.error("Error fetching loans:", err.message);
+      setFetchError(err.message || "Unable to load loans.");
       addNotification(err.message || "Unable to load loans.", "error");
     } finally {
       setLoading(false);

@@ -1,0 +1,36 @@
+{
+  "model_file": "ttmpc_credit_risk_model.pkl",
+  "model_type": "sklearn.ensemble.RandomForestClassifier",
+  "sklearn_version_at_training": "1.6.1",
+  "training_date": "2026-05-17T14:50:51.424732",
+  "training_samples": 441,
+  "test_samples": 111,
+  "test_accuracy": 0.5945945945945946,
+  "test_roc_auc": 0.43411000763941937,
+  "feature_columns_in_order": [
+    "LoanAmount",
+    "Stability_Score",
+    "Advance_Payment_Count",
+    "Income_Is_Missing",
+    "Repayment_Stress_Index"
+  ],
+  "feature_order_matters": true,
+  "target_meaning": {
+    "0": "Performing",
+    "1": "High Risk"
+  },
+  "target_definition": "Target_Risk = 1 if (RemainingPrincipal > 15% of LoanAmount) AND (Advance_Payment_Count == 0)",
+  "hyperparameters": {
+    "n_estimators": 150,
+    "max_depth": 5,
+    "class_weight": "balanced",
+    "random_state": 42
+  },
+  "feature_preparation_rules": {
+    "LoanAmount": "Raw loan amount in PHP (numeric).",
+    "Stability_Score": "Lookup occupation in TIER_SCORE_MAP. Default for unknown: 2.0.",
+    "Advance_Payment_Count": "Count of payments made 1-30 days BEFORE application date.",
+    "Income_Is_Missing": "1 if AnnualIncome is missing/null/zero; 0 otherwise.",
+    "Repayment_Stress_Index": "(LoanAmount/12) / (AnnualIncome/12) * 100. If income missing -> -999."
+  }
+}
