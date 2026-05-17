@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { UserAuth } from '../contex/AuthContext';
 import { User, Briefcase } from 'lucide-react';
@@ -9,7 +9,7 @@ const Role_Selection = () => {
       
       <header className="w-full bg-white h-20 shadow-sm flex items-center px-6 border-b border-gray-200">
         <div className="flex flex-row items-center gap-4">
-          <img src="src/assets/img/ttmpc logo.png" alt="Logo" className="h-10 w-auto" />
+          <img src="/img/ttmpc logo.png" alt="Logo" className="h-10 w-auto" />
           <div className="flex flex-col">
             <h1 className="text-sm md:text-base font-bold text-[#66B538]">
               Tubungan Teacher's Multi‑Purpose Cooperative
@@ -21,7 +21,7 @@ const Role_Selection = () => {
       <main className="flex-1 flex flex-col justify-center items-center p-6">
         <div className="flex flex-col items-center max-w-2xl w-full -mt-10"> 
           
-          <img src="src/assets/img/ttmpc logo.png" alt="Logo" className="h-28 w-auto mb-8 drop-shadow-md" />
+          <img src="/img/ttmpc logo.png" alt="Logo" className="h-28 w-auto mb-8 drop-shadow-md" />
           
           <h1 className="text-3xl md:text-4xl text-gray-800 font-extrabold mb-3 text-center tracking-tight">
             Select Your <span className="text-[#66B538]">Role</span>
