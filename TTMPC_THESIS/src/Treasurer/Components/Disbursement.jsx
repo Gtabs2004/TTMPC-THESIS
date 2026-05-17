@@ -1,6 +1,7 @@
 import React, { useMemo, useRef, useEffect, useState, useCallback } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
+import { useNotification } from "../../contex/NotificationContext";
 import { PortalSidebarIdentity, PortalTopbarIdentity } from "../../components/PortalIdentity";
 import {
   LayoutDashboard,
@@ -60,8 +61,7 @@ const computeRank = (row) => {
 
 const Disbursements = () => {
   const { session, signOut } = UserAuth();
-  const navigate = useNavigate();
-  const [activeLoan, setActiveLoan] = useState(null);
+  const navigate = useNavigate();  const { addNotification } = useNotification();  const [activeLoan, setActiveLoan] = useState(null);
   const [openMenuId, setOpenMenuId] = useState(null);
   const [showTimeline, setShowTimeline] = useState(false);
   const [showPriorityLegend, setShowPriorityLegend] = useState(true);
@@ -425,7 +425,7 @@ const Disbursements = () => {
               <div className="overflow-x-auto">
                 <table className="w-full text-left">
                   <thead>
-                    <tr className="bg-gray-50 text-xs font-semibold text-gray-600 uppercase tracking-wide">
+                    <tr className="bg-[#66B538] text-xs font-semibold text-white uppercase tracking-wide">
                       <th className="px-6 py-3 w-16">Rank</th>
                       <th className="px-6 py-3">Member</th>
                       <th className="px-6 py-3">Loan Type</th>
@@ -439,7 +439,7 @@ const Disbursements = () => {
                   </thead>
                   <tbody className="text-sm text-gray-700 divide-y divide-gray-100">
                     {visibleRows.map((row) => (
-                      <tr key={row.id} className="hover:bg-gray-50 transition-colors">
+                      <tr key={row.id} className="table-row-enter hover:bg-green-50 transition-colors">
                         <td className="px-6 py-4">
                           <span
                             className={`inline-flex items-center justify-center min-w-8 h-7 px-2 rounded-full text-xs font-bold ring-1 ${rankTone[row.rank] || "bg-gray-100 text-gray-700 ring-gray-200"}`}
@@ -454,7 +454,7 @@ const Disbursements = () => {
                           </div>
                         </td>
                         <td className="px-6 py-4">
-                          <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-700">
+                          <span className="badge-animated px-2.5 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-700">
                             {row.type}
                           </span>
                           <span className="ml-1.5 text-xs text-gray-500">{row.migs}</span>
@@ -467,7 +467,7 @@ const Disbursements = () => {
                         <td className="px-6 py-4 text-gray-600 whitespace-nowrap">{row.releasedBy}</td>
                         <td className="px-6 py-4">
                           <span
-                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold ${
+                            className={`badge-animated inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold ${
                               row.hasDocuments ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"
                             }`}
                             title={row.hasDocuments ? `${row.documentCount} file(s) uploaded` : "No files uploaded"}
@@ -480,7 +480,7 @@ const Disbursements = () => {
                           <div className="flex items-center justify-end gap-2">
                             <button
                               onClick={() => setActiveLoan(row)}
-                              className="px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-semibold text-gray-600 hover:bg-gray-50 flex items-center gap-1"
+                              className="btn-enhanced px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-semibold text-gray-600 hover:bg-green-50 hover:text-green-700 flex items-center gap-1"
                             >
                               <Eye className="w-3.5 h-3.5" />
                               View
@@ -494,13 +494,13 @@ const Disbursements = () => {
                               </button>
                               {openMenuId === row.id && (
                                 <div className="absolute right-0 mt-1 w-44 bg-white border border-gray-200 rounded-lg shadow-lg z-10 py-1 text-sm">
-                                  <button className="w-full flex items-center gap-2 px-3 py-2 text-gray-700 hover:bg-gray-50">
+                                  <button className="w-full flex items-center gap-2 px-3 py-2 text-gray-700 hover:bg-green-50">
                                     <Printer className="w-4 h-4" /> Print Voucher
                                   </button>
-                                  <button className="w-full flex items-center gap-2 px-3 py-2 text-gray-700 hover:bg-gray-50">
+                                  <button className="w-full flex items-center gap-2 px-3 py-2 text-gray-700 hover:bg-green-50">
                                     <Receipt className="w-4 h-4" /> Generate Receipt
                                   </button>
-                                  <button className="w-full flex items-center gap-2 px-3 py-2 text-gray-700 hover:bg-gray-50">
+                                  <button className="w-full flex items-center gap-2 px-3 py-2 text-gray-700 hover:bg-green-50">
                                     <History className="w-4 h-4" /> History
                                   </button>
                                 </div>

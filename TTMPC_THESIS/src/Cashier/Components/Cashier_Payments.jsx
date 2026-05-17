@@ -1,6 +1,7 @@
 ﻿import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
+import { useNotification } from "../../contex/NotificationContext";
 import { PortalSidebarIdentity, PortalTopbarIdentity } from "../../components/PortalIdentity"; // Adjust path to AuthContext if needed
 import { 
   LayoutDashboard, 
@@ -195,6 +196,7 @@ const normalizeLoanType = (value) => {
 const Cashier_Payments = () => {
   const { signOut } = UserAuth();
   const navigate = useNavigate();
+  const { addNotification } = useNotification();
   const [isDepositsOpen, setIsDepositsOpen] = useState(true);
   const [loans, setLoans] = useState([]);
   const [selectedLoan, setSelectedLoan] = useState(null);
@@ -704,7 +706,7 @@ const Cashier_Payments = () => {
                     </tr>
                   ) : (
                     filteredAndSortedLoans.map((loan) => (
-                      <tr key={loan.loan_id} className="hover:bg-green-50 transition">
+                      <tr key={loan.loan_id} className="table-row-enter hover:bg-green-50 transition">
                         <td className="px-6 py-4 text-sm font-medium text-gray-900">
                           {loan.member_name}
                         </td>
@@ -725,7 +727,7 @@ const Cashier_Payments = () => {
                         </td>
                         <td className="px-6 py-4">
                           <span
-                            className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold ${
+                            className={`badge-animated inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold ${
                               loan.is_delayed
                                 ? "bg-red-100 text-red-700"
                                 : "bg-green-100 text-green-700"
@@ -749,7 +751,7 @@ const Cashier_Payments = () => {
                         </td>
                         <td className="px-6 py-4">
                           <span
-                            className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${
+                            className={`badge-animated inline-flex rounded-full px-3 py-1 text-xs font-semibold ${
                               loan.loan_status === "Fully Paid"
                                 ? "bg-green-100 text-green-700"
                                 : loan.loan_status === "Partially Paid"
@@ -765,7 +767,7 @@ const Cashier_Payments = () => {
                             type="button"
                             onClick={() => openPaymentModal(loan)}
                             disabled={loan.loan_status === "Fully Paid"}
-                            className="rounded-lg bg-green-600 px-4 py-2 text-xs font-semibold text-white hover:bg-green-700 transition disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500"
+                            className="btn-enhanced rounded-lg bg-green-600 px-4 py-2 text-xs font-semibold text-white hover:bg-green-700 transition disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500"
                           >
                             Pay
                           </button>
@@ -992,7 +994,7 @@ const Cashier_Payments = () => {
                     {paymentRecords.map((record) => {
                       const relatedLoan = loans.find((l) => l.loan_id === record.loan_id);
                       return (
-                        <tr key={record.payment_id} className="hover:bg-green-50 transition">
+                        <tr key={record.payment_id} className="table-row-enter hover:bg-green-50 transition">
                           <td className="px-6 py-3 text-xs font-mono text-gray-700">
                             <span className="inline-flex rounded bg-gray-100 px-2 py-1">
                               {record.payment_id?.slice(0, 8)}...
@@ -1024,7 +1026,7 @@ const Cashier_Payments = () => {
                           </td>
                           <td className="px-6 py-3">
                             <span
-                              className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${
+                              className={`badge-animated inline-flex rounded-full px-3 py-1 text-xs font-semibold ${
                                 record.confirmation_status === "confirmed"
                                   ? "bg-green-100 text-green-700"
                                   : "bg-yellow-100 text-yellow-700"

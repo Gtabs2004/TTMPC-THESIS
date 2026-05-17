@@ -1,6 +1,7 @@
 ﻿import React, { useState } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
+import { useNotification } from "../../contex/NotificationContext";
 import { PortalSidebarIdentity, PortalTopbarIdentity } from "../../components/PortalIdentity";
 import { 
   LayoutDashboard, 
@@ -38,6 +39,7 @@ const paymentsData = [
 const Payments = () => {
   const { session, signOut } = UserAuth();
   const navigate = useNavigate();
+  const { addNotification } = useNotification();
   const [currentPage, setCurrentPage] = useState(1);
   
   const menuItems = [
@@ -218,7 +220,7 @@ const Payments = () => {
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr className="border-b border-gray-200 bg-gray-50 text-xs font-semibold text-gray-600 tracking-wide">
+                  <tr className="border-b border-gray-200 bg-[#66B538] text-xs font-semibold text-white tracking-wide">
                     <th className="px-6 py-4">Payment ID</th>
                     <th className="px-6 py-4">Member Name</th>
                     <th className="px-6 py-4">Loan Type</th>
@@ -230,18 +232,18 @@ const Payments = () => {
                 </thead>
                 <tbody className="text-sm text-gray-700 divide-y divide-gray-100">
                   {paymentsData.map((row, index) => (
-                    <tr key={index} className="hover:bg-gray-50 transition-colors">
+                    <tr key={index} className="table-row-enter hover:bg-green-50 transition-colors">
                       <td className="px-6 py-4 text-gray-500 font-medium">{row.id}</td>
                       <td className="px-6 py-4 font-semibold text-gray-900">{row.name}</td>
                       <td className="px-6 py-4">
-                        <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getLoanBadgeClass(row.type)}`}>
+                        <span className={`badge-animated px-3 py-1 rounded-full text-xs font-semibold ${getLoanBadgeClass(row.type)}`}>
                           {row.type}
                         </span>
                       </td>
                       <td className="px-6 py-4 font-bold text-gray-900">{row.amount}</td>
                       <td className="px-6 py-4 text-gray-500">{row.date}</td>
                       <td className="px-6 py-4">
-                        <span className={`px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1.5 w-max ${
+                        <span className={`badge-animated px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1.5 w-max ${
                           row.status === 'On-Time' 
                             ? 'bg-green-100 text-green-700' 
                             : 'bg-red-100 text-red-700'

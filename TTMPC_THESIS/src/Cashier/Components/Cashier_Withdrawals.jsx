@@ -1,6 +1,7 @@
 ﻿import React, { useState } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
+import { useNotification } from "../../contex/NotificationContext";
 import { PortalSidebarIdentity, PortalTopbarIdentity } from "../../components/PortalIdentity"; 
 import { 
   LayoutDashboard, 
@@ -29,6 +30,7 @@ const formatDate = (value) => {
 const Cashier_Withdrawals = () => {
   const { signOut } = UserAuth();
   const navigate = useNavigate();
+  const { addNotification } = useNotification();
   const [isDepositsOpen, setIsDepositsOpen] = useState(true);
   const [rows, setRows] = React.useState([]);
   const [loading, setLoading] = React.useState(false);
@@ -119,7 +121,7 @@ const Cashier_Withdrawals = () => {
 
         <hr className="w-full border-gray-200 mb-6" />
 
-        <nav className="flex flex-col gap-2 text-sm flex-grow">
+        <nav className="flex flex-col gap-2 text-sm grow">
           {menuItems.map((item) => {
             const Icon = item.icon;
 
@@ -252,7 +254,7 @@ const Cashier_Withdrawals = () => {
                     </tr>
                   ) : (
                     filteredRows.map((row) => (
-                    <tr key={row.transaction_id} className="hover:bg-gray-50 transition-colors">
+                    <tr key={row.transaction_id} className="table-row-enter hover:bg-green-50 transition-colors">
                       <td className="px-6 py-4">
                         <span className="font-mono text-sm text-gray-800">{row.transaction_id}</span>
                       </td>
@@ -277,7 +279,7 @@ const Cashier_Withdrawals = () => {
                       </td>
 
                       <td className="px-6 py-4 text-center">
-                        <span className={`px-3 py-1.5 rounded-full text-xs font-semibold border ${getStatusStyle(row.status)}`}>
+                        <span className={`badge-animated px-3 py-1.5 rounded-full text-xs font-semibold border ${getStatusStyle(row.status)}`}>
                           {row.status}
                         </span>
                       </td>

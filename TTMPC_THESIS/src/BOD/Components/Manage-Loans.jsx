@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
+import { useNotification } from "../../contex/NotificationContext";
 import { PortalSidebarIdentity, PortalTopbarIdentity } from "../../components/PortalIdentity";
 import {
   LayoutDashboard,
@@ -202,13 +203,13 @@ const formatStatusTone = (status) => {
 const BOD_Manage_Loans = () => {
   const { signOut } = UserAuth();
   const navigate = useNavigate();
+  const { addNotification } = useNotification();
   const [activeFilter, setActiveFilter] = useState("Monthly");
   const [expandedPeriods, setExpandedPeriods] = useState([]);
   const [expandedMembers, setExpandedMembers] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [loans, setLoans] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [loadError, setLoadError] = useState("");
 
   const filteredLoans = useMemo(() => {
     const key = String(searchTerm || "").trim().toLowerCase();
@@ -250,7 +251,6 @@ const BOD_Manage_Loans = () => {
 
   const fetchManageLoans = async () => {
     setLoading(true);
-    setLoadError("");
     try {
       const response = await fetch(`${API_BASE_URL}/api/bookkeeper/manage-loans`);
       const payload = await response.json().catch(() => ({}));
@@ -259,8 +259,9 @@ const BOD_Manage_Loans = () => {
       }
       const rows = Array.isArray(payload?.data?.rows) ? payload.data.rows : [];
       setLoans(rows);
+      addNotification("Loans loaded successfully", "success");
     } catch (err) {
-      setLoadError(err?.message || "Unable to load manage loans data.");
+      addNotification(err?.message || "Unable to load manage loans data.", "error");
       setLoans([]);
     } finally {
       setLoading(false);
@@ -409,19 +410,7 @@ const BOD_Manage_Loans = () => {
             </button>
           </div>
 
-          {loadError ? (
-            <div className="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-              {loadError}
-            </div>
-          ) : null}
-
-          {loading ? (
-            <div className="mb-6 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700">
-              Syncing loan ledger data...
-            </div>
-          ) : null}
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
             <div className="bg-white rounded-xl p-5 border border-gray-200 shadow-sm">
               <p className="text-xs font-bold text-gray-500 tracking-wider uppercase mb-2">Total Approved</p>
               <h2 className="text-2xl font-bold text-gray-900">{formatCurrency(summaryTotals.total)}</h2>
@@ -515,7 +504,7 @@ const BOD_Manage_Loans = () => {
                           return (
                             <div
                               key={member.id}
-                              className={`border rounded-xl transition-all ${
+                              className={`border rounded-xl transition-all table-row-enter ${
                                 isMemberExpanded ? "border-gray-200 shadow-sm" : "border-gray-100 hover:border-gray-200"
                               }`}
                             >
@@ -572,7 +561,7 @@ const BOD_Manage_Loans = () => {
                                           <p className="text-xs text-gray-500">Disbursement: {loan.disbursedDate}</p>
                                         </div>
                                         <div className="flex items-center gap-3">
-                                          <span className={`inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs font-semibold ${formatStatusTone(loan.status)}`}>
+                                          <span className={`badge-animated inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs font-semibold ${formatStatusTone(loan.status)}`}>
                                             {loan.status}
                                           </span>
                                           <div className="text-right">

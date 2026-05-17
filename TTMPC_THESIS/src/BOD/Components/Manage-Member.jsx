@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
+import { useNotification } from "../../contex/NotificationContext";
 import { PortalSidebarIdentity, PortalTopbarIdentity } from "../../components/PortalIdentity";
 import { LayoutDashboard, Users, CreditCard, CalendarCheck, Archive, Search, Bell, ChevronLeft, ChevronRight } from "lucide-react";
 import NotificationBell from "./NotificationBell";
@@ -11,9 +12,9 @@ const ITEMS_PER_PAGE = 10;
 const BOD_Manage_Member = () => {
   const { signOut } = UserAuth();
   const navigate = useNavigate();
+  const { addNotification } = useNotification();
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
   const [query, setQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [loanSummaryByMemberId, setLoanSummaryByMemberId] = useState({});
@@ -43,7 +44,6 @@ const BOD_Manage_Member = () => {
   useEffect(() => {
     async function loadData() {
       setLoading(true);
-      setError("");
 
       try {
         const [memberRes, loansRes] = await Promise.all([
@@ -79,8 +79,9 @@ const BOD_Manage_Member = () => {
 
         setRows(memberRows);
         setLoanSummaryByMemberId(nextSummary);
+        addNotification("Member data loaded successfully", "success");
       } catch (err) {
-        setError(err?.message || "Unable to load personal datasheet.");
+        addNotification(err?.message || "Unable to load personal datasheet.", "error");
         setRows([]);
         setLoanSummaryByMemberId({});
       } finally {
@@ -89,7 +90,7 @@ const BOD_Manage_Member = () => {
     }
 
     loadData();
-  }, []);
+  }, [addNotification]);
 
   const filtered = useMemo(() => {
     const key = String(query || "").trim().toLowerCase();
@@ -167,11 +168,9 @@ const BOD_Manage_Member = () => {
         <main className="p-8">
           <h1 className="font-bold text-2xl mb-6">Manage Member</h1>
           <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
-            {loading ? <p className="p-6 text-blue-700">Loading personal datasheet...</p> : null}
-            {error ? <p className="p-6 text-red-600">{error}</p> : null}
-            {!loading && !error ? (
+            {!loading ? (
               <table className="w-full text-sm">
-                <thead className="bg-[#66B538] text-white uppercase text-[11px] tracking-wider text-center">
+                <thead className="bg-[#66B53B] text-white uppercase text-[11px] tracking-wider text-center">
                   <tr>
                     <th className="px-4 py-3 text-center">Member ID</th>
                     <th className="px-4 py-3 text-center">Name</th>
@@ -191,7 +190,7 @@ const BOD_Manage_Member = () => {
                       const summary = loanSummaryByMemberId[String(r.member_id || "").trim()] || { paidCount: 0, activeCount: 0 };
 
                       return (
-                        <tr key={String(r.id)} className="border-t border-gray-100">
+                        <tr key={String(r.id)} className="table-row-enter border-t border-gray-100 hover:bg-green-50 transition-colors">
                           <td className="px-4 py-3 font-semibold text-gray-800">{r.member_id}</td>
                           <td className="px-4 py-3 text-gray-700 text-center">{r.full_name}</td>
                           <td className="px-4 py-3 text-gray-700 text-center">{r.email}</td>

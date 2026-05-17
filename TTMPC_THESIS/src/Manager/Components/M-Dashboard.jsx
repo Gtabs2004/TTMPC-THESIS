@@ -1,6 +1,7 @@
 import React from "react";
 import { useNavigate, NavLink } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
+import { useNotification } from "../../contex/NotificationContext";
 import { PortalSidebarIdentity, PortalTopbarIdentity } from "../../components/PortalIdentity";
 import { 
   LayoutDashboard, 
@@ -50,6 +51,7 @@ const recentRequests = [
 const M_Dashboard = () => {
   const { session, signOut } = UserAuth();
   const navigate = useNavigate();
+  const { addNotification } = useNotification();
   
   const menuItems = [
     { name: "Dashboard", icon: LayoutDashboard },
@@ -284,7 +286,7 @@ const M_Dashboard = () => {
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr className="bg-gray-50 text-gray-400 text-xs font-bold tracking-wider">
+                  <tr className="bg-[#66B538] text-white text-xs font-bold tracking-wider">
                     <th className="p-4 pl-6">MEMBER NAME</th>
                     <th className="p-4">LOAN TYPE</th>
                     <th className="p-4">AMOUNT</th>
@@ -294,12 +296,12 @@ const M_Dashboard = () => {
                 </thead>
                 <tbody className="text-sm">
                   {recentRequests.map((req) => (
-                    <tr key={req.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
+                    <tr key={req.id} className="table-row-enter border-b border-gray-50 hover:bg-green-50 transition-colors">
                       <td className="p-4 pl-6 font-bold text-gray-800">{req.name}</td>
                       <td className="p-4 text-gray-500">{req.type}</td>
                       <td className="p-4 font-bold text-gray-800">{req.amount}</td>
                       <td className="p-4">
-                        <span className={`px-2.5 py-1 rounded-md text-[10px] font-bold tracking-wider ${
+                        <span className={`badge-animated px-2.5 py-1 rounded-md text-[10px] font-bold tracking-wider ${
                           req.status === 'REVIEWING' 
                             ? 'bg-orange-100 text-orange-600' 
                             : 'bg-blue-100 text-blue-600'
@@ -308,7 +310,7 @@ const M_Dashboard = () => {
                         </span>
                       </td>
                       <td className="p-4 pr-6">
-                        <button className="text-green-700 font-bold hover:underline">Approve</button>
+                        <button className="btn-enhanced text-green-700 font-bold hover:text-green-800 transition-colors">Approve</button>
                       </td>
                     </tr>
                   ))}

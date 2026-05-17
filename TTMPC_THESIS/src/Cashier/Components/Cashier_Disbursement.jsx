@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
+import { useNotification } from "../../contex/NotificationContext";
 import { PortalSidebarIdentity, PortalTopbarIdentity } from "../../components/PortalIdentity";
 import {
   LayoutDashboard,
@@ -36,6 +37,7 @@ const toTitleCase = (value) => {
 const Cashier_Disbursement = () => {
   const { signOut } = UserAuth();
   const navigate = useNavigate();
+  const { addNotification } = useNotification();
   const [isDepositsOpen, setIsDepositsOpen] = useState(true);
   const [readyLoans, setReadyLoans] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -454,7 +456,7 @@ const Cashier_Disbursement = () => {
                     </tr>
                   ) : (
                     filteredAndSortedLoans.map((loan) => (
-                      <tr key={loan.loan_id} className="hover:bg-green-50 transition">
+                      <tr key={loan.loan_id} className="table-row-enter hover:bg-green-50 transition">
                         <td className="px-6 py-4 text-xs font-mono text-gray-700">
                           <span className="inline-flex rounded bg-gray-100 px-2 py-1">
                             {String(loan.loan_id).slice(0, 8)}...
@@ -476,7 +478,7 @@ const Cashier_Disbursement = () => {
                           {loan.term_months} mo
                         </td>
                         <td className="px-6 py-4">
-                          <span className="inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold bg-blue-100 text-blue-700">
+                          <span className="badge-animated inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold bg-blue-100 text-blue-700">
                             <CheckCircle2 size={12} />
                             {loan.loan_status}
                           </span>
@@ -486,7 +488,7 @@ const Cashier_Disbursement = () => {
                             type="button"
                             onClick={() => handleDisburseLoan(loan.loan_id)}
                             disabled={disbursingLoanId === loan.loan_id}
-                            className="rounded-lg bg-green-600 px-4 py-2 text-xs font-semibold text-white hover:bg-green-700 transition disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500"
+                            className="btn-enhanced rounded-lg bg-green-600 px-4 py-2 text-xs font-semibold text-white hover:bg-green-700 transition disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500"
                           >
                             {disbursingLoanId === loan.loan_id ? "Processing..." : "Disburse"}
                           </button>

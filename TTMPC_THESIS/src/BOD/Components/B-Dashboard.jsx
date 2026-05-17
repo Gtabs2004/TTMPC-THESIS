@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
 // Assuming AuthContext and PortalIdentity are standard imports in your project
 import { UserAuth } from "../../contex/AuthContext";
+import { useNotification } from "../../contex/NotificationContext";
 import { PortalSidebarIdentity, PortalTopbarIdentity } from "../../components/PortalIdentity";
 import {
   LayoutDashboard, Users, Archive, CalendarCheck, Search, Bell,
@@ -58,6 +59,7 @@ const COLORS = ['#2C7A3F', '#4ADE80', '#9CA3AF'];
 const Dashboard_BOD = () => {
   const { session, signOut } = UserAuth();
   const navigate = useNavigate();
+  const { addNotification } = useNotification();
   const [chartsReady, setChartsReady] = useState(false);
 
   useEffect(() => {
@@ -313,7 +315,7 @@ const Dashboard_BOD = () => {
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr className="bg-gray-50/50 text-xs uppercase tracking-wider text-gray-500 border-b border-gray-100">
+                  <tr className="bg-[#66B53B] text-white text-xs uppercase tracking-wider font-semibold border-b border-gray-100">
                     <th className="p-4 font-semibold">Transaction ID</th>
                     <th className="p-4 font-semibold">Member / Entity</th>
                     <th className="p-4 font-semibold">Type</th>
@@ -324,7 +326,7 @@ const Dashboard_BOD = () => {
                 </thead>
                 <tbody className="text-sm text-gray-700 divide-y divide-gray-50">
                   {transactionHistory.map((txn) => (
-                    <tr key={txn.id} className="hover:bg-gray-50 transition-colors">
+                    <tr key={txn.id} className="table-row-enter hover:bg-green-50 transition-colors">
                       <td className="p-4 font-medium text-gray-900">{txn.id}</td>
                       <td className="p-4">{txn.member}</td>
                       <td className="p-4 text-gray-500">{txn.type}</td>
@@ -337,11 +339,11 @@ const Dashboard_BOD = () => {
                       </td>
                       <td className="p-4 text-center">
                         {txn.status === 'Completed' ? (
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                          <span className="badge-animated inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
                             Completed
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
+                          <span className="badge-animated inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
                             <Clock className="w-3 h-3" /> Pending
                           </span>
                         )}

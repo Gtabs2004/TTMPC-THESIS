@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
+import { useNotification } from "../../contex/NotificationContext";
 import { PortalSidebarIdentity, PortalTopbarIdentity } from "../../components/PortalIdentity";
 import { supabase } from "../../supabaseClient";
 import {
@@ -24,6 +25,7 @@ import {
 const Treasurer_Approval = () => {
   const { signOut } = UserAuth();
   const navigate = useNavigate();
+  const { addNotification } = useNotification();
   const [loans, setLoans] = useState([]);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState("");
@@ -39,12 +41,11 @@ const Treasurer_Approval = () => {
 
   useEffect(() => {
     fetchLoans();
-  }, []);
+  }, [addNotification]);
 
   const fetchLoans = async () => {
     try {
       setLoading(true);
-      setFetchError("");
 
       const { data: loansData, error: loansError } = await supabase
         .from("loans")
@@ -134,9 +135,11 @@ const Treasurer_Approval = () => {
         .sort((a, b) => new Date(b.application_date || 0) - new Date(a.application_date || 0));
 
       setLoans(combinedQueue);
+      addNotification("Loan applications loaded successfully", "success");
     } catch (err) {
       console.error("Error fetching loans:", err.message);
-      setFetchError(err.message || "Unable to load loans.");
+      addNotification(err?.message || "Unable to load loan applications.", "error");
+      setLoans([]);
     } finally {
       setLoading(false);
     }
@@ -315,7 +318,7 @@ const Treasurer_Approval = () => {
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr className="bg-[#FAF9FB] border-b border-gray-200 text-[10px] uppercase tracking-wider text-[#2A2A48] font-extrabold">
+                  <tr className="bg-[#66B538] border-b border-gray-200 text-[10px] uppercase tracking-wider text-white font-extrabold">
                     <th className="p-5 font-bold">Loan ID</th>
                     <th className="p-5 font-bold">Member Name</th>
                     <th className="p-5 font-bold">Loan Type</th>
@@ -340,6 +343,12 @@ const Treasurer_Approval = () => {
                         Failed to load loans: {fetchError}
                       </td>
                     </tr>
+                  ) : fetchError ? (
+                    <tr>
+                      <td colSpan="9" className="p-5 text-center text-red-600">
+                        Failed to load loans: {fetchError}
+                      </td>
+                    </tr>
                   ) : displayLoans.length === 0 ? (
                     <tr>
                       <td colSpan="9" className="p-5 text-center text-gray-500">
@@ -348,23 +357,23 @@ const Treasurer_Approval = () => {
                     </tr>
                   ) : (
                     displayLoans.map((loan, idx) => (
-                      <tr key={idx} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
+                      <tr key={idx} className="table-row-enter border-b border-gray-100 hover:bg-green-50 transition-colors">
                         <td className="p-5 text-sm text-gray-500 font-medium">{loan.id}</td>
                         <td className="p-5 text-sm font-bold text-gray-800">{loan.name}</td>
                         <td className="p-5 text-sm">
-                          <span className={`px-3 py-1.5 rounded-full text-xs font-bold ${getLoanTypeStyle(loan.type)}`}>
+                          <span className={`badge-animated px-3 py-1.5 rounded-full text-xs font-bold ${getLoanTypeStyle(loan.type)}`}>
                             {loan.type}
                           </span>
                         </td>
                         <td className="p-5 text-sm font-bold text-gray-900">{loan.amount}</td>
                         <td className="p-5 text-sm text-gray-500">{loan.term}</td>
                         <td className="p-5 text-sm">
-                          <span className={`px-3 py-1.5 rounded-full text-[11px] font-bold tracking-wider ${getMigsStyle(loan.status)}`}>
+                          <span className={`badge-animated px-3 py-1.5 rounded-full text-[11px] font-bold tracking-wider ${getMigsStyle(loan.status)}`}>
                             {loan.status}
                           </span>
                         </td>
                         <td className="p-5 text-sm">
-                          <span className={`px-3 py-1.5 rounded-full text-[11px] font-bold tracking-wider ${loan.managerApproval === "Approved" ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"}`}>
+                          <span className={`badge-animated px-3 py-1.5 rounded-full text-[11px] font-bold tracking-wider ${loan.managerApproval === "Approved" ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"}`}>
                             {loan.managerApproval}
                           </span>
                         </td>
@@ -372,7 +381,7 @@ const Treasurer_Approval = () => {
                         <td className="p-5 text-sm text-right pr-8">
                           <button
                             onClick={() => navigate(`/treasurer-approval/${loan.id}?source=${loan.source}`)}
-                            className="text-[#1D6021] font-bold hover:underline transition-all"
+                            className="btn-enhanced text-[#1D6021] font-bold hover:text-green-800 transition-all"
                           >
                             {loan.actions}
                           </button>
