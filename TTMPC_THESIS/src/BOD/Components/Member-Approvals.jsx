@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
+import { useNotification } from "../../contex/NotificationContext";
 import { PortalSidebarIdentity, PortalTopbarIdentity } from "../../components/PortalIdentity";
 import { 
   LayoutDashboard, 
@@ -27,6 +28,7 @@ import NotificationBell from "./NotificationBell";
 
 const Member_Approvals = () => {
   const navigate = useNavigate();
+  const { addNotification } = useNotification();
   const [activeTab, setActiveTab] = useState("Pending");
   const [applications, setApplications] = useState([]);
   const [selectedEvaluationRow, setSelectedEvaluationRow] = useState(null);
@@ -353,7 +355,7 @@ const Member_Approvals = () => {
                   className={`flex items-center gap-2 pb-3 px-1 border-b-2 font-semibold text-sm transition-colors ${activeTab === tab ? "border-[#2C7A3F] text-[#2C7A3F]" : "border-transparent text-gray-500 hover:text-gray-700"}`}
                 >
                   {tab}
-                  <span className={`text-[10px] px-2 py-0.5 rounded-full text-white ${activeTab === tab ? "bg-[#2C7A3F]" : "bg-gray-400"}`}>{tabCounts[tab]}</span>
+                  <span className={`badge-animated text-[10px] px-2 py-0.5 rounded-full text-white ${activeTab === tab ? "bg-[#2C7A3F]" : "bg-gray-400"}`}>{tabCounts[tab]}</span>
                 </button>
               ))}
             </div>
@@ -367,7 +369,7 @@ const Member_Approvals = () => {
 
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm">
-                <thead className="bg-[#66B538] text-white text-[13px] uppercase font-bold tracking-wider">
+                <thead className="bg-[#66B53B] text-white text-[13px] uppercase font-bold tracking-wider">
                   <tr>
                     {isTrainingTab ? (
                       <>
@@ -392,7 +394,7 @@ const Member_Approvals = () => {
                     <tr><td colSpan="5" className="px-6 py-10 text-center text-gray-500">No {activeTab.toLowerCase()} records found.</td></tr>
                   ) : (
                     rowsForActiveTab.map((row, index) => (
-                      <tr key={index} className="hover:bg-gray-50 transition-colors">
+                      <tr key={index} className="table-row-enter hover:bg-green-50 transition-colors">
                         {isTrainingTab ? (
                           <>
                             <td className="px-6 py-4 whitespace-nowrap">
@@ -401,13 +403,13 @@ const Member_Approvals = () => {
                             </td>
                             <td className="px-6 py-4 text-gray-600">{row.trainingDate}</td>
                             <td className="px-6 py-4">
-                              <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border ${row.attendance === "Present" ? "border-green-300 bg-green-50 text-green-700" : "border-red-300 bg-red-50 text-red-600"}`}>
+                              <span className={`badge-animated inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border ${row.attendance === "Present" ? "border-green-300 bg-green-50 text-green-700" : "border-red-300 bg-red-50 text-red-600"}`}>
                                 <span className={`w-1.5 h-1.5 rounded-full ${row.attendance === "Present" ? "bg-green-500" : "bg-red-500"}`} />
                                 {row.attendance}
                               </span>
                             </td>
                             <td className="px-6 py-4">
-                              <button onClick={() => canUseBodActions && setSelectedEvaluationRow(row)} className={`px-3 py-1 rounded-full text-xs font-semibold border ${row.result === "Passed" ? "border-green-300 bg-green-50 text-green-700" : "border-yellow-300 bg-yellow-50 text-yellow-700"}`}>
+                              <button onClick={() => canUseBodActions && setSelectedEvaluationRow(row)} className={`badge-animated px-3 py-1 rounded-full text-xs font-semibold border ${row.result === "Passed" ? "border-green-300 bg-green-50 text-green-700" : "border-yellow-300 bg-yellow-50 text-yellow-700"}`}>
                                 {row.result === "Pending" ? "View Remarks" : row.result}
                               </button>
                             </td>

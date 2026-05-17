@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
+import { useNotification } from "../../contex/NotificationContext";
 import { PortalSidebarIdentity, PortalTopbarIdentity } from "../../components/PortalIdentity";
 import { 
   LayoutDashboard, 
@@ -31,9 +32,9 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000
 const Secretary_Records = () => {
   const { signOut } = UserAuth();
   const navigate = useNavigate();
+  const { addNotification } = useNotification();
   const [records, setRecords] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
@@ -78,7 +79,6 @@ const Secretary_Records = () => {
   useEffect(() => {
     async function loadRecords() {
       setLoading(true);
-      setError("");
       try {
         const response = await fetch(`${API_BASE_URL}/api/secretary/membership-records`, {
           method: "GET",
@@ -90,8 +90,9 @@ const Secretary_Records = () => {
         }
 
         setRecords(Array.isArray(payload.data) ? payload.data : []);
+        addNotification("Membership records loaded successfully", "success");
       } catch (err) {
-        setError(err?.message || "Unable to load membership records.");
+        addNotification(err?.message || "Unable to load membership records.", "error");
         setRecords([]);
       } finally {
         setLoading(false);
@@ -99,7 +100,7 @@ const Secretary_Records = () => {
     }
 
     loadRecords();
-  }, []);
+  }, [addNotification]);
 
   const filteredRecords = useMemo(() => {
     const key = String(searchQuery || "").trim().toLowerCase();
@@ -218,7 +219,7 @@ const Secretary_Records = () => {
             </div>
             <table className="w-full text-left border-collapse text-sm">
               <thead>
-                <tr className="border-b border-gray-200 text-gray-500">
+                <tr className="border-y border-gray-200 bg-[#66B53B] text-white text-xs uppercase tracking-wider font-bold p-12">
                   <th className="pb-4 font-medium">Membership Id</th>
                   <th className="pb-4 font-medium">Member Name </th>
                   <th className="pb-4 font-medium">Date Joined</th>
@@ -233,18 +234,13 @@ const Secretary_Records = () => {
                     <td colSpan={6} className="py-6 text-center text-blue-700">Loading membership records...</td>
                   </tr>
                 )}
-                {!!error && !loading && (
-                  <tr>
-                    <td colSpan={6} className="py-6 text-center text-red-600">{error}</td>
-                  </tr>
-                )}
-                {!loading && !error && paginatedRecords.length === 0 && (
+                {paginatedRecords.length === 0 && !loading && (
                   <tr>
                     <td colSpan={6} className="py-6 text-center text-gray-500">No records found.</td>
                   </tr>
                 )}
-                {!loading && !error && paginatedRecords.map((member, index) => (
-                  <tr key={`${member.member_uuid}-${index}`} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+                {paginatedRecords.map((member, index) => (
+                  <tr key={`${member.member_uuid}-${index}`} className="table-row-enter border-b border-gray-100 hover:bg-green-50 transition-colors">
                     <td className="py-4 font-semibold text-[#1a4a2f]">{member.applicant_id}</td>
                     <td className="py-4 text-gray-800 font-medium">{member.applicant_name}</td>
                     <td className="py-4 text-gray-800 font-medium">{formatDate(member.date_joined)}</td>
@@ -253,7 +249,7 @@ const Secretary_Records = () => {
                     <td className="py-4">
                       <button 
                         onClick={() => navigate(`/record-details/${member.member_uuid}`)}
-                        className="text-[#1e9e4a] hover:text-green-800 transition-colors p-1"
+                        className="btn-enhanced text-[#1e9e4a] hover:text-green-800 transition-colors p-1"
                       >
                         <Eye size={20} strokeWidth={2} />
                       </button>

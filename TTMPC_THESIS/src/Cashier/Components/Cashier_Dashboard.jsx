@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
+import { useNotification } from "../../contex/NotificationContext";
 import { PortalSidebarIdentity, PortalTopbarIdentity } from "../../components/PortalIdentity";
 import {
   LayoutDashboard,
@@ -56,7 +57,8 @@ const recentActivity = [
 const Cashier_Dashboard = () => {
   const { signOut } = UserAuth();
   const navigate = useNavigate();
-  const [isDepositsOpen, setIsDepositsOpen] = useState(true);
+  const { addNotification } = useNotification();
+  const [isDepositsOpen, setIsDepositsOpen] = useState(false);
 
   const menuItems = [
     { name: "Dashboard", icon: LayoutDashboard, path: "/Cashier_Dashboard" },
@@ -103,7 +105,7 @@ const Cashier_Dashboard = () => {
 
         <hr className="w-full border-gray-200 mb-6" />
 
-        <nav className="flex flex-col gap-2 text-sm flex-grow">
+        <nav className="flex flex-col gap-2 text-sm grow">
           {menuItems.map((item) => {
             const Icon = item.icon;
 
@@ -355,7 +357,7 @@ const Cashier_Dashboard = () => {
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr className="bg-gray-50 text-gray-400 text-[11px] font-bold tracking-wider uppercase">
+                  <tr className="bg-[#66B538] text-white text-[11px] font-bold tracking-wider uppercase">
                     <th className="p-4 pl-6">Member</th>
                     <th className="p-4">Transaction</th>
                     <th className="p-4">Reference</th>
@@ -366,7 +368,7 @@ const Cashier_Dashboard = () => {
                 </thead>
                 <tbody className="text-sm">
                   {recentActivity.map((row) => (
-                    <tr key={row.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
+                    <tr key={row.id} className="table-row-enter border-b border-gray-50 hover:bg-green-50 transition-colors">
                       <td className="p-4 pl-6 font-bold text-gray-800">{row.name}</td>
                       <td className="p-4 text-gray-500">{row.desc}</td>
                       <td className="p-4 text-gray-400 font-medium">{row.ref}</td>
@@ -374,7 +376,7 @@ const Cashier_Dashboard = () => {
                       <td className="p-4 text-gray-500">{row.time}</td>
                       <td className="p-4 pr-6">
                         <span
-                          className={`px-2.5 py-1 rounded-md text-[10px] font-bold tracking-wider uppercase ${
+                          className={`badge-animated px-2.5 py-1 rounded-md text-[10px] font-bold tracking-wider uppercase ${
                             row.type === "in"
                               ? "bg-green-100 text-green-700"
                               : "bg-red-100 text-red-600"

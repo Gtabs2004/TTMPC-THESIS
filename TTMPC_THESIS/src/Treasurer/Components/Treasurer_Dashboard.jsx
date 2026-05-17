@@ -1,6 +1,7 @@
 import React from "react";
 import { useNavigate, NavLink } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
+import { useNotification } from "../../contex/NotificationContext";
 import { PortalSidebarIdentity, PortalTopbarIdentity } from "../../components/PortalIdentity";
 import { 
   LayoutDashboard, 
@@ -55,6 +56,7 @@ const recentActivity = [
 const Treasurer_Dashboard = () => {
   const { session, signOut } = UserAuth();
   const navigate = useNavigate();
+  const { addNotification } = useNotification();
   
   const menuItems = [
     { name: "Dashboard", icon: LayoutDashboard },
@@ -296,7 +298,7 @@ const Treasurer_Dashboard = () => {
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr className="bg-gray-50 text-gray-400 text-[11px] font-bold tracking-wider uppercase">
+                  <tr className="bg-[#66B538] text-white text-[11px] font-bold tracking-wider uppercase">
                     <th className="p-4 pl-6">Member Name</th>
                     <th className="p-4">Loan ID</th>
                     <th className="p-4">Loan Type</th>
@@ -308,14 +310,14 @@ const Treasurer_Dashboard = () => {
                 </thead>
                 <tbody className="text-sm">
                   {recentActivity.map((row) => (
-                    <tr key={row.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
+                    <tr key={row.id} className="table-row-enter border-b border-gray-50 hover:bg-green-50 transition-colors">
                       <td className="p-4 pl-6 font-bold text-gray-800">{row.name}</td>
                       <td className="p-4 text-gray-400 font-medium">{row.loanId}</td>
                       <td className="p-4 text-gray-600">{row.type}</td>
                       <td className="p-4 font-bold text-gray-800">{row.amount}</td>
                       <td className="p-4 text-gray-500">{row.date}</td>
                       <td className="p-4">
-                        <span className={`px-2.5 py-1 rounded-md text-[10px] font-bold tracking-wider uppercase ${row.statusColor}`}>
+                        <span className={`badge-animated px-2.5 py-1 rounded-md text-[10px] font-bold tracking-wider uppercase ${row.statusColor}`}>
                           {row.status}
                         </span>
                       </td>

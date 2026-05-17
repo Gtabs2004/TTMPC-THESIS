@@ -1,6 +1,7 @@
 ﻿import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
+import { useNotification } from "../../contex/NotificationContext";
 import { PortalSidebarIdentity, PortalTopbarIdentity } from "../../components/PortalIdentity"; 
 import { 
   LayoutDashboard, 
@@ -24,6 +25,7 @@ const PAGE_SIZE = 10;
 const Cashier_CBU = () => {
   const { signOut } = UserAuth();
   const navigate = useNavigate();
+  const { addNotification } = useNotification();
   const [isDepositsOpen, setIsDepositsOpen] = useState(true);
   const [memberSearch, setMemberSearch] = useState("");
   const [members, setMembers] = useState([]);
@@ -319,7 +321,7 @@ const Cashier_CBU = () => {
                   {paginatedMembers.map((member) => {
                     const currentBal = Number(member.current_balance || 0);
                     return (
-                      <tr key={member.member_uuid || member.member_id} className="hover:bg-gray-50 transition-colors">
+                      <tr key={member.member_uuid || member.member_id} className="table-row-enter hover:bg-green-50 transition-colors">
                         <td className="px-6 py-4 text-sm font-mono text-gray-600">{member.member_id}</td>
                         <td className="px-6 py-4 text-sm font-semibold text-gray-900">{member.member_name}</td>
                         <td className="px-6 py-4 text-sm font-semibold text-gray-700 text-right">{formatCurrency(currentBal)}</td>
@@ -327,14 +329,14 @@ const Cashier_CBU = () => {
                           <button
                             type="button"
                             onClick={() => proceedToDepositPage(member)}
-                            className="inline-flex items-center gap-2 rounded-lg bg-[#66B538] px-4 py-2 text-xs font-semibold text-white transition-colors cursor-pointer"
+                            className="btn-enhanced inline-flex items-center gap-2 rounded-lg bg-[#66B538] px-4 py-2 text-xs font-semibold text-white transition-colors cursor-pointer hover:bg-green-700"
                           >
                             <ArrowRightCircle className="w-4 h-4" /> Deposit
                           </button>
                         </td>
                       </tr>
                     );
-                  })}
+                  })}}
                 </tbody>
               </table>
             </div>

@@ -1,6 +1,7 @@
 ﻿import React, { useState } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
+import { useNotification } from "../../contex/NotificationContext";
 import { PortalSidebarIdentity, PortalTopbarIdentity } from "../../components/PortalIdentity";
 import { 
   LayoutDashboard, 
@@ -34,6 +35,7 @@ const formatCurrency = (value) => {
 const Cashier_Savings = () => {
   const { session, signOut } = UserAuth();
   const navigate = useNavigate();
+  const { addNotification } = useNotification();
   const [displaySavings, setDisplaySavings] = React.useState([]);
   const [loading, setLoading] = React.useState(false);
   const [fetchError, setFetchError] = React.useState(null);
@@ -141,7 +143,7 @@ const Cashier_Savings = () => {
         <hr className="w-full border-gray-200 mb-6" />
 
         {/* 3. NEW NAVIGATION RENDER LOGIC */}
-        <nav className="flex flex-col gap-2 text-sm flex-grow">
+        <nav className="flex flex-col gap-2 text-sm grow">
           {menuItems.map((item) => {
             const Icon = item.icon;
 
@@ -293,7 +295,7 @@ const Cashier_Savings = () => {
                     filteredSavings.map((savings, index) => (
                       <tr 
                         key={savings.ID} 
-                        className="border-t border-gray-100 hover:bg-gray-50 transition-colors"
+                        className="table-row-enter border-t border-gray-100 hover:bg-green-50 transition-colors"
                       >
                         <td className="px-6 py-4">
                           <span className="font-mono text-sm text-gray-800">{savings.ID}</span>
@@ -308,14 +310,14 @@ const Cashier_Savings = () => {
                           <span className="text-gray-600 text-sm">{savings.date}</span>
                         </td>
                         <td className="px-6 py-4 text-center">
-                          <span className={`inline-flex px-3 py-1.5 rounded-full text-xs font-semibold border ${getStatusStyle(savings.status)}`}>
+                          <span className={`badge-animated inline-flex px-3 py-1.5 rounded-full text-xs font-semibold border ${getStatusStyle(savings.status)}`}>
                             {savings.status}
                           </span>
                         </td>
                         <td className="px-6 py-4 text-center">
                           <button 
                             onClick={() => navigate(`/Savings_Details/${savings.ID}`)}
-                            className="px-4 py-1.5 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition-colors text-sm"
+                            className="btn-enhanced px-4 py-1.5 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition-colors text-sm"
                             title="Review Savings"
                           >
                             Review

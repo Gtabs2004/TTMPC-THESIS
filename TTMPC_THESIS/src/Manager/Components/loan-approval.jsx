@@ -1,6 +1,7 @@
 ﻿import React, { useState, useEffect } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
+import { useNotification } from "../../contex/NotificationContext";
 import { PortalSidebarIdentity, PortalTopbarIdentity } from "../../components/PortalIdentity";
 import { supabase } from "../../supabaseClient"; // Make sure this path is correct
 import { 
@@ -19,9 +20,9 @@ import {
 const Loan_Approval = () => {
   const { session, signOut } = UserAuth();
   const navigate = useNavigate();
+  const { addNotification } = useNotification();
   const [loans, setLoans] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [fetchError, setFetchError] = useState("");
   
   const menuItems = [
     { name: "Dashboard", icon: LayoutDashboard },
@@ -37,7 +38,6 @@ const Loan_Approval = () => {
   const fetchLoans = async () => {
     try {
       setLoading(true);
-      setFetchError("");
       
       // Using Supabase relational queries to fetch joined data
       const { data: loansData, error: loansError } = await supabase
@@ -91,9 +91,10 @@ const Loan_Approval = () => {
         .sort((a, b) => new Date(b.application_date || 0) - new Date(a.application_date || 0));
 
       setLoans(managerQueue);
+      addNotification("Loan applications loaded successfully", "success");
     } catch (err) {
+      addNotification(err.message || "Unable to load loans.", "error");
       console.error("Error fetching loans:", err.message);
-      setFetchError(err.message || "Unable to load loans.");
     } finally {
       setLoading(false);
     }
@@ -284,28 +285,24 @@ const Loan_Approval = () => {
                     <tr>
                       <td colSpan="8" className="p-5 text-center text-gray-500">Loading applications...</td>
                     </tr>
-                  ) : fetchError ? (
-                    <tr>
-                      <td colSpan="8" className="p-5 text-center text-red-600">Failed to load loans: {fetchError}</td>
-                    </tr>
                   ) : displayLoans.length === 0 ? (
                     <tr>
                       <td colSpan="8" className="p-5 text-center text-gray-500">No loans found.</td>
                     </tr>
                   ) : (
                     displayLoans.map((loan, idx) => (
-                      <tr key={idx} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
+                      <tr key={idx} className="table-row-enter border-b border-gray-100 hover:bg-green-50 transition-colors">
                         <td className="p-5 text-sm text-gray-500 font-medium">{loan.id}</td>
                         <td className="p-5 text-sm font-bold text-gray-800">{loan.name}</td>
                         <td className="p-5 text-sm">
-                          <span className={`px-3 py-1.5 rounded-full text-xs font-bold ${getLoanTypeStyle(loan.type)}`}>
+                          <span className={`badge-animated px-3 py-1.5 rounded-full text-xs font-bold ${getLoanTypeStyle(loan.type)}`}>
                             {loan.type}
                           </span>
                         </td>
                         <td className="p-5 text-sm font-bold text-gray-900">{loan.amount}</td>
                         <td className="p-5 text-sm text-gray-500">{loan.term}</td>
                         <td className="p-5 text-sm">
-                          <span className={`px-3 py-1.5 rounded-full text-[11px] font-bold tracking-wider ${getMigsStyle(loan.status)}`}>
+                          <span className={`badge-animated px-3 py-1.5 rounded-full text-[11px] font-bold tracking-wider ${getMigsStyle(loan.status)}`}>
                             {loan.status}
                           </span>
                         </td>

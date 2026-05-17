@@ -1,6 +1,7 @@
 ﻿import React, { useEffect, useState } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
+import { useNotification } from "../../contex/NotificationContext";
 import { PortalSidebarIdentity, PortalTopbarIdentity } from "../../components/PortalIdentity";
 import { supabase } from "../../supabaseClient";
 import { resolveAccountFromSessionUser } from "../../utils/sessionIdentity";
@@ -27,6 +28,7 @@ import NotificationBell from "./NotificationBell";
 const Secretary_Attendance = () => {
   const { signOut } = UserAuth();
   const navigate = useNavigate();
+  const { addNotification } = useNotification();
   
   // --- STATE ---
   const [activeTab, setActiveTab] = useState("Training");
@@ -42,7 +44,6 @@ const Secretary_Attendance = () => {
   });
   const [portalRole, setPortalRole] = useState("");
   const [savingAttendance, setSavingAttendance] = useState(false);
-  const [pageError, setPageError] = useState("");
 
   const menuItems = [
     {
@@ -170,7 +171,6 @@ const Secretary_Attendance = () => {
   };
 
   const fetchAttendanceRows = async () => {
-    setPageError("");
     const [{ data, error }, logsResponse] = await Promise.all([
       supabase
         .from("member_applications")
@@ -184,7 +184,7 @@ const Secretary_Attendance = () => {
     ]);
 
     if (error) {
-      setPageError(error.message || "Unable to load attendance records.");
+      addNotification(error.message || "Unable to load attendance records.", "error");
       return;
     }
 
@@ -364,11 +364,13 @@ const Secretary_Attendance = () => {
       await persistAttendanceToApplication(updatedMember);
       const logResult = await upsertAttendanceLog(updatedMember, activeTab);
       if (!logResult.ok) {
-        setPageError(logResult.warning);
+        addNotification(logResult.warning, "warning");
+      } else {
+        addNotification("Attendance saved successfully", "success");
       }
       closeModal();
     } catch (err) {
-      setPageError(err.message || "Unable to save attendance log.");
+      addNotification(err.message || "Unable to save attendance log.", "error");
     } finally {
       setSavingAttendance(false);
     }
@@ -389,10 +391,12 @@ const Secretary_Attendance = () => {
       await persistAttendanceToApplication(updatedMember);
       const logResult = await upsertAttendanceLog(updatedMember, activeTab);
       if (!logResult.ok) {
-        setPageError(logResult.warning);
+        addNotification(logResult.warning, "warning");
+      } else {
+        addNotification("Status updated successfully", "success");
       }
     } catch (err) {
-      setPageError(err.message || "Unable to save attendance status.");
+      addNotification(err.message || "Unable to save attendance status.", "error");
     } finally {
       setSavingAttendance(false);
     }
@@ -519,12 +523,6 @@ const Secretary_Attendance = () => {
 
           {/* Table Container */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-200">
-            {pageError ? (
-              <div className="mx-6 mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">
-                {pageError}
-              </div>
-            ) : null}
-
             {/* Tabs */}
             <div className="flex gap-8 px-6 pt-4 border-b border-gray-200">
               {tabs.filter((tab) => visibleTabs.includes(tab.name)).map((tab) => (
@@ -560,7 +558,7 @@ const Secretary_Attendance = () => {
             <div className="overflow-x-auto pb-4">
               <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr className="border-y border-gray-200 bg-gray-50/50 text-xs uppercase tracking-wider text-[#2A2B4A] font-bold">
+                  <tr className="border-y border-gray-200 bg-[#66B53B] text-white text-xs uppercase tracking-wider font-bold">
                     <th className="py-4 px-6">Member Name</th>
                     <th className="py-4 px-6">Training Schedule</th>
                     <th className="py-4 px-6">Attendance Status</th>
@@ -569,7 +567,7 @@ const Secretary_Attendance = () => {
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {tableData[activeTab]?.map((row) => (
-                    <tr key={row.id} className="hover:bg-gray-50/50 transition-colors">
+                    <tr key={row.id} className="table-row-enter hover:bg-green-50/50 transition-colors">
                       <td className="py-4 px-6">
                         <p className="font-bold text-[#2A2B4A] text-sm">{row.name}</p>
                         <p className="text-xs text-gray-500">{row.email}</p>

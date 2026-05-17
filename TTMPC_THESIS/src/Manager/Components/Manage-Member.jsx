@@ -1,6 +1,7 @@
 ﻿import React, { useEffect, useMemo, useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
+import { useNotification } from "../../contex/NotificationContext";
 import { PortalSidebarIdentity, PortalTopbarIdentity } from "../../components/PortalIdentity";
 import { LayoutDashboard, Users, Search, Bell, ChevronLeft, ChevronRight } from "lucide-react";
 
@@ -10,9 +11,9 @@ const ITEMS_PER_PAGE = 10;
 const Manager_Manage_Member = () => {
   const { signOut } = UserAuth();
   const navigate = useNavigate();
+  const { addNotification } = useNotification();
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
   const [query, setQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
 
@@ -31,7 +32,6 @@ const Manager_Manage_Member = () => {
   useEffect(() => {
     async function loadData() {
       setLoading(true);
-      setError("");
       try {
         const response = await fetch(`${API_BASE_URL}/api/personal_data_sheet`, { method: "GET", headers: { Accept: "application/json" } });
         const payload = await response.json().catch(() => ({}));
@@ -39,15 +39,16 @@ const Manager_Manage_Member = () => {
           throw new Error(payload?.detail || payload?.message || "Failed to load personal datasheet.");
         }
         setRows(Array.isArray(payload.data) ? payload.data : []);
+        addNotification("Member data loaded successfully", "success");
       } catch (err) {
-        setError(err?.message || "Unable to load personal datasheet.");
+        addNotification(err?.message || "Unable to load personal datasheet.", "error");
         setRows([]);
       } finally {
         setLoading(false);
       }
     }
     loadData();
-  }, []);
+  }, [addNotification]);
 
   const filtered = useMemo(() => {
     const key = String(query || "").trim().toLowerCase();
@@ -115,9 +116,7 @@ const Manager_Manage_Member = () => {
         <main className="p-8">
           <h1 className="font-bold text-2xl mb-6">Manage Member</h1>
           <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
-            {loading ? <p className="p-6 text-blue-700">Loading personal datasheet...</p> : null}
-            {error ? <p className="p-6 text-red-600">{error}</p> : null}
-            {!loading && !error ? (
+            {!loading ? (
               <table className="w-full text-sm">
                 <thead className="bg-[#66B538] text-white uppercase text-[13px] tracking-wider">
                   <tr>
@@ -126,7 +125,7 @@ const Manager_Manage_Member = () => {
                     <th className="px-4 py-3 text-left">Email</th>
                     <th className="px-4 py-3 text-left">Contact</th>
                     <th className="px-4 py-3 text-left">Address</th>
-                    <th className="px-4 py-3 text-right">Action</th>
+                    <th className="px-4 py-3 text-center">Action</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -134,16 +133,16 @@ const Manager_Manage_Member = () => {
                     <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-500">No personal datasheet records found.</td></tr>
                   ) : (
                     paginatedRows.map((r) => (
-                      <tr key={String(r.id)} className="border-t border-gray-100">
+                      <tr key={String(r.id)} className="table-row-enter border-t border-gray-100 hover:bg-green-50 transition-colors">
                         <td className="px-4 py-3 font-semibold text-gray-800">{r.member_id}</td>
                         <td className="px-4 py-3 text-gray-700">{r.full_name}</td>
                         <td className="px-4 py-3 text-gray-700">{r.email}</td>
                         <td className="px-4 py-3 text-gray-700">{r.contact_number}</td>
                         <td className="px-4 py-3 text-gray-700">{r.address}</td>
-                        <td className="px-4 py-3 text-right">
+                        <td className="px-4 py-3 text-center">
                           <button
                             onClick={() => navigate(`/member_details?member_id=${encodeURIComponent(String(r.member_id || ""))}`, { state: { member: r } })}
-                            className="text-[#1D6021] font-bold hover:underline transition-all"
+                            className="btn-enhanced text-[#1D6021] font-bold hover:text-green-800 transition-all"
                           >
                             View
                           </button>
