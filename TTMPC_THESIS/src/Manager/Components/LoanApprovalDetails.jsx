@@ -2,20 +2,26 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '../../supabaseClient';
 import { formatTinNumber } from '../../LOANFORMS/tinFormat';
-import { 
-  ArrowLeft, 
-  User, 
-  Calculator, 
-  BarChart2, 
-  Paperclip, 
-  FileImage, 
-  X, 
-  Check, 
+import {
+  ArrowLeft,
+  User,
+  Calculator,
+  BarChart2,
+  Paperclip,
+  FileImage,
+  X,
+  Check,
   FileEdit,
   Upload,
   ExternalLink,
   Loader2,
+  ShieldAlert,
+  ShieldCheck,
+  RefreshCw,
+  Info,
 } from 'lucide-react';
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000';
 
 const CustomCheckbox = ({ checked, onChange, label }) => (
   <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer mb-2 w-fit">
@@ -86,6 +92,9 @@ const LoanApprovalDetails = () => {
   const [docLoading, setDocLoading] = useState(false);
   const [docError, setDocError] = useState('');
   const [simulatedBalance, setSimulatedBalance] = useState(null);
+  const [riskAssessment, setRiskAssessment] = useState(null);
+  const [riskLoading, setRiskLoading] = useState(false);
+  const [riskError, setRiskError] = useState('');
 
   const formatCurrency = (value) => {
     const amount = Number(value || 0);
@@ -416,6 +425,64 @@ const LoanApprovalDetails = () => {
       isMounted = false;
     };
   }, [id]);
+
+  // Load cached risk assessment for this loan (if any)
+  useEffect(() => {
+    if (!id) return;
+    let isMounted = true;
+    (async () => {
+      try {
+        const { data, error } = await supabase
+          .from('risk_assessments')
+          .select('*')
+          .eq('loan_control_number', id)
+          .maybeSingle();
+        if (!isMounted) return;
+        if (error) {
+          setRiskError('');
+          return;
+        }
+        if (data) setRiskAssessment(data);
+      } catch (_err) {
+        // silent — empty assessment state means "not yet scored"
+      }
+    })();
+    return () => {
+      isMounted = false;
+    };
+  }, [id]);
+
+  const handleRunRiskAssessment = async () => {
+    if (!id) return;
+    setRiskLoading(true);
+    setRiskError('');
+    try {
+      const source = isKoicaSource ? 'koica_loans' : 'loans';
+      const { data: { user } = {} } = (await supabase.auth.getUser()) || {};
+      const response = await fetch(`${API_BASE_URL}/api/risk/predict`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          loan_control_number: id,
+          source,
+          scored_by: user?.id || null,
+          force_refresh: !!riskAssessment, // re-run only when explicitly clicked again
+        }),
+      });
+      const payload = await response.json();
+      if (!response.ok) {
+        const detail = typeof payload?.detail === 'string'
+          ? payload.detail
+          : 'Risk assessment failed. Please try again.';
+        throw new Error(detail);
+      }
+      setRiskAssessment(payload);
+    } catch (err) {
+      setRiskError(err.message || 'Failed to run risk assessment.');
+    } finally {
+      setRiskLoading(false);
+    }
+  };
 
   useEffect(() => {
     let active = true;
@@ -825,28 +892,134 @@ const LoanApprovalDetails = () => {
               </div>
             </div>
 
-            {/* Payment Risk Indicators */}
+            {/* Payment Risk Indicators (TTMPC Credit Risk Model) */}
             <div>
-              <h2 className="flex items-center text-lg font-bold text-gray-800 mb-4">
-                <BarChart2 className="w-5 h-5 mr-2 text-[#1D6021]" /> Payment Risk Indicators
-              </h2>
-              <div className="grid grid-cols-3 gap-4">
-                <div className="border border-gray-200 rounded-xl p-4 flex flex-col items-center justify-center text-center">
-                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Prev Loans</p>
-                  <p className="text-2xl font-black text-gray-800 mb-1">{loanDetails.risk.prevLoans.value}</p>
-                  <p className={`text-[9px] font-bold uppercase ${loanDetails.risk.prevLoans.color}`}>{loanDetails.risk.prevLoans.label}</p>
-                </div>
-                <div className="border border-gray-200 rounded-xl p-4 flex flex-col items-center justify-center text-center">
-                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Delinquency</p>
-                  <p className="text-xl font-black text-gray-800 mb-1">{loanDetails.risk.delinquency.value}</p>
-                  <p className={`text-[9px] font-bold uppercase ${loanDetails.risk.delinquency.color}`}>{loanDetails.risk.delinquency.label}</p>
-                </div>
-                <div className="border border-gray-200 rounded-xl p-4 flex flex-col items-center justify-center text-center">
-                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Consistency</p>
-                  <p className="text-2xl font-black text-gray-800 mb-1">{loanDetails.risk.consistency.value}</p>
-                  <p className={`text-[9px] font-bold uppercase ${loanDetails.risk.consistency.color}`}>{loanDetails.risk.consistency.label}</p>
-                </div>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="flex items-center text-lg font-bold text-gray-800">
+                  <BarChart2 className="w-5 h-5 mr-2 text-[#1D6021]" /> Payment Risk Indicators
+                </h2>
+                <button
+                  type="button"
+                  onClick={handleRunRiskAssessment}
+                  disabled={riskLoading}
+                  className="flex items-center gap-2 px-3 py-1.5 text-xs font-bold uppercase tracking-wider rounded-md border border-[#1D6021] text-[#1D6021] hover:bg-[#1D6021] hover:text-white transition disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {riskLoading ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <RefreshCw className="w-4 h-4" />
+                  )}
+                  {riskAssessment ? 'Re-run' : 'Run Risk Assessment'}
+                </button>
               </div>
+
+              {riskError && (
+                <div className="mb-3 p-3 rounded-md bg-red-50 border border-red-200 text-xs text-red-700">
+                  {riskError}
+                </div>
+              )}
+
+              {!riskAssessment && !riskLoading && !riskError && (
+                <div className="p-5 border border-dashed border-gray-300 rounded-xl text-center text-sm text-gray-500">
+                  No risk assessment yet. Click <span className="font-semibold text-[#1D6021]">Run Risk Assessment</span> to score this application.
+                </div>
+              )}
+
+              {riskAssessment && (() => {
+                const isHighRisk = Number(riskAssessment.risk_class) === 1;
+                const probability = Number(riskAssessment.risk_probability) || 0;
+                const probabilityPct = (probability * 100).toFixed(1);
+                const features = riskAssessment.features_used || {};
+                const stabilityScore = Number(features.Stability_Score ?? 0);
+                const stabilityLabel = stabilityScore >= 4
+                  ? 'Public Sector / Institutional'
+                  : stabilityScore >= 3
+                  ? 'Private Professional / Skilled'
+                  : stabilityScore >= 2
+                  ? 'Service / Support or Unclassified'
+                  : 'Entrepreneurial / Informal';
+                const incomeMissing = Number(features.Income_Is_Missing) === 1;
+                const stressIndex = Number(features.Repayment_Stress_Index);
+
+                return (
+                  <div className="space-y-4">
+                    {/* Top row: class badge + probability bar */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div className={`border rounded-xl p-4 flex flex-col items-center justify-center text-center ${isHighRisk ? 'border-red-300 bg-red-50' : 'border-green-300 bg-green-50'}`}>
+                        {isHighRisk ? (
+                          <ShieldAlert className="w-8 h-8 text-red-600 mb-2" />
+                        ) : (
+                          <ShieldCheck className="w-8 h-8 text-green-700 mb-2" />
+                        )}
+                        <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Risk Class</p>
+                        <p className={`text-lg font-black ${isHighRisk ? 'text-red-700' : 'text-green-800'}`}>
+                          {isHighRisk ? 'High Risk' : 'Performing'}
+                        </p>
+                      </div>
+
+                      <div className="md:col-span-2 border border-gray-200 rounded-xl p-4">
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Probability of Default</p>
+                        <div className="flex items-baseline gap-2 mb-2">
+                          <span className={`text-3xl font-black ${isHighRisk ? 'text-red-700' : 'text-green-800'}`}>{probabilityPct}%</span>
+                          <span className="text-xs text-gray-500">P(High Risk)</span>
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-2.5 overflow-hidden">
+                          <div
+                            className={`h-2.5 rounded-full ${isHighRisk ? 'bg-red-500' : 'bg-green-600'}`}
+                            style={{ width: `${Math.min(100, Math.max(0, probability * 100))}%` }}
+                          />
+                        </div>
+                        <p className="text-[10px] text-gray-400 mt-2 italic">
+                          Model output is a screening tool, not a final decision.
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Features used row */}
+                    <div className="border border-gray-200 rounded-xl p-4">
+                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-1">
+                        <Info className="w-3.5 h-3.5" /> Features Used by the Model
+                      </p>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                        <div>
+                          <p className="text-[10px] text-gray-400 uppercase">Loan Amount</p>
+                          <p className="font-bold text-gray-800">{formatCurrency(features.LoanAmount)}</p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] text-gray-400 uppercase">Stability Tier</p>
+                          <p className="font-bold text-gray-800">{stabilityLabel}</p>
+                          <p className="text-[10px] text-gray-500">Score: {stabilityScore}</p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] text-gray-400 uppercase">Income Declared</p>
+                          <p className={`font-bold ${incomeMissing ? 'text-amber-600' : 'text-gray-800'}`}>
+                            {incomeMissing ? 'Not Declared' : 'Yes'}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] text-gray-400 uppercase">Repayment Stress</p>
+                          <p className="font-bold text-gray-800">
+                            {incomeMissing ? '— (income missing)' : `${stressIndex.toFixed(1)}%`}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Footer: model version + scored_at */}
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[10px] text-gray-400 uppercase tracking-wider">
+                      {riskAssessment.scored_at && (
+                        <span>Scored: {new Date(riskAssessment.scored_at).toLocaleString()}</span>
+                      )}
+                      {riskAssessment.model_version && (
+                        <span>Model: {riskAssessment.model_version}</span>
+                      )}
+                      {riskAssessment.cached && (
+                        <span className="text-gray-500">(cached)</span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
 
             {/* Bookkeeper recommendation notes (manager view is read-only) */}

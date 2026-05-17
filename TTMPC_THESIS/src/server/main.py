@@ -14,6 +14,7 @@ from urllib import request as urlrequest
 from urllib.error import HTTPError, URLError
 from applicationConfirmation import MembershipConfirmationError, confirm_membership, confirm_membership_batch, get_next_membership_id
 from pypdf.generic import DecodedStreamObject, DictionaryObject, NameObject
+from risk_model import ModelNotAvailableError, score as risk_score
 
 # 1. Load Environment Variables
 # Load from project root .env explicitly for consistent behavior.
@@ -4200,3 +4201,133 @@ async def print_bonus_loan_pdf(payload: BonusLoanPdfRequest):
 @app.post("/api/loans/emergency/print-pdf")
 async def print_emergency_loan_pdf(payload: EmergencyLoanPdfRequest):
     return build_loan_pdf_response(payload, "EMERGENCY LOAN A4.pdf", "EMERGENCY_LOAN_FILLED.pdf", "emergency")
+
+
+class RiskPredictRequest(BaseModel):
+    loan_control_number: str
+    source: Literal["loans", "koica_loans"] = "loans"
+    scored_by: str | None = None  # auth.uid() of the manager, optional
+    force_refresh: bool = False
+
+
+def _fetch_loan_for_scoring(control_number: str, source: str) -> dict:
+    table = "koica_loans" if source == "koica_loans" else "loans"
+    select_cols = (
+        "control_number, loan_amount, member_id"
+        if table == "loans"
+        else "control_number, loan_amount, raw_payload"
+    )
+    resp = (
+        supabase.table(table)
+        .select(select_cols)
+        .eq("control_number", control_number)
+        .limit(1)
+        .execute()
+    )
+    rows = resp.data or []
+    if not rows:
+        raise HTTPException(status_code=404, detail=f"Loan {control_number} not found in {table}.")
+    return rows[0]
+
+
+def _fetch_member_pds(member_id: str | None) -> dict:
+    """Resolve member -> personal_data_sheet to get occupation & annual_income."""
+    if not member_id:
+        return {"occupation": None, "annual_income": None, "membership_number_id": None}
+
+    member_resp = (
+        supabase.table("member")
+        .select("id, membership_id")
+        .eq("id", member_id)
+        .limit(1)
+        .execute()
+    )
+    member_rows = member_resp.data or []
+    if not member_rows:
+        return {"occupation": None, "annual_income": None, "membership_number_id": None}
+
+    membership_number_id = member_rows[0].get("membership_id")
+    if not membership_number_id:
+        return {"occupation": None, "annual_income": None, "membership_number_id": None}
+
+    pds_resp = (
+        supabase.table("personal_data_sheet")
+        .select("occupation, annual_income, membership_number_id")
+        .eq("membership_number_id", membership_number_id)
+        .order("created_at", desc=True)
+        .limit(1)
+        .execute()
+    )
+    pds_rows = pds_resp.data or []
+    if not pds_rows:
+        return {"occupation": None, "annual_income": None, "membership_number_id": membership_number_id}
+
+    row = pds_rows[0]
+    return {
+        "occupation": row.get("occupation"),
+        "annual_income": row.get("annual_income"),
+        "membership_number_id": membership_number_id,
+    }
+
+
+@app.post("/api/risk/predict")
+async def predict_loan_risk(payload: RiskPredictRequest):
+    if supabase is None:
+        raise HTTPException(status_code=503, detail="Supabase client is not configured.")
+
+    # Return cached row unless force_refresh requested
+    if not payload.force_refresh:
+        cached = (
+            supabase.table("risk_assessments")
+            .select("*")
+            .eq("loan_control_number", payload.loan_control_number)
+            .limit(1)
+            .execute()
+        )
+        if cached.data:
+            return {"cached": True, **cached.data[0]}
+
+    loan = _fetch_loan_for_scoring(payload.loan_control_number, payload.source)
+
+    member_id = loan.get("member_id")
+    loan_amount = loan.get("loan_amount")
+
+    # KOICA loans store applicant info inside raw_payload — pull from there if needed
+    occupation = None
+    annual_income = None
+    if payload.source == "koica_loans":
+        raw = loan.get("raw_payload") or {}
+        occupation = raw.get("occupation")
+        annual_income = raw.get("annual_income")
+    else:
+        pds = _fetch_member_pds(member_id)
+        occupation = pds["occupation"]
+        annual_income = pds["annual_income"]
+
+    try:
+        result = risk_score(
+            loan_amount=loan_amount,
+            occupation=occupation,
+            annual_income=annual_income,
+            advance_payment_count=0,
+        )
+    except ModelNotAvailableError as e:
+        raise HTTPException(status_code=503, detail=str(e))
+
+    insert_row = {
+        "loan_control_number": payload.loan_control_number,
+        "member_id": member_id,
+        "risk_class": result["risk_class"],
+        "risk_probability": round(result["risk_probability"], 4),
+        "features_used": result["features_used"],
+        "model_version": result.get("model_version"),
+        "scored_by": payload.scored_by,
+    }
+
+    upsert_resp = (
+        supabase.table("risk_assessments")
+        .upsert(insert_row, on_conflict="loan_control_number")
+        .execute()
+    )
+    saved = (upsert_resp.data or [insert_row])[0]
+    return {"cached": False, **saved, "risk_label": result["risk_label"]}
