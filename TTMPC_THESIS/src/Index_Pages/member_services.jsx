@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { UserAuth } from '../contex/AuthContext';
 import { PiggyBank, Landmark, Receipt, LogOut } from 'lucide-react';
@@ -15,7 +15,7 @@ const Member_Services = () => {
       {/* Standardized Header */}
       <header className="w-full bg-[#E9F7DE] h-20 shadow-sm border-b border-[#D5EDB9] flex justify-between items-center px-6">
         <div className="flex flex-row items-center gap-3">
-          <img src="src/assets/img/ttmpc logo.png" alt="Logo" className="h-12 w-auto" />
+          <img src="/img/ttmpc logo.png" alt="Logo" className="h-12 w-auto" />
           <div className="flex flex-col">
             <h1 className="text-sm font-bold text-[#66B538]">Tubungan Teacher's Multi‑Purpose Cooperative</h1>
             <p className="text-[#A0D284] text-xs">Loan Application Kiosk</p>
@@ -26,7 +26,7 @@ const Member_Services = () => {
       </header>
 
       <main className="flex justify-center items-center flex-col flex-grow py-10 px-4 text-center">
-        <img src="src/assets/img/ttmpc logo.png" className="w-auto h-32 mb-4" alt="Kiosk Logo" />
+        <img src="/img/ttmpc logo.png" className="w-auto h-32 mb-4" alt="Kiosk Logo" />
         <h1 className="text-sm font-semibold text-slate-500 uppercase tracking-widest">Loan Application Kiosk</h1>
         
         <p className="mt-2 text-2xl font-bold text-slate-800">Available Member Services</p>

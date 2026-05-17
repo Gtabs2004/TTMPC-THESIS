@@ -1,23 +1,23 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import { Link } from 'react-router-dom';
 
 const newsItems = [
   {
     id: 1,
-    imgSrc: 'src/assets/img/news_1.jpg',
+    imgSrc: '/img/news_1.jpg',
     alt: 'Event 1',
     description: 'TTMPC officers personally revisit the trees they planted and nurtured.',
   },
   {
     id: 2,
-    imgSrc: 'src/assets/img/news_2.jpg',
+    imgSrc: '/img/news_2.jpg',
     alt: 'Event 2',
     description:
       'TTMPC celebrates the 5th year of spreading cheer through Gift Giving Activity at Sibucauan Elementary School.',
   },
   {
     id: 3,
-    imgSrc: 'src/assets/img/news_3.jpg',
+    imgSrc: '/img/news_3.jpg',
     alt: 'Event 3',
     description: 'TTMPC conducts 2025 Strategic Planning.',
   },
@@ -70,7 +70,7 @@ function App() {
       {/* Header */}
       <header className="bg-white h-16 md:h-20 flex items-center shadow-lg sticky top-0 z-50 px-4 md:px-6">
         <img
-          src="src/assets/img/ttmpc logo.png"
+          src="/img/ttmpc logo.png"
           alt="Ttmpc Logo"
           className="h-10 md:h-12 w-auto"
         />
@@ -141,7 +141,7 @@ function App() {
           Together, We Grow Stronger.
         </h1>
         <img
-          src="src/assets/img/landing page.png"
+          src="/img/landing page.png"
           alt="Main Image"
           className="w-full max-w-sm md:max-w-xl lg:max-w-2xl h-auto mb-10 md:mb-20"
         />
@@ -151,7 +151,7 @@ function App() {
       <div className="bg-white py-12 md:py-0 md:h-96 flex flex-col md:flex-row items-center px-6 md:px-0 gap-8 md:gap-0">
         <div className="bg-[#E9F7DE] rounded-lg overflow-hidden w-48 h-48 md:w-60 md:h-48 flex-shrink-0 md:ml-20 lg:ml-40">
           <img
-            src="src/assets/img/1.png"
+            src="/img/1.png"
             alt="Product Image"
             className="h-full w-full object-cover"
           />
