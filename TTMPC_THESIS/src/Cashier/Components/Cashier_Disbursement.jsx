@@ -383,7 +383,7 @@ const Cashier_Disbursement = () => {
           <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full">
-                <thead className="bg-green-600 text-white uppercase text-[13px] tracking-wider">
+                <thead className="bg-[#66B538] text-white uppercase text-[13px] tracking-wider">
                   <tr>
                     <th className="px-6 py-4 text-left font-semibold">
                       Loan ID

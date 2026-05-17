@@ -171,7 +171,7 @@ const BOD_Manage_Member = () => {
             {error ? <p className="p-6 text-red-600">{error}</p> : null}
             {!loading && !error ? (
               <table className="w-full text-sm">
-                <thead className="bg-green-600 text-white uppercase text-[11px] tracking-wider text-center">
+                <thead className="bg-[#66B538] text-white uppercase text-[11px] tracking-wider text-center">
                   <tr>
                     <th className="px-4 py-3 text-center">Member ID</th>
                     <th className="px-4 py-3 text-center">Name</th>

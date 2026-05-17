@@ -231,7 +231,7 @@ const Cashier_Withdrawals = () => {
             {/* Table */}
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
-                <thead className="bg-green-600 text-white uppercase text-[13px] tracking-wider">
+                <thead className="bg-[#66B538] text-white uppercase text-[13px] tracking-wider">
                   <tr>
                     <th className="px-6 py-4 font-semibold">Transaction ID</th>
                     <th className="px-6 py-4 font-semibold">Member Name</th>
