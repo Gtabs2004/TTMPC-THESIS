@@ -3,7 +3,7 @@
 </p>
 
 <h3 align="center">
-Integrated Management and Finance System for TTMPC <br>
+REGANT: Integrated Management and Finance System for TTMPC <br>
 with Parallel Risk Prediction, Debt Capacity Framework, and Loan Demand Forecasting
 </h3>
 
@@ -158,73 +158,6 @@ to enable **data-driven decision-making and proactive financial management**.
 
 ---
 
-## 📚 System Facts (For LLM Training)
-
-This section compiles key facts about how the system works across frontend, backend, APIs, data model, and intended roadmap. It is written for model-training ingestion (bullet facts, short clauses).
-
-### ✅ Current System (Implemented)
-
-**Frontend (Web Portal)**
-- SPA built with React 19 + Vite, React Router, Tailwind CSS. See [TTMPC_THESIS/package.json](TTMPC_THESIS/package.json).
-- Routes defined in [TTMPC_THESIS/src/Router.jsx](TTMPC_THESIS/src/Router.jsx) and render role-based portals (BOD, Manager, Bookkeeper, Treasurer, Cashier, Member).
-- Supabase client uses per-tab session storage and anon key from env; see [TTMPC_THESIS/src/supabaseClient.js](TTMPC_THESIS/src/supabaseClient.js).
-
-**Backend (API Server)**
-- Python FastAPI app in [TTMPC_THESIS/src/server/main.py](TTMPC_THESIS/src/server/main.py).
-- Uses Supabase Python client for database CRUD and storage; Resend for email notifications.
-- Uses Pydantic models for request validation and Decimal for money accuracy.
-- CORS is permissive for dev: allow all origins/headers/methods.
-
-**Env Vars (Backend/Frontend)**
-- Required: `VITE_SUPABASE_URL`.
-- Supabase key priority: `SUPABASE_SERVICE_ROLE_KEY` > `VITE_SUPABASE_SERVICE_ROLE_KEY` > `VITE_SUPABASE_ANON_KEY`.
-- Email: `RESEND_API_KEY` or `VITE_RESEND_API_KEY`, optional `RESEND_FROM_EMAIL`.
-
-**Core Domains**
-- Membership: applications, confirmations, training attendance, and member records.
-- Loans: consolidated, emergency, bonus, and KOICA/ABFF variants.
-- Savings: account creation, deposits, withdrawals, verification workflow.
-- CBU: capital build-up deposits and balances.
-- Role-based staff workflows: BOD, Secretary, Bookkeeper, Manager, Treasurer, Cashier.
-
-**API Surface (Main Endpoints)**
-- Loan compute: `POST /api/loans/compute`.
-- Cashier loans & payments: `GET /api/cashier/loan-payments/loans`, `POST /api/cashier/loan-payments`.
-- Disbursement: `GET /api/cashier/disbursements/ready-loans`, `POST /api/cashier/disbursements/{loan_id}/disburse`.
-- Treasurer disbursement audit: `GET /api/treasurer/disbursements/released-loans`.
-- CBU: `GET /api/cashier/cbu/members`, `GET /api/cashier/cbu/members/{member_ref}`, `GET /api/cashier/cbu/transactions`, `POST /api/cashier/cbu/deposits`.
-- Savings: `POST /api/savings/transactions`, `GET /api/cashier/savings/accounts`, `GET /api/cashier/savings/accounts/{savings_id}`, `POST /api/cashier/savings/accounts/{savings_id}/deposit`, `POST /api/cashier/savings/accounts/{savings_id}/withdraw`.
-- Savings verification: `GET /api/bookkeeper/savings-transactions`, `POST /api/bookkeeper/savings-transactions/{transaction_id}/confirm`, `POST /api/bookkeeper/savings-transactions/{transaction_id}/reject`.
-- Savings withdrawal audit: `GET /api/cashier/withdrawals/transactions`.
-- Loan ledger: `GET /api/bookkeeper/manage-loans`, `GET /api/bookkeeper/loan-ledger/{loan_id}`.
-- Membership records: `GET /api/secretary/membership-records`, `GET /api/secretary/membership-records/{member_ref}`, `PUT /api/secretary/membership-records/{member_ref}`.
-- Personal data sheet: `GET /api/personal_data_sheet`, `GET /api/personal_data_sheet/{membership_number_id}`.
-- Payments review: `GET /api/bookkeeper/payments/pending`, `POST /api/bookkeeper/payments/{payment_id}/approve`, `POST /api/bookkeeper/payments/{payment_id}/reject`.
-- Member lifecycle: `GET /api/member/lifecycle/{member_id}`.
-- Membership confirmation: `POST /api/confirm-membership`, `POST /api/confirm-membership/batch`, `GET /api/next-membership-id`.
-- PDF generation: `POST /api/membership-form/print-pdf`, `POST /api/loans/consolidated/print-pdf`, `POST /api/loans/bonus/print-pdf`, `POST /api/loans/emergency/print-pdf`.
-- Email notification: `POST /api/send-status-email`.
-
-**SQL Data Model (Key Tables + Relationships)**
-- `member` is the stable identity table; `member.id` (uuid) and `member.membership_id` are unique. See [TTMPC_THESIS/src/server/member_schema_repair.sql](TTMPC_THESIS/src/server/member_schema_repair.sql).
-- `member_account` links to `member` via `user_id` (FK to `member.id`) and `membership_id` (FK to `member.membership_id`). See [TTMPC_THESIS/src/server/member_schema_repair.sql](TTMPC_THESIS/src/server/member_schema_repair.sql).
-- `personal_data_sheet` keyed by `membership_number_id` (unique), tied to membership IDs. See [TTMPC_THESIS/src/server/personal_data_sheet_schema.sql](TTMPC_THESIS/src/server/personal_data_sheet_schema.sql).
-- `loans` uses `control_number` as the primary business key; schedules and payments reference it. See [TTMPC_THESIS/src/server/loan_schedule_payments_schema.sql](TTMPC_THESIS/src/server/loan_schedule_payments_schema.sql).
-- `loan_schedules` has FK `loan_id` -> `loans.control_number`; unique per `(loan_id, installment_no)`. See [TTMPC_THESIS/src/server/loan_schedule_payments_schema.sql](TTMPC_THESIS/src/server/loan_schedule_payments_schema.sql).
-- `loan_payments` has FK `loan_id` -> `loans.control_number` and `schedule_id` -> `loan_schedules.id`; status workflow normalized with trigger. See [TTMPC_THESIS/src/server/loan_payments_schema.sql](TTMPC_THESIS/src/server/loan_payments_schema.sql).
-- `loan_payment_ledger` mirrors validated payments (1:1 with `loan_payments.id`). See [TTMPC_THESIS/src/server/loan_payments_schema.sql](TTMPC_THESIS/src/server/loan_payments_schema.sql).
-- `loan_calculator` stores pre-evaluation results; FK to `member.id` and optional `loan_id` to `loans.control_number`. See [TTMPC_THESIS/src/server/loan_calculator_schema.sql](TTMPC_THESIS/src/server/loan_calculator_schema.sql).
-- `capital_build_up` stores CBU transactions; optional `cbu_deposit_id` with unique index. See [TTMPC_THESIS/src/server/cbu_cashier_policy_and_trigger.sql](TTMPC_THESIS/src/server/cbu_cashier_policy_and_trigger.sql).
-- `savings_transaction_queue` stores cashier-submitted savings transactions; `ledger_transactions` stores posted ledger entries. See [TTMPC_THESIS/src/server/savings_transactions_add_savings_amount.sql](TTMPC_THESIS/src/server/savings_transactions_add_savings_amount.sql).
-- `member_profile` and `member_classification_temporal` provide risk/stress and scoring history; FK to `member.id`. See [TTMPC_THESIS/src/server/member_profile_schema.sql](TTMPC_THESIS/src/server/member_profile_schema.sql).
-
-**Operational Rules (Observed in Code)**
-- Loan interest rates are resolved from `loan_types.interest_rate` (percent, monthly); missing rates block compute/disburse. See [TTMPC_THESIS/src/server/main.py](TTMPC_THESIS/src/server/main.py).
-- Cashier payments are inserted as `pending_bookkeeper` and only affect balances after validation.
-- Schedule logic enforces only one active due schedule per loan at a time.
-- Savings withdrawals are queued for bookkeeper verification before posting.
-- Membership training policy uses a single training stage; legacy values are normalized (see project README below).
-
 ### 🔭 Intended / Roadmap (Planned)
 
 - AI-enhanced risk prediction and deeper analytics dashboards.
@@ -281,7 +214,7 @@ This section compiles key facts about how the system works across frontend, back
 
 ## 📊 Project Status
 
-**Thesis – Currently in Active Development (20% Completion)**
+**Thesis – Currently in Active Development (50% Completion)**
 
 Future Enhancements:
 
