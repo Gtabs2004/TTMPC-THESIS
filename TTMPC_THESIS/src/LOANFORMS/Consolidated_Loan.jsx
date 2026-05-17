@@ -643,6 +643,11 @@ function Consolidated_Loan() {
                 <label className="flex items-center space-x-2 cursor-pointer">
                   <input type="radio" name="application_type" value="Renewal" checked={formData.application_type === 'Renewal'} onChange={handleChange} className="h-4 w-4 accent-[#66B538]" />
                   <span className="font-semibold text-gray-700">Renewal</span>
+                  {isRenewal && existingLoan && (
+                    <span className={`ml-1 inline-flex items-center text-[10px] font-semibold px-1.5 py-0.5 rounded ${sixMonthsPaid ? 'bg-[#E9F7DE] text-[#2E7D32]' : 'bg-red-50 text-red-600'}`}>
+                      {sixMonthsPaid ? '✓ 6-month rule' : '✕ 6-month rule'}
+                    </span>
+                  )}
                 </label>
               </div>
               <div className="flex flex-wrap gap-4">
@@ -659,148 +664,19 @@ function Consolidated_Loan() {
           </div>
         </section>
 
-        {/*
-          The Loan Eligibility Status card surfaces as soon as
-          Share Capital and Latest Net Pay are filled — even before a
-          loan amount is selected — so the member sees the 40% take-home
-          threshold up front.
-        */}
-        {/*
-          ============================================================
-          PRE-FORM EVALUATION PANELS
-          ------------------------------------------------------------
-          These two cards sit between the New/Renewal toggle and Section 1
-          (Borrower's Information). They are *result* surfaces only —
-          all source values come from formData + Supabase fetches.
-
-          UI clean-up tips:
-          - Keep the outer wrapper width aligned with the form sections
-            (max-w-6xl). Do not let these blocks exceed the form column.
-          - Treat both cards as *status banners*: short, scannable, 1-screen.
-            Use icons for PASS/FAIL/NOT MET instead of ✓/✕ glyphs if
-            switching to lucide-react for visual consistency.
-          - Color tokens: success uses the brand green (#66B538 / #E9F7DE),
-            danger uses red-50/red-200/red-600. Avoid orange/yellow here so
-            the Risk badge in the Evaluation Result remains the sole place
-            for graded status colors.
-          - When isRenewal is false the Renewal Eligibility card hides; the
-            outer wrapper also hides if there is no calcResult, so the
-            spacing under the New/Renewal bar collapses cleanly.
-          ============================================================
-        */}
-        {(isRenewal || showEligibilityCard) && (
-          <div className="mt-6 max-w-6xl mx-auto w-full px-4 grid gap-6">
-            {/*
-              Renewal Eligibility card
-              - Visible only when application_type === 'Renewal'.
-              - Shows the existing loan summary fetched from Supabase
-                (loans + loan_payments) and whether the 6-month payment
-                rule has been satisfied (or simulated via the override).
-              - UI tip: the override button is a DEV/SIMULATION affordance.
-                Hide it behind an env flag (import.meta.env.DEV) before
-                shipping to production so members can't bypass the rule.
-            */}
-            {isRenewal && (
-              <div className="bg-white rounded-lg shadow-md p-6">
-                <h4 className="font-bold text-gray-800 mb-3">Renewal Eligibility</h4>
-                {renewalError && (
-                  <div className="bg-red-50 border border-red-200 text-red-700 text-xs rounded-md px-4 py-3">
-                    {renewalError}
-                  </div>
-                )}
-                {existingLoan && (
-                  <div className="bg-gray-50 border border-gray-200 rounded-md px-4 py-3 text-xs text-gray-700 grid grid-cols-2 md:grid-cols-3 gap-3">
-                    <div>
-                      <div className="text-[10px] uppercase font-bold text-gray-500">Existing Loan</div>
-                      <div className="font-semibold">{existingLoan.controlNumber}</div>
-                    </div>
-                    <div>
-                      <div className="text-[10px] uppercase font-bold text-gray-500">Loan Amount</div>
-                      <div className="font-semibold">₱{Number(existingLoan.loanAmount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-                    </div>
-                    <div>
-                      <div className="text-[10px] uppercase font-bold text-gray-500">Remaining Balance</div>
-                      <div className="font-semibold">₱{Number(simulatedRemainingBalance || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-                    </div>
-                    <div>
-                      <div className="text-[10px] uppercase font-bold text-gray-500">Paid Months</div>
-                      <div className="font-semibold">
-                        {sixMonthOverride ? `${MIN_PAID_MONTHS_FOR_RENEWAL}+ (override)` : existingLoan.paidMonths}
-                      </div>
-                    </div>
-                    <div>
-                      <div className="text-[10px] uppercase font-bold text-gray-500">6-Month Rule</div>
-                      <div className={`font-bold ${sixMonthsPaid ? 'text-[#2E7D32]' : 'text-red-600'}`}>
-                        {sixMonthsPaid ? 'PASSED' : 'NOT MET'}
-                      </div>
-                    </div>
-                  </div>
-                )}
-                {existingLoan && !sixMonthsPaid && (
-                  <button
-                    type="button"
-                    onClick={overrideSixMonthsPaid}
-                    className="mt-3 text-xs border border-[#66B538] text-[#66B538] hover:bg-[#E9F7DE] font-bold px-4 py-1.5 rounded-md"
-                  >
-                    Simulate: Mark 6 months as paid
-                  </button>
-                )}
-              </div>
+        {isRenewal && (renewalError || (existingLoan && !sixMonthsPaid)) && (
+          <div className="mt-4 max-w-6xl mx-auto w-full px-4 flex flex-wrap items-center gap-3">
+            {renewalError && (
+              <span className="text-xs text-red-600 font-semibold">{renewalError}</span>
             )}
-
-            {/*
-              Loan Eligibility Status card
-              - Always rendered (for both New and Renewal) once a calc
-                result exists. Purely informational — the gate logic
-                lives in the `eligibilityFailed` flag that disables the
-                Submit button at the bottom of the form.
-              - Rule: Monthly Amortization < Take Home Pay × 0.40
-              - UI tip: this card swaps tint based on PASS/FAIL. Keep the
-                two states visually distinct but avoid heavy red — it
-                shouldn't feel like an error page, just a guardrail.
-              - Consider replacing the 3-stat grid with a single progress
-                bar (amortization vs. 40% threshold) for a more intuitive
-                read; the numeric stats can move into a tooltip.
-            */}
-            {showEligibilityCard && (
-              <div className={`rounded-lg shadow-md border p-6 ${eligibilityCardData.eligibilityPass ? 'border-[#66B538] bg-[#E9F7DE]' : 'border-red-300 bg-red-50'}`}>
-                <div className="flex items-center justify-between mb-3">
-                  <h4 className="font-bold text-gray-800">Loan Eligibility Status</h4>
-                  <span className={`text-xs font-bold ${eligibilityCardData.eligibilityPass ? 'text-[#2E7D32]' : 'text-red-600'}`}>
-                    {eligibilityCardData.eligibilityPass ? '✓ PASS' : '✕ FAIL'}
-                  </span>
-                </div>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-xs">
-                  <div>
-                    <div className="text-[10px] uppercase font-bold text-gray-500">Monthly Amortization</div>
-                    <div className="text-sm font-bold text-gray-800">
-                      {eligibilityCardData.monthlyPayment > 0
-                        ? `₱${Number(eligibilityCardData.monthlyPayment).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                        : '— select a loan amount'}
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-[10px] uppercase font-bold text-gray-500">Take Home Pay × 40%</div>
-                    <div className="text-sm font-bold text-gray-800">
-                      ₱{Number(eligibilityCardData.takeHomeThreshold || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-[10px] uppercase font-bold text-gray-500">Take Home Pay</div>
-                    <div className="text-sm font-bold text-gray-800">
-                      ₱{Number(eligibilityCardData.takeHomePay || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </div>
-                  </div>
-                </div>
-                <div className="mt-3 text-[11px] text-gray-600">
-                  Rule: Monthly Amortization &lt; Take Home Pay × 0.40.
-                  {!eligibilityCardData.eligibilityPass && (
-                    <span className="block mt-1 text-red-600 font-semibold">
-                      Eligibility failed — monthly amortization is at or above 40% of take-home pay. Submit Application is disabled.
-                    </span>
-                  )}
-                </div>
-              </div>
+            {existingLoan && !sixMonthsPaid && (
+              <button
+                type="button"
+                onClick={overrideSixMonthsPaid}
+                className="text-xs border border-[#66B538] text-[#66B538] hover:bg-[#E9F7DE] font-bold px-3 py-1 rounded-md"
+              >
+                Simulate: Mark 6 months as paid
+              </button>
             )}
           </div>
         )}
@@ -819,11 +695,11 @@ function Consolidated_Loan() {
             <div><label className={labelStyles}>Contact No. <span className="text-red-500">*</span></label><input type="text" name="contact_no" value={formData.contact_no} onChange={handleChange} className={inputStyles} required /></div>
             <div>
               <label className={labelStyles}>Latest Net Pay <span className="text-red-500">*</span></label>
-              <div className="relative"><span className="absolute left-3 top-2 text-gray-400 text-xs">₱</span><input type="number" name="latest_net_pay" value={formData.latest_net_pay} onChange={handleChange} className={`${inputStyles} pl-7`} required /></div>
+              <div className="relative"><span className="absolute left-3 top-2 text-gray-400 text-xs">₱</span><input type="number" name="latest_net_pay" value={formData.latest_net_pay} onChange={handleChange} className={`${inputStyles} pl-7 ${previewNetPay > 0 && eligibilityCardData.eligibilityPass ? 'bg-[#E9F7DE] border-[#66B538]' : ''}`} required /></div>
             </div>
             <div>
               <label className={labelStyles}>Share Capital <span className="text-red-500">*</span></label>
-              <div className="relative"><span className="absolute left-3 top-2 text-gray-400 text-xs">₱</span><input type="number" name="share_capital" value={formData.share_capital} onChange={handleChange} className={`${inputStyles} pl-7`} required /></div>
+              <div className="relative"><span className="absolute left-3 top-2 text-gray-400 text-xs">₱</span><input type="number" name="share_capital" value={formData.share_capital} onChange={handleChange} className={`${inputStyles} pl-7 ${previewShareCapital > 0 && Number.isFinite(dropdownLoanCapacity) ? 'bg-[#E9F7DE] border-[#66B538]' : ''}`} required /></div>
             </div>
             <div className="md:col-span-3"><label className={labelStyles}>Residence Address <span className="text-red-500">*</span></label><input type="text" name="residence_address" value={formData.residence_address} onChange={handleChange} className={inputStyles} required /></div>
             <div><label className={labelStyles}>Date of Birth <span className="text-red-500">*</span></label><input type="date" name="date_of_birth" value={formData.date_of_birth} onChange={handleChange} className={inputStyles} required /></div>
@@ -866,7 +742,12 @@ function Consolidated_Loan() {
                 onChange={handleChange} 
                 className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-[#66B538] outline-none bg-white text-sm transition-all mx-2 w-[22rem] inline-block align-middle" 
               />
-              <div className="inline-flex items-center relative mr-2 align-middle">
+              <div className="inline-flex items-center relative mr-2 align-middle leading-none">
+                {calcResult && !calcResult.error && Number(calcResult.prescribedLoanAmount) > 0 && (
+                  <span className="absolute bottom-full mb-0.5 left-0 text-[10px] text-[#2E7D32] font-semibold opacity-50 whitespace-nowrap pointer-events-none leading-none">
+                    Prescribed: ₱{Number(calcResult.prescribedLoanAmount).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </span>
+                )}
                 <select
                   name="loan_amount_numeric"
                   value={formData.loan_amount_numeric}
@@ -920,19 +801,26 @@ function Consolidated_Loan() {
               <br className="hidden md:block" />
               
               for a term of
-              <select 
-                name="loan_term_months" 
-                value={formData.loan_term_months} 
-                onChange={handleChange} 
-                className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-[#66B538] outline-none bg-white text-sm transition-all mx-2 w-32 inline-block align-middle text-gray-600"
-              >
-                <option value="">Select Term</option>
-                <option>12</option>
-                <option>24</option>
-                <option>36</option>
-                <option>48</option>
-                <option>60</option>
-              </select>
+              <span className="relative inline-block mx-2 align-middle leading-none">
+                {calcResult && !calcResult.error && calcResult.suggestedTerm && (
+                  <span className="absolute bottom-full mb-0.5 left-0 text-[10px] text-[#2E7D32] font-semibold opacity-50 whitespace-nowrap pointer-events-none leading-none">
+                    Suggested: {calcResult.suggestedTerm} mos
+                  </span>
+                )}
+                <select
+                  name="loan_term_months"
+                  value={formData.loan_term_months}
+                  onChange={handleChange}
+                  className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-[#66B538] outline-none bg-white text-sm transition-all w-32 text-gray-600"
+                >
+                  <option value="">Select Term</option>
+                  <option>12</option>
+                  <option>24</option>
+                  <option>36</option>
+                  <option>48</option>
+                  <option>60</option>
+                </select>
+              </span>
               months with a monthly amortization of
               <input 
                 type="number" 
@@ -953,118 +841,6 @@ function Consolidated_Loan() {
                 <strong>(TTMPC)</strong> in accordance with the terms and conditions as stipulated in the Promissory Note of which I certify to have read and understood clearly. I bind myself to pay out my monthly salary and/or other benefits the required monthly amortization here on or surrender my ATM to TTMPC.
               </span>
             </div>
-
-            {/*
-              ==========================================================
-              LOAN CALCULATOR — Evaluation Result
-              ----------------------------------------------------------
-              Auto-runs whenever loan_amount_numeric, latest_net_pay,
-              share_capital, member_class, application_type, or the
-              fetched existingLoan changes. The Loan Input panel was
-              removed by design — values flow in from the form fields
-              that already exist above (loan amount selector, prefilled
-              net pay & share capital, member class).
-
-              Fields displayed:
-              - Risk Level    → from stress_index_category (Supabase) +
-                               threshold logic (safe / low / moderate /
-                               high / extreme).
-              - Suggested Term → shortest term in [12,24,36,48,60] whose
-                                 stress index ≤ 35%.
-              - Monthly Payment → P/term + P × 0.0083 (flat-add formula).
-              - Stress Index   → (MA / Net Pay) × 100.
-              - Loan Capacity  → ceiling-based max new loan a member can
-                                avail.
-              - Prescribed Loan Amount → Loan Capacity snapped down to
-                                the nearest ₱5,000 step (matches the
-                                amount selector grid).
-
-              UI clean-up tips:
-              - The dashed-green divider above the card visually anchors
-                this as a "computed" block. If the surrounding section
-                gets a card-style wrapper, drop the divider so it doesn't
-                read as a nested separator.
-              - Each metric currently uses a 10px label + 16px value. For
-                accessibility, raise the label to 11–12px and ensure
-                contrast ratio ≥ 4.5:1 on gray-500 text.
-              - Group the bottom footnote (Debt Ceiling / Net Proceeds /
-                Loan Capacity Formula) inside a collapsible "Show
-                breakdown" disclosure to keep the card scannable.
-              - Risk Level chip pulls its color from RISK_COLORS. Keep
-                that mapping centralized — don't redefine colors inline
-                inside this JSX.
-              ==========================================================
-            */}
-            {calcResult && !calcResult.error && (
-              <div className="mt-8 border-t-2 border-dashed border-[#66B538] pt-6">
-                <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 max-w-3xl">
-                  <div className="flex items-center justify-between mb-4">
-                    <h4 className="font-bold text-gray-800">Evaluation Result</h4>
-                    <span className={`text-xs font-bold flex items-center gap-1 ${calcResult.eligible ? 'text-[#2E7D32]' : 'text-red-600'}`}>
-                      {calcResult.eligible ? '✓ ELIGIBLE' : '✕ NOT ELIGIBLE'}
-                    </span>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-x-6 gap-y-4">
-                    <div>
-                      <div className="text-[10px] uppercase font-bold text-gray-500">Risk Level</div>
-                      <span className={`inline-block mt-1 px-3 py-1 rounded-full text-xs font-bold ${calcResult.risk.color}`}>
-                        {calcResult.risk.label}
-                      </span>
-                    </div>
-                    <div>
-                      <div className="text-[10px] uppercase font-bold text-gray-500">Suggested Term</div>
-                      <div className="text-base font-bold text-gray-800">{calcResult.suggestedTerm} months</div>
-                    </div>
-                    <div>
-                      <div className="text-[10px] uppercase font-bold text-gray-500">Monthly Payment</div>
-                      <div className="text-base font-bold text-gray-800">
-                        ₱{Number(calcResult.monthlyPayment || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </div>
-                    </div>
-                    <div>
-                      <div className="text-[10px] uppercase font-bold text-gray-500">Stress Index</div>
-                      <div className="text-base font-bold text-gray-800">{calcResult.stressIndex.toFixed(2)}%</div>
-                    </div>
-                    <div>
-                      <div className="text-[10px] uppercase font-bold text-gray-500">Loan Capacity</div>
-                      <div className="text-base font-bold text-[#2E7D32]">
-                        ₱{Number(calcResult.loanCapacity || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </div>
-                    </div>
-                    <div>
-                      <div className="text-[10px] uppercase font-bold text-gray-500">Prescribed Loan Amount</div>
-                      <div className="text-base font-bold text-[#2E7D32]">
-                        ₱{Number(calcResult.prescribedLoanAmount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="mt-4 pt-4 border-t border-gray-200 text-xs text-gray-600">
-                    <div>
-                      <strong>Debt Ceiling:</strong> ₱{Number(calcResult.maxAllowed || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      {' '}({calcResult.memberClass} · {calcResult.multiplier}x Share Capital − Net Proceeds)
-                    </div>
-                    {calcResult.isRenewal && (
-                      <div>
-                        <strong>Loan Capacity Formula:</strong> (Share Capital × {calcResult.multiplier} + Existing Balance + Deductions) ÷ 2
-                      </div>
-                    )}
-                    <div>
-                      <strong>Net Proceeds:</strong> ₱{calcResult.netProceeds.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      {calcResult.isRenewal && (
-                        <span> (New Loan − Existing Active Balance ₱{calcResult.existingBalance.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} − Deductions)</span>
-                      )}
-                    </div>
-                    {!calcResult.eligible && (
-                      <div className="mt-2 text-red-600 font-semibold">
-                        Loan amount exceeds the allowed debt ceiling. Submit Application is disabled.
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
 
           </div>
         </div>
@@ -1097,7 +873,7 @@ function Consolidated_Loan() {
               
               <br className="hidden md:block" />
 
-              <div className="inline-flex items-center relative mr-2 align-middle">
+              <div className="inline-flex items-center relative mr-2 align-middle leading-none">
                 <select
                   name="loan_amount_numeric"
                   value={formData.loan_amount_numeric}
