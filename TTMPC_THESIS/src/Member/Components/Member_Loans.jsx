@@ -95,6 +95,29 @@ const styles = `
   }
 `;
 
+const normalizeMonthlyInterestPercent = (loan) => {
+  let ratePercent = Number(loan?.interest_rate);
+  const loanType = String(loan?.loan_type?.name || '').trim().toLowerCase();
+
+  if (!Number.isFinite(ratePercent) || ratePercent <= 0) return null;
+
+  if (loanType.includes('consolidated')) {
+    if (ratePercent > 0 && ratePercent < 0.1) {
+      ratePercent *= 10;
+    } else if (ratePercent >= 1 && ratePercent < 10) {
+      ratePercent /= 10;
+    }
+  }
+
+  return ratePercent;
+};
+
+const formatInterestRate = (loan) => {
+  const ratePercent = normalizeMonthlyInterestPercent(loan);
+  if (!ratePercent) return 'N/A';
+  return `${ratePercent.toFixed(2)}%`;
+};
+
 const Member_Loans = () => {
   const { session, signOut } = UserAuth();
   const navigate = useNavigate();
@@ -198,7 +221,7 @@ const Member_Loans = () => {
             type: loan.loan_type?.name || 'N/A',
             originalAmount: formatCurrency(principal),
             balance: formatCurrency(totalPayable),
-            interestRate: loan.interest_rate !== null && loan.interest_rate !== undefined ? `${Number(loan.interest_rate)}%` : 'N/A',
+            interestRate: formatInterestRate(loan),
             payment: monthly > 0 ? formatCurrency(monthly) : 'N/A',
             nextDue: formatDate(loan.application_date),
             status: toStatus(loan.loan_status),
