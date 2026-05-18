@@ -1,7 +1,6 @@
-﻿import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
-import { useNotification } from "../../contex/NotificationContext";
 import { PortalSidebarIdentity, PortalTopbarIdentity } from "../../components/PortalIdentity";
 import {
   LayoutDashboard,
@@ -17,7 +16,6 @@ import {
   ChevronRight,
   ChevronUp,
 } from "lucide-react";
-import NotificationBell from "./NotificationBell";
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 const MEMBER_TONE_POOL = [
   "text-blue-600 bg-blue-50",
@@ -203,13 +201,13 @@ const formatStatusTone = (status) => {
 const BOD_Manage_Loans = () => {
   const { signOut } = UserAuth();
   const navigate = useNavigate();
-  const { addNotification } = useNotification();
   const [activeFilter, setActiveFilter] = useState("Monthly");
   const [expandedPeriods, setExpandedPeriods] = useState([]);
   const [expandedMembers, setExpandedMembers] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [loans, setLoans] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState("");
 
   const filteredLoans = useMemo(() => {
     const key = String(searchTerm || "").trim().toLowerCase();
@@ -251,6 +249,7 @@ const BOD_Manage_Loans = () => {
 
   const fetchManageLoans = async () => {
     setLoading(true);
+    setLoadError("");
     try {
       const response = await fetch(`${API_BASE_URL}/api/bookkeeper/manage-loans`);
       const payload = await response.json().catch(() => ({}));
@@ -259,9 +258,8 @@ const BOD_Manage_Loans = () => {
       }
       const rows = Array.isArray(payload?.data?.rows) ? payload.data.rows : [];
       setLoans(rows);
-      addNotification("Loans loaded successfully", "success");
     } catch (err) {
-      addNotification(err?.message || "Unable to load manage loans data.", "error");
+      setLoadError(err?.message || "Unable to load manage loans data.");
       setLoans([]);
     } finally {
       setLoading(false);
@@ -328,7 +326,7 @@ const BOD_Manage_Loans = () => {
     <div className="flex min-h-screen bg-gray-50">
       <aside className="bg-white w-64 p-4 flex flex-col border-r border-gray-200">
         <div className="flex flex-row items-start gap-2 mb-6">
-          <img src="/img/ttmpc logo.png" alt="Logo" className="h-12 w-auto" />
+          <img src="src/assets/img/ttmpc logo.png" alt="Logo" className="h-12 w-auto" />
           <div className="flex flex-col">
             <h1 className="text-xl font-bold text-[#389734]">TTMPC</h1>
             <PortalSidebarIdentity className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold" fallbackPortal="BOD Portal" fallbackRole="BOD" />
@@ -384,9 +382,12 @@ const BOD_Manage_Loans = () => {
               onChange={(event) => setSearchTerm(event.target.value)}
             />
           </div>
-          <NotificationBell />
+          <button className="ml-6 relative p-1 rounded-full text-gray-500 hover:bg-gray-100 transition-colors">
+            <Bell className="w-5 h-5" />
+            <span className="absolute top-1 right-1 block h-2 w-2 rounded-full bg-red-500 ring-2 ring-white"></span>
+          </button>
           <div className="flex items-center ml-4 gap-2 border-l border-gray-200 pl-4">
-            <img src="/img/bookkeeper-profile.png" alt="Profile" className="w-8 h-8 rounded-full bg-gray-200" />
+            <img src="src/assets/img/bookkeeper-profile.png" alt="Profile" className="w-8 h-8 rounded-full bg-gray-200" />
             <PortalTopbarIdentity className="text-sm font-medium text-gray-700" fallbackRole="BOD" />
           </div>
         </header>
@@ -410,7 +411,19 @@ const BOD_Manage_Loans = () => {
             </button>
           </div>
 
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+          {loadError ? (
+            <div className="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              {loadError}
+            </div>
+          ) : null}
+
+          {loading ? (
+            <div className="mb-6 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700">
+              Syncing loan ledger data...
+            </div>
+          ) : null}
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
             <div className="bg-white rounded-xl p-5 border border-gray-200 shadow-sm">
               <p className="text-xs font-bold text-gray-500 tracking-wider uppercase mb-2">Total Approved</p>
               <h2 className="text-2xl font-bold text-gray-900">{formatCurrency(summaryTotals.total)}</h2>
@@ -504,7 +517,7 @@ const BOD_Manage_Loans = () => {
                           return (
                             <div
                               key={member.id}
-                              className={`border rounded-xl transition-all table-row-enter ${
+                              className={`border rounded-xl transition-all ${
                                 isMemberExpanded ? "border-gray-200 shadow-sm" : "border-gray-100 hover:border-gray-200"
                               }`}
                             >
@@ -561,7 +574,7 @@ const BOD_Manage_Loans = () => {
                                           <p className="text-xs text-gray-500">Disbursement: {loan.disbursedDate}</p>
                                         </div>
                                         <div className="flex items-center gap-3">
-                                          <span className={`badge-animated inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs font-semibold ${formatStatusTone(loan.status)}`}>
+                                          <span className={`inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs font-semibold ${formatStatusTone(loan.status)}`}>
                                             {loan.status}
                                           </span>
                                           <div className="text-right">
