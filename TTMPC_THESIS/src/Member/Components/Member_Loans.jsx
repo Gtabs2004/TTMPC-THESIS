@@ -477,7 +477,7 @@ const Member_Loans = () => {
             </div>
             
             <div className="overflow-x-auto">
-            <table className="w-full min-w-220 text-left border-collapse">
+            <table className="w-full min-w-[900px] text-left border-collapse">
               <thead>
                 <tr className="bg-[#66B53B] text-white text-[10px] uppercase tracking-wider font-bold">
                   <th className="px-6 py-4 font-bold">Loan Type</th>

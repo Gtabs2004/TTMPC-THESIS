@@ -501,7 +501,7 @@ const Member_Lifecycle = () => {
               <CalendarClock className="w-4 h-4 text-[#1D6021]" />
               <h3 className="font-bold text-gray-900">Loan Lifecycle Timeline</h3>
             </div>
-            <table className="min-w-210 text-sm w-full">
+            <table className="min-w-[840px] text-sm w-full">
               <thead className="bg-[#66B53B] text-[11px] uppercase text-white font-bold tracking-wider">
                 <tr>
                   <th className="px-6 py-4 text-left">Loan ID</th>
@@ -542,7 +542,7 @@ const Member_Lifecycle = () => {
               <Wallet className="w-4 h-4 text-[#1D6021]" />
               <h3 className="font-bold text-gray-900">Recorded Loan Payments (Real-Time)</h3>
             </div>
-            <table className="min-w-215 text-sm w-full">
+            <table className="min-w-[860px] text-sm w-full">
               <thead className="bg-[#66B53B] text-[11px] uppercase text-white font-bold tracking-wider">
                 <tr>
                   <th className="px-6 py-4 text-left">Date Paid</th>
@@ -585,7 +585,7 @@ const Member_Lifecycle = () => {
               <CalendarClock className="w-4 h-4 text-[#1D6021]" />
               <h3 className="font-bold text-gray-900">Loan Schedule</h3>
             </div>
-            <table className="min-w-225 text-sm w-full">
+            <table className="min-w-[900px] text-sm w-full">
               <thead className="bg-[#66B53B] text-[11px] uppercase text-white font-bold tracking-wider">
                 <tr>
                   <th className="px-6 py-4 text-left">Loan ID</th>
