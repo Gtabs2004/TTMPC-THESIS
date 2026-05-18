@@ -361,6 +361,7 @@ const Member_StatementOfAccount = () => {
               <NavLink
                 key={item.name}
                 to={to}
+                onClick={() => setIsSidebarOpen(false)}
                 className={({ isActive }) =>
                   `flex items-center gap-3 p-2.5 rounded-lg transition-colors ${
                     isActive
@@ -388,8 +389,8 @@ const Member_StatementOfAccount = () => {
         </button>
       </aside>
 
-      <div className="flex-1 flex flex-col overflow-hidden lg:pl-0">
-        <header className="bg-white h-16 shadow-sm flex items-center justify-between px-4 sm:px-6 lg:px-8 z-10 border-b border-gray-100">
+      <div className="flex-1 flex flex-col lg:pl-0 min-h-0">
+        <header className="bg-white h-16 shadow-sm flex items-center justify-between px-4 sm:px-6 lg:px-8 z-10 border-b border-gray-100 flex-shrink-0">
           <div className="flex items-center gap-2 sm:gap-3">
             <button
               aria-label="Open sidebar"
@@ -430,7 +431,7 @@ const Member_StatementOfAccount = () => {
           </div>
         </header>
 
-        <main className="p-4 sm:p-6 lg:p-8 overflow-y-auto pb-28 lg:pb-0 animate-fade-in-up">
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 pb-8 animate-fade-in-up">
           {!selectedLoan ? (
             <>
               <h1 className="hidden lg:block font-extrabold text-[#1a4a2f] text-2xl mb-2">Statement of Account</h1>
@@ -451,7 +452,7 @@ const Member_StatementOfAccount = () => {
                   No Consolidated, Emergency, or Bonus loans found on your account.
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-4 md:gap-6">
                   {loans.map((loan) => {
                     const k = kindStyles[loan.kind];
                     return (
@@ -502,8 +503,8 @@ const Member_StatementOfAccount = () => {
             </>
           ) : (
             <>
-              <div className="flex items-center justify-between mb-8">
-                <div className=" gap-4">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8">
+                <div>
                   <button
                     type="button"
                     onClick={() => setSelectedLoan(null)}
@@ -512,21 +513,21 @@ const Member_StatementOfAccount = () => {
                     <ArrowLeft className="w-4 h-4" /> Back to loans
                   </button>
                   <div>
-                    <h1 className="font-extrabold text-[#1a4a2f] text-xl sm:text-2xl mt-4">{selectedLoan.type}</h1>
-                    <p className="text-[10px] font-mono text-gray-400">{selectedLoan.control_number}</p>
+                    <h1 className="font-extrabold text-[#1a4a2f] text-lg sm:text-xl md:text-2xl mt-3 sm:mt-4">{selectedLoan.type}</h1>
+                    <p className="text-[9px] sm:text-[10px] font-mono text-gray-400">{selectedLoan.control_number}</p>
                   </div>
                 </div>
                 <button
                   type="button"
                   onClick={handleDownloadPdf}
                   disabled={loadingRows || rows.length === 0}
-                  className="inline-flex items-center gap-2 rounded-lg bg-[#1D6021] px-4 py-2.5 text-xs font-bold text-white hover:bg-[#154718] disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+                  className="w-full sm:w-auto inline-flex items-center justify-center sm:justify-start gap-2 rounded-lg bg-[#1D6021] px-3 sm:px-4 py-2.5 text-xs font-bold text-white hover:bg-[#154718] disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
                 >
                   <Download className="w-4 h-4" /> Download as PDF
                 </button>
               </div>
 
-              <div className="mb-6 rounded-xl border border-green-200 bg-green-50 p-4 grid grid-cols-1 sm:grid-cols-4 gap-4">
+              <div className="mb-6 rounded-xl border border-green-200 bg-green-50 p-3 sm:p-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
                 <div>
                   <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Member Name</p>
                   <p className="text-sm font-bold text-[#1D6021]">{memberLabel}</p>
@@ -555,44 +556,44 @@ const Member_StatementOfAccount = () => {
                   </span>
                 </div>
 
-                <div className="overflow-x-auto">
-                  <table className="w-full min-w-[1100px] text-left border-collapse">
+                <div className="overflow-x-auto rounded-b-2xl">
+                  <table className="w-full text-left border-collapse text-xs sm:text-sm">
                     <thead>
-                      <tr className="bg-[#66B53B] border-b border-gray-100 text-[11px] uppercase tracking-wider text-white font-bold">
-                        <th className="px-6 py-4 font-bold">Payment Date</th>
-                        <th className="px-6 py-4 font-bold">Reference ID</th>
-                        <th className="px-6 py-4 font-bold text-right">Principal Paid</th>
-                        <th className="px-6 py-4 font-bold text-right">Interest Paid</th>
-                        <th className="px-6 py-4 font-bold text-right">Deficiency</th>
-                        <th className="px-6 py-4 font-bold text-right">Penalty</th>
-                        <th className="px-6 py-4 font-bold text-right">Total Amount Paid</th>
-                        <th className="px-6 py-4 font-bold text-right">Outstanding Balance</th>
+                      <tr className="bg-[#66B53B] border-b border-gray-100 text-[9px] sm:text-[11px] uppercase tracking-wider text-white font-bold">
+                        <th className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 font-bold whitespace-nowrap">Payment Date</th>
+                        <th className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 font-bold whitespace-nowrap">Reference ID</th>
+                        <th className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 font-bold text-right whitespace-nowrap">Principal</th>
+                        <th className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 font-bold text-right whitespace-nowrap">Interest</th>
+                        <th className="hidden md:table-cell px-3 sm:px-4 md:px-6 py-3 sm:py-4 font-bold text-right whitespace-nowrap">Deficiency</th>
+                        <th className="hidden md:table-cell px-3 sm:px-4 md:px-6 py-3 sm:py-4 font-bold text-right whitespace-nowrap">Penalty</th>
+                        <th className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 font-bold text-right whitespace-nowrap">Total Paid</th>
+                        <th className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 font-bold text-right whitespace-nowrap">Balance</th>
                       </tr>
                     </thead>
                     <tbody>
                       {loadingRows ? (
                         <tr>
-                          <td colSpan="8" className="p-5 text-sm text-gray-500">Loading payment history…</td>
+                          <td colSpan="8" className="p-3 sm:p-4 md:p-5 text-xs sm:text-sm text-gray-500">Loading payment history…</td>
                         </tr>
                       ) : rowsError ? (
                         <tr>
-                          <td colSpan="8" className="p-5 text-sm text-red-600">{rowsError}</td>
+                          <td colSpan="8" className="p-3 sm:p-4 md:p-5 text-xs sm:text-sm text-red-600">{rowsError}</td>
                         </tr>
                       ) : rows.length === 0 ? (
                         <tr>
-                          <td colSpan="8" className="p-5 text-sm text-gray-500">No validated payments found for this loan.</td>
+                          <td colSpan="8" className="p-3 sm:p-4 md:p-5 text-xs sm:text-sm text-gray-500">No validated payments found for this loan.</td>
                         </tr>
                       ) : (
                         rows.map((r) => (
                           <tr key={r.payment_id} className="table-row-enter border-b border-gray-50 hover:bg-green-50 transition-colors last:border-0">
-                            <td className="px-6 py-4 text-sm font-medium text-gray-700">{formatDate(r.payment_date)}</td>
-                            <td className="px-6 py-4 text-xs font-mono text-gray-600 break-all">{r.reference_id || "—"}</td>
-                            <td className="px-6 py-4 text-sm font-bold text-gray-700 text-right">{formatCurrency(r.principal_paid)}</td>
-                            <td className="px-6 py-4 text-sm font-bold text-gray-700 text-right">{formatCurrency(r.interest_paid)}</td>
-                            <td className="px-6 py-4 text-sm font-medium text-gray-600 text-right">{formatCurrency(r.deficiency)}</td>
-                            <td className="px-6 py-4 text-sm font-medium text-red-400 text-right">{formatCurrency(r.penalty)}</td>
-                            <td className="px-6 py-4 text-sm font-black text-[#1D6021] text-right">{formatCurrency(r.total_amount_paid)}</td>
-                            <td className="px-6 py-4 text-sm font-bold text-gray-900 text-right">{formatCurrency(r.outstanding_balance)}</td>
+                            <td className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 text-xs sm:text-sm font-medium text-gray-700 whitespace-nowrap">{formatDate(r.payment_date)}</td>
+                            <td className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 text-[8px] sm:text-xs font-mono text-gray-600 break-all">{r.reference_id || "—"}</td>
+                            <td className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 text-xs sm:text-sm font-bold text-gray-700 text-right whitespace-nowrap">{formatCurrency(r.principal_paid)}</td>
+                            <td className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 text-xs sm:text-sm font-bold text-gray-700 text-right whitespace-nowrap">{formatCurrency(r.interest_paid)}</td>
+                            <td className="hidden md:table-cell px-3 sm:px-4 md:px-6 py-3 sm:py-4 text-xs sm:text-sm font-medium text-gray-600 text-right whitespace-nowrap">{formatCurrency(r.deficiency)}</td>
+                            <td className="hidden md:table-cell px-3 sm:px-4 md:px-6 py-3 sm:py-4 text-xs sm:text-sm font-medium text-red-400 text-right whitespace-nowrap">{formatCurrency(r.penalty)}</td>
+                            <td className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 text-xs sm:text-sm font-black text-[#1D6021] text-right whitespace-nowrap">{formatCurrency(r.total_amount_paid)}</td>
+                            <td className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 text-xs sm:text-sm font-bold text-gray-900 text-right whitespace-nowrap">{formatCurrency(r.outstanding_balance)}</td>
                           </tr>
                         ))
                       )}
@@ -600,13 +601,13 @@ const Member_StatementOfAccount = () => {
                     {!loadingRows && !rowsError && rows.length > 0 ? (
                       <tfoot>
                         <tr className="bg-[#EAF1EB] text-[#1D6021]">
-                          <td className="px-6 py-4 text-xs font-extrabold uppercase tracking-wider" colSpan="2">Totals</td>
-                          <td className="px-6 py-4 text-sm font-black text-right">{formatCurrency(totals.principal)}</td>
-                          <td className="px-6 py-4 text-sm font-black text-right">{formatCurrency(totals.interest)}</td>
-                          <td className="px-6 py-4 text-sm font-black text-right">{formatCurrency(totals.deficiency)}</td>
-                          <td className="px-6 py-4 text-sm font-black text-right">{formatCurrency(totals.penalty)}</td>
-                          <td className="px-6 py-4 text-sm font-black text-right">{formatCurrency(totals.paid)}</td>
-                          <td className="px-6 py-4"></td>
+                          <td className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 text-[9px] sm:text-xs font-extrabold uppercase tracking-wider" colSpan="2">Totals</td>
+                          <td className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 text-xs sm:text-sm font-black text-right">{formatCurrency(totals.principal)}</td>
+                          <td className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 text-xs sm:text-sm font-black text-right">{formatCurrency(totals.interest)}</td>
+                          <td className="hidden md:table-cell px-3 sm:px-4 md:px-6 py-3 sm:py-4 text-xs sm:text-sm font-black text-right">{formatCurrency(totals.deficiency)}</td>
+                          <td className="hidden md:table-cell px-3 sm:px-4 md:px-6 py-3 sm:py-4 text-xs sm:text-sm font-black text-right">{formatCurrency(totals.penalty)}</td>
+                          <td className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 text-xs sm:text-sm font-black text-right">{formatCurrency(totals.paid)}</td>
+                          <td className="px-3 sm:px-4 md:px-6 py-3 sm:py-4"></td>
                         </tr>
                       </tfoot>
                     ) : null}
