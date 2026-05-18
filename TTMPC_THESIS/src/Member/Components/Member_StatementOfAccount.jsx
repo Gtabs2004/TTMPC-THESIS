@@ -616,6 +616,38 @@ const Member_StatementOfAccount = () => {
             </>
           )}
         </main>
+
+        {/* Bottom Navigation - Mobile Only */}
+        <nav className="fixed bottom-0 left-0 right-0 lg:hidden bg-white border-t border-gray-200 px-2 py-2">
+          <div className="max-w-lg mx-auto">
+            <div className="flex items-center justify-around gap-1">
+              {menuItems.map((item) => {
+                const Icon = item.icon;
+                const to = routeMap[item.name];
+                return (
+                  <NavLink
+                    key={item.name}
+                    to={to}
+                    className={({ isActive }) =>
+                      `flex flex-col items-center justify-center px-2.5 py-2 rounded-full transition-all ${
+                        isActive
+                          ? 'bg-[#1D6021] text-white'
+                          : 'text-gray-600 hover:text-[#1D6021]'
+                      }`
+                    }
+                  >
+                    {({ isActive }) => (
+                      <>
+                        <Icon size={20} strokeWidth={isActive ? 2.5 : 2} className="mb-1" />
+                        <span className="text-[10px] font-semibold">{item.name.split(' ')[0]}</span>
+                      </>
+                    )}
+                  </NavLink>
+                );
+              })}
+            </div>
+          </div>
+        </nav>
       </div>
     </div>
   );
