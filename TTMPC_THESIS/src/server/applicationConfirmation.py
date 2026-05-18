@@ -233,6 +233,69 @@ def _has_present_attendance(supabase: Client, application_id: str | None) -> boo
 	return False
 
 
+def _has_paid_up_capital(supabase: Client, application_data: dict[str, Any]) -> bool:
+	application_id = str(application_data.get("application_id") or "").strip()
+	membership_id = str(application_data.get("membership_id") or "").strip()
+
+	if not application_id and not membership_id:
+		return False
+
+	member_uuid = None
+	if membership_id:
+		try:
+			member_response = (
+				supabase.table("member")
+				.select("id")
+				.eq("membership_id", membership_id)
+				.limit(1)
+				.execute()
+			)
+			member_uuid = (member_response.data or [None])[0].get("id") if member_response.data else None
+		except Exception:
+			member_uuid = None
+
+	filters = []
+	if application_id:
+		filters.append(f"member_code.eq.{application_id}")
+	if membership_id:
+		filters.append(f"member_code.eq.{membership_id}")
+	if member_uuid:
+		filters.append(f"member_id.eq.{member_uuid}")
+
+	if not filters:
+		return False
+
+	try:
+		payments_response = (
+			supabase.table("membership_payments")
+			.select("payment_type,amount,payment_status")
+			.or_(",".join(filters))
+			.order("payment_date", desc=True)
+			.execute()
+		)
+	except Exception:
+		return False
+
+	for row in payments_response.data or []:
+		payment_type = str(row.get("payment_type") or "").strip().lower().replace(" ", "_")
+		if payment_type not in {"paid_up_capital", "paid-up_capital", "initial_paid_up_capital"}:
+			continue
+
+		status_value = str(row.get("payment_status") or "").strip().lower()
+		if status_value in {"confirmed", "approved"}:
+			status_value = "validated"
+
+		try:
+			amount_value = float(row.get("amount") or 0)
+		except (TypeError, ValueError):
+			amount_value = 0
+
+		if status_value == "validated" and amount_value >= 10000:
+			return True
+
+	return False
+
+
 def _application_is_eligible(data: dict[str, Any], force: bool, supabase: Client | None = None) -> bool:
 	if force:
 		return True
@@ -253,10 +316,19 @@ def _application_is_eligible(data: dict[str, Any], force: bool, supabase: Client
 		"official member",
 	}
 	if status_value in accepted:
-		return True
+		if supabase is None:
+			return True
+		attendance_ok = _has_present_attendance(supabase, data.get("application_id"))
+		paid_up_ok = _has_paid_up_capital(supabase, data)
+		return attendance_ok and paid_up_ok
 
 	if status_value in {"training", "1st training", "first training"} and supabase is not None:
-		return _has_present_attendance(supabase, data.get("application_id"))
+		attendance_ok = _has_present_attendance(supabase, data.get("application_id"))
+		paid_up_ok = _has_paid_up_capital(supabase, data)
+		return attendance_ok and paid_up_ok
+
+	if supabase is not None:
+		return _has_paid_up_capital(supabase, data)
 
 	return False
 

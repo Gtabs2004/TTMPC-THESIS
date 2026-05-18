@@ -137,8 +137,8 @@ const Dashboard_BOD = () => {
           {/* Action Header */}
           <div className="flex justify-between items-center mb-8">
             <div>
-              <h1 className="font-bold text-2xl text-gray-800">Analytical Dashboard</h1>
-              <p className="text-sm text-gray-500 mt-1">Real-time cooperative performance metrics</p>
+              <h1 className="font-bold text-2xl text-gray-800">BOD Diagnostic Dashboard</h1>
+              <p className="text-sm text-gray-500 mt-1">At-risk patterns, delinquency, member churn, and repayment stress</p>
             </div>
             <div className="flex gap-3">
               <button className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors shadow-sm">
@@ -155,7 +155,7 @@ const Dashboard_BOD = () => {
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 flex flex-col justify-between">
               <div className="flex justify-between items-start">
                 <div>
-                  <p className="text-sm font-semibold text-gray-500 mb-1">Total Transaction Vol.</p>
+                  <p className="text-sm font-semibold text-gray-500 mb-1">Transaction Volume</p>
                   <h3 className="text-2xl font-bold text-gray-800">₱42.5M</h3>
                 </div>
                 <div className="p-2 bg-green-50 rounded-lg text-[#2C7A3F]"><TrendingUp className="w-5 h-5" /></div>
@@ -166,7 +166,7 @@ const Dashboard_BOD = () => {
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 flex flex-col justify-between">
               <div className="flex justify-between items-start">
                 <div>
-                  <p className="text-sm font-semibold text-gray-500 mb-1">Delinquency Rate</p>
+                  <p className="text-sm font-semibold text-gray-500 mb-1">Default + Delinquency</p>
                   <h3 className="text-2xl font-bold text-gray-800">4.2%</h3>
                 </div>
                 <div className="p-2 bg-red-50 rounded-lg text-red-500"><AlertCircle className="w-5 h-5" /></div>
@@ -177,31 +177,31 @@ const Dashboard_BOD = () => {
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 flex flex-col justify-between">
               <div className="flex justify-between items-start">
                 <div>
-                  <p className="text-sm font-semibold text-gray-500 mb-1">Avg Debt Capacity</p>
-                  <h3 className="text-2xl font-bold text-gray-800">₱150K</h3>
+                  <p className="text-sm font-semibold text-gray-500 mb-1">Repayment Stress Index</p>
+                  <h3 className="text-2xl font-bold text-gray-800">72 / 100</h3>
                 </div>
                 <div className="p-2 bg-blue-50 rounded-lg text-blue-500"><CreditCard className="w-5 h-5" /></div>
               </div>
-              <p className="text-sm text-gray-500 font-medium mt-4">Healthy leverage threshold</p>
+              <p className="text-sm text-gray-500 font-medium mt-4">Debt capacity vs repayment speed</p>
             </div>
             
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 flex flex-col justify-between">
               <div className="flex justify-between items-start">
                 <div>
-                  <p className="text-sm font-semibold text-gray-500 mb-1">Loyalty Score</p>
-                  <h3 className="text-2xl font-bold text-gray-800">92/100</h3>
+                  <p className="text-sm font-semibold text-gray-500 mb-1">Member Dropout Rate</p>
+                  <h3 className="text-2xl font-bold text-gray-800">3.1%</h3>
                 </div>
                 <div className="p-2 bg-purple-50 rounded-lg text-purple-500"><HeartHandshake className="w-5 h-5" /></div>
               </div>
-              <p className="text-sm text-green-600 font-medium mt-4">+2 pts <span className="text-gray-400 font-normal">YTD</span></p>
+              <p className="text-sm text-gray-500 font-medium mt-4">Rolling 12-month churn</p>
             </div>
           </div>
 
           {/* ROW 2: STRATEGIC TRENDS */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8 min-w-0">
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 min-w-0">
-              <h3 className="text-lg font-bold text-gray-800 mb-1">Seasonal Loan Demand & Risk Forecast</h3>
-              <p className="text-sm text-gray-500 mb-4">Monthly demand trends with seasonal risk indicators</p>
+              <h3 className="text-lg font-bold text-gray-800 mb-1">At-risk Patterns and Loan Demand Trends</h3>
+              <p className="text-sm text-gray-500 mb-4">Demand trendline with risk-zone overlay</p>
               <div className="h-72">
                 {chartsReady ? <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={240}>
                   <ComposedChart data={seasonalData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
@@ -219,8 +219,8 @@ const Dashboard_BOD = () => {
             </div>
 
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 min-w-0">
-              <h3 className="text-lg font-bold text-gray-800 mb-1">Delinquency Trajectory (30/60/90 Days)</h3>
-              <p className="text-sm text-gray-500 mb-4">Stacked delinquency aging by month</p>
+              <h3 className="text-lg font-bold text-gray-800 mb-1">Default and Delinquency Trends</h3>
+              <p className="text-sm text-gray-500 mb-4">30/60/90 day aging movement</p>
               <div className="h-72">
                 {chartsReady ? <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={240}>
                   <BarChart data={delinquencyData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
@@ -242,7 +242,7 @@ const Dashboard_BOD = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 mb-8 min-w-0">
             
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 min-w-0">
-              <h3 className="text-sm font-bold text-gray-800 mb-1">Member Churn / Dropout</h3>
+              <h3 className="text-sm font-bold text-gray-800 mb-1">Member Dropout Rate</h3>
               <p className="text-xs text-gray-500 mb-4">Monthly attrition trend</p>
               <div className="h-48">
                 {chartsReady ? <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={160}>
@@ -288,7 +288,7 @@ const Dashboard_BOD = () => {
             </div>
 
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 min-w-0">
-              <h3 className="text-sm font-bold text-gray-800 mb-1">Debt Capacity vs Repayment Health</h3>
+              <h3 className="text-sm font-bold text-gray-800 mb-1">Debt Capacity and Repayment Stress</h3>
               <p className="text-xs text-gray-500 mb-4">Member clusters by debt and repayment speed</p>
               <div className="h-48">
                 {chartsReady ? <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={160}>
@@ -308,7 +308,7 @@ const Dashboard_BOD = () => {
           {/* ROW 4: TRANSACTION HISTORY */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
             <div className="p-6 border-b border-gray-100 flex justify-between items-center">
-              <h3 className="text-lg font-bold text-gray-800">Recent Transactions</h3>
+              <h3 className="text-lg font-bold text-gray-800">Transaction Volumes</h3>
               <button className="text-sm text-[#2C7A3F] font-medium hover:underline">View All</button>
             </div>
             
