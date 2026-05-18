@@ -1,8 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { 
+import {
   ArrowLeft, Building2, MapPin, Award, Phone, Calendar, Mail, X, Check,
-  Download, User, Users, Contact, Briefcase
+  Download, User, Users, Contact, Briefcase,
+  CheckCircle2, AlertCircle, Wallet,
 } from 'lucide-react';
 import { supabase } from '../../supabaseClient';
 import { formatTinNumber } from '../../LOANFORMS/tinFormat';
@@ -23,6 +24,8 @@ const MemberApprovalDetails = () => {
   const [actionError, setActionError] = useState('');
   const [notifying, setNotifying] = useState(false);
   const [notifyMessage, setNotifyMessage] = useState('');
+  const [paymentStatus, setPaymentStatus] = useState(null);
+  const [paymentStatusLoading, setPaymentStatusLoading] = useState(false);
   const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000';
 
   useEffect(() => {
@@ -49,6 +52,32 @@ const MemberApprovalDetails = () => {
 
     fetchMemberDetails();
   }, [id]);
+
+  // Fetch membership payment + paid-up capital verification status from backend
+  useEffect(() => {
+    if (!id) return;
+    let cancelled = false;
+    (async () => {
+      setPaymentStatusLoading(true);
+      try {
+        const res = await fetch(
+          `${apiBaseUrl}/api/bod/membership-approval/${encodeURIComponent(id)}/payment-status`,
+          { headers: { Accept: 'application/json' } }
+        );
+        const payload = await res.json().catch(() => ({}));
+        if (!cancelled && res.ok && payload?.success) {
+          setPaymentStatus(payload.data || null);
+        }
+      } catch (_err) {
+        // Non-fatal — UI will simply show "unknown" status
+      } finally {
+        if (!cancelled) setPaymentStatusLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [id, apiBaseUrl]);
 
   const formatDate = (value) => {
     if (!value) return '-';
@@ -455,25 +484,121 @@ const MemberApprovalDetails = () => {
         </div>
       </SectionCard>
 
+      {/* --- PAYMENT VERIFICATION (gate for final approval) --- */}
+      {(() => {
+        const isFinalApprovalStep = proceedConfig?.nextStatus === 'Official Member';
+        const feePaid = !!paymentStatus?.membership_fee_paid;
+        const paidUpOk = !!paymentStatus?.paid_up_capital_satisfied;
+        const requiredFee = Number(paymentStatus?.required_membership_fee ?? 100);
+        const requiredPaidUp = Number(paymentStatus?.required_paid_up_capital ?? 10000);
+        const currentPaidUp = Number(paymentStatus?.paid_up_capital_amount ?? 0);
+        const gateMet = feePaid && paidUpOk;
+
+        return (
+          <div className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm mt-8">
+            <h2 className="flex items-center text-sm font-bold text-[#1a4a2f] mb-4">
+              <Wallet className="w-4 h-4 mr-2" /> Payment Verification
+              {paymentStatusLoading && (
+                <span className="ml-3 text-[10px] uppercase tracking-wider text-gray-400">Checking...</span>
+              )}
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div
+                className={`rounded-lg border p-4 ${
+                  feePaid ? 'border-green-200 bg-green-50' : 'border-amber-200 bg-amber-50'
+                }`}
+              >
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-gray-500">
+                    Membership Fee (₱{requiredFee.toLocaleString('en-PH', { minimumFractionDigits: 2 })})
+                  </span>
+                  {feePaid ? (
+                    <CheckCircle2 className="w-4 h-4 text-green-700" />
+                  ) : (
+                    <AlertCircle className="w-4 h-4 text-amber-600" />
+                  )}
+                </div>
+                <p className={`text-sm font-bold ${feePaid ? 'text-green-700' : 'text-amber-700'}`}>
+                  {feePaid ? 'Paid' : 'Unpaid'}
+                </p>
+                {feePaid && paymentStatus?.membership_fee_payment?.payment_id && (
+                  <p className="text-[10px] text-gray-500 mt-1">
+                    Receipt: {paymentStatus.membership_fee_payment.payment_id}
+                  </p>
+                )}
+              </div>
+              <div
+                className={`rounded-lg border p-4 ${
+                  paidUpOk ? 'border-green-200 bg-green-50' : 'border-amber-200 bg-amber-50'
+                }`}
+              >
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-gray-500">
+                    Initial Paid-Up Capital
+                  </span>
+                  {paidUpOk ? (
+                    <CheckCircle2 className="w-4 h-4 text-green-700" />
+                  ) : (
+                    <AlertCircle className="w-4 h-4 text-amber-600" />
+                  )}
+                </div>
+                <p className={`text-sm font-bold ${paidUpOk ? 'text-green-700' : 'text-amber-700'}`}>
+                  ₱{currentPaidUp.toLocaleString('en-PH', { minimumFractionDigits: 2 })}{' '}
+                  <span className="text-xs font-normal text-gray-500">
+                    / ₱{requiredPaidUp.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+                  </span>
+                </p>
+                {paymentStatus?.paid_up_capital_payment?.payment_id && (
+                  <p className="text-[10px] text-gray-500 mt-1">
+                    Receipt: {paymentStatus.paid_up_capital_payment.payment_id}
+                  </p>
+                )}
+              </div>
+            </div>
+            {isFinalApprovalStep && !gateMet && (
+              <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+                Final approval is blocked until both the Membership Fee and Initial Paid-Up Capital are
+                satisfied. The Cashier can record the Membership Fee under the Membership Payments module.
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
       {/* --- BOTTOM ACTION BUTTONS --- */}
       <div className="flex flex-wrap justify-end gap-4 mt-8 bg-white p-6 rounded-xl border border-gray-100 shadow-sm">
-        <button 
-          onClick={() => setActiveModal('revise')} 
+        <button
+          onClick={() => setActiveModal('revise')}
           disabled={saving || member.status === 'Official Member'}
           className="flex items-center text-[#D97706] bg-yellow-50 border border-yellow-200 hover:bg-yellow-100 transition-colors font-bold rounded-lg px-6 py-2.5 text-sm"
         >
           Return for Revision
         </button>
 
-        {proceedConfig && (
-          <button
-            onClick={() => setActiveModal('proceed')}
-            disabled={saving}
-            className="flex items-center text-white bg-[#1a4a2f] hover:bg-[#123622] transition-colors font-bold rounded-lg px-6 py-2.5 text-sm shadow-sm"
-          >
-            <Check className="w-4 h-4 mr-2" strokeWidth={2.5} /> {proceedConfig.button}
-          </button>
-        )}
+        {proceedConfig && (() => {
+          const isFinalApprovalStep = proceedConfig.nextStatus === 'Official Member';
+          const gateMet =
+            !!paymentStatus?.membership_fee_paid && !!paymentStatus?.paid_up_capital_satisfied;
+          const disabled = saving || (isFinalApprovalStep && !gateMet);
+          return (
+            <button
+              onClick={() => setActiveModal('proceed')}
+              disabled={disabled}
+              title={
+                isFinalApprovalStep && !gateMet
+                  ? 'Membership Fee and Initial Paid-Up Capital must both be satisfied before approval.'
+                  : undefined
+              }
+              className={`flex items-center text-white font-bold rounded-lg px-6 py-2.5 text-sm shadow-sm transition-colors ${
+                disabled
+                  ? 'bg-gray-300 cursor-not-allowed'
+                  : 'bg-[#1a4a2f] hover:bg-[#123622]'
+              }`}
+            >
+              <Check className="w-4 h-4 mr-2" strokeWidth={2.5} /> {proceedConfig.button}
+            </button>
+          );
+        })()}
       </div>
 
 

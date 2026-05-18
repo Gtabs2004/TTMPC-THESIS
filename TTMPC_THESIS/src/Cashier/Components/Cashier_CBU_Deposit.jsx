@@ -14,6 +14,7 @@ import {
   Calculator,
   ReceiptText,
   CheckCircle2,
+  UserPlus,
 } from "lucide-react";
 
 import logo from "../../assets/img/ttmpc logo.png";
@@ -47,6 +48,7 @@ const Cashier_CBU_Deposit = () => {
     { name: "Dashboard", icon: LayoutDashboard, path: "/Cashier_Dashboard" },
     { name: "Payments", icon: Banknote, path: "/Cashier_Payments" },
     { name: "Disbursement", icon: Banknote, path: "/Cashier_Disbursement" },
+    { name: "Membership Payments", icon: UserPlus, path: "/Cashier_MembershipPayments" },
     {
       name: "Deposits",
       icon: Banknote,
@@ -79,31 +81,31 @@ const Cashier_CBU_Deposit = () => {
   const totalBalance = currentBalance + (Number.isFinite(amount) ? Math.max(amount, 0) : 0);
   const totalShares = totalBalance / SHARE_VALUE;
 
-  useEffect(() => {
-    async function loadMember() {
-      if (!memberId) return;
-      setLoadingMember(true);
-      setLoadError("");
-      try {
-        const response = await fetch(`${API_BASE_URL}/api/cashier/cbu/members/${encodeURIComponent(memberId)}`, {
-          method: "GET",
-          headers: { Accept: "application/json" },
-        });
-        const payload = await response.json().catch(() => ({}));
-        if (!response.ok || !payload?.success) {
-          throw new Error(payload?.detail || payload?.message || "Failed to load selected member.");
-        }
-
-        setSelectedMember(payload.data || null);
-      } catch (err) {
-        setLoadError(err?.message || "Unable to load selected member.");
-        setSelectedMember(null);
-      } finally {
-        setLoadingMember(false);
+  const loadMember = async () => {
+    if (!memberId) return;
+    setLoadingMember(true);
+    setLoadError("");
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/cashier/cbu/members/${encodeURIComponent(memberId)}`,
+        { method: "GET", headers: { Accept: "application/json" } }
+      );
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || !payload?.success) {
+        throw new Error(payload?.detail || payload?.message || "Failed to load selected member.");
       }
+      setSelectedMember(payload.data || null);
+    } catch (err) {
+      setLoadError(err?.message || "Unable to load selected member.");
+      setSelectedMember(null);
+    } finally {
+      setLoadingMember(false);
     }
+  };
 
+  useEffect(() => {
     loadMember();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [memberId]);
 
   const handleSubmit = async () => {
@@ -128,7 +130,9 @@ const Cashier_CBU_Deposit = () => {
           deposit_amount: amount,
           deposit_account: paymentMode,
           transaction_date: new Date(transactionDate).toISOString(),
-          cbu_deposit_id: cbuDepositId,
+          // Let the backend assign the deposit_id (server uses build_cbu_deposit_id + the
+          // BEFORE-INSERT trigger). Passing a fixed value here causes the second deposit
+          // to collide with the first.
         }),
       });
 
@@ -137,10 +141,12 @@ const Cashier_CBU_Deposit = () => {
         throw new Error(payload?.detail || payload?.message || "Failed to submit CBU deposit.");
       }
 
-      const returnedId = payload?.data?.cbu_deposit_id || cbuDepositId;
+      const returnedId = payload?.data?.cbu_deposit_id || "—";
       setCbuDepositId(returnedId);
       setStatusMessage(`CBU deposit recorded successfully. Deposit ID: ${returnedId}.`);
       setDepositAmount("");
+      // Refetch member so current_balance reflects the new ending_share_capital.
+      await loadMember();
     } catch (err) {
       setStatusMessage(err?.message || "Failed to submit CBU deposit.");
     }

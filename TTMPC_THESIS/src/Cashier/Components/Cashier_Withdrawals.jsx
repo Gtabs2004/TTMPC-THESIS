@@ -9,7 +9,8 @@ import {
   Bell,
   Banknote,
   ChevronDown,
-  ChevronRight
+  ChevronRight,
+  UserPlus,
 } from 'lucide-react';
 import logo from "../../assets/img/ttmpc logo.png"; 
 
@@ -41,8 +42,9 @@ const Cashier_Withdrawals = () => {
     { name: "Dashboard", icon: LayoutDashboard, path: "/Cashier_Dashboard" },
     { name: "Payments", icon: Banknote, path: "/Cashier_Payments" },
     { name: "Disbursement", icon: Banknote, path: "/Cashier_Disbursement" },
-    { 
-      name: "Deposits", 
+    { name: "Membership Payments", icon: UserPlus, path: "/Cashier_MembershipPayments" },
+    {
+      name: "Deposits",
       icon: Banknote, 
       isDropdown: true,
       subItems: [

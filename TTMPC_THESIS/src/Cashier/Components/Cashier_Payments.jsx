@@ -15,7 +15,8 @@ import {
   AlertCircle,
   CheckCircle2,
   Clock,
-  Filter
+  Filter,
+  UserPlus,
 } from 'lucide-react';
 import logo from "../../assets/img/ttmpc logo.png"; // Adjust path to logo if needed
 
@@ -271,6 +272,7 @@ const Cashier_Payments = () => {
     { name: "Dashboard", icon: LayoutDashboard, path: "/Cashier_Dashboard" },
     { name: "Payments", icon: Banknote, path: "/Cashier_Payments" },
     { name: "Disbursement", icon: Banknote, path: "/Cashier_Disbursement" },
+    { name: "Membership Payments", icon: UserPlus, path: "/Cashier_MembershipPayments" },
     {
       name: "Deposits",
       icon: Banknote,
