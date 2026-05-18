@@ -1,6 +1,7 @@
 ﻿import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
+import { useNotification } from "../../contex/NotificationContext";
 import { supabase } from "../../supabaseClient";
 import { resolveMemberContextFromSessionUser } from "../../utils/sessionIdentity";
 import { loadMemberAvatarSignedUrl } from "../../utils/memberAvatar";
@@ -106,6 +107,7 @@ const formatDate = (value) => {
 const Member_Savings = () => {
   const { session, signOut } = UserAuth();
   const navigate = useNavigate();
+  const { addNotification } = useNotification();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [loadingSavings, setLoadingSavings] = useState(true);
   const [savingsError, setSavingsError] = useState('');
@@ -458,11 +460,11 @@ const Member_Savings = () => {
             <div className="overflow-x-auto">
               <table className="w-full min-w-180 text-left border-collapse">
                 <thead>
-                  <tr className="bg-[#FAF9FB] border-b border-gray-100 text-[10px] uppercase tracking-wider text-gray-400 font-bold">
-                    <th className="p-5 font-bold">Date</th>
-                    <th className="p-5 font-bold">Transaction Type</th>
-                    <th className="p-5 font-bold text-right">Amount</th>
-                    <th className="p-5 font-bold text-right pr-8">Balance</th>
+                  <tr className="bg-[#66B53B] text-white text-[10px] uppercase tracking-wider font-bold">
+                    <th className="px-6 py-4 font-bold">Date</th>
+                    <th className="px-6 py-4 font-bold">Transaction Type</th>
+                    <th className="px-6 py-4 font-bold text-right">Amount</th>
+                    <th className="px-6 py-4 font-bold text-right pr-8">Balance</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -475,16 +477,16 @@ const Member_Savings = () => {
                       <td colSpan={4} className="p-6 text-center text-sm text-gray-500">No savings transactions yet.</td>
                     </tr>
                   ) : ledgerData.map((row) => (
-                    <tr key={row.id} className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors last:border-0">
-                      <td className="p-5 text-sm text-gray-500 font-medium whitespace-nowrap">{row.date}</td>
-                      <td className="p-5 text-sm font-bold text-gray-700 flex items-center gap-3">
+                    <tr key={row.id} className="table-row-enter border-b border-gray-50 hover:bg-green-50 transition-colors last:border-0">
+                      <td className="px-6 py-4 text-sm text-gray-500 font-medium whitespace-nowrap">{row.date}</td>
+                      <td className="px-6 py-4 text-sm font-bold text-gray-700 flex items-center gap-3">
                         {renderTransactionIcon(row.typeIcon)}
                         {row.type}
                       </td>
-                      <td className={`p-5 text-sm font-bold text-right whitespace-nowrap ${row.amountColor}`}>
+                      <td className={`px-6 py-4 text-sm font-bold text-right whitespace-nowrap ${row.amountColor}`}>
                         {row.amount}
                       </td>
-                      <td className="p-5 text-sm font-black text-gray-900 text-right pr-8 whitespace-nowrap">
+                      <td className="px-6 py-4 text-sm font-black text-gray-900 text-right pr-8 whitespace-nowrap">
                         {row.balance}
                       </td>
                     </tr>

@@ -1,6 +1,7 @@
 ﻿import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
+import { useNotification } from "../../contex/NotificationContext";
 import { supabase } from "../../supabaseClient";
 import { resolveMemberContextFromSessionUser } from "../../utils/sessionIdentity";
 import { loadMemberAvatarSignedUrl } from "../../utils/memberAvatar";
@@ -54,6 +55,7 @@ const classifyType = (name) => {
 const Member_StatementOfAccount = () => {
   const { signOut } = UserAuth();
   const navigate = useNavigate();
+  const { addNotification } = useNotification();
 
   const [loans, setLoans] = useState([]);
   const [loadingLoans, setLoadingLoans] = useState(true);
@@ -556,15 +558,15 @@ const Member_StatementOfAccount = () => {
                 <div className="overflow-x-auto">
                   <table className="w-full min-w-[1100px] text-left border-collapse">
                     <thead>
-                      <tr className="bg-green-600 border-b border-gray-100 text-[11px] uppercase tracking-wider text-white font-bold">
-                        <th className="p-5 font-bold">Payment Date</th>
-                        <th className="p-5 font-bold">Reference ID</th>
-                        <th className="p-5 font-bold text-right">Principal Paid</th>
-                        <th className="p-5 font-bold text-right">Interest Paid</th>
-                        <th className="p-5 font-bold text-right">Deficiency</th>
-                        <th className="p-5 font-bold text-right">Penalty</th>
-                        <th className="p-5 font-bold text-right">Total Amount Paid</th>
-                        <th className="p-5 font-bold text-right">Outstanding Balance</th>
+                      <tr className="bg-[#66B53B] border-b border-gray-100 text-[11px] uppercase tracking-wider text-white font-bold">
+                        <th className="px-6 py-4 font-bold">Payment Date</th>
+                        <th className="px-6 py-4 font-bold">Reference ID</th>
+                        <th className="px-6 py-4 font-bold text-right">Principal Paid</th>
+                        <th className="px-6 py-4 font-bold text-right">Interest Paid</th>
+                        <th className="px-6 py-4 font-bold text-right">Deficiency</th>
+                        <th className="px-6 py-4 font-bold text-right">Penalty</th>
+                        <th className="px-6 py-4 font-bold text-right">Total Amount Paid</th>
+                        <th className="px-6 py-4 font-bold text-right">Outstanding Balance</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -582,15 +584,15 @@ const Member_StatementOfAccount = () => {
                         </tr>
                       ) : (
                         rows.map((r) => (
-                          <tr key={r.payment_id} className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors last:border-0">
-                            <td className="p-5 text-sm font-medium text-gray-700">{formatDate(r.payment_date)}</td>
-                            <td className="p-5 text-xs font-mono text-gray-600 break-all">{r.reference_id || "—"}</td>
-                            <td className="p-5 text-sm font-bold text-gray-700 text-right">{formatCurrency(r.principal_paid)}</td>
-                            <td className="p-5 text-sm font-bold text-gray-700 text-right">{formatCurrency(r.interest_paid)}</td>
-                            <td className="p-5 text-sm font-medium text-gray-600 text-right">{formatCurrency(r.deficiency)}</td>
-                            <td className="p-5 text-sm font-medium text-red-400 text-right">{formatCurrency(r.penalty)}</td>
-                            <td className="p-5 text-sm font-black text-[#1D6021] text-right">{formatCurrency(r.total_amount_paid)}</td>
-                            <td className="p-5 text-sm font-bold text-gray-900 text-right">{formatCurrency(r.outstanding_balance)}</td>
+                          <tr key={r.payment_id} className="table-row-enter border-b border-gray-50 hover:bg-green-50 transition-colors last:border-0">
+                            <td className="px-6 py-4 text-sm font-medium text-gray-700">{formatDate(r.payment_date)}</td>
+                            <td className="px-6 py-4 text-xs font-mono text-gray-600 break-all">{r.reference_id || "—"}</td>
+                            <td className="px-6 py-4 text-sm font-bold text-gray-700 text-right">{formatCurrency(r.principal_paid)}</td>
+                            <td className="px-6 py-4 text-sm font-bold text-gray-700 text-right">{formatCurrency(r.interest_paid)}</td>
+                            <td className="px-6 py-4 text-sm font-medium text-gray-600 text-right">{formatCurrency(r.deficiency)}</td>
+                            <td className="px-6 py-4 text-sm font-medium text-red-400 text-right">{formatCurrency(r.penalty)}</td>
+                            <td className="px-6 py-4 text-sm font-black text-[#1D6021] text-right">{formatCurrency(r.total_amount_paid)}</td>
+                            <td className="px-6 py-4 text-sm font-bold text-gray-900 text-right">{formatCurrency(r.outstanding_balance)}</td>
                           </tr>
                         ))
                       )}
@@ -598,13 +600,13 @@ const Member_StatementOfAccount = () => {
                     {!loadingRows && !rowsError && rows.length > 0 ? (
                       <tfoot>
                         <tr className="bg-[#EAF1EB] text-[#1D6021]">
-                          <td className="p-5 text-xs font-extrabold uppercase tracking-wider" colSpan="2">Totals</td>
-                          <td className="p-5 text-sm font-black text-right">{formatCurrency(totals.principal)}</td>
-                          <td className="p-5 text-sm font-black text-right">{formatCurrency(totals.interest)}</td>
-                          <td className="p-5 text-sm font-black text-right">{formatCurrency(totals.deficiency)}</td>
-                          <td className="p-5 text-sm font-black text-right">{formatCurrency(totals.penalty)}</td>
-                          <td className="p-5 text-sm font-black text-right">{formatCurrency(totals.paid)}</td>
-                          <td className="p-5"></td>
+                          <td className="px-6 py-4 text-xs font-extrabold uppercase tracking-wider" colSpan="2">Totals</td>
+                          <td className="px-6 py-4 text-sm font-black text-right">{formatCurrency(totals.principal)}</td>
+                          <td className="px-6 py-4 text-sm font-black text-right">{formatCurrency(totals.interest)}</td>
+                          <td className="px-6 py-4 text-sm font-black text-right">{formatCurrency(totals.deficiency)}</td>
+                          <td className="px-6 py-4 text-sm font-black text-right">{formatCurrency(totals.penalty)}</td>
+                          <td className="px-6 py-4 text-sm font-black text-right">{formatCurrency(totals.paid)}</td>
+                          <td className="px-6 py-4"></td>
                         </tr>
                       </tfoot>
                     ) : null}

@@ -1,6 +1,7 @@
 ﻿import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
+import { useNotification } from "../../contex/NotificationContext";
 import { supabase } from "../../supabaseClient";
 import { resolveMemberContextFromSessionUser } from "../../utils/sessionIdentity";
 import { 
@@ -96,6 +97,7 @@ const styles = `
 const MemberDashboard = () => {
   const { session, signOut } = UserAuth();
   const navigate = useNavigate();
+  const { addNotification } = useNotification();
   const [profile, setProfile] = useState(null);
   const [memberLoans, setMemberLoans] = useState([]);
   const [recentTransactions, setRecentTransactions] = useState([]);
@@ -817,24 +819,24 @@ const MemberDashboard = () => {
                 <div className="overflow-x-auto">
                 <table className="w-full min-w-[640px] text-left border-collapse">
                   <thead>
-                    <tr className="border-b border-gray-100 text-[10px] uppercase tracking-wider text-gray-400 font-bold">
-                      <th className="p-5">Date</th>
-                      <th className="p-5">Description</th>
-                      <th className="p-5">Category</th>
-                      <th className="p-5 text-right">Amount</th>
+                    <tr className="border-b border-gray-100 text-[10px] uppercase tracking-wider text-white font-bold bg-[#66B53B]">
+                      <th className="px-6 py-4">Date</th>
+                      <th className="px-6 py-4">Description</th>
+                      <th className="px-6 py-4">Category</th>
+                      <th className="px-6 py-4 text-right">Amount</th>
                     </tr>
                   </thead>
                   <tbody>
                     {recentTransactions.length ? recentTransactions.map((tx) => (
-                      <tr key={tx.id} className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors last:border-0">
-                        <td className="p-5 text-xs text-gray-500 font-medium">{tx.date}</td>
-                        <td className="p-5 text-sm font-bold text-gray-800">{tx.desc}</td>
-                        <td className="p-5">
-                          <span className={`px-2 py-1 rounded text-[9px] font-extrabold tracking-wider ${getCategoryStyle(tx.type)}`}>
+                      <tr key={tx.id} className="table-row-enter border-b border-gray-50 hover:bg-green-50 transition-colors last:border-0">
+                        <td className="px-6 py-4 text-xs text-gray-500 font-medium">{tx.date}</td>
+                        <td className="px-6 py-4 text-sm font-bold text-gray-800">{tx.desc}</td>
+                        <td className="px-6 py-4">
+                          <span className={`badge-animated px-2 py-1 rounded text-[9px] font-extrabold tracking-wider ${getCategoryStyle(tx.type)}`}>
                             {tx.category}
                           </span>
                         </td>
-                        <td className={`p-5 text-sm font-bold text-right ${tx.highlight ? 'text-[#1D6021]' : 'text-gray-900'}`}>
+                        <td className={`px-6 py-4 text-sm font-bold text-right ${tx.highlight ? 'text-[#1D6021]' : 'text-gray-900'}`}>
                           {tx.amount}
                         </td>
                       </tr>

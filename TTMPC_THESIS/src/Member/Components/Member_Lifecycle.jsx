@@ -1,6 +1,7 @@
 ﻿import React, { useEffect, useMemo, useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
+import { useNotification } from "../../contex/NotificationContext";
 import { supabase } from "../../supabaseClient";
 import { resolveMemberContextFromSessionUser } from "../../utils/sessionIdentity";
 import { loadMemberAvatarSignedUrl } from "../../utils/memberAvatar";
@@ -145,6 +146,7 @@ const mapApprovalStage = (status) => {
 const Member_Lifecycle = () => {
   const { signOut } = UserAuth();
   const navigate = useNavigate();
+  const { addNotification } = useNotification();
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -500,7 +502,7 @@ const Member_Lifecycle = () => {
               <h3 className="font-bold text-gray-900">Loan Lifecycle Timeline</h3>
             </div>
             <table className="min-w-210 text-sm w-full">
-              <thead className="bg-gray-50/50 text-[11px] uppercase text-gray-500 font-bold tracking-wider">
+              <thead className="bg-[#66B53B] text-[11px] uppercase text-white font-bold tracking-wider">
                 <tr>
                   <th className="px-6 py-4 text-left">Loan ID</th>
                   <th className="px-6 py-4 text-left">Type</th>
@@ -517,11 +519,11 @@ const Member_Lifecycle = () => {
                   </tr>
                 ) : (
                   loans.map((loan) => (
-                    <tr key={loan.loan_id} className="hover:bg-gray-50/50 transition-colors">
+                    <tr key={loan.loan_id} className="table-row-enter hover:bg-green-50 transition-colors">
                       <td className="px-6 py-4 font-semibold text-gray-900">{loan.loan_id}</td>
                       <td className="px-6 py-4 text-gray-700">{loan.loan_type}</td>
                       <td className="px-6 py-4">
-                        <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold transition-all-smooth hover:scale-105 ${statusBadgeClass(loan.loan_status)}`}>
+                        <span className={`badge-animated inline-flex rounded-full px-3 py-1 text-xs font-semibold transition-all-smooth hover:scale-105 ${statusBadgeClass(loan.loan_status)}`}>
                           {loan.loan_status}
                         </span>
                       </td>
@@ -541,7 +543,7 @@ const Member_Lifecycle = () => {
               <h3 className="font-bold text-gray-900">Recorded Loan Payments (Real-Time)</h3>
             </div>
             <table className="min-w-215 text-sm w-full">
-              <thead className="bg-gray-50/50 text-[11px] uppercase text-gray-500 font-bold tracking-wider">
+              <thead className="bg-[#66B53B] text-[11px] uppercase text-white font-bold tracking-wider">
                 <tr>
                   <th className="px-6 py-4 text-left">Date Paid</th>
                   <th className="px-6 py-4 text-left">Loan ID</th>
@@ -559,7 +561,7 @@ const Member_Lifecycle = () => {
                   </tr>
                 ) : (
                   payments.map((row, idx) => (
-                    <tr key={`${row.loan_id}-${row.payment_id}-${idx}`} className="hover:bg-gray-50/50 transition-colors">
+                    <tr key={`${row.loan_id}-${row.payment_id}-${idx}`} className="table-row-enter hover:bg-green-50 transition-colors">
                       <td className="px-6 py-4 text-gray-600">{formatDate(row.payment_date)}</td>
                       <td className="px-6 py-4 text-gray-900 font-semibold">{row.loan_id}</td>
                       <td className="px-6 py-4 text-gray-700 font-medium">{row.reference_no}</td>
@@ -567,7 +569,7 @@ const Member_Lifecycle = () => {
                       <td className="px-6 py-4 text-gray-700">{formatCurrency(row.penalties)}</td>
                       <td className="px-6 py-4 text-gray-700">{formatCurrency(row.remaining_after)}</td>
                       <td className="px-6 py-4">
-                        <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold transition-all-smooth hover:scale-105 ${statusBadgeClass(row.confirmation_status)}`}>
+                        <span className={`badge-animated inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold transition-all-smooth hover:scale-105 ${statusBadgeClass(row.confirmation_status)}`}>
                           <CheckCircle2 size={12} className="hidden sm:inline" /> {row.confirmation_status}
                         </span>
                       </td>
@@ -584,7 +586,7 @@ const Member_Lifecycle = () => {
               <h3 className="font-bold text-gray-900">Loan Schedule</h3>
             </div>
             <table className="min-w-225 text-sm w-full">
-              <thead className="bg-gray-50/50 text-[11px] uppercase text-gray-500 font-bold tracking-wider">
+              <thead className="bg-[#66B53B] text-[11px] uppercase text-white font-bold tracking-wider">
                 <tr>
                   <th className="px-6 py-4 text-left">Loan ID</th>
                   <th className="px-6 py-4 text-left">Installment</th>
@@ -602,7 +604,7 @@ const Member_Lifecycle = () => {
                   </tr>
                 ) : (
                   schedules.map((row, idx) => (
-                    <tr key={`${row.loan_id}-${row.installment_no}-${idx}`} className="hover:bg-gray-50/50 transition-colors">
+                    <tr key={`${row.loan_id}-${row.installment_no}-${idx}`} className="table-row-enter hover:bg-green-50 transition-colors">
                       <td className="px-6 py-4 text-gray-900 font-semibold">{row.loan_id}</td>
                       <td className="px-6 py-4 text-gray-700 font-medium">#{row.installment_no || "-"}</td>
                       <td className="px-6 py-4 text-gray-600">{formatDate(row.due_date)}</td>
@@ -610,7 +612,7 @@ const Member_Lifecycle = () => {
                       <td className="px-6 py-4 text-gray-700 font-medium">{formatCurrency(row.expected_interest)}</td>
                       <td className="px-6 py-4 text-gray-900 font-semibold text-[#1D6021]">{formatCurrency(row.expected_amount)}</td>
                       <td className="px-6 py-4">
-                        <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold transition-all-smooth hover:scale-105 ${statusBadgeClass(row.schedule_status)}`}>
+                        <span className={`badge-animated inline-flex rounded-full px-3 py-1 text-xs font-semibold transition-all-smooth hover:scale-105 ${statusBadgeClass(row.schedule_status)}`}>
                           {row.schedule_status}
                         </span>
                       </td>

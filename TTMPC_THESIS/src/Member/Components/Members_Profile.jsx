@@ -1,6 +1,7 @@
 ﻿import React, { useEffect, useState } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
+import { useNotification } from "../../contex/NotificationContext";
 import { supabase } from "../../supabaseClient";
 import { resolveMemberContextFromSessionUser } from "../../utils/sessionIdentity";
 import { loadMemberAvatarSignedUrl } from "../../utils/memberAvatar";
@@ -99,6 +100,7 @@ const MEMBER_NOTIF_SETTINGS_KEY = 'member_profile_notification_settings';
 const Members_Profile = () => {
   const { session, signOut } = UserAuth();
   const navigate = useNavigate();
+  const { addNotification } = useNotification();
 
   // State for the security toggles
   const [smsNotif, setSmsNotif] = useState(true);
