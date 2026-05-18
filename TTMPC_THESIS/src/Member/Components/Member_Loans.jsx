@@ -1,6 +1,7 @@
 ﻿import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
+import { useNotification } from "../../contex/NotificationContext";
 import { supabase } from "../../supabaseClient";
 import { resolveMemberContextFromSessionUser } from "../../utils/sessionIdentity";
 import { loadMemberAvatarSignedUrl } from "../../utils/memberAvatar";
@@ -97,6 +98,7 @@ const styles = `
 const Member_Loans = () => {
   const { session, signOut } = UserAuth();
   const navigate = useNavigate();
+  const { addNotification } = useNotification();
   const [loans, setLoans] = useState([]);
   const [loadingLoans, setLoadingLoans] = useState(true);
   const [loanError, setLoanError] = useState('');
@@ -454,14 +456,14 @@ const Member_Loans = () => {
             <div className="overflow-x-auto">
             <table className="w-full min-w-220 text-left border-collapse">
               <thead>
-                <tr className="bg-[#FAF9FB] border-b border-gray-100 text-[9px] uppercase tracking-wider text-gray-400 font-bold">
-                  <th className="p-5 font-bold">Loan Type</th>
-                  <th className="p-5 font-bold">Original Amount</th>
-                  <th className="p-5 font-bold">Remaining Balance</th>
-                  <th className="p-5 font-bold">Interest Rate</th>
-                  <th className="p-5 font-bold">Monthly Payment</th>
-                  <th className="p-5 font-bold">Next Due</th>
-                  <th className="p-5 font-bold">Status</th>
+                <tr className="bg-[#66B53B] text-white text-[10px] uppercase tracking-wider font-bold">
+                  <th className="px-6 py-4 font-bold">Loan Type</th>
+                  <th className="px-6 py-4 font-bold">Original Amount</th>
+                  <th className="px-6 py-4 font-bold">Remaining Balance</th>
+                  <th className="px-6 py-4 font-bold">Interest Rate</th>
+                  <th className="px-6 py-4 font-bold">Monthly Payment</th>
+                  <th className="px-6 py-4 font-bold">Next Due</th>
+                  <th className="px-6 py-4 font-bold">Status</th>
                 </tr>
               </thead>
               <tbody>
@@ -478,18 +480,18 @@ const Member_Loans = () => {
                     <td colSpan="7" className="p-5 text-sm text-gray-500">No loan records found.</td>
                   </tr>
                 ) : loans.map((loan, idx) => (
-                  <tr key={idx} className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors last:border-0">
-                    <td className="p-5">
+                  <tr key={idx} className="table-row-enter border-b border-gray-50 hover:bg-green-50 transition-colors last:border-0">
+                    <td className="px-6 py-4">
                       <p className="text-sm font-bold text-gray-900">{loan.type}</p>
                       <p className="text-[10px] text-gray-400 font-medium">ID: {loan.id}</p>
                     </td>
-                    <td className="p-5 text-sm font-bold text-gray-600">{loan.originalAmount}</td>
-                    <td className="p-5 text-sm font-black text-gray-900">{loan.balance}</td>
-                    <td className="p-5 text-sm font-bold text-gray-700">{loan.interestRate}</td>
-                    <td className="p-5 text-sm font-bold text-[#1D6021]">{loan.payment}</td>
-                    <td className="p-5 text-sm font-medium text-gray-500">{loan.nextDue}</td>
-                    <td className="p-5">
-                      <span className={`px-2.5 py-1 rounded text-[10px] font-extrabold tracking-wider ${
+                    <td className="px-6 py-4 text-sm font-bold text-gray-600">{loan.originalAmount}</td>
+                    <td className="px-6 py-4 text-sm font-black text-gray-900">{loan.balance}</td>
+                    <td className="px-6 py-4 text-sm font-bold text-gray-700">{loan.interestRate}</td>
+                    <td className="px-6 py-4 text-sm font-bold text-[#1D6021]">{loan.payment}</td>
+                    <td className="px-6 py-4 text-sm font-medium text-gray-500">{loan.nextDue}</td>
+                    <td className="px-6 py-4">
+                      <span className={`badge-animated px-2.5 py-1 rounded text-[10px] font-extrabold tracking-wider ${
                         loan.status === 'Active' ? 'bg-[#EAF1EB] text-[#1D6021]' : loan.status === 'Rejected' ? 'bg-red-100 text-red-700' : 'bg-[#FEF08A] text-[#854D0E]'
                       }`}>
                         {loan.status}

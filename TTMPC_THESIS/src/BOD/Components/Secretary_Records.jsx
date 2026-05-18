@@ -219,13 +219,13 @@ const Secretary_Records = () => {
             </div>
             <table className="w-full text-left border-collapse text-sm">
               <thead>
-                <tr className="border-y border-gray-200 bg-[#66B53B] text-white text-xs uppercase tracking-wider font-bold p-12">
-                  <th className="pb-4 font-medium">Membership Id</th>
-                  <th className="pb-4 font-medium">Member Name </th>
-                  <th className="pb-4 font-medium">Date Joined</th>
-                  <th className="pb-4 font-medium">Shares</th>
-                  <th className="pb-4 font-medium">Paid Up Capital</th>
-                  <th className="pb-4 font-medium">Action</th>
+                <tr className="border-y border-gray-200 bg-[#66B538] text-white text-xs uppercase tracking-wider font-bold">
+                  <th className="px-6 py-4 font-medium">Membership Id</th>
+                  <th className="px-6 py-4 font-medium">Member Name</th>
+                  <th className="px-6 py-4 font-medium">Date Joined</th>
+                  <th className="px-6 py-4 font-medium">Shares</th>
+                  <th className="px-6 py-4 font-medium">Paid Up Capital</th>
+                  <th className="px-6 py-4 font-medium">Action</th>
                 </tr>
               </thead>
               <tbody>

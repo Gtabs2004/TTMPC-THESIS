@@ -1,7 +1,7 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { UserAuth } from '../contex/AuthContext';
-import { Library, AlertCircle, Gift, LogOut } from 'lucide-react';
+import { Library, Gift } from 'lucide-react';
 
 const Non_Member = () => {
   const { session, signOut } = UserAuth();
@@ -15,37 +15,57 @@ const Non_Member = () => {
     } catch (err) {
       console.error("Failed to sign out:", err);
     }
-  };                                    
-  return(
+  };
+
+  return (
     <div className="flex flex-col min-h-screen bg-gray-100">
-        <header className="w-full bg-[#E9F7DE] h-20 shadow-lg flex text-col">
-            <div className="flex flex-row items-start gap-2">
-            <img src="/img/ttmpc logo.png" alt="Logo" className="h-12 w-auto ml-5 mt-4"/>
-            <div className="flex flex-col">
-            <h1 className="text-sm font-bold text-[#66B538] mt-6">Tubungan Teacher's Multi‑Purpose Cooperative</h1>
+
+      <header className="w-full bg-[#E9F7DE] h-16 md:h-20 shadow-sm border-b border-[#D5EDB9] flex justify-between items-center px-4 md:px-6">
+        <div className="flex flex-row items-center gap-3">
+          <img src="/img/ttmpc logo.png" alt="Logo" className="h-10 md:h-12 w-auto" />
+          <div className="flex flex-col">
+            <h1 className="text-xs md:text-sm font-bold text-[#66B538] leading-tight">
+              Tubungan Teacher's Multi‑Purpose Cooperative
+            </h1>
             <p className="text-[#A0D284] text-xs">Loan Application Kiosk</p>
-            </div>
-            </div>
-    </header>
-     <main className="flex justify-center items-center flex-col">
-        <img src="/img/ttmpc logo.png" className="w-auto h-40 mt-16"/>
-        <h1 className="text-sm font-semibold  ml-2">Loan Application Kiosk</h1>
-        <p className="mt-4  text-lg font-bold ">Available Loan Services</p>
-        <div className="flex flex-row gap-10 mt-10">
-            <Link to="/Bonus_Loan?loanType=NONMEMBER_BONUS" className="bg-white h-50 w-50 rounded-2xl font-bold flex text-center 
-            items-center justify-center flex-col cursor-pointer">
-                <Gift size={48} className="text-green-600 mb-4" />
-                <h1>Bonus Loan</h1>
-                </Link>
-            <Link to="/membership_form" className="bg-white h-50 w-50 rounded-2xl font-bold flex text-center 
-            items-center justify-center flex-col cursor-pointer">
-                <Library size={48} className="text-green-600 mb-4" />
-                <h1>Apply for <br></br>Membership</h1>
-                </Link>
+          </div>
         </div>
-        </main>
+      </header>
+
+      <main className="flex justify-center items-center flex-col flex-grow py-10 px-4 text-center">
+        <img src="/img/ttmpc logo.png" className="w-auto h-24 md:h-32 mb-4" alt="Kiosk Logo" />
+        <h1 className="text-xs md:text-sm font-semibold text-slate-500 uppercase tracking-widest">
+          Loan Application Kiosk
+        </h1>
+        <p className="mt-2 text-xl md:text-2xl font-bold text-slate-800">Available Loan Services</p>
+        <p className="mt-2 text-slate-500 text-sm font-medium mb-8">
+          Choose an option to continue your application.
+        </p>
+
+        <div className="flex flex-col sm:flex-row gap-6 mt-4 w-full max-w-lg justify-center items-center">
+          <Link
+            to="/Bonus_Loan?loanType=NONMEMBER_BONUS"
+            className="bg-white h-48 w-full sm:w-48 md:h-56 md:w-56 rounded-2xl flex flex-col items-center justify-center cursor-pointer shadow-sm border border-slate-100 hover:shadow-lg hover:border-[#A0D284] transition-all group"
+          >
+            <div className="bg-[#F0FDF4] p-5 rounded-full mb-4 group-hover:scale-110 transition-transform duration-300">
+              <Gift size={40} className="text-green-600" strokeWidth={2} />
+            </div>
+            <h1 className="font-bold text-slate-800 text-base md:text-lg">Bonus Loan</h1>
+          </Link>
+
+          <Link
+            to="/membership_form"
+            className="bg-white h-48 w-full sm:w-48 md:h-56 md:w-56 rounded-2xl flex flex-col items-center justify-center cursor-pointer shadow-sm border border-slate-100 hover:shadow-lg hover:border-[#A0D284] transition-all group"
+          >
+            <div className="bg-[#F0FDF4] p-5 rounded-full mb-4 group-hover:scale-110 transition-transform duration-300">
+              <Library size={40} className="text-green-600" strokeWidth={2} />
+            </div>
+            <h1 className="font-bold text-slate-800 text-base md:text-lg">Apply for Membership</h1>
+          </Link>
         </div>
-  )
-} 
+      </main>
+    </div>
+  );
+};
 
 export default Non_Member;

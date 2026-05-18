@@ -13,7 +13,7 @@ const Loan_Kiosk = () => {
   const ApplicantCard = ({ to, Icon, label, iconColor, bgClass }) => (
     <Link
       to={to}
-      className="bg-white h-56 w-56 rounded-2xl flex flex-col items-center justify-center cursor-pointer shadow-sm border border-slate-100 hover:shadow-lg hover:border-[#A0D284] transition-all group"
+      className="bg-white h-48 w-full sm:w-48 md:h-56 md:w-56 rounded-2xl flex flex-col items-center justify-center cursor-pointer shadow-sm border border-slate-100 hover:shadow-lg hover:border-[#A0D284] transition-all group"
     >
       <div className={`${bgClass} p-5 rounded-full mb-4 group-hover:scale-110 transition-transform duration-300`}>
         <Icon size={40} color={iconColor} strokeWidth={2} />
@@ -38,7 +38,7 @@ const Loan_Kiosk = () => {
            
         </header>
 
-      <main className="flex justify-center items-center flex-col flex-grow py-10 px-4 text-center">
+      <main className="flex justify-center items-center flex-col grow py-10 px-4 text-center">
         <img src="/img/ttmpc logo.png" className="w-auto h-32 mb-4" alt="Kiosk Logo"/>
         <h1 className="text-sm font-semibold text-slate-500 uppercase tracking-widest">Loan Application Kiosk</h1>
         
