@@ -3,6 +3,7 @@ import { useNavigate, NavLink } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
 import { useNotification } from "../../contex/NotificationContext";
 import { PortalSidebarIdentity, PortalTopbarIdentity } from "../../components/PortalIdentity";
+import LoanDemandForecastCard from "../../components/LoanDemandForecastCard";
 import { 
   LayoutDashboard, 
   Users, 
@@ -338,6 +339,10 @@ const Treasurer_Dashboard = () => {
                 <button className="px-3 py-1 border border-gray-200 rounded-md hover:bg-gray-50 text-gray-600">Next</button>
               </div>
             </div>
+          </div>
+
+          <div className="mt-8">
+            <LoanDemandForecastCard defaultLoanType="consolidated" periods={12} />
           </div>
 
         </main>
