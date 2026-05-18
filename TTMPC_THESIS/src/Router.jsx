@@ -65,7 +65,6 @@ import Cashier_CBU_Deposit from "./Cashier/Components/Cashier_CBU_Deposit";
 import Cashier_Withdrawals from "./Cashier/Components/Cashier_Withdrawals";
 import Cashier_Payments from "./Cashier/Components/Cashier_Payments";
 import Cashier_Disbursement from "./Cashier/Components/Cashier_Disbursement";
-import Cashier_Membership_Payments from "./Cashier/Components/Cashier_Membership_Payments";
 import Manage_Member from "./Bookkeeper/Components/Manage-Member";
 import Manager_Manage_Member from "./Manager/Components/Manage-Member";
 import Savings_Forms from "./LOANFORMS/Savings_Forms";
@@ -151,7 +150,6 @@ export const router = createBrowserRouter([
     {path: "/Cashier_CBU_Deposit/:memberId", element:<Cashier_CBU_Deposit/>},
     {path: "/Cashier_Withdrawals", element:<Cashier_Withdrawals/>},
     {path: "/Cashier_Payments", element:<Cashier_Payments/>},
-    {path: "/Cashier_Membership_Payments", element:<Cashier_Membership_Payments/>},
     {path: "/Cashier_Disbursement", element:<Cashier_Disbursement/>},
     {path: "/capital-build-up", element:<Cashier_CBU/>},
     {path: "/withdrawals", element:<Cashier_Withdrawals/>},
