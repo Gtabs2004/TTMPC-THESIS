@@ -568,7 +568,8 @@ const MemberDashboard = () => {
               return (
                 <NavLink
                   key={item.name}
-                  to={to}                  onClick={() => setIsSidebarOpen(false)}                  className={({ isActive }) =>
+                  to={to}
+                  className={({ isActive }) =>
                     `flex items-center gap-3 p-2.5 rounded-lg transition-colors ${
                       isActive
                         ? 'bg-[#EAF1EB] text-[#1D6021] font-bold'
@@ -597,9 +598,9 @@ const MemberDashboard = () => {
       </aside>
    
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col lg:pl-0 min-h-0">
+      <div className="flex-1 flex flex-col overflow-hidden lg:pl-0">
         {/* Header */}
-        <header className="bg-white h-16 shadow-sm flex items-center justify-between px-4 sm:px-6 lg:px-8 z-10 border-b border-gray-100 flex-shrink-0">
+        <header className="bg-white h-16 shadow-sm flex items-center justify-between px-4 sm:px-6 lg:px-8 z-10">
           <div className="flex items-center gap-2 sm:gap-3">
             <button
               aria-label="Open sidebar"
@@ -641,7 +642,7 @@ const MemberDashboard = () => {
         </header>
    
         {/* Scrollable Main */}
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 pb-8 animate-fade-in-up">
+        <main className="p-4 sm:p-6 lg:p-8 overflow-y-auto pb-28 lg:pb-0">
           <h1 className="hidden lg:block font-extrabold text-[#1a4a2f] text-2xl mb-6">Dashboard</h1>
 
           {isTemporaryAccount ? (
@@ -815,33 +816,33 @@ const MemberDashboard = () => {
               </div>
               
               <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-                <div className="overflow-x-auto rounded-b-2xl">
-                <table className="w-full text-left border-collapse text-xs sm:text-sm">
+                <div className="overflow-x-auto">
+                <table className="w-full min-w-[640px] text-left border-collapse">
                   <thead>
-                    <tr className="border-b border-gray-100 text-[9px] sm:text-[10px] uppercase tracking-wider text-white font-bold bg-[#66B53B]">
-                      <th className="px-3 sm:px-4 md:px-6 py-3 sm:py-4">Date</th>
-                      <th className="px-3 sm:px-4 md:px-6 py-3 sm:py-4">Description</th>
-                      <th className="hidden sm:table-cell px-3 sm:px-4 md:px-6 py-3 sm:py-4">Category</th>
-                      <th className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 text-right">Amount</th>
+                    <tr className="border-b border-gray-100 text-[10px] uppercase tracking-wider text-white font-bold bg-[#66B53B]">
+                      <th className="px-6 py-4">Date</th>
+                      <th className="px-6 py-4">Description</th>
+                      <th className="px-6 py-4">Category</th>
+                      <th className="px-6 py-4 text-right">Amount</th>
                     </tr>
                   </thead>
                   <tbody>
                     {recentTransactions.length ? recentTransactions.map((tx) => (
                       <tr key={tx.id} className="table-row-enter border-b border-gray-50 hover:bg-green-50 transition-colors last:border-0">
-                        <td className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 text-[10px] sm:text-xs text-gray-500 font-medium whitespace-nowrap">{tx.date}</td>
-                        <td className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 text-xs sm:text-sm font-bold text-gray-800 truncate">{tx.desc}</td>
-                        <td className="hidden sm:table-cell px-3 sm:px-4 md:px-6 py-3 sm:py-4">
-                          <span className={`badge-animated px-2 py-1 rounded text-[8px] sm:text-[9px] font-extrabold tracking-wider whitespace-nowrap ${getCategoryStyle(tx.type)}`}>
+                        <td className="px-6 py-4 text-xs text-gray-500 font-medium">{tx.date}</td>
+                        <td className="px-6 py-4 text-sm font-bold text-gray-800">{tx.desc}</td>
+                        <td className="px-6 py-4">
+                          <span className={`badge-animated px-2 py-1 rounded text-[9px] font-extrabold tracking-wider ${getCategoryStyle(tx.type)}`}>
                             {tx.category}
                           </span>
                         </td>
-                        <td className={`px-3 sm:px-4 md:px-6 py-3 sm:py-4 text-xs sm:text-sm font-bold text-right whitespace-nowrap ${tx.highlight ? 'text-[#1D6021]' : 'text-gray-900'}`}>
+                        <td className={`px-6 py-4 text-sm font-bold text-right ${tx.highlight ? 'text-[#1D6021]' : 'text-gray-900'}`}>
                           {tx.amount}
                         </td>
                       </tr>
                     )) : (
                       <tr>
-                        <td colSpan={4} className="p-3 sm:p-4 md:p-6 text-xs sm:text-sm text-gray-500 text-center">No transactions yet.</td>
+                        <td colSpan={4} className="p-6 text-sm text-gray-500 text-center">No transactions yet.</td>
                       </tr>
                     )}
                   </tbody>
