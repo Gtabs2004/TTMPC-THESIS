@@ -17,7 +17,8 @@ import {
   BookOpen,
   Calendar,
   Download,
-  ChevronLeft
+  ChevronLeft,
+  UserPlus,
 } from 'lucide-react';
 import logo from "../../assets/img/ttmpc logo.png";
 
@@ -44,6 +45,7 @@ const Cashier_Grocery = () => {
     { name: "Dashboard", icon: LayoutDashboard, path: "/Cashier_Dashboard" },
     { name: "Payments", icon: Banknote, path: "/Cashier_Payments" },
     { name: "Disbursement", icon: Banknote, path: "/Cashier_Disbursement" },
+    { name: "Membership Payments", icon: UserPlus, path: "/Cashier_MembershipPayments" },
     {
       name: "Deposits",
       icon: Banknote,

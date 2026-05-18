@@ -4,7 +4,7 @@ import io
 import calendar
 from datetime import date, datetime, timedelta
 from decimal import Decimal, ROUND_HALF_UP
-from typing import Annotated, Literal, Union
+from typing import Annotated, Any, Literal, Union
 from fastapi import FastAPI, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, model_validator
@@ -3818,6 +3818,31 @@ async def login(user_data: LoginRequest):
 
 @app.post("/api/confirm-membership")
 async def confirm_membership_endpoint(payload: MembershipConfirmationRequest):
+    # Payment-status gate — applicant must have paid membership fee and met paid-up capital
+    # before final approval. The `force` flag (BOD override) skips this gate.
+    if not payload.force:
+        try:
+            summary = _get_application_payment_summary(payload.application_id)
+        except Exception:
+            summary = None
+        if summary:
+            missing = []
+            if not summary.get("membership_fee_paid"):
+                missing.append(
+                    f"Membership Fee (₱{summary.get('required_membership_fee', 100):,.2f}) is unpaid."
+                )
+            if not summary.get("paid_up_capital_satisfied"):
+                paid = summary.get("paid_up_capital_amount") or 0
+                req = summary.get("required_paid_up_capital") or 10000
+                missing.append(
+                    f"Initial Paid-Up Capital is insufficient (₱{paid:,.2f} / ₱{req:,.2f})."
+                )
+            if missing:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Cannot approve: " + " ".join(missing)
+                )
+
     try:
         result = confirm_membership(
             payload.application_id,
@@ -3825,11 +3850,99 @@ async def confirm_membership_endpoint(payload: MembershipConfirmationRequest):
             force=payload.force,
             send_email=payload.send_email,
         )
-        return {"success": True, "data": result}
     except MembershipConfirmationError as err:
         raise HTTPException(status_code=400, detail=str(err))
     except Exception as err:
         raise HTTPException(status_code=500, detail=f"Membership confirmation failed: {err}")
+
+    # Seed capital_build_up with the initial paid-up capital that was already
+    # collected via membership_payments. Idempotent — skips if a row already exists.
+    try:
+        _seed_initial_capital_build_up(payload.application_id, result)
+    except Exception as seed_err:
+        # Non-fatal: log to response so the BOD knows seeding failed but the member exists.
+        if isinstance(result, dict):
+            result["capital_build_up_seed_warning"] = str(seed_err)
+
+    return {"success": True, "data": result}
+
+
+def _seed_initial_capital_build_up(application_id: str, confirm_result: Any) -> None:
+    """Insert the first capital_build_up row using the applicant's INITIAL_PAID_UP_CAPITAL
+    payment. Looks up the newly-minted member.id from the confirm_membership result.
+    Safe to call multiple times — does nothing if a row already exists or no payment
+    record was found."""
+    if not supabase:
+        return
+
+    member_uuid = None
+    if isinstance(confirm_result, dict):
+        member_uuid = (
+            confirm_result.get("member_id")
+            or confirm_result.get("id")
+            or (confirm_result.get("member") or {}).get("id")
+        )
+
+    if not member_uuid:
+        return
+
+    # Already seeded?
+    try:
+        existing = (
+            supabase.table("capital_build_up")
+            .select("id")
+            .eq("member_id", member_uuid)
+            .eq("deposit_account", "INITIAL_PAID_UP_CAPITAL")
+            .limit(1)
+            .execute()
+        )
+        if existing.data:
+            return
+    except Exception:
+        pass
+
+    # Read the paid-up capital payment record
+    try:
+        payment_resp = (
+            supabase.table("membership_payments")
+            .select("amount, payment_date, payment_id")
+            .eq("application_id", application_id)
+            .eq("payment_type", "INITIAL_PAID_UP_CAPITAL")
+            .eq("payment_status", "paid")
+            .order("payment_date", desc=True)
+            .limit(1)
+            .execute()
+        )
+    except Exception:
+        return
+
+    payment_row = (payment_resp.data or [None])[0]
+    if not payment_row:
+        return
+
+    try:
+        amount = Decimal(str(payment_row.get("amount") or 0))
+    except Exception:
+        amount = Decimal("0")
+    if amount <= 0:
+        return
+
+    insert_payload = {
+        "member_id": member_uuid,
+        "transaction_date": payment_row.get("payment_date") or datetime.utcnow().isoformat(),
+        "starting_share_capital": 0,
+        "capital_added": float(amount),
+        "deposit_account": "INITIAL_PAID_UP_CAPITAL",
+        "ending_share_capital": float(amount),
+    }
+    try:
+        supabase.table("capital_build_up").insert(insert_payload).execute()
+    except Exception:
+        # Trigger may auto-assign cbu_deposit_id; try once more without the column
+        try:
+            supabase.table("capital_build_up").insert(insert_payload).execute()
+        except Exception:
+            pass
 
 
 @app.post("/api/confirm-membership/batch")
@@ -4397,3 +4510,353 @@ async def predict_loan_risk(payload: RiskPredictRequest):
     )
     saved = (upsert_resp.data or [insert_row])[0]
     return {"cached": False, **saved, "risk_label": result["risk_label"]}
+
+
+# =============================================================================
+# Membership Payments Module
+# =============================================================================
+# Scalable table for membership-related fees. Currently records the ₱100
+# Membership Fee for applicants. The paid-up capital (₱10,000) continues to
+# be tracked by personal_data_sheet.initial_paid_up_capital / capital_build_up.
+
+MEMBERSHIP_FEE_AMOUNT = Decimal("100")
+INITIAL_PAID_UP_CAPITAL_REQUIRED = Decimal("10000")
+
+
+class MembershipPaymentCreateRequest(BaseModel):
+    application_id: str
+    payment_type: Literal["MEMBERSHIP_FEE", "INITIAL_PAID_UP_CAPITAL"] = "MEMBERSHIP_FEE"
+    amount: Decimal | None = None
+    payment_method: Literal["cash", "gcash", "bank_transfer", "check", "other"] = "cash"
+    reference_number: str | None = None
+    processed_by: str | None = None
+    processed_by_name: str | None = None
+    notes: str | None = None
+
+
+def _next_membership_payment_sequence() -> int:
+    try:
+        resp = supabase.table("membership_payments").select("id").execute()
+        return len(resp.data or []) + 1
+    except Exception:
+        return 1
+
+
+def _get_application_payment_summary(application_id: str) -> dict:
+    """Aggregate verification flags for the BOD approval gate."""
+    clean_id = str(application_id or "").strip()
+    empty_response = {
+        "application_id": None,
+        "membership_fee_paid": False,
+        "membership_fee_payment": None,
+        "paid_up_capital_paid": False,
+        "paid_up_capital_payment": None,
+        "paid_up_capital_amount": 0.0,
+        "paid_up_capital_satisfied": False,
+        "required_paid_up_capital": float(INITIAL_PAID_UP_CAPITAL_REQUIRED),
+        "required_membership_fee": float(MEMBERSHIP_FEE_AMOUNT),
+    }
+    if not clean_id:
+        return empty_response
+
+    def _latest_paid_payment(payment_type: str):
+        try:
+            resp = (
+                supabase.table("membership_payments")
+                .select("*")
+                .eq("application_id", clean_id)
+                .eq("payment_type", payment_type)
+                .eq("payment_status", "paid")
+                .order("payment_date", desc=True)
+                .limit(1)
+                .execute()
+            )
+            return (resp.data or [None])[0]
+        except Exception:
+            return None
+
+    # 1) Membership fee
+    fee_payment = _latest_paid_payment("MEMBERSHIP_FEE")
+    fee_paid = fee_payment is not None
+
+    # 2) Initial paid-up capital — primary source is a membership_payments record.
+    paid_up_payment = _latest_paid_payment("INITIAL_PAID_UP_CAPITAL")
+    paid_up_amount = Decimal("0")
+    if paid_up_payment is not None:
+        try:
+            paid_up_amount = Decimal(str(paid_up_payment.get("amount") or 0))
+        except Exception:
+            paid_up_amount = Decimal("0")
+
+    # Fallback to personal_data_sheet.initial_paid_up_capital for legacy applicants
+    if paid_up_amount <= 0:
+        try:
+            try:
+                app_resp = (
+                    supabase.table("member_applications")
+                    .select("application_id, tin_number, membership_id")
+                    .eq("application_id", clean_id)
+                    .limit(1)
+                    .execute()
+                )
+            except Exception:
+                app_resp = (
+                    supabase.table("member_applications")
+                    .select("application_id, tin_number")
+                    .eq("application_id", clean_id)
+                    .limit(1)
+                    .execute()
+                )
+            app_row = (app_resp.data or [{}])[0]
+            tin = str(app_row.get("tin_number") or "").strip()
+            mem_no = str(app_row.get("membership_id") or "").strip()
+            for lookup_key, lookup_value in (("tin_number", tin), ("membership_number_id", mem_no)):
+                if paid_up_amount > 0 or not lookup_value:
+                    continue
+                try:
+                    pds = (
+                        supabase.table("personal_data_sheet")
+                        .select("initial_paid_up_capital")
+                        .eq(lookup_key, lookup_value)
+                        .order("created_at", desc=True)
+                        .limit(1)
+                        .execute()
+                    )
+                    if pds.data:
+                        v = pds.data[0].get("initial_paid_up_capital")
+                        if v is not None:
+                            paid_up_amount = Decimal(str(v))
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+    paid_up_ok = paid_up_amount >= INITIAL_PAID_UP_CAPITAL_REQUIRED
+
+    return {
+        "application_id": clean_id,
+        "membership_fee_paid": fee_paid,
+        "membership_fee_payment": fee_payment,
+        "paid_up_capital_paid": paid_up_payment is not None,
+        "paid_up_capital_payment": paid_up_payment,
+        "paid_up_capital_amount": float(paid_up_amount),
+        "paid_up_capital_satisfied": paid_up_ok,
+        "required_paid_up_capital": float(INITIAL_PAID_UP_CAPITAL_REQUIRED),
+        "required_membership_fee": float(MEMBERSHIP_FEE_AMOUNT),
+    }
+
+
+@app.get("/api/cashier/membership-payments/applicants")
+async def list_membership_applicants():
+    """List applicants eligible to be charged the membership fee.
+    Includes their current membership-payment status for the table UI."""
+    if not supabase:
+        raise HTTPException(status_code=503, detail="Supabase client is not configured.")
+    try:
+        apps_resp = (
+            supabase.table("member_applications")
+            .select(
+                "application_id, surname, first_name, middle_name, email, contact_number, "
+                "application_status, attendance_status, created_at"
+            )
+            .order("created_at", desc=True)
+            .limit(500)
+            .execute()
+        )
+        rows = apps_resp.data or []
+
+        eligible_statuses = {"pending", "training", "1st training", "first training", "for revision"}
+        filtered = [
+            row for row in rows
+            if str(row.get("application_status") or "").strip().lower() in eligible_statuses
+        ]
+
+        results = []
+        for row in filtered:
+            app_id = row.get("application_id")
+            summary = _get_application_payment_summary(app_id) if app_id else {}
+            full_name = " ".join(
+                part for part in [
+                    row.get("first_name"),
+                    row.get("middle_name"),
+                    row.get("surname"),
+                ] if part
+            ).strip() or "Unknown Applicant"
+            results.append({
+                "application_id": app_id,
+                "full_name": full_name,
+                "email": row.get("email"),
+                "contact_number": row.get("contact_number"),
+                "application_status": row.get("application_status"),
+                "submitted_at": row.get("created_at"),
+                "membership_fee_paid": summary.get("membership_fee_paid", False),
+                "membership_fee_payment": summary.get("membership_fee_payment"),
+                "paid_up_capital_paid": summary.get("paid_up_capital_paid", False),
+                "paid_up_capital_payment": summary.get("paid_up_capital_payment"),
+                "paid_up_capital_amount": summary.get("paid_up_capital_amount", 0),
+                "paid_up_capital_satisfied": summary.get("paid_up_capital_satisfied", False),
+            })
+
+        return {"success": True, "data": results}
+    except Exception as err:
+        raise HTTPException(status_code=500, detail=f"Failed to list applicants: {err}")
+
+
+@app.post("/api/cashier/membership-payments")
+async def create_membership_payment(payload: MembershipPaymentCreateRequest):
+    """Record a membership-fee payment for an applicant."""
+    if not supabase:
+        raise HTTPException(status_code=503, detail="Supabase client is not configured.")
+
+    # Verify the applicant exists and is still eligible
+    try:
+        app_resp = (
+            supabase.table("member_applications")
+            .select("application_id, surname, first_name, application_status, membership_id, tin_number")
+            .eq("application_id", payload.application_id)
+            .limit(1)
+            .execute()
+        )
+    except Exception as err:
+        raise HTTPException(status_code=500, detail=f"Failed to load applicant: {err}")
+
+    rows = app_resp.data or []
+    if not rows:
+        raise HTTPException(status_code=404, detail="Applicant not found.")
+    application = rows[0]
+
+    status_value = str(application.get("application_status") or "").strip().lower()
+    if status_value in {"member", "official member", "approved", "rejected"}:
+        raise HTTPException(
+            status_code=400,
+            detail="Applicant is no longer eligible (already approved or rejected)."
+        )
+
+    # Reject duplicate paid payment for the same application + type
+    summary = _get_application_payment_summary(payload.application_id)
+    if payload.payment_type == "MEMBERSHIP_FEE" and summary.get("membership_fee_paid"):
+        raise HTTPException(
+            status_code=400,
+            detail="Membership fee has already been recorded for this applicant."
+        )
+    if payload.payment_type == "INITIAL_PAID_UP_CAPITAL" and summary.get("paid_up_capital_paid"):
+        raise HTTPException(
+            status_code=400,
+            detail="Initial Paid-Up Capital has already been recorded for this applicant."
+        )
+
+    # Default amount by type
+    if payload.amount is None:
+        amount = (
+            INITIAL_PAID_UP_CAPITAL_REQUIRED
+            if payload.payment_type == "INITIAL_PAID_UP_CAPITAL"
+            else MEMBERSHIP_FEE_AMOUNT
+        )
+    else:
+        amount = Decimal(payload.amount)
+    if amount <= 0:
+        raise HTTPException(status_code=400, detail="Amount must be greater than zero.")
+    if payload.payment_type == "INITIAL_PAID_UP_CAPITAL" and amount < INITIAL_PAID_UP_CAPITAL_REQUIRED:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Initial Paid-Up Capital must be at least ₱{INITIAL_PAID_UP_CAPITAL_REQUIRED:,.2f}.",
+        )
+
+    # Build payment_id (TTMPCMF-### or TTMPCPC-### sequence)
+    prefix = "TTMPCPC-" if payload.payment_type == "INITIAL_PAID_UP_CAPITAL" else "TTMPCMF-"
+    payment_id = build_sequence_id(prefix, _next_membership_payment_sequence())
+
+    insert_row = {
+        "payment_id": payment_id,
+        "application_id": payload.application_id,
+        "membership_number_id": application.get("membership_id"),
+        "payment_type": payload.payment_type,
+        "amount": float(amount),
+        "payment_status": "paid",
+        "payment_method": payload.payment_method,
+        "reference_number": (payload.reference_number or "").strip() or None,
+        "processed_by": payload.processed_by,
+        "processed_by_name": (payload.processed_by_name or "").strip() or None,
+        "notes": (payload.notes or "").strip() or None,
+    }
+
+    try:
+        insert_resp = (
+            supabase.table("membership_payments")
+            .insert(insert_row)
+            .execute()
+        )
+    except Exception as err:
+        raise HTTPException(status_code=500, detail=f"Failed to record payment: {err}")
+
+    saved = (insert_resp.data or [insert_row])[0]
+    return {"success": True, "message": "Membership fee recorded successfully.", "data": saved}
+
+
+@app.get("/api/cashier/membership-payments")
+async def list_membership_payments(
+    status: str | None = None,
+    payment_type: str | None = None,
+    search: str | None = None,
+):
+    """List all membership-payment transactions for the table view."""
+    if not supabase:
+        raise HTTPException(status_code=503, detail="Supabase client is not configured.")
+    try:
+        q = supabase.table("membership_payments").select("*").order("payment_date", desc=True).limit(500)
+        if status:
+            q = q.eq("payment_status", status)
+        if payment_type:
+            q = q.eq("payment_type", payment_type)
+        resp = q.execute()
+        rows = resp.data or []
+
+        # Enrich with applicant name (read each application once, by id)
+        app_ids = {row.get("application_id") for row in rows if row.get("application_id")}
+        applicant_lookup: dict[str, dict] = {}
+        if app_ids:
+            try:
+                apps_resp = (
+                    supabase.table("member_applications")
+                    .select("application_id, surname, first_name, middle_name")
+                    .in_("application_id", list(app_ids))
+                    .execute()
+                )
+                for row in (apps_resp.data or []):
+                    applicant_lookup[row.get("application_id")] = row
+            except Exception:
+                pass
+
+        results = []
+        for row in rows:
+            app = applicant_lookup.get(row.get("application_id")) or {}
+            full_name = " ".join(
+                part for part in [
+                    app.get("first_name"),
+                    app.get("middle_name"),
+                    app.get("surname"),
+                ] if part
+            ).strip()
+            results.append({**row, "applicant_name": full_name or "Unknown Applicant"})
+
+        if search:
+            needle = search.strip().lower()
+            results = [
+                r for r in results
+                if needle in str(r.get("applicant_name") or "").lower()
+                or needle in str(r.get("payment_id") or "").lower()
+                or needle in str(r.get("reference_number") or "").lower()
+            ]
+
+        return {"success": True, "data": results}
+    except Exception as err:
+        raise HTTPException(status_code=500, detail=f"Failed to list payments: {err}")
+
+
+@app.get("/api/bod/membership-approval/{application_id}/payment-status")
+async def bod_get_payment_status(application_id: str):
+    """Verification summary used by the BOD approval gate."""
+    if not supabase:
+        raise HTTPException(status_code=503, detail="Supabase client is not configured.")
+    summary = _get_application_payment_summary(application_id)
+    return {"success": True, "data": summary}

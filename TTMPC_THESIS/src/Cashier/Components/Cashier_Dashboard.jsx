@@ -13,6 +13,7 @@ import {
   FileText,
   ArrowUpRight,
   Users,
+  UserPlus,
 } from "lucide-react";
 import {
   AreaChart,
@@ -64,6 +65,7 @@ const Cashier_Dashboard = () => {
     { name: "Dashboard", icon: LayoutDashboard, path: "/Cashier_Dashboard" },
     { name: "Payments", icon: Banknote, path: "/Cashier_Payments" },
     { name: "Disbursement", icon: Banknote, path: "/Cashier_Disbursement" },
+    { name: "Membership Payments", icon: UserPlus, path: "/Cashier_MembershipPayments" },
     {
       name: "Deposits",
       icon: Banknote,
