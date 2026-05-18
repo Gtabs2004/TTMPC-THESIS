@@ -750,7 +750,7 @@ const MemberDashboard = () => {
           </div>
 
           {/* Balances Section */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 sm:gap-6 mb-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-2 gap-4 sm:gap-6 mb-8">
             {/* Share Capital */}
             <div className="bg-white p-5 sm:p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col">
               <div className="w-8 h-8 rounded-lg bg-[#EAF1EB] flex items-center justify-center mb-4">
@@ -775,32 +775,7 @@ const MemberDashboard = () => {
               </p>
             </div>
 
-            {/* Active Loan Balance */}
-            <div className="bg-white p-5 sm:p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col">
-              <div className="w-8 h-8 rounded-lg bg-red-50 flex items-center justify-center mb-4">
-                <CreditCard className="w-4 h-4 text-red-500" />
-              </div>
-              <p className="text-xs font-bold text-gray-500 mb-1">Active Loan Balance</p>
-              <h3 className="text-xl sm:text-2xl font-black text-gray-900 mb-2">{formatCurrency(activeLoanBalance)}</h3>
-              <p className="text-[10px] font-semibold text-gray-400 mt-auto">
-                {activeLoans.length ? `${activeLoans.length} active loan(s)` : 'No active loans'}
-              </p>
-            </div>
-
-            {/* Next Payment (Green Card) */}
-            <div className="bg-[#2C7A3F] p-5 sm:p-6 rounded-2xl shadow-sm flex flex-col text-white relative overflow-hidden">
-              <div className="absolute top-6 right-6 bg-white/20 px-2 py-1 rounded text-[9px] font-bold tracking-wider uppercase">
-                {daysUntilNextDue === null ? 'No due date' : `Due in ${daysUntilNextDue} day${daysUntilNextDue === 1 ? '' : 's'}`}
-              </div>
-              <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center mb-4 backdrop-blur-sm">
-                <Calendar className="w-4 h-4 text-white" />
-              </div>
-              <p className="text-xs font-semibold text-green-100 mb-1">Next Payment</p>
-              <h3 className="text-xl sm:text-2xl font-black mb-2">{formatCurrency(nextPaymentAmount)}</h3>
-              <p className="text-[10px] font-medium text-green-100 mt-auto">
-                Due on: {nextPaymentDate}
-              </p>
-            </div>
+            {/* Active Loan Balance and Next Payment removed per request. */}
           </div>
 
           {/* Bottom Section: Transactions & Activity */}

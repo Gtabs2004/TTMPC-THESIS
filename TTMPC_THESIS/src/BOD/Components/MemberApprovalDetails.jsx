@@ -23,6 +23,13 @@ const MemberApprovalDetails = () => {
   const [actionError, setActionError] = useState('');
   const [notifying, setNotifying] = useState(false);
   const [notifyMessage, setNotifyMessage] = useState('');
+  const [requirements, setRequirements] = useState({
+    loading: true,
+    attendanceVerified: false,
+    paidUpVerified: false,
+    paidUpPayment: null,
+    error: '',
+  });
   const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000';
 
   useEffect(() => {
@@ -49,6 +56,43 @@ const MemberApprovalDetails = () => {
 
     fetchMemberDetails();
   }, [id]);
+
+  useEffect(() => {
+    const fetchRequirements = async () => {
+      if (!memberRow?.application_id) return;
+      setRequirements((prev) => ({ ...prev, loading: true, error: '' }));
+
+      try {
+        const response = await fetch(
+          `${apiBaseUrl}/api/membership-approval/requirements/${encodeURIComponent(memberRow.application_id)}`,
+          { method: 'GET', headers: { Accept: 'application/json' } }
+        );
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok || !result?.success) {
+          throw new Error(result?.detail || 'Unable to load approval requirements.');
+        }
+
+        const data = result?.data || {};
+        setRequirements({
+          loading: false,
+          attendanceVerified: Boolean(data.attendance_verified),
+          paidUpVerified: Boolean(data.paid_up_capital_verified),
+          paidUpPayment: data.paid_up_payment || null,
+          error: '',
+        });
+      } catch (error) {
+        setRequirements({
+          loading: false,
+          attendanceVerified: false,
+          paidUpVerified: false,
+          paidUpPayment: null,
+          error: error.message || 'Unable to load approval requirements.',
+        });
+      }
+    };
+
+    fetchRequirements();
+  }, [apiBaseUrl, memberRow]);
 
   const formatDate = (value) => {
     if (!value) return '-';
@@ -195,6 +239,14 @@ const MemberApprovalDetails = () => {
     }
 
     if (nextStatus === 'Official Member') {
+      if (!requirements.attendanceVerified) {
+        setActionError('Attendance requirement is not verified.');
+        return;
+      }
+      if (!requirements.paidUpVerified) {
+        setActionError('Initial Paid-Up Capital (₱10,000) is not verified.');
+        return;
+      }
       setSaving(true);
       setActionError('');
       setNotifying(true);
@@ -389,6 +441,46 @@ const MemberApprovalDetails = () => {
         </button>
       </div>
 
+      {/* --- APPROVAL REQUIREMENTS --- */}
+      <SectionCard icon={Award} title="Approval Requirements">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="flex items-center justify-between rounded-lg border border-gray-100 px-4 py-3">
+            <div>
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Attendance Requirement</p>
+              <p className="text-sm font-semibold text-gray-900">Training attendance logged</p>
+            </div>
+            <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${
+              requirements.attendanceVerified ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-600'
+            }`}>
+              {requirements.loading ? 'Checking' : requirements.attendanceVerified ? 'Verified' : 'Pending'}
+            </span>
+          </div>
+
+          <div className="flex items-center justify-between rounded-lg border border-gray-100 px-4 py-3">
+            <div>
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Initial Paid-Up Capital</p>
+              <p className="text-sm font-semibold text-gray-900">₱10,000 required</p>
+              {requirements.paidUpPayment && (
+                <p className="text-xs text-gray-500 mt-1">
+                  Ref: {requirements.paidUpPayment.reference_number || 'N/A'} • {requirements.paidUpPayment.payment_method || 'Cash'}
+                </p>
+              )}
+            </div>
+            <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${
+              requirements.paidUpVerified ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-600'
+            }`}>
+              {requirements.loading ? 'Checking' : requirements.paidUpVerified ? 'Verified' : 'Pending'}
+            </span>
+          </div>
+        </div>
+
+        {requirements.error && (
+          <div className="mt-4 rounded-lg border border-orange-200 bg-orange-50 px-4 py-3 text-sm text-orange-700">
+            {requirements.error}
+          </div>
+        )}
+      </SectionCard>
+
       {/* --- PERSONAL INFORMATION --- */}
       <SectionCard icon={User} title="Personal Information">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-y-8 gap-x-12">
@@ -468,7 +560,7 @@ const MemberApprovalDetails = () => {
         {proceedConfig && (
           <button
             onClick={() => setActiveModal('proceed')}
-            disabled={saving}
+            disabled={saving || requirements.loading || !requirements.attendanceVerified || !requirements.paidUpVerified}
             className="flex items-center text-white bg-[#1a4a2f] hover:bg-[#123622] transition-colors font-bold rounded-lg px-6 py-2.5 text-sm shadow-sm"
           >
             <Check className="w-4 h-4 mr-2" strokeWidth={2.5} /> {proceedConfig.button}
