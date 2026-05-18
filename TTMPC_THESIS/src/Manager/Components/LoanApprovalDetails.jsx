@@ -322,38 +322,41 @@ const LoanApprovalDetails = () => {
           ? (data.full_name || 'Unknown Applicant')
           : (`${firstName} ${lastName}`.trim() || 'Unknown Member');
         const principalAmount = Number(data.principal_amount ?? data.loan_amount ?? 0);
-        const monthlyAmortization = Number(
-          data.monthly_amortization
-          ?? data.raw_payload?.optionalFields?.monthly_amortization
-          ?? 0
-        );
         const termMonths = Number(data.term || 0);
         const resolvedLoanType = isKoicaSource
           ? (data.loan_type_code === 'NONMEMBER_BONUS' ? 'Nonmember Bonus Loan' : 'ABFF Loan')
           : (data.loan_type?.name || 'N/A');
-        let effectiveInterestRate = data.interest_rate;
+        // Always re-resolve from loan_types so stale per-loan snapshots from the
+        // pre-rate-fix era cannot poison the display. Fall back to the snapshot
+        // only if loan_types lookup yields nothing.
+        let effectiveInterestRate = await resolveInterestRateFromLoanTypes(resolvedLoanType, data.loan_type_code);
         if (effectiveInterestRate === null || effectiveInterestRate === undefined) {
-          effectiveInterestRate = await resolveInterestRateFromLoanTypes(resolvedLoanType, data.loan_type_code);
+          effectiveInterestRate = data.interest_rate;
         }
-
-        const hasStoredTotalInterest = data.total_interest !== null && data.total_interest !== undefined;
-        let resolvedTotalInterest = hasStoredTotalInterest
-          ? Number(data.total_interest)
-          : Number(data.raw_payload?.optionalFields?.total_interest ?? NaN);
-
-        if (!Number.isFinite(resolvedTotalInterest)) {
-          if (monthlyAmortization > 0 && termMonths > 0) {
-            resolvedTotalInterest = Math.max(0, (monthlyAmortization * termMonths) - principalAmount);
-          } else if (effectiveInterestRate !== null && principalAmount > 0 && termMonths > 0) {
-            resolvedTotalInterest = Math.max(0, principalAmount * (Number(effectiveInterestRate) / 100) * termMonths);
-          } else {
-            resolvedTotalInterest = 0;
+        // Sanity guard: a TTMPC monthly rate above 5% is almost certainly a
+        // corrupted snapshot (e.g., 8.3 stored when 0.83 was intended).
+        if (Number(effectiveInterestRate) > 5) {
+          const fallback = await resolveInterestRateFromLoanTypes(resolvedLoanType, data.loan_type_code);
+          if (fallback !== null && fallback !== undefined && Number(fallback) <= 5) {
+            effectiveInterestRate = fallback;
           }
         }
 
-        const totalPayable = monthlyAmortization > 0 && termMonths > 0
-          ? monthlyAmortization * termMonths
-          : principalAmount + resolvedTotalInterest;
+        // Always recompute totals from principal + rate + term using add-on simple interest.
+        // The stored monthly_amortization may be stale (loans created under buggy rate values),
+        // so we treat the formula as the source of truth at display time.
+        const monthlyRateDecimal = effectiveInterestRate !== null
+          ? Number(effectiveInterestRate) / 100
+          : 0;
+        const monthlyInterestAmount = principalAmount > 0
+          ? principalAmount * monthlyRateDecimal
+          : 0;
+        const monthlyPrincipalAmount = (principalAmount > 0 && termMonths > 0)
+          ? principalAmount / termMonths
+          : 0;
+        const monthlyAmortization = monthlyInterestAmount + monthlyPrincipalAmount;
+        const resolvedTotalInterest = monthlyInterestAmount * termMonths;
+        const totalPayable = principalAmount + resolvedTotalInterest;
 
         const rawCoMakers = data.raw_payload?.optionalFields?.bookkeeper_loan_details?.coMakers
           ?? data.raw_payload?.coMakers
@@ -389,12 +392,16 @@ const LoanApprovalDetails = () => {
             managerReviewRequestedAt: data.manager_review_requested_at || null,
           },
           computation: {
+            termMonths,
+            term: termMonths > 0 ? `${termMonths} Months` : 'N/A',
             principal: formatCurrency(principalAmount),
             interestRate: effectiveInterestRate !== null
-              ? `${(Number(effectiveInterestRate) / 100).toFixed(3)}% Monthly`
+              ? `${Number(effectiveInterestRate).toFixed(2)}% Monthly`
               : 'N/A',
             totalInterest: formatCurrency(resolvedTotalInterest),
             totalPayable: formatCurrency(totalPayable),
+            monthlyInterestAddOn: formatCurrency(monthlyInterestAmount),
+            monthlyPrincipalPortion: formatCurrency(monthlyPrincipalAmount),
             monthlyAmortization: formatCurrency(monthlyAmortization),
           },
           risk: {
@@ -1136,20 +1143,44 @@ const LoanApprovalDetails = () => {
                 <Calculator className="w-5 h-5 mr-2 text-[#1D6021]" /> Loan Computation Summary
               </h2>
               <div className="bg-[#EAF1EB] rounded-xl p-6">
-                <div className="space-y-4 mb-4">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-600 font-medium">Principal Amount</span>
+                {/* Loan-level rows */}
+                <div className="space-y-2.5 mb-4">
+                  <div className="flex justify-between items-baseline text-sm">
+                    <span className="text-gray-600 font-medium">Term</span>
+                    <span className="font-bold text-gray-800">{loanDetails.computation.term}</span>
+                  </div>
+                  <div className="flex justify-between items-baseline text-sm">
+                    <span className="text-gray-600 font-medium">Principal</span>
                     <span className="font-bold text-gray-800">{loanDetails.computation.principal}</span>
                   </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-600 font-medium">Interest Rate</span>
-                    <span className="font-bold text-gray-800">0.83%</span>
+                  <div className="flex justify-between items-baseline text-sm">
+                    <span className="text-gray-600 font-medium">Total Interest</span>
+                    <span className="font-bold text-gray-800">{loanDetails.computation.totalInterest}</span>
+                  </div>
+                  <div className="flex justify-between items-baseline text-sm border-t border-gray-300/70 pt-2.5">
+                    <span className="text-gray-700 font-semibold">Total Payment</span>
+                    <span className="font-extrabold text-gray-900">{loanDetails.computation.totalPayable}</span>
                   </div>
                 </div>
+
+                {/* Monthly breakdown */}
+                <div className="bg-white/60 rounded-lg p-3 mb-4 space-y-2">
+                  <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Monthly Breakdown</p>
+                  <div className="flex justify-between items-baseline text-sm">
+                    <span className="text-gray-600">Interest (Add-on)</span>
+                    <span className="font-semibold text-gray-800">{loanDetails.computation.monthlyInterestAddOn}</span>
+                  </div>
+                  <div className="flex justify-between items-baseline text-sm">
+                    <span className="text-gray-600">Principal Portion</span>
+                    <span className="font-semibold text-gray-800">{loanDetails.computation.monthlyPrincipalPortion}</span>
+                  </div>
+                </div>
+
+                {/* Headline monthly amortization */}
                 <div className="border-t border-gray-300 pt-4 flex justify-between items-center">
                   <div>
-                    <p className="text-[10px] font-bold text-[#1D6021] uppercase tracking-wider">Payable Per Month</p>
-                    <p className="text-[9px] text-gray-500">Monthly amortization amount</p>
+                    <p className="text-[10px] font-bold text-[#1D6021] uppercase tracking-wider">Monthly Amortization</p>
+                    <p className="text-[9px] text-gray-500">Payable per month</p>
                   </div>
                   <span className="text-2xl font-black text-[#1D6021]">{loanDetails.computation.monthlyAmortization}</span>
                 </div>
