@@ -355,6 +355,7 @@ const Member_Lifecycle = () => {
               <NavLink
                 key={item.name}
                 to={to}
+                onClick={() => setIsSidebarOpen(false)}
                 className={({ isActive }) =>
                   `flex items-center gap-3 p-2.5 rounded-lg transition-colors ${
                     isActive
@@ -382,8 +383,8 @@ const Member_Lifecycle = () => {
         </button>
       </aside>
 
-      <div className="flex-1 flex flex-col overflow-hidden lg:pl-0">
-        <header className="bg-white h-16 shadow-sm flex items-center justify-between px-4 sm:px-6 lg:px-8 z-10 border-b border-gray-100">
+      <div className="flex-1 flex flex-col lg:pl-0 min-h-0">
+        <header className="bg-white h-16 shadow-sm flex items-center justify-between px-4 sm:px-6 lg:px-8 z-10 border-b border-gray-100 flex-shrink-0">
           <div className="flex items-center gap-2 sm:gap-3">
             <button
               aria-label="Open sidebar"
@@ -425,7 +426,7 @@ const Member_Lifecycle = () => {
           </div>
         </header>
 
-        <main className="p-4 sm:p-6 lg:p-8 overflow-y-auto pb-28 lg:pb-0">
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 pb-8 animate-fade-in-up">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6 gap-3">
             <div>
               <h1 className="hidden lg:block font-extrabold text-[#1a4a2f] text-2xl">Loan Lifecycle View</h1>
