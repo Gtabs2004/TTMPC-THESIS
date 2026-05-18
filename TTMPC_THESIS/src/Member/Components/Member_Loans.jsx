@@ -301,8 +301,7 @@ const Member_Loans = () => {
               return (
                 <NavLink
                   key={item.name}
-                  to={to}
-                  className={({ isActive }) =>
+                  to={to}                  onClick={() => setIsSidebarOpen(false)}                  className={({ isActive }) =>
                     `flex items-center gap-3 p-2.5 rounded-lg transition-colors ${
                       isActive
                         ? 'bg-[#EAF1EB] text-[#1D6021] font-bold'
@@ -331,9 +330,9 @@ const Member_Loans = () => {
       </aside>
    
       {/* Main Content */}
-      <div className="flex-1 flex flex-col overflow-hidden lg:pl-0">
+      <div className="flex-1 flex flex-col lg:pl-0 min-h-0">
         {/* Header */}
-        <header className="bg-white h-16 shadow-sm flex items-center justify-between px-4 sm:px-6 lg:px-8 z-10 border-b border-gray-100">
+        <header className="bg-white h-16 shadow-sm flex items-center justify-between px-4 sm:px-6 lg:px-8 z-10 border-b border-gray-100 flex-shrink-0">
           <div className="flex items-center gap-2 sm:gap-3">
             <button
               aria-label="Open sidebar"
@@ -375,7 +374,7 @@ const Member_Loans = () => {
         </header>
    
         {/* Scrollable Page Content */}
-        <main className="p-4 sm:p-6 lg:p-8 overflow-y-auto pb-28 lg:pb-0">
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 pb-8 animate-fade-in-up">
           <h1 className="hidden lg:block font-extrabold text-[#1a4a2f] text-2xl mb-8">Loans</h1>
 
           <div className="mb-6 rounded-xl border border-green-200 bg-green-50 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -453,45 +452,45 @@ const Member_Loans = () => {
                </span>
             </div>
             
-            <div className="overflow-x-auto">
-            <table className="w-full min-w-220 text-left border-collapse">
+            <div className="overflow-x-auto rounded-b-2xl">
+            <table className="w-full text-left border-collapse text-xs sm:text-sm">
               <thead>
-                <tr className="bg-[#66B53B] text-white text-[10px] uppercase tracking-wider font-bold">
-                  <th className="px-6 py-4 font-bold">Loan Type</th>
-                  <th className="px-6 py-4 font-bold">Original Amount</th>
-                  <th className="px-6 py-4 font-bold">Remaining Balance</th>
-                  <th className="px-6 py-4 font-bold">Interest Rate</th>
-                  <th className="px-6 py-4 font-bold">Monthly Payment</th>
-                  <th className="px-6 py-4 font-bold">Next Due</th>
-                  <th className="px-6 py-4 font-bold">Status</th>
+                <tr className="bg-[#66B53B] text-white text-[9px] sm:text-[10px] uppercase tracking-wider font-bold">
+                  <th className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 font-bold">Loan Type</th>
+                  <th className="hidden md:table-cell px-3 sm:px-4 md:px-6 py-3 sm:py-4 font-bold">Original Amount</th>
+                  <th className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 font-bold text-right">Balance</th>
+                  <th className="hidden lg:table-cell px-3 sm:px-4 md:px-6 py-3 sm:py-4 font-bold">Interest Rate</th>
+                  <th className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 font-bold">Monthly</th>
+                  <th className="hidden sm:table-cell px-3 sm:px-4 md:px-6 py-3 sm:py-4 font-bold">Next Due</th>
+                  <th className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 font-bold">Status</th>
                 </tr>
               </thead>
               <tbody>
                 {loadingLoans ? (
                   <tr>
-                    <td colSpan="7" className="p-5 text-sm text-gray-500">Loading loans...</td>
+                    <td colSpan="7" className="p-3 sm:p-4 md:p-5 text-xs sm:text-sm text-gray-500">Loading loans...</td>
                   </tr>
                 ) : loanError ? (
                   <tr>
-                    <td colSpan="7" className="p-5 text-sm text-red-600">{loanError}</td>
+                    <td colSpan="7" className="p-3 sm:p-4 md:p-5 text-xs sm:text-sm text-red-600">{loanError}</td>
                   </tr>
                 ) : loans.length === 0 ? (
                   <tr>
-                    <td colSpan="7" className="p-5 text-sm text-gray-500">No loan records found.</td>
+                    <td colSpan="7" className="p-3 sm:p-4 md:p-5 text-xs sm:text-sm text-gray-500">No loan records found.</td>
                   </tr>
                 ) : loans.map((loan, idx) => (
                   <tr key={idx} className="table-row-enter border-b border-gray-50 hover:bg-green-50 transition-colors last:border-0">
-                    <td className="px-6 py-4">
-                      <p className="text-sm font-bold text-gray-900">{loan.type}</p>
-                      <p className="text-[10px] text-gray-400 font-medium">ID: {loan.id}</p>
+                    <td className="px-3 sm:px-4 md:px-6 py-3 sm:py-4">
+                      <p className="text-xs sm:text-sm font-bold text-gray-900 whitespace-nowrap">{loan.type}</p>
+                      <p className="text-[8px] sm:text-[10px] text-gray-400 font-medium">ID: {loan.id}</p>
                     </td>
-                    <td className="px-6 py-4 text-sm font-bold text-gray-600">{loan.originalAmount}</td>
-                    <td className="px-6 py-4 text-sm font-black text-gray-900">{loan.balance}</td>
-                    <td className="px-6 py-4 text-sm font-bold text-gray-700">{loan.interestRate}</td>
-                    <td className="px-6 py-4 text-sm font-bold text-[#1D6021]">{loan.payment}</td>
-                    <td className="px-6 py-4 text-sm font-medium text-gray-500">{loan.nextDue}</td>
-                    <td className="px-6 py-4">
-                      <span className={`badge-animated px-2.5 py-1 rounded text-[10px] font-extrabold tracking-wider ${
+                    <td className="hidden md:table-cell px-3 sm:px-4 md:px-6 py-3 sm:py-4 text-xs sm:text-sm font-bold text-gray-600 whitespace-nowrap">{loan.originalAmount}</td>
+                    <td className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 text-xs sm:text-sm font-black text-gray-900 text-right whitespace-nowrap">{loan.balance}</td>
+                    <td className="hidden lg:table-cell px-3 sm:px-4 md:px-6 py-3 sm:py-4 text-xs sm:text-sm font-bold text-gray-700 whitespace-nowrap">{loan.interestRate}</td>
+                    <td className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 text-xs sm:text-sm font-bold text-[#1D6021] whitespace-nowrap">{loan.payment}</td>
+                    <td className="hidden sm:table-cell px-3 sm:px-4 md:px-6 py-3 sm:py-4 text-xs sm:text-sm font-medium text-gray-500 whitespace-nowrap">{loan.nextDue}</td>
+                    <td className="px-3 sm:px-4 md:px-6 py-3 sm:py-4">
+                      <span className={`badge-animated px-2 sm:px-2.5 py-1 rounded text-[8px] sm:text-[10px] font-extrabold tracking-wider whitespace-nowrap ${
                         loan.status === 'Active' ? 'bg-[#EAF1EB] text-[#1D6021]' : loan.status === 'Rejected' ? 'bg-red-100 text-red-700' : 'bg-[#FEF08A] text-[#854D0E]'
                       }`}>
                         {loan.status}
