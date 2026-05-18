@@ -346,13 +346,9 @@ def fetch_loan_type_interest_rate_percent(loan_type_code: str | None, loan_type_
         rate_value = Decimal(str(raw_rate))
         if rate_value <= 0:
             return Decimal("0")
-
-        # Backward compatibility: consolidated rates were historically stored as decimal monthly values (e.g., 0.083).
-        row_code = str((row or {}).get("code") or "").strip().upper()
-        effective_code = row_code or fallback_code
-        if effective_code == "CONSOLIDATED" and Decimal("0") < rate_value < Decimal("1"):
-            return rate_value * Decimal("100")
-
+        # The `interest_rate` column stores the monthly rate in PERCENT
+        # (e.g., 0.83 means 0.83%/month → 0.0083 decimal).
+        # Do not auto-scale: a value < 1 is a legitimate sub-1% rate, not a decimal.
         return rate_value
 
     def extract_rate(row: dict | None) -> Decimal | None:
@@ -632,6 +628,33 @@ def build_single_schedule_row(
         "interest_component": decimal_to_float(interest_component),
         "schedule_status": "Unpaid",
     }
+
+
+def sanitize_monthly_rate_percent(
+    stored_rate,
+    loan_type_rate,
+    sanity_max_percent: float = 5.0,
+) -> float:
+    """
+    Return a clean monthly interest rate in PERCENT for display/reporting.
+    Legacy data may hold a corrupted snapshot (e.g., 8.3 stored when 0.83 was
+    intended). If the stored value exceeds the realistic ceiling, fall back to
+    the loan_types row which is the current source of truth.
+    """
+    try:
+        stored = float(stored_rate) if stored_rate is not None else None
+    except (TypeError, ValueError):
+        stored = None
+    try:
+        lt_rate = float(loan_type_rate) if loan_type_rate is not None else None
+    except (TypeError, ValueError):
+        lt_rate = None
+
+    if stored is not None and 0 < stored <= sanity_max_percent:
+        return stored
+    if lt_rate is not None and 0 < lt_rate <= sanity_max_percent:
+        return lt_rate
+    return stored if stored is not None else (lt_rate or 0.0)
 
 
 def resolve_monthly_rate_decimal(
@@ -964,7 +987,8 @@ async def get_cashier_ready_for_disbursement_loans():
             supabase.table("loans")
             .select(
                 "control_number,loan_amount,principal_amount,interest_rate,term,loan_status,application_status,application_date," \
-                "member:member_id(first_name,last_name),loan_type:loan_type_id(name)"
+                "member:member_id(first_name,last_name)," \
+                "loan_type:loan_type_id(name,interest_rate)"
             )
             .order("application_date", desc=True)
             .execute()
@@ -980,14 +1004,19 @@ async def get_cashier_ready_for_disbursement_loans():
         mapped = []
         for row in filtered:
             member = row.get("member") or {}
+            loan_type_row = row.get("loan_type") or {}
+            displayed_rate = sanitize_monthly_rate_percent(
+                row.get("interest_rate"),
+                loan_type_row.get("interest_rate"),
+            )
             mapped.append(
                 {
                     "loan_id": row.get("control_number"),
                     "member_name": f"{member.get('first_name') or ''} {member.get('last_name') or ''}".strip() or "Unknown Member",
-                    "loan_type": (row.get("loan_type") or {}).get("name") or "N/A",
+                    "loan_type": loan_type_row.get("name") or "N/A",
                     "loan_amount": decimal_to_float(row.get("loan_amount") or 0),
                     "principal_amount": decimal_to_float(row.get("principal_amount") or row.get("loan_amount") or 0),
-                    "interest_rate": decimal_to_float(row.get("interest_rate") or 0),
+                    "interest_rate": displayed_rate,
                     "term_months": int(row.get("term") or 0),
                     "loan_status": row.get("loan_status") or "ready for disbursement",
                     "application_status": row.get("application_status") or row.get("loan_status") or "ready for disbursement",
@@ -1034,7 +1063,7 @@ async def get_treasurer_released_loans():
                 "control_number,loan_amount,principal_amount,interest_rate,term,loan_status,application_status," \
                 "application_date,disbursal_date,release_method,released_by,raw_payload," \
                 "member:member_id(membership_id,first_name,last_name,is_bona_fide)," \
-                "loan_type:loan_type_id(name)"
+                "loan_type:loan_type_id(name,interest_rate)"
             )
             .order("disbursal_date", desc=True)
             .execute()
@@ -1048,7 +1077,7 @@ async def get_treasurer_released_loans():
                 "control_number,loan_amount,principal_amount,interest_rate,term,loan_status,application_status," \
                 "application_date,disbursal_date,raw_payload," \
                 "member:member_id(membership_id,first_name,last_name,is_bona_fide)," \
-                "loan_type:loan_type_id(name)"
+                "loan_type:loan_type_id(name,interest_rate)"
             )
             .order("disbursal_date", desc=True)
             .execute()
@@ -1106,7 +1135,10 @@ async def get_treasurer_released_loans():
             "loan_type_raw": loan_type_name,
             "migs": migs,
             "amount": decimal_to_float(amount),
-            "interest_rate": decimal_to_float(row.get("interest_rate") or 0),
+            "interest_rate": sanitize_monthly_rate_percent(
+                row.get("interest_rate"),
+                (row.get("loan_type") or {}).get("interest_rate"),
+            ),
             "term_months": int(row.get("term") or 0),
             "method": row.get("release_method") or "Cash",
             "released_by": row.get("released_by") or "Cashier",
@@ -1492,6 +1524,37 @@ async def disburse_cashier_loan(loan_id: str, payload: CashierDisbursementReques
             )
         has_existing_schedule = bool(existing_schedule_response.data)
 
+        if has_existing_schedule:
+            try:
+                schedules_response = (
+                    supabase.table("loan_schedules")
+                    .select("id,due_date,schedule_status")
+                    .eq("loan_id", clean_loan_id)
+                    .order("due_date")
+                    .execute()
+                )
+                schedules = schedules_response.data or []
+                next_sched = None
+                for sched in schedules:
+                    status = str(sched.get("schedule_status") or "").strip().lower()
+                    if status in {"unpaid", "pending", "overdue", ""}:
+                        next_sched = sched
+                        break
+                if schedules and not next_sched:
+                    next_sched = schedules[0]
+
+                if next_sched:
+                    current_due = parse_date_value(next_sched.get("due_date"))
+                    if not current_due or current_due <= disbursed_at.date():
+                        (
+                            supabase.table("loan_schedules")
+                            .update({"due_date": first_due_date.isoformat()})
+                            .eq("id", next_sched.get("id"))
+                            .execute()
+                        )
+            except Exception:
+                pass
+
         created_schedules = []
         if not has_existing_schedule:
             schedule_count_response = supabase.table("loan_schedules").select("id").execute()
@@ -1713,7 +1776,7 @@ async def get_bookkeeper_manage_loans():
             supabase.table("loans")
             .select(
                 "control_number,loan_amount,principal_amount,interest_rate,term,loan_status,application_status,monthly_amortization,application_date," \
-                "member:member_id(membership_id,first_name,last_name,is_bona_fide),loan_type:loan_type_id(code,name)"
+                "member:member_id(membership_id,first_name,last_name,is_bona_fide),loan_type:loan_type_id(code,name,interest_rate)"
             )
             .order("application_date", desc=True)
             .execute()
@@ -1850,7 +1913,10 @@ async def get_bookkeeper_manage_loans():
                     "loan_type": loan_type_name,
                     "loan_type_code": loan_type_code,
                     "loan_amount": decimal_to_float(principal_amount),
-                    "interest_rate": decimal_to_float(row.get("interest_rate") or 0),
+                    "interest_rate": sanitize_monthly_rate_percent(
+                        row.get("interest_rate"),
+                        (row.get("loan_type") or {}).get("interest_rate"),
+                    ),
                     "term_months": int(row.get("term") or 0),
                     "amortization": decimal_to_float(row.get("monthly_amortization") or 0),
                     "remaining_balance": decimal_to_float(remaining_balance),

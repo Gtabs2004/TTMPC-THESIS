@@ -317,10 +317,12 @@ function Consolidated_Loan() {
     let suggestedTerm = null;
     let suggestedAmortization = 0;
     let suggestedStress = 0;
+    // Affordability rule: monthly amortization must not exceed 40% of net pay.
+    const AFFORDABILITY_CAP_PCT = 40;
     for (const t of TERM_OPTIONS) {
       const ma = computeMonthlyAmortization(principal, t);
       const stress = (ma / netPay) * 100;
-      if (stress <= 35) {
+      if (stress <= AFFORDABILITY_CAP_PCT) {
         suggestedTerm = t;
         suggestedAmortization = ma;
         suggestedStress = stress;
@@ -743,11 +745,6 @@ function Consolidated_Loan() {
                 className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-[#66B538] outline-none bg-white text-sm transition-all mx-2 w-[22rem] inline-block align-middle" 
               />
               <div className="inline-flex items-center relative mr-2 align-middle leading-none">
-                {calcResult && !calcResult.error && Number(calcResult.prescribedLoanAmount) > 0 && (
-                  <span className="absolute bottom-full mb-0.5 left-0 text-[10px] text-[#2E7D32] font-semibold opacity-50 whitespace-nowrap pointer-events-none leading-none">
-                    Prescribed: ₱{Number(calcResult.prescribedLoanAmount).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </span>
-                )}
                 <select
                   name="loan_amount_numeric"
                   value={formData.loan_amount_numeric}
@@ -802,11 +799,6 @@ function Consolidated_Loan() {
               
               for a term of
               <span className="relative inline-block mx-2 align-middle leading-none">
-                {calcResult && !calcResult.error && calcResult.suggestedTerm && (
-                  <span className="absolute bottom-full mb-0.5 left-0 text-[10px] text-[#2E7D32] font-semibold opacity-50 whitespace-nowrap pointer-events-none leading-none">
-                    Suggested: {calcResult.suggestedTerm} mos
-                  </span>
-                )}
                 <select
                   name="loan_term_months"
                   value={formData.loan_term_months}
@@ -822,11 +814,18 @@ function Consolidated_Loan() {
                 </select>
               </span>
               months with a monthly amortization of
-              <input 
-                type="number" 
-                name="monthly_amortization" 
-                value={formData.monthly_amortization} 
-                readOnly 
+              <input
+                type="text"
+                name="monthly_amortization"
+                value={
+                  hasComputedAmortization
+                    ? Number(formData.monthly_amortization).toLocaleString('en-PH', {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })
+                    : ''
+                }
+                readOnly
                 className={`border rounded-md px-3 py-1.5 focus:ring-2 focus:ring-[#66B538] outline-none text-sm transition-all mx-2 w-48 inline-block align-middle ${
                   hasComputedAmortization
                     ? 'border-[#66B538] bg-[#E9F7DE] text-[#2E7D32] font-semibold'
