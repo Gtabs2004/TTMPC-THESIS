@@ -77,19 +77,29 @@ const formatSequenceId = (prefix, sequenceNumber) => {
   return `${prefix}${String(numericValue).padStart(3, "0")}`;
 };
 
-const getMonthlyInterestRate = (loan) => {
+const normalizeMonthlyInterestPercent = (loan) => {
   let ratePercent = Number(loan?.interest_rate);
-  const loanType = String(loan?.loan_type || '').trim().toLowerCase();
+  const loanType = String(loan?.loan_type || "").trim().toLowerCase();
 
-  // Backward compatibility for consolidated decimal monthly format (e.g., 0.083).
-  if (loanType === 'consolidated' && Number.isFinite(ratePercent) && ratePercent > 0 && ratePercent < 1) {
-    ratePercent *= 100;
+  if (!Number.isFinite(ratePercent) || ratePercent <= 0) return 0;
+
+  // Backward compatibility for consolidated monthly format variants.
+  if (loanType === "consolidated") {
+    if (ratePercent > 0 && ratePercent < 0.1) {
+      // 0.083 -> 0.83%
+      ratePercent *= 10;
+    } else if (ratePercent >= 1 && ratePercent < 10) {
+      // 8.3 -> 0.83%
+      ratePercent /= 10;
+    }
   }
 
-  if (Number.isFinite(ratePercent) && ratePercent > 0) {
-    return ratePercent / 100;
-  }
-  return 0;
+  return ratePercent;
+};
+
+const getMonthlyInterestRate = (loan) => {
+  const ratePercent = normalizeMonthlyInterestPercent(loan);
+  return ratePercent > 0 ? ratePercent / 100 : 0;
 };
 
 const calculateAmortization = (loan) => {
@@ -112,16 +122,8 @@ const calculateAmortization = (loan) => {
 };
 
 const getDisplayedInterestRate = (loan) => {
-  const rawRate = Number(loan?.interest_rate);
   const loanType = String(loan?.loan_type || "").trim().toLowerCase();
-  const useRawDisplay = Number.isFinite(rawRate) && rawRate > 0 && rawRate < 1;
-  const useScaledDisplay =
-    loanType === "consolidated" && Number.isFinite(rawRate) && rawRate >= 1 && rawRate < 10;
-  const ratePercent = useRawDisplay
-    ? rawRate.toFixed(3)
-    : useScaledDisplay
-    ? (rawRate / 100).toFixed(3)
-    : (getMonthlyInterestRate(loan) * 100).toFixed(2);
+  const ratePercent = normalizeMonthlyInterestPercent(loan).toFixed(2);
 
   if (loanType === "emergency") return `${ratePercent}% (Diminishing)`;
   if (loanType === "bonus") {
