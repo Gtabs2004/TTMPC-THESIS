@@ -56,6 +56,7 @@ const ManageLoans = () => {
   const [loanTypeFilter, setLoanTypeFilter] = useState("all");
   const [memberTypeFilter, setMemberTypeFilter] = useState("all");
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState("");
 
   const menuItems = [
     { name: "Dashboard", icon: LayoutDashboard },
@@ -144,6 +145,7 @@ const ManageLoans = () => {
       addNotification("Loans data synced successfully", "success");
     } catch (error) {
       addNotification(error?.message || "Unable to sync approved loans from backend.", "error");
+      setLoadError(error?.message || "Unable to sync approved loans from backend.");
       setLoans([]);
     } finally {
       setLoading(false);

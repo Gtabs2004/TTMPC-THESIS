@@ -597,30 +597,6 @@ const Treasurer_ApprovalDetails = () => {
               </div>
             </div>
 
-            {/* Payment Risk Indicators */}
-            <div>
-              <h2 className="flex items-center text-lg font-bold text-gray-800 mb-4">
-                <BarChart2 className="w-5 h-5 mr-2 text-[#1D6021]" /> Payment Risk Indicators
-              </h2>
-              <div className="grid grid-cols-3 gap-4">
-                <div className="border border-gray-200 rounded-xl p-4 flex flex-col items-center justify-center text-center">
-                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Prev Loans</p>
-                  <p className="text-2xl font-black text-gray-800 mb-1">{loanDetails.risk.prevLoans.value}</p>
-                  <p className={`text-[9px] font-bold uppercase ${loanDetails.risk.prevLoans.color}`}>{loanDetails.risk.prevLoans.label}</p>
-                </div>
-                <div className="border border-gray-200 rounded-xl p-4 flex flex-col items-center justify-center text-center">
-                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Delinquency</p>
-                  <p className="text-xl font-black text-gray-800 mb-1">{loanDetails.risk.delinquency.value}</p>
-                  <p className={`text-[9px] font-bold uppercase ${loanDetails.risk.delinquency.color}`}>{loanDetails.risk.delinquency.label}</p>
-                </div>
-                <div className="border border-gray-200 rounded-xl p-4 flex flex-col items-center justify-center text-center">
-                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Consistency</p>
-                  <p className="text-2xl font-black text-gray-800 mb-1">{loanDetails.risk.consistency.value}</p>
-                  <p className={`text-[9px] font-bold uppercase ${loanDetails.risk.consistency.color}`}>{loanDetails.risk.consistency.label}</p>
-                </div>
-              </div>
-            </div>
-
             <div>
               <h2 className="flex items-center text-lg font-bold text-gray-800 mb-4">
                 <FileEdit className="w-5 h-5 mr-2 text-[#1D6021]" /> Bookkeeper Internal Review

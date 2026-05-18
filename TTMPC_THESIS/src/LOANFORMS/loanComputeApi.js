@@ -27,27 +27,16 @@ const toIsoDate = (value) => {
   return date.toISOString().split('T')[0];
 };
 
-const normalizeRatePercent = (rate, row, fallbackCode = '') => {
+// Returns the monthly interest rate in PERCENT (e.g., 0.83 for 0.83%/month).
+// The caller is responsible for dividing by 100 to get a decimal.
+const normalizeRatePercent = (rate) => {
   if (!Number.isFinite(rate) || rate <= 0) return null;
-  const rowCode = String(row?.code || '').trim().toUpperCase();
-  const effectiveCode = rowCode || String(fallbackCode || '').trim().toUpperCase();
-
-  // Backward compatibility for consolidated decimal monthly format (e.g., 0.083).
-   if (effectiveCode === 'CONSOLIDATED') {
-    // If rate > 1, it's stored as percentage (e.g., 8.30), convert to decimal (0.083)
-    if (rate > 1) {
-      return rate / 100;
-    }
-    // If rate is already 0-1 range, return as-is
-    if (rate > 0 && rate < 1) {
-      return rate;
-    }
-  }
+  return rate;
 };
 
-const extractInterestRate = (row, fallbackCode = '') => {
+const extractInterestRate = (row) => {
   const rate = Number(row?.interest_rate ?? row?.InterestRate ?? row?.interestrate ?? row?.interestRate);
-  const normalized = normalizeRatePercent(rate, row, fallbackCode);
+  const normalized = normalizeRatePercent(rate);
   return Number.isFinite(normalized) && normalized > 0 ? normalized : null;
 };
 
@@ -58,7 +47,7 @@ const resolveLoanTypeInterestRate = async (loanTypeCode, loanTypeName) => {
   const tryQuery = async (builder) => {
     const { data, error } = await builder;
     if (error) return null;
-    return extractInterestRate(data, code);
+    return extractInterestRate(data);
   };
 
   if (code) {
