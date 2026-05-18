@@ -3,6 +3,7 @@ import { useNavigate, NavLink } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
 import { useNotification } from "../../contex/NotificationContext";
 import { PortalSidebarIdentity, PortalTopbarIdentity } from "../../components/PortalIdentity";
+import LoanDemandForecastCard from "../../components/LoanDemandForecastCard";
 import { 
   LayoutDashboard, 
   Users, 
@@ -317,6 +318,10 @@ const M_Dashboard = () => {
                 </tbody>
               </table>
             </div>
+          </div>
+
+          <div className="mt-8">
+            <LoanDemandForecastCard defaultLoanType="consolidated" periods={12} />
           </div>
 
         </main>

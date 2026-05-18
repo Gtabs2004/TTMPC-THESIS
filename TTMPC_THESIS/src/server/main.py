@@ -15,6 +15,11 @@ from urllib.error import HTTPError, URLError
 from applicationConfirmation import MembershipConfirmationError, confirm_membership, confirm_membership_batch, get_next_membership_id
 from pypdf.generic import DecodedStreamObject, DictionaryObject, NameObject
 from risk_model import ModelNotAvailableError, score as risk_score
+from demand_model import (
+    DemandModelNotAvailableError,
+    SUPPORTED_LOAN_TYPES as DEMAND_LOAN_TYPES,
+    get_forecast_payload as demand_get_forecast_payload,
+)
 
 # 1. Load Environment Variables
 # Load from project root .env explicitly for consistent behavior.
@@ -4860,3 +4865,44 @@ async def bod_get_payment_status(application_id: str):
         raise HTTPException(status_code=503, detail="Supabase client is not configured.")
     summary = _get_application_payment_summary(application_id)
     return {"success": True, "data": summary}
+
+
+# =============================================================================
+# Loan Demand Forecasting
+# =============================================================================
+
+@app.get("/api/analytics/demand/forecast")
+async def get_loan_demand_forecast(
+    loan_type: str = "consolidated",
+    periods: int = 12,
+    alpha: float = 0.20,
+):
+    """Return historical training series + N-month forecast for the requested loan type.
+
+    Query params:
+      - loan_type: 'consolidated' (default) or 'emergency'
+      - periods:   number of future months to forecast (default 12)
+      - alpha:     1 - confidence level for the band; default 0.20 → 80% CI
+    """
+    loan_type_clean = (loan_type or "").strip().lower()
+    if loan_type_clean not in DEMAND_LOAN_TYPES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid loan_type. Supported: {', '.join(DEMAND_LOAN_TYPES)}.",
+        )
+
+    periods_clean = max(1, min(int(periods), 60))  # safety bounds
+    alpha_clean = max(0.01, min(float(alpha), 0.50))
+
+    try:
+        payload = demand_get_forecast_payload(
+            loan_type=loan_type_clean,  # type: ignore[arg-type]
+            periods=periods_clean,
+            alpha=alpha_clean,
+        )
+    except DemandModelNotAvailableError as e:
+        raise HTTPException(status_code=503, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Forecast failed: {e}")
+
+    return {"success": True, "data": payload}
