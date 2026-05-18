@@ -7,15 +7,37 @@
       "type": "npm",
       "script": "dev",
       "path": "TTMPC_THESIS",
+      "isBackground": true,
+      "presentation": {
+        "panel": "dedicated",
+        "group": "ttmpc",
+        "reveal": "always",
+        "clear": false
+      },
       "problemMatcher": []
     },
 
     {
-      "label": "Backend: FastAPI",
+      "label": "Backend: FastAPI (venv)",
       "type": "shell",
-      "command": "python -m uvicorn main:app --reload",
+      "command": "${workspaceFolder}/TTMPC_THESIS/src/server/.venv/Scripts/python.exe",
+      "args": [
+        "-m",
+        "uvicorn",
+        "main:app",
+        "--reload",
+        "--app-dir",
+        "${workspaceFolder}/TTMPC_THESIS/src/server"
+      ],
       "options": {
-        "cwd": "TTMPC_THESIS/src/server"
+        "cwd": "${workspaceFolder}/TTMPC_THESIS/src/server"
+      },
+      "isBackground": true,
+      "presentation": {
+        "panel": "dedicated",
+        "group": "ttmpc",
+        "reveal": "always",
+        "clear": false
       },
       "problemMatcher": []
     },
@@ -24,13 +46,18 @@
       "label": "Start Full Stack",
       "dependsOn": [
         "Frontend: Vite Dev",
-        "Backend: FastAPI"
+        "Backend: FastAPI (venv)"
       ],
       "dependsOrder": "parallel",
       "group": {
         "kind": "build",
         "isDefault": true
-      }
+      },
+      "presentation": {
+        "panel": "shared",
+        "reveal": "always"
+      },
+      "problemMatcher": []
     }
 
   ]
