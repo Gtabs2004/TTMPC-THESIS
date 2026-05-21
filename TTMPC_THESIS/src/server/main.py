@@ -804,7 +804,7 @@ async def get_cashier_loans_for_payments():
                 supabase.table("loans")
                 .select(
                     "control_number,loan_amount,principal_amount,interest_rate,term,loan_status,application_date,monthly_amortization," \
-                    "member:member_id(first_name,last_name,is_bona_fide),loan_type:loan_type_id(name)"
+                    "member:member_id(first_name,last_name,is_bona_fide),loan_type:loan_type_id(name,interest_rate)"
                 )
                 .order("application_date", desc=True)
                 .execute()
@@ -814,7 +814,7 @@ async def get_cashier_loans_for_payments():
                 supabase.table("loans")
                 .select(
                     "control_number,loan_amount,principal_amount,interest_rate,term,loan_status,application_date," \
-                    "member:member_id(first_name,last_name,is_bona_fide),loan_type:loan_type_id(name)"
+                    "member:member_id(first_name,last_name,is_bona_fide),loan_type:loan_type_id(name,interest_rate)"
                 )
                 .order("application_date", desc=True)
                 .execute()
@@ -918,7 +918,14 @@ async def get_cashier_loans_for_payments():
             is_delayed = bool(delayed_deadline and today_date > delayed_deadline)
 
             is_migs = bool(member.get("is_bona_fide"))
-            resolved_interest_rate_percent = Decimal(str(loan.get("interest_rate") or 0)) if loan.get("interest_rate") is not None else Decimal("0")
+            # Use the same sanitizer used by disbursement/treasurer endpoints so legacy
+            # snapshots (e.g., 83 stored where 0.83 was meant) don't bleed into the UI.
+            loan_type_row = loan.get("loan_type") or {}
+            displayed_rate = sanitize_monthly_rate_percent(
+                loan.get("interest_rate"),
+                loan_type_row.get("interest_rate"),
+            )
+            resolved_interest_rate_percent = Decimal(str(displayed_rate or 0))
             if resolved_interest_rate_percent <= 0:
                 fallback_rate = fetch_loan_type_interest_rate_percent(
                     resolve_loan_type_code(normalized_loan_type),
@@ -4397,7 +4404,7 @@ class RiskPredictRequest(BaseModel):
 def _fetch_loan_for_scoring(control_number: str, source: str) -> dict:
     table = "koica_loans" if source == "koica_loans" else "loans"
     select_cols = (
-        "control_number, loan_amount, member_id"
+        "control_number, loan_amount, monthly_amortization, member_id"
         if table == "loans"
         else "control_number, loan_amount, raw_payload"
     )
@@ -4434,15 +4441,27 @@ def _fetch_member_pds(member_id: str | None) -> dict:
     if not membership_number_id:
         return {"occupation": None, "annual_income": None, "membership_number_id": None}
 
-    pds_resp = (
-        supabase.table("personal_data_sheet")
-        .select("occupation, annual_income, membership_number_id")
-        .eq("membership_number_id", membership_number_id)
-        .order("created_at", desc=True)
-        .limit(1)
-        .execute()
-    )
-    pds_rows = pds_resp.data or []
+    try:
+        pds_resp = (
+            supabase.table("personal_data_sheet")
+            .select("occupation, annual_income, latest_net_pay, membership_number_id")
+            .eq("membership_number_id", membership_number_id)
+            .order("created_at", desc=True)
+            .limit(1)
+            .execute()
+        )
+        pds_rows = pds_resp.data or []
+    except Exception:
+        # Fallback for older schemas without latest_net_pay column
+        pds_resp = (
+            supabase.table("personal_data_sheet")
+            .select("occupation, annual_income, membership_number_id")
+            .eq("membership_number_id", membership_number_id)
+            .order("created_at", desc=True)
+            .limit(1)
+            .execute()
+        )
+        pds_rows = pds_resp.data or []
     if not pds_rows:
         return {"occupation": None, "annual_income": None, "membership_number_id": membership_number_id}
 
@@ -4450,6 +4469,7 @@ def _fetch_member_pds(member_id: str | None) -> dict:
     return {
         "occupation": row.get("occupation"),
         "annual_income": row.get("annual_income"),
+        "latest_net_pay": row.get("latest_net_pay") if isinstance(row, dict) and "latest_net_pay" in row else None,
         "membership_number_id": membership_number_id,
     }
 
@@ -4475,6 +4495,10 @@ async def predict_loan_risk(payload: RiskPredictRequest):
 
     member_id = loan.get("member_id")
     loan_amount = loan.get("loan_amount")
+    # monthly_amortization may be stored on the loan row or inside raw_payload.optionalFields
+    monthly_amortization = loan.get("monthly_amortization") or (
+        (loan.get("raw_payload") or {}).get("optionalFields", {}) or {}
+    ).get("monthly_amortization")
 
     # KOICA loans store applicant info inside raw_payload — pull from there if needed
     occupation = None
@@ -4488,12 +4512,26 @@ async def predict_loan_risk(payload: RiskPredictRequest):
         occupation = pds["occupation"]
         annual_income = pds["annual_income"]
 
+    # Determine latest_net_pay: prefer PDS, otherwise use latest_net_pay from loan record/raw_payload
+    latest_net_pay = None
+    if isinstance(pds, dict):
+        latest_net_pay = pds.get("latest_net_pay")
+
+    if not latest_net_pay:
+        # loan may carry latest_net_pay directly or inside raw_payload.optionalFields
+        latest_net_pay = loan.get("latest_net_pay")
+        if not latest_net_pay:
+            raw = loan.get("raw_payload") or {}
+            latest_net_pay = (raw.get("optionalFields") or {}).get("latest_net_pay")
+
     try:
         result = risk_score(
             loan_amount=loan_amount,
             occupation=occupation,
             annual_income=annual_income,
             advance_payment_count=0,
+            monthly_amortization=monthly_amortization,
+            latest_net_pay=latest_net_pay,
         )
     except ModelNotAvailableError as e:
         raise HTTPException(status_code=503, detail=str(e))

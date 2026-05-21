@@ -113,20 +113,30 @@ def prepare_features(
     occupation: Any,
     annual_income: Any,
     advance_payment_count: int = 0,
+    monthly_amortization: Any = None,
+    latest_net_pay: Any = None,
 ):
     """Returns a one-row pandas DataFrame. Imports pandas lazily."""
     import pandas as pd  # local import; ML deps loaded on demand
 
     loan_amount_f = _coerce_float(loan_amount) or 0.0
     income_f = _coerce_float(annual_income)
+    monthly_amortization_f = _coerce_float(monthly_amortization)
+    latest_net_pay_f = _coerce_float(latest_net_pay)
 
     stability_score = lookup_stability_score(occupation)
+    # Determine if income is missing (legacy flag preserved)
     income_is_missing = 1 if (income_f is None or income_f == 0) else 0
 
-    if income_is_missing:
-        stress_index = -999.0
+    # New behavior: prefer monthly amortization / latest_net_pay for Repayment_Stress_Index
+    if latest_net_pay_f is not None and latest_net_pay_f > 0 and monthly_amortization_f is not None:
+        stress_index = (monthly_amortization_f / latest_net_pay_f) * 100.0
     else:
-        stress_index = (loan_amount_f / 12.0) / (income_f / 12.0) * 100.0
+        # Fallback to legacy loan_amount / annual_income calculation when necessary
+        if income_is_missing:
+            stress_index = -999.0
+        else:
+            stress_index = (loan_amount_f / 12.0) / (income_f / 12.0) * 100.0
 
     row = {
         "LoanAmount": float(loan_amount_f),
@@ -197,9 +207,18 @@ def score(
     occupation: Any,
     annual_income: Any,
     advance_payment_count: int = 0,
+    monthly_amortization: Any = None,
+    latest_net_pay: Any = None,
 ) -> dict:
     model, meta = _load_model()
-    X = prepare_features(loan_amount, occupation, annual_income, advance_payment_count)
+    X = prepare_features(
+        loan_amount,
+        occupation,
+        annual_income,
+        advance_payment_count,
+        monthly_amortization,
+        latest_net_pay,
+    )
     risk_class = int(model.predict(X)[0])
     risk_prob = float(model.predict_proba(X)[0, 1])
 

@@ -29,6 +29,7 @@ const BookkeeperLoanApproval = () => {
   const [loans, setLoans] = useState([]);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState(null);
+  const [activeTab, setActiveTab] = useState("all");
 
   const menuItems = [
     { name: "Dashboard", icon: LayoutDashboard },
@@ -104,7 +105,7 @@ const BookkeeperLoanApproval = () => {
       const combinedQueue = [...mappedLoans, ...mappedKoica]
         .filter((loan) => {
           const status = String(loan.loan_status || "").trim().toLowerCase();
-          return status === "pending" || status === "draft";
+          return status === "pending" || status === "draft" || status === "revision_requested";
         })
         .sort((a, b) => new Date(b.application_date || 0) - new Date(a.application_date || 0));
 
@@ -146,14 +147,22 @@ const BookkeeperLoanApproval = () => {
     return status === "MIGS" ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500";
   };
 
+  const getLoanStatusBadge = (status) => {
+    if (status === "revision_requested") {
+      return "bg-amber-100 text-amber-800";
+    }
+    return "bg-slate-100 text-slate-600";
+  };
+
   const displayLoans = loans.map((loan) => {
     const isKoica = loan.source === "koica";
     const firstName = loan.member?.first_name || "";
     const lastName = loan.member?.last_name || "";
-    const memberName = isKoica
+     const memberName = isKoica
       ? (loan.full_name || "Unknown Applicant")
       : (`${firstName} ${lastName}`.trim() || "Unknown Member");
 
+      const loanStatus = String(loan.loan_status || "").trim().toLowerCase();
     const loanTypeName = isKoica
       ? (loan.loan_type_code === "NONMEMBER_BONUS" ? "Nonmember Bonus Loan" : "ABFF Loan")
       : (loan.loan_types?.name || "N/A");
@@ -167,6 +176,7 @@ const BookkeeperLoanApproval = () => {
       amount: loan.loan_amount ? `\u20B1${Number(loan.loan_amount).toLocaleString()}` : "\u20B10",
       term: `${loan.term || 0} Months`,
       status: migsStatus,
+       loanStatus: loanStatus,
       date: loan.application_date
         ? new Date(loan.application_date).toLocaleDateString("en-US", {
             month: "short",
@@ -176,6 +186,22 @@ const BookkeeperLoanApproval = () => {
         : "N/A",
       actions: "Review",
     };
+  });
+  
+  const tabCounts = {
+    all: displayLoans.length,
+    pending: displayLoans.filter((loan) => ["pending", "draft"].includes(loan.loanStatus)).length,
+    revision: displayLoans.filter((loan) => loan.loanStatus === "revision_requested").length,
+  };
+  
+  const filteredLoans = displayLoans.filter((loan) => {
+    if (activeTab === "pending") {
+      return loan.loanStatus === "pending" || loan.loanStatus === "draft";
+    }
+    if (activeTab === "revision") {
+      return loan.loanStatus === "revision_requested";
+    }
+    return true;
   });
 
   return (
@@ -295,6 +321,41 @@ const BookkeeperLoanApproval = () => {
           </div>
 
           <div className="bg-white border border-gray-200 rounded-xl shadow-sm">
+            <div className="px-6 pt-5 pb-2 flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setActiveTab("all")}
+                className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-colors ${
+                  activeTab === "all"
+                    ? "bg-[#1D6021] text-white border-[#1D6021]"
+                    : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
+                }`}
+              >
+                All ({tabCounts.all})
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab("pending")}
+                className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-colors ${
+                  activeTab === "pending"
+                    ? "bg-[#1D6021] text-white border-[#1D6021]"
+                    : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
+                }`}
+              >
+                Pending ({tabCounts.pending})
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab("revision")}
+                className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-colors ${
+                  activeTab === "revision"
+                    ? "bg-amber-600 text-white border-amber-600"
+                    : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
+                }`}
+              >
+                Revision Requested ({tabCounts.revision})
+              </button>
+            </div>
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
@@ -305,6 +366,7 @@ const BookkeeperLoanApproval = () => {
                     <th className="p-5 font-bold">Amount</th>
                     <th className="p-5 font-bold">Term</th>
                     <th className="p-5 font-bold">MIGS Status</th>
+                    <th className="p-5 font-bold">Loan Status</th>
                     <th className="p-5 font-bold">Submission</th>
                     <th className="p-5 font-bold text-right pr-8">Actions</th>
                   </tr>
@@ -312,24 +374,24 @@ const BookkeeperLoanApproval = () => {
                 <tbody>
                   {loading ? (
                     <tr>
-                      <td colSpan="8" className="p-5 text-center text-gray-500">
+                      <td colSpan="9" className="p-5 text-center text-gray-500">
                         Loading applications...
                       </td>
                     </tr>
                   ) : fetchError ? (
                     <tr>
-                      <td colSpan="8" className="p-5 text-center text-red-600">
+                      <td colSpan="9" className="p-5 text-center text-red-600">
                         Failed to load loans: {fetchError}
                       </td>
                     </tr>
-                  ) : displayLoans.length === 0 ? (
+                  ) : filteredLoans.length === 0 ? (
                     <tr>
-                      <td colSpan="8" className="p-5 text-center text-gray-500">
+                      <td colSpan="9" className="p-5 text-center text-gray-500">
                         No loans found.
                       </td>
                     </tr>
                   ) : (
-                    displayLoans.map((loan, idx) => (
+                    filteredLoans.map((loan, idx) => (
                       <tr key={idx} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
                         <td className="p-5 text-sm text-gray-500 font-medium">{loan.id}</td>
                         <td className="p-5 text-sm font-bold text-gray-800">{loan.name}</td>
@@ -343,6 +405,11 @@ const BookkeeperLoanApproval = () => {
                         <td className="p-5 text-sm">
                           <span className={`px-3 py-1.5 rounded-full text-[11px] font-bold tracking-wider ${getMigsStyle(loan.status)}`}>
                             {loan.status}
+                          </span>
+                        </td>
+                        <td className="p-5 text-sm">
+                          <span className={`px-3 py-1.5 rounded-full text-[11px] font-bold tracking-wider ${getLoanStatusBadge(loan.loanStatus)}`}>
+                            {loan.loanStatus ? loan.loanStatus.replace(/_/g, " ") : "pending"}
                           </span>
                         </td>
                         <td className="p-5 text-sm text-gray-500">{loan.date}</td>

@@ -19,6 +19,10 @@ import {
   ShieldCheck,
   RefreshCw,
   Info,
+  ClipboardCheck,
+  Briefcase,
+  Banknote,
+  Wallet,
 } from 'lucide-react';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000';
@@ -64,6 +68,19 @@ const normalizeSupportingDocuments = (rawPayload) => {
     .filter((entry) => entry.storage_path);
 };
 
+const QuickStat = ({ label, value, accent = false }) => (
+  <div
+    className={`rounded-lg border px-3 py-2 ${
+      accent ? 'border-[#1D6021]/30 bg-[#1D6021]/5' : 'border-gray-200 bg-white'
+    }`}
+  >
+    <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider">{label}</p>
+    <p className={`text-sm font-bold ${accent ? 'text-[#1D6021]' : 'text-gray-800'} truncate`}>
+      {value}
+    </p>
+  </div>
+);
+
 const LoanApprovalDetails = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -95,6 +112,7 @@ const LoanApprovalDetails = () => {
   const [riskAssessment, setRiskAssessment] = useState(null);
   const [riskLoading, setRiskLoading] = useState(false);
   const [riskError, setRiskError] = useState('');
+  const [revisionResetDone, setRevisionResetDone] = useState(false);
 
   const formatCurrency = (value) => {
     const amount = Number(value || 0);
@@ -293,6 +311,7 @@ const LoanApprovalDetails = () => {
               term,
               loan_status,
               application_status,
+              user_email,
               bookkeeper_internal_remarks,
               bookkeeper_reviewed_at,
               manager_review_requested_at,
@@ -384,6 +403,13 @@ const LoanApprovalDetails = () => {
             recommendedAmount: formatCurrency(data.loan_amount),
             term: `${data.term || 0} Months`,
             migsStatus: isKoicaSource ? 'N/A' : (data.member?.is_bona_fide ? 'MIGS' : 'NON-MIGS'),
+            memberEmail: (
+              data.user_email
+              || data.raw_payload?.optionalFields?.user_email
+              || data.raw_payload?.user_email
+              || data.raw_payload?.email
+              || ''
+            ),
             loanPurpose: data.loan_purpose || data.raw_payload?.optionalFields?.loan_purpose || 'N/A',
             employerPosition: data.source_of_income || data.raw_payload?.optionalFields?.source_of_income || 'N/A',
             bookkeeperInternalRemarks: data.bookkeeper_internal_remarks || 'No internal remarks submitted.',
@@ -491,6 +517,25 @@ const LoanApprovalDetails = () => {
     }
   };
 
+  const sendStatusEmail = async ({ toEmail, memberName, status, remarks }) => {
+    const emailValue = String(toEmail || '').trim();
+    if (!emailValue) return;
+    try {
+      await fetch(`${API_BASE_URL}/api/send-status-email`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to_email: emailValue,
+          member_name: memberName || 'Member',
+          status,
+          remarks: remarks || null,
+        }),
+      });
+    } catch (_err) {
+      // Notification failures should not block status updates.
+    }
+  };
+
   useEffect(() => {
     let active = true;
 
@@ -572,6 +617,10 @@ const LoanApprovalDetails = () => {
         ...supportingDocs,
       ];
 
+      const shouldReset = isBookkeeperFlow
+        && !revisionResetDone
+        && String(loanDetails?.status || '').toLowerCase().includes('revision');
+
       const updatePayload = {
         raw_payload: {
           ...existingRawPayload,
@@ -584,6 +633,11 @@ const LoanApprovalDetails = () => {
           },
         },
       };
+
+      if (shouldReset) {
+        updatePayload.loan_status = 'pending';
+        updatePayload.application_status = 'pending';
+      }
 
       const { data: updatedRows, error: updateError } = await supabase
         .from(loanDetails.sourceTable || 'loans')
@@ -599,7 +653,14 @@ const LoanApprovalDetails = () => {
       const updatedRawPayload = updatedRows?.[0]?.raw_payload || updatePayload.raw_payload;
       const normalized = normalizeSupportingDocuments(updatedRawPayload);
 
-      setLoanDetails((prev) => prev ? { ...prev, rawPayload: updatedRawPayload } : prev);
+      setLoanDetails((prev) => prev ? {
+        ...prev,
+        rawPayload: updatedRawPayload,
+        status: shouldReset ? formatStatus('pending') : prev.status,
+      } : prev);
+      if (shouldReset) {
+        setRevisionResetDone(true);
+      }
       setSupportingDocs(normalized);
     } catch (err) {
       setDocError(err.message || 'Unable to upload supporting document.');
@@ -620,6 +681,21 @@ const LoanApprovalDetails = () => {
 
   const updateCoMakerField = (index, field, value) => {
     setCoMakerDetails((prev) => prev.map((item, i) => (i === index ? { ...item, [field]: value } : item)));
+    if (isBookkeeperFlow && !revisionResetDone && String(loanDetails?.status || '').toLowerCase().includes('revision')) {
+      setRevisionResetDone(true);
+      supabase
+        .from(loanDetails.sourceTable || 'loans')
+        .update({ loan_status: 'pending', application_status: 'pending' })
+        .eq('control_number', loanDetails.id)
+        .select('loan_status')
+        .limit(1)
+        .then(() => {
+          setLoanDetails((prev) => prev ? { ...prev, status: formatStatus('pending') } : prev);
+        })
+        .catch(() => {
+          // Ignore failures; status will reset on recommend if needed.
+        });
+    }
   };
 
   const updateCoMakerSearch = (index, value) => {
@@ -724,6 +800,7 @@ const LoanApprovalDetails = () => {
     if (isBookkeeperFlow && modalType === 'recommend') nextStatus = 'recommended for approval';
     if (!isBookkeeperFlow && modalType === 'proceed') nextStatus = 'to be disbursed';
     if (!isBookkeeperFlow && modalType === 'reject') nextStatus = 'rejected';
+    if (!isBookkeeperFlow && modalType === 'revise') nextStatus = 'revision_requested';
 
     try {
       setSaving(true);
@@ -765,6 +842,29 @@ const LoanApprovalDetails = () => {
         };
       }
 
+      if (!isBookkeeperFlow && (modalType === 'reject' || modalType === 'revise' || modalType === 'proceed')) {
+        const { data: { user } = {} } = await supabase.auth.getUser();
+        const existingRawPayload = loanDetails.rawPayload && typeof loanDetails.rawPayload === 'object'
+          ? loanDetails.rawPayload
+          : {};
+        const existingOptionalFields = existingRawPayload.optionalFields && typeof existingRawPayload.optionalFields === 'object'
+          ? existingRawPayload.optionalFields
+          : {};
+
+        updatePayload.raw_payload = {
+          ...existingRawPayload,
+          optionalFields: {
+            ...existingOptionalFields,
+            manager_review_details: {
+              status: nextStatus,
+              remarks: remarks.trim() || null,
+              reviewed_at: new Date().toISOString(),
+              reviewed_by: user?.id || null,
+            },
+          },
+        };
+      }
+
       const { data: updatedRows, error } = await supabase
         .from(loanDetails.sourceTable || 'loans')
         .update(updatePayload)
@@ -796,6 +896,16 @@ const LoanApprovalDetails = () => {
       } : prev);
       closeModal();
       navigate(backRoute);
+
+      if (!isBookkeeperFlow && sendEmail && (modalType === 'reject' || modalType === 'revise')) {
+        const statusLabel = modalType === 'reject' ? 'Rejected' : 'Revision Requested';
+        await sendStatusEmail({
+          toEmail: loanDetails.summary.memberEmail,
+          memberName: loanDetails.memberName,
+          status: statusLabel,
+          remarks: remarks.trim(),
+        });
+      }
     } catch (err) {
       setActionError(err.message || 'Unable to update loan application status.');
     } finally {
@@ -831,33 +941,135 @@ const LoanApprovalDetails = () => {
     );
   }
 
-  return (
-    <div className="p-8 bg-gray-50 min-h-screen relative">
-      {/* Back Button */}
-      <button 
-        onClick={() => navigate(backRoute)}
-        className="flex items-center text-sm text-[#1D6021] font-semibold mb-6 hover:underline"
-      >
-        <ArrowLeft className="w-4 h-4 mr-2" /> Back to Loan Queue
-      </button>
+  // ---- Workflow step derivation ----
+  const statusLower = String(loanDetails.status || '').toLowerCase();
+  const workflowSteps = [
+    { key: 'bookkeeper', label: 'Bookkeeper Review', icon: ClipboardCheck },
+    { key: 'manager',    label: 'Manager Approval',  icon: Briefcase },
+    { key: 'treasurer',  label: 'Treasurer Review',  icon: Wallet },
+    { key: 'disburse',   label: 'Disbursement',      icon: Banknote },
+  ];
+  let currentStepIdx;
+  if (statusLower.includes('disburs') || statusLower.includes('released') || statusLower.includes('paid')) {
+    currentStepIdx = 3;
+  } else if (statusLower.includes('treasurer') || statusLower.includes('approved by manager')) {
+    currentStepIdx = 2;
+  } else if (statusLower.includes('manager') || statusLower.includes('approved by bookkeeper')) {
+    currentStepIdx = 1;
+  } else if (isBookkeeperFlow || statusLower.includes('bookkeeper') || statusLower.includes('pending')) {
+    currentStepIdx = 0;
+  } else {
+    currentStepIdx = 1;
+  }
 
-      {/* Header */}
-      <div className="flex justify-between items-start mb-8">
-        <div>
-          <h1 className="text-3xl font-bold text-[#1a4a2f] mb-2">Loan Approval Details</h1>
-          <p className="text-sm text-gray-500">
-            Application ID: <span className="font-bold text-[#1D6021] mr-2">{loanDetails.id}</span> | 
-            Member: <span className="font-bold text-gray-800 ml-2">{loanDetails.memberName}</span>
-          </p>
-          {actionError ? (
-            <p className="text-sm text-red-600 mt-2">{actionError}</p>
-          ) : null}
+  // ---- Section anchors ----
+  const sectionTabs = [
+    { id: 'section-summary',     label: 'Summary',       icon: User },
+    { id: 'section-risk',        label: 'Risk',          icon: BarChart2 },
+    { id: 'section-computation', label: 'Computation',   icon: Calculator },
+    { id: 'section-documents',   label: 'Documents',     icon: Paperclip },
+    { id: 'section-notes',       label: 'Bookkeeper',    icon: FileEdit },
+  ];
+  const scrollToSection = (id) => {
+    const el = document.getElementById(id);
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  return (
+    <div className="bg-gray-50 min-h-screen relative pb-28" style={{ scrollPaddingTop: '11rem' }}>
+      {/* STICKY HEADER */}
+      <div className="sticky top-0 z-30 bg-white/95 backdrop-blur border-b border-gray-200 shadow-sm">
+        <div className="px-8 pt-4 pb-3">
+          <button
+            onClick={() => navigate(backRoute)}
+            className="flex items-center text-xs text-[#1D6021] font-semibold mb-2 hover:underline"
+          >
+            <ArrowLeft className="w-3.5 h-3.5 mr-1.5" /> Back to Loan Queue
+          </button>
+
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="min-w-0">
+              <h1 className="text-xl md:text-2xl font-bold text-[#1a4a2f] truncate">
+                {loanDetails.memberName}
+              </h1>
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-500 mt-0.5">
+                <span>
+                  Control # <span className="font-mono font-bold text-[#1D6021]">{loanDetails.id}</span>
+                </span>
+                <span className="text-gray-300">·</span>
+                <span>{loanDetails.summary.loanType}</span>
+                <span className="text-gray-300">·</span>
+                <span className="font-bold text-gray-800">{loanDetails.summary.recommendedAmount}</span>
+              </div>
+            </div>
+            <span className="bg-[#FEF08A] text-[#854D0E] px-3 py-1 rounded-full text-xs font-bold flex items-center shrink-0">
+              <span className="w-1.5 h-1.5 rounded-full bg-[#EAB308] mr-1.5"></span>
+              {loanDetails.status}
+            </span>
+          </div>
+
+          {/* Workflow steps */}
+          <div className="mt-3 flex items-center gap-1 overflow-x-auto">
+            {workflowSteps.map((step, idx) => {
+              const Icon = step.icon;
+              const done = idx < currentStepIdx;
+              const active = idx === currentStepIdx;
+              return (
+                <React.Fragment key={step.key}>
+                  <div
+                    className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold whitespace-nowrap ${
+                      active
+                        ? 'bg-[#1D6021] text-white'
+                        : done
+                        ? 'bg-green-50 text-[#1D6021]'
+                        : 'bg-gray-100 text-gray-400'
+                    }`}
+                  >
+                    <Icon className="w-3 h-3" />
+                    {step.label}
+                  </div>
+                  {idx < workflowSteps.length - 1 && (
+                    <span className={`w-4 h-px ${done ? 'bg-[#1D6021]' : 'bg-gray-200'}`} />
+                  )}
+                </React.Fragment>
+              );
+            })}
+          </div>
+
+          {/* Quick stats strip */}
+          <div className="mt-3 grid grid-cols-2 md:grid-cols-4 gap-2">
+            <QuickStat label="Principal" value={loanDetails.computation.principal} />
+            <QuickStat label="Term" value={loanDetails.computation.term} />
+            <QuickStat label="Monthly Amort." value={loanDetails.computation.monthlyAmortization} accent />
+            <QuickStat label="Total Payment" value={loanDetails.computation.totalPayable} />
+          </div>
+
+          {/* Section nav tabs */}
+          <div className="mt-3 flex items-center gap-1 overflow-x-auto -mx-1 px-1">
+            {sectionTabs.map((tab) => {
+              const Icon = tab.icon;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => scrollToSection(tab.id)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold text-gray-600 hover:bg-[#1D6021]/10 hover:text-[#1D6021] transition-colors whitespace-nowrap"
+                >
+                  <Icon className="w-3.5 h-3.5" />
+                  {tab.label}
+                </button>
+              );
+            })}
+          </div>
         </div>
-        <span className="bg-[#FEF08A] text-[#854D0E] px-4 py-1.5 rounded-full text-sm font-bold flex items-center">
-          <span className="w-2 h-2 rounded-full bg-[#EAB308] mr-2"></span>
-          {loanDetails.status}
-        </span>
       </div>
+
+      <div className="p-8">
+      {actionError ? (
+        <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">
+          {actionError}
+        </div>
+      ) : null}
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
         <div className="grid grid-cols-1 lg:grid-cols-2 p-8 gap-8">
@@ -865,7 +1077,7 @@ const LoanApprovalDetails = () => {
           {/* Left Column */}
           <div className="flex flex-col gap-8">
             {/* Member & Loan Summary */}
-            <div>
+            <div id="section-summary" className="scroll-mt-44">
               <h2 className="flex items-center text-lg font-bold text-gray-800 mb-4">
                 <User className="w-5 h-5 mr-2 text-[#1D6021]" /> Member & Loan Summary
               </h2>
@@ -900,7 +1112,7 @@ const LoanApprovalDetails = () => {
             </div>
 
             {/* Payment Risk Indicators (TTMPC Credit Risk Model) */}
-            <div>
+            <div id="section-risk" className="scroll-mt-44">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="flex items-center text-lg font-bold text-gray-800">
                   <BarChart2 className="w-5 h-5 mr-2 text-[#1D6021]" /> Payment Risk Indicators
@@ -934,8 +1146,6 @@ const LoanApprovalDetails = () => {
 
               {riskAssessment && (() => {
                 const isHighRisk = Number(riskAssessment.risk_class) === 1;
-                const probability = Number(riskAssessment.risk_probability) || 0;
-                const probabilityPct = (probability * 100).toFixed(1);
                 const features = riskAssessment.features_used || {};
                 const stabilityScore = Number(features.Stability_Score ?? 0);
                 const stabilityLabel = stabilityScore >= 4
@@ -950,8 +1160,8 @@ const LoanApprovalDetails = () => {
 
                 return (
                   <div className="space-y-4">
-                    {/* Top row: class badge + probability bar */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {/* Top row: class badge */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className={`border rounded-xl p-4 flex flex-col items-center justify-center text-center ${isHighRisk ? 'border-red-300 bg-red-50' : 'border-green-300 bg-green-50'}`}>
                         {isHighRisk ? (
                           <ShieldAlert className="w-8 h-8 text-red-600 mb-2" />
@@ -963,20 +1173,14 @@ const LoanApprovalDetails = () => {
                           {isHighRisk ? 'High Risk' : 'Performing'}
                         </p>
                       </div>
-
-                      <div className="md:col-span-2 border border-gray-200 rounded-xl p-4">
-                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Probability of Default</p>
-                        <div className="flex items-baseline gap-2 mb-2">
-                          <span className={`text-3xl font-black ${isHighRisk ? 'text-red-700' : 'text-green-800'}`}>{probabilityPct}%</span>
-                          <span className="text-xs text-gray-500">P(High Risk)</span>
-                        </div>
-                        <div className="w-full bg-gray-200 rounded-full h-2.5 overflow-hidden">
-                          <div
-                            className={`h-2.5 rounded-full ${isHighRisk ? 'bg-red-500' : 'bg-green-600'}`}
-                            style={{ width: `${Math.min(100, Math.max(0, probability * 100))}%` }}
-                          />
-                        </div>
-                        <p className="text-[10px] text-gray-400 mt-2 italic">
+                      <div className="border border-gray-200 rounded-xl p-4">
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Risk Summary</p>
+                        <p className="text-sm text-gray-700">
+                          {isHighRisk
+                            ? 'High risk based on current model features. Review borrower context before final decision.'
+                            : 'Performing risk profile based on current model features.'}
+                        </p>
+                        <p className="text-[10px] text-gray-400 mt-3 italic">
                           Model output is a screening tool, not a final decision.
                         </p>
                       </div>
@@ -993,22 +1197,21 @@ const LoanApprovalDetails = () => {
                           <p className="font-bold text-gray-800">{formatCurrency(features.LoanAmount)}</p>
                         </div>
                         <div>
-                          <p className="text-[10px] text-gray-400 uppercase">Stability Tier</p>
+                          <p className="text-[10px] text-gray-400 uppercase">Occupation Group</p>
                           <p className="font-bold text-gray-800">{stabilityLabel}</p>
-                          <p className="text-[10px] text-gray-500">Score: {stabilityScore}</p>
                         </div>
                         <div>
-                          <p className="text-[10px] text-gray-400 uppercase">Income Declared</p>
-                          <p className={`font-bold ${incomeMissing ? 'text-amber-600' : 'text-gray-800'}`}>
-                            {incomeMissing ? 'Not Declared' : 'Yes'}
-                          </p>
+                          <p className="text-[10px] text-gray-400 uppercase">Stability Score</p>
+                          <p className="font-bold text-gray-800">{stabilityScore}</p>
                         </div>
+                         {/*  
                         <div>
-                          <p className="text-[10px] text-gray-400 uppercase">Repayment Stress</p>
+                        <p className="text-[10px] text-gray-400 uppercase">Repayment Stress</p>
                           <p className="font-bold text-gray-800">
                             {incomeMissing ? '— (income missing)' : `${stressIndex.toFixed(1)}%`}
                           </p>
                         </div>
+                       */}
                       </div>
                     </div>
 
@@ -1029,116 +1232,12 @@ const LoanApprovalDetails = () => {
               })()}
             </div>
 
-            {/* Bookkeeper recommendation notes (manager view is read-only) */}
-            <div>
-              <h2 className="flex items-center text-lg font-bold text-gray-800 mb-4">
-                <FileEdit className="w-5 h-5 mr-2 text-[#1D6021]" /> Bookkeeper Internal Review
-              </h2>
-              <div className="bg-[#F8F9FA] border border-gray-200 rounded-xl p-5 space-y-4">
-                <div>
-                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Internal Remarks</p>
-                  <p className="text-sm text-gray-700 whitespace-pre-wrap">{loanDetails.summary.bookkeeperInternalRemarks}</p>
-                </div>
-
-                <div className="border-t border-gray-200 pt-3">
-                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-3">Co-Makers (Loan Details)</p>
-                  <div className="space-y-4">
-                    {[0, 1].map((index) => {
-                      const row = coMakerDetails[index] || EMPTY_CO_MAKERS[index];
-                      return (
-                        <div key={`co-maker-${index}`} className="border border-gray-200 rounded-lg p-3 bg-white">
-                          <p className="text-xs font-bold text-gray-700 mb-2">Co-Maker {index + 1}</p>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                            <div className="md:col-span-2 flex gap-2">
-                              <input
-                                type="text"
-                                value={coMakerSearch[index] || ''}
-                                onChange={(e) => updateCoMakerSearch(index, e.target.value)}
-                                placeholder="Search by name, surname, or membership number"
-                                disabled={coMakerMemberLoading}
-                                className="border border-gray-300 rounded px-3 py-2 text-sm flex-1 disabled:bg-gray-100"
-                              />
-                              <button
-                                type="button"
-                                onClick={loadCoMakerMembers}
-                                disabled={coMakerMemberLoading}
-                                className="px-3 py-2 text-xs font-semibold border border-gray-300 rounded bg-white hover:bg-gray-50 disabled:opacity-60"
-                              >
-                                Refresh
-                              </button>
-                            </div>
-                            <select
-                              value={row.membership_number_id || ''}
-                              onChange={(e) => handleCoMakerMemberSelect(index, e.target.value)}
-                              disabled={!isBookkeeperFlow || coMakerMemberLoading}
-                              className="border border-gray-300 rounded px-3 py-2 text-sm md:col-span-2 disabled:bg-gray-100"
-                            >
-                              <option value="">
-                                {coMakerMemberLoading ? 'Loading members...' : 'Select Member (from Personal Data Sheet)'}
-                              </option>
-                              {!coMakerMemberLoading && coMakerMemberOptions.length === 0 ? (
-                                <option value="" disabled>No members available</option>
-                              ) : null}
-                              {filteredCoMakerOptions(index).map((option) => (
-                                <option key={option.membership_number_id} value={option.membership_number_id}>
-                                  {(option.name || 'Unnamed Member')} ({option.membership_number_id})
-                                </option>
-                              ))}
-                            </select>
-                            <input
-                              type="text"
-                              value={row.name}
-                              onChange={(e) => updateCoMakerField(index, 'name', e.target.value)}
-                              placeholder="Full name"
-                              disabled={!isBookkeeperFlow}
-                              className="border border-gray-300 rounded px-3 py-2 text-sm disabled:bg-gray-100"
-                            />
-                            <input
-                              type="text"
-                              value={row.id_no}
-                              onChange={(e) => updateCoMakerField(index, 'id_no', e.target.value)}
-                              placeholder="ID number"
-                              disabled={!isBookkeeperFlow}
-                              className="border border-gray-300 rounded px-3 py-2 text-sm disabled:bg-gray-100"
-                            />
-                            <input
-                              type="text"
-                              value={row.mobile}
-                              onChange={(e) => updateCoMakerField(index, 'mobile', e.target.value)}
-                              placeholder="Mobile number"
-                              disabled={!isBookkeeperFlow}
-                              className="border border-gray-300 rounded px-3 py-2 text-sm disabled:bg-gray-100"
-                            />
-                            <input
-                              type="email"
-                              value={row.email}
-                              onChange={(e) => updateCoMakerField(index, 'email', e.target.value)}
-                              placeholder="Email"
-                              disabled={!isBookkeeperFlow}
-                              className="border border-gray-300 rounded px-3 py-2 text-sm disabled:bg-gray-100"
-                            />
-                            <input
-                              type="text"
-                              value={row.address}
-                              onChange={(e) => updateCoMakerField(index, 'address', e.target.value)}
-                              placeholder="Address"
-                              disabled={!isBookkeeperFlow}
-                              className="border border-gray-300 rounded px-3 py-2 text-sm md:col-span-2 disabled:bg-gray-100"
-                            />
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              </div>
-            </div>
           </div>
 
           {/* Right Column */}
           <div className="flex flex-col gap-8">
-        
-            <div>
+
+            <div id="section-computation" className="scroll-mt-44">
               <h2 className="flex items-center text-lg font-bold text-gray-800 mb-4">
                 <Calculator className="w-5 h-5 mr-2 text-[#1D6021]" /> Loan Computation Summary
               </h2>
@@ -1189,7 +1288,7 @@ const LoanApprovalDetails = () => {
           
 
             {/* Supporting Documents */}
-            <div>
+            <div id="section-documents" className="scroll-mt-44">
               <h2 className="flex items-center text-lg font-bold text-gray-800 mb-4">
                 <Paperclip className="w-5 h-5 mr-2 text-[#1D6021]" /> Supporting Documents
               </h2>
@@ -1255,40 +1354,171 @@ const LoanApprovalDetails = () => {
             </div>
           </div>
 
-        {/* Footer Actions */}
-        <div className="bg-[#F8F9FA] border-t border-gray-200 p-6 flex justify-end gap-4">
-          {isBookkeeperFlow ? (
-            <button 
-              onClick={() => {
-                setBookkeeperInternalRemarks(loanDetails?.summary?.bookkeeperInternalRemarks === 'No internal remarks submitted.' ? '' : (loanDetails?.summary?.bookkeeperInternalRemarks || ''));
-                setActiveModal('recommend');
-              }}
-              className="flex items-center px-6 py-2.5 rounded-lg bg-[#1D6021] text-white hover:bg-[#154718] font-bold text-sm transition-colors cursor-pointer"
-            >
-              <Check className="w-4 h-4 mr-2" /> Recommend for Approval
-            </button>
-          ) : (
-            <>
-              <button 
-                onClick={() => setActiveModal('reject')}
-                className="flex items-center px-6 py-2.5 rounded-lg border border-red-200 text-red-600 bg-red-50 hover:bg-red-100 font-bold text-sm transition-colors cursor-pointer"
-              >
-                <X className="w-4 h-4 mr-2" /> Reject Loan
-              </button>
-              <button 
-                onClick={() => setActiveModal('revise')}
-                className="flex items-center px-6 py-2.5 rounded-lg border border-yellow-200 text-yellow-700 bg-[#FEF9C3] hover:bg-yellow-200 font-bold text-sm transition-colors cursor-pointer"
-              >
-                <FileEdit className="w-4 h-4 mr-2" /> Return for Revision
-              </button>
-              <button 
-                onClick={() => setActiveModal('proceed')}
-                className="flex items-center px-6 py-2.5 rounded-lg bg-[#1D6021] text-white hover:bg-[#154718] font-bold text-sm transition-colors cursor-pointer"
-              >
-                <Check className="w-4 h-4 mr-2" /> Approve Loan
-              </button>
-            </>
+      </div>
+
+      <br></br>
+
+      {/* Bookkeeper Internal Review (full-width row) */}
+      <div id="section-notes" className="scroll-mt-44 px-8 pb-8">
+        <h2 className="flex items-center text-lg font-bold text-gray-800 mb-4">
+          <FileEdit className="w-5 h-5 mr-2 text-[#1D6021]" /> Bookkeeper Internal Review
+        </h2>
+        <div className="bg-[#F8F9FA] border border-gray-200 rounded-xl p-5 space-y-4">
+          {isBookkeeperFlow && loanDetails?.rawPayload?.optionalFields?.manager_review_details && (
+            <div className="border border-amber-200 bg-amber-50 rounded-lg p-4">
+              <p className="text-[10px] font-bold text-amber-700 uppercase tracking-wider mb-1">Manager Remarks</p>
+              <p className="text-sm text-amber-900 whitespace-pre-wrap">
+                {loanDetails.rawPayload.optionalFields.manager_review_details.remarks || 'No remarks provided.'}
+              </p>
+              {loanDetails.rawPayload.optionalFields.manager_review_details.reviewed_at && (
+                <p className="text-[10px] text-amber-700 mt-2">
+                  Reviewed: {new Date(loanDetails.rawPayload.optionalFields.manager_review_details.reviewed_at).toLocaleString()}
+                </p>
+              )}
+            </div>
           )}
+          <div>
+            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Internal Remarks</p>
+            <p className="text-sm text-gray-700 whitespace-pre-wrap">{loanDetails.summary.bookkeeperInternalRemarks}</p>
+          </div>
+
+          <div className="border-t border-gray-200 pt-3">
+            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-3">Co-Makers (Loan Details)</p>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {[0, 1].map((index) => {
+                const row = coMakerDetails[index] || EMPTY_CO_MAKERS[index];
+                return (
+                  <div key={`co-maker-${index}`} className="border border-gray-200 rounded-lg p-3 bg-white">
+                    <p className="text-xs font-bold text-gray-700 mb-2">Co-Maker {index + 1}</p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div className="md:col-span-2 flex gap-2">
+                        <input
+                          type="text"
+                          value={coMakerSearch[index] || ''}
+                          onChange={(e) => updateCoMakerSearch(index, e.target.value)}
+                          placeholder="Search by name, surname, or membership number"
+                          disabled={coMakerMemberLoading}
+                          className="border border-gray-300 rounded px-3 py-2 text-sm flex-1 disabled:bg-gray-100"
+                        />
+                        <button
+                          type="button"
+                          onClick={loadCoMakerMembers}
+                          disabled={coMakerMemberLoading}
+                          className="px-3 py-2 text-xs font-semibold border border-gray-300 rounded bg-white hover:bg-gray-50 disabled:opacity-60"
+                        >
+                          Refresh
+                        </button>
+                      </div>
+                      <select
+                        value={row.membership_number_id || ''}
+                        onChange={(e) => handleCoMakerMemberSelect(index, e.target.value)}
+                        disabled={!isBookkeeperFlow || coMakerMemberLoading}
+                        className="border border-gray-300 rounded px-3 py-2 text-sm md:col-span-2 disabled:bg-gray-100"
+                      >
+                        <option value="">
+                          {coMakerMemberLoading ? 'Loading members...' : 'Select Member (from Personal Data Sheet)'}
+                        </option>
+                        {!coMakerMemberLoading && coMakerMemberOptions.length === 0 ? (
+                          <option value="" disabled>No members available</option>
+                        ) : null}
+                        {filteredCoMakerOptions(index).map((option) => (
+                          <option key={option.membership_number_id} value={option.membership_number_id}>
+                            {(option.name || 'Unnamed Member')} ({option.membership_number_id})
+                          </option>
+                        ))}
+                      </select>
+                      <input
+                        type="text"
+                        value={row.name}
+                        onChange={(e) => updateCoMakerField(index, 'name', e.target.value)}
+                        placeholder="Full name"
+                        disabled={!isBookkeeperFlow}
+                        className="border border-gray-300 rounded px-3 py-2 text-sm disabled:bg-gray-100"
+                      />
+                      <input
+                        type="text"
+                        value={row.id_no}
+                        onChange={(e) => updateCoMakerField(index, 'id_no', e.target.value)}
+                        placeholder="ID number"
+                        disabled={!isBookkeeperFlow}
+                        className="border border-gray-300 rounded px-3 py-2 text-sm disabled:bg-gray-100"
+                      />
+                      <input
+                        type="text"
+                        value={row.mobile}
+                        onChange={(e) => updateCoMakerField(index, 'mobile', e.target.value)}
+                        placeholder="Mobile number"
+                        disabled={!isBookkeeperFlow}
+                        className="border border-gray-300 rounded px-3 py-2 text-sm disabled:bg-gray-100"
+                      />
+                      <input
+                        type="email"
+                        value={row.email}
+                        onChange={(e) => updateCoMakerField(index, 'email', e.target.value)}
+                        placeholder="Email"
+                        disabled={!isBookkeeperFlow}
+                        className="border border-gray-300 rounded px-3 py-2 text-sm disabled:bg-gray-100"
+                      />
+                      <input
+                        type="text"
+                        value={row.address}
+                        onChange={(e) => updateCoMakerField(index, 'address', e.target.value)}
+                        placeholder="Address"
+                        disabled={!isBookkeeperFlow}
+                        className="border border-gray-300 rounded px-3 py-2 text-sm md:col-span-2 disabled:bg-gray-100"
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      </div>
+      </div>
+
+      {/* STICKY ACTION FOOTER */}
+      <div className="fixed bottom-0 left-0 right-0 z-30 bg-white/95 backdrop-blur border-t border-gray-200 shadow-lg">
+        <div className="px-8 py-3 flex flex-wrap items-center justify-between gap-3">
+          <div className="text-xs text-gray-500 hidden md:block">
+            <span className="font-semibold text-gray-700">{loanDetails.memberName}</span> ·
+            <span className="ml-1 font-mono">{loanDetails.id}</span> ·
+            <span className="ml-1 font-bold text-[#1D6021]">{loanDetails.computation.monthlyAmortization}/mo</span>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 ml-auto">
+            {isBookkeeperFlow ? (
+              <button
+                onClick={() => {
+                  setBookkeeperInternalRemarks(loanDetails?.summary?.bookkeeperInternalRemarks === 'No internal remarks submitted.' ? '' : (loanDetails?.summary?.bookkeeperInternalRemarks || ''));
+                  setActiveModal('recommend');
+                }}
+                className="flex items-center px-5 py-2 rounded-lg bg-[#1D6021] text-white hover:bg-[#154718] font-bold text-sm transition-colors"
+              >
+                <Check className="w-4 h-4 mr-2" /> {String(loanDetails?.status || '').toLowerCase().includes('revision') ? 'Resubmit to Manager' : 'Recommend for Approval'}
+              </button>
+            ) : (
+              <>
+                <button
+                  onClick={() => setActiveModal('reject')}
+                  className="flex items-center px-4 py-2 rounded-lg border border-red-200 text-red-600 bg-red-50 hover:bg-red-100 font-bold text-sm transition-colors"
+                >
+                  <X className="w-4 h-4 mr-2" /> Reject
+                </button>
+                <button
+                  onClick={() => setActiveModal('revise')}
+                  className="flex items-center px-4 py-2 rounded-lg border border-yellow-200 text-yellow-700 bg-[#FEF9C3] hover:bg-yellow-200 font-bold text-sm transition-colors"
+                >
+                  <FileEdit className="w-4 h-4 mr-2" /> Revise
+                </button>
+                <button
+                  onClick={() => setActiveModal('proceed')}
+                  className="flex items-center px-5 py-2 rounded-lg bg-[#1D6021] text-white hover:bg-[#154718] font-bold text-sm transition-colors"
+                >
+                  <Check className="w-4 h-4 mr-2" /> Approve
+                </button>
+              </>
+            )}
+          </div>
         </div>
       </div>
 
@@ -1364,7 +1594,11 @@ const LoanApprovalDetails = () => {
             {/* Recommend Modal */}
             {activeModal === 'recommend' && (
               <>
-                <h3 className="text-xl font-bold text-gray-900 mb-4">Recommend for Manager Approval</h3>
+                <h3 className="text-xl font-bold text-gray-900 mb-4">
+                  {String(loanDetails?.status || '').toLowerCase().includes('revision')
+                    ? 'Resubmit to Manager'
+                    : 'Recommend for Manager Approval'}
+                </h3>
                 <p className="text-sm text-gray-600 mb-4">
                   You are about to forward this loan of <span className="font-bold text-gray-900">{loanDetails.memberName}</span> to the Manager queue.
                 </p>
@@ -1390,7 +1624,18 @@ const LoanApprovalDetails = () => {
             {/* Shared Notification Options */}
             <div className="mb-8">
               <h4 className="text-[10px] font-bold text-green-700 uppercase tracking-wider mb-3">Notification Options</h4>
-              <p className="text-xs text-gray-500">Email/SMS sending is disabled for this flow.</p>
+              <div className="flex flex-col gap-2">
+                <CustomCheckbox
+                  checked={sendEmail}
+                  onChange={() => setSendEmail((prev) => !prev)}
+                  label="Send email update"
+                />
+                <CustomCheckbox
+                  checked={false}
+                  onChange={() => {}}
+                  label="Send SMS update (unavailable)"
+                />
+              </div>
             </div>
 
             {actionError ? (
