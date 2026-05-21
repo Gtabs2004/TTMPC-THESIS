@@ -17,6 +17,11 @@ import {
   Filter,
   RefreshCw,
   UserPlus,
+  X,
+  Hash,
+  Calendar,
+  User,
+  Tag,
 } from "lucide-react";
 import logo from "../../assets/img/ttmpc logo.png";
 
@@ -36,7 +41,7 @@ const toTitleCase = (value) => {
 };
 
 const Cashier_Disbursement = () => {
-  const { signOut } = UserAuth();
+  const { session, signOut } = UserAuth();
   const navigate = useNavigate();
   const { addNotification } = useNotification();
   const [isDepositsOpen, setIsDepositsOpen] = useState(true);
@@ -45,6 +50,7 @@ const Cashier_Disbursement = () => {
   const [feedbackMessage, setFeedbackMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
   const [disbursingLoanId, setDisbursingLoanId] = useState("");
+  const [confirmation, setConfirmation] = useState(null);
 
   const [searchTerm, setSearchTerm] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
@@ -102,6 +108,14 @@ const Cashier_Disbursement = () => {
     setErrorMessage("");
     setFeedbackMessage("");
 
+    const cashierUser = session?.user || {};
+    const cashierMeta = cashierUser.user_metadata || {};
+    const cashierName =
+      cashierMeta.full_name ||
+      `${cashierMeta.first_name || ""} ${cashierMeta.last_name || ""}`.trim() ||
+      cashierUser.email ||
+      "Cashier";
+
     try {
       const response = await fetch(`${API_BASE_URL}/api/cashier/disbursements/${loanId}/disburse`, {
         method: "POST",
@@ -109,7 +123,11 @@ const Cashier_Disbursement = () => {
           "Content-Type": "application/json",
           Accept: "application/json",
         },
-        body: JSON.stringify({}),
+        body: JSON.stringify({
+          cashier_id: cashierUser.id || null,
+          cashier_name: cashierName,
+          cashier_email: cashierUser.email || null,
+        }),
       });
 
       const result = await response.json().catch(() => ({}));
@@ -121,6 +139,9 @@ const Cashier_Disbursement = () => {
       setFeedbackMessage(
         `Loan disbursed. Schedule created with first due date ${firstDueDate}. Grace period is 3 days and delayed flag starts after 1 month.`
       );
+      if (result?.data?.confirmation) {
+        setConfirmation(result.data.confirmation);
+      }
       await fetchReadyLoans();
     } catch (error) {
       setErrorMessage(error.message || "Disbursement failed.");
@@ -504,6 +525,83 @@ const Cashier_Disbursement = () => {
           </div>
         </main>
       </div>
+
+      {confirmation && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm px-4">
+          <div className="w-full max-w-lg rounded-2xl bg-white shadow-2xl border border-gray-200 overflow-hidden">
+            <div className="flex items-start justify-between gap-4 px-6 py-5 bg-gradient-to-r from-[#389734] to-[#66B538] text-white">
+              <div className="flex items-start gap-3">
+                <div className="rounded-full bg-white/20 p-2">
+                  <CheckCircle2 size={22} />
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold leading-tight">Disbursement Successful</h2>
+                  <p className="text-xs text-white/80 mt-0.5">Loan released and recorded for audit.</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setConfirmation(null)}
+                className="rounded-full p-1 hover:bg-white/15 transition"
+                aria-label="Close confirmation"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="px-6 py-5 space-y-4">
+              <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 flex items-center gap-3">
+                <Hash size={18} className="text-green-700" />
+                <div className="min-w-0">
+                  <p className="text-[10px] uppercase tracking-wider text-green-700 font-semibold">Reference Number</p>
+                  <p className="text-sm font-mono font-bold text-green-900 truncate">{confirmation.reference_number}</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5">
+                  <p className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold flex items-center gap-1"><User size={12} /> Member</p>
+                  <p className="font-semibold text-gray-900 mt-0.5">{confirmation.member_name}</p>
+                </div>
+                <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5">
+                  <p className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold flex items-center gap-1"><Tag size={12} /> Loan Type</p>
+                  <p className="font-semibold text-gray-900 mt-0.5">{toTitleCase(confirmation.loan_type)}</p>
+                </div>
+                <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5">
+                  <p className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold flex items-center gap-1"><Banknote size={12} /> Loan Amount</p>
+                  <p className="font-bold text-green-700 mt-0.5">{formatCurrency(confirmation.loan_amount)}</p>
+                </div>
+                <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5">
+                  <p className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold flex items-center gap-1"><Calendar size={12} /> Disbursed At</p>
+                  <p className="font-semibold text-gray-900 mt-0.5">{new Date(confirmation.disbursed_at).toLocaleString()}</p>
+                </div>
+                <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5">
+                  <p className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold">Cashier</p>
+                  <p className="font-semibold text-gray-900 mt-0.5">{confirmation.cashier_name || "—"}</p>
+                </div>
+                <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5">
+                  <p className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold">Loan Status</p>
+                  <p className="font-semibold text-[#389734] mt-0.5 capitalize">{confirmation.loan_status}</p>
+                </div>
+              </div>
+
+              <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-2.5 text-xs text-blue-700">
+                Saved to transaction history. Reference this entry for audit, validation, and member ledger reconciliation.
+              </div>
+            </div>
+
+            <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setConfirmation(null)}
+                className="rounded-lg bg-[#389734] hover:bg-[#2d7c29] text-white text-sm font-semibold px-5 py-2 transition"
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

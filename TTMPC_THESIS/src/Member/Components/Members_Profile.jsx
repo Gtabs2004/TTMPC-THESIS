@@ -1,15 +1,15 @@
-﻿import React, { useEffect, useState } from "react";
+﻿import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
 import { useNotification } from "../../contex/NotificationContext";
 import { supabase } from "../../supabaseClient";
 import { resolveMemberContextFromSessionUser } from "../../utils/sessionIdentity";
 import { loadMemberAvatarSignedUrl } from "../../utils/memberAvatar";
-import { 
-  LayoutDashboard, 
-  Users, 
-  CreditCard, 
-  Activity, 
+import {
+  LayoutDashboard,
+  Users,
+  CreditCard,
+  Activity,
   Search,
   Bell,
   Menu,
@@ -22,8 +22,163 @@ import {
   Lock,
   ChevronRight,
   History,
-  Receipt
+  Receipt,
+  MapPin,
+  HeartHandshake,
+  Save,
+  CheckCircle2,
+  AlertCircle,
+  Wallet,
+  Phone,
 } from 'lucide-react';
+
+const PROFILE_SECTIONS = [
+  {
+    id: 'personal',
+    label: 'Personal',
+    icon: User,
+    description: 'Identity, birth, demographics',
+    fields: [
+      { key: 'surname', label: 'Surname', required: true },
+      { key: 'first_name', label: 'First Name', required: true },
+      { key: 'middle_name', label: 'Middle Name' },
+      { key: 'maiden_name', label: 'Maiden Name' },
+      { key: 'date_of_birth', label: 'Date of Birth', type: 'date' },
+      { key: 'place_of_birth', label: 'Place of Birth' },
+      { key: 'gender', label: 'Gender', type: 'select', options: ['Male', 'Female'] },
+      { key: 'civil_status', label: 'Civil Status', type: 'select', options: ['Single', 'Married', 'Widowed', 'Separated'] },
+      { key: 'citizenship', label: 'Citizenship' },
+      { key: 'religion', label: 'Religion' },
+      { key: 'blood_type', label: 'Blood Type', type: 'select', options: ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'] },
+      { key: 'height', label: 'Height (cm)', type: 'number' },
+    ],
+  },
+  {
+    id: 'contact',
+    label: 'Contact',
+    icon: Phone,
+    description: 'Mobile and email',
+    fields: [
+      { key: 'contact_number', label: 'Mobile Number', type: 'tel', required: true, placeholder: '09xxxxxxxxx' },
+      { key: 'email', label: 'Email Address', type: 'email', required: true, placeholder: 'name@example.com' },
+    ],
+  },
+  {
+    id: 'address',
+    label: 'Address',
+    icon: MapPin,
+    description: 'Permanent residence',
+    fields: [
+      { key: 'permanent_address', label: 'Permanent Address', type: 'textarea', fullWidth: true, required: true },
+    ],
+  },
+  {
+    id: 'family',
+    label: 'Family',
+    icon: HeartHandshake,
+    description: 'Parents and dependents',
+    fields: [
+      { key: 'father_name', label: "Father's Name" },
+      { key: 'mother_name', label: "Mother's Maiden Name" },
+      { key: 'number_of_dependents', label: 'Number of Dependents', type: 'number' },
+    ],
+  },
+  {
+    id: 'spouse',
+    label: 'Spouse',
+    icon: Users,
+    description: 'Spouse information',
+    fields: [
+      { key: 'spouse_name', label: 'Spouse Name' },
+      { key: 'spouse_occupation', label: 'Spouse Occupation' },
+      { key: 'spouse_date_of_birth', label: 'Spouse Date of Birth', type: 'date' },
+    ],
+  },
+  {
+    id: 'employment',
+    label: 'Employment',
+    icon: Briefcase,
+    description: 'Work and income',
+    fields: [
+      { key: 'employer_name', label: 'Employer Name' },
+      { key: 'position', label: 'Position' },
+      { key: 'occupation', label: 'Occupation' },
+      { key: 'educational_attainment', label: 'Educational Attainment' },
+      { key: 'income_source', label: 'Source of Income' },
+      { key: 'salary', label: 'Monthly Salary' },
+      { key: 'annual_income', label: 'Annual Income' },
+      { key: 'other_income', label: 'Other Income' },
+      { key: 'tin_number', label: 'TIN Number' },
+      { key: 'gsis_number', label: 'GSIS Number' },
+    ],
+  },
+  {
+    id: 'financial',
+    label: 'Membership',
+    icon: Wallet,
+    description: 'Cooperative financial standing',
+    readOnly: true,
+    fields: [
+      { key: 'date_of_membership', label: 'Date of Membership' },
+      { key: 'BOD_resolution_number', label: 'BOD Resolution No.' },
+      { key: 'number_of_shares', label: 'Number of Shares', type: 'number' },
+      { key: 'amount', label: 'Amount', type: 'number' },
+      { key: 'initial_paid_up_capital', label: 'Initial Paid-Up Capital', type: 'number' },
+    ],
+  },
+];
+
+const isSingleCivilStatus = (value) => {
+  return String(value || '').trim().toLowerCase() === 'single';
+};
+
+const getVisibleSections = (civilStatus) => {
+  if (isSingleCivilStatus(civilStatus)) {
+    return PROFILE_SECTIONS.filter((s) => s.id !== 'spouse');
+  }
+  return PROFILE_SECTIONS;
+};
+
+const fieldKeysFromSections = (sections, { editableOnly = false } = {}) =>
+  sections
+    .filter((s) => (editableOnly ? !s.readOnly : true))
+    .flatMap((s) => s.fields.map((f) => f.key));
+
+const normalizeFormValue = (raw) => {
+  if (raw === null || raw === undefined) return '';
+  return String(raw);
+};
+
+const dateInputValue = (raw) => {
+  if (!raw) return '';
+  const str = String(raw);
+  if (/^\d{4}-\d{2}-\d{2}/.test(str)) return str.slice(0, 10);
+  const d = new Date(str);
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toISOString().slice(0, 10);
+};
+
+const isFieldFilled = (value) => {
+  if (value === null || value === undefined) return false;
+  const str = String(value).trim();
+  return str !== '' && str.toLowerCase() !== 'n/a';
+};
+
+const validateField = (field, value) => {
+  const trimmed = (value ?? '').toString().trim();
+  if (field.required && !trimmed) return `${field.label} is required.`;
+  if (!trimmed) return null;
+  if (field.type === 'email' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
+    return 'Please enter a valid email address.';
+  }
+  if (field.type === 'tel' && !/^[0-9+\-\s()]{7,20}$/.test(trimmed)) {
+    return 'Please enter a valid contact number.';
+  }
+  if (field.type === 'number' && Number.isNaN(Number(trimmed))) {
+    return `${field.label} must be a number.`;
+  }
+  return null;
+};
 
 const styles = `
   @keyframes fadeInUp {
@@ -119,6 +274,48 @@ const Members_Profile = () => {
   const [passwordSuccess, setPasswordSuccess] = useState('');
   const [updatingPassword, setUpdatingPassword] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
+  // PDS form state
+  const [activeTab, setActiveTab] = useState(PROFILE_SECTIONS[0].id);
+  const [formData, setFormData] = useState({});
+  const [originalData, setOriginalData] = useState({});
+  const [pdsRowId, setPdsRowId] = useState(null);
+  const [pdsMembershipId, setPdsMembershipId] = useState('');
+  const [fieldErrors, setFieldErrors] = useState({});
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState('');
+  const [saveError, setSaveError] = useState('');
+  const [pendingTabChange, setPendingTabChange] = useState(null);
+  const [showConfirmSave, setShowConfirmSave] = useState(false);
+  const successTimerRef = useRef(null);
+
+  const visibleSections = useMemo(
+    () => getVisibleSections(formData.civil_status),
+    [formData.civil_status]
+  );
+
+  const visibleFieldKeys = useMemo(
+    () => fieldKeysFromSections(visibleSections),
+    [visibleSections]
+  );
+
+  const editableFieldKeys = useMemo(
+    () => fieldKeysFromSections(visibleSections, { editableOnly: true }),
+    [visibleSections]
+  );
+
+  const isDirty = useMemo(() => {
+    return editableFieldKeys.some((key) =>
+      (formData[key] ?? '') !== (originalData[key] ?? '')
+    );
+  }, [formData, originalData, editableFieldKeys]);
+
+  const completionPercent = useMemo(() => {
+    const filled = visibleFieldKeys.filter((key) => isFieldFilled(formData[key])).length;
+    return visibleFieldKeys.length === 0
+      ? 0
+      : Math.round((filled / visibleFieldKeys.length) * 100);
+  }, [formData, visibleFieldKeys]);
 
   const menuItems = [
     { name: "Dashboard", icon: LayoutDashboard },
@@ -224,29 +421,53 @@ const Members_Profile = () => {
           if (!error && data) appRow = data;
         }
 
-        const fullName = [
-          appRow?.first_name || memberRow?.first_name,
-          appRow?.middle_name || memberRow?.middle_name,
-          appRow?.surname || appRow?.last_name || memberRow?.surname,
-        ]
+        const membershipNumber = account?.membership_id || memberRow?.membership_number_id || null;
+        let pdsRow = null;
+        if (membershipNumber) {
+          const { data, error } = await supabase
+            .from('personal_data_sheet')
+            .select('*')
+            .eq('membership_number_id', membershipNumber)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          if (!error && data) pdsRow = data;
+        }
+
+        // Merge PDS (canonical) over application row as fallback.
+        const fieldSource = (key) => {
+          if (pdsRow && pdsRow[key] !== null && pdsRow[key] !== undefined && String(pdsRow[key]) !== '') {
+            return pdsRow[key];
+          }
+          if (appRow && appRow[key] !== null && appRow[key] !== undefined) return appRow[key];
+          if (memberRow && memberRow[key] !== null && memberRow[key] !== undefined) return memberRow[key];
+          return '';
+        };
+
+        const seededForm = {};
+        fieldKeysFromSections(PROFILE_SECTIONS).forEach((key) => {
+          let value = fieldSource(key);
+          if (key === 'email' && !value) value = authEmail;
+          if ((key === 'first_name' || key === 'surname' || key === 'middle_name') && !value) {
+            // member_applications uses last_name for surname
+            if (key === 'surname') value = appRow?.surname || appRow?.last_name || '';
+          }
+          if (PROFILE_SECTIONS.flatMap((s) => s.fields).find((f) => f.key === key)?.type === 'date') {
+            value = dateInputValue(value);
+          }
+          seededForm[key] = normalizeFormValue(value);
+        });
+
+        const fullName = [seededForm.first_name, seededForm.middle_name, seededForm.surname]
           .filter(Boolean)
           .join(' ')
-          .trim() || 'N/A';
+          .trim() || 'Member';
 
         const mapped = {
           fullName,
-          memberId: account?.membership_id || memberRow?.membership_number_id || 'N/A',
-          dateOfBirth: formatDate(appRow?.date_of_birth || memberRow?.date_of_birth),
-          gender: appRow?.gender || memberRow?.gender || 'N/A',
-          civilStatus: appRow?.civil_status || memberRow?.civil_status || 'N/A',
+          memberId: membershipNumber || 'N/A',
           memberType: 'Member',
-          joinedDate: formatDate(memberRow?.date_of_membership || memberRow?.created_at || appRow?.created_at),
-          employer: appRow?.employer_name || 'N/A',
-          position: appRow?.position || memberRow?.position || appRow?.occupation || memberRow?.occupation || 'N/A',
-          salaryGrade: appRow?.salary_grade || 'N/A',
-          mobile: appRow?.contact_number || memberRow?.contact_number || 'N/A',
-          email: appRow?.email || memberRow?.email || authEmail || 'N/A',
-          address: appRow?.permanent_address || memberRow?.permanent_address || 'N/A',
+          joinedDate: formatDate(seededForm.date_of_membership || memberRow?.date_of_membership || memberRow?.created_at || appRow?.created_at),
         };
 
         if (isMounted) {
@@ -255,6 +476,11 @@ const Members_Profile = () => {
           setIsTemporaryAccount(temporaryFlag);
           setAccountTableName(accountTable);
           setResolvedMemberId(memberId);
+          setFormData(seededForm);
+          setOriginalData(seededForm);
+          setPdsRowId(pdsRow?.personal_data_sheet_id || null);
+          setPdsMembershipId(membershipNumber || '');
+          setFieldErrors({});
         }
       } catch (err) {
         if (isMounted) {
@@ -329,6 +555,173 @@ const Members_Profile = () => {
       setUpdatingPassword(false);
     }
   };
+
+  // ---------- PDS form handlers ----------
+  const allFieldsByKey = useMemo(() => {
+    const map = {};
+    PROFILE_SECTIONS.forEach((section) => {
+      section.fields.forEach((field) => {
+        map[field.key] = { ...field, sectionId: section.id, sectionReadOnly: Boolean(section.readOnly) };
+      });
+    });
+    return map;
+  }, []);
+
+  const handleFieldChange = (key, value) => {
+    setFormData((prev) => ({ ...prev, [key]: value }));
+    if (fieldErrors[key]) {
+      setFieldErrors((prev) => {
+        const next = { ...prev };
+        delete next[key];
+        return next;
+      });
+    }
+    setSaveError('');
+    setSaveSuccess('');
+  };
+
+  const handleFieldBlur = (key) => {
+    const field = allFieldsByKey[key];
+    if (!field || field.sectionReadOnly) return;
+    const err = validateField(field, formData[key]);
+    setFieldErrors((prev) => {
+      const next = { ...prev };
+      if (err) next[key] = err;
+      else delete next[key];
+      return next;
+    });
+  };
+
+  const validateAll = () => {
+    const errs = {};
+    visibleSections.forEach((section) => {
+      if (section.readOnly) return;
+      section.fields.forEach((field) => {
+        const err = validateField(field, formData[field.key]);
+        if (err) errs[field.key] = err;
+      });
+    });
+    setFieldErrors(errs);
+    return Object.keys(errs).length === 0;
+  };
+
+  const handleRequestSave = () => {
+    setSaveError('');
+    setSaveSuccess('');
+    if (!validateAll()) {
+      setSaveError('Please fix the highlighted fields before saving.');
+      return;
+    }
+    if (!isDirty) {
+      setSaveError('No changes to save.');
+      return;
+    }
+    setShowConfirmSave(true);
+  };
+
+  const handleConfirmSave = async () => {
+    if (!pdsMembershipId) {
+      setSaveError('Unable to resolve your Personal Data Sheet record. Please contact the cooperative office.');
+      setShowConfirmSave(false);
+      return;
+    }
+
+    setSavingProfile(true);
+    setSaveError('');
+    try {
+      const updatePayload = {};
+      const single = isSingleCivilStatus(formData.civil_status);
+      editableFieldKeys.forEach((key) => {
+        const field = allFieldsByKey[key];
+        let raw = formData[key];
+        if (raw === '' || raw === undefined) {
+          updatePayload[key] = null;
+        } else if (field.type === 'number') {
+          const n = Number(raw);
+          updatePayload[key] = Number.isFinite(n) ? n : null;
+        } else {
+          updatePayload[key] = String(raw).trim();
+        }
+      });
+      // Clear spouse fields when civil status is Single so stale data doesn't linger.
+      if (single) {
+        ['spouse_name', 'spouse_occupation', 'spouse_date_of_birth'].forEach((key) => {
+          updatePayload[key] = null;
+        });
+      }
+
+      const { error: updateError } = await supabase
+        .from('personal_data_sheet')
+        .update(updatePayload)
+        .eq('membership_number_id', pdsMembershipId);
+
+      if (updateError) throw updateError;
+
+      setOriginalData((prev) => ({ ...prev, ...formData }));
+      setSaveSuccess('Profile updated successfully.');
+      setShowConfirmSave(false);
+      if (typeof addNotification === 'function') {
+        addNotification({
+          title: 'Profile updated',
+          message: 'Your personal data sheet has been saved.',
+          type: 'success',
+        });
+      }
+      if (successTimerRef.current) clearTimeout(successTimerRef.current);
+      successTimerRef.current = setTimeout(() => setSaveSuccess(''), 4000);
+    } catch (err) {
+      setSaveError(err.message || 'Unable to save changes.');
+    } finally {
+      setSavingProfile(false);
+    }
+  };
+
+  const handleDiscardChanges = () => {
+    setFormData(originalData);
+    setFieldErrors({});
+    setSaveError('');
+    setSaveSuccess('');
+  };
+
+  const handleTabClick = (tabId) => {
+    if (tabId === activeTab) return;
+    if (isDirty) {
+      setPendingTabChange(tabId);
+      return;
+    }
+    setActiveTab(tabId);
+  };
+
+  const confirmTabChange = (discard) => {
+    if (discard) {
+      handleDiscardChanges();
+      setActiveTab(pendingTabChange);
+    }
+    setPendingTabChange(null);
+  };
+
+  // If the active tab gets hidden (e.g., user changed civil status to Single
+  // while on the Spouse tab), bounce them to the first available section.
+  useEffect(() => {
+    if (!visibleSections.some((s) => s.id === activeTab)) {
+      setActiveTab(visibleSections[0]?.id || 'personal');
+    }
+  }, [visibleSections, activeTab]);
+
+  // Warn on browser navigation away while dirty.
+  useEffect(() => {
+    const handler = (e) => {
+      if (!isDirty) return;
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [isDirty]);
+
+  useEffect(() => () => {
+    if (successTimerRef.current) clearTimeout(successTimerRef.current);
+  }, []);
 
   return (
     <div className="relative flex min-h-screen bg-[#F8F9FA]">
@@ -516,118 +909,286 @@ const Members_Profile = () => {
             </div>
           ) : null}
 
-          {/* Details Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
-            
-            {/* Personal Information */}
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 flex flex-col overflow-hidden">
-              <div className="bg-[#FAF9FB] p-5 border-b border-gray-100 flex items-center gap-2 text-[#1D6021]">
-                <User className="w-5 h-5" />
-                <h2 className="font-bold text-gray-900">Personal Information</h2>
+          {/* Completion + status banner */}
+          <div className="mb-6 bg-white rounded-2xl shadow-sm border border-gray-100 p-5 flex flex-col sm:flex-row sm:items-center gap-4">
+            <div className="flex-1">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-sm font-bold text-gray-900">Profile Completion</p>
+                <p className="text-sm font-extrabold text-[#1D6021]">{completionPercent}%</p>
               </div>
-              <div className="p-6 flex flex-col gap-5">
-                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1 text-sm border-b border-gray-50 pb-4">
-                  <span className="text-gray-500 font-medium">Full Name</span>
-                  <span className="font-bold text-gray-900">{profile?.fullName || 'N/A'}</span>
-                </div>
-                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1 text-sm border-b border-gray-50 pb-4">
-                  <span className="text-gray-500 font-medium">Member ID</span>
-                  <span className="font-bold text-gray-900">{profile?.memberId || 'N/A'}</span>
-                </div>
-                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1 text-sm border-b border-gray-50 pb-4">
-                  <span className="text-gray-500 font-medium">Date of Birth</span>
-                  <span className="font-bold text-gray-900">{profile?.dateOfBirth || 'N/A'}</span>
-                </div>
-                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1 text-sm border-b border-gray-50 pb-4">
-                  <span className="text-gray-500 font-medium">Gender</span>
-                  <span className="font-bold text-gray-900">{profile?.gender || 'N/A'}</span>
-                </div>
-                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1 text-sm">
-                  <span className="text-gray-500 font-medium">Civil Status</span>
-                  <span className="font-bold text-gray-900">{profile?.civilStatus || 'N/A'}</span>
-                </div>
+              <div className="h-2 w-full rounded-full bg-gray-100 overflow-hidden">
+                <div
+                  className="h-full bg-[#1D6021] transition-all duration-500"
+                  style={{ width: `${completionPercent}%` }}
+                />
               </div>
+              <p className="text-[11px] text-gray-500 mt-2 font-medium">
+                {completionPercent === 100
+                  ? 'Your profile is complete and up to date.'
+                  : 'Complete every section to keep your records audit-ready.'}
+              </p>
             </div>
+            {isDirty ? (
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 text-amber-700 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider">
+                <AlertCircle className="w-3.5 h-3.5" /> Unsaved changes
+              </span>
+            ) : null}
+          </div>
 
-            {/* Employment Details */}
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 flex flex-col overflow-hidden">
-              <div className="bg-[#FAF9FB] p-5 border-b border-gray-100 flex items-center gap-2 text-[#1D6021]">
-                <Briefcase className="w-5 h-5" />
-                <h2 className="font-bold text-gray-900">Employment Details</h2>
-              </div>
-              <div className="p-6 flex flex-col gap-5">
-                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1 text-sm border-b border-gray-50 pb-4">
-                  <span className="text-gray-500 font-medium">Employer</span>
-                  <span className="font-bold text-gray-900">{profile?.employer || 'N/A'}</span>
-                </div>
-                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1 text-sm border-b border-gray-50 pb-4">
-                  <span className="text-gray-500 font-medium">Position</span>
-                  <span className="font-bold text-gray-900">{profile?.position || 'N/A'}</span>
-                </div>
-                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1 text-sm">
-                  <span className="text-gray-500 font-medium">Salary Grade</span>
-                  <span className="font-bold text-gray-900">{profile?.salaryGrade || 'N/A'}</span>
-                </div>
-              </div>
+          {saveSuccess ? (
+            <div className="mb-4 p-3 rounded-xl border border-green-200 bg-green-50 text-sm text-green-700 flex items-center gap-2 font-semibold">
+              <CheckCircle2 className="w-4 h-4" /> {saveSuccess}
             </div>
-
-            {/* Contact Information */}
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 flex flex-col overflow-hidden">
-              <div className="bg-[#FAF9FB] p-5 border-b border-gray-100 flex items-center gap-2 text-[#1D6021]">
-                <Contact2 className="w-5 h-5" />
-                <h2 className="font-bold text-gray-900">Contact Information</h2>
-              </div>
-              <div className="p-6 flex flex-col gap-6">
-                <div>
-                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Mobile Number</p>
-                  <p className="font-bold text-gray-900 text-sm">{profile?.mobile || 'N/A'}</p>
-                </div>
-                <div>
-                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Email Address</p>
-                  <p className="font-bold text-gray-900 text-sm">{profile?.email || 'N/A'}</p>
-                </div>
-                <div>
-                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Permanent Address</p>
-                  <p className="font-bold text-gray-900 text-sm leading-relaxed">{profile?.address || 'N/A'}</p>
-                </div>
-              </div>
+          ) : null}
+          {saveError ? (
+            <div className="mb-4 p-3 rounded-xl border border-red-200 bg-red-50 text-sm text-red-700 flex items-center gap-2 font-semibold">
+              <AlertCircle className="w-4 h-4" /> {saveError}
             </div>
+          ) : null}
 
-            {/* Security */}
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 flex flex-col overflow-hidden">
-              <div className="bg-[#FAF9FB] p-5 border-b border-gray-100 flex items-center gap-2 text-[#1D6021]">
-                <ShieldCheck className="w-5 h-5" />
-                <h2 className="font-bold text-gray-900">Security</h2>
-              </div>
-              <div className="p-6 flex flex-col gap-6">
-                
-                <button onClick={handleOpenChangePassword} className="w-full flex items-center justify-between p-4 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors">
-                  <div className="flex items-center gap-3">
-                    <Lock className="w-5 h-5 text-gray-400" />
-                    <span className="font-bold text-gray-900 text-sm">Change Password</span>
-                  </div>
-                  <ChevronRight className="w-5 h-5 text-gray-400" />
+          {/* Tabbed editor */}
+          <div className="grid grid-cols-1 lg:grid-cols-[260px,1fr] gap-6">
+            {/* Tab nav */}
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-3 h-fit overflow-x-auto">
+              <div className="flex lg:flex-col gap-1 min-w-max lg:min-w-0">
+                {visibleSections.map((section) => {
+                  const Icon = section.icon;
+                  const isActive = activeTab === section.id;
+                  const sectionFilled = section.fields.filter((f) => isFieldFilled(formData[f.key])).length;
+                  return (
+                    <button
+                      key={section.id}
+                      type="button"
+                      onClick={() => handleTabClick(section.id)}
+                      className={`flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg text-left transition-colors ${
+                        isActive
+                          ? 'bg-[#EAF1EB] text-[#1D6021]'
+                          : 'text-gray-600 hover:bg-gray-50'
+                      }`}
+                    >
+                      <span className="flex items-center gap-3">
+                        <Icon size={16} strokeWidth={isActive ? 2.5 : 2} />
+                        <span className="text-sm font-bold whitespace-nowrap">{section.label}</span>
+                      </span>
+                      <span className={`text-[10px] font-bold rounded-full px-2 py-0.5 ${
+                        isActive ? 'bg-white text-[#1D6021]' : 'bg-gray-100 text-gray-500'
+                      }`}>
+                        {sectionFilled}/{section.fields.length}
+                      </span>
+                    </button>
+                  );
+                })}
+
+                <div className="hidden lg:block border-t border-gray-100 my-3" />
+
+                <button
+                  type="button"
+                  onClick={handleOpenChangePassword}
+                  className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-left text-gray-600 hover:bg-gray-50"
+                >
+                  <Lock size={16} />
+                  <span className="text-sm font-bold whitespace-nowrap">Account Security</span>
                 </button>
-
-                <div className="flex items-center justify-between pt-2">
-                  <div>
-                    <h3 className="font-bold text-gray-900 text-sm">SMS Notifications</h3>
-                    <p className="text-[11px] text-gray-400 font-medium">Receive alerts via phone</p>
-                  </div>
-                  <ToggleSwitch isOn={smsNotif} onToggle={() => setSmsNotif(!smsNotif)} />
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="font-bold text-gray-900 text-sm">Email Notifications</h3>
-                    <p className="text-[11px] text-gray-400 font-medium">Receive monthly statements</p>
-                  </div>
-                  <ToggleSwitch isOn={emailNotif} onToggle={() => setEmailNotif(!emailNotif)} />
-                </div>
-
               </div>
             </div>
 
+            {/* Active section panel */}
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col">
+              {visibleSections.filter((s) => s.id === activeTab).map((section) => {
+                const Icon = section.icon;
+                return (
+                  <div key={section.id} className="flex flex-col">
+                    <div className="px-6 py-5 border-b border-gray-100 bg-[#FAF9FB] flex items-start justify-between gap-3">
+                      <div className="flex items-start gap-3">
+                        <div className="rounded-lg bg-[#EAF1EB] text-[#1D6021] p-2">
+                          <Icon className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <h2 className="font-extrabold text-gray-900 text-base">{section.label}</h2>
+                          {section.description ? (
+                            <p className="text-xs text-gray-500 font-medium mt-0.5">{section.description}</p>
+                          ) : null}
+                        </div>
+                      </div>
+                      {section.readOnly ? (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 text-gray-600 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider">
+                          <ShieldCheck className="w-3 h-3" /> Read-only
+                        </span>
+                      ) : null}
+                    </div>
+
+                    <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-5">
+                      {section.fields.map((field) => {
+                        const error = fieldErrors[field.key];
+                        const value = formData[field.key] ?? '';
+                        const inputClass = `w-full rounded-lg border ${
+                          error ? 'border-red-300 focus:ring-red-200' : 'border-gray-200 focus:ring-[#1D6021]/30 focus:border-[#1D6021]'
+                        } bg-white px-3 py-2.5 text-sm text-gray-900 outline-none focus:ring-2 transition disabled:bg-gray-50 disabled:text-gray-500 disabled:cursor-not-allowed`;
+                        const disabled = section.readOnly || loadingProfile;
+                        const isFull = field.fullWidth;
+                        return (
+                          <div key={field.key} className={isFull ? 'md:col-span-2' : ''}>
+                            <label className="block text-[11px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">
+                              {field.label}{field.required ? <span className="text-red-500 ml-0.5">*</span> : null}
+                            </label>
+                            {field.type === 'textarea' ? (
+                              <textarea
+                                value={value}
+                                onChange={(e) => handleFieldChange(field.key, e.target.value)}
+                                onBlur={() => handleFieldBlur(field.key)}
+                                disabled={disabled}
+                                rows={3}
+                                placeholder={field.placeholder || ''}
+                                className={inputClass}
+                              />
+                            ) : field.type === 'select' ? (
+                              <select
+                                value={value}
+                                onChange={(e) => handleFieldChange(field.key, e.target.value)}
+                                onBlur={() => handleFieldBlur(field.key)}
+                                disabled={disabled}
+                                className={inputClass}
+                              >
+                                <option value="">Select…</option>
+                                {field.options.map((opt) => (
+                                  <option key={opt} value={opt}>{opt}</option>
+                                ))}
+                              </select>
+                            ) : (
+                              <input
+                                type={field.type || 'text'}
+                                value={value}
+                                onChange={(e) => handleFieldChange(field.key, e.target.value)}
+                                onBlur={() => handleFieldBlur(field.key)}
+                                disabled={disabled}
+                                placeholder={field.placeholder || ''}
+                                className={inputClass}
+                              />
+                            )}
+                            {error ? (
+                              <p className="mt-1 text-xs text-red-600 font-semibold flex items-center gap-1">
+                                <AlertCircle className="w-3 h-3" /> {error}
+                              </p>
+                            ) : null}
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {!section.readOnly ? (
+                      <div className="px-6 py-4 border-t border-gray-100 bg-gray-50 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                        <div className="flex items-center gap-2 self-end sm:self-auto">
+                          <button
+                            type="button"
+                            onClick={handleDiscardChanges}
+                            disabled={!isDirty || savingProfile}
+                            className="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 text-sm font-semibold hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed"
+                          >
+                            Discard
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleRequestSave}
+                            disabled={!isDirty || savingProfile}
+                            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[#1D6021] text-white text-sm font-semibold hover:bg-[#154718] disabled:opacity-40 disabled:cursor-not-allowed"
+                          >
+                            <Save className="w-4 h-4" /> Save Changes
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="px-6 py-4 border-t border-gray-100 bg-gray-50">
+                        <p className="text-xs text-gray-500 font-medium">
+                          These figures are maintained by the cooperative office. Contact the BOD/Manager for adjustments.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Save confirmation modal */}
+          {showConfirmSave ? (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+              <div className="w-full max-w-md bg-white rounded-2xl shadow-xl border border-gray-200 p-6">
+                <h3 className="text-lg font-extrabold text-gray-900 mb-2">Save profile changes?</h3>
+                <p className="text-sm text-gray-600 mb-5">
+                  Your updates will be written to your Personal Data Sheet and will be visible across all cooperative modules.
+                </p>
+                <div className="flex items-center justify-end gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmSave(false)}
+                    disabled={savingProfile}
+                    className="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 text-sm font-semibold hover:bg-gray-50 disabled:opacity-50"
+                  >
+                    Review again
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleConfirmSave}
+                    disabled={savingProfile}
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[#1D6021] text-white text-sm font-semibold hover:bg-[#154718] disabled:opacity-50"
+                  >
+                    {savingProfile ? 'Saving…' : (<><Save className="w-4 h-4" /> Confirm Save</>)}
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : null}
+
+          {/* Unsaved changes warning when switching tabs */}
+          {pendingTabChange ? (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+              <div className="w-full max-w-md bg-white rounded-2xl shadow-xl border border-gray-200 p-6">
+                <h3 className="text-lg font-extrabold text-gray-900 mb-2">Discard unsaved changes?</h3>
+                <p className="text-sm text-gray-600 mb-5">
+                  You have unsaved edits in this section. Switching tabs will discard them. Continue?
+                </p>
+                <div className="flex items-center justify-end gap-3">
+                  <button
+                    type="button"
+                    onClick={() => confirmTabChange(false)}
+                    className="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 text-sm font-semibold hover:bg-gray-50"
+                  >
+                    Keep editing
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => confirmTabChange(true)}
+                    className="px-4 py-2 rounded-lg bg-red-600 text-white text-sm font-semibold hover:bg-red-700"
+                  >
+                    Discard & switch
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : null}
+
+          {/* Notification preferences (kept) */}
+          <div className="mt-6 bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+            <div className="px-6 py-4 border-b border-gray-100 bg-[#FAF9FB] flex items-center gap-2 text-[#1D6021]">
+              <ShieldCheck className="w-5 h-5" />
+              <h2 className="font-extrabold text-gray-900 text-base">Notification Preferences</h2>
+            </div>
+            <div className="p-6 flex flex-col gap-5">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="font-bold text-gray-900 text-sm">SMS Notifications</h3>
+                  <p className="text-[11px] text-gray-400 font-medium">Receive alerts via phone</p>
+                </div>
+                <ToggleSwitch isOn={smsNotif} onToggle={() => setSmsNotif(!smsNotif)} />
+              </div>
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="font-bold text-gray-900 text-sm">Email Notifications</h3>
+                  <p className="text-[11px] text-gray-400 font-medium">Receive monthly statements</p>
+                </div>
+                <ToggleSwitch isOn={emailNotif} onToggle={() => setEmailNotif(!emailNotif)} />
+              </div>
+            </div>
           </div>
 
         </main>

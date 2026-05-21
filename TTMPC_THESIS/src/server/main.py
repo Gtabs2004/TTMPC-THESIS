@@ -232,6 +232,9 @@ class CashierLoanPaymentCreateRequest(BaseModel):
 
 class CashierDisbursementRequest(BaseModel):
     disbursed_at: datetime | None = None
+    cashier_id: str | None = None
+    cashier_name: str | None = None
+    cashier_email: str | None = None
 
 
 class BookkeeperPaymentDecisionRequest(BaseModel):
@@ -803,7 +806,7 @@ async def get_cashier_loans_for_payments():
             loans_response = (
                 supabase.table("loans")
                 .select(
-                    "control_number,loan_amount,principal_amount,interest_rate,term,loan_status,application_date,monthly_amortization," \
+                    "control_number,loan_amount,principal_amount,interest_rate,term,loan_status,application_date,monthly_amortization,total_interest," \
                     "member:member_id(first_name,last_name,is_bona_fide),loan_type:loan_type_id(name,interest_rate)"
                 )
                 .order("application_date", desc=True)
@@ -813,7 +816,7 @@ async def get_cashier_loans_for_payments():
             loans_response = (
                 supabase.table("loans")
                 .select(
-                    "control_number,loan_amount,principal_amount,interest_rate,term,loan_status,application_date," \
+                    "control_number,loan_amount,principal_amount,interest_rate,term,loan_status,application_date,total_interest," \
                     "member:member_id(first_name,last_name,is_bona_fide),loan_type:loan_type_id(name,interest_rate)"
                 )
                 .order("application_date", desc=True)
@@ -895,7 +898,14 @@ async def get_cashier_loans_for_payments():
 
             principal_amount = Decimal(str(loan.get("principal_amount") or loan.get("loan_amount") or 0))
             confirmed_paid = confirmed_paid_by_loan.get(control_number, Decimal("0"))
-            remaining_balance = max(principal_amount - confirmed_paid, Decimal("0"))
+            total_interest_amount = Decimal(str(loan.get("total_interest") or 0))
+            if total_interest_amount <= 0:
+                term_months_val = int(loan.get("term") or 0)
+                monthly_amort_val = Decimal(str(loan.get("monthly_amortization") or 0))
+                if term_months_val > 0 and monthly_amort_val > 0:
+                    total_interest_amount = max(monthly_amort_val * term_months_val - principal_amount, Decimal("0"))
+            total_payable_amount = principal_amount + total_interest_amount
+            remaining_balance = max(total_payable_amount - confirmed_paid, Decimal("0"))
 
             schedules = schedules_by_loan.get(control_number, [])
             next_schedule = None
@@ -958,6 +968,8 @@ async def get_cashier_loans_for_payments():
                     "delayed_deadline": delayed_deadline.isoformat() if delayed_deadline else None,
                     "is_delayed": is_delayed,
                     "remaining_balance": decimal_to_float(remaining_balance),
+                    "total_payable": decimal_to_float(total_payable_amount),
+                    "total_interest": decimal_to_float(total_interest_amount),
                     "loan_status": repayment_status,
                 }
             )
@@ -1481,7 +1493,8 @@ async def disburse_cashier_loan(loan_id: str, payload: CashierDisbursementReques
         loan_response = (
             supabase.table("loans")
             .select(
-                "control_number,loan_amount,principal_amount,interest_rate,term,loan_status," \
+                "control_number,loan_amount,principal_amount,interest_rate,term,loan_status,total_interest,monthly_amortization,member_id," \
+                "member:member_id(first_name,last_name)," \
                 "loan_type:loan_type_id(name)"
             )
             .eq("control_number", clean_loan_id)
@@ -1622,6 +1635,35 @@ async def disburse_cashier_loan(loan_id: str, payload: CashierDisbursementReques
         )
         updated_loan = (updated_loan_response.data or [None])[0]
 
+        member_info = loan_row.get("member") or {}
+        member_full_name = (
+            f"{member_info.get('first_name') or ''} {member_info.get('last_name') or ''}".strip()
+            or "Unknown Member"
+        )
+        loan_type_label = (loan_row.get("loan_type") or {}).get("name") or "N/A"
+
+        reference_number = f"TTMPC-DSB-{disbursed_at.strftime('%Y%m%d%H%M%S')}-{clean_loan_id[-6:].upper()}"
+        cashier_display = (payload.cashier_name or payload.cashier_email or "Cashier").strip()
+
+        confirmation_record = {
+            "reference_number": reference_number,
+            "loan_id": clean_loan_id,
+            "member_id": loan_row.get("member_id"),
+            "member_name": member_full_name,
+            "loan_type": loan_type_label,
+            "loan_amount": float(principal_amount),
+            "disbursed_at": disbursed_at.isoformat(),
+            "first_due_date": first_due_date.isoformat(),
+            "cashier_id": payload.cashier_id,
+            "cashier_name": cashier_display,
+            "loan_status": (updated_loan or {}).get("loan_status") or "released",
+        }
+        try:
+            supabase.table("disbursement_confirmations").insert(confirmation_record).execute()
+        except Exception:
+            # Table may not exist yet in legacy DBs; surface confirmation client-side regardless.
+            pass
+
         return {
             "success": True,
             "message": "Loan disbursed successfully. Only the next due schedule is created.",
@@ -1637,6 +1679,7 @@ async def disburse_cashier_loan(loan_id: str, payload: CashierDisbursementReques
                     if created_schedules and created_schedules[0].get("schedule_id")
                     else (created_schedules[0].get("id") if created_schedules else None)
                 ),
+                "confirmation": confirmation_record,
             },
         }
     except HTTPException as err:
@@ -1787,7 +1830,7 @@ async def get_bookkeeper_manage_loans():
         loans_response = (
             supabase.table("loans")
             .select(
-                "control_number,loan_amount,principal_amount,interest_rate,term,loan_status,application_status,monthly_amortization,application_date," \
+                "control_number,loan_amount,principal_amount,interest_rate,term,loan_status,application_status,monthly_amortization,total_interest,application_date," \
                 "member:member_id(membership_id,first_name,last_name,is_bona_fide),loan_type:loan_type_id(code,name,interest_rate)"
             )
             .order("application_date", desc=True)
@@ -1868,6 +1911,13 @@ async def get_bookkeeper_manage_loans():
             loan_type_code = str(loan_type.get("code") or normalize_cashier_loan_type(loan_type_name)).upper()
 
             principal_amount = Decimal(str(row.get("principal_amount") or row.get("loan_amount") or 0))
+            total_interest_amount = Decimal(str(row.get("total_interest") or 0))
+            if total_interest_amount <= 0:
+                term_months_val = int(row.get("term") or 0)
+                monthly_amort_val = Decimal(str(row.get("monthly_amortization") or 0))
+                if term_months_val > 0 and monthly_amort_val > 0:
+                    total_interest_amount = max(monthly_amort_val * term_months_val - principal_amount, Decimal("0"))
+            total_payable_amount = principal_amount + total_interest_amount
 
             loan_payments = sorted(
                 payments_by_loan.get(loan_id, []),
@@ -1880,7 +1930,7 @@ async def get_bookkeeper_manage_loans():
                 amount_paid = Decimal(str(payment.get("amount_paid") or 0))
                 if is_validated_payment_status(payment.get("confirmation_status")):
                     total_validated += amount_paid
-                running_remaining = max(principal_amount - total_validated, Decimal("0"))
+                running_remaining = max(total_payable_amount - total_validated, Decimal("0"))
 
                 payment_history.append(
                     {
@@ -1894,7 +1944,7 @@ async def get_bookkeeper_manage_loans():
                     }
                 )
 
-            remaining_balance = max(principal_amount - total_validated, Decimal("0"))
+            remaining_balance = max(total_payable_amount - total_validated, Decimal("0"))
             if remaining_balance <= 0:
                 repayment_status = "Fully Paid"
             elif total_validated > 0:
@@ -1932,6 +1982,8 @@ async def get_bookkeeper_manage_loans():
                     "term_months": int(row.get("term") or 0),
                     "amortization": decimal_to_float(row.get("monthly_amortization") or 0),
                     "remaining_balance": decimal_to_float(remaining_balance),
+                    "total_payable": decimal_to_float(total_payable_amount),
+                    "total_interest": decimal_to_float(total_interest_amount),
                     "due_date": due_date,
                     "status": repayment_status,
                     "source_loan_status": row.get("loan_status"),
@@ -2066,7 +2118,7 @@ async def get_member_lifecycle(member_id: str):
         loans_response = (
             supabase.table("loans")
             .select(
-                "control_number,loan_amount,principal_amount,interest_rate,monthly_amortization,term,loan_status,application_status,application_date,disbursal_date," \
+                "control_number,loan_amount,principal_amount,interest_rate,monthly_amortization,total_interest,term,loan_status,application_status,application_date,disbursal_date," \
                 "loan_type:loan_type_id(name)"
             )
             .eq("member_id", clean_member_id)
@@ -2136,11 +2188,41 @@ async def get_member_lifecycle(member_id: str):
                 None,
             )
 
+            principal_value = Decimal(str(row.get("principal_amount") or row.get("loan_amount") or 0))
+            total_interest_value = Decimal(str(row.get("total_interest") or 0))
+            if total_interest_value <= 0:
+                schedule_interest_sum = sum(
+                    (Decimal(str(s.get("expected_interest") or 0)) for s in mapped_schedules),
+                    Decimal("0"),
+                )
+                if schedule_interest_sum > 0:
+                    total_interest_value = schedule_interest_sum
+                else:
+                    monthly_amort = Decimal(str(row.get("monthly_amortization") or 0))
+                    term_val = int(row.get("term") or 0)
+                    if monthly_amort > 0 and term_val > 0:
+                        total_interest_value = max(monthly_amort * term_val - principal_value, Decimal("0"))
+            total_payable_value = principal_value + total_interest_value
+
+            # Sum of confirmed payments for this loan (status normalization mirrors backend payment trigger).
+            confirmed_paid_value = Decimal("0")
+            for pay in payment_rows:
+                if str(pay.get("loan_id") or "") != loan_id:
+                    continue
+                status_norm = str(pay.get("confirmation_status") or "").strip().lower()
+                if status_norm in {"validated", "confirmed", "bookkeeper_confirmed", "approved"}:
+                    confirmed_paid_value += Decimal(str(pay.get("amount_paid") or 0))
+            remaining_balance_value = max(total_payable_value - confirmed_paid_value, Decimal("0"))
+
             mapped_loans.append(
                 {
                     "loan_id": loan_id,
                     "loan_type": (row.get("loan_type") or {}).get("name") or "N/A",
-                    "principal": decimal_to_float(row.get("principal_amount") or row.get("loan_amount") or 0),
+                    "principal": decimal_to_float(principal_value),
+                    "total_interest": decimal_to_float(total_interest_value),
+                    "total_payable": decimal_to_float(total_payable_value),
+                    "amount_paid": decimal_to_float(confirmed_paid_value),
+                    "remaining_balance": decimal_to_float(remaining_balance_value),
                     "monthly_amortization": decimal_to_float(row.get("monthly_amortization") or 0),
                     "term": int(row.get("term") or 0),
                     "loan_status": row.get("loan_status") or "N/A",
@@ -3448,7 +3530,7 @@ async def approve_bookkeeper_payment(payment_id: str, payload: BookkeeperPayment
         loan_response = (
             supabase.table("loans")
             .select(
-                "control_number,loan_amount,principal_amount,interest_rate,term,loan_status," \
+                "control_number,loan_amount,principal_amount,interest_rate,term,loan_status,total_interest,monthly_amortization," \
                 "loan_type:loan_type_id(name)"
             )
             .eq("control_number", loan_id)
@@ -3504,7 +3586,13 @@ async def approve_bookkeeper_payment(payment_id: str, payload: BookkeeperPayment
         )
         total_validated_before = sum(Decimal(str(row.get("amount_paid") or 0)) for row in (validated_response.data or []))
         total_validated_after = total_validated_before + payment_amount
-        remaining_loan_balance = max(principal_amount - total_validated_after, Decimal("0"))
+        total_interest_amount = Decimal(str(loan_row.get("total_interest") or 0))
+        if total_interest_amount <= 0:
+            monthly_amort_val = Decimal(str(loan_row.get("monthly_amortization") or 0))
+            if monthly_amort_val > 0 and term_months > 0:
+                total_interest_amount = max(monthly_amort_val * term_months - principal_amount, Decimal("0"))
+        total_payable_amount = principal_amount + total_interest_amount
+        remaining_loan_balance = max(total_payable_amount - total_validated_after, Decimal("0"))
 
         schedule_update_payload = {"schedule_status": "Paid"}
         (

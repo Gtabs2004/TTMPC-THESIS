@@ -249,15 +249,20 @@ const MemberDashboard = () => {
 
         if (loansError) throw loansError;
 
-        const { data: cbuRow, error: cbuError } = await supabase
+        const { data: cbuRows, error: cbuError } = await supabase
           .from('capital_build_up')
-          .select('starting_share_capital, transaction_date')
+          .select('starting_share_capital, ending_share_capital, capital_added, transaction_date')
           .eq('member_id', memberId)
-          .order('transaction_date', { ascending: false })
-          .limit(1)
-          .maybeSingle();
+          .order('transaction_date', { ascending: false });
 
         if (cbuError) throw cbuError;
+
+        const cbuRow = (cbuRows && cbuRows[0]) || null;
+        const shareCapitalBalance = cbuRow
+          ? (cbuRow.ending_share_capital !== null && cbuRow.ending_share_capital !== undefined
+              ? Number(cbuRow.ending_share_capital)
+              : (cbuRows || []).reduce((sum, row) => sum + Number(row?.capital_added || 0), 0))
+          : 0;
 
         const normalizedLoans = (loansData || []).map((loan) => {
           const principal = Number(loan.principal_amount ?? loan.loan_amount ?? 0);
@@ -280,7 +285,7 @@ const MemberDashboard = () => {
           .filter(Boolean)
           .join(' ')
           .trim() || 'Member';
-        const shareCapital = Number(cbuRow?.starting_share_capital ?? 0);
+        const shareCapital = Number.isFinite(shareCapitalBalance) ? shareCapitalBalance : 0;
         const membershipId = String(account?.membership_id || memberRow?.membership_number_id || '').trim();
 
         let savingsAccountTotal = 0;
@@ -396,7 +401,7 @@ const MemberDashboard = () => {
           });
           setIsTemporaryAccount(temporaryFlag);
           setMemberLoans(normalizedLoans);
-          setTotalSavings(shareCapital + savingsAccountTotal);
+          setTotalSavings(savingsAccountTotal);
           setNextDueDate(derivedNextDueDate);
           setRecentTransactions(latestTransactions);
           setAvatarUrl(resolvedAvatarUrl);
@@ -771,7 +776,7 @@ const MemberDashboard = () => {
               <p className="text-xs font-bold text-gray-500 mb-1">Total Savings</p>
               <h3 className="text-xl sm:text-2xl font-black text-gray-900 mb-2">{formatCurrency(totalSavings)}</h3>
               <p className="text-[10px] font-semibold text-gray-500 flex items-center mt-auto">
-                Based on share capital and savings account balances
+                Based on savings account balances
               </p>
             </div>
 

@@ -10,6 +10,7 @@ import {
   Bell,
   CalendarClock,
   CheckCircle2,
+  Circle,
   CreditCard,
   History,
   LayoutDashboard,
@@ -22,7 +23,81 @@ import {
   Users,
   Wallet,
   Receipt,
+  ChevronDown,
+  ChevronUp,
+  FileText,
+  ClipboardCheck,
+  ThumbsUp,
+  PackageCheck,
+  Banknote,
+  Repeat,
+  Trophy,
 } from "lucide-react";
+
+// 7 member-facing stages, in order.
+const LIFECYCLE_STAGES = [
+  { id: 'submitted', label: 'Loan Submitted', icon: FileText, description: 'Your application has been received.' },
+  { id: 'review', label: 'Under Review', icon: ClipboardCheck, description: 'Bookkeeper is reviewing your documents.' },
+  { id: 'approved', label: 'Approved', icon: ThumbsUp, description: 'The Manager has approved your loan.' },
+  { id: 'ready', label: 'Ready for Release', icon: PackageCheck, description: 'Awaiting cashier disbursement.' },
+  { id: 'disbursed', label: 'Disbursed', icon: Banknote, description: 'Funds have been released to you.' },
+  { id: 'ongoing', label: 'Ongoing Payments', icon: Repeat, description: 'You are actively paying this loan.' },
+  { id: 'paid', label: 'Fully Paid', icon: Trophy, description: 'Congratulations — this loan is complete.' },
+];
+
+const STAGE_INDEX = LIFECYCLE_STAGES.reduce((acc, s, i) => ({ ...acc, [s.id]: i }), {});
+
+const resolveStageIndex = (loan) => {
+  const status = String(loan?.loan_status || loan?.application_status || '').trim().toLowerCase();
+  if (status === 'fully paid') return STAGE_INDEX.paid;
+  if (status === 'partially paid') return STAGE_INDEX.ongoing;
+  if (status === 'released') return STAGE_INDEX.disbursed;
+  if (status === 'to be disbursed' || status === 'ready for disbursement') return STAGE_INDEX.ready;
+  if (status === 'approved') return STAGE_INDEX.approved;
+  if (status === 'recommended for approval') return STAGE_INDEX.review;
+  if (status === 'pending') return STAGE_INDEX.submitted;
+  // Terminal negative states leave stage at the latest known step.
+  if (status === 'rejected' || status === 'cancelled') return STAGE_INDEX.review;
+  return STAGE_INDEX.submitted;
+};
+
+const memberStatusLabel = (loan) => {
+  const status = String(loan?.loan_status || loan?.application_status || '').trim().toLowerCase();
+  if (status === 'fully paid') return { text: 'Fully Paid', tone: 'success' };
+  if (status === 'partially paid') return { text: 'Ongoing Payments', tone: 'info' };
+  if (status === 'released') return { text: 'Disbursed', tone: 'info' };
+  if (status === 'to be disbursed' || status === 'ready for disbursement') return { text: 'Ready for Release', tone: 'warn' };
+  if (status === 'approved') return { text: 'Approved', tone: 'success' };
+  if (status === 'recommended for approval') return { text: 'Under Review', tone: 'warn' };
+  if (status === 'pending') return { text: 'Submitted', tone: 'warn' };
+  if (status === 'rejected') return { text: 'Not Approved', tone: 'error' };
+  if (status === 'cancelled') return { text: 'Cancelled', tone: 'neutral' };
+  return { text: 'In Process', tone: 'neutral' };
+};
+
+const toneStyles = {
+  success: 'bg-green-100 text-green-700 border-green-200',
+  info: 'bg-blue-100 text-blue-700 border-blue-200',
+  warn: 'bg-amber-100 text-amber-700 border-amber-200',
+  error: 'bg-red-100 text-red-700 border-red-200',
+  neutral: 'bg-gray-100 text-gray-700 border-gray-200',
+};
+
+const formatShortDate = (value) => {
+  if (!value) return '—';
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return '—';
+  return d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: '2-digit' });
+};
+
+const paymentStatusLabel = (status) => {
+  const s = String(status || '').trim().toLowerCase();
+  if (s === 'validated' || s === 'confirmed' || s === 'approved' || s === 'bookkeeper_confirmed') {
+    return { text: 'Posted', tone: 'success' };
+  }
+  if (s === 'rejected') return { text: 'Rejected', tone: 'error' };
+  return { text: 'Pending', tone: 'warn' };
+};
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 
@@ -160,6 +235,9 @@ const Member_Lifecycle = () => {
   const [memberLabel, setMemberLabel] = useState('Member');
   const [avatarUrl, setAvatarUrl] = useState('');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [selectedLoanId, setSelectedLoanId] = useState('');
+  const [showDetails, setShowDetails] = useState(false);
+  const [showSchedule, setShowSchedule] = useState(false);
 
   const menuItems = [
     { name: "Dashboard", icon: LayoutDashboard },
@@ -229,18 +307,38 @@ const Member_Lifecycle = () => {
       setMemberLabel(profileRow.full_name || 'Member');
       setAvatarUrl(signedAvatarUrl || '');
 
-      const normalizedLoans = backendLoans.map((loan) => ({
-        loan_id: loan.loan_id,
-        loan_type: loan.loan_type || "N/A",
-        principal: Number(loan.principal || 0),
-        monthly_amortization: Number(loan.monthly_amortization || 0),
-        term: Number(loan.term || 0),
-        loan_status: loan.loan_status || "N/A",
-        application_status: loan.application_status || "N/A",
-        approval_stage: mapApprovalStage(loan.loan_status || loan.application_status),
-        application_date: loan.application_date,
-        disbursal_date: loan.disbursal_date,
-      }));
+      const normalizedLoans = backendLoans.map((loan) => {
+        const principal = Number(loan.principal || 0);
+        const totalInterest = Number(loan.total_interest || 0);
+        const totalPayable = Number(
+          loan.total_payable || (principal + totalInterest)
+        );
+        const amountPaid = Number(loan.amount_paid || 0);
+        const remaining = Number(
+          loan.remaining_balance ?? Math.max(totalPayable - amountPaid, 0)
+        );
+        const progressPercent = totalPayable > 0
+          ? Math.min(100, Math.round((amountPaid / totalPayable) * 100))
+          : 0;
+        return {
+          loan_id: loan.loan_id,
+          loan_type: loan.loan_type || "N/A",
+          principal,
+          total_interest: totalInterest,
+          total_payable: totalPayable,
+          amount_paid: amountPaid,
+          remaining_balance: remaining,
+          progress_percent: progressPercent,
+          monthly_amortization: Number(loan.monthly_amortization || 0),
+          term: Number(loan.term || 0),
+          loan_status: loan.loan_status || "N/A",
+          application_status: loan.application_status || "N/A",
+          application_date: loan.application_date,
+          disbursal_date: loan.disbursal_date,
+          schedules: Array.isArray(loan.schedules) ? loan.schedules : [],
+          next_due_schedule: loan.next_due_schedule || null,
+        };
+      });
       setLoans(normalizedLoans);
 
       const normalizedSchedules = backendLoans
@@ -304,6 +402,42 @@ const Member_Lifecycle = () => {
     const totalPaid = payments.reduce((sum, row) => sum + Number(row.amount_paid || 0), 0);
     return { active, completed, totalPaid };
   }, [loans, payments]);
+
+  // Auto-select the most relevant loan (first active, else first completed, else first row).
+  useEffect(() => {
+    if (loans.length === 0) {
+      setSelectedLoanId('');
+      return;
+    }
+    const stillExists = loans.some((l) => l.loan_id === selectedLoanId);
+    if (selectedLoanId && stillExists) return;
+    const firstActive = loans.find(
+      (l) => !['fully paid', 'rejected', 'cancelled'].includes(String(l.loan_status || '').toLowerCase())
+    );
+    setSelectedLoanId((firstActive || loans[0]).loan_id);
+  }, [loans, selectedLoanId]);
+
+  const selectedLoan = useMemo(
+    () => loans.find((l) => l.loan_id === selectedLoanId) || null,
+    [loans, selectedLoanId]
+  );
+
+  const selectedStageIndex = useMemo(
+    () => (selectedLoan ? resolveStageIndex(selectedLoan) : 0),
+    [selectedLoan]
+  );
+
+  const selectedStatus = useMemo(
+    () => (selectedLoan ? memberStatusLabel(selectedLoan) : null),
+    [selectedLoan]
+  );
+
+  const recentPayments = useMemo(() => {
+    if (!selectedLoan) return [];
+    return payments
+      .filter((p) => p.loan_id === selectedLoan.loan_id)
+      .slice(0, 5);
+  }, [payments, selectedLoan]);
 
   const handleSignOut = async (event) => {
     event.preventDefault();
@@ -428,20 +562,34 @@ const Member_Lifecycle = () => {
         <main className="p-4 sm:p-6 lg:p-8 overflow-y-auto pb-28 lg:pb-0">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6 gap-3">
             <div>
-              <h1 className="hidden lg:block font-extrabold text-[#1a4a2f] text-2xl">Loan Lifecycle View</h1>
-              <h1 className="lg:hidden font-extrabold text-[#1a4a2f] text-xl">Loan Lifecycle View</h1>
+              <h1 className="hidden lg:block font-extrabold text-[#1a4a2f] text-2xl">My Loan Journey</h1>
+              <h1 className="lg:hidden font-extrabold text-[#1a4a2f] text-xl">My Loan Journey</h1>
               <p className="text-xs text-gray-500 mt-1">
-                Real-time refresh every 7 seconds. Last synced: {formatDate(lastSynced)}
+                Track your loan from application through completion.
               </p>
-              <p className="text-[11px] text-gray-500 mt-1">Fetch status: {fetchStage || "Idle"}</p>
             </div>
-            <button
-              type="button"
-              onClick={loadLifecycleData}
-              className="inline-flex items-center gap-2 rounded-lg bg-[#1D6021] px-4 py-2 text-sm font-bold text-white hover:bg-[#154718] transition-all-smooth hover:scale-105 active:scale-95"
-            >
-              <RefreshCw size={14} className={loading ? 'animate-spin-slow' : ''} /> Refresh Now
-            </button>
+            <div className="flex items-center gap-3">
+              {loans.length > 1 ? (
+                <select
+                  value={selectedLoanId}
+                  onChange={(e) => { setSelectedLoanId(e.target.value); setShowDetails(false); setShowSchedule(false); }}
+                  className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#1D6021]/30"
+                >
+                  {loans.map((l) => (
+                    <option key={l.loan_id} value={l.loan_id}>
+                      {l.loan_type} • {l.loan_id}
+                    </option>
+                  ))}
+                </select>
+              ) : null}
+              <button
+                type="button"
+                onClick={loadLifecycleData}
+                className="inline-flex items-center gap-2 rounded-lg bg-[#1D6021] px-4 py-2 text-sm font-bold text-white hover:bg-[#154718] transition-all-smooth"
+              >
+                <RefreshCw size={14} className={loading ? 'animate-spin-slow' : ''} /> Refresh
+              </button>
+            </div>
           </div>
 
           {error ? (
@@ -450,19 +598,272 @@ const Member_Lifecycle = () => {
             </div>
           ) : null}
 
-          {loading ? (
-            <div className="mb-4 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700 animate-fade-in-up">
-              Syncing member loan lifecycle data...
+          {!selectedLoan && !loading ? (
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-10 text-center">
+              <div className="mx-auto w-14 h-14 rounded-full bg-[#EAF1EB] flex items-center justify-center text-[#1D6021] mb-4">
+                <Wallet className="w-7 h-7" />
+              </div>
+              <h3 className="font-extrabold text-gray-900 text-lg mb-1">No loans yet</h3>
+              <p className="text-sm text-gray-500">Once you submit a loan application, your journey will appear here.</p>
             </div>
           ) : null}
 
-          {scheduleWarning ? (
-            <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 animate-fade-in-up">
-              {scheduleWarning}
-            </div>
+          {selectedLoan ? (
+            <>
+              {/* Loan Summary Card */}
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 sm:p-6 mb-6 animate-fade-in-up">
+                <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-5">
+                  <div>
+                    <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-1">{selectedLoan.loan_type}</p>
+                    <h2 className="text-xl sm:text-2xl font-extrabold text-gray-900">{formatCurrency(selectedLoan.principal)}</h2>
+                    <p className="text-xs text-gray-500 mt-0.5 font-mono">Loan ID: {selectedLoan.loan_id}</p>
+                  </div>
+                  {selectedStatus ? (
+                    <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold border ${toneStyles[selectedStatus.tone]}`}>
+                      <CheckCircle2 className="w-3.5 h-3.5" /> {selectedStatus.text}
+                    </span>
+                  ) : null}
+                </div>
+
+                {/* Payment Progress */}
+                <div className="mb-5">
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-xs font-bold text-gray-600 uppercase tracking-wider">Payment Progress</p>
+                    <p className="text-sm font-extrabold text-[#1D6021]">{selectedLoan.progress_percent}%</p>
+                  </div>
+                  <div className="h-2.5 w-full rounded-full bg-gray-100 overflow-hidden">
+                    <div
+                      className="h-full bg-gradient-to-r from-[#1D6021] to-[#66B53B] transition-all duration-500"
+                      style={{ width: `${selectedLoan.progress_percent}%` }}
+                    />
+                  </div>
+                  <p className="text-[11px] text-gray-500 mt-1.5 font-medium">
+                    {formatCurrency(selectedLoan.amount_paid)} paid of {formatCurrency(selectedLoan.total_payable)} total
+                  </p>
+                </div>
+
+                {/* Key numbers */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <div className="rounded-xl border border-gray-100 bg-[#FAF9FB] p-3">
+                    <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Total Payable</p>
+                    <p className="text-sm font-extrabold text-gray-900">{formatCurrency(selectedLoan.total_payable)}</p>
+                  </div>
+                  <div className="rounded-xl border border-gray-100 bg-[#FAF9FB] p-3">
+                    <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Remaining Balance</p>
+                    <p className="text-sm font-extrabold text-[#1D6021]">{formatCurrency(selectedLoan.remaining_balance)}</p>
+                  </div>
+                  <div className="rounded-xl border border-gray-100 bg-[#FAF9FB] p-3">
+                    <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Next Due Date</p>
+                    <p className="text-sm font-extrabold text-gray-900">{formatShortDate(selectedLoan.next_due_schedule?.due_date)}</p>
+                  </div>
+                  <div className="rounded-xl border border-gray-100 bg-[#FAF9FB] p-3">
+                    <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Monthly Amortization</p>
+                    <p className="text-sm font-extrabold text-gray-900">{formatCurrency(selectedLoan.monthly_amortization)}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Stepper Timeline */}
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 sm:p-6 mb-6 animate-fade-in-up">
+                <div className="flex items-center gap-2 mb-5">
+                  <CalendarClock className="w-5 h-5 text-[#1D6021]" />
+                  <h3 className="font-extrabold text-gray-900">Loan Journey</h3>
+                </div>
+
+                {/* Desktop: horizontal stepper */}
+                <div className="hidden md:block">
+                  <div className="flex items-start justify-between gap-2">
+                    {LIFECYCLE_STAGES.map((stage, idx) => {
+                      const isComplete = idx < selectedStageIndex;
+                      const isActive = idx === selectedStageIndex;
+                      const StageIcon = stage.icon;
+                      return (
+                        <React.Fragment key={stage.id}>
+                          <div className="flex flex-col items-center text-center min-w-0 flex-1">
+                            <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-all ${
+                              isComplete
+                                ? 'bg-[#1D6021] text-white'
+                                : isActive
+                                  ? 'bg-[#66B53B] text-white ring-4 ring-[#66B53B]/20'
+                                  : 'bg-gray-100 text-gray-400'
+                            }`}>
+                              {isComplete ? <CheckCircle2 className="w-5 h-5" /> : <StageIcon className="w-4 h-4" />}
+                            </div>
+                            <p className={`mt-2 text-[11px] font-bold leading-tight ${isActive ? 'text-[#1D6021]' : isComplete ? 'text-gray-700' : 'text-gray-400'}`}>
+                              {stage.label}
+                            </p>
+                          </div>
+                          {idx < LIFECYCLE_STAGES.length - 1 ? (
+                            <div className={`flex-1 h-0.5 mt-5 ${idx < selectedStageIndex ? 'bg-[#1D6021]' : 'bg-gray-200'}`} />
+                          ) : null}
+                        </React.Fragment>
+                      );
+                    })}
+                  </div>
+                  <p className="mt-5 text-sm text-gray-600 font-medium">
+                    <span className="font-bold text-[#1D6021]">Current step:</span>{' '}
+                    {LIFECYCLE_STAGES[selectedStageIndex]?.description}
+                  </p>
+                </div>
+
+                {/* Mobile: vertical stepper */}
+                <ol className="md:hidden space-y-3">
+                  {LIFECYCLE_STAGES.map((stage, idx) => {
+                    const isComplete = idx < selectedStageIndex;
+                    const isActive = idx === selectedStageIndex;
+                    const StageIcon = stage.icon;
+                    return (
+                      <li key={stage.id} className="flex items-start gap-3">
+                        <div className={`shrink-0 w-9 h-9 rounded-full flex items-center justify-center ${
+                          isComplete
+                            ? 'bg-[#1D6021] text-white'
+                            : isActive
+                              ? 'bg-[#66B53B] text-white ring-4 ring-[#66B53B]/20'
+                              : 'bg-gray-100 text-gray-400'
+                        }`}>
+                          {isComplete ? <CheckCircle2 className="w-4 h-4" /> : <StageIcon className="w-4 h-4" />}
+                        </div>
+                        <div className="pt-1">
+                          <p className={`text-sm font-bold ${isActive ? 'text-[#1D6021]' : isComplete ? 'text-gray-800' : 'text-gray-400'}`}>
+                            {stage.label}
+                          </p>
+                          {isActive ? (
+                            <p className="text-xs text-gray-500 font-medium mt-0.5">{stage.description}</p>
+                          ) : null}
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ol>
+              </div>
+
+              {/* Recent Payments (simplified) */}
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm mb-6 animate-fade-in-up overflow-hidden">
+                <div className="px-5 py-4 border-b border-gray-100 flex items-center gap-2">
+                  <Wallet className="w-4 h-4 text-[#1D6021]" />
+                  <h3 className="font-extrabold text-gray-900">Recent Payments</h3>
+                </div>
+                {recentPayments.length === 0 ? (
+                  <div className="p-8 text-center text-sm text-gray-500">
+                    No payments recorded for this loan yet.
+                  </div>
+                ) : (
+                  <ul className="divide-y divide-gray-100">
+                    {recentPayments.map((row, idx) => {
+                      const status = paymentStatusLabel(row.confirmation_status);
+                      return (
+                        <li key={`${row.payment_id}-${idx}`} className="px-5 py-3.5 flex items-center justify-between gap-3">
+                          <div>
+                            <p className="text-sm font-bold text-gray-900">{formatCurrency(row.amount_paid)}</p>
+                            <p className="text-[11px] text-gray-500 font-medium">{formatShortDate(row.payment_date)}</p>
+                          </div>
+                          <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider border ${toneStyles[status.tone]}`}>
+                            {status.text}
+                          </span>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </div>
+
+              {/* Expandable: Loan Details */}
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm mb-4 overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setShowDetails((v) => !v)}
+                  className="w-full px-5 py-4 flex items-center justify-between text-left hover:bg-gray-50 transition-colors"
+                >
+                  <span className="flex items-center gap-2">
+                    <ShieldCheck className="w-4 h-4 text-[#1D6021]" />
+                    <span className="font-extrabold text-gray-900">View Loan Details</span>
+                  </span>
+                  {showDetails ? <ChevronUp className="w-4 h-4 text-gray-500" /> : <ChevronDown className="w-4 h-4 text-gray-500" />}
+                </button>
+                {showDetails ? (
+                  <div className="px-5 py-4 border-t border-gray-100 grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                    <p><span className="text-gray-500 font-medium">Applied on:</span> <span className="font-bold text-gray-900">{formatShortDate(selectedLoan.application_date)}</span></p>
+                    <p><span className="text-gray-500 font-medium">Disbursed on:</span> <span className="font-bold text-gray-900">{formatShortDate(selectedLoan.disbursal_date)}</span></p>
+                    <p><span className="text-gray-500 font-medium">Term:</span> <span className="font-bold text-gray-900">{selectedLoan.term} months</span></p>
+                    <p><span className="text-gray-500 font-medium">Total Interest:</span> <span className="font-bold text-gray-900">{formatCurrency(selectedLoan.total_interest)}</span></p>
+                  </div>
+                ) : null}
+              </div>
+
+              {/* Expandable: Full Schedule */}
+              {selectedLoan.schedules && selectedLoan.schedules.length > 0 ? (
+                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm mb-6 overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => setShowSchedule((v) => !v)}
+                    className="w-full px-5 py-4 flex items-center justify-between text-left hover:bg-gray-50 transition-colors"
+                  >
+                    <span className="flex items-center gap-2">
+                      <CalendarClock className="w-4 h-4 text-[#1D6021]" />
+                      <span className="font-extrabold text-gray-900">View Payment Schedule</span>
+                    </span>
+                    {showSchedule ? <ChevronUp className="w-4 h-4 text-gray-500" /> : <ChevronDown className="w-4 h-4 text-gray-500" />}
+                  </button>
+                  {showSchedule ? (
+                    <div className="border-t border-gray-100">
+                      <div className="px-5 py-3 bg-[#FAF9FB] grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
+                        <div>
+                          <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Monthly Amortization</p>
+                          <p className="text-sm font-extrabold text-[#1D6021]">{formatCurrency(selectedLoan.monthly_amortization)}</p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Term</p>
+                          <p className="text-sm font-extrabold text-gray-900">{selectedLoan.term} months</p>
+                        </div>
+                        <div className="col-span-2 sm:col-span-1">
+                          <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Total Payable</p>
+                          <p className="text-sm font-extrabold text-gray-900">{formatCurrency(selectedLoan.total_payable)}</p>
+                        </div>
+                      </div>
+                      <ul className="divide-y divide-gray-100">
+                        {selectedLoan.schedules.map((sched, idx) => {
+                          const status = paymentStatusLabel(sched.schedule_status === 'Paid' ? 'validated' : sched.schedule_status);
+                          // Per-installment amount = principal_component + interest_component.
+                          // Falls back to expected_amount only if components are missing, and
+                          // guards against legacy rows where expected_amount was stored as the
+                          // running total (principal + total_interest) instead of per-period.
+                          const componentSum = Number(sched.expected_principal || 0) + Number(sched.expected_interest || 0);
+                          const rawExpected = Number(sched.expected_amount || 0);
+                          const monthly = Number(selectedLoan.monthly_amortization || 0);
+                          const sanityCap = monthly > 0 ? monthly * 1.5 : Infinity;
+                          let perInstallment;
+                          if (componentSum > 0 && componentSum <= sanityCap) {
+                            perInstallment = componentSum;
+                          } else if (rawExpected > 0 && rawExpected <= sanityCap) {
+                            perInstallment = rawExpected;
+                          } else {
+                            perInstallment = monthly;
+                          }
+                          return (
+                            <li key={`${sched.schedule_id || sched.installment_no}-${idx}`} className="px-5 py-3 flex items-center justify-between gap-3">
+                              <div>
+                                <p className="text-sm font-bold text-gray-900">Installment #{sched.installment_no}</p>
+                                <p className="text-[11px] text-gray-500 font-medium">Due {formatShortDate(sched.due_date)}</p>
+                              </div>
+                              <div className="text-right">
+                                <p className="text-sm font-extrabold text-gray-900">{formatCurrency(perInstallment)}</p>
+                                <span className={`inline-block mt-1 rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider border ${toneStyles[status.tone]}`}>
+                                  {sched.schedule_status === 'Paid' ? 'Paid' : 'Unpaid'}
+                                </span>
+                              </div>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+            </>
           ) : null}
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 mb-6 animate-fade-in-up">
+          {/* Legacy detailed grid removed — clean member view replaces it above. */}
+          <div className="hidden">
             <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-100 shadow-sm p-4 sm:p-6 transition-all-smooth hover:shadow-lg">
               <div className="flex items-center gap-2 mb-4">
                 <Users className="w-5 h-5 text-[#1D6021]" />
@@ -496,132 +897,6 @@ const Member_Lifecycle = () => {
             </div>
           </div> 
 
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm mb-6 overflow-x-auto">
-            <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-2">
-              <CalendarClock className="w-4 h-4 text-[#1D6021]" />
-              <h3 className="font-bold text-gray-900">Loan Lifecycle Timeline</h3>
-            </div>
-            <table className="min-w-[840px] text-sm w-full">
-              <thead className="bg-[#66B53B] text-[11px] uppercase text-white font-bold tracking-wider">
-                <tr>
-                  <th className="px-6 py-4 text-left">Loan ID</th>
-                  <th className="px-6 py-4 text-left">Type</th>
-                  <th className="px-6 py-4 text-left">Current Status</th>
-                  <th className="px-6 py-4 text-left">Approval Stage</th>
-                  <th className="px-6 py-4 text-left">Applied</th>
-                  <th className="px-6 py-4 text-left">Disbursed</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {loans.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} className="px-6 py-8 text-center text-gray-500">No loan lifecycle records found.</td>
-                  </tr>
-                ) : (
-                  loans.map((loan) => (
-                    <tr key={loan.loan_id} className="table-row-enter hover:bg-green-50 transition-colors">
-                      <td className="px-6 py-4 font-semibold text-gray-900">{loan.loan_id}</td>
-                      <td className="px-6 py-4 text-gray-700">{loan.loan_type}</td>
-                      <td className="px-6 py-4">
-                        <span className={`badge-animated inline-flex rounded-full px-3 py-1 text-xs font-semibold transition-all-smooth hover:scale-105 ${statusBadgeClass(loan.loan_status)}`}>
-                          {loan.loan_status}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-gray-700">{loan.approval_stage}</td>
-                      <td className="px-6 py-4 text-gray-600">{formatDate(loan.application_date)}</td>
-                      <td className="px-6 py-4 text-gray-600">{formatDate(loan.disbursal_date)}</td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-x-auto animate-fade-in-up transition-all-smooth hover:shadow-lg">
-            <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-2">
-              <Wallet className="w-4 h-4 text-[#1D6021]" />
-              <h3 className="font-bold text-gray-900">Recorded Loan Payments (Real-Time)</h3>
-            </div>
-            <table className="min-w-[860px] text-sm w-full">
-              <thead className="bg-[#66B53B] text-[11px] uppercase text-white font-bold tracking-wider">
-                <tr>
-                  <th className="px-6 py-4 text-left">Date Paid</th>
-                  <th className="px-6 py-4 text-left">Loan ID</th>
-                  <th className="px-6 py-4 text-left">Reference</th>
-                  <th className="px-6 py-4 text-left">Amount</th>
-                  <th className="px-6 py-4 text-left">Penalty</th>
-                  <th className="px-6 py-4 text-left">Remaining</th>
-                  <th className="px-6 py-4 text-left">Validation Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {payments.length === 0 ? (
-                  <tr>
-                    <td colSpan={7} className="px-6 py-8 text-center text-gray-500">No payment records available yet.</td>
-                  </tr>
-                ) : (
-                  payments.map((row, idx) => (
-                    <tr key={`${row.loan_id}-${row.payment_id}-${idx}`} className="table-row-enter hover:bg-green-50 transition-colors">
-                      <td className="px-6 py-4 text-gray-600">{formatDate(row.payment_date)}</td>
-                      <td className="px-6 py-4 text-gray-900 font-semibold">{row.loan_id}</td>
-                      <td className="px-6 py-4 text-gray-700 font-medium">{row.reference_no}</td>
-                      <td className="px-6 py-4 text-gray-700 font-medium">{formatCurrency(row.amount_paid)}</td>
-                      <td className="px-6 py-4 text-gray-700">{formatCurrency(row.penalties)}</td>
-                      <td className="px-6 py-4 text-gray-700">{formatCurrency(row.remaining_after)}</td>
-                      <td className="px-6 py-4">
-                        <span className={`badge-animated inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold transition-all-smooth hover:scale-105 ${statusBadgeClass(row.confirmation_status)}`}>
-                          <CheckCircle2 size={12} className="hidden sm:inline" /> {row.confirmation_status}
-                        </span>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-x-auto mt-6 animate-fade-in-up transition-all-smooth hover:shadow-lg">
-            <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-2">
-              <CalendarClock className="w-4 h-4 text-[#1D6021]" />
-              <h3 className="font-bold text-gray-900">Loan Schedule</h3>
-            </div>
-            <table className="min-w-[900px] text-sm w-full">
-              <thead className="bg-[#66B53B] text-[11px] uppercase text-white font-bold tracking-wider">
-                <tr>
-                  <th className="px-6 py-4 text-left">Loan ID</th>
-                  <th className="px-6 py-4 text-left">Installment</th>
-                  <th className="px-6 py-4 text-left">Due Date</th>
-                  <th className="px-6 py-4 text-left">Expected Principal</th>
-                  <th className="px-6 py-4 text-left">Expected Interest</th>
-                  <th className="px-6 py-4 text-left">Expected Amount</th>
-                  <th className="px-6 py-4 text-left">Schedule Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {schedules.length === 0 ? (
-                  <tr>
-                    <td colSpan={7} className="px-6 py-8 text-center text-gray-500">No loan schedule records available.</td>
-                  </tr>
-                ) : (
-                  schedules.map((row, idx) => (
-                    <tr key={`${row.loan_id}-${row.installment_no}-${idx}`} className="table-row-enter hover:bg-green-50 transition-colors">
-                      <td className="px-6 py-4 text-gray-900 font-semibold">{row.loan_id}</td>
-                      <td className="px-6 py-4 text-gray-700 font-medium">#{row.installment_no || "-"}</td>
-                      <td className="px-6 py-4 text-gray-600">{formatDate(row.due_date)}</td>
-                      <td className="px-6 py-4 text-gray-700 font-medium">{formatCurrency(row.expected_principal)}</td>
-                      <td className="px-6 py-4 text-gray-700 font-medium">{formatCurrency(row.expected_interest)}</td>
-                      <td className="px-6 py-4 text-gray-900 font-semibold text-[#1D6021]">{formatCurrency(row.expected_amount)}</td>
-                      <td className="px-6 py-4">
-                        <span className={`badge-animated inline-flex rounded-full px-3 py-1 text-xs font-semibold transition-all-smooth hover:scale-105 ${statusBadgeClass(row.schedule_status)}`}>
-                          {row.schedule_status}
-                        </span>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
         </main>
 
         {/* Bottom Navigation - Mobile Only */}

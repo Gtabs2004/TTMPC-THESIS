@@ -70,6 +70,7 @@ function Consolidated_Loan() {
 
   const inputStyles = "border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-[#66B538] outline-none w-full bg-white text-sm transition-all";
   const labelStyles = "block text-xs font-bold text-gray-700 mb-1";
+  const lockedInputStyles = "border border-gray-200 rounded-md px-3 py-2 outline-none w-full bg-gray-100 text-gray-600 text-sm cursor-not-allowed select-text";
   const sectionHeader = "bg-[#66B538] text-white px-4 py-2 rounded-t-lg flex items-center gap-2 font-bold uppercase tracking-wide";
   const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000';
   const PDF_PREVIEW_WINDOW_NAME = 'consolidated-loan-preview';
@@ -78,6 +79,32 @@ function Consolidated_Loan() {
   const [loading, setLoading] = useState(false);
   const [printing, setPrinting] = useState(false);
   const [showSummary, setShowSummary] = useState(false);
+  // Tracks fields populated from the system profile so they render read-only
+  // and can't be edited, focused, or pasted into.
+  const [lockedFields, setLockedFields] = useState(() => new Set());
+
+  const isLockedField = (name) => lockedFields.has(name);
+
+  const blockInteraction = (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+  };
+
+  const lockedInputProps = (name) => {
+    if (!isLockedField(name)) return null;
+    return {
+      readOnly: true,
+      'aria-readonly': true,
+      tabIndex: -1,
+      onKeyDown: blockInteraction,
+      onPaste: blockInteraction,
+      onDrop: blockInteraction,
+      onMouseDown: blockInteraction,
+      title: 'Auto-filled from your member profile and cannot be edited here.',
+    };
+  };
+
+  const inputClassFor = (name) => (isLockedField(name) ? lockedInputStyles : inputStyles);
   const [formData, setFormData] = useState({
     application_type: 'New',
     control_no: generateControlNumber(),
@@ -456,6 +483,33 @@ function Consolidated_Loan() {
     });
   };
 
+  // Whitelist of fields the backend's LoanPdfRequest accepts. Anything outside
+  // this list is dropped before sending so unrelated UI state (member_class,
+  // computed previews, etc.) can't break server-side validation.
+  const PDF_PAYLOAD_FIELDS = [
+    'application_type', 'control_no', 'date_applied',
+    'surname', 'first_name', 'middle_name',
+    'contact_no', 'latest_net_pay', 'share_capital', 'residence_address',
+    'date_of_birth', 'age', 'civil_status', 'gender',
+    'tin_no', 'gsis_sss_no', 'employer_name', 'office_address',
+    'spouse_name', 'spouse_occupation',
+    'loan_amount_words', 'loan_amount_numeric',
+    'loan_purpose', 'loan_purpose_other',
+    'loan_term_months', 'monthly_amortization',
+    'source_of_income', 'user_email',
+    'borrower_id_type', 'borrower_id_number',
+    'bonus_amount_words', 'bonus_amount_numeric',
+  ];
+
+  const buildPdfPayload = () => {
+    const payload = {};
+    PDF_PAYLOAD_FIELDS.forEach((key) => {
+      const raw = formData[key];
+      payload[key] = raw === null || raw === undefined ? '' : String(raw);
+    });
+    return payload;
+  };
+
   const handlePrintPdf = async () => {
     setPrinting(true);
 
@@ -466,24 +520,53 @@ function Consolidated_Loan() {
           'Content-Type': 'application/json',
           Accept: 'application/pdf',
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(buildPdfPayload()),
       });
 
       if (!response.ok) {
-        const errorBody = await response.json().catch(() => ({}));
-        throw new Error(errorBody?.detail || errorBody?.message || 'Unable to generate the consolidated loan PDF.');
+        // Try JSON first (FastAPI HTTPException), then fall back to plain text
+        // so the user sees the real reason instead of a generic message.
+        const contentType = response.headers.get('content-type') || '';
+        let detail = '';
+        if (contentType.includes('application/json')) {
+          const body = await response.json().catch(() => ({}));
+          if (Array.isArray(body?.detail)) {
+            // Pydantic validation errors come back as a list of {loc, msg, type}
+            detail = body.detail
+              .map((e) => `${(e.loc || []).join('.')}: ${e.msg || e.type}`)
+              .join(' • ');
+          } else {
+            detail = body?.detail || body?.message || '';
+          }
+        } else {
+          detail = await response.text().catch(() => '');
+        }
+        throw new Error(detail || `HTTP ${response.status} ${response.statusText}` || 'Unable to generate the consolidated loan PDF.');
       }
 
       const blob = await response.blob();
+      if (!blob || blob.size === 0) {
+        throw new Error('Server returned an empty PDF.');
+      }
+
       const objectUrl = URL.createObjectURL(blob);
       const previewWindow = window.open(objectUrl, PDF_PREVIEW_WINDOW_NAME);
 
-      if (previewWindow) {
+      if (!previewWindow) {
+        // Popup was blocked — fall back to direct download so the action isn't lost.
+        const link = document.createElement('a');
+        link.href = objectUrl;
+        link.download = 'CONSOLIDATED_LOAN_FILLED.pdf';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      } else {
         previewWindow.focus();
       }
 
       setTimeout(() => URL.revokeObjectURL(objectUrl), 30000);
     } catch (error) {
+      console.error('Consolidated loan PDF error:', error);
       alert(`Print Error: ${error.message}`);
     } finally {
       setPrinting(false);
@@ -531,6 +614,37 @@ function Consolidated_Loan() {
           setFormData((prev) => ({ ...prev, user_email: userEmail || prev.user_email }));
           return;
         }
+
+        const newlyLocked = new Set();
+        const recordLocked = (name, sourceValue) => {
+          const stringified = sourceValue === null || sourceValue === undefined
+            ? ''
+            : String(sourceValue).trim();
+          if (stringified !== '') newlyLocked.add(name);
+        };
+
+        recordLocked('surname', profile.surname ?? profile.last_name);
+        recordLocked('first_name', profile.first_name);
+        recordLocked('middle_name', profile.middle_name ?? profile.middle_initial);
+        recordLocked('contact_no', profile.contact_number ?? profile.contact_no);
+        recordLocked('residence_address', profile.permanent_address ?? profile.residence_address);
+        recordLocked('date_of_birth', profile.date_of_birth);
+        recordLocked('age', profile.age);
+        recordLocked('civil_status', profile.civil_status);
+        recordLocked('gender', profile.gender);
+        recordLocked('tin_no', profile.tin_number ?? profile.tin_no);
+        recordLocked('borrower_id_type', profile.tin_number ?? profile.tin_no);
+        recordLocked('borrower_id_number', profile.tin_number ?? profile.tin_no);
+        recordLocked('gsis_sss_no', profile.gsis_sss_no);
+        recordLocked('employer_name', profile.employer_name ?? profile.occupation);
+        recordLocked('office_address', profile.office_address);
+        recordLocked('spouse_name', profile.spouse_name);
+        recordLocked('spouse_occupation', profile.spouse_occupation);
+        recordLocked('latest_net_pay', profile.latest_net_pay ?? profile.annual_income);
+        recordLocked('share_capital', profile.share_capital);
+        recordLocked('member_class', profile.member_class ?? profile.class);
+
+        setLockedFields(newlyLocked);
 
         setFormData((prev) => {
           const tinValue = profile.tin_number ?? profile.tin_no ?? prev.tin_no;
@@ -692,7 +806,7 @@ function Consolidated_Loan() {
               <div className="flex flex-wrap gap-4">
                 <div>
                   <label className="block text-[10px] uppercase font-bold text-gray-500">Control No.</label>
-                  <input type="text" name="control_no" value={formData.control_no} readOnly className="border border-gray-300 rounded px-3 py-1.5 w-48 bg-gray-100 cursor-not-allowed" />
+                  <input type="text" name="control_no" value={formData.control_no} readOnly tabIndex={-1} aria-readonly title="System-generated control number." className="border border-gray-200 rounded px-3 py-1.5 w-48 bg-gray-100 text-gray-600 cursor-not-allowed select-text" />
                 </div>
                 <div>
                   <label className="block text-[10px] uppercase font-bold text-gray-500">Date Applied</label>
@@ -727,38 +841,39 @@ function Consolidated_Loan() {
             BORROWER'S INFORMATION
           </div>
 
+
           <div className="p-8 grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div><label className={labelStyles}>Surname <span className="text-red-500">*</span></label><input type="text" name="surname" value={formData.surname} onChange={handleChange} className={inputStyles} required /></div>
-            <div><label className={labelStyles}>First Name <span className="text-red-500">*</span></label><input type="text" name="first_name" value={formData.first_name} onChange={handleChange} className={inputStyles} required /></div>
-            <div><label className={labelStyles}>Middle Name</label><input type="text" name="middle_name" value={formData.middle_name} onChange={handleChange} className={inputStyles} /></div>
-            <div><label className={labelStyles}>Contact No. <span className="text-red-500">*</span></label><input type="text" name="contact_no" value={formData.contact_no} onChange={handleChange} className={inputStyles} required /></div>
+            <div><label className={labelStyles}>Surname <span className="text-red-500">*</span></label><input type="text" name="surname" value={formData.surname} onChange={handleChange} className={inputClassFor('surname')} required {...lockedInputProps('surname')} /></div>
+            <div><label className={labelStyles}>First Name <span className="text-red-500">*</span></label><input type="text" name="first_name" value={formData.first_name} onChange={handleChange} className={inputClassFor('first_name')} required {...lockedInputProps('first_name')} /></div>
+            <div><label className={labelStyles}>Middle Name</label><input type="text" name="middle_name" value={formData.middle_name} onChange={handleChange} className={inputClassFor('middle_name')} {...lockedInputProps('middle_name')} /></div>
+            <div><label className={labelStyles}>Contact No. <span className="text-red-500">*</span></label><input type="text" name="contact_no" value={formData.contact_no} onChange={handleChange} className={inputClassFor('contact_no')} required {...lockedInputProps('contact_no')} /></div>
             <div>
               <label className={labelStyles}>Latest Net Pay <span className="text-red-500">*</span></label>
-              <div className="relative"><span className="absolute left-3 top-2 text-gray-400 text-xs">₱</span><input type="number" name="latest_net_pay" value={formData.latest_net_pay} onChange={handleChange} className={`${inputStyles} pl-7 ${previewNetPay > 0 && eligibilityCardData.eligibilityPass ? 'bg-[#E9F7DE] border-[#66B538]' : ''}`} required /></div>
+              <div className="relative"><span className="absolute left-3 top-2 text-gray-400 text-xs">₱</span><input type="number" name="latest_net_pay" value={formData.latest_net_pay} onChange={handleChange} className={`${inputClassFor('latest_net_pay')} pl-7 ${!isLockedField('latest_net_pay') && previewNetPay > 0 && eligibilityCardData.eligibilityPass ? 'bg-[#E9F7DE] border-[#66B538]' : ''}`} required {...lockedInputProps('latest_net_pay')} /></div>
             </div>
             <div>
               <label className={labelStyles}>Share Capital <span className="text-red-500">*</span></label>
-              <div className="relative"><span className="absolute left-3 top-2 text-gray-400 text-xs">₱</span><input type="number" name="share_capital" value={formData.share_capital} onChange={handleChange} className={`${inputStyles} pl-7 ${previewShareCapital > 0 && Number.isFinite(dropdownLoanCapacity) ? 'bg-[#E9F7DE] border-[#66B538]' : ''}`} required /></div>
+              <div className="relative"><span className="absolute left-3 top-2 text-gray-400 text-xs">₱</span><input type="number" name="share_capital" value={formData.share_capital} onChange={handleChange} className={`${inputClassFor('share_capital')} pl-7 ${!isLockedField('share_capital') && previewShareCapital > 0 && Number.isFinite(dropdownLoanCapacity) ? 'bg-[#E9F7DE] border-[#66B538]' : ''}`} required {...lockedInputProps('share_capital')} /></div>
             </div>
-            <div className="md:col-span-3"><label className={labelStyles}>Residence Address <span className="text-red-500">*</span></label><input type="text" name="residence_address" value={formData.residence_address} onChange={handleChange} className={inputStyles} required /></div>
-            <div><label className={labelStyles}>Date of Birth <span className="text-red-500">*</span></label><input type="date" name="date_of_birth" value={formData.date_of_birth} onChange={handleChange} className={inputStyles} required /></div>
-            <div><label className={labelStyles}>Age <span className="text-red-500">*</span></label><input type="number" name="age" value={formData.age} onChange={handleChange} className={inputStyles} required /></div>
+            <div className="md:col-span-3"><label className={labelStyles}>Residence Address <span className="text-red-500">*</span></label><input type="text" name="residence_address" value={formData.residence_address} onChange={handleChange} className={inputClassFor('residence_address')} required {...lockedInputProps('residence_address')} /></div>
+            <div><label className={labelStyles}>Date of Birth <span className="text-red-500">*</span></label><input type="date" name="date_of_birth" value={formData.date_of_birth} onChange={handleChange} className={inputClassFor('date_of_birth')} required {...lockedInputProps('date_of_birth')} /></div>
+            <div><label className={labelStyles}>Age <span className="text-red-500">*</span></label><input type="number" name="age" value={formData.age} onChange={handleChange} className={inputClassFor('age')} required {...lockedInputProps('age')} /></div>
             <div>
               <label className={labelStyles}>Civil Status <span className="text-red-500">*</span></label>
-              <select name="civil_status" value={formData.civil_status} onChange={handleChange} className={inputStyles} required><option value="">Select Status</option><option>Single</option><option>Married</option><option>Widowed</option></select>
+              <select name="civil_status" value={formData.civil_status} onChange={handleChange} className={inputClassFor('civil_status')} required disabled={isLockedField('civil_status')} aria-disabled={isLockedField('civil_status')} title={isLockedField('civil_status') ? 'Auto-filled from your member profile and cannot be edited here.' : undefined}><option value="">Select Status</option><option>Single</option><option>Married</option><option>Widowed</option></select>
             </div>
             <div>
               <label className={labelStyles}>Gender <span className="text-red-500">*</span></label>
-              <select name="gender" value={formData.gender} onChange={handleChange} className={inputStyles} required><option value="">Select Gender</option><option>Male</option><option>Female</option></select>
+              <select name="gender" value={formData.gender} onChange={handleChange} className={inputClassFor('gender')} required disabled={isLockedField('gender')} aria-disabled={isLockedField('gender')} title={isLockedField('gender') ? 'Auto-filled from your member profile and cannot be edited here.' : undefined}><option value="">Select Gender</option><option>Male</option><option>Female</option></select>
             </div>
-            <div><label className={labelStyles}>TIN No. <span className="text-red-500">*</span></label><input type="text" name="tin_no" value={formData.tin_no} onChange={handleChange} inputMode="numeric" maxLength={TIN_FORMATTED_MAX_LENGTH} placeholder="123-456-789-000" className={inputStyles} required /></div>
-            <div><label className={labelStyles}>GSIS/SSS No. <span className="text-red-500">*</span></label><input type="text" name="gsis_sss_no" value={formData.gsis_sss_no} onChange={handleChange} className={inputStyles} required /></div>
-            <div className="md:col-span-2"><label className={labelStyles}>Employer's Name <span className="text-red-500">*</span></label><input type="text" name="employer_name" value={formData.employer_name} onChange={handleChange} className={inputStyles} required /></div>
-            <div className="md:col-span-1"><label className={labelStyles}>Office Address <span className="text-red-500">*</span></label><input type="text" name="office_address" value={formData.office_address} onChange={handleChange} className={inputStyles} required /></div>
+            <div><label className={labelStyles}>TIN No. <span className="text-red-500">*</span></label><input type="text" name="tin_no" value={formData.tin_no} onChange={handleChange} inputMode="numeric" maxLength={TIN_FORMATTED_MAX_LENGTH} placeholder="123-456-789-000" className={inputClassFor('tin_no')} required {...lockedInputProps('tin_no')} /></div>
+            <div><label className={labelStyles}>GSIS/SSS No. <span className="text-red-500">*</span></label><input type="text" name="gsis_sss_no" value={formData.gsis_sss_no} onChange={handleChange} className={inputClassFor('gsis_sss_no')} required {...lockedInputProps('gsis_sss_no')} /></div>
+            <div className="md:col-span-2"><label className={labelStyles}>Employer's Name <span className="text-red-500">*</span></label><input type="text" name="employer_name" value={formData.employer_name} onChange={handleChange} className={inputClassFor('employer_name')} required {...lockedInputProps('employer_name')} /></div>
+            <div className="md:col-span-1"><label className={labelStyles}>Office Address <span className="text-red-500">*</span></label><input type="text" name="office_address" value={formData.office_address} onChange={handleChange} className={inputClassFor('office_address')} required {...lockedInputProps('office_address')} /></div>
             {isMarriedCivilStatus ? (
               <>
-                <div className="md:col-span-2"><label className={labelStyles}>Name of Spouse <span className="text-red-500">*</span></label><input type="text" name="spouse_name" value={formData.spouse_name} onChange={handleChange} className={inputStyles} required /></div>
-                <div className="md:col-span-1"><label className={labelStyles}>Spouse's Occupation <span className="text-red-500">*</span></label><input type="text" name="spouse_occupation" value={formData.spouse_occupation} onChange={handleChange} className={inputStyles} required /></div>
+                <div className="md:col-span-2"><label className={labelStyles}>Name of Spouse <span className="text-red-500">*</span></label><input type="text" name="spouse_name" value={formData.spouse_name} onChange={handleChange} className={inputClassFor('spouse_name')} required {...lockedInputProps('spouse_name')} /></div>
+                <div className="md:col-span-1"><label className={labelStyles}>Spouse's Occupation <span className="text-red-500">*</span></label><input type="text" name="spouse_occupation" value={formData.spouse_occupation} onChange={handleChange} className={inputClassFor('spouse_occupation')} required {...lockedInputProps('spouse_occupation')} /></div>
               </>
             ) : null}
           </div>
@@ -795,12 +910,15 @@ function Consolidated_Loan() {
             
             <div className="leading-[3.5rem]">
               I hereby apply for a loan in the amount of
-              <input 
-                type="text" 
-                name="loan_amount_words" 
-                value={formData.loan_amount_words} 
-                onChange={handleChange} 
-                className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-[#66B538] outline-none bg-white text-sm transition-all mx-2 w-[22rem] inline-block align-middle" 
+              <input
+                type="text"
+                name="loan_amount_words"
+                value={formData.loan_amount_words}
+                readOnly
+                tabIndex={-1}
+                aria-readonly
+                title="Auto-generated from the selected loan amount."
+                className="border border-gray-200 rounded-md px-3 py-1.5 outline-none bg-gray-100 text-gray-600 text-sm mx-2 w-[22rem] inline-block align-middle cursor-not-allowed select-text"
               />
               <div className="inline-flex items-center relative mr-2 align-middle leading-none">
                 <select
@@ -884,10 +1002,13 @@ function Consolidated_Loan() {
                     : ''
                 }
                 readOnly
-                className={`border rounded-md px-3 py-1.5 focus:ring-2 focus:ring-[#66B538] outline-none text-sm transition-all mx-2 w-48 inline-block align-middle ${
+                tabIndex={-1}
+                aria-readonly
+                title="System-computed from principal, term and interest rate."
+                className={`border rounded-md px-3 py-1.5 outline-none text-sm transition-all mx-2 w-48 inline-block align-middle cursor-not-allowed select-text ${
                   hasComputedAmortization
                     ? 'border-[#66B538] bg-[#E9F7DE] text-[#2E7D32] font-semibold'
-                    : 'border-gray-300 bg-gray-50 text-gray-700'
+                    : 'border-gray-200 bg-gray-100 text-gray-600'
                 }`}
               />
               , which I promise to pay the amount to <strong>Tubungan Teachers' Multi Purpose Cooperative</strong>
@@ -912,20 +1033,26 @@ function Consolidated_Loan() {
             {/* Form paragraph with inline inputs */}
             <div className="leading-[3.5rem]">
               I, 
-              <input 
-                type="text" 
-                name="borrower_name" 
-                value={`${formData.first_name} ${formData.middle_name} ${formData.surname}`.trim()} 
-                readOnly 
-                className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-[#66B538] outline-none bg-gray-50 text-sm transition-all mx-2 w-72 inline-block align-middle" 
+              <input
+                type="text"
+                name="borrower_name"
+                value={`${formData.first_name} ${formData.middle_name} ${formData.surname}`.trim()}
+                readOnly
+                tabIndex={-1}
+                aria-readonly
+                title="Auto-filled from your name fields."
+                className="border border-gray-200 rounded-md px-3 py-1.5 outline-none bg-gray-100 text-gray-600 text-sm mx-2 w-72 inline-block align-middle cursor-not-allowed select-text"
               />
               bind myself to pay <strong>Tubungan Teachers' Multi Purpose Cooperative (TTMPC)</strong> the amount of 
-              <input 
-                type="text" 
-                name="loan_amount_words" 
-                value={formData.loan_amount_words} 
-                onChange={handleChange} 
-                className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-[#66B538] outline-none bg-white text-sm transition-all mx-2 w-56 inline-block align-middle" 
+              <input
+                type="text"
+                name="loan_amount_words"
+                value={formData.loan_amount_words}
+                readOnly
+                tabIndex={-1}
+                aria-readonly
+                title="Auto-generated from the selected loan amount."
+                className="border border-gray-200 rounded-md px-3 py-1.5 outline-none bg-gray-100 text-gray-600 text-sm mx-2 w-56 inline-block align-middle cursor-not-allowed select-text"
               />
               
               <br className="hidden md:block" />
@@ -982,11 +1109,11 @@ function Consolidated_Loan() {
             <div className="flex flex-wrap gap-6 mt-8">
               <div className="w-64">
                 <label className={labelStyles}>Valid ID/Gov't. Issued ID <span className="text-red-500">*</span></label>
-                <input type="text" name="borrower_id_type" value={formData.borrower_id_type} readOnly className={`${inputStyles} bg-gray-50 cursor-not-allowed`} />
+                <input type="text" name="borrower_id_type" value={formData.borrower_id_type} readOnly tabIndex={-1} aria-readonly title="Auto-filled from your member profile and cannot be edited here." className={lockedInputStyles} />
               </div>
               <div className="w-64">
                 <label className={labelStyles}>ID Number <span className="text-red-500">*</span></label>
-                <input type="text" name="borrower_id_number" value={formData.borrower_id_number} readOnly className={`${inputStyles} bg-gray-50 cursor-not-allowed`} />
+                <input type="text" name="borrower_id_number" value={formData.borrower_id_number} readOnly tabIndex={-1} aria-readonly title="Auto-filled from your member profile and cannot be edited here." className={lockedInputStyles} />
               </div>
             </div>
 
