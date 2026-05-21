@@ -77,6 +77,7 @@ function Consolidated_Loan() {
   // 1. STATE LOGIC: Form Data State
   const [loading, setLoading] = useState(false);
   const [printing, setPrinting] = useState(false);
+  const [showSummary, setShowSummary] = useState(false);
   const [formData, setFormData] = useState({
     application_type: 'New',
     control_no: generateControlNumber(),
@@ -491,6 +492,32 @@ function Consolidated_Loan() {
 
   const isMarriedCivilStatus = String(formData.civil_status || '').trim().toLowerCase() === 'married';
   const hasComputedAmortization = Number(formData.monthly_amortization || 0) > 0;
+  const actualPrincipal = Number(formData.loan_amount_numeric || 0);
+  const actualTerm = Number(formData.loan_term_months || 0);
+  const actualNetPay = Number(formData.latest_net_pay || 0);
+  const actualMonthlyAmortization = hasComputedAmortization
+    ? Number(formData.monthly_amortization || 0)
+    : (actualPrincipal && actualTerm ? computeMonthlyAmortization(actualPrincipal, actualTerm) : 0);
+  const actualStressIndex = actualNetPay > 0
+    ? (actualMonthlyAmortization / actualNetPay) * 100
+    : 0;
+  const stressIndexExceeded = actualNetPay > 0 && actualMonthlyAmortization > 0 && actualStressIndex > 40;
+  const submissionBlockMessage =
+    stressIndexExceeded ? 'Monthly amortization exceeds latest net pay.' :
+    exceedsCeiling ? 'Loan amount exceeds the allowed debt ceiling.' :
+    renewalBlocked ? 'Renewal requires an existing active loan with at least 6 paid months.' :
+    eligibilityFailed ? 'Monthly amortization must be below 40% of take-home pay.' : '';
+
+  const formatCurrency = (value) => {
+    const numeric = Number(value || 0);
+    if (!Number.isFinite(numeric) || numeric <= 0) return '—';
+    return numeric.toLocaleString('en-PH', {
+      style: 'currency',
+      currency: 'PHP',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+  };
 
   useEffect(() => {
     let isMounted = true;
@@ -584,8 +611,7 @@ function Consolidated_Loan() {
   }, [formData.loan_amount_numeric, formData.loan_term_months]);
 
   // 3. LOGIC: Database Insertion
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const submitApplication = async () => {
     setLoading(true);
 
     try {
@@ -618,6 +644,17 @@ function Consolidated_Loan() {
     }
   };
 
+  const handleFormSubmit = (e) => {
+    e.preventDefault();
+    if (loading || printing || exceedsCeiling || renewalBlocked || eligibilityFailed || stressIndexExceeded) return;
+    setShowSummary(true);
+  };
+
+  const handleConfirmSubmit = async () => {
+    await submitApplication();
+    setShowSummary(false);
+  };
+
   return (
     <div className="flex flex-col min-h-screen bg-gray-100 pb-20">
       {/* Header (Unchanged) */}
@@ -632,7 +669,7 @@ function Consolidated_Loan() {
       </header>
 
       {/* Main Form Wrapping everything */}
-      <form onSubmit={handleSubmit}>
+      <form onSubmit={handleFormSubmit}>
         <section className="grid gap-8 px-4">
           <h1 className="text-center text-2xl font-bold mt-12 text-[#66B538]">CONSOLIDATED LOAN APPLICATION</h1>
           <div className="max-w-6xl mx-auto w-full">
@@ -734,6 +771,27 @@ function Consolidated_Loan() {
             LOAN AGREEMENT
           </div>
           <div className="p-8 text-sm text-gray-800">
+            {calcResult && !calcResult.error && (
+              <div className="mb-5 grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                <div className="rounded-lg border border-[#D8EBD3] bg-[#F3F9F1] px-4 py-3">
+                  <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Prescribed Term</p>
+                  <p className="text-sm font-semibold text-gray-800">
+                    {calcResult.suggestedTerm ? `${calcResult.suggestedTerm} months` : '—'}
+                  </p>
+                </div>
+                <div className="rounded-lg border border-[#D8EBD3] bg-[#F3F9F1] px-4 py-3">
+                  <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Prescribed Loan Amount</p>
+                  <p className="text-sm font-semibold text-gray-800">
+                    {formatCurrency(calcResult.prescribedLoanAmount)}
+                  </p>
+                </div>
+              </div>
+            )}
+            {stressIndexExceeded && (
+              <div className="mb-5 rounded-md border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700 font-semibold">
+                Monthly amortization exceeds allowable amount. You may follow prescribed Term and Loan Amount. 
+              </div>
+            )}
             
             <div className="leading-[3.5rem]">
               I hereby apply for a loan in the amount of
@@ -946,7 +1004,8 @@ function Consolidated_Loan() {
           </div>
         </div>
 
-        <div className="mt-8 max-w-6xl mx-auto w-full mb-8 flex justify-end">
+        <div className="mt-8 max-w-6xl mx-auto w-full mb-8">
+          <div className="flex justify-end">
           <button 
             type="button" 
             onClick={handlePrintPdf}
@@ -957,17 +1016,71 @@ function Consolidated_Loan() {
           </button>
           <button
             type="submit"
-            disabled={loading || printing || exceedsCeiling || renewalBlocked || eligibilityFailed}
+            disabled={loading || printing || exceedsCeiling || renewalBlocked || eligibilityFailed || stressIndexExceeded}
             title={
-              exceedsCeiling ? 'Loan amount exceeds the allowed debt ceiling.' :
-              renewalBlocked ? 'Renewal requires an existing active loan with at least 6 paid months.' :
-              eligibilityFailed ? 'Monthly amortization must be below 40% of take-home pay.' : ''
+              submissionBlockMessage
             }
             className="bg-[#66B538] text-white px-6 py-2 rounded hover:bg-[#5aa12b] transition-colors font-bold disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
           >
             {loading ? "Processing..." : "Submit Application"}
           </button>
+          </div>
         </div>
+
+        {showSummary && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+            <div className="w-full max-w-lg rounded-lg bg-white shadow-xl border border-gray-200">
+              <div className="flex items-center justify-between px-6 py-4 border-b">
+                <h2 className="text-lg font-bold text-gray-800">Loan Application Summary</h2>
+                <button
+                  type="button"
+                  onClick={() => setShowSummary(false)}
+                  className="text-gray-400 hover:text-gray-600 text-xl leading-none"
+                  aria-label="Close summary"
+                >
+                  ×
+                </button>
+              </div>
+              <div className="px-6 py-5 text-sm text-gray-700">
+                <div className="grid grid-cols-1 gap-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-500">Loan Amount</span>
+                    <span className="font-semibold text-gray-900">{formatCurrency(formData.loan_amount_numeric)}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-500">Term</span>
+                    <span className="font-semibold text-gray-900">{formData.loan_term_months ? `${formData.loan_term_months} months` : '—'}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-500">Interest Rate</span>
+                    <span className="font-semibold text-gray-900">0.83%</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-500">Total Amortization / Month</span>
+                    <span className="font-semibold text-gray-900">{formatCurrency(formData.monthly_amortization)}</span>
+                  </div>
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center justify-end gap-3 px-6 py-4 border-t">
+                <button
+                  type="button"
+                  onClick={() => setShowSummary(false)}
+                  className="border border-gray-300 text-gray-700 px-4 py-2 rounded hover:bg-gray-50 font-semibold"
+                >
+                  Edit Details
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmSubmit}
+                  disabled={loading}
+                  className="bg-[#66B538] text-white px-5 py-2 rounded hover:bg-[#5aa12b] transition-colors font-bold disabled:opacity-50"
+                >
+                  {loading ? 'Submitting...' : 'Confirm Submit'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </form>
     </div>
   );
