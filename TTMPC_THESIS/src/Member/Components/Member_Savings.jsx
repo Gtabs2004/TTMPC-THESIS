@@ -162,17 +162,20 @@ const Member_Savings = () => {
           .trim();
         const signedAvatarUrl = await loadMemberAvatarSignedUrl(supabase, sessionUser.id);
 
-        const { data: cbuRow, error: cbuError } = await supabase
+        const { data: cbuRows, error: cbuError } = await supabase
           .from('capital_build_up')
-          .select('starting_share_capital, transaction_date')
+          .select('starting_share_capital, ending_share_capital, capital_added, transaction_date')
           .eq('member_id', memberId)
-          .order('transaction_date', { ascending: false })
-          .limit(1)
-          .maybeSingle();
+          .order('transaction_date', { ascending: false });
 
         if (cbuError) throw cbuError;
 
-        const openingRegularSavings = Number(cbuRow?.starting_share_capital || 0);
+        const cbuRow = (cbuRows && cbuRows[0]) || null;
+        const openingRegularSavings = cbuRow
+          ? (cbuRow.ending_share_capital !== null && cbuRow.ending_share_capital !== undefined
+              ? Number(cbuRow.ending_share_capital)
+              : (cbuRows || []).reduce((sum, row) => sum + Number(row?.capital_added || 0), 0))
+          : 0;
 
         let savingsAccounts = [];
         if (membershipId) {

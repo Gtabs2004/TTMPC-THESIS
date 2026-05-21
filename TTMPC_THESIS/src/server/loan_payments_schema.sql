@@ -253,6 +253,10 @@ LANGUAGE plpgsql
 AS $$
 DECLARE
     v_principal_amount NUMERIC := 0;
+    v_total_interest NUMERIC := 0;
+    v_total_payable NUMERIC := 0;
+    v_monthly_amortization NUMERIC := 0;
+    v_term_months INTEGER := 0;
     v_total_validated NUMERIC := 0;
     v_remaining_balance NUMERIC := 0;
     v_next_loan_status TEXT;
@@ -303,10 +307,19 @@ BEGIN
           AND loan_id = NEW.loan_id
           AND lower(coalesce(schedule_status, '')) <> 'paid';
 
-                SELECT coalesce(l.principal_amount, l.loan_amount, 0)
-                INTO v_principal_amount
+                SELECT
+                    coalesce(l.principal_amount, l.loan_amount, 0),
+                    coalesce(l.total_interest, 0),
+                    coalesce(l.monthly_amortization, 0),
+                    coalesce(l.term, 0)
+                INTO v_principal_amount, v_total_interest, v_monthly_amortization, v_term_months
                 FROM public.loans AS l
                 WHERE l.control_number = NEW.loan_id;
+
+                IF v_total_interest <= 0 AND v_monthly_amortization > 0 AND v_term_months > 0 THEN
+                    v_total_interest := greatest((v_monthly_amortization * v_term_months) - v_principal_amount, 0);
+                END IF;
+                v_total_payable := coalesce(v_principal_amount, 0) + coalesce(v_total_interest, 0);
 
         SELECT coalesce(sum(amount_paid), 0)
                 INTO v_total_validated
@@ -314,7 +327,7 @@ BEGIN
         WHERE loan_id = NEW.loan_id
           AND lower(coalesce(confirmation_status, '')) = 'validated';
 
-                v_remaining_balance := greatest(coalesce(v_principal_amount, 0) - coalesce(v_total_validated, 0), 0);
+                v_remaining_balance := greatest(v_total_payable - coalesce(v_total_validated, 0), 0);
                 v_next_loan_status := CASE WHEN v_remaining_balance <= 0 THEN 'fully paid' ELSE 'partially paid' END;
 
         UPDATE public.loans

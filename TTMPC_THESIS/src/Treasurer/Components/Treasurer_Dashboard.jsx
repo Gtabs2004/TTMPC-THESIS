@@ -17,7 +17,9 @@ import {
   Wallet,
   CalendarDays,
   ChevronDown,
-  MoreVertical
+  MoreVertical,
+  TrendingUp,
+  TrendingDown
 } from 'lucide-react';
 import {
   AreaChart,
@@ -157,59 +159,77 @@ const Treasurer_Dashboard = () => {
         {/* DASHBOARD CONTENT */}
         <main className="p-8">
           
-          {/* Top KPI Cards (5 Columns) */}
-          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
-            
+          {/* Top KPI Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
             {/* Card 1 */}
-            <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100 flex flex-col">
-              <div className="p-2 bg-blue-50 text-blue-500 rounded-lg w-max mb-3"><Users size={20} /></div>
-              <h3 className="text-gray-400 text-xs font-semibold mb-1">Total Members</h3>
-              <div className="flex items-baseline gap-2">
-                <p className="font-bold text-2xl text-gray-800">256</p>
-                <span className="text-xs font-bold text-green-500">+4</span>
+            <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100 flex flex-col justify-between">
+              <div className="flex justify-between items-start">
+                <span className="text-gray-500 text-sm font-medium">Total Members</span>
+                <div className="p-2 bg-blue-50 text-blue-500 rounded-lg">
+                  <Users size={18} />
+                </div>
+              </div>
+              <div className="mt-4">
+                <h3 className="text-3xl font-bold text-gray-800">256</h3>
+                <div className="flex items-center mt-2 text-xs">
+                  <TrendingUp size={14} className="text-green-500 mr-1" />
+                  <span className="text-green-500 font-medium">+4</span>
+                  <span className="text-gray-400 ml-1">vs last month</span>
+                </div>
               </div>
             </div>
 
             {/* Card 2 */}
-            <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100 flex flex-col">
-              <div className="p-2 bg-orange-50 text-orange-500 rounded-lg w-max mb-3"><ClipboardList size={20} /></div>
-              <h3 className="text-gray-400 text-xs font-semibold mb-1">Pending Disbursements</h3>
-              <div className="flex items-baseline gap-2">
-                <p className="font-bold text-2xl text-gray-800">14</p>
-                <span className="text-xs font-semibold text-gray-400">Queue</span>
+            <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100 flex flex-col justify-between">
+              <div className="flex justify-between items-start">
+                <span className="text-gray-500 text-sm font-medium">Pending Disbursements</span>
+                <div className="p-2 bg-orange-50 text-orange-500 rounded-lg">
+                  <ClipboardList size={18} />
+                </div>
+              </div>
+              <div className="mt-4">
+                <h3 className="text-3xl font-bold text-gray-800">14</h3>
+                <div className="flex items-center mt-2 text-xs">
+                  <span className="text-gray-400">In queue for release</span>
+                </div>
               </div>
             </div>
 
             {/* Card 3 */}
-            <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100 flex flex-col">
-              <div className="p-2 bg-green-50 text-green-500 rounded-lg w-max mb-3"><ArrowUpRight size={20} /></div>
-              <h3 className="text-gray-400 text-xs font-semibold mb-1">Loans Released Today</h3>
-              <div className="flex items-baseline gap-2">
-                <p className="font-bold text-2xl text-gray-800">{"\u20B1"}85k</p>
-                <span className="text-xs font-bold text-green-500">Active</span>
+            <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100 flex flex-col justify-between">
+              <div className="flex justify-between items-start">
+                <span className="text-gray-500 text-sm font-medium">Loans Released Today</span>
+                <div className="p-2 bg-green-50 text-green-500 rounded-lg">
+                  <ArrowUpRight size={18} />
+                </div>
+              </div>
+              <div className="mt-4">
+                <h3 className="text-3xl font-bold text-gray-800">{"\u20B1"}85,000</h3>
+                <div className="flex items-center mt-2 text-xs">
+                  <TrendingUp size={14} className="text-green-500 mr-1" />
+                  <span className="text-green-500 font-medium">Active</span>
+                  <span className="text-gray-400 ml-1">disbursements</span>
+                </div>
               </div>
             </div>
 
             {/* Card 4 */}
-            <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100 flex flex-col">
-              <div className="p-2 bg-teal-50 text-teal-500 rounded-lg w-max mb-3"><Wallet size={20} /></div>
-              <h3 className="text-gray-400 text-xs font-semibold mb-1">Total Cash Disbursed</h3>
-              <div className="flex items-baseline gap-2">
-                <p className="font-bold text-2xl text-gray-800">{"\u20B1"}1.24M</p>
-                <span className="text-xs font-bold text-gray-400 uppercase">Feb</span>
+            <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100 flex flex-col justify-between">
+              <div className="flex justify-between items-start">
+                <span className="text-gray-500 text-sm font-medium">Total Cash Disbursed</span>
+                <div className="p-2 bg-teal-50 text-teal-500 rounded-lg">
+                  <Wallet size={18} />
+                </div>
+              </div>
+              <div className="mt-4">
+                <h3 className="text-3xl font-bold text-gray-800">{"\u20B1"}1.24M</h3>
+                <div className="flex items-center mt-2 text-xs">
+                  <TrendingUp size={14} className="text-green-500 mr-1" />
+                  <span className="text-green-500 font-medium">+12.4%</span>
+                  <span className="text-gray-400 ml-1">vs last month</span>
+                </div>
               </div>
             </div>
-
-            {/* Card 5 */}
-            <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100 flex flex-col">
-              <div className="p-2 bg-purple-50 text-purple-500 rounded-lg w-max mb-3"><CalendarDays size={20} /></div>
-              <h3 className="text-gray-400 text-xs font-semibold mb-1">Scheduled Disbursements</h3>
-              <div className="flex items-baseline gap-2">
-                <p className="font-bold text-2xl text-gray-800">8</p>
-                <span className="text-xs font-semibold text-gray-400">This Week</span>
-              </div>
-            </div>
-
           </div>
 
           {/* Charts Section */}

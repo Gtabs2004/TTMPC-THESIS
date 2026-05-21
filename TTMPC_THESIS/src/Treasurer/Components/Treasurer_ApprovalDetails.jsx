@@ -295,9 +295,7 @@ const Treasurer_ApprovalDetails = () => {
           }
         }
 
-        const totalPayable = monthlyAmortization > 0 && termMonths > 0
-          ? monthlyAmortization * termMonths
-          : principalAmount + resolvedTotalInterest;
+        const totalPayable = principalAmount + resolvedTotalInterest;
 
         const rawCoMakers = data.raw_payload?.optionalFields?.bookkeeper_loan_details?.coMakers
           ?? data.raw_payload?.coMakers
@@ -674,7 +672,7 @@ const Treasurer_ApprovalDetails = () => {
                   </div>
                 </div>
                 <div className="border-t border-gray-300 pt-4 mb-4 flex justify-between items-center">
-                  <span className="font-bold text-gray-900">Total Payable (All Months)</span>
+                  <span className="font-bold text-gray-900">Total Payment (Principal + Interest)</span>
                   <span className="font-bold text-gray-900">{loanDetails.computation.totalPayable}</span>
                 </div>
                 <div className="border-t border-gray-300 pt-4 flex justify-between items-center">

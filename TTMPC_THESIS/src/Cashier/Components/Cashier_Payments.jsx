@@ -315,6 +315,8 @@ const Cashier_Payments = () => {
           loan_amount: Number(loan.loan_amount || 0),
           term_months: Number(loan.term_months || 0),
           remaining_balance: Number(loan.remaining_balance || 0),
+          total_payable: Number(loan.total_payable || 0),
+          total_interest: Number(loan.total_interest || 0),
           due_date: loan.due_date || null,
         };
 
@@ -818,8 +820,16 @@ const Cashier_Payments = () => {
                           <span className="font-medium text-gray-900">{toTitleCase(selectedLoan.loan_type)}</span>
                         </div>
                         <div className="flex justify-between">
-                          <span className="text-gray-600">Loan Amount:</span>
+                          <span className="text-gray-600">Principal:</span>
                           <span className="font-semibold text-green-600">{formatCurrency(selectedLoan.loan_amount)}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Total Interest:</span>
+                          <span className="font-semibold text-gray-900">{formatCurrency(selectedLoan.total_interest || Math.max((selectedLoan.amortization || 0) * (selectedLoan.term_months || 0) - (selectedLoan.loan_amount || 0), 0))}</span>
+                        </div>
+                        <div className="flex justify-between border-t border-gray-200 pt-2">
+                          <span className="text-gray-700 font-semibold">Total Payment:</span>
+                          <span className="font-bold text-green-700">{formatCurrency(selectedLoan.total_payable || ((selectedLoan.loan_amount || 0) + (selectedLoan.total_interest || Math.max((selectedLoan.amortization || 0) * (selectedLoan.term_months || 0) - (selectedLoan.loan_amount || 0), 0))))}</span>
                         </div>
                         <div className="flex justify-between">
                           <span className="text-gray-600">Term:</span>
