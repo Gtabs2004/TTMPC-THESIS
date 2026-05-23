@@ -1,4 +1,5 @@
 ﻿import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { fetchLoanPrefill, submitUnifiedLoan } from './loanSubmission';
 import { buildEmergencyPayload, computeLoan } from './loanComputeApi';
 import { formatTinNumber, TIN_FORMATTED_MAX_LENGTH } from './tinFormat';
@@ -57,6 +58,7 @@ const numberToWords = (num) => {
 
 
 function Emergency_Loan() {
+  const navigate = useNavigate();
   const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000';
   const PDF_PREVIEW_WINDOW_NAME = 'emergency-loan-preview';
   const inputStyles = 'border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-[#66B538] outline-none w-full bg-white text-sm transition-all';
@@ -299,12 +301,21 @@ function Emergency_Loan() {
   return (
     <div className="flex flex-col min-h-screen bg-gray-100 pb-20">
       <header className="w-full bg-[#E9F7DE] h-20 shadow-lg flex text-col px-6">
-        <div className="flex flex-row items-center gap-4">
+        <div className="flex flex-row items-center justify-between w-full gap-4">
+          <div className="flex flex-row items-center gap-4">
           <img src="/img/ttmpc logo.png" alt="Logo" className="h-12 w-auto" />
           <div className="flex flex-col">
             <h1 className="text-sm font-bold text-[#66B538]">Tubungan Teacher's Multi-Purpose Cooperative</h1>
             <p className="text-[#A0D284] text-xs">Loan Application Kiosk</p>
           </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => navigate('/member-apply-loans')}
+            className="rounded-lg bg-white px-4 py-2 text-xs font-bold text-[#1D6021] shadow-sm border border-[#D5EDB9] hover:bg-[#F4FBF0]"
+          >
+            Back to Member Portal
+          </button>
         </div>
       </header>
 

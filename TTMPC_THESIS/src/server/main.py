@@ -5,7 +5,7 @@ import calendar
 from datetime import date, datetime, timedelta
 from decimal import Decimal, ROUND_HALF_UP
 from typing import Annotated, Any, Literal, Union
-from fastapi import FastAPI, HTTPException, Response
+from fastapi import BackgroundTasks, FastAPI, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, model_validator
 from supabase import create_client, Client
@@ -20,6 +20,8 @@ from demand_model import (
     SUPPORTED_LOAN_TYPES as DEMAND_LOAN_TYPES,
     get_forecast_payload as demand_get_forecast_payload,
 )
+from services.notification_service import dispatch_loan_status_email as _dispatch_loan_status_email
+from services.loan_notification_service import create_loan_notification as _create_loan_notification
 
 # 1. Load Environment Variables
 # Load from project root .env explicitly for consistent behavior.
@@ -66,6 +68,45 @@ class StatusEmailRequest(BaseModel):
     member_name: str
     status: str
     remarks: str | None = None
+
+
+class LoanStatusEmailRequest(BaseModel):
+    loan_id: str
+    stage: Literal["bookkeeper", "manager", "treasurer"]
+    action: Literal["recommend", "reject", "revise", "approve", "proceed", "disburse", "released"]
+    remarks: str | None = None
+    actor_user_id: str | None = None
+    next_approver_email: str | None = None
+    override_member_email: str | None = None
+
+
+class LoanInAppNotificationRequest(BaseModel):
+    loan_id: str
+    recipient_role: Literal["manager", "treasurer", "bookkeeper"]
+    notification_type: Literal["recommend", "decline", "approve", "revise", "reject"]
+    actor_user_id: str | None = None
+    # Optional client-supplied metadata; backend re-reads the loan to fill blanks.
+    member_name: str | None = None
+    loan_type: str | None = None
+
+
+class LoanMemberNotificationRequest(BaseModel):
+    loan_id: str
+    notification_type: Literal[
+        "member_submitted",
+        "member_recommended",
+        "member_bk_declined",
+        "member_approved",
+        "member_mgr_rejected",
+        "member_mgr_revise",
+        "member_ready_claim",
+        "member_released",
+        "member_cancelled",
+    ]
+    member_id: str | None = None
+    member_name: str | None = None
+    loan_type: str | None = None
+    actor_user_id: str | None = None
 
 
 class MembershipFormPdfRequest(BaseModel):
@@ -1222,6 +1263,11 @@ async def get_cashier_cbu_members():
             )
             cbu_rows = cbu_response.data or []
 
+        # Pick the most recent CBU row per member. Same-day deposits can share
+        # an identical `transaction_date` (legacy date-only rows), so we tie-
+        # break on the row `id` — newer inserts get larger UUIDs as text, and
+        # we additionally use `>=` so a later iteration always overrides an
+        # earlier one when timestamps are equal.
         latest_cbu_by_member: dict[str, dict] = {}
         for row in cbu_rows:
             member_id = str(row.get("member_id") or "").strip()
@@ -1229,8 +1275,13 @@ async def get_cashier_cbu_members():
                 continue
             previous = latest_cbu_by_member.get(member_id)
             current_ts = str(row.get("transaction_date") or "")
-            previous_ts = str(previous.get("transaction_date") or "") if previous else ""
-            if (not previous) or current_ts > previous_ts:
+            current_id = str(row.get("id") or "")
+            if previous is None:
+                latest_cbu_by_member[member_id] = row
+                continue
+            previous_ts = str(previous.get("transaction_date") or "")
+            previous_id = str(previous.get("id") or "")
+            if (current_ts, current_id) > (previous_ts, previous_id):
                 latest_cbu_by_member[member_id] = row
 
         mapped_members = []
@@ -1384,11 +1435,15 @@ async def create_cashier_cbu_deposit(payload: CashierCBUDepositRequest):
         if deposit_amount <= 0:
             raise HTTPException(status_code=400, detail="deposit_amount must be greater than zero.")
 
+        # Two same-day deposits can share an identical `transaction_date`
+        # (legacy rows stored date-only). Add `id` as a tiebreaker so the most
+        # recently inserted row consistently wins.
         latest_cbu_response = (
             supabase.table("capital_build_up")
-            .select("ending_share_capital")
+            .select("ending_share_capital,transaction_date,id")
             .eq("member_id", member_uuid)
             .order("transaction_date", desc=True)
+            .order("id", desc=True)
             .limit(1)
             .execute()
         )
@@ -1481,7 +1536,7 @@ async def create_cashier_cbu_deposit(payload: CashierCBUDepositRequest):
 
 
 @app.post("/api/cashier/disbursements/{loan_id}/disburse")
-async def disburse_cashier_loan(loan_id: str, payload: CashierDisbursementRequest):
+async def disburse_cashier_loan(loan_id: str, payload: CashierDisbursementRequest, background_tasks: BackgroundTasks):
     if not supabase:
         raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
 
@@ -1662,6 +1717,26 @@ async def disburse_cashier_loan(loan_id: str, payload: CashierDisbursementReques
             supabase.table("disbursement_confirmations").insert(confirmation_record).execute()
         except Exception:
             # Table may not exist yet in legacy DBs; surface confirmation client-side regardless.
+            pass
+
+        # Member-facing email is sent earlier in the workflow, when the
+        # Treasurer confirms disbursement (frontend → /api/loans/email/dispatch
+        # with stage=treasurer action=disburse). The cashier confirm step does
+        # not re-email, to avoid duplicates.
+        #
+        # However we DO fire an in-app member-bell notification so the member
+        # sees the final "released" step in their portal.
+        try:
+            background_tasks.add_task(
+                _fan_out_member_notification,
+                notification_type="member_released",
+                loan_id=clean_loan_id,
+                member_id=str(loan_row.get("member_id") or "").strip() or None,
+                member_name=member_full_name,
+                loan_type=loan_type_label,
+                actor_user_id=payload.cashier_id,
+            )
+        except Exception:
             pass
 
         return {
@@ -3873,6 +3948,230 @@ async def send_status_email(payload: StatusEmailRequest):
     except URLError as err:
         raise HTTPException(status_code=500, detail=f"Email service unreachable: {err.reason}")
 
+def _resolve_loan_member_meta(loan_id: str) -> dict[str, Any]:
+    """Server-side lookup of member_name + loan_type + member_id for a loan
+    control number. Used by the notification endpoints so the frontend doesn't
+    have to pass (and can't spoof) display metadata. Returns empty values on miss."""
+    out: dict[str, Any] = {"member_name": "", "loan_type": "", "member_id": ""}
+    if not supabase or not loan_id:
+        return out
+    try:
+        resp = (
+            supabase.table("loans")
+            .select(
+                "control_number, member_id, member:member_id(first_name,last_name), "
+                "loan_type:loan_type_id(name)"
+            )
+            .eq("control_number", loan_id)
+            .limit(1)
+            .execute()
+        )
+        row = (resp.data or [None])[0]
+        if row:
+            out["member_id"] = str(row.get("member_id") or "").strip()
+            member = row.get("member") or {}
+            name = f"{(member.get('first_name') or '').strip()} {(member.get('last_name') or '').strip()}".strip()
+            out["member_name"] = name
+            lt = row.get("loan_type") or {}
+            out["loan_type"] = (lt.get("name") or "").strip() if isinstance(lt, dict) else ""
+    except Exception:
+        pass
+    # Fallback to koica_loans for non-member applicants.
+    if not out["member_name"]:
+        try:
+            resp = (
+                supabase.table("koica_loans")
+                .select("control_number, full_name")
+                .eq("control_number", loan_id)
+                .limit(1)
+                .execute()
+            )
+            row = (resp.data or [None])[0]
+            if row:
+                out["member_name"] = (row.get("full_name") or "").strip()
+        except Exception:
+            pass
+    return out
+
+
+# Maps each staff (workflow) notification type to the corresponding
+# member-facing notification type fired in parallel. None = no member echo.
+_STAFF_TO_MEMBER_NOTIFICATION: dict[str, str | None] = {
+    "recommend": "member_recommended",     # bookkeeper recommended -> member: forwarded to Manager
+    "decline":   "member_bk_declined",     # bookkeeper declined    -> member: declined
+    "approve":   "member_approved",        # manager approved       -> member: approved
+    "reject":    "member_mgr_rejected",    # manager rejected       -> member: rejected
+    "revise":    "member_mgr_revise",      # manager revise         -> member: revise
+}
+
+
+def _fan_out_member_notification(
+    *,
+    notification_type: str,
+    loan_id: str,
+    member_id: str | None,
+    member_name: str | None,
+    loan_type: str | None,
+    actor_user_id: str | None,
+    status_label: str | None = None,
+) -> None:
+    """Fire a member-targeted notification. Safe wrapper for BackgroundTasks.
+    Always swallows exceptions so it never blocks the workflow."""
+    try:
+        _create_loan_notification(
+            supabase,
+            recipient_role="member",
+            notification_type=notification_type,
+            loan_id=loan_id,
+            member_name=member_name or None,
+            loan_type=loan_type or None,
+            status_label=status_label or notification_type,
+            actor_user_id=actor_user_id,
+            recipient_member_id=member_id or None,
+        )
+    except Exception:
+        pass
+
+
+@app.post("/api/loans/notifications/dispatch")
+async def dispatch_loan_in_app_notification(
+    payload: LoanInAppNotificationRequest,
+    background_tasks: BackgroundTasks,
+):
+    """Create an internal staff notification (bell feed) for a loan transition.
+
+    Fire-and-forget: scheduled via BackgroundTasks. Dedup, persistence, and
+    error handling are owned by `loan_notification_service.create_loan_notification`.
+    Workflow MUST NOT break if this fails — endpoint always returns 200.
+    """
+    if not supabase:
+        return {"success": False, "queued": False, "detail": "Supabase client unavailable."}
+
+    # Resolve trusted metadata server-side. Falls back to client-supplied values.
+    meta = _resolve_loan_member_meta(payload.loan_id)
+    member_name = meta["member_name"] or (payload.member_name or "").strip()
+    loan_type = meta["loan_type"] or (payload.loan_type or "").strip()
+
+    background_tasks.add_task(
+        _create_loan_notification,
+        supabase,
+        recipient_role=payload.recipient_role,
+        notification_type=payload.notification_type,
+        loan_id=payload.loan_id,
+        member_name=member_name or None,
+        loan_type=loan_type or None,
+        status_label=payload.notification_type,  # used for dedup uniqueness
+        actor_user_id=payload.actor_user_id,
+    )
+
+    # Fan-out: mirror staff transition to a member-facing notification so the
+    # member sees every step of their loan in the Member portal bell.
+    member_ntype = _STAFF_TO_MEMBER_NOTIFICATION.get(payload.notification_type)
+    if member_ntype:
+        background_tasks.add_task(
+            _fan_out_member_notification,
+            notification_type=member_ntype,
+            loan_id=payload.loan_id,
+            member_id=meta.get("member_id") or None,
+            member_name=member_name or None,
+            loan_type=loan_type or None,
+            actor_user_id=payload.actor_user_id,
+        )
+
+    return {"success": True, "queued": True}
+
+
+@app.post("/api/loans/notifications/member")
+async def dispatch_member_notification(
+    payload: LoanMemberNotificationRequest,
+    background_tasks: BackgroundTasks,
+):
+    """Direct member-only notification dispatch (used at submission time and
+    anywhere we need a member bell entry without a staff transition).
+
+    Fire-and-forget. Backend re-reads the loan to fill member_id / loan_type
+    so the frontend can't spoof recipient routing.
+    """
+    if not supabase:
+        return {"success": False, "queued": False, "detail": "Supabase client unavailable."}
+
+    meta = _resolve_loan_member_meta(payload.loan_id)
+    member_id = (payload.member_id or "").strip() or meta.get("member_id") or None
+    member_name = meta.get("member_name") or (payload.member_name or "").strip() or None
+    loan_type = meta.get("loan_type") or (payload.loan_type or "").strip() or None
+
+    background_tasks.add_task(
+        _fan_out_member_notification,
+        notification_type=payload.notification_type,
+        loan_id=payload.loan_id,
+        member_id=member_id,
+        member_name=member_name,
+        loan_type=loan_type,
+        actor_user_id=payload.actor_user_id,
+    )
+    return {"success": True, "queued": True}
+
+
+@app.post("/api/loans/email/dispatch")
+async def dispatch_loan_email(payload: LoanStatusEmailRequest, background_tasks: BackgroundTasks):
+    """Fire-and-forget loan workflow notification.
+
+    The HTTP call returns immediately. The actual Resend send + Supabase logging
+    happens in a `BackgroundTask`, so even a slow/failed email never blocks the
+    loan approval workflow on the frontend.
+
+    Duplicate protection, transition guards, and audit logging are all handled
+    inside `notification_service.dispatch_loan_status_email`. This handler only
+    validates the request and schedules the work.
+    """
+    # Reload env at request time so RESEND_API_KEY changes are picked up.
+    load_dotenv(ROOT_ENV_PATH, override=True)
+
+    if not supabase:
+        # We don't fail the workflow over this — log and return 202.
+        return {"success": False, "queued": False, "detail": "Supabase client unavailable."}
+
+    background_tasks.add_task(
+        _dispatch_loan_status_email,
+        supabase,
+        loan_id=payload.loan_id,
+        stage=payload.stage,
+        action=payload.action,
+        remarks=payload.remarks,
+        actor_user_id=payload.actor_user_id,
+        next_approver_email=payload.next_approver_email,
+        override_member_email=payload.override_member_email,
+    )
+
+    # Fan-out: any email-dispatched workflow event also mirrors into the
+    # member's in-app notification bell. Maps stage/action to a member ntype.
+    email_to_member_ntype: dict[tuple[str, str], str] = {
+        ("manager", "approve"):      "member_approved",
+        ("manager", "proceed"):      "member_approved",
+        ("manager", "reject"):       "member_mgr_rejected",
+        ("manager", "revise"):       "member_mgr_revise",
+        ("treasurer", "disburse"):   "member_ready_claim",
+        ("treasurer", "released"):   "member_released",
+        ("treasurer", "reject"):     "member_cancelled",
+        ("bookkeeper", "recommend"): "member_recommended",
+        ("bookkeeper", "reject"):    "member_bk_declined",
+    }
+    member_ntype = email_to_member_ntype.get((payload.stage, payload.action))
+    if member_ntype:
+        meta = _resolve_loan_member_meta(payload.loan_id)
+        background_tasks.add_task(
+            _fan_out_member_notification,
+            notification_type=member_ntype,
+            loan_id=payload.loan_id,
+            member_id=meta.get("member_id") or None,
+            member_name=meta.get("member_name") or None,
+            loan_type=meta.get("loan_type") or None,
+            actor_user_id=payload.actor_user_id,
+        )
+
+    return {"success": True, "queued": True}
+
+
 @app.post("/api/login")
 async def login(user_data: LoginRequest):
     print(f"Login attempt for: {user_data.username}")
@@ -4510,9 +4809,18 @@ def _fetch_loan_for_scoring(control_number: str, source: str) -> dict:
 
 
 def _fetch_member_pds(member_id: str | None) -> dict:
-    """Resolve member -> personal_data_sheet to get occupation & annual_income."""
+    """Resolve member -> personal_data_sheet to get occupation, annual_income,
+    and monthly net pay. The PDS table has `salary` (monthly) — there is no
+    dedicated `latest_net_pay` column, so we treat `salary` as the monthly net
+    pay used by the risk model's Debt-to-Income formula."""
+    empty = {
+        "occupation": None,
+        "annual_income": None,
+        "latest_net_pay": None,
+        "membership_number_id": None,
+    }
     if not member_id:
-        return {"occupation": None, "annual_income": None, "membership_number_id": None}
+        return empty
 
     member_resp = (
         supabase.table("member")
@@ -4523,41 +4831,45 @@ def _fetch_member_pds(member_id: str | None) -> dict:
     )
     member_rows = member_resp.data or []
     if not member_rows:
-        return {"occupation": None, "annual_income": None, "membership_number_id": None}
+        return empty
 
     membership_number_id = member_rows[0].get("membership_id")
     if not membership_number_id:
-        return {"occupation": None, "annual_income": None, "membership_number_id": None}
+        return empty
 
-    try:
-        pds_resp = (
-            supabase.table("personal_data_sheet")
-            .select("occupation, annual_income, latest_net_pay, membership_number_id")
-            .eq("membership_number_id", membership_number_id)
-            .order("created_at", desc=True)
-            .limit(1)
-            .execute()
-        )
-        pds_rows = pds_resp.data or []
-    except Exception:
-        # Fallback for older schemas without latest_net_pay column
-        pds_resp = (
-            supabase.table("personal_data_sheet")
-            .select("occupation, annual_income, membership_number_id")
-            .eq("membership_number_id", membership_number_id)
-            .order("created_at", desc=True)
-            .limit(1)
-            .execute()
-        )
-        pds_rows = pds_resp.data or []
+    # Try the richest column set first; degrade gracefully if any column is
+    # missing on legacy databases.
+    column_attempts = [
+        "occupation, annual_income, salary, membership_number_id",
+        "occupation, annual_income, membership_number_id",
+        "occupation, membership_number_id",
+    ]
+    pds_rows: list[dict] = []
+    for cols in column_attempts:
+        try:
+            pds_resp = (
+                supabase.table("personal_data_sheet")
+                .select(cols)
+                .eq("membership_number_id", membership_number_id)
+                .order("created_at", desc=True)
+                .limit(1)
+                .execute()
+            )
+            pds_rows = pds_resp.data or []
+            break
+        except Exception:
+            continue
+
     if not pds_rows:
-        return {"occupation": None, "annual_income": None, "membership_number_id": membership_number_id}
+        return {**empty, "membership_number_id": membership_number_id}
 
     row = pds_rows[0]
     return {
         "occupation": row.get("occupation"),
         "annual_income": row.get("annual_income"),
-        "latest_net_pay": row.get("latest_net_pay") if isinstance(row, dict) and "latest_net_pay" in row else None,
+        # PDS stores monthly net pay in `salary` (text column). The risk model
+        # treats this value as latest_net_pay for the DTI calculation.
+        "latest_net_pay": row.get("salary") if isinstance(row, dict) else None,
         "membership_number_id": membership_number_id,
     }
 
@@ -4591,26 +4903,40 @@ async def predict_loan_risk(payload: RiskPredictRequest):
     # KOICA loans store applicant info inside raw_payload — pull from there if needed
     occupation = None
     annual_income = None
+    pds: dict | None = None
     if payload.source == "koica_loans":
         raw = loan.get("raw_payload") or {}
         occupation = raw.get("occupation")
         annual_income = raw.get("annual_income")
     else:
         pds = _fetch_member_pds(member_id)
-        occupation = pds["occupation"]
-        annual_income = pds["annual_income"]
+        occupation = pds.get("occupation")
+        annual_income = pds.get("annual_income")
 
-    # Determine latest_net_pay: prefer PDS, otherwise use latest_net_pay from loan record/raw_payload
-    latest_net_pay = None
-    if isinstance(pds, dict):
-        latest_net_pay = pds.get("latest_net_pay")
+    # Resolve latest_net_pay through every available source, in order of
+    # confidence. The first non-empty, positive value wins. Order matters:
+    #   1. loan row optionalFields (form-submitted value, most current)
+    #   2. PDS salary (canonical member record)
+    #   3. raw_payload root (KOICA-style payloads)
+    def _is_positive_number(value: Any) -> bool:
+        try:
+            return value is not None and float(str(value).replace(",", "")) > 0
+        except (TypeError, ValueError):
+            return False
 
-    if not latest_net_pay:
-        # loan may carry latest_net_pay directly or inside raw_payload.optionalFields
-        latest_net_pay = loan.get("latest_net_pay")
-        if not latest_net_pay:
-            raw = loan.get("raw_payload") or {}
-            latest_net_pay = (raw.get("optionalFields") or {}).get("latest_net_pay")
+    raw_payload = loan.get("raw_payload") or {}
+    optional_fields = (raw_payload.get("optionalFields") or {}) if isinstance(raw_payload, dict) else {}
+
+    latest_net_pay_candidates = [
+        optional_fields.get("latest_net_pay"),
+        loan.get("latest_net_pay"),
+        (pds or {}).get("latest_net_pay"),
+        raw_payload.get("latest_net_pay") if isinstance(raw_payload, dict) else None,
+    ]
+    latest_net_pay = next(
+        (val for val in latest_net_pay_candidates if _is_positive_number(val)),
+        None,
+    )
 
     try:
         result = risk_score(

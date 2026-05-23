@@ -16,6 +16,29 @@ import {
 } from 'lucide-react';
 
 const SUPPORTING_DOCS_BUCKET = 'Supporting_Documents';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000';
+
+// Fire-and-forget loan-status email dispatcher. Backend (FastAPI) queues the
+// Resend call in BackgroundTasks. Failures here MUST NEVER block the
+// Treasurer approval workflow.
+const dispatchLoanEmail = async ({ loanId, stage, action, remarks, actorUserId }) => {
+  if (!loanId || !stage || !action) return;
+  try {
+    await fetch(`${API_BASE_URL}/api/loans/email/dispatch`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        loan_id: loanId,
+        stage,
+        action,
+        remarks: remarks || null,
+        actor_user_id: actorUserId || null,
+      }),
+    });
+  } catch (_err) {
+    // Silent: workflow must not be impacted by email failures.
+  }
+};
 
 const normalizeSupportingDocuments = (rawPayload) => {
   const docs = rawPayload?.optionalFields?.bookkeeper_loan_details?.supporting_documents;
@@ -490,6 +513,26 @@ const Treasurer_ApprovalDetails = () => {
       }
 
       setLoanDetails((prev) => prev ? { ...prev, status: formatStatus(nextStatus), disbursement_confirmation: updatedRow.disbursement_confirmation } : prev);
+
+      // Member email policy (Treasurer stage):
+      //   On 'disburse' (Treasurer confirms): email the member that the loan
+      //   is ready to claim at the Cashier. Non-blocking — backend uses
+      //   BackgroundTasks + Resend and dedups on the transition.
+      //   'reject' / 'reschedule' do NOT email the member.
+      if (modalType === 'disburse') {
+        try {
+          const { data: { user } = {} } = (await supabase.auth.getUser()) || {};
+          dispatchLoanEmail({
+            loanId: loanDetails.id,
+            stage: 'treasurer',
+            action: 'disburse',
+            actorUserId: user?.id || null,
+          });
+        } catch (_err) {
+          // Already swallowed inside dispatchLoanEmail.
+        }
+      }
+
       closeModal();
       navigate(backRoute);
     } catch (err) {

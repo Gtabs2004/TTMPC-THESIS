@@ -33,6 +33,7 @@ import Role_Selection from "./Index_Pages/role_selection";
 import LoanApprovalDetails from "./Manager/Components/LoanApprovalDetails";
 import Member_Dashboard from "./Member/Components/Member_Dashboard";
 import Member_Loans from "./Member/Components/Member_Loans";
+import Member_ApplyLoans from "./Member/Components/Member_ApplyLoans";
 import Members_Profile from "./Member/Components/Members_Profile";
 import Member_Savings from "./Member/Components/Member_Savings";
 import Member_Lifecycle from "./Member/Components/Member_Lifecycle";
@@ -117,6 +118,7 @@ export const router = createBrowserRouter([
     {path: "/bookkeeper-loan-approval/:id", element:<LoanApprovalDetails/>},
     {path: "/member-dashboard", element:<Member_Dashboard/>},
     {path: "/member-loans", element:<Member_Loans/>},
+    {path: "/member-apply-loans", element:<Member_ApplyLoans/>},
     {path: "/member-lifecycle", element:<Member_Lifecycle/>},
     {path: "/members-profile", element:<Members_Profile/>},
     {path: "/member-savings", element:<Member_Savings/>},

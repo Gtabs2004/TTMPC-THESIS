@@ -1,9 +1,9 @@
 ﻿import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
-import { useNotification } from "../../contex/NotificationContext";
 import { supabase } from "../../supabaseClient";
 import { resolveMemberContextFromSessionUser } from "../../utils/sessionIdentity";
+import LoanNotificationBell from "../../components/LoanNotificationBell";
 import { loadMemberAvatarSignedUrl } from "../../utils/memberAvatar";
 import { 
   LayoutDashboard, 
@@ -22,7 +22,8 @@ import {
   Info,
   History,
   User,
-  Receipt
+  Receipt,
+  Library
 } from 'lucide-react';
 
 const styles = `
@@ -102,11 +103,20 @@ const normalizeMonthlyInterestPercent = (loan) => {
   if (!Number.isFinite(ratePercent) || ratePercent <= 0) return null;
 
   if (loanType.includes('consolidated')) {
-    if (ratePercent > 0 && ratePercent < 0.1) {
-      ratePercent *= 10;
+    // Normalize legacy consolidated representations:
+    // 83 -> 0.83%, 8.3 -> 0.83%, 0.083 -> 0.83%, 0.0083 -> 0.83%
+    if (ratePercent >= 10) {
+      ratePercent /= 100;
     } else if (ratePercent >= 1 && ratePercent < 10) {
       ratePercent /= 10;
+    } else if (ratePercent > 0 && ratePercent < 0.01) {
+      ratePercent *= 100;
+    } else if (ratePercent > 0 && ratePercent < 0.1) {
+      ratePercent *= 10;
     }
+  } else if (ratePercent > 0 && ratePercent < 0.01) {
+    // Decimal rates for non-consolidated loans (e.g., 0.02) convert to percent.
+    ratePercent *= 100;
   }
 
   return ratePercent;
@@ -121,7 +131,6 @@ const formatInterestRate = (loan) => {
 const Member_Loans = () => {
   const { session, signOut } = UserAuth();
   const navigate = useNavigate();
-  const { addNotification } = useNotification();
   const [loans, setLoans] = useState([]);
   const [loadingLoans, setLoadingLoans] = useState(true);
   const [loanError, setLoanError] = useState('');
@@ -132,6 +141,7 @@ const Member_Loans = () => {
   const menuItems = [
     { name: "Dashboard", icon: LayoutDashboard },
     { name: "Member Loans", icon: Activity },
+    { name: "Apply Loans", icon: Library },
     { name: "Statement of Account", icon: Receipt },
     { name: "Loan Lifecycle", icon: History },
     { name: "Member Profile", icon: Users },
@@ -165,93 +175,82 @@ const Member_Loans = () => {
     return raw ? raw.charAt(0).toUpperCase() + raw.slice(1) : 'Unknown';
   };
 
+  const loadMemberLoans = async () => {
+    try {
+      setLoadingLoans(true);
+      setLoanError('');
+
+      const { data: authData, error: authError } = await supabase.auth.getUser();
+      if (authError) throw authError;
+
+      const sessionUser = authData?.user;
+      if (!sessionUser?.id) throw new Error('Please sign in again to load your loans.');
+
+      const { account, member: memberRow } = await resolveMemberContextFromSessionUser(sessionUser);
+      const memberId = account?.user_id || sessionUser.id;
+      if (!memberId) throw new Error('Please sign in again to load your loans.');
+
+      const fullName = [memberRow?.first_name, memberRow?.middle_name, memberRow?.surname]
+        .filter(Boolean)
+        .join(' ')
+        .trim();
+      const signedAvatarUrl = await loadMemberAvatarSignedUrl(supabase, sessionUser.id);
+
+      const { data, error } = await supabase
+        .from('loans')
+        .select(`
+          control_number,
+          loan_amount,
+          principal_amount,
+          interest_rate,
+          total_interest,
+          monthly_amortization,
+          term,
+          loan_status,
+          application_date,
+          loan_type:loan_type_id (
+            name
+          )
+        `)
+        .eq('member_id', memberId)
+        .order('application_date', { ascending: false });
+
+      if (error) throw error;
+
+      const rows = (data || []).map((loan) => {
+        const principal = Number(loan.principal_amount ?? loan.loan_amount ?? 0);
+        const totalInterest = Number(loan.total_interest ?? 0);
+        const totalPayable = principal + totalInterest;
+        const monthly = Number(loan.monthly_amortization ?? 0);
+
+        return {
+          id: loan.control_number,
+          type: loan.loan_type?.name || 'N/A',
+          originalAmount: formatCurrency(principal),
+          balance: formatCurrency(totalPayable),
+          interestRate: formatInterestRate(loan),
+          payment: monthly > 0 ? formatCurrency(monthly) : 'N/A',
+          nextDue: formatDate(loan.application_date),
+          status: toStatus(loan.loan_status),
+          numericBalance: totalPayable,
+          numericPayment: monthly,
+        };
+      });
+
+      setLoans(rows);
+      setMemberLabel(fullName || 'Member');
+      setAvatarUrl(signedAvatarUrl || '');
+    } catch (err) {
+      setLoanError(err.message || 'Unable to load loan records.');
+      setMemberLabel('Member');
+      setAvatarUrl('');
+    } finally {
+      setLoadingLoans(false);
+    }
+  };
+
   useEffect(() => {
-    let isMounted = true;
-
-    const fetchMemberLoans = async () => {
-      try {
-        setLoadingLoans(true);
-        setLoanError('');
-
-        const { data: authData, error: authError } = await supabase.auth.getUser();
-        if (authError) throw authError;
-
-        const sessionUser = authData?.user;
-        if (!sessionUser?.id) throw new Error('Please sign in again to load your loans.');
-
-        const { account, member: memberRow } = await resolveMemberContextFromSessionUser(sessionUser);
-        const memberId = account?.user_id || sessionUser.id;
-        if (!memberId) throw new Error('Please sign in again to load your loans.');
-
-        const fullName = [memberRow?.first_name, memberRow?.middle_name, memberRow?.surname]
-          .filter(Boolean)
-          .join(' ')
-          .trim();
-        const signedAvatarUrl = await loadMemberAvatarSignedUrl(supabase, sessionUser.id);
-
-        const { data, error } = await supabase
-          .from('loans')
-          .select(`
-            control_number,
-            loan_amount,
-            principal_amount,
-            interest_rate,
-            total_interest,
-            monthly_amortization,
-            term,
-            loan_status,
-            application_date,
-            loan_type:loan_type_id (
-              name
-            )
-          `)
-          .eq('member_id', memberId)
-          .order('application_date', { ascending: false });
-
-        if (error) throw error;
-
-        const rows = (data || []).map((loan) => {
-          const principal = Number(loan.principal_amount ?? loan.loan_amount ?? 0);
-          const totalInterest = Number(loan.total_interest ?? 0);
-          const totalPayable = principal + totalInterest;
-          const monthly = Number(loan.monthly_amortization ?? 0);
-
-          return {
-            id: loan.control_number,
-            type: loan.loan_type?.name || 'N/A',
-            originalAmount: formatCurrency(principal),
-            balance: formatCurrency(totalPayable),
-            interestRate: formatInterestRate(loan),
-            payment: monthly > 0 ? formatCurrency(monthly) : 'N/A',
-            nextDue: formatDate(loan.application_date),
-            status: toStatus(loan.loan_status),
-            numericBalance: totalPayable,
-            numericPayment: monthly,
-          };
-        });
-
-        if (isMounted) {
-          setLoans(rows);
-          setMemberLabel(fullName || 'Member');
-          setAvatarUrl(signedAvatarUrl || '');
-        }
-      } catch (err) {
-        if (isMounted) {
-          setLoanError(err.message || 'Unable to load loan records.');
-          setMemberLabel('Member');
-          setAvatarUrl('');
-        }
-      } finally {
-        if (isMounted) {
-          setLoadingLoans(false);
-        }
-      }
-    };
-
-    fetchMemberLoans();
-    return () => {
-      isMounted = false;
-    };
+    loadMemberLoans();
   }, []);
 
   const totalOutstanding = useMemo(
@@ -311,6 +310,7 @@ const Member_Loans = () => {
             const routeMap = {
               "Dashboard": "/member-dashboard",
               "Member Loans": "/member-loans",
+              "Apply Loans": "/member-apply-loans",
               "Statement of Account": "/member-statement-of-account",
               "Loan Lifecycle": "/member-lifecycle",
               "Member Profile": "/members-profile",
@@ -377,11 +377,8 @@ const Member_Loans = () => {
               placeholder="Search..."
             />
           </div>
-          <button className="relative p-2 rounded-full text-gray-500 hover:bg-gray-100 transition-colors">
-            <Bell className="w-5 h-5"/>
-            <span className="absolute top-1.5 right-1.5 block h-2 w-2 rounded-full bg-red-500 ring-2 ring-white"></span>
-          </button>
-          
+          <LoanNotificationBell role="member" accentClass="bg-[#1D6021]" />
+
           <div className="flex items-center gap-2 sm:gap-3 border-l border-gray-200 pl-2 sm:pl-4 cursor-pointer">
             <div className="w-8 h-8 rounded-full bg-gray-200 overflow-hidden border border-gray-300">
               {avatarUrl ? (
@@ -609,6 +606,7 @@ const Member_Loans = () => {
                 const routeMap = {
                   "Dashboard": "/member-dashboard",
                   "Member Loans": "/member-loans",
+                  "Apply Loans": "/member-apply-loans",
                   "Statement of Account": "/member-statement-of-account",
                   "Loan Lifecycle": "/member-lifecycle",
                   "Member Profile": "/members-profile",
