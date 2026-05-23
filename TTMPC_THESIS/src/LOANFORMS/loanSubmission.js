@@ -1,5 +1,28 @@
 import { supabase } from '../supabaseClient';
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000';
+
+// Fire-and-forget "application received" member notification. Never throws.
+const dispatchMemberSubmittedNotification = async ({ loanId, memberId, memberName, loanType, actorUserId }) => {
+  if (!loanId) return;
+  try {
+    await fetch(`${API_BASE_URL}/api/loans/notifications/member`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        loan_id: loanId,
+        notification_type: 'member_submitted',
+        member_id: memberId || null,
+        member_name: memberName || null,
+        loan_type: loanType || null,
+        actor_user_id: actorUserId || null,
+      }),
+    });
+  } catch (_err) {
+    // Notifications must never block submission.
+  }
+};
+
 const toInt = (value) => {
   if (value === null || value === undefined || value === '') return null;
   const parsed = parseInt(value, 10);
@@ -649,6 +672,13 @@ export async function submitUnifiedLoan({
 
     if (coMakerError) throw coMakerError;
   }
+
+  // Non-blocking: notify the member that the application was received.
+  dispatchMemberSubmittedNotification({
+    loanId: controlNumber,
+    memberId: memberId,
+    actorUserId: user?.id || null,
+  });
 
   return {
     controlNumber,

@@ -1,4 +1,5 @@
 ﻿import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { fetchLoanPrefill, submitUnifiedLoan } from './loanSubmission';
 import { buildConsolidatedPayload, computeLoan } from './loanComputeApi';
 import { formatTinNumber, TIN_FORMATTED_MAX_LENGTH } from './tinFormat';
@@ -67,6 +68,7 @@ const CONSOLIDATED_LOAN_AMOUNT_OPTIONS = Array.from(
 const formatLoanAmountOption = (amount) => Number(amount).toLocaleString('en-PH');
 
 function Consolidated_Loan() {
+  const navigate = useNavigate();
 
   const inputStyles = "border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-[#66B538] outline-none w-full bg-white text-sm transition-all";
   const labelStyles = "block text-xs font-bold text-gray-700 mb-1";
@@ -278,20 +280,39 @@ function Consolidated_Loan() {
     return (principal / term) + (principal * MONTHLY_INTEREST_FACTOR);
   };
 
+  // Repayment Stress Index policy
+  // ------------------------------
+  // Formula: (Monthly Amortization / Latest Net Pay) × 100
+  // Bands:   Safe    < 20%
+  //          Low     ≤ 35%
+  //          Moderate 36–40%
+  //          High    > 40%   (absolute cap — display never shows above this)
+  // Anything above 40% is hard-capped for display and flagged High Risk.
+  // The raw uncapped ratio is preserved separately so blocker logic can still
+  // detect over-limit applications.
+  const STRESS_INDEX_CEILING = 40;
+
   const RISK_COLORS = {
     safe: 'text-[#2E7D32] bg-[#E9F7DE]',
     low_risk: 'text-yellow-700 bg-yellow-100',
     moderate_risk: 'text-orange-600 bg-orange-100',
     high_risk: 'text-red-600 bg-red-100',
-    extreme_risk: 'text-red-700 bg-red-100',
   };
 
-  const classifyRisk = (stressPct) => {
+  // Returns a stress percentage that is never above the policy ceiling.
+  const clampStressForDisplay = (rawStressPct) => {
+    const safeNumber = Number.isFinite(rawStressPct) ? rawStressPct : 0;
+    if (safeNumber <= 0) return 0;
+    return Math.min(safeNumber, STRESS_INDEX_CEILING);
+  };
+
+  const classifyRisk = (rawStressPct) => {
+    const safeNumber = Number.isFinite(rawStressPct) ? rawStressPct : 0;
     let code = 'safe';
-    if (stressPct > 50) code = 'extreme_risk';
-    else if (stressPct > 40) code = 'high_risk';
-    else if (stressPct >= 36) code = 'moderate_risk';
-    else if (stressPct >= 20) code = 'low_risk';
+    if (safeNumber > 40) code = 'high_risk';
+    else if (safeNumber >= 36) code = 'moderate_risk';
+    else if (safeNumber > 20 && safeNumber <= 35) code = 'low_risk';
+    else if (safeNumber >= 20) code = 'low_risk';
 
     const dbRow = riskCategories[code];
     const fallbackLabels = {
@@ -299,13 +320,15 @@ function Consolidated_Loan() {
       low_risk: 'Low Risk',
       moderate_risk: 'Moderate Risk',
       high_risk: 'High Risk',
-      extreme_risk: 'Extreme Risk',
     };
     return {
       code,
       id: dbRow?.stress_index_category_id || null,
       label: (dbRow?.label || fallbackLabels[code]).toUpperCase(),
       color: RISK_COLORS[code],
+      overCap: safeNumber > STRESS_INDEX_CEILING,
+      rawStressPct: safeNumber,
+      cappedStressPct: clampStressForDisplay(safeNumber),
     };
   };
 
@@ -376,7 +399,11 @@ function Consolidated_Loan() {
       memberClass,
       monthlyPayment: suggestedAmortization,
       suggestedTerm,
+      // Always show the actual computed stress percentage, even if it exceeds
+      // the 40% ceiling. The classifier and blocker still treat anything > 40%
+      // as High Risk — only the display number stays unclamped.
       stressIndex: suggestedStress,
+      stressIndexOverCap: suggestedStress > STRESS_INDEX_CEILING,
       risk: classifyRisk(suggestedStress),
       netProceeds,
       existingBalance,
@@ -581,10 +608,14 @@ function Consolidated_Loan() {
   const actualMonthlyAmortization = hasComputedAmortization
     ? Number(formData.monthly_amortization || 0)
     : (actualPrincipal && actualTerm ? computeMonthlyAmortization(actualPrincipal, actualTerm) : 0);
+  // Exact stress percentage — shown to the cashier as-is (no display cap).
+  // Anything above STRESS_INDEX_CEILING (40%) still blocks submission and
+  // gets the High Risk classification; only the rendered number stays raw.
   const actualStressIndex = actualNetPay > 0
     ? (actualMonthlyAmortization / actualNetPay) * 100
     : 0;
-  const stressIndexExceeded = actualNetPay > 0 && actualMonthlyAmortization > 0 && actualStressIndex > 40;
+  const stressIndexExceeded =
+    actualNetPay > 0 && actualMonthlyAmortization > 0 && actualStressIndex > STRESS_INDEX_CEILING;
   const submissionBlockMessage =
     stressIndexExceeded ? 'Monthly amortization exceeds latest net pay.' :
     exceedsCeiling ? 'Loan amount exceeds the allowed debt ceiling.' :
@@ -745,6 +776,11 @@ function Consolidated_Loan() {
           loan_purpose: formData.loan_purpose || null,
           monthly_amortization: formData.monthly_amortization || null,
           source_of_income: formData.source_of_income || null,
+          // Persist form-time values used by the Repayment Stress Index so the
+          // risk model has authoritative inputs even if the PDS is updated
+          // later or doesn't have the relevant columns.
+          latest_net_pay: formData.latest_net_pay || null,
+          share_capital: formData.share_capital || null,
           consolidated_notes: null,
         },
       });
@@ -773,12 +809,21 @@ function Consolidated_Loan() {
     <div className="flex flex-col min-h-screen bg-gray-100 pb-20">
       {/* Header (Unchanged) */}
       <header className="w-full bg-[#E9F7DE] h-20 shadow-lg flex text-col px-6">
-        <div className="flex flex-row items-center gap-4">
+        <div className="flex flex-row items-center justify-between w-full gap-4">
+          <div className="flex flex-row items-center gap-4">
           <img src="/img/ttmpc logo.png" alt="Logo" className="h-12 w-auto" />
           <div className="flex flex-col">
             <h1 className="text-sm font-bold text-[#66B538]">Tubungan Teacher's Multi‑Purpose Cooperative</h1>
             <p className="text-[#A0D284] text-xs">Loan Application Kiosk</p>
           </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => navigate('/member-apply-loans')}
+            className="rounded-lg bg-white px-4 py-2 text-xs font-bold text-[#1D6021] shadow-sm border border-[#D5EDB9] hover:bg-[#F4FBF0]"
+          >
+            Back to Member Portal
+          </button>
         </div>
       </header>
 

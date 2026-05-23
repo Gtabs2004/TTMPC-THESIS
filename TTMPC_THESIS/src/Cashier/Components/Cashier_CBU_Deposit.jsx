@@ -129,7 +129,19 @@ const Cashier_CBU_Deposit = () => {
           member_id: selectedMember.member_uuid || selectedMember.member_id,
           deposit_amount: amount,
           deposit_account: paymentMode,
-          transaction_date: new Date(transactionDate).toISOString(),
+          // Use a millisecond-precise timestamp anchored to the chosen calendar
+          // date so two deposits on the same day still order correctly. The
+          // date picker controls the accounting day; the time component keeps
+          // each row uniquely sortable.
+          transaction_date: (() => {
+            const now = new Date();
+            const [yyyy, mm, dd] = transactionDate.split('-').map(Number);
+            const stamped = new Date(now);
+            if (yyyy && mm && dd) {
+              stamped.setFullYear(yyyy, mm - 1, dd);
+            }
+            return stamped.toISOString();
+          })(),
           // Let the backend assign the deposit_id (server uses build_cbu_deposit_id + the
           // BEFORE-INSERT trigger). Passing a fixed value here causes the second deposit
           // to collide with the first.

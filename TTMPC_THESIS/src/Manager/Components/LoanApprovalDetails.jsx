@@ -518,6 +518,8 @@ const LoanApprovalDetails = () => {
   };
 
   const sendStatusEmail = async ({ toEmail, memberName, status, remarks }) => {
+    // Legacy helper kept for backward compatibility with the membership-style
+    // notification. New loan workflow uses dispatchLoanEmail() below.
     const emailValue = String(toEmail || '').trim();
     if (!emailValue) return;
     try {
@@ -533,6 +535,53 @@ const LoanApprovalDetails = () => {
       });
     } catch (_err) {
       // Notification failures should not block status updates.
+    }
+  };
+
+  // Fire-and-forget loan-status email (Resend). Backend handles transition guards,
+  // duplicate protection, recipient resolution, and audit logging. Must NOT throw.
+  const dispatchLoanEmail = async ({ stage, action, remarks, overrideMemberEmail, nextApproverEmail }) => {
+    if (!loanDetails?.id || !stage || !action) return;
+    try {
+      const { data: { user } = {} } = (await supabase.auth.getUser()) || {};
+      await fetch(`${API_BASE_URL}/api/loans/email/dispatch`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          loan_id: loanDetails.id,
+          stage,
+          action,
+          remarks: remarks || null,
+          actor_user_id: user?.id || null,
+          next_approver_email: nextApproverEmail || null,
+          override_member_email: overrideMemberEmail || null,
+        }),
+      });
+    } catch (_err) {
+      // Email dispatch must never block the approval workflow.
+    }
+  };
+
+  // Fire-and-forget in-app (bell) notification dispatch. Backend dedups by
+  // (recipient_role, loan_id, notification_type). Failures are silent.
+  const dispatchInAppNotification = async ({ recipientRole, notificationType }) => {
+    if (!loanDetails?.id || !recipientRole || !notificationType) return;
+    try {
+      const { data: { user } = {} } = (await supabase.auth.getUser()) || {};
+      await fetch(`${API_BASE_URL}/api/loans/notifications/dispatch`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          loan_id: loanDetails.id,
+          recipient_role: recipientRole,
+          notification_type: notificationType,
+          actor_user_id: user?.id || null,
+          member_name: loanDetails.memberName || null,
+          loan_type: loanDetails.loanType || null,
+        }),
+      });
+    } catch (_err) {
+      // Notification dispatch must never block the approval workflow.
     }
   };
 
@@ -897,14 +946,32 @@ const LoanApprovalDetails = () => {
       closeModal();
       navigate(backRoute);
 
-      if (!isBookkeeperFlow && sendEmail && (modalType === 'reject' || modalType === 'revise')) {
-        const statusLabel = modalType === 'reject' ? 'Rejected' : 'Revision Requested';
-        await sendStatusEmail({
-          toEmail: loanDetails.summary.memberEmail,
-          memberName: loanDetails.memberName,
-          status: statusLabel,
-          remarks: remarks.trim(),
-        });
+      // ---- Loan workflow notification dispatch (non-blocking, idempotent on the backend) ----
+      // Rules:
+      //   Bookkeeper recommend -> in-app notification to Manager.   No member email.
+      //   Bookkeeper reject    -> in-app notification to Manager.   No member email.
+      //   Manager proceed      -> in-app notification to Treasurer + member email.
+      //   Manager reject/revise-> in-app notification only (Bookkeeper side, future). No member email.
+      // The treasurer 'released/disbursed' member email is fired server-side from
+      // the /api/cashier/disbursements/{loan_id}/disburse endpoint.
+      if (isBookkeeperFlow && modalType === 'recommend') {
+        dispatchInAppNotification({ recipientRole: 'manager', notificationType: 'recommend' });
+      } else if (isBookkeeperFlow && modalType === 'reject') {
+        dispatchInAppNotification({ recipientRole: 'manager', notificationType: 'decline' });
+      } else if (!isBookkeeperFlow && modalType === 'proceed') {
+        dispatchInAppNotification({ recipientRole: 'treasurer', notificationType: 'approve' });
+        if (sendEmail !== false) {
+          dispatchLoanEmail({
+            stage: 'manager',
+            action: 'approve',
+            remarks: remarks?.trim() || null,
+            overrideMemberEmail: loanDetails?.summary?.memberEmail || null,
+          });
+        }
+      } else if (!isBookkeeperFlow && modalType === 'reject') {
+        dispatchInAppNotification({ recipientRole: 'bookkeeper', notificationType: 'reject' });
+      } else if (!isBookkeeperFlow && modalType === 'revise') {
+        dispatchInAppNotification({ recipientRole: 'bookkeeper', notificationType: 'revise' });
       }
     } catch (err) {
       setActionError(err.message || 'Unable to update loan application status.');
@@ -1156,7 +1223,22 @@ const LoanApprovalDetails = () => {
                   ? 'Service / Support or Unclassified'
                   : 'Entrepreneurial / Informal';
                 const incomeMissing = Number(features.Income_Is_Missing) === 1;
-                const stressIndex = Number(features.Repayment_Stress_Index);
+                // Policy: show the exact computed Repayment Stress Index — no
+                // display cap. The 40% ceiling still drives the risk band:
+                // anything above 40 is labelled High Risk regardless of how
+                // large the actual percentage gets (e.g. 120%).
+                const STRESS_INDEX_CEILING = 40;
+                const rawStressIndex = Number(features.Repayment_Stress_Index);
+                const stressIndex = Number.isFinite(rawStressIndex) && rawStressIndex >= 0
+                  ? rawStressIndex
+                  : 0;
+                const stressIndexOverCap = Number.isFinite(rawStressIndex) && rawStressIndex > STRESS_INDEX_CEILING;
+                const stressIndexBand = !Number.isFinite(rawStressIndex)
+                  ? 'Unknown'
+                  : rawStressIndex < 20 ? 'Safe'
+                  : rawStressIndex <= 35 ? 'Low Risk'
+                  : rawStressIndex <= 40 ? 'Moderate Risk'
+                  : 'High Risk';
 
                 return (
                   <div className="space-y-4">
@@ -1204,14 +1286,31 @@ const LoanApprovalDetails = () => {
                           <p className="text-[10px] text-gray-400 uppercase">Stability Score</p>
                           <p className="font-bold text-gray-800">{stabilityScore}</p>
                         </div>
-                         {/*  
+                         {  
                         <div>
                         <p className="text-[10px] text-gray-400 uppercase">Repayment Stress</p>
-                          <p className="font-bold text-gray-800">
-                            {incomeMissing ? '— (income missing)' : `${stressIndex.toFixed(1)}%`}
-                          </p>
+                          {incomeMissing ? (
+                            <p className="font-bold text-gray-800">— (income missing)</p>
+                          ) : (
+                            <>
+                              <p className={`font-bold ${stressIndexOverCap ? 'text-red-700' : 'text-gray-800'}`}>
+                                {stressIndex.toFixed(1)}%
+                              </p>
+                              <p className={`mt-0.5 text-[10px] font-bold uppercase tracking-wider ${
+                                stressIndexBand === 'High Risk' ? 'text-red-700'
+                                : stressIndexBand === 'Moderate Risk' ? 'text-orange-600'
+                                : stressIndexBand === 'Low Risk' ? 'text-yellow-700'
+                                : 'text-[#2E7D32]'
+                              }`}>
+                                {stressIndexBand}
+                              </p>
+                              {stressIndexOverCap ? (
+                                <p className="mt-0.5 text-[9px] text-red-600 italic">Exceeds 40% policy ceiling.</p>
+                              ) : null}
+                            </>
+                          )}
                         </div>
-                       */}
+                       }
                       </div>
                     </div>
 

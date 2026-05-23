@@ -4,6 +4,7 @@ import { UserAuth } from "../../contex/AuthContext";
 import { useNotification } from "../../contex/NotificationContext";
 import { supabase } from "../../supabaseClient";
 import { resolveMemberContextFromSessionUser } from "../../utils/sessionIdentity";
+import LoanNotificationBell from "../../components/LoanNotificationBell";
 import { 
   LayoutDashboard, 
   Users, 
@@ -626,11 +627,8 @@ const MemberDashboard = () => {
               placeholder="Search..."
             />
           </div>
-          <button className="relative p-2 rounded-full text-gray-500 hover:bg-gray-100 transition-colors">
-            <Bell className="w-5 h-5"/>
-            <span className="absolute top-1.5 right-1.5 block h-2 w-2 rounded-full bg-red-500 ring-2 ring-white"></span>
-          </button>
-          
+          <LoanNotificationBell role="member" accentClass="bg-[#1D6021]" />
+
           <div className="flex items-center gap-2 sm:gap-3 border-l border-gray-200 pl-2 sm:pl-4 cursor-pointer">
             <div className="w-8 h-8 rounded-full bg-gray-200 overflow-hidden border border-gray-300">
               {avatarUrl ? (

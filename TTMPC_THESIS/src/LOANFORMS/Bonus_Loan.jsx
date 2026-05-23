@@ -1,5 +1,6 @@
 ﻿import React, { useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { createUniqueControlNumber, fetchLoanPrefill, submitUnifiedLoan } from './loanSubmission';
 import { buildBonusPayload, computeLoan } from './loanComputeApi';
 import { formatTinNumber, TIN_FORMATTED_MAX_LENGTH } from './tinFormat';
@@ -50,6 +51,7 @@ const numberToWords = (num) => {
 
 function Bonus_Loan() {
   const location = useLocation();
+  const navigate = useNavigate();
   const isNonMemberBonus = useMemo(() => {
     const params = new URLSearchParams(location.search);
     return params.get('loanType')?.toUpperCase() === 'NONMEMBER_BONUS';
@@ -328,12 +330,21 @@ function Bonus_Loan() {
   return (
     <div className="flex flex-col min-h-screen bg-gray-100 pb-20">
       <header className="w-full bg-[#E9F7DE] h-20 shadow-lg flex text-col px-6">
-        <div className="flex flex-row items-center gap-4">
+        <div className="flex flex-row items-center justify-between w-full gap-4">
+          <div className="flex flex-row items-center gap-4">
           <img src="/img/ttmpc logo.png" alt="Logo" className="h-12 w-auto" />
           <div className="flex flex-col">
             <h1 className="text-sm font-bold text-[#66B538]">Tubungan Teacher's Multi-Purpose Cooperative</h1>
             <p className="text-[#A0D284] text-xs">Loan Application Kiosk</p>
           </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => navigate('/member-apply-loans')}
+            className="rounded-lg bg-white px-4 py-2 text-xs font-bold text-[#1D6021] shadow-sm border border-[#D5EDB9] hover:bg-[#F4FBF0]"
+          >
+            Back to Member Portal
+          </button>
         </div>
       </header>
 
