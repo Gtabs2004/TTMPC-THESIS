@@ -5,6 +5,7 @@ import { supabase } from "../../supabaseClient";
 import { resolveMemberContextFromSessionUser } from "../../utils/sessionIdentity";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
 import { loadMemberAvatarSignedUrl } from "../../utils/memberAvatar";
+import LoanCalculatorModal from "./LoanCalculatorModal";
 import { 
   LayoutDashboard, 
   Users, 
@@ -137,6 +138,7 @@ const Member_Loans = () => {
   const [memberLabel, setMemberLabel] = useState('Member');
   const [avatarUrl, setAvatarUrl] = useState('');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isCalculatorOpen, setIsCalculatorOpen] = useState(false);
 
   const menuItems = [
     { name: "Dashboard", icon: LayoutDashboard },
@@ -585,7 +587,11 @@ const Member_Loans = () => {
                 </p>
               </div>
 
-              <button className="w-full bg-[#1D6021] hover:bg-[#154718] text-white font-bold text-sm py-3.5 rounded-xl transition-colors flex items-center justify-center gap-2 mb-4">
+              <button
+                type="button"
+                onClick={() => setIsCalculatorOpen(true)}
+                className="w-full bg-[#1D6021] hover:bg-[#154718] text-white font-bold text-sm py-3.5 rounded-xl transition-colors flex items-center justify-center gap-2 mb-4"
+              >
                 <ArrowRight className="w-4 h-4" /> Open Loan Calculator
               </button>
               
@@ -643,6 +649,8 @@ const Member_Loans = () => {
           </div>
         </nav>
       </div>
+
+      <LoanCalculatorModal open={isCalculatorOpen} onClose={() => setIsCalculatorOpen(false)} />
     </div>
   );
 };
