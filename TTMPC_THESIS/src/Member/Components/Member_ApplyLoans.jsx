@@ -20,7 +20,9 @@ import {
   Library,
   AlertCircle,
   Gift,
+  Calculator,
 } from "lucide-react";
+import LoanCalculatorModal from "./LoanCalculatorModal";
 
 const selectorOptions = [
   {
@@ -52,6 +54,7 @@ const Member_ApplyLoans = () => {
   const [memberLabel, setMemberLabel] = useState("Member");
   const [avatarUrl, setAvatarUrl] = useState("");
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isCalculatorOpen, setIsCalculatorOpen] = useState(false);
 
   const menuItems = [
     { name: "Dashboard", icon: LayoutDashboard },
@@ -235,12 +238,21 @@ const Member_ApplyLoans = () => {
           <h1 className="hidden lg:block font-extrabold text-[#1a4a2f] text-2xl mb-8">Apply Loans</h1>
 
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 sm:p-6">
-            <div className="flex items-center justify-between gap-3 mb-5">
+            <div className="flex items-center justify-between gap-3 mb-5 flex-wrap">
               <div>
                 <h3 className="text-lg font-bold text-gray-900">Choose Loan Type</h3>
                 <p className="text-xs text-gray-500 mt-1">Select your loan type to continue with the standard loan form design.</p>
               </div>
-              <span className="rounded-full bg-[#EAF1EB] px-3 py-1 text-[10px] font-extrabold uppercase tracking-wide text-[#1D6021]">Standard Flow</span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsCalculatorOpen(true)}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-[#1D6021] px-3 py-1 text-[11px] font-bold text-[#1D6021] hover:bg-[#EAF1EB]"
+                >
+                  <Calculator className="w-3.5 h-3.5" /> Simulate before applying
+                </button>
+                <span className="rounded-full bg-[#EAF1EB] px-3 py-1 text-[10px] font-extrabold uppercase tracking-wide text-[#1D6021]">Standard Flow</span>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -306,6 +318,8 @@ const Member_ApplyLoans = () => {
           </div>
         </nav>
       </div>
+
+      <LoanCalculatorModal open={isCalculatorOpen} onClose={() => setIsCalculatorOpen(false)} />
     </div>
   );
 };

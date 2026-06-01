@@ -5,6 +5,7 @@ import { useNotification } from "../../contex/NotificationContext";
 import { supabase } from "../../supabaseClient";
 import { resolveMemberContextFromSessionUser } from "../../utils/sessionIdentity";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
+import LoanCalculatorModal from "./LoanCalculatorModal";
 import { 
   LayoutDashboard, 
   Users, 
@@ -22,7 +23,8 @@ import {
   CheckCircle2,
   History,
   User,
-  Receipt
+  Receipt,
+  Calculator
 } from 'lucide-react';
 
 const styles = `
@@ -100,6 +102,7 @@ const MemberDashboard = () => {
   const navigate = useNavigate();
   const { addNotification } = useNotification();
   const [profile, setProfile] = useState(null);
+  const [isCalculatorOpen, setIsCalculatorOpen] = useState(false);
   const [memberLoans, setMemberLoans] = useState([]);
   const [recentTransactions, setRecentTransactions] = useState([]);
   const [totalSavings, setTotalSavings] = useState(0);
@@ -646,7 +649,16 @@ const MemberDashboard = () => {
    
         {/* Scrollable Main */}
         <main className="p-4 sm:p-6 lg:p-8 overflow-y-auto pb-28 lg:pb-0">
-          <h1 className="hidden lg:block font-extrabold text-[#1a4a2f] text-2xl mb-6">Dashboard</h1>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
+            <h1 className="hidden lg:block font-extrabold text-[#1a4a2f] text-2xl">Dashboard</h1>
+            <button
+              type="button"
+              onClick={() => setIsCalculatorOpen(true)}
+              className="inline-flex items-center gap-2 rounded-lg bg-[#1D6021] hover:bg-[#154718] text-white text-xs font-bold px-4 py-2 shadow-sm"
+            >
+              <Calculator className="w-4 h-4" /> Loan Calculator
+            </button>
+          </div>
 
           {isTemporaryAccount ? (
             <div className="mb-6 p-4 rounded-xl border border-amber-200 bg-amber-50 text-sm text-amber-800 font-semibold flex items-center justify-between gap-3">
@@ -934,6 +946,8 @@ const MemberDashboard = () => {
           </div>
         </nav>
       </div>
+
+      <LoanCalculatorModal open={isCalculatorOpen} onClose={() => setIsCalculatorOpen(false)} />
     </div>
   );
 };
