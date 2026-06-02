@@ -723,6 +723,89 @@ def resolve_monthly_rate_decimal(
     return Decimal("0")
 
 
+_FEE_POLICY_FALLBACKS = {
+    "CONSOLIDATED": {
+        "service_fee_mode": "bracket",
+        "service_fee_per_bracket": Decimal("100"),
+        "service_fee_bracket_size": Decimal("50000"),
+        "cbu_rate": Decimal("0.02"),
+        "insurance_per_thousand": Decimal("1.35"),
+        "notarial_fee": Decimal("100"),
+    },
+    "EMERGENCY": {
+        "service_fee_mode": "flat",
+        "service_fee_per_bracket": Decimal("100"),
+        "service_fee_bracket_size": Decimal("999999999"),
+        "cbu_rate": Decimal("0.02"),
+        "insurance_per_thousand": Decimal("0"),
+        "notarial_fee": Decimal("0"),
+    },
+    "BONUS": {
+        "service_fee_mode": "flat",
+        "service_fee_per_bracket": Decimal("100"),
+        "service_fee_bracket_size": Decimal("999999999"),
+        "cbu_rate": Decimal("0"),
+        "insurance_per_thousand": Decimal("0"),
+        "notarial_fee": Decimal("0"),
+    },
+    "NONMEMBER_BONUS": {
+        "service_fee_mode": "flat",
+        "service_fee_per_bracket": Decimal("100"),
+        "service_fee_bracket_size": Decimal("999999999"),
+        "cbu_rate": Decimal("0"),
+        "insurance_per_thousand": Decimal("0"),
+        "notarial_fee": Decimal("0"),
+    },
+}
+
+
+def resolve_fee_policy(loan_type_code: str) -> dict:
+    """Fetch the fee policy row for the given loan type code, falling back
+    to the seeded defaults if the table is unavailable or has no row."""
+    code = str(loan_type_code or "").strip().upper()
+    if not code:
+        return _FEE_POLICY_FALLBACKS.get("CONSOLIDATED", {})
+    if supabase is not None:
+        try:
+            response = (
+                supabase.table("loan_fee_policies")
+                .select(
+                    "service_fee_mode,service_fee_per_bracket,service_fee_bracket_size,"
+                    "cbu_rate,insurance_per_thousand,notarial_fee"
+                )
+                .eq("loan_type_code", code)
+                .limit(1)
+                .execute()
+            )
+            row = (response.data or [None])[0]
+            if row:
+                return {
+                    "service_fee_mode": row.get("service_fee_mode") or "none",
+                    "service_fee_per_bracket": Decimal(str(row.get("service_fee_per_bracket") or 0)),
+                    "service_fee_bracket_size": Decimal(str(row.get("service_fee_bracket_size") or 0)),
+                    "cbu_rate": Decimal(str(row.get("cbu_rate") or 0)),
+                    "insurance_per_thousand": Decimal(str(row.get("insurance_per_thousand") or 0)),
+                    "notarial_fee": Decimal(str(row.get("notarial_fee") or 0)),
+                }
+        except Exception:
+            pass
+    return _FEE_POLICY_FALLBACKS.get(code, _FEE_POLICY_FALLBACKS["BONUS"])
+
+
+def compute_service_fee(policy: dict, principal: Decimal) -> Decimal:
+    mode = str(policy.get("service_fee_mode") or "none").lower()
+    if mode == "none":
+        return Decimal("0")
+    per = Decimal(str(policy.get("service_fee_per_bracket") or 0))
+    if mode == "flat":
+        return money(per)
+    size = Decimal(str(policy.get("service_fee_bracket_size") or 0))
+    if size <= 0 or per <= 0 or principal <= 0:
+        return Decimal("0")
+    brackets = ((int(principal) - 1) // int(size)) + 1
+    return money(Decimal(brackets) * per)
+
+
 @app.post("/api/loans/compute")
 async def compute_loan(payload: LoanComputeRequest):
     principal = Decimal(str(payload.principal))
@@ -747,10 +830,11 @@ async def compute_loan(payload: LoanComputeRequest):
         interest_component = money(principal * monthly_rate)
         monthly_amortization = money(principal_component + interest_component)
 
-        service_fee = money(Decimal(((int(principal) - 1) // 50000) + 1) * Decimal("100"))
-        insurance_fee = money((principal / Decimal("1000")) * Decimal("1.35"))
-        cbu_deduction = money(principal * Decimal("0.02"))
-        notarial_fee = money(Decimal("100"))
+        fee_policy = resolve_fee_policy("CONSOLIDATED")
+        service_fee = compute_service_fee(fee_policy, principal)
+        insurance_fee = money((principal * fee_policy["insurance_per_thousand"]) / Decimal("1000"))
+        cbu_deduction = money(principal * fee_policy["cbu_rate"])
+        notarial_fee = money(fee_policy["notarial_fee"])
 
         for installment_no in range(1, term + 1):
             monthly_breakdown.append(
@@ -769,8 +853,11 @@ async def compute_loan(payload: LoanComputeRequest):
             raise HTTPException(status_code=400, detail="Interest rate for EMERGENCY is not configured in loan_types.")
 
         principal_component = money(principal / Decimal(term))
-        service_fee = money(Decimal("100"))
-        cbu_deduction = money(principal * Decimal("0.02"))
+        fee_policy = resolve_fee_policy("EMERGENCY")
+        service_fee = compute_service_fee(fee_policy, principal)
+        cbu_deduction = money(principal * fee_policy["cbu_rate"])
+        insurance_fee = money((principal * fee_policy["insurance_per_thousand"]) / Decimal("1000"))
+        notarial_fee = money(fee_policy["notarial_fee"])
 
         for installment_no in range(1, term + 1):
             interest_component = money((principal / Decimal(term)) * monthly_rate * Decimal(term - installment_no))
@@ -799,7 +886,11 @@ async def compute_loan(payload: LoanComputeRequest):
         interest_component = money(principal * monthly_rate)
         monthly_amortization = money(principal_component + interest_component)
 
-        service_fee = money(Decimal("100"))
+        fee_policy = resolve_fee_policy(loan_type_code)
+        service_fee = compute_service_fee(fee_policy, principal)
+        cbu_deduction = money(principal * fee_policy["cbu_rate"])
+        insurance_fee = money((principal * fee_policy["insurance_per_thousand"]) / Decimal("1000"))
+        notarial_fee = money(fee_policy["notarial_fee"])
 
         for installment_no in range(1, term + 1):
             monthly_breakdown.append(

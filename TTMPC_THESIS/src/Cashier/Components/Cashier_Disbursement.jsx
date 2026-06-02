@@ -57,6 +57,15 @@ const Cashier_Disbursement = () => {
   const [sortConfig, setSortConfig] = useState({ key: "member_name", direction: "asc" });
   const [showFilters, setShowFilters] = useState(false);
 
+  // Pre-disbursement preview state. Holds the loan being released plus the
+  // deduction breakdown fetched from /api/loans/compute. Showing this to the
+  // cashier before commit is the audit trail for the 2% CBU retention,
+  // service fee, insurance, and notarial fee.
+  const [previewLoan, setPreviewLoan] = useState(null);
+  const [previewDeductions, setPreviewDeductions] = useState(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewError, setPreviewError] = useState("");
+
   const menuItems = [
     { name: "Dashboard", icon: LayoutDashboard, path: "/Cashier_Dashboard" },
     { name: "Payments", icon: Banknote, path: "/Cashier_Payments" },
@@ -103,6 +112,62 @@ const Cashier_Disbursement = () => {
     }
   };
 
+  // Map the cashier's loan_type label (e.g., "Consolidated Loan") to the
+  // lowercase code expected by /api/loans/compute.
+  const resolveComputeLoanType = (label) => {
+    const normalized = String(label || "").toLowerCase();
+    if (normalized.includes("consolidated")) return "consolidated";
+    if (normalized.includes("emergency")) return "emergency";
+    if (normalized.includes("bonus")) return "bonus";
+    return null;
+  };
+
+  const openDisbursementPreview = async (loan) => {
+    setErrorMessage("");
+    setFeedbackMessage("");
+    setPreviewLoan(loan);
+    setPreviewDeductions(null);
+    setPreviewError("");
+
+    const computeType = resolveComputeLoanType(loan.loan_type);
+    const principal = Number(loan.principal_amount || loan.loan_amount || 0);
+    const term = Number(loan.term_months || loan.term || 0);
+
+    if (!computeType || principal <= 0 || term <= 0) {
+      setPreviewError("Unable to compute deductions for this loan (missing type, principal, or term).");
+      return;
+    }
+
+    setPreviewLoading(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/loans/compute`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({
+          loan_type: computeType,
+          principal,
+          term_months: term,
+        }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(result?.detail || result?.message || "Failed to compute deductions.");
+      }
+      setPreviewDeductions(result?.data || null);
+    } catch (error) {
+      setPreviewError(error.message || "Unable to compute deductions.");
+    } finally {
+      setPreviewLoading(false);
+    }
+  };
+
+  const closeDisbursementPreview = () => {
+    if (disbursingLoanId) return;
+    setPreviewLoan(null);
+    setPreviewDeductions(null);
+    setPreviewError("");
+  };
+
   const handleDisburseLoan = async (loanId) => {
     setDisbursingLoanId(loanId);
     setErrorMessage("");
@@ -140,8 +205,16 @@ const Cashier_Disbursement = () => {
         `Loan disbursed. Schedule created with first due date ${firstDueDate}. Grace period is 3 days and delayed flag starts after 1 month.`
       );
       if (result?.data?.confirmation) {
-        setConfirmation(result.data.confirmation);
+        // Attach the deduction breakdown that the cashier already saw and
+        // approved so the post-release receipt shows the same numbers.
+        setConfirmation({
+          ...result.data.confirmation,
+          deductions: previewDeductions || null,
+        });
       }
+      setPreviewLoan(null);
+      setPreviewDeductions(null);
+      setPreviewError("");
       await fetchReadyLoans();
     } catch (error) {
       setErrorMessage(error.message || "Disbursement failed.");
@@ -503,17 +576,20 @@ const Cashier_Disbursement = () => {
                         <td className="px-6 py-4">
                           <span className="badge-animated inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold bg-blue-100 text-blue-700">
                             <CheckCircle2 size={12} />
-                            {loan.loan_status}
+                            {String(loan.loan_status || "")
+                              .split(" ")
+                              .map((word) => (word ? word.charAt(0).toUpperCase() + word.slice(1).toLowerCase() : ""))
+                              .join(" ")}
                           </span>
                         </td>
                         <td className="px-6 py-4">
                           <button
                             type="button"
-                            onClick={() => handleDisburseLoan(loan.loan_id)}
+                            onClick={() => openDisbursementPreview(loan)}
                             disabled={disbursingLoanId === loan.loan_id}
                             className="btn-enhanced rounded-lg bg-green-600 px-4 py-2 text-xs font-semibold text-white hover:bg-green-700 transition disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500"
                           >
-                            {disbursingLoanId === loan.loan_id ? "Processing..." : "Disburse"}
+                            {disbursingLoanId === loan.loan_id ? "Processing..." : "Review & Disburse"}
                           </button>
                         </td>
                       </tr>
@@ -585,6 +661,55 @@ const Cashier_Disbursement = () => {
                 </div>
               </div>
 
+              {confirmation.deductions && (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
+                  <p className="text-[10px] uppercase tracking-wider text-amber-800 font-semibold mb-2">
+                    Deductions Applied
+                  </p>
+                  <div className="space-y-1.5 text-xs text-gray-800">
+                    <div className="flex justify-between">
+                      <span>Service Fee</span>
+                      <span className="font-mono font-semibold">
+                        {formatCurrency(confirmation.deductions?.deductions?.service_fee)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Capital Build-Up (2%)</span>
+                      <span className="font-mono font-semibold text-[#389734]">
+                        {formatCurrency(confirmation.deductions?.deductions?.cbu_deduction)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Insurance Fee</span>
+                      <span className="font-mono font-semibold">
+                        {formatCurrency(confirmation.deductions?.deductions?.insurance_fee)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Notarial Fee</span>
+                      <span className="font-mono font-semibold">
+                        {formatCurrency(confirmation.deductions?.deductions?.notarial_fee)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between border-t border-amber-200 pt-1.5 mt-1.5">
+                      <span className="font-semibold">Total Deductions</span>
+                      <span className="font-mono font-bold">
+                        {formatCurrency(confirmation.deductions?.total_deductions)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="font-semibold">Net Proceeds Released</span>
+                      <span className="font-mono font-bold text-[#389734]">
+                        {formatCurrency(confirmation.deductions?.net_proceeds)}
+                      </span>
+                    </div>
+                  </div>
+                  <p className="mt-2 text-[10px] text-amber-700">
+                    The 2% CBU retention is credited to the member's Capital Build-Up ledger automatically.
+                  </p>
+                </div>
+              )}
+
               <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-2.5 text-xs text-blue-700">
                 Saved to transaction history. Reference this entry for audit, validation, and member ledger reconciliation.
               </div>
@@ -597,6 +722,147 @@ const Cashier_Disbursement = () => {
                 className="rounded-lg bg-[#389734] hover:bg-[#2d7c29] text-white text-sm font-semibold px-5 py-2 transition"
               >
                 Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {previewLoan && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm px-4">
+          <div className="w-full max-w-lg rounded-2xl bg-white shadow-2xl border border-gray-200 overflow-hidden">
+            <div className="flex items-start justify-between gap-4 px-6 py-5 bg-gradient-to-r from-[#389734] to-[#66B538] text-white">
+              <div className="flex items-start gap-3">
+                <div className="rounded-full bg-white/20 p-2">
+                  <Banknote size={22} />
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold leading-tight">Review Disbursement</h2>
+                  <p className="text-xs text-white/80 mt-0.5">
+                    Confirm the deduction breakdown before releasing this loan.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={closeDisbursementPreview}
+                disabled={!!disbursingLoanId}
+                className="rounded-full p-1 hover:bg-white/15 transition disabled:opacity-40"
+                aria-label="Close preview"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="px-6 py-5 space-y-4">
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5">
+                  <p className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold">Member</p>
+                  <p className="font-semibold text-gray-900 mt-0.5">{previewLoan.member_name}</p>
+                </div>
+                <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5">
+                  <p className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold">Loan Type</p>
+                  <p className="font-semibold text-gray-900 mt-0.5">{toTitleCase(previewLoan.loan_type)}</p>
+                </div>
+                <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5">
+                  <p className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold">Principal</p>
+                  <p className="font-bold text-gray-900 mt-0.5">
+                    {formatCurrency(previewLoan.principal_amount || previewLoan.loan_amount)}
+                  </p>
+                </div>
+                <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5">
+                  <p className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold">Term</p>
+                  <p className="font-semibold text-gray-900 mt-0.5">
+                    {previewLoan.term_months || previewLoan.term || "—"} months
+                  </p>
+                </div>
+              </div>
+
+              {previewLoading && (
+                <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700 flex items-center gap-2">
+                  <Clock size={16} />
+                  Computing deductions...
+                </div>
+              )}
+
+              {previewError && (
+                <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 flex items-start gap-2">
+                  <AlertCircle size={16} className="mt-0.5 shrink-0" />
+                  <span>{previewError}</span>
+                </div>
+              )}
+
+              {previewDeductions && (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
+                  <p className="text-[10px] uppercase tracking-wider text-amber-800 font-semibold mb-2">
+                    Deductions Breakdown
+                  </p>
+                  <div className="space-y-1.5 text-xs text-gray-800">
+                    <div className="flex justify-between">
+                      <span>Service Fee <span className="text-gray-500">(₱100 / ₱50,000)</span></span>
+                      <span className="font-mono font-semibold">
+                        {formatCurrency(previewDeductions?.deductions?.service_fee)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Capital Build-Up <span className="text-gray-500">(2% of principal)</span></span>
+                      <span className="font-mono font-semibold text-[#389734]">
+                        {formatCurrency(previewDeductions?.deductions?.cbu_deduction)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Insurance Fee <span className="text-gray-500">(₱1.35 / ₱1,000)</span></span>
+                      <span className="font-mono font-semibold">
+                        {formatCurrency(previewDeductions?.deductions?.insurance_fee)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Notarial Fee</span>
+                      <span className="font-mono font-semibold">
+                        {formatCurrency(previewDeductions?.deductions?.notarial_fee)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between border-t border-amber-200 pt-1.5 mt-1.5">
+                      <span className="font-semibold">Total Deductions</span>
+                      <span className="font-mono font-bold">
+                        {formatCurrency(previewDeductions?.total_deductions)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between text-sm pt-1">
+                      <span className="font-bold">Net Proceeds to Release</span>
+                      <span className="font-mono font-bold text-[#389734]">
+                        {formatCurrency(previewDeductions?.net_proceeds)}
+                      </span>
+                    </div>
+                  </div>
+                  <p className="mt-2 text-[10px] text-amber-700">
+                    The 2% CBU retention will be credited to the member's Capital Build-Up ledger on release.
+                  </p>
+                </div>
+              )}
+            </div>
+
+            <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={closeDisbursementPreview}
+                disabled={!!disbursingLoanId}
+                className="rounded-lg border border-gray-300 bg-white text-gray-700 text-sm font-semibold px-4 py-2 hover:bg-gray-50 transition disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => handleDisburseLoan(previewLoan.loan_id)}
+                disabled={
+                  !!disbursingLoanId ||
+                  previewLoading ||
+                  !!previewError ||
+                  !previewDeductions
+                }
+                className="rounded-lg bg-[#389734] hover:bg-[#2d7c29] text-white text-sm font-semibold px-5 py-2 transition disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500"
+              >
+                {disbursingLoanId === previewLoan.loan_id ? "Releasing..." : "Confirm & Release"}
               </button>
             </div>
           </div>
