@@ -1,0 +1,2 @@
+csv_row,csv_last,csv_first,csv_middle,membership_id,member_id,auth_user_id,email,default_password,auth_was_created,account_table,account_mode
+96,TACADAO,MARY IVY,TAGARDA,TTMPC-293,5ade39f8-b1e3-4b07-b724-4ba865564d6d,5ade39f8-b1e3-4b07-b724-4ba865564d6d,ttmpc-293@ttmpc.local,TACADAO1234,True,,skipped
