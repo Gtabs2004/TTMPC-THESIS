@@ -8,7 +8,7 @@ import LoanDemandForecastCard from "../../components/LoanDemandForecastCard";
 import {
   LayoutDashboard, Users, Archive, CalendarCheck, Search, Bell,
   Download, Calendar, TrendingUp, AlertCircle, CreditCard, HeartHandshake,
-  Clock, ArrowUpRight, ArrowDownRight
+  Clock, ArrowUpRight, ArrowDownRight, FileText
 } from 'lucide-react';
 import NotificationBell from "./NotificationBell";
 import { 
@@ -69,7 +69,7 @@ const Dashboard_BOD = () => {
   }, []);
 
   const menuItems = [
-    { section: "BOD", items: [{ name: "Dashboard", icon: LayoutDashboard }, { name: "Member Approvals", icon: Users }, { name: "Manage Loans", icon: CreditCard }, { name: "Manage Member", icon: Users }] },
+    { section: "BOD", items: [{ name: "Dashboard", icon: LayoutDashboard }, { name: "Member Approvals", icon: Users }, { name: "Manage Loans", icon: CreditCard }, { name: "Manage Member", icon: Users }, { name: "Loan Policies", icon: FileText }] },
     { section: "SECRETARY", items: [{ name: "Training Attendance", icon: CalendarCheck }, { name: "Membership Records", icon: Archive }] }
   ];
 
@@ -78,6 +78,7 @@ const Dashboard_BOD = () => {
     "Member Approvals": "/member-approvals",
     "Manage Loans": "/bod-manage-loans",
     "Manage Member": "/bod-manage-member",
+    "Loan Policies": "/bod-loan-policies",
     "Training Attendance": "/Secretary_Attendance",
     "Membership Records": "/Secretary_Records",
   };
