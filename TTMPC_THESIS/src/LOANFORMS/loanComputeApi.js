@@ -40,6 +40,71 @@ const extractInterestRate = (row) => {
   return Number.isFinite(normalized) && normalized > 0 ? normalized : null;
 };
 
+// Fee policy fallbacks. Used only if loan_fee_policies has no row for the
+// loan type (e.g., the migration has not been run yet). Mirrors the values
+// the policy table is seeded with.
+const FEE_POLICY_FALLBACKS = {
+  CONSOLIDATED: {
+    service_fee_mode: 'bracket',
+    service_fee_per_bracket: 100,
+    service_fee_bracket_size: 50000,
+    cbu_rate: 0.02,
+    insurance_per_thousand: 1.35,
+    notarial_fee: 100,
+  },
+  EMERGENCY: {
+    service_fee_mode: 'flat',
+    service_fee_per_bracket: 100,
+    service_fee_bracket_size: 999999999,
+    cbu_rate: 0.02,
+    insurance_per_thousand: 0,
+    notarial_fee: 0,
+  },
+  BONUS: {
+    service_fee_mode: 'flat',
+    service_fee_per_bracket: 100,
+    service_fee_bracket_size: 999999999,
+    cbu_rate: 0,
+    insurance_per_thousand: 0,
+    notarial_fee: 0,
+  },
+  NONMEMBER_BONUS: {
+    service_fee_mode: 'flat',
+    service_fee_per_bracket: 100,
+    service_fee_bracket_size: 999999999,
+    cbu_rate: 0,
+    insurance_per_thousand: 0,
+    notarial_fee: 0,
+  },
+};
+
+const resolveFeePolicy = async (loanTypeCode) => {
+  const code = String(loanTypeCode || '').trim().toUpperCase();
+  if (!code) return null;
+  try {
+    const { data } = await supabase
+      .from('loan_fee_policies')
+      .select('service_fee_mode,service_fee_per_bracket,service_fee_bracket_size,cbu_rate,insurance_per_thousand,notarial_fee')
+      .eq('loan_type_code', code)
+      .limit(1)
+      .maybeSingle();
+    if (data) return data;
+  } catch (_err) {
+    // Table may not exist yet — fall through to the hard-coded defaults.
+  }
+  return FEE_POLICY_FALLBACKS[code] || null;
+};
+
+const computeServiceFee = (policy, principal) => {
+  if (!policy || policy.service_fee_mode === 'none') return 0;
+  const per = Number(policy.service_fee_per_bracket || 0);
+  if (policy.service_fee_mode === 'flat') return per;
+  const size = Number(policy.service_fee_bracket_size || 0);
+  if (size <= 0 || per <= 0 || principal <= 0) return 0;
+  // Ceiling brackets: 1..size → 1×per, size+1..2×size → 2×per, etc.
+  return money((Math.floor((Math.trunc(principal) - 1) / size) + 1) * per);
+};
+
 const resolveLoanTypeInterestRate = async (loanTypeCode, loanTypeName) => {
   const code = String(loanTypeCode || '').trim().toUpperCase();
   const name = String(loanTypeName || '').trim();
@@ -156,22 +221,14 @@ const computeLoanLocally = async (payload) => {
   }
 
   const monthlyRate = interestRatePercent / 100;
-  let serviceFee = 0;
-  let cbuDeduction = 0;
-  let insuranceFee = 0;
-  let notarialFee = 0;
 
-  if (loanType === 'consolidated') {
-    serviceFee = money((Math.floor((Math.trunc(principal) - 1) / 50000) + 1) * 100);
-    insuranceFee = money((principal / 1000) * 1.35);
-    cbuDeduction = money(principal * 0.02);
-    notarialFee = 100;
-  } else if (loanType === 'emergency') {
-    serviceFee = 100;
-    cbuDeduction = money(principal * 0.02);
-  } else if (loanType === 'bonus') {
-    serviceFee = 100;
-  }
+  // All four fees come from loan_fee_policies (single source of truth, editable
+  // by BOD). Falls back to the seeded defaults if the row is missing.
+  const feePolicy = await resolveFeePolicy(loanTypeCode);
+  const serviceFee = computeServiceFee(feePolicy, principal);
+  const cbuDeduction = money(principal * Number(feePolicy?.cbu_rate || 0));
+  const insuranceFee = money(principal * (Number(feePolicy?.insurance_per_thousand || 0) / 1000));
+  const notarialFee = money(Number(feePolicy?.notarial_fee || 0));
 
   const monthlyBreakdown = buildMonthlyBreakdown(loanType, principal, termMonths, monthlyRate, firstDueDate);
   const monthlyAmortization = monthlyBreakdown.length ? Number(monthlyBreakdown[0].expected_amount || 0) : 0;
