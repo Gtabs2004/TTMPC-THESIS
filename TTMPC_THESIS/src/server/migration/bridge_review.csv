@@ -1,0 +1,3 @@
+csv_row,csv_uuid,csv_last,csv_first,csv_middle,status,cand1_member_id,cand1_ttmpc_id,cand1_name,chosen_member_id
+58,1328b9e8-a204-4b0e-86a6-9bc69ab53992,GARGARITANO,VICENTE JR.,TABUCURAN,review_mi_mismatch,e14b22fb-b698-46f5-94c8-79fff0c4bf23,TTMPC-057,"GARGARITANO, VICENTE J",e14b22fb-b698-46f5-94c8-79fff0c4bf23
+144,09a32eb7-e584-47bb-a937-8316f8199fec,TABUD,MANUEL JR.,TABALINA,review_mi_mismatch,d46c80f5-169c-4229-9f31-7ffcd4ece06c,TTMPC-143,"TABUD, MANUEL J",d46c80f5-169c-4229-9f31-7ffcd4ece06c
