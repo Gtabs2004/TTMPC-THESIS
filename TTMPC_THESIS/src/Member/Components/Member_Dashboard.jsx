@@ -1,4 +1,5 @@
 ﻿import React, { useEffect, useMemo, useRef, useState } from "react";
+import { Link } from 'react-router-dom';
 import { useNavigate, NavLink } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
 import { useNotification } from "../../contex/NotificationContext";
@@ -24,7 +25,8 @@ import {
   History,
   User,
   Receipt,
-  Calculator
+  Calculator,
+  FileText
 } from 'lucide-react';
 
 const styles = `
@@ -536,7 +538,7 @@ const MemberDashboard = () => {
       ) : null}
       {/* Sidebar */}
       <aside
-        className={`fixed inset-y-0 left-0 z-30 w-64 transform bg-white p-4 flex flex-col border-r border-gray-200 transition-transform duration-200 ease-out lg:static lg:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-30 w-64 transform bg-white p-4 flex flex-col border-r border-gray-200 transition-transform duration-200 ease-out lg:fixed lg:translate-x-0 ${
           isSidebarOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
@@ -607,7 +609,7 @@ const MemberDashboard = () => {
       </aside>
    
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col overflow-hidden lg:pl-0">
+      <div className="flex-1 flex flex-col overflow-hidden lg:ml-64">
         {/* Header */}
         <header className="bg-white h-16 shadow-sm flex items-center justify-between px-4 sm:px-6 lg:px-8 z-10">
           <div className="flex items-center gap-2 sm:gap-3">
@@ -651,13 +653,23 @@ const MemberDashboard = () => {
         <main className="p-4 sm:p-6 lg:p-8 overflow-y-auto pb-28 lg:pb-0">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
             <h1 className="hidden lg:block font-extrabold text-[#1a4a2f] text-2xl">Dashboard</h1>
-            <button
-              type="button"
-              onClick={() => setIsCalculatorOpen(true)}
-              className="inline-flex items-center gap-2 rounded-lg bg-[#1D6021] hover:bg-[#154718] text-white text-xs font-bold px-4 py-2 shadow-sm"
-            >
-              <Calculator className="w-4 h-4" /> Loan Calculator
-            </button>
+
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => navigate('/member-apply-loans')}
+                className="inline-flex items-center gap-2 rounded-lg bg-[#1D6021] hover:bg-[#154718] text-white text-xs font-bold px-4 py-2 shadow-sm cursor-pointer"
+              >
+                <FileText className="w-4 h-4" /> Apply for Loans
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsCalculatorOpen(true)}
+                className="inline-flex items-center gap-2 rounded-lg bg-[#1D6021] hover:bg-[#154718] text-white text-xs font-bold px-4 py-2 shadow-sm cursor-pointer"
+              >
+                <Calculator className="w-4 h-4" /> Loan Calculator
+              </button>
+            </div>
           </div>
 
           {isTemporaryAccount ? (

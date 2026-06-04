@@ -48,6 +48,60 @@ const selectorOptions = [
   },
 ];
 
+const styles = `
+  @keyframes fadeInUp {
+    from {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  @keyframes slideInLeft {
+    from {
+      opacity: 0;
+      transform: translateX(-20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+
+  .animate-fade-in-up {
+    animation: fadeInUp 0.6s ease-out;
+  }
+
+  .animate-fade-in {
+    animation: fadeIn 0.4s ease-out;
+  }
+
+  .animate-slide-in-left {
+    animation: slideInLeft 0.5s ease-out;
+  }
+`;
+
+const menuItems = [
+  { name: "Dashboard", icon: LayoutDashboard },
+  { name: "Member Loans", icon: Activity },
+  { name: "Statement of Account", icon: Receipt },
+  { name: "Loan Lifecycle", icon: History },
+  { name: "Member Profile", icon: Users },
+  { name: "Member Savings", icon: CreditCard },
+];
+
 const Member_ApplyLoans = () => {
   const { signOut } = UserAuth();
   const navigate = useNavigate();
@@ -55,16 +109,6 @@ const Member_ApplyLoans = () => {
   const [avatarUrl, setAvatarUrl] = useState("");
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isCalculatorOpen, setIsCalculatorOpen] = useState(false);
-
-  const menuItems = [
-    { name: "Dashboard", icon: LayoutDashboard },
-    { name: "Member Loans", icon: Activity },
-    { name: "Apply Loans", icon: Library },
-    { name: "Statement of Account", icon: Receipt },
-    { name: "Loan Lifecycle", icon: History },
-    { name: "Member Profile", icon: Users },
-    { name: "Member Savings", icon: CreditCard },
-  ];
 
   useEffect(() => {
     let isMounted = true;
@@ -116,6 +160,7 @@ const Member_ApplyLoans = () => {
 
   return (
     <div className="relative flex min-h-screen bg-[#F8F9FA]">
+      <style>{styles}</style>
       {isSidebarOpen ? (
         <button
           aria-label="Close sidebar overlay"
@@ -123,10 +168,10 @@ const Member_ApplyLoans = () => {
           className="fixed inset-0 z-20 bg-black/30 lg:hidden"
         />
       ) : null}
-
+      {/* Sidebar */}
       <aside
-        className={`fixed inset-y-0 left-0 z-30 w-64 transform bg-white p-4 flex flex-col border-r border-gray-200 transition-transform duration-200 ease-out lg:static lg:translate-x-0 ${
-          isSidebarOpen ? "translate-x-0" : "-translate-x-full"
+        className={`fixed inset-y-0 left-0 z-30 w-64 transform bg-white p-4 flex flex-col border-r border-gray-200 transition-transform duration-200 ease-out lg:fixed lg:translate-x-0 ${
+          isSidebarOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
         <button
@@ -136,33 +181,33 @@ const Member_ApplyLoans = () => {
         >
           <X className="h-5 w-5" />
         </button>
-
         <div className="flex flex-row items-start gap-2 mb-6">
           <img src="/img/ttmpc logo.png" alt="Logo" className="h-12 w-auto" />
           <div className="flex flex-col">
             <h1 className="text-xl font-bold text-[#389734]">TTMPC</h1>
-            <p className="text-[10px] uppercase tracking-wider text-gray-500 font-bold">Members Portal</p>
+            <p className="text-[10px] uppercase tracking-wider text-gray-500 font-bold">
+              Members Portal
+            </p>
           </div>
         </div>
-
+   
         <hr className="w-full border-gray-100 mb-6" />
-
+   
         <nav className="flex grow flex-col gap-2 text-sm">
           {(() => {
             const routeMap = {
-              Dashboard: "/member-dashboard",
+              "Dashboard": "/member-dashboard",
               "Member Loans": "/member-loans",
-              "Apply Loans": "/member-apply-loans",
               "Statement of Account": "/member-statement-of-account",
               "Loan Lifecycle": "/member-lifecycle",
               "Member Profile": "/members-profile",
-              "Member Savings": "/member-savings",
+              "Member Savings": "/member-savings"
             };
-
+       
             return menuItems.map((item) => {
               const Icon = item.icon;
-              const to = routeMap[item.name] || `/${item.name.toLowerCase().replace(/\s+/g, "-")}`;
-
+              const to = routeMap[item.name] || `/${item.name.toLowerCase().replace(/\s+/g, '-')}`;
+       
               return (
                 <NavLink
                   key={item.name}
@@ -170,8 +215,8 @@ const Member_ApplyLoans = () => {
                   className={({ isActive }) =>
                     `flex items-center gap-3 p-2.5 rounded-lg transition-colors ${
                       isActive
-                        ? "bg-[#EAF1EB] text-[#1D6021] font-bold"
-                        : "text-gray-600 hover:bg-gray-50 hover:text-[#1D6021] font-medium"
+                        ? 'bg-[#EAF1EB] text-[#1D6021] font-bold'
+                        : 'text-gray-600 hover:bg-gray-50 hover:text-[#1D6021] font-medium'
                     }`
                   }
                 >
@@ -186,7 +231,7 @@ const Member_ApplyLoans = () => {
             });
           })()}
         </nav>
-
+   
         <button
           onClick={handleSignOut}
           className="mt-auto w-full rounded-lg p-2.5 text-sm bg-[#1D6021] hover:bg-[#154718] text-white font-bold transition-colors"
@@ -195,7 +240,10 @@ const Member_ApplyLoans = () => {
         </button>
       </aside>
 
-      <div className="flex-1 flex flex-col overflow-hidden lg:pl-0">
+   
+      {/* Main Content */}
+      <div className="flex-1 flex flex-col overflow-hidden lg:ml-64">
+        {/* Header */}
         <header className="bg-white h-16 shadow-sm flex items-center justify-between px-4 sm:px-6 lg:px-8 z-10 border-b border-gray-100">
           <div className="flex items-center gap-2 sm:gap-3">
             <button
@@ -205,7 +253,7 @@ const Member_ApplyLoans = () => {
             >
               <Menu className="h-5 w-5" />
             </button>
-            <h1 className="text-base sm:text-lg font-extrabold text-[#1a4a2f] lg:hidden">Apply Loans</h1>
+            <h1 className="text-base sm:text-lg font-extrabold text-[#1a4a2f] lg:hidden">Apply for Loans</h1>
           </div>
 
           <div className="flex items-center gap-2 sm:gap-4">
@@ -234,14 +282,15 @@ const Member_ApplyLoans = () => {
           </div>
         </header>
 
+        {/* Scrollable Page Content */}
         <main className="p-4 sm:p-6 lg:p-8 overflow-y-auto pb-28 lg:pb-0">
-          <h1 className="hidden lg:block font-extrabold text-[#1a4a2f] text-2xl mb-8">Apply Loans</h1>
+          <h1 className="hidden lg:block font-extrabold text-[#1a4a2f] text-2xl mb-8">Apply for Loans</h1>
 
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 sm:p-6">
             <div className="flex items-center justify-between gap-3 mb-5 flex-wrap">
               <div>
                 <h3 className="text-lg font-bold text-gray-900">Choose Loan Type</h3>
-                <p className="text-xs text-gray-500 mt-1">Select your loan type to continue with the standard loan form design.</p>
+                <p className="text-xs text-gray-500 mt-1">Select your loan type to continue with the application form.</p>
               </div>
               <div className="flex items-center gap-2">
                 <button
@@ -276,23 +325,23 @@ const Member_ApplyLoans = () => {
           </div>
         </main>
 
+        {/* Bottom Navigation - Mobile Only */}
         <nav className="fixed bottom-0 left-0 right-0 lg:hidden bg-white border-t border-gray-200 px-2 py-2">
           <div className="max-w-lg mx-auto">
             <div className="flex items-center justify-around gap-1">
               {(() => {
                 const routeMap = {
-                  Dashboard: "/member-dashboard",
+                  "Dashboard": "/member-dashboard",
                   "Member Loans": "/member-loans",
-                  "Apply Loans": "/member-apply-loans",
                   "Statement of Account": "/member-statement-of-account",
                   "Loan Lifecycle": "/member-lifecycle",
                   "Member Profile": "/members-profile",
-                  "Member Savings": "/member-savings",
+                  "Member Savings": "/member-savings"
                 };
 
                 return menuItems.map((item) => {
                   const Icon = item.icon;
-                  const to = routeMap[item.name] || `/${item.name.toLowerCase().replace(/\s+/g, "-")}`;
+                  const to = routeMap[item.name] || `/${item.name.toLowerCase().replace(/\s+/g, '-')}`;
 
                   return (
                     <NavLink
@@ -300,14 +349,14 @@ const Member_ApplyLoans = () => {
                       to={to}
                       className={({ isActive }) =>
                         `flex flex-col items-center justify-center px-2.5 py-2 rounded-full transition-all ${
-                          isActive ? "bg-[#1D6021] text-white" : "text-gray-600 hover:text-[#1D6021]"
+                          isActive ? 'bg-[#1D6021] text-white' : 'text-gray-600 hover:text-[#1D6021]'
                         }`
                       }
                     >
                       {({ isActive }) => (
                         <>
                           <Icon size={20} strokeWidth={isActive ? 2.5 : 2} className="mb-1" />
-                          <span className="text-[10px] font-semibold">{item.name.split(" ")[0]}</span>
+                          <span className="text-[10px] font-semibold">{item.name.split(' ')[0]}</span>
                         </>
                       )}
                     </NavLink>
