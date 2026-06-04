@@ -17,6 +17,7 @@ import {
   Wallet,
   Coins,
   Eye,
+  Briefcase,
 } from "lucide-react";
 import logo from "../../assets/img/ttmpc logo.png";
 
@@ -62,14 +63,14 @@ const ManageLoans = () => {
     { name: "Dashboard", icon: LayoutDashboard },
     { name: "Manage Member", icon: Users },
     { name: "Loan Approval", icon: FileText },
-    { name: "Manage Loans", icon: CreditCard },
-    { name: "Payments", icon: CreditCard },
+    { name: "Manage Loans", icon: Briefcase },
+    { name: "Payments", icon: Wallet },
     { name: "Savings Withdrawals", icon: CreditCard },
     { name: "Accounting", icon: Calculator },
     { name: "MIGS Scoring", icon: Activity },
     { name: "Reports", icon: BarChart3 },
     { name: "Audit Trail", icon: History },
-    { name: "Grocery", icon: CreditCard },
+    { name: "Grocery", icon: Coins },
   ];
 
   const routeMap = {
@@ -170,7 +171,7 @@ const ManageLoans = () => {
 
   return (
     <div className="flex min-h-screen bg-gray-50">
-      <aside className="bg-white w-64 p-4 flex flex-col border-r border-gray-200">
+      <aside className="fixed inset-y-0 left-0 bg-white w-64 p-4 flex flex-col border-r border-gray-200 z-30">
         <div className="flex flex-row items-start gap-2 mb-6">
           <img src={logo} alt="Logo" className="h-12 w-auto" />
           <div className="flex flex-col">
@@ -213,7 +214,7 @@ const ManageLoans = () => {
         </button>
       </aside>
 
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 flex flex-col ml-64">
         <header className="bg-white h-16 shadow-sm flex items-center justify-between px-8 border-b border-gray-100">
           <div className="flex-1 max-w-2xl">
             <div className="relative">

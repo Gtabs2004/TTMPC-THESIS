@@ -84,72 +84,71 @@ const Grocery = () => {
   };
 
   return (
-    <div className="flex min-h-screen bg-gray-50/50 text-gray-800 font-sans">
+    <div className="flex min-h-screen bg-gray-50">
       
       {/* --- SIDEBAR --- */}
-      <aside className="bg-white w-64 p-4 flex flex-col border-r border-gray-200 sticky top-0 h-screen overflow-y-auto">
-        <div className="flex flex-row items-start gap-2 mb-6">
-          <img src="/img/ttmpc logo.png" alt="Logo" className="h-12 w-auto" />
-          <div className="flex flex-col">
-            <h1 className="text-xl font-bold text-[#389734]">TTMPC</h1>
-            <p className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold">
-              Bookkeeper Portal
-            </p>
-          </div>
-        </div>
-
-        <hr className="w-full border-gray-200 mb-6" />
-
-        <nav className="flex flex-col gap-2 text-sm flex-grow">
-          {(() => {
-            const routeMap = {
-              Dashboard: "/dashboard",
-              "Manage Member": "/manage-member",
-              "Loan Approval": "/bookkeeper-loan-approval",
-              "Manage Loans": "/manage-loans",
-              Payments: "/payments",
-              "Savings Withdrawals": "/bookkeeper-savings-transactions",
-              Accounting: "/accounting",
-              "MIGS Scoring": "/migs",
-              Reports: "/reports",
-              "Audit Trail": "/audit-trail",
-              Grocery: "/grocery"
-            };
-
-            return menuItems.map((item) => {
-              const Icon = item.icon;
-              const to = routeMap[item.name] || `/${item.name.toLowerCase().replace(/\s+/g, '-')}`;
-
-              return (
-                <NavLink
-                  key={item.name}
-                  to={to}
-                  className={({ isActive }) =>
-                    `flex items-center gap-3 p-2 rounded-md transition-colors ${
-                      isActive
-                        ? 'bg-green-50 text-green-700 font-semibold'
-                        : 'text-gray-600 hover:bg-green-50 hover:text-green-700'
-                    }`
-                  }
-                >
-                  <Icon size={18} />
-                  <span>{item.name}</span>
-                </NavLink>
-              );
-            });
-          })()}
-        </nav>
-
-        <button
-          onClick={handleSignOut}
-          className="mt-6 w-full rounded p-2 text-xs bg-green-600 hover:bg-green-700 text-white font-bold transition-colors"
-        >
-          Sign out
-        </button>
-      </aside>
+      <aside className="fixed inset-y-0 left-0 bg-white w-64 p-4 flex flex-col border-r border-gray-200 z-30">
+              <div className="flex flex-row items-start gap-2 mb-6">
+                <img src="/img/ttmpc logo.png" alt="Logo" className="h-12 w-auto" />
+                <div className="flex flex-col">
+                  <h1 className="text-xl font-bold text-[#389734]">TTMPC</h1>
+                  <PortalSidebarIdentity className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold" fallbackPortal="Bookkeeper Portal" fallbackRole="Bookkeeper" />
+                </div>
+              </div>
+      
+              <hr className="w-full border-gray-200 mb-6" />
+      
+              <nav className="flex flex-col gap-2 text-sm flex-grow">
+                {(() => {
+                  const routeMap = {
+                    Dashboard: "/dashboard",
+                    "Manage Member": "/manage-member",
+                    "Loan Approval": "/bookkeeper-loan-approval",
+                    "Manage Loans": "/manage-loans",
+                    Payments: "/payments",
+                    "Savings Withdrawals": "/bookkeeper-savings-transactions",
+                    Accounting: "/accounting",
+                    "MIGS Scoring": "/migs",
+                    Reports: "/reports",
+                    "Audit Trail": "/audit-trail",
+                    Grocery: "/grocery",
+                  };
+      
+                  return menuItems.map((item) => {
+                    const Icon = item.icon;
+                    const to = routeMap[item.name] || `/${item.name.toLowerCase().replace(/\s+/g, "-")}`;
+      
+                    return (
+                      <NavLink
+                        key={item.name}
+                        to={to}
+                        className={({ isActive }) =>
+                          `flex items-center gap-3 p-2 rounded-md transition-colors ${
+                            isActive
+                              ? "bg-green-50 text-green-700 font-semibold"
+                              : "text-gray-700 hover:bg-green-50 hover:text-green-700"
+                          }`
+                        }
+                      >
+                        <Icon size={20} />
+                        <span>{item.name}</span>
+                      </NavLink>
+                    );
+                  });
+                })()}
+              </nav>
+      
+              <button
+                onClick={handleSignOut}
+                className="mt-auto w-full rounded p-2 text-xs bg-green-600 hover:bg-green-700 text-white font-bold transition-colors"
+              >
+                Sign out
+              </button>
+            </aside>
+      
 
       {/* --- MAIN CONTENT AREA --- */}
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex-1 flex flex-col min-w-0 ml-64">
         
         {/* Top Header */}
         <header className="bg-white h-16 border-b border-gray-200 flex items-center justify-end px-8 sticky top-0 z-10">

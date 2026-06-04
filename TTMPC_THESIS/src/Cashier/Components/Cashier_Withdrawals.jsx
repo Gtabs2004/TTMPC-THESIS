@@ -11,6 +11,7 @@ import {
   ChevronDown,
   ChevronRight,
   UserPlus,
+  LogOut,
 } from 'lucide-react';
 import logo from "../../assets/img/ttmpc logo.png"; 
 
@@ -52,7 +53,7 @@ const Cashier_Withdrawals = () => {
         { name: "Capital Build-Up", path: "/Cashier_CBU" }
       ]
     },
-    { name: "Withdrawals", icon: Banknote, path: "/Cashier_Withdrawals" },
+    { name: "Withdrawals", icon: LogOut, path: "/Cashier_Withdrawals" },
     { name: "Grocery", icon: Banknote, path: "/Cashier_Grocery" },
   ];
 
@@ -110,7 +111,7 @@ const Cashier_Withdrawals = () => {
   return (
     <div className="flex min-h-screen bg-[#F8FAFC]">
       {/* 1. THE SIDEBAR */}
-      <aside className="bg-white w-64 p-4 flex flex-col border-r border-gray-200 shrink-0">
+      <aside className="fixed inset-y-0 left-0 bg-white w-64 p-4 flex flex-col border-r border-gray-200 shrink-0 z-30">
         <div className="flex flex-row items-start gap-2 mb-6">
           <img src={logo} alt="Logo" className="h-12 w-auto" />
           <div className="flex flex-col">
@@ -192,7 +193,7 @@ const Cashier_Withdrawals = () => {
       </aside>
 
       {/* 2. THE MAIN AREA */}
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex-1 flex flex-col min-w-0 ml-64">
         <header className="bg-white h-16 shadow-sm flex items-center justify-end px-8 shrink-0">
           <div className="relative">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400"/>

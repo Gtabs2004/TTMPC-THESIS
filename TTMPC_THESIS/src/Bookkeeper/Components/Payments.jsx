@@ -19,6 +19,7 @@ import {
   Eye,
   Wallet,
   Coins,
+  Briefcase,
 } from "lucide-react";
 import logo from "../../assets/img/ttmpc logo.png";
 
@@ -70,14 +71,14 @@ const BookkeeperPayments = () => {
     { name: "Dashboard", icon: LayoutDashboard },
     { name: "Manage Member", icon: Users },
     { name: "Loan Approval", icon: FileText },
-    { name: "Manage Loans", icon: CreditCard },
-    { name: "Payments", icon: CreditCard },
+    { name: "Manage Loans", icon: Briefcase },
+    { name: "Payments", icon: Wallet },
     { name: "Savings Withdrawals", icon: CreditCard },
     { name: "Accounting", icon: Calculator },
     { name: "MIGS Scoring", icon: Activity },
     { name: "Reports", icon: BarChart3 },
     { name: "Audit Trail", icon: History },
-    { name: "Grocery", icon: CreditCard },
+    { name: "Grocery", icon: Coins },
   ];
 
   const routeMap = {
@@ -354,7 +355,7 @@ const BookkeeperPayments = () => {
 
   return (
     <div className="flex min-h-screen bg-gray-100">
-      <aside className="bg-white w-64 p-4 flex flex-col border-r border-gray-200">
+      <aside className="fixed inset-y-0 left-0 bg-white w-64 p-4 flex flex-col border-r border-gray-200 z-30">
         <div className="flex flex-row items-start gap-2 mb-6">
           <img src={logo} alt="Logo" className="h-12 w-auto" />
           <div className="flex flex-col">
@@ -397,7 +398,7 @@ const BookkeeperPayments = () => {
         </button>
       </aside>
 
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 flex flex-col ml-64">
         <header className="bg-white h-16 shadow-sm flex items-center justify-end px-8 border-b border-gray-100">
           <div className="relative">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400" />

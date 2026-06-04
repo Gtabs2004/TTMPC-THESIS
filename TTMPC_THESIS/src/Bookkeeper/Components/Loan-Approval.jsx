@@ -206,12 +206,12 @@ const BookkeeperLoanApproval = () => {
 
   return (
     <div className="flex min-h-screen bg-gray-50">
-      <aside className="bg-white w-64 p-4 flex flex-col border-r border-gray-200">
+      <aside className="fixed inset-y-0 left-0 bg-white w-64 p-4 flex flex-col border-r border-gray-200 z-30">
         <div className="flex flex-row items-start gap-2 mb-6">
           <img src="/img/ttmpc logo.png" alt="Logo" className="h-12 w-auto" />
           <div className="flex flex-col">
             <h1 className="text-xl font-bold text-[#389734]">TTMPC</h1>
-            <p className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold">Bookkeeper Portal</p>
+            <PortalSidebarIdentity className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold" fallbackPortal="Bookkeeper Portal" fallbackRole="Bookkeeper" />
           </div>
         </div>
 
@@ -265,7 +265,7 @@ const BookkeeperLoanApproval = () => {
         </button>
       </aside>
 
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 flex flex-col ml-64">
           <header className="bg-white h-16 shadow-sm flex items-center justify-end px-8 shrink-0">
                   <div className="relative">
                     <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400" />
