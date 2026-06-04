@@ -1,0 +1,2 @@
+MasterUUID,distinct_loan_count,total_payment_count,first_loan_application_date,sample_LoanID_1,sample_LoanID_2,sample_LoanID_3,notes
+,145,1508,2018-04-14,2a3b5d62-1852-4e61-a5fb-7b3461af5d86,6cb6ae85-46b2-4127-93ec-6491a64771d5,dbae06d5-4ef2-4bae-8c09-0520a7264a35,"Please add this member's info to MembersProfile.csv (last name, first name, middle name, etc.)"
