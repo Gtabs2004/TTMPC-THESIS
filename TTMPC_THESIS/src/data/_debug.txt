@@ -1,0 +1,4 @@
+Punch ln: 'DUE�AS' -> 'DUENAS'
+Punch fn: 'MARIA FRANCIFEL' -> 'MARIA FRANCIFEL'
+Norm  ln: 'DUE�NAS' -> 'DUENAS'
+Norm  fn: 'MA. FRANCIFEL' -> 'MARIA FRANCIFEL'

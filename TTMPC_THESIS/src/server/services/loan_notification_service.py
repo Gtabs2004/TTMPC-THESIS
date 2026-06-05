@@ -89,7 +89,7 @@ def _redirect_url(recipient_role: str, loan_id: str) -> str:
     if role == "manager":
         return f"/loan-approval/{loan_id}"
     if role == "treasurer":
-        return f"/treasurer-loan-approval/{loan_id}"
+        return f"/treasurer-approval/{loan_id}"
     if role == "bookkeeper":
         return f"/bookkeeper-loan-approval/{loan_id}"
     if role == "member":

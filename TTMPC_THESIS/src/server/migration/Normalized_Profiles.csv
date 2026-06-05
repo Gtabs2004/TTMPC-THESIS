@@ -1,0 +1,265 @@
+membership_number_id,Member_UUID,LastName,FirstName,MiddleName,Occupation,IncomeSource,AnnualIncome,Gender,CivilStatus,DateOfBirth,TIN,Address,DateJoined,Status,DependentCount,Occupation_Cleaned,match_key,occ_tier,Stability_Score
+e18db566-0f45-4bc7-b6f7-b45b5498c3e5,0FADDC6E,ALVIOLA,JANINE ROSS,TACADAO,,Salary,,F,Married,21/01/1994,729-578-960,Zone II,,Active,4,Unknown,ALVIOLA_JANINE ROSS,Unclassified_High_Risk,2
+033ee878-b392-49cd-baf6-51035f98ca60,93CBC394,AMBACAN,ELIZABETH,TAGACAY,Teaching ,Salary,295044,F,Widowed,19/11/1956,127-759-131,Lanag Norte,,Active,4,Teaching,AMBACAN_ELIZABETH,Public_Sector_Institutional,4
+fb4ddc32-7968-4ec6-a577-292721c22597,0EDC79D3,AMBACAN,ELYMHAR ANJOE,TAGACAY,Teaching ,Salary,,M,Single,01/08/1994,444-347-300,Lanag Norte,,Active,5,Teaching,AMBACAN_ELYMHAR ANJOE,Public_Sector_Institutional,4
+b4abca4f-83b9-49a2-9ad4-2febb12fb456,A37B5A80,AMORA,ARACELI,TACADAO,Teaching ,Salary,376212,F,Married,07/10/1974,177-170-239,Sibucauan,,Active,4,Teaching,AMORA_ARACELI,Public_Sector_Institutional,4
+c3d1d7a7-e1d6-4225-a559-c361929eecb2,165B97C8,ARAÑA,FELY,PANIZA,Teaching ,Salary,,F,Married,13/02/1977,930-491-721,Igpaho,,Active,4,Teaching,ARAÑA_FELY,Public_Sector_Institutional,4
+4743db6e-9a71-46f9-9b1c-f6acea49fc0b,A60C1AA4,AUMENTADO,FREDZKIE,ESTANDO,Teaching ,Salary,259440,M,Married,22/04/1982,147-937-769,Singon,,Active,4,Teaching,AUMENTADO_FREDZKIE,Public_Sector_Institutional,4
+33ba91f3-cc40-4105-8df6-b31a24d7b078,4FB5DC65,BALLOGDAJAN,GRACEL,ESCAMILLA,,Salary,,F,Married,10/07/1947,463-905-287,Zone II,,Active,4,Unknown,BALLOGDAJAN_GRACEL,Unclassified_High_Risk,2
+79b3fc3a-ff89-4144-b673-d6a2e1dba1c0,203752D3,BERBEGAL,ANNIE,AMORA,Teaching ,Salary,,F,Married,26/08/1985,259-551-128,Bantayanan,,Active,4,Teaching,BERBEGAL_ANNIE,Public_Sector_Institutional,4
+ff4ea4e4-cf0c-49cd-ab3c-54db25d8021d,42EE7BBF,BORERO,MINERVA,BLANCO,Beautician,,,F,SP,03/03/1995,637-206-453,Sibucauan,,Active,4,Beautician,BORERO_MINERVA,Unclassified_High_Risk,2
+8cbd4b7d-cd71-468f-9def-b5cf8e0ec7f7,A566FEDA,TALIBO,MELANIE,TACADAO,Teaching ,Salary,186000,F,Married,30/08/1986,401-857-909,Ambarihon,,Active,0,Teaching,TALIBO_MELANIE,Public_Sector_Institutional,4
+958d4dab-23c0-4a85-938d-511fdf64a07b,EA9186D5,BUSTILLO,ROBERT JR. ,ARQUILOLA,Barber,Salary,,M,Married,22/09/1993,,Tagpuan,,Active,2,Barber,BUSTILLO_ROBERT JR.,Unclassified_High_Risk,2
+065f0f44-8dad-4784-bc3b-02fd8a9c7a4d,BA4797B3,CA-AYA,JIEZL,UMAYAO,Teaching ,Salary,,F,Married,18/06/1986,288-533-261,Sibucauan,,Active,4,Teaching,CA-AYA_JIEZL,Public_Sector_Institutional,4
+2e9cbc1f-eca7-4ef2-8202-d2e94628228b,B59DA322,CABALLERO,GERRY,CAMDOLLO,Teaching ,Salary,239346.76,M,,29/05/1965,,Sibucauan,,Active,4,Teaching,CABALLERO_GERRY,Public_Sector_Institutional,4
+a0f09bf0-f113-4dff-8bf5-272cd286bfad,F9E41416,CABALLERO,LOURDES,CALIWANAGAN,Teaching ,Salary,250000,F,Widowed,05/12/1960,127-758-508,Bato,,Active,4,Teaching,CABALLERO_LOURDES,Public_Sector_Institutional,4
+7e1422e9-4ad0-4a65-874f-695be2571a36,B7D459F1,CABALLERO,LULOU,CALIWANAGAN,Teaching ,Salary,200000,F,Single,13/09/1983,258-969-630,Bato,,Active,4,Teaching,CABALLERO_LULOU,Public_Sector_Institutional,4
+e68585a0-93c8-4ee7-9ca3-b43584b29321,ACE87A39,CABALLERO,MA. MARITES,TANANGUNAN,Teaching ,Salary,244544.68,F,Married,26/10/1967,,Sibucauan,,Active,4,Teaching,CABALLERO_MA. MARITES,Public_Sector_Institutional,4
+e5462e29-b6c3-416f-8d57-69152d114b65,BC5545C0,CALAMCAMAN,DHAYLENE MAY,TABINGO,Teaching ,Salary,250000,F,Single,12/12/1991,,Talento,,Active,4,Teaching,CALAMCAMAN_DHAYLENE MAY,Public_Sector_Institutional,4
+a14114da-d16a-478c-af88-f77ae29a6411,A94E30E3,CALAMCAMAN,GINA,TABOBO,Teaching ,Salary,,F,Married,12/12/1972,188-874-866,Jolason,,Active,4,Teaching,CALAMCAMAN_GINA,Public_Sector_Institutional,4
+bda457ec-ee6f-4fca-91e1-4a1e61d0635e,11D5F880,CALAYCAY,VIOLETA,CAPINDO,Teaching ,Salary,193212,F,Single,11/12/1953,,Ayubo,,Active,4,Teaching,CALAYCAY_VIOLETA,Public_Sector_Institutional,4
+7afcd0f3-2d2f-48d8-9c34-6832d73c04e2,C59C9E21,CALOPEZ,JOVIE,CABILITASAN,Teaching ,Salary,,F,Married,,,Isauan,,Active,0,Teaching,CALOPEZ_JOVIE,Public_Sector_Institutional,4
+ba36e321-dfef-4a83-be38-9ab88518c8cf,ACF057FB,CAMINCE,HAZEL CRIS,CAMARIOSA,Teaching ,Salary,,F,Married,21/10/1988,454-585-883,Jolason,,Active,4,Teaching,CAMICE_HAZEL CRIS,Public_Sector_Institutional,4
+9e7acdfa-085f-4a50-8403-ef276adcddb4,76C2D7B8,CAMINIAN,REBECCA,TACANLOY,Teaching,Salary,334704,F,Married,15/09/1980,931-421-237,Lanag Norte,,Active,4,Teaching,CAMINIAN_REBECCA,Public_Sector_Institutional,4
+266b466e-729f-46ed-bbf8-0ba32ebfe910,8CC58329,CAMIRING,LIEZL,TABILONA,,,195968.4,F,Married,05/08/1978,297-348-945,Cadabdab,,Active,4,Unknown,CAMIRING_LIEZL,Unclassified_High_Risk,2
+032bd16f-4279-4c4f-aade-1bfe40b1fd70,752700F9,CAPARIDA,CECIL,CAPARIDA,Teaching ,Salary,228000,F,Single,29/11/1983,455-526-582,Bantayanan,,Active,3,Teaching,CAPARIDA_CECIL,Public_Sector_Institutional,4
+e7bfa6c3-38ae-48a5-a52c-269f3b3a458e,1B156E1A,CAPARIDA,CHERY JEAN,CAPARIDA,Teaching ,Salary,,F,,,,,,Active,4,Teaching,CAPARIDA_CHERY JEAN,Public_Sector_Institutional,4
+fdd5167e-4ee4-4cab-b761-9a7d470ee436,2F8AA783,TABALINA,MARICEL JOY,TABABA,Teaching ,Salary,305268,F,Married,01/04/1999,747-408-097,Nagba,,Active,4,Teaching,TABALINA_MARICEL JOY,Public_Sector_Institutional,4
+8e37daa0-2c21-4a32-8dd0-b6628353c18e,7B5C281D,CASTILLANO,WENDY,TACADAO,Teaching ,Salary,,F,Married,27/11/1986,274-271-509,Sto. Niño,,Active,4,Teaching,CASTILLANO_WENDY,Public_Sector_Institutional,4
+fcad473d-6ad9-4f10-b8c9-1f0381ec7567,9169616F,CATANUS,GENOVEVA,TAMONAN,Retired Teacher,Monthly Pension,120800,F,Single,01/03/1947,,Buenavista,,Active,4,Retired Teacher,CATANUS_GENOVEVA,Public_Sector_Institutional,4
+6bd90c36-d30a-4b8a-a539-2f52b7504839,10AD479D,FERNANDEZ,GLENDA RAE,TABABA,Teaching ,Salary,222588,F,Married,23/11/1984,420-023-093,Jolason,,Active,4,Teaching,FERNANDEZ_GLENDA RAE,Public_Sector_Institutional,4
+893e2c6a-a56f-4182-95aa-8449c2f12a84,F663A897,DALISAY,JEANETTE,TAHUM,Teaching ,Salary,235440,F,,17/01/1979,454-586-182,Igtuble,,Active,2,Teaching,DALISAY_JEANETTE,Public_Sector_Institutional,4
+b0e6fb60-97ed-4e50-b42a-602f7ef53c15,BE5A6B7D,DE LEON,TEODORA,TABLADILLO,,,,F,Widowed,11/09/1962,127-758-364,Adgao,,Active,4,Unknown,DE LEON_TEODORA,Unclassified_High_Risk,2
+315ec98c-da5e-49aa-96f8-ee85e7d45e32,CBC662ED,TAGUDINAY,JANICE,TACUEL,Teaching ,Salary,,F,Married,,,Nagba,,Active,0,Teaching,TAGUDINAY_JANICE,Public_Sector_Institutional,4
+385941ba-8675-4742-84a8-013ad1334c5f,7F226977,DELOSO,MAY HAZEL,TACSAGON,Teaching ,Salary,,F,Married,24/07/1987,296-026-044,Zone II,,Active,5,Teaching,DELOSO_MAY HAZEL,Public_Sector_Institutional,4
+75bf720b-d502-44ef-bb6e-d7952357cbff,E13DA836,DIZON,FATIMA,TANO,Teaching ,Salary,,F,Married,02/10/1974,179-892-350,Capiz,,Active,4,Teaching,DIZON_FATIMA,Public_Sector_Institutional,4
+8d8fc564-00b8-419a-8cd3-29ea7b537632,2DE3D86E,DUE�NAS,KARL DENNIS,TALENTO,,,,M,,05/03/2002,637-599-402,Bacan,,Active,0,Unknown,DUEÑAS_KARL DENNIS,Unclassified_High_Risk,2
+7b4c1fa5-4ad6-4d6b-8cd1-5d7fa04c56d9,EE79E753,DUE�NAS,MA. FRANCIFEL,TALENTO,,,,F,,09/09/1973,,Bacan,,Active,4,Unknown,DUEÑAS_MA. FRANCIFEL,Unclassified_High_Risk,2
+b8f365e9-c626-4468-8a72-c8af2b432083,8B20B5EF,ECHALAR,JONITA,TAGHAP,Teaching ,Salary,221333.92,F,Married,04/03/1961,127-758-638,Igtuble,,Active,4,Teaching,ECHALAR_JONITA,Public_Sector_Institutional,4
+7a424db9-98ab-41bb-bb34-2e55ba729be5,E36F4AA7,ECHALAR,RICHARD,CANTOMAYOR,Teaching ,Salary,,M,Single,12/06/1992,332-380-948,Igtuble,,Active,4,Teaching,ECHALAR_RICHARD,Public_Sector_Institutional,4
+8a9ee954-5613-4ce6-bd85-7e90f31f3a46,61BF20FF,EDER,EDELIA,ESTIAGA,Teaching ,Salary,279084,F,Married,24/02/1969,908-788-511,San Jose,,Active,4,Teaching,EDER_EDELIA,Public_Sector_Institutional,4
+11516617-4861-4ed1-b57f-c01d58e92b2b,8F1400FE,EDER,LANY,GONZALES,Vendor,,,F,Married,08/01/1977,,San Jose,,Active,4,Vendor,EDER_LANY,Unclassified_High_Risk,2
+4ea87486-2629-4443-98eb-e04c8277fd60,6A5E43DC,ELISAN,MARIA ROVELYN,TAMPE,Government Employee,Salary,160000,F,Married,22/08/1986,,Ago,,Active,4,Government Employee,ELISAN_MARIA ROVELYN,Public_Sector_Institutional,4
+15285aa6-0bdd-4b67-9d20-e94b125ef31b,2CB3B38A,ESPAÑA,ARRA,TABILON,,,,F,Married,29/12/1992,466-565-583,Sibucauan,,Active,0,Unknown,ESPAÑA_ARRA,Unclassified_High_Risk,2
+5acd82c8-a334-4bf2-9d6a-1c687b0aa352,4614FE7F,ESTIMO,MARVE,GARCIA,Teaching ,Salary,235440,F,,12/04/1971,907-737-248,Igtuble,,Active,3,Teaching,ESTIMO_MARVE,Public_Sector_Institutional,4
+9c7ca857-0317-4bd5-ba1a-199947a6af67,49CBF1BA,OLMEDO,MITCHELLE,TAGUIBE,Teaching ,Salary,256644,F,Married,26/11/1985,273-722-591,Teniente Benito,,Active,2,Teaching,OLMEDO_MITCHELLE,Public_Sector_Institutional,4
+22ed9b4d-bc97-4f69-825b-58f62b9f0ea7,56E7159E,ESTOPIDO,MONSERAT,TAGUDANDO,Teaching ,Salary,265032,F,Married,02/05/1954,,Male,,Active,4,Teaching,ESTOPIDO_MONSERAT,Public_Sector_Institutional,4
+d5fc3b6c-963f-45a9-8d1f-fb16f033a335,F138F23D,FAILAGUTAN,ANITA,CADIZ,Retired Teacher,Monthly Pension,234400,F,Married,24/01/1949,,Zone II,,Active,4,Retired Teacher,FAILAGUTAN_ANITA,Public_Sector_Institutional,4
+abe828ea-6e66-45aa-81a6-0f1775f56bf4,FAD9C26A,FAILAGUTAN,ULDARICO,NAPAGAN,Retired Teacher,Small Business,294000,M,Married,23/12/1944,,Zone II,,Active,4,Retired Teacher,FAILAGUTAN_ULDARICO,Public_Sector_Institutional,4
+e0d020e3-a392-4efd-b6ad-0e3fa14f7c2a,E491A345,FAJARDO,SHEENLY,TABSING,Teaching ,Salary,,F,Married,02/11/1991,313-390-425,Zone III,,Active,4,Teaching,FAJARDO_SHEENLY,Public_Sector_Institutional,4
+856f689a-8d8c-4929-8d28-ffa4ed5a184b,9D949006,FAJARILLO,TERESITA,TAMOY,Retired Teacher,Monthly Pension,,F,Married,18/10/1941,,Zone I,,Active,4,Retired Teacher,FAJARILLO_TERESITA,Public_Sector_Institutional,4
+dddbd264-c8f0-43cc-ab14-17c8f13eaa49,2E850D5D,FUERZA,JOSEFA,CABALO,Teaching ,Salary,291780,F,Married,30/12/1959,127-758-557,Nagba,,Active,4,Teaching,FUERZA_JOSEFA,Public_Sector_Institutional,4
+9e21ff0f-4ada-44c5-8a6d-6402500b3922,7C67A0FF,GALLEGO,CELESTIAL NATIVIDAD,TAGABI,Teaching ,Salary,,F,,09/08/1961,127-757-724,Zone II,,Active,3,Teaching,GALLEGO_CELESTIAL NATIVIDAD,Public_Sector_Institutional,4
+bca545a9-c42c-43f4-8069-19a1d5e44c50,6A03AD1C,GALLEGO,LOU FRANCES,TABABA,Teaching ,Salary,,F,Single,30/01/1991,428-791-242,Teniente Benito,,Active,0,Teaching,GALLEGO_LOU FRANCES,Public_Sector_Institutional,4
+3ca8d03d-1f6f-4915-a06c-40d5d08e285d,E28BA1E3,GANGE,MA. ELIZABETH,TABANIAG,Teaching ,Salary,282204,F,Married,06/05/1963,191-646-608,Jolason,,Active,4,Teaching,GANGE_MA. ELIZABETH,Public_Sector_Institutional,4
+15782535-bb21-43b9-8606-ea5b51f4675e,6488F123,GARGARITA,PERLA,TABITA,Retired Teacher,Monthly Pension,144000,F,Married,14/03/1942,,Zone I,,Active,4,Retired Teacher,GARGARITA_PERLA,Public_Sector_Institutional,4
+979bdbb4-2517-4673-a526-b66ac6017f44,69C87CB1,GARGARITANO,JESSIE,TABUCORAN,Caregiver ,Salary,1180000,M,Married,13/04/1972,919-830-331,Zone II,,Active,4,Caregiver,GARGARITANO_JESSIE,Unclassified_High_Risk,2
+e3a0faaa-e212-40d9-a848-bdf336d2fc49,F8670441,GARGARITANO,MAGELENDE,GELLOR,Retired Teacher,Monthly Pension,266568,F,Single,24/11/1948,,Zone II,,Active,4,Retired Teacher,GARGARITANO_MAGELENDE,Public_Sector_Institutional,4
+1328b9e8-a204-4b0e-86a6-9bc69ab53992,61C3F8D0,GARGARITANO,VICENTE JR. ,TABUCURAN,SB Member,Salary,700000,M,Married,18/09/1970,191-655-101,Zone II,,Active,4,Sb Member,GARGARITANO_VICENTE JR.,Unclassified_High_Risk,2
+11c8144f-9813-4fc9-b307-358e0a48b21c,5B8AAAC6,GARINGALAO,FILOMENA,GENTON,Retired Teacher,Monthly Pension,,F,Married,07/05/1942,,"Tuguisan, Guimbal",,Active,4,Retired Teacher,GARINGALAO_FILOMENA,Public_Sector_Institutional,4
+82bc1691-0867-4da1-b729-92e753f05cc9,FAB1704B,GARINGALAO,ROMEO,BRASIL,Retired Teacher,Rice Mill,,M,Married,23/12/1942,,"Tuguisan, Guimbal",,Active,4,Retired Teacher,GARINGALAO_ROMEO,Public_Sector_Institutional,4
+1d11c8f4-93bf-4f6b-9474-d525f71de9c4,D2F1B8AB,GAYATGAY,MARICEL,SALIBIO,Teaching,Salary,262000,F,Married,31/01/1980,932-461-587,Tagpuan,,Active,4,Teaching,GAYATGAY_MARICEL,Public_Sector_Institutional,4
+9af30c1f-9849-4c26-a257-64d2cfe98bd6,D3725B7F,GEALON,ARCELY,SANTOS,Vendor,,200000,F,Married,,,Adgao,,Active,4,Vendor,GEALON_ARCELY,Unclassified_High_Risk,2
+9d9233b7-d14f-4dce-91b3-3df819f2e2bf,3345D9FA,TAGABI,MARY JEANNETTE,TABANGCORA,ADAS III ,Salary,240000,F,Married,03/11/1993,466-828-542,Zone II,,Active,4,Adas Iii,TAGABI_MARY JEANNETTE,Unclassified_High_Risk,2
+f2a0a1b8-bafe-4332-a9f7-05f14f893f28,57071282,GEMPESON,MELANIE,TALUNDATA,Teaching ,Salary,229188,F,Married,19/03/1981,931-696-263,Cadabdab,,Active,4,Teaching,GEMPESON_MELANIE,Public_Sector_Institutional,4
+26209387-5cde-4254-b860-dd6444e3a3a9,1CC616E8,GENTON,RUBY,ELBANBUENA,Teaching ,Salary,253092,F,Single,04/11/1968,928-956-918,Daga-ay,,Active,4,Teaching,GENTON_RUBY,Public_Sector_Institutional,4
+8298885e-0809-448d-a4da-b2cd31e54f61,7D0F176D,GERONGANI,ELZIE CHRISTIE,TAGHAP,Teaching ,Salary,208871.32,F,Married,04/05/1981,927-407-675,Adgao,,Active,4,Teaching,GERONGANI_ELZIE CHRISTIE,Public_Sector_Institutional,4
+a8be44d9-0b65-451d-8aa8-9eb32c1ee50a,594F1C71,LIBO-ON,IRISH KAY,GARGARITANO,Teaching ,Salary,,F,Married,07/10/1985,254-400-603,Zone I,,Active,0,Teaching,LIBO-ON_IRISH KAY,Public_Sector_Institutional,4
+fbf08454-23b1-4e97-a2b5-da7c8b2a56bd,0E90E881,GOMEZ,HAZEL JOY,EMBATE,Teaching ,Salary,192000,F,Single,11/11/1998,744-626-503,Benavista,,Active,5,Teaching,GOMEZ_HAZEL JOY,Public_Sector_Institutional,4
+637eb267-1e1b-43e4-ac8a-182300974e94,C5ABE3D0,GOTERA,MA. ROLYNDA,CASTILLO,Teaching ,Salary,513600,F,Married,12/02/1963,131-390-532,Guimbal,,Active,4,Teaching,GOTERA_MA. ROLYNDA,Public_Sector_Institutional,4
+ae6e6b09-73f0-4d15-8ea2-a133d0793e36,96F182B6,HUYAN,JOCELYN,TALAMAN,Retired Teacher,Monthly Pension,239346.46,F,Married,02/12/1956,127-758-962,Cadabdab,,Active,4,Retired Teacher,HUYAN_JOCELYN,Public_Sector_Institutional,4
+bbf24a20-d878-4110-ba8e-9b8a21975c20,F5919B89,INDICO,ALEAN GRACE,TADIAQUE,,Salary,,F,Married,28/09/1992,033-533-088,Talento,,Active,4,Unknown,INDICO_ALEAN GRACE,Unclassified_High_Risk,2
+8201afe8-3e56-4eb0-93a6-3e64d2415ef6,D7242DB2,JALA,EVANGELINA,TOSCANO,Teaching ,Salary,,F,Married,25/04/1965,127-758-035,Zone I,,Active,4,Teaching,JALA_EVANGELINA,Public_Sector_Institutional,4
+6617f6e2-5cb7-4766-a2d8-17b794bfc8ee,3DEBDDE2,JAMILLO,ANNIE ROSE,TABIFRANCA,Teaching,Salary,286524,F,Married,31/08/1989,472-363-677,Ingay,,Active,4,Teaching,JAMILLO_ANNIE ROSE,Public_Sector_Institutional,4
+73e46c70-62dc-4087-a8a6-139878e59ac9,37EE9C02,LAGUARDIA,SHARA MAE,TACANLOY,Teaching,Salary,305268,F,Married,22/11/1996,749-787-021,Singon,,Active,4,Teaching,LAGUARDIA_SHARA MAE,Public_Sector_Institutional,4
+e822b8a5-15c3-404b-ba21-f72ad7b2d8d7,8B3DA613,LAMSIN,SHARMAGNE GAY,CALFOFORO,Teaching ,Salary,330600,F,Married,29/01/1993,457-649-612,Lanag Norte,,Active,5,Teaching,LAMSIN_SHARMAGNE GAY,Public_Sector_Institutional,4
+321ff9d8-0d5a-413e-b392-de1d30e0367b,B37426A8,LATOZA,ROSA MARIA,LACSON,,,,F,Married,18/10/1968,149-114-251,Zone I,,Active,4,Unknown,LATOZA_ROSA MARIA,Unclassified_High_Risk,2
+d5d016f9-88b8-495d-886b-516056d14a58,813FE7B6,LAUREA,CHRISTINE JOY,GEQUIÑANA,Teaching ,Salary,235440,F,Married,12/09/1986,402-904-778,Tagpuan,,Active,4,Teaching,LAUREA_CHRISTINE JOY,Public_Sector_Institutional,4
+936c1ba2-d173-4ca3-97f4-006162aa721f,93CD03BC,TABAOSARES,KARREN,SALABE,Teaching ,Salary,,F,Married,19/10/1985,405-177-853,Sibucauan,,Active,4,Teaching,TABAOSARES_KARREN,Public_Sector_Institutional,4
+4775bb38-4314-458b-bda0-4b0c7d30c372,81AE8DE6,LONQUINO,ANABELLE,CABALLERO,Teaching ,Salary,,F,Single,12/10/1979,928-947-525,Victoria,,Active,4,Teaching,LONQUINO_ANABELLE,Public_Sector_Institutional,4
+628e55fe-7702-48cb-904c-a700e21e631f,990A5092,MACAYA,LIEZYL,TABSING,Teaching ,Salary,,F,Married,19/09/1987,466-565-325,Buenavista,,Active,2,Teaching,MACAYA_LIEZYL,Public_Sector_Institutional,4
+5a6b02e3-6af6-4ed4-8ec7-f6a408fa54a9,A514326C,MADRIDANO,MARICEL,ESTIMO,Entrepreneur,,,F,Married,07/05/1982,700-029-512,Igtuble,,Active,5,Entrepreneur,MADRIDANO_MARICEL,Unclassified_High_Risk,2
+3d3d4ed6-eaaa-4fcf-9997-0fbeae2c1694,08A9FD09,TALIDANO,MA. ANDELEN,TAMANO,Teaching ,Salary,,F,Married,31/07/1987,402-879-628,Teniente Benito,,Active,4,Teaching,TALIDANO_MA. ANDELEN,Public_Sector_Institutional,4
+e65cb927-ba81-4280-bfef-75e333266251,DB5FC14C,MARAPAO,MA. VENUS,TACARDON,,Salary,,F,Widowed,15/11/1965,127-752-911,Teniente Benito,,Active,4,Unknown,MARAPAO_MA. VENUS,Unclassified_High_Risk,2
+a7206b0f-4f88-4b5e-82ae-a160c727a098,1EE83CB5,MATILLANO,FRANCIE ROSE,TACANLOY,Business,,180000,F,Single,,,,,Active,4,Business,MATILLANO_FRANCIE ROSE,Entrepreneurial_Informal,1
+517d46d2-022e-47be-9c79-85cf8f138630,2ED74F30,MEDICINIO,MAY JOY CATHERINE,TACAISAN,Teaching ,Salary,204295.84,F,Married,,439-266-920,Morsillas,,Active,0,Teaching,MEDICINIO_MAY JOY CATHERINE,Public_Sector_Institutional,4
+cd050e67-0ed1-4ba5-aa19-bf05c3545cef,24A50551,MEMPIN,KENNETH LYLE,TACARDON,Seafarer,Salary,,M,Married,29/08/1986,280-177-671,Zone III,,Active,0,Seafarer,MEMPIN_KENNETH LYLE,Private_Professional_Skilled,3
+0d43f61d-784a-40ad-b891-351fe3cc6df2,4AFC8548,TABONGCORA,MARY HOPE,TACANLOY,Teaching ,Salary,303480,F,Married,01/05/1990,435-024-861,Zone III,,Active,4,Teaching,TABONGCORA_MARY HOPE,Public_Sector_Institutional,4
+c9494487-01f8-409d-9267-f68757162c78,15232A1E,MEMPIN,MA. MINDA CELIA,TACARDON,Teaching ,Salary,,F,Married,07/08/1961,127-757-781,Zone II,,Active,3,Teaching,MEMPIN_MA. MINDA CELIA,Public_Sector_Institutional,4
+472b3d40-2c70-4162-a06e-51b9319f781f,37F4A0C3,EMBATE,MARICEL,TADIT,Teaching ,Salary,235440,F,Married,22/11/1991,454-587-003,Ambarihon,,Active,0,Teaching,EMBATE_MARICEL,Public_Sector_Institutional,4
+a612041f-69b0-45d2-bd6c-ae5b527a98da,CECD9A1F,MURIERA,XENIA,TAGABI,Teaching,Salary,305268,F,Single,15/04/1997,771-620-184,Jolason,,Active,4,Teaching,MURIERA_XENIA,Public_Sector_Institutional,4
+88b72c45-fcee-40d3-a3fc-08c6f2f5eee7,4FCF83E2,NENIAL,ARMIE,MABIDA,Teaching ,Salary,,F,Married,28/06/1976,903-606-444,Teniente Benito,,Active,4,Teaching,NENIAL_ARMIE,Public_Sector_Institutional,4
+d8b7a9ae-7a80-4090-af67-aad18d42764d,C9DEE5E5,OCATE,JEAN,TABSING,,,,F,Married,13/05/1954,127-758-460,San Jose,,Active,0,Unknown,OCATE_JEAN,Unclassified_High_Risk,2
+70189e49-0b25-470b-9ee4-62115500705b,D7BFB0A7,OGACO,JONATHAN,TABIEROS,Teaching ,Salary,,M,Married,03/11/1975,919-841-653,Teniente Benito,,Active,4,Teaching,OGACO_JONATHAN,Public_Sector_Institutional,4
+d59f117c-16dc-474e-8ab8-2eb523bc586f,5C425A74,OLMOS,VERLYN,CAGAPE,Teaching ,Salary,,F,Married,11/11/1989,739-132-834,Igdampog,,Active,4,Teaching,OLMOS_VERLYN,Public_Sector_Institutional,4
+e2624c7d-e3a1-4e40-b11f-b52d17028f60,689F8422,GOMEZ,HOPE JOY,EMBATE,Teaching ,Salary,,F,Married,27/04/1994,470-919-269,Buenavista,,Active,0,Teaching,GOMEZ_HOPE JOY,Public_Sector_Institutional,4
+cceabb7e-4a67-4939-a124-865518511292,1FCF5383,TACADAO,MARY IVY,TAGARDA,Teaching ,Salary,,F,Married,18/08/1993,451-268-222,Buenavista,,Active,1,Teaching,TACADAO_MARY IVY,Public_Sector_Institutional,4
+fcee519a-9c3e-4e35-a56f-68792a49b5c5,06F2F448,PANIZA,MARLYN,MARCOS,Teaching,Salary,,F,Single,04/02/1996,732-369-104,Igpaho,,Active,0,Teaching,PANIZA_MARLYN,Public_Sector_Institutional,4
+22f477af-ae71-4375-875a-cb52593d535b,61C54197,PASTOLERO,GRACE,TAMONAN,Teaching ,Salary,,F,Married,13/04/1975,713-592-407,Zone III,,Active,4,Teaching,PASTOLERO_GRACE,Public_Sector_Institutional,4
+0ead6046-af43-4d57-9601-10e30118e927,FD81D32C,PUA,KIM HARIETT,TACARDON,,,,F,Single,26/04/2001,,Balicua,,Active,2,Unknown,PUA_KIM HARIETT,Unclassified_High_Risk,2
+2926dee0-5810-443f-b748-5758204ac2ba,7D0EDDD4,RADA,ALBINA,GENGOS,Business,,,F,Married,16/12/1971,127-736-712,Adgao,,Active,4,Business,RADA_ALBINA,Entrepreneurial_Informal,1
+9bedb437-1d2f-4a8d-8087-418a27e0cf48,A75F2BC3,REFUGIO,YOLANDA,TANUTAN,Business,,500000,F,Married,15/09/1968,446-760-210,Adgao,,Active,5,Business,REFUGIO_YOLANDA,Entrepreneurial_Informal,1
+3eb23e20-4252-4823-8797-0c958021c409,E241A4CF,SABAY,EVELYN,TACADAO,Teaching ,Salary,160053.6,F,Married,19/02/1982,265-524-271,Teniente Benito,,Active,4,Teaching,SABAY_EVELYN,Public_Sector_Institutional,4
+6719c06e-b49c-4841-98f9-63b503417f7e,0959D1DF,SALIBIO,ARNULFO,TACUBAN,,,,M,,,,,,Active,4,Unknown,SALIBIO_ARNULFO,Unclassified_High_Risk,2
+72f15e4f-5b10-4ef8-87dd-8737b01e99c7,C1743863,TAGUDANDO,JOAN,SALMENTAR,Teaching ,Salary,204295.84,F,Married,09/05/1985,273-722-892,Ingay,,Active,4,Teaching,TAGUDANDO_JOAN,Public_Sector_Institutional,4
+22ebb6f9-2c50-462f-a7f2-e441c90e79c1,12EE5F20,SISON,MARICEL,TACARDON,Teaching ,Salary,,F,Married,02/08/1982,480-160-369,Singon,,Active,0,Teaching,SISON_MARICEL,Public_Sector_Institutional,4
+6a4dca72-37b6-4dbd-9e22-ba7d2ba11509,458F0E0B,SITUBAL,ARLYN JUNE,TABUCURAN,Teaching ,Salary,204000,F,Married,27/06/1984,948-090-440,Adgao,,Active,4,Teaching,SITUBAL_ARLYN JUNE,Public_Sector_Institutional,4
+3297c191-765d-43ef-a4d4-ef62842acfd1,B4C6D7F0,SOLDEVILLA,SHELLA,GERONGANI,Teaching ,Salary,256644,F,Married,31/12/1983,941-261-561,Tagpuan,,Active,4,Teaching,SOLDEVILLA_SHELLA,Public_Sector_Institutional,4
+1ee81733-6834-45b4-8f68-3e6182379d1f,94388416,TA-ACA,LEONCIA,EMBATE,,,359195,F,Widowed,09/12/1967,191-646-551,Buenavista,,Active,4,Unknown,TA-ACA_LEONCIA,Unclassified_High_Risk,2
+82932bd6-0548-4cd2-b2e0-9f8fb638de6e,C25C5DFE,TA-ALA,CATALINA,TABAFA,Teaching,Salary,204295.84,F,Widowed,13/02/1969,919-841-045,Lanag Norte,,Active,4,Teaching,TA-ALA_CATALINA,Public_Sector_Institutional,4
+4b6e0b83-83ff-43e5-a27a-7584ebee8378,5F2DCFD4,CAÑAL,JOSIE ANN,TAMARA,Teaching,Salary,,F,Married,11/01/1990,428-439-091,Balicua,,Active,4,Teaching,CAÑAL_JOSIE ANN,Public_Sector_Institutional,4
+b198e126-e1da-4b15-b07e-417fa9e5b678,DE7E74E9,TA-ALA,WILMA,CALETINA,Teaching ,Salary,,F,Married,13/10/1981,454-586-375,Lanag Norte,,Active,2,Teaching,TA-ALA_WILMA,Public_Sector_Institutional,4
+78cc7196-d6a6-4494-b1d2-cc803aab96c0,D7420EE3,TABABA,ASISCLO,TACUYAN,Rice Dealer,,,M,Single,11/12/1965,917-780-901,Zone II,,Active,4,Rice Dealer,TABABA_ASISCLO,Unclassified_High_Risk,2
+dc1183b9-b4e8-4eee-b9e4-1c6e61a49901,8185227A,TABABA,CONCEPCION,TADIFA,,,,F,Married,12/06/1954,127-758-285,Teniente Benito,,Active,4,Unknown,TABABA_CONCEPCION,Unclassified_High_Risk,2
+9000ed79-5b32-4a84-beaf-251b736a17d2,B24361D0,TABABA,ELIZER,TADIA,MPIW Employee,Salary,291600,M,Married,08/08/1980,927-390-430,Zone II,,Active,4,Mpiw Employee,TABABA_ELIZER,Unclassified_High_Risk,2
+085a7677-d8a3-404e-80d7-14d36e7a1c5f,BF1C6896,TABABA,MONA LISA,FAILAGUTAN,Teaching ,Salary,276212,F,Married,27/01/1980,987-407-683,Zone II,,Active,0,Teaching,TABABA_MONA LISA,Public_Sector_Institutional,4
+9592f9e7-e278-47d4-922d-abd013c98f4e,FC9947B9,TABABA,VINICIUS,GENCIANA,,,,M,,,,,,Active,0,Unknown,TABABA_VINICIUS,Unclassified_High_Risk,2
+706f40a9-4e11-4cc0-8323-4b03848409ab,E06C5781,TABAFA,MA. LUISA,TABSING,Teaching ,Salary,359195,F,Married,14/03/1961,127-758-783,Buenavista,,Active,4,Teaching,TABAFA_MA. LUISA,Public_Sector_Institutional,4
+fea5f699-e066-4b21-be61-8e497b302dde,15D4D1CC,TABAFA,MERCEDITA,TAGUDINAY,Teaching,Salary,255600,F,Married,26/09/1967,140-643-439,Nagba,,Active,4,Teaching,TABAFA_MERCEDITA,Public_Sector_Institutional,4
+4d79d454-2ac3-4511-977e-275a0f3a1e94,74AAE006,TABAGO,ABBIE KAYE,CABARDO,,,,F,Single,22/09/1999,,Balicua,,Active,0,Unknown,TABAGO_ABBIE KAYE,Unclassified_High_Risk,2
+ca15ed0b-38ab-4970-9c03-0155fc0e90e9,7D09434A,TABAGO,AMANDA,TABUMFAMA,Teaching,Salary,,F,Married,13/09/1968,191-646-616,Balicua,,Active,4,Teaching,TABAGO_AMANDA,Public_Sector_Institutional,4
+3b775ee6-b4bb-411e-b4b5-9d5672b0c745,49D6D29C,TABAGO,HAZEL JADE,CABARDO,,,,F,Single,24/01/2001,,Balicua,,Active,2,Unknown,TABAGO_HAZEL JADE,Unclassified_High_Risk,2
+57509130-7de3-4140-a908-cff8e68d6423,7E40B070,TABAGO,MA. DULZURA,CABARDO,Teaching ,Salary,428316,F,Married,20/11/1963,143-629-998,Balicua,,Active,4,Teaching,TABAGO_MA. DULZURA,Public_Sector_Institutional,4
+753f3f31-7a00-447e-a9eb-1601fdb0b758,4E0A52A7,TABALINA,JOY,LACHICA,Teaching ,Salary,230000,F,Married,02/07/1981,941-261-618,Igdampog,,Active,4,Teaching,TABALINA_JOY,Public_Sector_Institutional,4
+0ed6eb36-934b-411b-9065-6ec2105db0f9,A2D01068,TABANGCORA,RONA,TAMISEN,Teaching,Salary,331296,F,Married,20/09/1991,440-108-682,Zone I,,Active,5,Teaching,TABANGCORA_RONA,Public_Sector_Institutional,4
+88b5eaaf-b543-4e0b-844e-5fc02f69659d,3F76FF4F,TABANIAG,MARY FLOR,TABALDO,,,,F,Married,01/07/1972,161-222-515,Jolason,,Active,4,Unknown,TABANIAG_MARY FLOR,Unclassified_High_Risk,2
+83e701b6-aadb-401f-8d84-756f50c5d536,BFE646E9,TABANIAG,MAURO JR.,CORPUZ,Teaching ,Salary,428316,F,Married,13/02/1971,819-841-910,Jolason,,Active,1,Teaching,TABANIAG_MAURO JR.,Public_Sector_Institutional,4
+3b68a688-ce2e-47c9-b66f-658ff6c201bb,BA329514,TABAOSARES,FRANCES FRITZIE,TANALGO,Local Treasury Operations Offices II,Salary,,F,Married,20/03/1980,931-703-667,San Jose,,Active,2,Local Treasury Operations Offices Ii,TABAOSARES_FRANCES FRITZIE,Unclassified_High_Risk,2
+b2d0f068-0aef-44c2-860d-22310b5ee899,10D76AF5,TABAOSARES,MARITES,ROSALES,Teaching ,Salary,247812,F,Widowed,12/04/1967,172-029-423,Zone III,,Active,4,Teaching,TABAOSARES_MARITES,Public_Sector_Institutional,4
+b64abe3e-658b-4a79-ab83-2825af7b2811,8673A2E1,TABARES,RITA,TA-ACA,Business,,,F,Married,20/11/1958,917-777-581,Zone I,,Active,4,Business,TABARES_RITA,Entrepreneurial_Informal,1
+5bb6c51b-7666-48ff-b69a-ceca19204f59,7F75237E,TABASA,MA. MILAGROSA,TABAOSARES,Vendor,,,F,Single,12/02/1959,9/24/2022,Cadabdab,,Active,4,Vendor,TABASA_MA. MILAGROSA,Unclassified_High_Risk,2
+77e0f38f-dd0d-4669-8a04-417269a94a63,57E26974,TABIFRANCA,LUCILLE,CAMALIG,,,,F,Married,16/08/1984,254-316-738,Adgao,,Active,4,Unknown,TABIFRANCA_LUCILLE,Unclassified_High_Risk,2
+cee5a086-6229-40ea-a755-a9dac8bbc334,7111CADD,TABIOLO,EUSEBIO,TACUYAN,Teaching ,Salary,,M,Married,12/02/1976,,Sibucauan,,Active,4,Teaching,TABIOLO_EUSEBIO,Public_Sector_Institutional,4
+02c393bf-c8c9-4123-8074-2c23c961ca5f,E92B2E65,TABIOLO,MAE,TACAYON,Teaching ,Salary,,F,Married,25/05/1975,919-840-980,Sibucauan,,Active,4,Teaching,TABIOLO_MAE,Public_Sector_Institutional,4
+7f372ee7-f21f-454b-857b-1ffc195ee588,B3B43FDD,TABIOLO,ROSEBERT,TADIAQUE,Vendor,,,M,Married,19/02/1987,,Pinamacalan,,Active,4,Vendor,TABIOLO_ROSEBERT,Unclassified_High_Risk,2
+60240075-a1d0-49d8-a27b-b528814207b6,443E1EC4,TABION,JOSEPH ARIEL,ADLAON,Seafarer,Salary,,M,Married,29/03/1990,700-941-152,Daga-ay,,Active,5,Seafarer,TABION_JOSEPH ARIEL,Private_Professional_Skilled,3
+39112165-e979-400f-9c6e-d3e0d46118de,8CBED51D,TABLAC,TRICIA JEAN,TABIEROS,,,,F,Single,17/03/2001,,San Jose,,Active,4,Unknown,TABLAC_TRICIA JEAN,Unclassified_High_Risk,2
+89389e26-b262-431c-99f6-2a04cbc8d931,95D89C0D,TABLADILLO,ROSMELIE,TRESREYES,Teaching ,Salary,235440,F,Married,11/11/1972,404-575-362,Adgao,,Active,4,Teaching,TABLADILLO_ROSMELIE,Public_Sector_Institutional,4
+bd12ce07-875a-425e-aada-b1ec2f36653d,ABEAAC2D,TABLATIN,SHEEREMAR,GILO,Teaching,Salary,,F,Married,14/05/1985,271-300-053,Tagpuan,,Active,5,Teaching,TABLATIN_SHEEREMAR,Public_Sector_Institutional,4
+d04db366-6b86-4f25-b747-b927f5ff2f7c,345E0ED1,TABLATIN,WRYAN,TACDORO,Teaching ,Salary,,M,Married,06/03/1986,274-343-454,Tagpuan,,Active,4,Teaching,TABLATIN_WRYAN,Public_Sector_Institutional,4
+adb00aa2-32a8-4338-bf85-d74562e572b6,6BD6FC40,TABOCOLDE,CHERRY,TABLAC,Teaching ,Salary,235440,F,Married,10/01/1983,263-921-332,Male,,Active,4,Teaching,TABOCOLDE_CHERRY,Public_Sector_Institutional,4
+144484ac-9b41-4582-84d4-2234898474c0,5EB4F19F,TABSING,LEONCIA,TRABADO,,,,F,Married,,,Buenavista,,Active,4,Unknown,TABSING_LEONCIA,Unclassified_High_Risk,2
+a4f1616f-4c6f-42cd-92dd-c9d1a765b1f2,D0ED2162,TABU-AO,LERMA,TAGACAY,Teaching,,349980,F,Married,01/10/1990,401-572-033,Lanag Norte,,Active,5,Teaching,TABU-AO_LERMA,Public_Sector_Institutional,4
+ec745d32-6166-495a-abd6-bfb747a47be6,3B7EFD18,TABUCURAN,NANCY,TABABA,Teaching ,Salary,290232,F,Widowed,12/03/1959,127-758-687,Teniente Benito,,Active,4,Teaching,TABUCURAN_NANCY,Public_Sector_Institutional,4
+09a32eb7-e584-47bb-a937-8316f8199fec,06DDD515,TABUD,MANUEL JR.,TABALINA,Admin Officer V,Salary,,M,Married,11/11/1967,173-870-911,Zone I,,Active,5,Admin Officer V,TABUD_MANUEL JR.,Unclassified_High_Risk,2
+3dbd3a12-dd66-4f24-861c-cd7ec73ef59b,28DD84D8,TABUD,MARY ROSE,TABAQUIRAO,Teaching,Salary,,F,Married,14/08/1978,919-279-255,Zone I,,Active,5,Teaching,TABUD_MARY ROSE,Public_Sector_Institutional,4
+7d286fe4-cd37-4e28-92bd-b8f83b6b47eb,80DDA246,TABULINAR,RITA,TAGUDAR,Vendor,,30000,F,Married,22/05/1966,,Tagpuan,,Active,4,Vendor,TABULINAR_RITA,Unclassified_High_Risk,2
+0c669195-d001-455a-aabf-d98e89a78115,5BCD3DAC,TABURO,RICO JOHN,TAGAMTAM,Teaching,Salary,305000,M,Single,11/02/1998,778-965-052,Adgao,,Active,5,Teaching,TABURO_RICO JOHN,Public_Sector_Institutional,4
+44edcefe-85c4-411c-96e1-b305a24e99bb,81F28061,TACADAO,ADRIAN,BENSAL,Automative Technician,Salary,150000,M,Single,24/04/1997,741-682-183,Zone II,,Active,3,Automative Technician,TACADAO_ADRIAN,Unclassified_High_Risk,2
+aef156af-fa3d-4261-9856-c3edf3eba2bf,8D2CFB06,TACADAO,MA. FE,TACUYAN,,,,F,Single,03/09/1991,,Sibucauan,,Active,4,Unknown,TACADAO_MA. FE,Unclassified_High_Risk,2
+769ab104-86fe-44f3-bbe9-d473bebc8de1,DF470B92,TACADAO,MA. LUZ,EDER,Retired Teacher,Monthly Pension,,F,Single,29/05/1939,,Zone III,,Active,4,Retired Teacher,TACADAO_MA. LUZ,Public_Sector_Institutional,4
+c80970ae-5868-40e9-8024-fd3ca8bbcee3,FA7FFAE0,TACADAO,VALERIA,TAPENA,Teaching ,Salary,244544.68,F,Single,28/04/1963,191-646-569,Sibucauan,,Active,4,Teaching,TACADAO_VALERIA,Public_Sector_Institutional,4
+ec001307-75e3-482c-933a-63245a96247c,7E3B4B24,TACAISAN,BERNADETTE,TALUNDATA,Teaching ,Salary,,F,Single,16/04/1993,315-848-349,Cadabdab,,Active,4,Teaching,TACAISAN_BERNADETTE,Public_Sector_Institutional,4
+035eb059-2785-4350-bc7c-3a8ab6b4acfb,7644EF47,TACAISAN,JOANNA,ESTOPIDO,,,,F,Married,30/10/1980,935-179-687,Zone II,,Active,4,Unknown,TACAISAN_JOANNA,Unclassified_High_Risk,2
+b4393306-54d6-44ef-8a9e-9890a6536627,610EFFEA,TACAISAN,MILAGROSA,TAGACAY,Teaching ,Salary,218178.04,F,Married,23/09/1963,129-752-645,Morsillas,,Active,4,Teaching,TACAISAN_MILAGROSA,Public_Sector_Institutional,4
+a52c386d-6eb7-4a66-9d35-ce90cf6de387,A8269EA5,TACANLOY,GENEVIVE,LONQUINO,Teaching ,Salary,,F,Married,24/07/1988,325-008-026,Victoria,,Active,4,Teaching,TACANLOY_GENEVIVE,Public_Sector_Institutional,4
+7997e230-541e-488f-9116-cfe83ffd5751,DB020DC5,TACANLOY,JOY FAITH,TABAOSARES,Teaching ,Salary,,F,Single,10/07/1995,341-872-603,Lanag Norte,,Active,4,Teaching,TACANLOY_JOY FAITH,Public_Sector_Institutional,4
+08bdd5fa-9650-4924-ba9b-ae62daf047c4,250E7CD7,TACANLOY,VANEZA,TABAOSARES,Teaching ,Salary,,F,Married,,,Lanag Norte,,Active,4,Teaching,TACANLOY_VANEZA,Public_Sector_Institutional,4
+5c1c94fa-9133-4a3a-bef9-6095e420b0cc,886333AD,TACAPAN,IMELDA,CORPUZ,Entrepreneur,,,F,Married,30/01/1966,,Ayubo,,Active,4,Entrepreneur,TACAPAN_IMELDA,Unclassified_High_Risk,2
+f8580cfa-46db-4082-ba29-215d3ca2655e,E495F975,TACARDON,ELSA,ERCILLA,Farmer,,35000,F,Married,12/10/1975,,Bacan,,Active,5,Farmer,TACARDON_ELSA,Unclassified_High_Risk,2
+33ad326f-26c1-4a62-a202-4d0b6c0b76e3,507E6744,TACARDON,IPHIGENIA,TABUNDA,Teaching ,Salary,127875,F,Single,03/02/1955,127-758-042,Zone II,,Active,4,Teaching,TACARDON_IPHIGENIA,Public_Sector_Institutional,4
+89810dde-d1a9-4a76-b861-b0c2559849a0,9A6DBE1D,TACARDON,MA. VILMA,TABARNILLA,Teaching ,Salary,235440,F,Single,30/08/1960,938-071-633,Teniente Benito,,Active,4,Teaching,TACARDON_MA. VILMA,Public_Sector_Institutional,4
+2e1c5b3c-7338-47ce-b025-855cf81b1bbb,BCB514F0,TACAYON,DINDO FRANCIS,TADIAQUE,Teaching ,Salary,,M,Single,29/03/1995,700-357-527,Cadabdab,,Active,4,Teaching,TACAYON_DINDO FRANCIS,Public_Sector_Institutional,4
+02b1abfa-54f9-4b46-aed1-35f0afa5a5bf,B77E8670,TACAYON,NESTOR,TABASA,,,,M,Single,11/02/1951,145-114-163,Cadabdab,,Active,4,Unknown,TACAYON_NESTOR,Unclassified_High_Risk,2
+90ed7ede-5035-4d77-a183-d6df11233730,A64E0558,TACSAGON,ARLENE,TAGAL,Cashier,Salary,,F,Widowed,05/08/1971,,Teniente Benito,,Active,4,Cashier,TACSAGON_ARLENE,Unclassified_High_Risk,2
+6aa3cd6d-a745-4537-a591-c38deff4760c,2BDF32A0,TACSAGON,MAE LIZA ROSS,TANALLON,Store Clerk,Salary,,F,Married,23/05/1985,,Bacan,,Active,1,Store Clerk,TACSAGON_MAE LIZA ROSS,Unclassified_High_Risk,2
+aa1050a4-2a29-47d4-93e1-f9472efbc080,974D4F8E,TACSAGON,RHODA,GENTON,Teaching ,Salary,,F,Married,01/11/1971,910-125-941,Zone II,,Active,5,Teaching,TACSAGON_RHODA,Public_Sector_Institutional,4
+09328fac-d520-401a-a68e-e800f3bde60f,5B4A7B51,TACUBAN,MA. CECILIA,TACLIMA,,,,F,Widowed,,,Zone II,,Active,4,Unknown,TACUBAN_MA. CECILIA,Unclassified_High_Risk,2
+dff6e85a-518a-400c-8ba5-86d2a3c9b3f3,28180CF9,TACUBAN,SAMPAGUITA,VILLAGRACIA,Retired Teacher,Monthly Pension,168000,F,Married,03/07/1947,,Ingay,,Active,4,Retired Teacher,TACUBAN_SAMPAGUITA,Public_Sector_Institutional,4
+51b94b68-88db-4413-bc0a-daea81fdb91b,2A914356,TACUBAY,RECHELLE,DIONISIO,Teaching,Salary,,F,Married,24/04/1996,,Nagba,,Active,5,Teaching,TACUBAY_RECHELLE,Public_Sector_Institutional,4
+409c1b72-c7d4-4cdb-a01f-961b56de56d5,5B05A9B2,TACUEL,JONAH,TACARDON,Teaching ,Salary,,F,Married,21/06/1990,471-436-175,Ago,,Active,5,Teaching,TACUEL_JONAH,Public_Sector_Institutional,4
+233c885d-b654-48e8-9eff-6a26bf66b0cd,E5D5990C,TACUYAN,MARIA THERESA,TAGARO,Social Welfare Assistant,Salary,236928,F,Single,15/10/1993,333-390-000,Ago,,Active,5,Social Welfare Assistant,TACUYAN_MARIA THERESA,Unclassified_High_Risk,2
+4732b809-9a42-435a-a1b8-3daae79ddc05,D6B989EF,TACUYAN,BENITO,TABALDO,Retired Teacher,Monthly Pension,,M,,21/03/1938,149-113-945,Cadabdab,,Active,4,Retired Teacher,TACUYAN_BENITO,Public_Sector_Institutional,4
+6317e02f-2d51-4142-9076-d63023b6f3c3,11789FFA,TACUYAN,IRISH MARIE,VILLEGAS,Teaching ,Salary,288000,F,Single,31/10/1998,761-899-831,Isauan,,Active,4,Teaching,TACUYAN_IRISH MARIE,Public_Sector_Institutional,4
+520a15b7-9150-4d13-aae2-310f47eb8840,8F647DF8,TACUYAN,ISABEL,TABANGCORA,,,,F,Single,07/08/1957,,Sibucauan,,Active,0,Unknown,TACUYAN_ISABEL,Unclassified_High_Risk,2
+a4ab557a-c203-4cfa-95aa-c5b670965420,A54AFB4D,TACUYAN,MAIRA GRACE,TAGARO,Government Employee,Salary,421164,F,SP,26/04/1987,444-214-172,Ago,,Active,4,Government Employee,TACUYAN_MAIRA GRACE,Public_Sector_Institutional,4
+5947d58f-6f36-4833-a454-7ab54d7d7724,0FE1FAEE,TACUYAN,MARA,TABABA,Teaching ,Salary,256644,F,Married,18/03/1967,127-758-718,Teniente Benito,,Active,4,Teaching,TACUYAN_MARA,Public_Sector_Institutional,4
+b91a3bd4-59f0-4e4a-88e6-3c7de1b24656,DE54E06B,TACUYAN,MARY FLOR,TALIDANO,Business,,80000,F,Married,15/05/1972,,Sibucauan,,Active,5,Business,TACUYAN_MARY FLOR,Entrepreneurial_Informal,1
+27062c8b-b2a3-450d-9bff-ebf1b6c389e7,9C7BBB44,TACUYAN,RONELYN,ESTEBE,Beautician,Salary,,F,Married,14/04/1984,637-221-767,Ago,,Active,5,Beautician,TACUYAN_RONELYN,Unclassified_High_Risk,2
+63581712-0b2a-43d8-b5b7-6cd87dbbf454,8261D0E5,TACUYAN,TERESITA,TABANGCORA,Retired Teacher,Monthly Pension,,F,Single,09/05/1946,,Sibucauan,,Active,4,Retired Teacher,TACUYAN_TERESITA,Public_Sector_Institutional,4
+f7f81a8a-b982-4976-927f-ee4ba332d505,5217C57A,TADAYA,TERESITA,TAGAROMA,Teaching ,Salary,,F,Single,05/12/1963,,Lanag Norte,,Active,4,Teaching,TADAYA_TERESITA,Public_Sector_Institutional,4
+61ec24f5-a914-4d04-95b5-f5d8a9eb6dc2,E0C02066,TAGUIBE,RICHEL,TALIBO,Teaching ,Salary,200000,F,Married,12/03/1985,416-351-183,Bato,,Active,4,Teaching,TAGUIBE_RICHEL,Public_Sector_Institutional,4
+5eea3944-c36c-406b-b462-d29f0622a332,8D8BA1AB,TADIFA,DARWIN,TAGARAO,Teaching ,Salary,180000,M,Single,10/04/1977,,San Jose,,Active,4,Teaching,TADIFA_DARWIN,Public_Sector_Institutional,4
+5c1b8c1f-41f4-437f-820b-69a6bbe53266,097BC532,TADIFA,VERONICA,ARELLANO,Teaching ,Salary,,F,Single,13/09/1996,704-177-317,Teniente Benito,,Active,4,Teaching,TADIFA_VERONICA,Public_Sector_Institutional,4
+d6b26135-e39c-4049-a330-43b43839e57d,C5E63B50,TADIT,YOLANDA,TAMAYOR,Teaching ,Salary,239346.75,F,Married,27/01/1966,149-114-269,Buenavista,,Active,4,Teaching,TADIT_YOLANDA,Public_Sector_Institutional,4
+fb7be1e8-942e-4f79-bf65-33da5e68b1e8,BFABBF0F,TAGABI,AMPARO,TABANGCORA,Teaching ,Salary,,F,Married,30/10/1961,,Zone II,,Active,4,Teaching,TAGABI_AMPARO,Public_Sector_Institutional,4
+137873ab-0455-49e1-b08b-6aa29dd0080f,268EAEC8,TAGABI,NICOLAS,TABANIAG,Teaching ,Salary,156000,M,Married,09/09/1967,191-646-585,Teniente Benito,,Active,0,Teaching,TAGABI_NICOLAS,Public_Sector_Institutional,4
+c670a524-8974-44cf-a029-29429870586d,A6DF72AD,TAGACAY,JAY-R,TAMBALO,Teaching ,Salary,312624,M,Single,30/07/1989,427-126-591,Lanag Norte,,Active,5,Teaching,TAGACAY_JAY-R,Public_Sector_Institutional,4
+ae4124a0-b380-40bd-ab42-edc655112701,47C984A8,TAGACAY,JOYLENE,TADLE,Teaching ,Salary,,F,Married,,,Sibucauan,,Active,3,Teaching,TAGACAY_JOYLENE,Public_Sector_Institutional,4
+13f745e7-e68e-4d57-b9c7-58d9fe5c154a,22D2E30A,TAGACAY,LUCENA,ERIO,Teaching ,Salary,223400.4,F,Widowed,30/06/1956,127-759-123,Lanag Norte,,Active,4,Teaching,TAGACAY_LUCENA,Public_Sector_Institutional,4
+92e8b9c4-26f6-4210-a649-3121909d1206,73650828,TAGACAY,RIMA,TABOCOLDE,Teaching ,Salary,239346.76,F,Single,13/10/1975,,Lanag Norte,,Active,4,Teaching,TAGACAY_RIMA,Public_Sector_Institutional,4
+8d249465-bb80-4a07-bfd6-6269ffa15154,1E232077,TAGAL,NATIVIDAD,TANATE,Teaching ,Salary,241923,F,Married,01/01/1963,127-758-478,Buenavista,,Active,4,Teaching,TAGAL_NATIVIDAD,Public_Sector_Institutional,4
+152c9c2a-dc1f-42d1-8c3b-75dc0a216b1b,87674CE4,TAGAMOLILA,BASILIA,TABSING,Teaching ,Salary,204295.84,F,Married,17/05/1974,262-707-182,Buenavista,,Active,4,Teaching,TAGAMOLILA_BASILIA,Public_Sector_Institutional,4
+5b692264-ac12-4848-9321-4efc0e9398e9,14441F70,TAGHAP,TERESITA,TALHA,Farmer,,,F,Married,17/08/1968,,Igtuble,,Active,4,Farmer,TAGHAP_TERESITA,Unclassified_High_Risk,2
+81617a7f-5773-4779-920b-3773160f18c8,0092070D,TAGNAWA,MARIANA,TACAPAN,Teaching ,Salary,,F,Widowed,18/06/1955,127-758-163,Zone I,,Active,4,Teaching,TAGNAWA_MARIANA,Public_Sector_Institutional,4
+66d84bfe-f371-400d-8329-e308cb840070,09EE6863,TAGUDANDO,JHOYCY,TA-ALA,Teaching ,Salary,327408,F,Married,07/02/1994,341-286-585,Lanag Norte,,Active,4,Teaching,TAGUDANDO_JHOYCY,Public_Sector_Institutional,4
+1027fb71-2315-445e-95bf-8eddcd83ea2f,3BEAE8DF,TAGUDANDO,FERNANDO JR.,TAGALAN,Teaching ,Salary,,M,,25/03/1981,939-413-096,Talento,,Active,4,Teaching,TAGUDANDO_FERNANDO JR.,Public_Sector_Institutional,4
+daa0f82b-962f-4529-8f5a-f0f87b10d259,16B03412,TAGUDANDO,JENNIFER,CABALLERO,,,,F,Single,23/01/1976,,Ingay,,Active,4,Unknown,TAGUDANDO_JENNIFER,Unclassified_High_Risk,2
+81287920-d2b1-44ac-a333-fa0f663011d4,FDA0C5E9,TAGUDANDO,JUBERT,CABALLERO,Teaching ,Salary,,M,Single,07/09/1988,,Ingay,,Active,4,Teaching,TAGUDANDO_JUBERT,Public_Sector_Institutional,4
+945aa134-7780-44cd-87f2-d7e18fc741f8,387EB72A,TACUBAY,RODELYN,TACDORO,Teaching ,Salary,200000,F,,10/09/1989,432-334-795,Nagba,,Active,0,Teaching,TACUBAY_RODELYN,Public_Sector_Institutional,4
+5c3856f3-f91e-4ebb-a074-2651d8817bf1,7B57ED54,TALACAN,JOSEPHINE,TAMAYOR,Teaching ,Salary,187788,F,Married,01/09/1984,400-494-821,Ambarihon,,Active,4,Teaching,TALACAN_JOSEPHINE,Public_Sector_Institutional,4
+2dd42d40-4144-43b3-9183-3be2147dad37,5A73539D,TALAMILLO,GLEN,TANATE,Business,,120000,M,Married,16/11/1977,233-446-590,Sibucauan,,Active,5,Business,TALAMILLO_GLEN,Entrepreneurial_Informal,1
+7af40ef9-bad6-41a7-8612-211fa0dba99c,BDBC8CD3,TALENTO,JOHN FELCO,TACAPAN,Asst. Station Manager ,Salary,,M,Married,03/04/1984,265-917-583,Bacan,,Active,4,Asst. Station Manager,TALENTO_JOHN FELCO,Unclassified_High_Risk,2
+f1557f10-bc75-4ad7-a633-1bb5adb9feef,1524276,TALENTO,VINCENT REY,TALENTO,Teaching ,Salary,,M,Single,25/04/1992,450-757-930,Tabat,,Active,3,Teaching,TALENTO_VINCENT REY,Public_Sector_Institutional,4
+be955f52-d4be-4258-871f-7fc5604b0968,DD758502,TALEON,ROSIE,LAMA,Teaching ,Salary,235440,F,Married,13/01/1983,402-879-267,Tagpuan,,Active,4,Teaching,TALEON_ROSIE,Public_Sector_Institutional,4
+882484b4-1d69-41db-acbf-dbaf3b71fad9,7A434628,TALHA,ANGELIE,ESTANDO,Teaching ,Salary,235440,F,Married,19/10/1983,297-383-509,Igtuble,,Active,4,Teaching,TALHA_ANGELIE,Public_Sector_Institutional,4
+742bf538-c9e0-4e9e-8a53-ba716c180bf2,6434448,TALHA,CARIDAD,TAMONAN,Teaching ,Salary,221333.92,F,Married,08/01/1960,127-758-612,Igtuble,,Active,4,Teaching,TALHA_CARIDAD,Public_Sector_Institutional,4
+2e444c51-f578-4710-bfc0-f4991f70a51f,97D86A29,TALHA,FRANKLIN,,Business,,,M,,02/02/1987,,Igtuble,,Active,0,Business,TALHA_FRANKLIN,Entrepreneurial_Informal,1
+c581c21a-7f75-4d61-8d2a-b7fb3e88c75b,AD51E897,TALHA,MARILYN,TALIBUTAB,Teaching ,Salary,206376,F,Married,02/12/1973,910-125-967,Igtuble,,Active,4,Teaching,TALHA_MARILYN,Public_Sector_Institutional,4
+4a438966-5a46-4cbf-8184-a57e82ae2d60,7A0675CB,TALIBO,GERRLYN MAY,TABOLDAN,Teaching ,Salary,,F,Married,05/07/1989,480-159-119,Teniente Benito,,Active,4,Teaching,TALIBO_GERRLYN MAY,Public_Sector_Institutional,4
+7d38b783-c146-414f-856a-7e09c4b9f395,252EF827,TALIPAN,MA. EMMA GRACE,,Teaching ,Salary,,F,Single,03/09/1998,352-381-410,Bagunanay,,Active,5,Teaching,TALIPAN_MA. EMMA GRACE,Public_Sector_Institutional,4
+76b33b75-06cc-42d7-b112-fc0027e48fd2,B0748542,TAMAGOS,CHARRY ROSE,TABAYA,ADAS II,Salary,,F,,07/04/1993,455-434-654,Teniente Benito,,Active,0,Adas Ii,TAMAGOS_CHARRY ROSE,Unclassified_High_Risk,2
+9985bf61-4677-4e95-a891-57da7ba6e5d8,65AB4554,TAMAGOS,GLORIA,TABAYA,,Salary,,F,,03/09/1954,046-089-68,Bato,,Active,0,Unknown,TAMAGOS_GLORIA,Unclassified_High_Risk,2
+37dc82ae-5985-4082-b26b-785838bc6171,7067446E,TAMAGOS,MELANIE,TANO,,,,F,,17/11/1993,474-210-859,Lanag Norte,,Active,0,Unknown,TAMAGOS_MELANIE,Unclassified_High_Risk,2
+d99956b8-3445-4d2b-9e85-49a11f67b677,62673192,TAMAYOR,MA. LUISA,EMBATE,Teaching,Salary,205428,F,,16/03/1974,915-842-636,Buenavista,,Active,0,Teaching,TAMAYOR_MA. LUISA,Public_Sector_Institutional,4
+4a749ee3-f23d-4774-a140-c33a53235030,C92C0FB3,TAMBA,CRISTINE,CANTO,Teaching ,Salary,204295.84,F,,23/12/1983,400-457-190,Teniente Benito,,Active,0,Teaching,TAMBA_CRISTINE,Public_Sector_Institutional,4
+840b8f73-be17-466d-89ba-c3fb068ba8fc,DBDBA272,TAMBIRAO,JOSEFINE,TABINO,Teaching ,Salary,,F,,19/03/1976,272-483-596,Zone I,,Active,2,Teaching,TAMBIRAO_JOSEFINE,Public_Sector_Institutional,4
+226f9d39-c81f-465b-96da-9ba5c8f79d9d,BFAFAFE6,TAMISEN,VANESSA KAREN,ECHALAR,Business,,120000,F,,29/01/1992,319-690-398,Igtuble,,Active,2,Business,TAMISEN_VANESSA KAREN,Entrepreneurial_Informal,1
+cfd8a0e5-070b-4ec0-a882-789deb1a0ecd,FFBE7F22,TAMISES,EUGENIO JR,TALANAS,,,,M,Married,14/09/1966,159-054-174,Ingay,,Active,0,Unknown,TAMISES_EUGENIO JR,Unclassified_High_Risk,2
+75a41c28-eccb-43f3-9a14-e9fcc03c4911,B2158CB6,TAMONAN,BARBARA,MILLAN,Teaching ,Salary,256644,F,Married,31/10/1969,919-841-020,Zone III,,Active,4,Teaching,TAMONAN_BARBARA,Public_Sector_Institutional,4
+35088317-aa3d-472b-b6e5-6549b0ae928f,4C5020B8,TAMONAN,KRISTY JOY,TABION,Teaching ,Salary,,F,Married,09/02/1989,480-158-070,Talento,,Active,4,Teaching,TAMONAN_KRISTY JOY,Public_Sector_Institutional,4
+a4d15110-9fab-4dd3-a137-9da5b0b3384b,8036C1DE,TANALLON,MARVIN,TAMISEN,Business,,600000,M,Married,21/10/1979,466-176-456,Adgao,,Active,5,Business,TANALLON_MARVIN,Entrepreneurial_Informal,1
+bc666198-91a5-4bc1-a8c8-4eb5a2c5c4eb,ACEA479F,TANATE,ENELIA,LORANIA,Business,,30000,F,Married,18/10/1974,,Tabat,,Active,5,Business,TANATE_ENELIA,Entrepreneurial_Informal,1
+cc6107a1-b2d4-40db-b136-f3bbb03d0496,DCADFEDF,TANATE,VENUS,TABASA,Teaching ,Salary,,F,Single,28/08/1993,475-778-789,Cadabdab,,Active,4,Teaching,TANATE_VENUS,Public_Sector_Institutional,4
+dd13983c-32b0-4282-95d8-1f25a5058f1e,1BF11937,TANELON,VIOLETA,JASPE,Business,,180000,F,Single,09/07/1965,,Ambarihon,,Active,5,Business,TANELON_VIOLETA,Entrepreneurial_Informal,1
+d5662033-bb2d-4f32-98b8-6193989a8cc5,BDDCA40A,TANILONG,BENITA,TABLADILLO,Teaching ,Salary,,F,Widowed,07/11/1973,454-586-542,Adgao,,Active,4,Teaching,TANILONG_BENITA,Public_Sector_Institutional,4
+4b8feae4-f480-4ba5-bc08-e6353c842f3d,26EEEF0D,TANO,ADELFA,TADIFA,Retired Teacher,Monthly Pension,380352,F,Single,28/09/1954,127-758-882,Teniente Benito,,Active,4,Retired Teacher,TANO_ADELFA,Public_Sector_Institutional,4
+d66d6adf-24e1-440d-92ab-fe00cbb3e638,D7543EAE,TANO,CORNEJA MILANE,TANILONG,,,,F,Married,26/09/1969,148-713-567,Adgao,,Active,4,Unknown,TANO_CORNEJA MILANE,Unclassified_High_Risk,2
+a696d393-6ed9-46ca-9010-c34db6856bc9,577BF142,TANO,JACOBO JR.,TADIFA,ADA,Salary,127680,M,Married,17/02/1956,,Teniente Benito,,Active,4,Ada,TANO_JACOBO JR.,Unclassified_High_Risk,2
+21005c5c-6ad1-4920-b1bb-5ddf5f8d7d4d,14C735C5,TANO,LOURDES,SALLEGUE,Teaching ,Salary,170376,F,Single,02/10/1974,931-696-271,Lanag Sur,,Active,4,Teaching,TANO_LOURDES,Public_Sector_Institutional,4
+7855d9b0-2ff1-4916-950a-aeffc05a9003,98BC5984,TANO,MERCY,EUCARE,,,,F,Married,31/05/1975,415-497-742,Lanag Norte,,Active,4,Unknown,TANO_MERCY,Unclassified_High_Risk,2
+4cbff9ad-7b8f-472f-9ca1-d3a8886145b3,405DCB90,TAPICULIN,GENEVE,TABLAC,Small Business,,,F,Married,02/06/1983,,Teniente Benito,,Active,5,Small Business,TAPICULIN_GENEVE,Unclassified_High_Risk,2
+cd88b632-2cdd-4e01-8f6a-1b384a3c1277,13BB735E,TAPICULIN,MICHAEL,TANALLON,,,,M,Single,,,Teniente Benito,,Active,4,Unknown,TAPICULIN_MICHAEL,Unclassified_High_Risk,2
+f0ff908f-27e3-47a3-99b1-40ec9ab09e3b,938EFDE9,LASAP,KARREN,TALENTO,Teaching ,Salary,,F,Married,20/10/1992,493-126-971,Zone III,,Active,0,Teaching,LASAP_KARREN,Public_Sector_Institutional,4
+167424f1-7e22-46e9-b18e-535bd09979dd,FB9ECE06,TIDULA,MARY EDRIANNE,TANATE,Teaching ,Salary,288000,F,Married,,,,,Active,0,Teaching,TIDULA_MARY EDRIANNE,Public_Sector_Institutional,4
+2ec12379-8dcd-4f82-9c68-7b195b40720d,791735DD,TOMNOG,ELERIANA,TALADHAY,Teaching,Salary,,F,Married,12/09/1964,471-985-823,Igtuble,,Active,0,Teaching,TOMNOG_ELERIANA,Public_Sector_Institutional,4
+017dc60e-da3d-4232-8f57-8b3736e35321,FDEA237E,TALAMAN,AILEEN,ELLAMA,Teaching ,Salary,,M,Married,09/03/1995,352-803-300,Igpaho,,Active,0,Teaching,TALAMAN_AILEEN,Public_Sector_Institutional,4
+9eee42c5-de9c-4b5f-999a-7f96bfa4a004,BBD98A54,TOSCANO,LORNA,TABIFRANCA,Teaching ,Salary,221333.92,F,Married,08/05/1964,919-840-956,Adgao,,Active,4,Teaching,TOSCANO_LORNA,Public_Sector_Institutional,4
+f54c2267-609e-495e-bd58-0edfe9379c4c,988BE63F,TUAZON,WARLITO,BUERANO,,,,M,Married,08/12/1968,910-125-983,Teniente Benito,,Active,4,Unknown,TUAZON_WARLITO,Unclassified_High_Risk,2
+832cedd2-18cb-4467-bdf2-67c89cabcc42,AF7878A0,UY,WARLITA,TABANERA,,,,F,Widowed,09/06/1944,,Zone III,,Active,4,Unknown,UY_WARLITA,Unclassified_High_Risk,2
+433e3c2b-a3a7-4d28-928a-35b876cc13ce,A126F522,VARGAS,ELLEN,TABABA,,,,F,Single,01/07/1984,,Zone II,,Active,4,Unknown,VARGAS_ELLEN,Unclassified_High_Risk,2
+f49a2ebd-ba2e-4f33-a649-e4409dba0ff0,A1C642A1,VILLA,DONNA,CA-AYA,Teaching ,Salary,170376,F,Married,20/03/1985,935-185-179,Bantayanan,,Active,4,Teaching,VILLA_DONNA,Public_Sector_Institutional,4
+3e148875-d547-400a-ae90-92a65a8b2a7e,45E82A02,ZARAGOSA,DELFA,CABALO,Teaching ,Salary,469812,F,Married,04/06/1963,149-113-979,Zone II,,Active,4,Teaching,ZARAGOSA_DELFA,Public_Sector_Institutional,4
+a37e467b-c9d6-4788-b7f2-e2c9cc25e7d9,C22888DF,TACADAO,ROSALIA TABLAC,,,,,F,Single,16/01/1962,937-209-268,Bacan,,Active,4,Unknown,TACADAO_ROSALIA TABLAC,Unclassified_High_Risk,2
+8e27154a-16de-4f6c-9f29-4591af37ccf7,8D3CAF4D,SEASOL,RUFINA,TACSAGON,Teaching ,Salary,468000,F,Married,24/05/1987,417-873-063,Adgao,,Active,5,Teaching,SEASOL_RUFINA,Public_Sector_Institutional,4
+42cbe407-2697-4ccd-b44a-871f69080eec,549B0A99,TABAGO,KRISJEN,TABUMFAMA,Dietitian,Salary,366321.6,F,Single,23/08/1999,622-893-359,Balicua,,Active,5,Dietitian,TABAGO_KRISJEN,Unclassified_High_Risk,2
+76e495f4-2c24-4242-a3b9-a9e752d8e26d,C85435C4,TABUMFAMA,ESTELA,TAGUDANDO,Senior Fire Inspector,Salary,960000,F,Single,16/08/1979,263-548-298,Balicua,,Active,5,Senior Fire Inspector,TABUMFAMA_ESTELA,Unclassified_High_Risk,2
+60f5103b-4033-4aeb-a122-05469591c71d,73FD644B,TABIOLO,MARLENE,TACUYAN,Security Guard,Salary,180000,F,Married,12/06/1985,,Ago,,Active,5,Security Guard,TABIOLO_MARLENE,Unclassified_High_Risk,2
+475c680d-7fff-407c-987a-ea08a5d2f26c,B7125F1D,TAGUDANDO,LEONARD,TAGALAN,,,192000,M,Single,26/11/1985,415-002-229,Talento,,Active,5,Unknown,TAGUDANDO_LEONARD,Unclassified_High_Risk,2
+dc424c0f-b297-433d-82c0-3a19a763a9dc,2EE96895,TABIOLO,RAMIL,TADIAQUE,,,,M,Single,26/04/1996,647-980-753,Pinamacalan,,Active,5,Unknown,TABIOLO_RAMIL,Unclassified_High_Risk,2
+cfe21bb8-e2a7-4fb6-99c4-548828024459,972DDC08,TACAISAN,CHRISYL JEAN,CAPARIDA,,,,F,Single,18/09/1997,760-628-813,Molina,,Active,5,Unknown,TACAISAN_CHRISYL JEAN,Unclassified_High_Risk,2
+8c84ce14-441d-429c-91e2-90cde8fc274d,7.44E+07,TAPICULIN,JOSEPH,VILLARTA,Assistant Embalmer,Salary,350000,M,Single,23/04/1988,,Teniente Benito,,Active,5,Assistant Embalmer,TAPICULIN_JOSEPH,Unclassified_High_Risk,2
+8287a39a-7238-4d1b-9dcd-b5a66f25234d,8F08579B,TAGHAP,SHIELLA MAY,CAMBRONERO,Teaching ,Salary,212722.92,F,Married,29/05/1994,493-624-433,Igtuble,,Active,3,Teaching,TAGHAP_SHIELLA MAY,Public_Sector_Institutional,4
+9a272d47-7eb6-4ad5-841a-6f2c3be64dde,9FD9B4FF,GARCIA,FEBE ARCELIE,TAGAMOLILA,Encoder,Salary,,F,Married,17/02/1996,756-921-856,San Jose,,Active,3,Encoder,GARCIA_FEBE ARCELIE,Unclassified_High_Risk,2
+3ac4aead-7645-46cf-b7bf-3674a1309773,2C4609BB,CABALUNA,JOAN ROSE,TACBO,Teaching ,Salary,363696,F,Married,11/09/1992,441-219-599,Jolason,,Active,4,Teaching,CABALUNA_JOAN ROSE,Public_Sector_Institutional,4
+6e936d76-0703-4e50-8a85-f2825e5a2ecb,57B0A01C,CAMORAHAN,LEEAN,TACLAHAN,Teaching ,Salary,363696,F,Married,17/08/1995,721-722-882,Jolason,,Active,5,Teaching,CAMORAHAN_LEEAN,Public_Sector_Institutional,4
+8f750add-71c5-4b1b-a912-f6f1480b9178,551EF7C1,TACAYON,R-JAY,TABOBO,Business,,400000,M,Married,23/11/1989,,Balicua,,Active,5,Business,TACAYON_R-JAY,Entrepreneurial_Informal,1
+35500a36-00d5-4039-aef1-031352d401b5,DA01F17B,TALIDANO,EMELYN,TALEÑO,Teaching ,Salary,,F,Married,14/03/1994,703-645-617,Nagba,,Active,5,Teaching,TALIDANO_EMELYN,Public_Sector_Institutional,4
+bb94378c-9152-4166-8d87-bbcd1403c4a9,E8E7BD0D,TACUYAN,MA. NANCY,TABAOSARES,Assistant Pharmacist,Salary,96000,F,Married,17/03/1969,927-390-182,Singon,,Active,5,Assistant Pharmacist,TACUYAN_MA. NANCY,Unclassified_High_Risk,2
+9698ec06-9452-465b-8f04-8e924532f001,5B1B65F9,TABAO,CLEA,BARCELONA,Teaching ,Salary,,F,Married,02/04/1991,404-075-028,Talento,,Active,5,Teaching,TABAO_CLEA,Public_Sector_Institutional,4
+72962c35-6ee7-4697-ac3b-dc0a0d6a2bb6,29EEF830,TABLATIN,AIZA FAITH,TACDORO,Teaching ,Salary,342144,F,Single,10/12/1993,461-289-267,Singon,,Active,5,Teaching,TABLATIN_AIZA FAITH,Public_Sector_Institutional,4
+69db440d-ffcb-4fa8-b9bf-734efebc869a,BEA1FCA1,BLANCA,SHANE,TADIFA,,,,F,Married,31/08/1993,483-105-520,Sto. Niño,,Active,5,Unknown,BLANCA_SHANE,Unclassified_High_Risk,2
+cbd4e78a-659d-4b9c-a71e-e8d9fdcee01e,1C5F6146,TABUADA,ARZIEL JOY,TAGAYGAYAN,Social Welfare Assistant,,,F,Single,25/01/1993,461-746-950,Singon,,Active,5,Social Welfare Assistant,TABUADA_ARZIEL JOY,Unclassified_High_Risk,2
+b3bdd919-1238-4c21-ae98-0e30c1df8b1d,64E42285,SANTIAGO,LEAH,TABLADILLO,,,228000,F,Married,27/04/1978,,Adgao,,Active,4,Unknown,SANTIAGO_LEAH,Unclassified_High_Risk,2
+ad2f633a-f8d2-40cc-a6df-38e20d22190e,DF3E26B7,HABLADO,JANNICA,,,,,F,,,,,,Active,0,Unknown,HABLADO_JANNICA,Unclassified_High_Risk,2
+5eee50b3-2aae-4f18-aa2f-6b80319051a3,DFD9ED71,JALA,LOUIE MARIE,TOSCANO,,,,M,Married,09/05/1993,703-973-390,Zone I,,Active,4,Unknown,JALA_LOUIE MARIE,Unclassified_High_Risk,2

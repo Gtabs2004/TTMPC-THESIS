@@ -58,10 +58,16 @@ const LoanDemandForecastCard = ({ defaultLoanType = "consolidated", periods = 12
               { headers: { Accept: "application/json" } }
             );
             const payload = await res.json().catch(() => ({}));
-            if (!res.ok || !payload?.success) {
+            if (!res.ok) {
               throw new Error(payload?.detail || `Failed to load ${t.label} forecast.`);
             }
-            return [t.value, payload.data];
+            // Backend returns a flat envelope ({loan_type, historical, forecast, ...}).
+            // Older shape was {success, data:{...}} — fall back to that if seen.
+            const data = payload?.data ?? payload;
+            if (!data || !Array.isArray(data.forecast)) {
+              throw new Error(`Empty ${t.label} forecast response.`);
+            }
+            return [t.value, data];
           })
         );
         if (!cancelled) {
@@ -402,7 +408,7 @@ const LoanDemandForecastCard = ({ defaultLoanType = "consolidated", periods = 12
 
       <p className="mt-3 text-[10px] text-gray-400 flex items-start gap-1">
         <Info className="w-3 h-3 mt-0.5" />
-        Model: SARIMA fit on Jan 2022 – Dec 2024 monthly aggregates. The shaded band is an 80% confidence interval.
+        Model: SARIMA fit on monthly disbursement aggregates. The shaded band is an 80% confidence interval.
         Liquidity totals are point estimates — use upper-bound for conservative cash planning.
       </p>
     </div>

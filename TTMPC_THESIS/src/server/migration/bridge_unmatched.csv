@@ -1,7 +1,27 @@
-csv_row,csv_uuid,csv_last,csv_first,csv_middle,status
-12,958d4dab-23c0-4a85-938d-511fdf64a07b,BUSTILLO,ROBERT JR.,ARQUILOLA,not_found
-18,e5462e29-b6c3-416f-8d57-69152d114b65,CALAMCAMAN,DHAYLENE MAY,TABINGO,not_found
-68,fbf08454-23b1-4e97-a2b5-da7c8b2a56bd,GOMEZ,HAZEL JOY,EMBATE,not_found
-79,4775bb38-4314-458b-bda0-4b0c7d30c372,LONQUINO,ANABELLE,CABALLERO,not_found
-88,c9494487-01f8-409d-9267-f68757162c78,MEMPIN,MA. MINDA CELIA,TACARDON,not_found
-210,7d38b783-c146-414f-856a-7e09c4b9f395,TALIPAN,MA. EMMA GRACE,,not_found
+MemberID,LastName,FirstName,reason
+TTMPC-008,BRAZA,MELANIE,blank MasterUUID in Cleaned_Members.csv
+TTMPC-027,CASTOR,DHEL,blank MasterUUID in Cleaned_Members.csv
+TTMPC-029,CELDA,GLENDA RAE,blank MasterUUID in Cleaned_Members.csv
+TTMPC-034,DELOS SANTOS JANICE,,blank MasterUUID in Cleaned_Members.csv
+TTMPC-047,ESTOMO,MITCHELLE,blank MasterUUID in Cleaned_Members.csv
+TTMPC-065,GICO,IRISH KAY,blank MasterUUID in Cleaned_Members.csv
+TTMPC-239,withdrawan-8.25.2015-a,,blank MasterUUID in Cleaned_Members.csv
+TTMPC-076,LLASO,KARREN,blank MasterUUID in Cleaned_Members.csv
+TTMPC-080,MADERAL,ARNEL,blank MasterUUID in Cleaned_Members.csv
+TTMPC-082,MALAGA,MA. ANDELEN,blank MasterUUID in Cleaned_Members.csv
+TTMPC-084,MEDECINIO,MAY JOY CATHERINE,blank MasterUUID in Cleaned_Members.csv
+TTMPC-086,MEMPIN,MARY HOPE,blank MasterUUID in Cleaned_Members.csv
+TTMPC-088,MESTOSAMENTE,MARICEL,blank MasterUUID in Cleaned_Members.csv
+TTMPC-094,PADILLA,MARY IVY,blank MasterUUID in Cleaned_Members.csv
+TTMPC-104,SILGUERA,JOAN,blank MasterUUID in Cleaned_Members.csv
+TTMPC-110,TA-ALA,JOSIE ANN,blank MasterUUID in Cleaned_Members.csv
+TTMPC-168,TACSAGON,MLR,blank MasterUUID in Cleaned_Members.csv
+TTMPC-179,TADIA,RICHEL,blank MasterUUID in Cleaned_Members.csv
+TTMPC-180,TADIAQUE,JANINE ROSS,blank MasterUUID in Cleaned_Members.csv
+TTMPC-185,TAGACAY,JAY R,blank MasterUUID in Cleaned_Members.csv
+TTMPC-191,TAGHAP,SHELLA MAY,blank MasterUUID in Cleaned_Members.csv
+TTMPC-232,TERRE,KARREN,blank MasterUUID in Cleaned_Members.csv
+TTMPC-235,TONDING,AILEEN,blank MasterUUID in Cleaned_Members.csv
+TTMPC-240,withdrawn-11.26.2015-b,,blank MasterUUID in Cleaned_Members.csv
+TTMPC-241,withdrawn-11.26.2015-c,,blank MasterUUID in Cleaned_Members.csv
+,CAÃ‘AL,JOSIE ANN,Normalized_Profiles MasterUUID 4b6e0b83-83ff-43e5-a27a-7584ebee8378: no Supabase member with this name

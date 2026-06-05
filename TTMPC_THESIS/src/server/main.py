@@ -5474,6 +5474,8 @@ async def get_loan_demand_forecast(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Forecast failed: {e}")
 
+    return payload
+
 
 # ---------------------------------------------------------------------------
 # Auth backfill for imported members
@@ -5790,3 +5792,258 @@ async def backfill_member_auth(dry_run: bool = False, limit: int | None = None):
     }
 
     return {"success": True, "data": payload}
+
+
+# =============================================================================
+# Legacy Member Link (coop validation UI)
+# =============================================================================
+# The pre-migration data ("legacy") uses a different ID system: every member
+# had a MasterUUID, every loan had a LoanID. We pulled those into Supabase
+# but a handful of MasterUUIDs could NOT be auto-mapped to a Supabase member
+# (name not in Normalized_Profiles, or blank in Cleaned_Members.csv). These
+# endpoints power the bookkeeper-side screen that lets the coop manually pick
+# the correct Supabase member for each pending MasterUUID, or mark it as
+# having no legacy history.
+
+import csv as _csv
+from pathlib import Path as _Path
+
+_MIGRATION_DIR = _Path(__file__).resolve().parent / "migration"
+_REPO_ROOT = _Path(__file__).resolve().parent.parent.parent
+_NORMALIZED_PROFILES = _REPO_ROOT / "src" / "server" / "migration" / "Normalized_Profiles.csv"
+_CLEANED_MEMBERS = _MIGRATION_DIR / "Cleaned_Members.csv"
+_MATRIX_CSV = _REPO_ROOT / "src" / "analytics" / "RISK Assesment" / "TTMPC_Credit_Risk" / "Master_Analytical_Matrix.csv"
+
+
+def _read_csv_resilient(path: _Path) -> list[dict]:
+    """Read a CSV that may have been re-saved by Excel in cp1252."""
+    if not path.exists():
+        return []
+    try:
+        with path.open("r", encoding="utf-8-sig", newline="") as fh:
+            return list(_csv.DictReader(fh))
+    except UnicodeDecodeError:
+        with path.open("r", encoding="cp1252", newline="") as fh:
+            return list(_csv.DictReader(fh))
+
+
+def _load_legacy_member_index() -> dict[str, dict]:
+    """Map MasterUUID -> {name, occupation, address, loan_count} from CSVs."""
+    profiles: dict[str, dict] = {}
+    for row in _read_csv_resilient(_NORMALIZED_PROFILES):
+        mu = (row.get("membership_number_id") or "").strip()
+        if not mu:
+            continue
+        profiles[mu] = {
+            "master_uuid": mu,
+            "last_name": (row.get("LastName") or "").strip(),
+            "first_name": (row.get("FirstName") or "").strip(),
+            "middle_name": (row.get("MiddleName") or "").strip(),
+            "occupation": (row.get("Occupation") or "").strip(),
+            "address": (row.get("Address") or "").strip(),
+            "civil_status": (row.get("CivilStatus") or "").strip(),
+            "date_of_birth": (row.get("DateOfBirth") or "").strip(),
+            "loan_count": 0,
+        }
+
+    for row in _read_csv_resilient(_MATRIX_CSV):
+        mu = (row.get("MasterUUID") or "").strip()
+        if mu and mu in profiles:
+            profiles[mu]["loan_count"] += 1
+
+    return profiles
+
+
+def _load_resolved_master_uuids() -> set[str]:
+    """MasterUUIDs already wired into Supabase via Cleaned_Members.csv."""
+    resolved: set[str] = set()
+    for row in _read_csv_resilient(_CLEANED_MEMBERS):
+        mu = (row.get("MasterUUID") or "").strip()
+        if mu:
+            resolved.add(mu)
+    return resolved
+
+
+@app.get("/api/admin/unlinked-legacy-members")
+async def list_unlinked_legacy_members():
+    """List MasterUUIDs from legacy data that are NOT yet bridged to a
+    Supabase member, AND have not been resolved through the
+    legacy_member_link validation table.
+
+    Each entry includes legacy-side info (name, occupation, address,
+    loan count) so the coop can identify who the member is.
+    """
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+
+    profiles = _load_legacy_member_index()
+    resolved_via_bridge = _load_resolved_master_uuids()
+
+    # MasterUUIDs already validated via legacy_member_link (either linked or
+    # marked as having no history) should NOT be shown again.
+    try:
+        link_resp = (
+            supabase.table("legacy_member_link")
+            .select("legacy_master_uuid")
+            .execute()
+        )
+        resolved_via_link = {
+            (r.get("legacy_master_uuid") or "").strip()
+            for r in (link_resp.data or [])
+        }
+    except Exception as err:
+        # Table may not exist yet; treat as empty rather than 500.
+        resolved_via_link = set()
+
+    pending = [
+        info for mu, info in profiles.items()
+        if mu not in resolved_via_bridge and mu not in resolved_via_link
+    ]
+    pending.sort(key=lambda r: (r["last_name"].upper(), r["first_name"].upper()))
+
+    return {"success": True, "data": {"pending": pending, "count": len(pending)}}
+
+
+@app.get("/api/admin/legacy-member-link/candidates")
+async def suggest_member_candidates(q: str = "", limit: int = 20):
+    """Search Supabase members by name for the dropdown picker."""
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+
+    query = (
+        supabase.table("member")
+        .select("id, membership_id, last_name, first_name, middle_name")
+        .order("last_name")
+        .limit(max(1, min(int(limit or 20), 100)))
+    )
+    needle = (q or "").strip()
+    if needle:
+        # Postgres ilike — Supabase chains .or_ for OR across columns.
+        pattern = f"%{needle}%"
+        query = query.or_(
+            f"last_name.ilike.{pattern},first_name.ilike.{pattern},membership_id.ilike.{pattern}"
+        )
+
+    try:
+        resp = query.execute()
+    except Exception as err:
+        raise HTTPException(status_code=500, detail=f"Member search failed: {err}")
+
+    return {"success": True, "data": resp.data or []}
+
+
+class _LinkLegacyMemberPayload(BaseModel):
+    legacy_master_uuid: str
+    member_id: str
+    confirmed_by: str | None = None
+    notes: str | None = None
+
+
+@app.post("/api/admin/legacy-member-link/confirm")
+async def confirm_legacy_member_link(payload: _LinkLegacyMemberPayload):
+    """Coop confirms: this legacy MasterUUID belongs to this Supabase member.
+
+    Inserts into legacy_member_link, then re-links any loans + payments
+    in Supabase that still carry that MasterUUID to the correct member_id.
+    """
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+
+    legacy_uuid = payload.legacy_master_uuid.strip()
+    member_id = payload.member_id.strip()
+    if not legacy_uuid or not member_id:
+        raise HTTPException(status_code=400, detail="legacy_master_uuid and member_id are required.")
+
+    try:
+        supabase.table("legacy_member_link").upsert({
+            "legacy_master_uuid": legacy_uuid,
+            "member_id": member_id,
+            "marked_no_history": False,
+            "confirmed_by": payload.confirmed_by,
+            "notes": payload.notes,
+        }).execute()
+    except Exception as err:
+        raise HTTPException(status_code=500, detail=f"Failed to record link: {err}")
+
+    # Re-link loans whose raw_payload.legacy_loan_uuid points to a loan
+    # owned by this MasterUUID (per Master_Analytical_Matrix).
+    loan_uuids_for_master: set[str] = set()
+    for row in _read_csv_resilient(_MATRIX_CSV):
+        if (row.get("MasterUUID") or "").strip() == legacy_uuid:
+            lid = (row.get("LoanID") or "").strip()
+            if lid:
+                loan_uuids_for_master.add(lid)
+
+    loans_updated = 0
+    if loan_uuids_for_master:
+        try:
+            loans_resp = (
+                supabase.table("loans")
+                .select("control_number, raw_payload")
+                .filter("raw_payload->>legacy", "eq", "true")
+                .execute()
+            )
+            for row in (loans_resp.data or []):
+                rp = row.get("raw_payload") or {}
+                if isinstance(rp, dict) and rp.get("legacy_loan_uuid") in loan_uuids_for_master:
+                    supabase.table("loans").update({"member_id": member_id}).eq(
+                        "control_number", row["control_number"]
+                    ).execute()
+                    loans_updated += 1
+        except Exception as err:
+            raise HTTPException(status_code=500, detail=f"Loan relink failed: {err}")
+
+    # Re-link legacy payments by legacy_member_uuid.
+    try:
+        payments_resp = (
+            supabase.table("loan_payments_legacy")
+            .update({"member_id": member_id})
+            .eq("legacy_member_uuid", legacy_uuid)
+            .execute()
+        )
+        payments_updated = len(payments_resp.data or [])
+    except Exception as err:
+        raise HTTPException(status_code=500, detail=f"Payment relink failed: {err}")
+
+    return {
+        "success": True,
+        "data": {
+            "legacy_master_uuid": legacy_uuid,
+            "member_id": member_id,
+            "loans_relinked": loans_updated,
+            "payments_relinked": payments_updated,
+        },
+    }
+
+
+class _NoHistoryPayload(BaseModel):
+    legacy_master_uuid: str
+    confirmed_by: str | None = None
+    notes: str | None = None
+
+
+@app.post("/api/admin/legacy-member-link/no-history")
+async def mark_legacy_member_no_history(payload: _NoHistoryPayload):
+    """Coop confirms: this legacy MasterUUID has no real legacy history
+    (withdrawn placeholder, or new member only). Removes it from the
+    pending list without linking to any Supabase member.
+    """
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+
+    legacy_uuid = payload.legacy_master_uuid.strip()
+    if not legacy_uuid:
+        raise HTTPException(status_code=400, detail="legacy_master_uuid is required.")
+
+    try:
+        supabase.table("legacy_member_link").upsert({
+            "legacy_master_uuid": legacy_uuid,
+            "member_id": None,
+            "marked_no_history": True,
+            "confirmed_by": payload.confirmed_by,
+            "notes": payload.notes,
+        }).execute()
+    except Exception as err:
+        raise HTTPException(status_code=500, detail=f"Failed to mark no-history: {err}")
+
+    return {"success": True, "data": {"legacy_master_uuid": legacy_uuid}}

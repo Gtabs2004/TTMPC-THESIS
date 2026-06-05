@@ -10,6 +10,7 @@ import Dashboard from "./Bookkeeper/Components/bookkeeperDashboard";
 import Records from "./Bookkeeper/Components/Member-Records";
 import BookkeeperAccounting from "./Bookkeeper/Components/Accounting";
 import AuditTrail from "./Bookkeeper/Components/Audit-Trail";
+import LegacyMemberLink from "./Bookkeeper/Components/Legacy-Member-Link";
 import LoanApplication from "./Bookkeeper/Components/Loan-Application";
 import MIGS from "./Bookkeeper/Components/MIGS";
 import BookkeeperPayments from "./Bookkeeper/Components/Payments";
@@ -91,6 +92,7 @@ export const router = createBrowserRouter([
     {path: "/records", element: <Records/>},
     {path: "/accounting", element: <BookkeeperAccounting/>},
     {path: "/audit-trail", element: <AuditTrail/>},
+    {path: "/legacy-member-validation", element: <LegacyMemberLink/>},
     {path: "/loan-application", element: <LoanApplication/>},
     {path: "/bookkeeper-loan-approval", element: <BookkeeperLoanApproval/>},
     {path: "/bookkeeper-loan-ledger/:loanId", element: <LoanLedger/>},
