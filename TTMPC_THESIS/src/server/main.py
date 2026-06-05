@@ -2601,6 +2601,25 @@ async def get_personal_datasheet_records():
             except Exception:
                 email_by_membership = {}
 
+        # Final fallback: member_account.email. For migrated members who never
+        # had a PDS email or an application row (the 22 TTMPC-272..293 batch),
+        # the placeholder `ttmpc-XXX@ttmpc.local` lives only in member_account.
+        if membership_ids:
+            try:
+                account_response = (
+                    supabase.table("member_account")
+                    .select("membership_id,email")
+                    .in_("membership_id", membership_ids)
+                    .execute()
+                )
+                for acc_row in account_response.data or []:
+                    membership_id = str(acc_row.get("membership_id") or "").strip()
+                    email_value = str(acc_row.get("email") or "").strip()
+                    if membership_id and email_value and membership_id not in email_by_membership:
+                        email_by_membership[membership_id] = email_value
+            except Exception:
+                pass
+
         normalized = []
         for idx, row in enumerate(rows, start=1):
             first = row.get("first_name") or ""
