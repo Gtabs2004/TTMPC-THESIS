@@ -1,8 +1,10 @@
 -- Member Statement of Account view
--- Sources strictly from the actual data:
---   * loan_payments  -> amount_paid (principal portion), penalties, deficiency, references
---   * loans          -> member_id, principal_amount, total_interest (for ratio + running balance)
---   * loan_schedules -> optional fallback for per-installment interest split (when populated)
+-- Sources:
+--   * loan_payments         -> live cashier/bookkeeper workflow (validated rows only)
+--   * loan_payments_legacy  -> historical payments imported from Normalized_Payments.csv
+--                              (treated as already-validated; no penalty/deficiency on file)
+--   * loans                 -> member_id, principal_amount, total_interest
+--   * loan_schedules        -> optional per-installment interest split (live payments only)
 --
 -- Data-model notes from the bookkeeper -> manager -> treasurer -> cashier -> bookkeeper flow:
 --   * Cashier inserts loan_payments with status 'pending_bookkeeper'.
@@ -10,6 +12,7 @@
 --   * Per the loan_payment_ledger trigger, only 'validated' rows reduce the loan's balance.
 --   * Interest is NOT recorded per payment; it only exists at the loan level as total_interest.
 --     We apportion it pro-rata: interest_paid = amount_paid * total_interest / principal_amount.
+--   * Legacy rows are pre-validated history; penalty/deficiency default to 0.
 
 BEGIN;
 
@@ -35,6 +38,27 @@ WITH validated AS (
     JOIN public.loans l           ON l.control_number = p.loan_id
     LEFT JOIN public.loan_schedules s ON s.id = p.schedule_id
     WHERE lower(coalesce(p.confirmation_status, '')) = 'validated'
+
+    UNION ALL
+
+    SELECT
+        lp.id                   AS payment_id,
+        lp.loan_id              AS control_number,
+        l.member_id             AS member_id,
+        lp.payment_date         AS payment_date,
+        COALESCE(
+            NULLIF(lp.or_cdv_no, ''),
+            NULLIF(lp.payment_code, ''),
+            lp.id::text
+        )                       AS reference_id,
+        lp.amount_paid::numeric(14,2)        AS amount_paid,
+        0::numeric(14,2)                     AS penalty,
+        0::numeric(14,2)                     AS deficiency,
+        COALESCE(l.principal_amount, l.loan_amount, 0)::numeric(14,2) AS loan_principal,
+        COALESCE(l.total_interest, 0)::numeric(14,2)                  AS loan_interest,
+        NULL::numeric                        AS schedule_interest
+    FROM public.loan_payments_legacy lp
+    JOIN public.loans l ON l.control_number = lp.loan_id
 ),
 with_running AS (
     SELECT

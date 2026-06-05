@@ -18,10 +18,13 @@ import {
   Coins,
   Eye,
   Briefcase,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import logo from "../../assets/img/ttmpc logo.png";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
+const ITEMS_PER_PAGE = 25;
 
 const formatCurrency = (value) =>
   new Intl.NumberFormat("en-PH", {
@@ -58,6 +61,7 @@ const ManageLoans = () => {
   const [memberTypeFilter, setMemberTypeFilter] = useState("all");
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
 
   const menuItems = [
     { name: "Dashboard", icon: LayoutDashboard },
@@ -154,10 +158,23 @@ const ManageLoans = () => {
   }
 
   useEffect(() => {
+    // One-shot fetch on mount. The 10s polling interval was removed because it
+    // re-parsed the full 500+ loan payload (with each loan's payment_history)
+    // and caused the page to crash on dataset sizes around 587 rows. The
+    // Refresh button in the header is the manual reload path.
     fetchApprovedLoans();
-    const intervalId = window.setInterval(fetchApprovedLoans, 10000);
-    return () => window.clearInterval(intervalId);
   }, []);
+
+  // Reset to page 1 whenever the result set the user is paging through changes.
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, activeTab, loanTypeFilter, memberTypeFilter, loans.length]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredLoans.length / ITEMS_PER_PAGE));
+  const paginatedLoans = useMemo(() => {
+    const start = (currentPage - 1) * ITEMS_PER_PAGE;
+    return filteredLoans.slice(start, start + ITEMS_PER_PAGE);
+  }, [filteredLoans, currentPage]);
 
   const handleSignOut = async (event) => {
     event.preventDefault();
@@ -406,7 +423,7 @@ const ManageLoans = () => {
                   </tr>
                 )}
 
-                {filteredLoans.map((loan, index) => {
+                {paginatedLoans.map((loan, index) => {
                   return (
                     <tr key={loan.loan_id} className="table-row-enter hover:bg-green-50 transition-colors duration-200">
                       <td className="px-6 py-4 text-sm font-mono font-bold text-green-700">{loan.loan_id}</td>
@@ -440,6 +457,44 @@ const ManageLoans = () => {
               </tbody>
             </table>
           </div>
+
+          {filteredLoans.length > ITEMS_PER_PAGE && (
+            <div className="flex items-center justify-center p-6 gap-2 border-t border-gray-100">
+              <button
+                className="w-8 h-8 flex items-center justify-center rounded-full border border-gray-300 bg-white text-gray-500 transition-colors hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={currentPage <= 1}
+                onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+
+              {(() => {
+                const groupStart = Math.floor((currentPage - 1) / 5) * 5 + 1;
+                const groupEnd = Math.min(groupStart + 4, totalPages);
+                return Array.from({ length: groupEnd - groupStart + 1 }, (_, i) => groupStart + i).map((page) => (
+                  <button
+                    key={page}
+                    onClick={() => setCurrentPage(page)}
+                    className={`w-8 h-8 flex items-center justify-center rounded-full border text-xs font-semibold transition-colors ${
+                      page === currentPage
+                        ? "bg-[#16A34A] text-white border-[#16A34A]"
+                        : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"
+                    }`}
+                  >
+                    {page}
+                  </button>
+                ));
+              })()}
+
+              <button
+                className="w-8 h-8 flex items-center justify-center rounded-full border border-gray-300 bg-white text-gray-500 transition-colors hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={currentPage >= totalPages}
+                onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+          )}
         </main>
       </div>
     </div>

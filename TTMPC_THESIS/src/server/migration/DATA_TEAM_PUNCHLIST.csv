@@ -1,0 +1,50 @@
+MemberID,LastName_in_CSV,FirstName_in_CSV,Issue,Action
+TTMPC-008,BRAZA,MELANIE,blank MasterUUID,Add MasterUUID from legacy records
+TTMPC-009,BUSTILLO,ROBERTO JR.,blank MasterUUID (legacy has typo: ROBERT JR.),Add MasterUUID 958d4dab-23c0-4a85-938d-511fdf64a07b
+TTMPC-020,CAMINCE,HAZEL CRIS,blank MasterUUID,Add MasterUUID from legacy records
+TTMPC-023,CAMIRING,CHERY JEAN,blank MasterUUID,Add MasterUUID from legacy records
+TTMPC-027,CASTOR,DHEL,blank MasterUUID,Add MasterUUID from legacy records
+TTMPC-029,CELDA,GLENDA RAE,blank MasterUUID,Add MasterUUID from legacy records
+TTMPC-030,TABAO,CLEA ,blank MasterUUID + reversed name,Split name (LastName=TABAO FirstName=CLEA) and add MasterUUID
+TTMPC-033,Zaragosa,Delfa,blank MasterUUID + reversed name,Split name (LastName=ZARAGOSA FirstName=DELFA) and add MasterUUID
+TTMPC-034,DELOS SANTOS, JANICE,blank MasterUUID + name in one cell,Split name (LastName=DELOS SANTOS FirstName=JANICE) and add MasterUUID
+TTMPC-037,Villa,Donna,blank MasterUUID + reversed name,Split name (LastName=VILLA FirstName=DONNA) and add MasterUUID
+TTMPC-039,DUEÑAS,MARIA FRANCIFEL,blank MasterUUID,Add MasterUUID from legacy records
+TTMPC-044,Vargas,Ellen,blank MasterUUID + reversed name,Split name (LastName=VARGAS FirstName=ELLEN) and add MasterUUID
+TTMPC-047,ESTOMO,MITCHELLE,blank MasterUUID,Add MasterUUID from legacy records
+TTMPC-052,TABAOSARES,FRANCES FRITZIE,blank MasterUUID + unclear name,Verify proper name and add MasterUUID
+TTMPC-053,TALHA,FRANKLIN,blank MasterUUID + reversed name,Split name (LastName=TALHA FirstName=FRANKLIN) and add MasterUUID
+TTMPC-058,GARGARITANO,VICENTE JR.,blank MasterUUID,Add MasterUUID 1328b9e8-a204-4b0e-86a6-9bc69ab53992
+TTMPC-065,GICO,IRISH KAY,blank MasterUUID,Add MasterUUID from legacy records
+TTMPC-076,LLASO,KARREN,blank MasterUUID,Add MasterUUID from legacy records
+TTMPC-077,LONQUINO,ANNABELLE,blank MasterUUID (legacy has typo: ANABELLE),Add MasterUUID 4775bb38-4314-458b-bda0-4b0c7d30c372
+TTMPC-078,GALLEGO,LOU FRANCES,blank MasterUUID + reversed name,Split name (LastName=GALLEGO FirstName=LOU FRANCES) and add MasterUUID
+TTMPC-080,MADERAL,ARNEL,blank MasterUUID,Add MasterUUID from legacy records
+TTMPC-082,MALAGA,MA. ANDELEN,blank MasterUUID,Add MasterUUID from legacy records
+TTMPC-084,MEDECINIO,MAY JOY CATHERINE,blank MasterUUID,Add MasterUUID from legacy records
+TTMPC-086,MEMPIN,MARY HOPE,blank MasterUUID,Add MasterUUID from legacy records
+TTMPC-087,MEMPIN,MINDA CELIA,blank MasterUUID (legacy has: MA. MINDA CELIA),Add MasterUUID c9494487-01f8-409d-9267-f68757162c78
+TTMPC-088,MESTOSAMENTE,MARICEL,blank MasterUUID,Add MasterUUID from legacy records
+TTMPC-090,NENIAL ,ARMIE,blank MasterUUID + reversed name,Split name (LastName=NENIAL FirstName=ARMIE) and add MasterUUID
+TTMPC-094,PADILLA,MARY IVY,blank MasterUUID,Add MasterUUID from legacy records
+TTMPC-098,TACUBAY,RECHELLE,blank MasterUUID + reversed name,Split name (LastName=TACUBAY FirstName=RECHELLE) and add MasterUUID
+TTMPC-100,TACADAO,ROSALIA ,blank MasterUUID + reversed name,Split name (LastName=TACADAO FirstName=ROSALIA) and add MasterUUID
+TTMPC-101,SEASOL,RUFINA,blank MasterUUID + reversed name,Split name (LastName=SEASOL FirstName=RUFINA) and add MasterUUID
+TTMPC-103,SALIBIO,ARNOLFO,blank MasterUUID,Add MasterUUID from legacy records
+TTMPC-104,SILGUERA,JOAN,blank MasterUUID,Add MasterUUID from legacy records
+TTMPC-110,TA-ALA,JOSIE ANN,blank MasterUUID,Add MasterUUID from legacy records
+TTMPC-130,TABASA,MILAGROSA,blank MasterUUID,Add MasterUUID from legacy records
+TTMPC-146,TABUADA,AZRIEL JOY,blank MasterUUID,Add MasterUUID from legacy records
+TTMPC-157,tacaisan,chrisyl,blank MasterUUID + lowercase,Fix casing and add MasterUUID
+TTMPC-168,TACSAGON,MLR,blank MasterUUID,Add MasterUUID from legacy records
+TTMPC-179,TADIA,RICHEL,blank MasterUUID,Add MasterUUID from legacy records
+TTMPC-180,TADIAQUE,JANINE ROSS,blank MasterUUID,Add MasterUUID from legacy records
+TTMPC-185,TAGACAY,JAY R,blank MasterUUID,Add MasterUUID from legacy records
+TTMPC-191,TAGHAP,SHELLA MAY,blank MasterUUID,Add MasterUUID from legacy records
+TTMPC-198,TAGUDINAY,RODELYN,blank MasterUUID,Add MasterUUID from legacy records
+TTMPC-217,TAMISES,EUGENIO JR.,blank MasterUUID,Add MasterUUID from legacy records
+TTMPC-232,TERRE,KARREN,blank MasterUUID,Add MasterUUID from legacy records
+TTMPC-235,TONDING,AILEEN,blank MasterUUID,Add MasterUUID from legacy records
+TTMPC-239,withdrawan-8.25.2015-a,,placeholder for withdrawn member,Confirm if real member or delete row
+TTMPC-240,withdrawn-11.26.2015-b,,placeholder for withdrawn member,Confirm if real member or delete row
+TTMPC-241,withdrawn-11.26.2015-c,,placeholder for withdrawn member,Confirm if real member or delete row

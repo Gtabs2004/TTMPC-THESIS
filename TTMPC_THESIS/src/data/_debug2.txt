@@ -1,0 +1,5 @@
+Norm entry: ('DUEÃNAS', 'KARL DENIS') uuid=8d8fc564-00b8-419a-8cd3-29ea7b537632
+Norm entry: ('DUEÃNAS', 'MARIA FRANCIFEL') uuid=7b4c1fa5-4ad6-4d6b-8cd1-5d7fa04c56d9
+Punch  key: ('DUENAS', 'MARIA FRANCIFEL')
+Match? False
+Keys with DUE: [('DUEÃNAS', 'KARL DENIS'), ('DUEÃNAS', 'MARIA FRANCIFEL')]

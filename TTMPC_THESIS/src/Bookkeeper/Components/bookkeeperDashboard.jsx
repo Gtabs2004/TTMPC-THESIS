@@ -101,6 +101,7 @@ const Dashboard = () => {
     { name: "Reports", icon: BarChart3 },
     { name: "Audit Trail", icon: History },
     { name: "Grocery", icon: Coins },
+    { name: "Legacy Member Validation", icon: Search },
   ];
 
   const routeMap = {
@@ -115,6 +116,7 @@ const Dashboard = () => {
     Reports: "/reports",
     "Audit Trail": "/audit-trail",
     Grocery: "/grocery",
+    "Legacy Member Validation": "/legacy-member-validation",
   };
 
   const handleSignOut = async (e) => {

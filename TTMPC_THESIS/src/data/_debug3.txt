@@ -1,0 +1,4 @@
+raw ln='DUEÃNAS' fn='KARL DENNIS' -> norm('DUEANAS', 'KARL DENNIS')
+raw ln='DUEÃNAS' fn='MA. FRANCIFEL' -> norm('DUEANAS', 'MARIA FRANCIFEL')
+---
+punch raw ln='DUEÑAS' fn='MARIA FRANCIFEL' -> norm('DUENAS', 'MARIA FRANCIFEL')

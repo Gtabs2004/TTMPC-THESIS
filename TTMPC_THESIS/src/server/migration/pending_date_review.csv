@@ -1,0 +1,2 @@
+LoanCode,LoanID,MasterUUID,LoanAmount,LoanType,ApplicationDate_raw,LastName,FirstName,reason
+TTMPCL-357,e8b2c713-d1c9-4c79-b657-fdc2376c6b9e,085a7677-d8a3-404e-80d7-14d36e7a1c5f,20000.0,Emergency,0,TABABA,MONA LISA,ApplicationDate invalid; need real date

@@ -43,6 +43,7 @@ const AuditTrail = () => {
     { name: "Reports", icon: BarChart3 },
     { name: "Audit Trail", icon: History },
     { name: "Grocery", icon: Coins },
+    { name: "Legacy Member Validation", icon: Search },
   ];
 
   const handleSignOut = async (e) => {
@@ -135,6 +136,7 @@ const AuditTrail = () => {
               Reports: "/reports",
               "Audit Trail": "/audit-trail",
               Grocery: "/grocery",
+              "Legacy Member Validation": "/legacy-member-validation",
             };
 
             return menuItems.map((item) => {
