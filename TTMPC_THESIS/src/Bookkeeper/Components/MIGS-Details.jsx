@@ -15,6 +15,9 @@ import {
   ChevronLeft,
   Edit2,
   Download,
+  Briefcase,
+  Wallet,
+  Coins
 } from "lucide-react";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
@@ -33,13 +36,14 @@ const MIGSDetails = () => {
     { name: "Dashboard", icon: LayoutDashboard },
     { name: "Manage Member", icon: Users },
     { name: "Loan Approval", icon: FileText },
-    { name: "Manage Loans", icon: CreditCard },
-    { name: "Payments", icon: CreditCard },
+    { name: "Manage Loans", icon: Briefcase },
+    { name: "Payments", icon: Wallet },
     { name: "Savings Withdrawals", icon: CreditCard },
     { name: "Accounting", icon: Calculator },
     { name: "MIGS Scoring", icon: Activity },
     { name: "Reports", icon: BarChart3 },
     { name: "Audit Trail", icon: History },
+    { name: "Grocery", icon: Coins },
   ];
 
   const routeMap = {

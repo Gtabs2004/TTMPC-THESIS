@@ -1,7 +1,7 @@
 ﻿import React, { useEffect, useMemo, useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
-import { LayoutDashboard, Users, FileText, CreditCard, Calculator, Activity, BarChart3, History, Search, Bell, ChevronLeft, ChevronRight, X } from "lucide-react";
+import { LayoutDashboard, Users, FileText, CreditCard, Calculator, Activity, BarChart3, History, Search, Bell, ChevronLeft, ChevronRight, X, Briefcase, Wallet, Coins } from "lucide-react";
 import { PortalSidebarIdentity, PortalTopbarIdentity } from "../../components/PortalIdentity";
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 const ITEMS_PER_PAGE = 10;
@@ -36,14 +36,14 @@ const Manage_Member = () => {
     { name: "Dashboard", icon: LayoutDashboard },
     { name: "Manage Member", icon: Users },
     { name: "Loan Approval", icon: FileText },
-    { name: "Manage Loans", icon: CreditCard },
-    { name: "Payments", icon: CreditCard },
+    { name: "Manage Loans", icon: Briefcase },
+    { name: "Payments", icon: Wallet },
     { name: "Savings Withdrawals", icon: CreditCard },
     { name: "Accounting", icon: Calculator },
     { name: "MIGS Scoring", icon: Activity },
     { name: "Reports", icon: BarChart3 },
     { name: "Audit Trail", icon: History },
-    { name: "Grocery", icon: CreditCard },
+    { name: "Grocery", icon: Coins },
   ];
 
   const routeMap = {
