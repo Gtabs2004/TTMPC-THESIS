@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+﻿import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
 import { PortalSidebarIdentity, PortalTopbarIdentity } from "../../components/PortalIdentity";
@@ -18,6 +18,9 @@ import {
   TrendingDown,
   Calendar,
   PiggyBank,
+  Briefcase,
+  Wallet,
+  Coins,
 } from "lucide-react";
 import {
   BarChart,
@@ -90,14 +93,14 @@ const Dashboard = () => {
     { name: "Dashboard", icon: LayoutDashboard },
     { name: "Manage Member", icon: Users },
     { name: "Loan Approval", icon: FileText },
-    { name: "Manage Loans", icon: CreditCard },
-    { name: "Payments", icon: CreditCard },
+    { name: "Manage Loans", icon: Briefcase },
+    { name: "Payments", icon: Wallet },
     { name: "Savings Withdrawals", icon: CreditCard },
     { name: "Accounting", icon: Calculator },
     { name: "MIGS Scoring", icon: Activity },
     { name: "Reports", icon: BarChart3 },
     { name: "Audit Trail", icon: History },
-    { name: "Grocery", icon: CreditCard },
+    { name: "Grocery", icon: Coins },
   ];
 
   const routeMap = {

@@ -14,7 +14,8 @@ import {
   Bell,
   ArrowLeft,
   Wallet,
-  
+  Briefcase,
+  Coins
 } from "lucide-react";
 import logo from "../../assets/img/ttmpc logo.png";
 
@@ -46,14 +47,14 @@ const LoanLedger = () => {
     { name: "Dashboard", icon: LayoutDashboard },
     { name: "Manage Member", icon: Users },
     { name: "Loan Approval", icon: FileText },
-    { name: "Manage Loans", icon: CreditCard },
-    { name: "Payments", icon: CreditCard },
+    { name: "Manage Loans", icon: Briefcase },
+    { name: "Payments", icon: Wallet },
     { name: "Savings Withdrawals", icon: CreditCard },
     { name: "Accounting", icon: Calculator },
     { name: "MIGS Scoring", icon: Activity },
     { name: "Reports", icon: BarChart3 },
     { name: "Audit Trail", icon: History },
-    { name: "Grocery", icon: CreditCard },
+    { name: "Grocery", icon: Coins },
   ];
 
   const routeMap = {
