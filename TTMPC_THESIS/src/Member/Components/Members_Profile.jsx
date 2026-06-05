@@ -538,9 +538,13 @@ const Members_Profile = () => {
       const { data: authData } = await supabase.auth.getUser();
       const memberId = resolvedMemberId || authData?.user?.id;
       if (memberId) {
+        // Clear member_account.password (plaintext temp password from
+        // migration backfill) so the stale value can't be recovered after
+        // the member sets their real password. The real credential lives
+        // only in auth.users.encrypted_password from this point on.
         const { error: updateFlagError } = await supabase
           .from(accountTableName)
-          .update({ is_temporary: false })
+          .update({ is_temporary: false, password: null })
           .eq('user_id', memberId);
 
         if (!updateFlagError) {

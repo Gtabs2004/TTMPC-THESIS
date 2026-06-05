@@ -12,7 +12,14 @@ from supabase import create_client, Client
 from dotenv import load_dotenv
 from urllib import request as urlrequest
 from urllib.error import HTTPError, URLError
-from applicationConfirmation import MembershipConfirmationError, confirm_membership, confirm_membership_batch, get_next_membership_id
+from applicationConfirmation import (
+    MembershipConfirmationError,
+    confirm_membership,
+    confirm_membership_batch,
+    get_next_membership_id,
+    _build_default_password,
+    _extract_user_id,
+)
 from pypdf.generic import DecodedStreamObject, DictionaryObject, NameObject
 from risk_model import ModelNotAvailableError, score as risk_score
 from demand_model import (
@@ -5447,5 +5454,320 @@ async def get_loan_demand_forecast(
         raise HTTPException(status_code=503, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Forecast failed: {e}")
+
+
+# ---------------------------------------------------------------------------
+# Auth backfill for imported members
+# ---------------------------------------------------------------------------
+# Members imported via CSV / SQL migration have rows in `member` and
+# `member_account` but no corresponding `auth.users` account, so they cannot
+# sign in. This endpoint scans `member_account` for rows with
+# auth_user_id IS NULL, provisions a Supabase Auth user using the existing
+# `_build_default_password(last_name)` convention (e.g. "Tabiolo1234"), and
+# writes auth_user_id + user_id + password back onto member_account.
+#
+# Email resolution waterfall (first non-empty wins):
+#   1. member_account.email
+#   2. member.email (if column present)
+#   3. personal_data_sheet.email   (joined on membership_number_id)
+#   4. member_applications.email   (joined on membership_id)
+# Members with no resolvable email are returned in `skipped` with reason.
+
+
+def _resolve_member_email(supabase: Client, account_row: dict, member_row: dict | None) -> str:
+    candidate = str(account_row.get("email") or "").strip()
+    if candidate:
+        return candidate.lower()
+
+    if member_row:
+        candidate = str(member_row.get("email") or "").strip()
+        if candidate:
+            return candidate.lower()
+
+    membership_id = str(account_row.get("membership_id") or "").strip()
+    if not membership_id:
+        return ""
+
+    try:
+        pds = (
+            supabase.table("personal_data_sheet")
+            .select("email")
+            .eq("membership_number_id", membership_id)
+            .limit(1)
+            .execute()
+        )
+        pds_row = (pds.data or [None])[0]
+        if pds_row:
+            candidate = str(pds_row.get("email") or "").strip()
+            if candidate:
+                return candidate.lower()
+    except Exception:
+        pass
+
+    try:
+        apps = (
+            supabase.table("member_applications")
+            .select("email")
+            .eq("membership_id", membership_id)
+            .order("created_at", desc=True)
+            .limit(1)
+            .execute()
+        )
+        app_row = (apps.data or [None])[0]
+        if app_row:
+            candidate = str(app_row.get("email") or "").strip()
+            if candidate:
+                return candidate.lower()
+    except Exception:
+        pass
+
+    return ""
+
+
+def _resolve_member_last_name(member_row: dict | None, account_row: dict, supabase: Client) -> str:
+    if member_row:
+        for key in ("surname", "last_name"):
+            value = str(member_row.get(key) or "").strip()
+            if value:
+                return value
+
+    membership_id = str(account_row.get("membership_id") or "").strip()
+    if not membership_id:
+        return ""
+
+    try:
+        pds = (
+            supabase.table("personal_data_sheet")
+            .select("surname,last_name")
+            .eq("membership_number_id", membership_id)
+            .limit(1)
+            .execute()
+        )
+        pds_row = (pds.data or [None])[0]
+        if pds_row:
+            for key in ("surname", "last_name"):
+                value = str(pds_row.get(key) or "").strip()
+                if value:
+                    return value
+    except Exception:
+        pass
+
+    return ""
+
+
+@app.post("/api/admin/backfill-member-auth")
+async def backfill_member_auth(dry_run: bool = False, limit: int | None = None):
+    """Provision auth.users accounts for member_account rows missing one.
+
+    Query params:
+      - dry_run: if true, returns the list of candidates without creating
+        any auth users or writing to member_account.
+      - limit: optional cap on how many rows to process this run.
+    """
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+
+    try:
+        missing_response = (
+            supabase.table("member_account")
+            .select("membership_id,email,role,user_id,auth_user_id")
+            .is_("auth_user_id", "null")
+            .execute()
+        )
+    except Exception as err:
+        raise HTTPException(status_code=500, detail=f"Failed to query member_account: {err}")
+
+    candidates = list(missing_response.data or [])
+    if isinstance(limit, int) and limit > 0:
+        candidates = candidates[:limit]
+
+    # Build the auth.users email → UUID lookup once instead of paging
+    # through every user for each candidate. Repeated pagination per row
+    # triggered connection drops (WinError 10054) on larger directories.
+    existing_auth_by_email: dict[str, str] = {}
+    try:
+        page = 1
+        per_page = 1000
+        while True:
+            users = supabase.auth.admin.list_users(page=page, per_page=per_page)
+            if not users:
+                break
+            for user in users:
+                ue = str(getattr(user, "email", "") or "").strip().lower()
+                if ue:
+                    uid = _extract_user_id(user)
+                    if uid:
+                        existing_auth_by_email[ue] = uid
+            if len(users) < per_page:
+                break
+            page += 1
+    except Exception as err:
+        raise HTTPException(status_code=502, detail=f"Failed to list auth users: {err}")
+
+    created: list[dict[str, Any]] = []
+    already_linked: list[dict[str, Any]] = []
+    skipped: list[dict[str, Any]] = []
+
+    for row in candidates:
+        membership_id = str(row.get("membership_id") or "").strip()
+        if not membership_id:
+            skipped.append({"membership_id": None, "reason": "missing membership_id"})
+            continue
+
+        # Load matching member row for email/last-name fallback.
+        member_row: dict | None = None
+        try:
+            member_response = (
+                supabase.table("member")
+                .select("*")
+                .eq("membership_id", membership_id)
+                .limit(1)
+                .execute()
+            )
+            member_row = (member_response.data or [None])[0]
+        except Exception:
+            member_row = None
+
+        email = _resolve_member_email(supabase, row, member_row)
+        is_placeholder_email = False
+        if not email:
+            # Imported member with no email on file. Generate a deterministic
+            # placeholder so they can sign in immediately with a temporary
+            # password; staff are expected to collect the member's real email
+            # later and update it via the Manage Member screen.
+            placeholder_slug = membership_id.lower().replace(" ", "")
+            email = f"{placeholder_slug}@ttmpc.local"
+            is_placeholder_email = True
+
+        last_name = _resolve_member_last_name(member_row, row, supabase)
+
+        # Check whether an auth.users row already exists for this email (e.g.
+        # account was provisioned earlier through another flow but never
+        # linked back). If found, just link it without creating a new user.
+        existing_user_id: str | None = existing_auth_by_email.get(email)
+
+        if dry_run:
+            (already_linked if existing_user_id else created).append({
+                "membership_id": membership_id,
+                "email": email,
+                "would_link_existing": bool(existing_user_id),
+                "would_reset_password": bool(existing_user_id),
+                "placeholder_email": is_placeholder_email,
+            })
+            continue
+
+        password: str | None = None
+        if existing_user_id:
+            # Orphan auth user already exists (e.g. from a half-finished prior
+            # backfill). We can't delete it — DELETE on auth.users fires a
+            # cleanup trigger that cascades into member/personal_data_sheet
+            # and is blocked by the loans FK. Instead, reset its password to
+            # the known `<LastName>1234` convention so the credentials become
+            # recoverable, then link it.
+            auth_user_id = existing_user_id
+            link_mode = "linked_existing"
+            password = _build_default_password(last_name)
+            try:
+                supabase.auth.admin.update_user_by_id(
+                    auth_user_id,
+                    {
+                        "password": password,
+                        "user_metadata": {
+                            "membership_id": membership_id,
+                            "role": row.get("role") or "Member",
+                        },
+                    },
+                )
+            except Exception as err:
+                skipped.append({
+                    "membership_id": membership_id,
+                    "email": email,
+                    "auth_user_id": auth_user_id,
+                    "reason": f"auth password reset failed: {err}",
+                })
+                continue
+        else:
+            password = _build_default_password(last_name)
+            try:
+                created_user = supabase.auth.admin.create_user(
+                    {
+                        "email": email,
+                        "password": password,
+                        "email_confirm": True,
+                        "user_metadata": {
+                            "membership_id": membership_id,
+                            "role": row.get("role") or "Member",
+                        },
+                    }
+                )
+            except Exception as err:
+                skipped.append({
+                    "membership_id": membership_id,
+                    "email": email,
+                    "reason": f"auth create failed: {err}",
+                })
+                continue
+
+            auth_user_id = _extract_user_id(getattr(created_user, "user", None))
+            if not auth_user_id:
+                skipped.append({
+                    "membership_id": membership_id,
+                    "email": email,
+                    "reason": "auth user created but no id returned",
+                })
+                continue
+            link_mode = "created"
+
+        update_payload: dict[str, Any] = {
+            "auth_user_id": auth_user_id,
+            "email": email,
+            "is_temporary": True,
+        }
+        # Only set user_id when we created a brand-new auth user (in that
+        # case the new auth UUID is also intended to become the member-row
+        # link). When linking an existing orphan, leave user_id alone — it
+        # already points at the correct member.id and overwriting could
+        # break the FK to public.member.
+        if link_mode == "created":
+            update_payload["user_id"] = auth_user_id
+        if password:
+            update_payload["password"] = password
+
+        try:
+            supabase.table("member_account").update(update_payload).eq(
+                "membership_id", membership_id
+            ).execute()
+        except Exception as err:
+            skipped.append({
+                "membership_id": membership_id,
+                "email": email,
+                "auth_user_id": auth_user_id,
+                "reason": f"member_account update failed: {err}",
+            })
+            continue
+
+        record = {
+            "membership_id": membership_id,
+            "email": email,
+            "auth_user_id": auth_user_id,
+            "mode": link_mode,
+            "placeholder_email": is_placeholder_email,
+        }
+        if password:
+            record["temporary_password"] = password
+        (already_linked if link_mode == "linked_existing" else created).append(record)
+
+    return {
+        "success": True,
+        "dry_run": dry_run,
+        "total_missing": len(missing_response.data or []),
+        "processed": len(candidates),
+        "created_count": len(created),
+        "linked_existing_count": len(already_linked),
+        "skipped_count": len(skipped),
+        "created": created,
+        "linked_existing": already_linked,
+        "skipped": skipped,
+    }
 
     return {"success": True, "data": payload}
