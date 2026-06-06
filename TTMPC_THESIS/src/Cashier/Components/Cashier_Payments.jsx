@@ -9,6 +9,7 @@ import {
   Bell,
   Banknote,
   ChevronDown,
+  ChevronLeft,
   ChevronRight,
   ArrowUpDown,
   X,
@@ -21,6 +22,7 @@ import {
 import logo from "../../assets/img/ttmpc logo.png"; // Adjust path to logo if needed
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
+const PAGE_SIZE = 10;
 
 const MOCK_LOANS = [
   {
@@ -216,6 +218,7 @@ const Cashier_Payments = () => {
   const [statusFilter, setStatusFilter] = useState("all");
   const [sortConfig, setSortConfig] = useState({ key: "due_date", direction: "asc" });
   const [showFilters, setShowFilters] = useState(false);
+  const [page, setPage] = useState(1);
 
   // Derived data: filtered and sorted loans
   const filteredAndSortedLoans = useMemo(() => {
@@ -267,6 +270,14 @@ const Cashier_Payments = () => {
       direction: prevConfig.key === key && prevConfig.direction === "asc" ? "desc" : "asc",
     }));
   };
+
+  const totalPages = Math.max(1, Math.ceil(filteredAndSortedLoans.length / PAGE_SIZE));
+  const paginatedLoans = useMemo(() => {
+    const start = (page - 1) * PAGE_SIZE;
+    return filteredAndSortedLoans.slice(start, start + PAGE_SIZE);
+  }, [filteredAndSortedLoans, page]);
+
+  useEffect(() => setPage(1), [searchTerm, statusFilter, sortConfig]);
 
   const menuItems = [
     { name: "Dashboard", icon: LayoutDashboard, path: "/Cashier_Dashboard" },
@@ -444,86 +455,88 @@ const Cashier_Payments = () => {
   return (
     <div className="flex min-h-screen bg-gray-100">
       {/* 1. THE SIDEBAR */}
-      <aside className="bg-white w-64 p-4 flex flex-col border-r border-gray-200 shrink-0">
-        <div className="flex flex-row items-start gap-2 mb-6">
-          <img src={logo} alt="Logo" className="h-12 w-auto" />
-          <div className="flex flex-col">
-            <h1 className="text-xl font-bold text-[#389734]">TTMPC</h1>
-            <p className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold">
-              Cashier Portal
-            </p>
-          </div>
-        </div>
-
-        <hr className="w-full border-gray-200 mb-6" />
-
-        <nav className="flex flex-col gap-2 text-sm grow">
-          {menuItems.map((item) => {
-            const Icon = item.icon;
-
-            if (item.isDropdown) {
-              return (
-                <div key={item.name} className="flex flex-col">
-                  <button
-                    onClick={() => setIsDepositsOpen(!isDepositsOpen)}
-                    className="flex items-center justify-between p-2 rounded-md text-gray-700 hover:bg-green-50 hover:text-[#5CBA47] transition-colors w-full"
-                  >
-                    <div className="flex items-center gap-3">
-                      <Icon size={20} />
-                      <span className="font-medium">{item.name}</span>
-                    </div>
-                    {isDepositsOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-                  </button>
-
-                  {isDepositsOpen && (
-                    <div className="flex flex-col mt-1 space-y-1">
-                      {item.subItems.map((subItem) => (
-                        <NavLink
-                          key={subItem.name}
-                          to={subItem.path}
-                          className={({ isActive }) =>
-                            `block pl-11 pr-4 py-2 rounded-md transition-colors ${
-                              isActive
-                                ? 'text-[#5CBA47] font-semibold'
-                                : 'text-gray-500 hover:text-[#5CBA47] hover:bg-green-50'
-                            }`
-                          }
-                        >
-                          {subItem.name}
-                        </NavLink>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              );
-            }
-
-            return (
-              <NavLink
-                key={item.name}
-                to={item.path}
-                className={({ isActive }) =>
-                  `flex items-center gap-3 p-2 rounded-md transition-colors ${
-                    isActive
-                      ? 'bg-green-50 text-[#5CBA47] font-semibold'
-                      : 'text-gray-700 hover:bg-green-50 hover:text-[#5CBA47]'
-                  }`
-                }
-              >
-                <Icon size={20} />
-                <span className="font-medium">{item.name}</span>
-              </NavLink>
-            );
-          })}
-        </nav>
-
-        <button
-          onClick={handleSignOut}
-          className="mt-auto w-full rounded p-2 text-xs bg-green-600 hover:bg-green-700 text-white font-bold transition-colors"
-        >
-          Sign out
-        </button>
-      </aside>
+         <aside className="bg-white w-64 p-4 flex flex-col border-r border-gray-200">
+             <div className="flex flex-row items-start gap-2 mb-6">
+               <img src={logo} alt="Logo" className="h-12 w-auto" />
+               <div className="flex flex-col">
+                 <h1 className="text-xl font-bold text-[#389734]">TTMPC</h1>
+                 <PortalSidebarIdentity
+                   className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold"
+                   fallbackPortal="Cashier Portal"
+                   fallbackRole="Cashier"
+                 />
+               </div>
+             </div>
+     
+             <hr className="w-full border-gray-200 mb-6" />
+     
+             <nav className="flex flex-col gap-2 text-sm grow">
+               {menuItems.map((item) => {
+                 const Icon = item.icon;
+     
+                 if (item.isDropdown) {
+                   return (
+                     <div key={item.name} className="flex flex-col">
+                       <button
+                         onClick={() => setIsDepositsOpen(!isDepositsOpen)}
+                         className="flex items-center justify-between p-2 rounded-md text-gray-700 hover:bg-green-50 hover:text-green-700 transition-colors w-full"
+                       >
+                         <div className="flex items-center gap-3">
+                           <Icon size={20} />
+                           <span>{item.name}</span>
+                         </div>
+                         {isDepositsOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                       </button>
+     
+                       {isDepositsOpen && (
+                         <div className="flex flex-col mt-1 space-y-1">
+                           {item.subItems.map((subItem) => (
+                             <NavLink
+                               key={subItem.name}
+                               to={subItem.path}
+                               className={({ isActive }) =>
+                                 `block pl-11 pr-4 py-2 rounded-md transition-colors ${
+                                   isActive
+                                     ? "text-green-700 font-semibold"
+                                     : "text-gray-500 hover:text-green-700 hover:bg-green-50"
+                                 }`
+                               }
+                             >
+                               {subItem.name}
+                             </NavLink>
+                           ))}
+                         </div>
+                       )}
+                     </div>
+                   );
+                 }
+     
+                 return (
+                   <NavLink
+                     key={item.name}
+                     to={item.path}
+                     className={({ isActive }) =>
+                       `flex items-center gap-3 p-2 rounded-md transition-colors ${
+                         isActive
+                           ? "bg-green-50 text-green-700 font-semibold"
+                           : "text-gray-700 hover:bg-green-50 hover:text-green-700"
+                       }`
+                     }
+                   >
+                     <Icon size={20} />
+                     <span>{item.name}</span>
+                   </NavLink>
+                 );
+               })}
+             </nav>
+     
+             <button
+               onClick={handleSignOut}
+               className="mt-auto w-full rounded p-2 text-xs bg-green-600 hover:bg-green-700 text-white font-bold transition-colors"
+             >
+               Sign out
+             </button>
+           </aside>
 
       {/* 2. THE MAIN AREA (HEADER + PAGE CONTENT) */}
       <div className="flex-1 flex flex-col min-w-0">
@@ -699,7 +712,7 @@ const Cashier_Payments = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {filteredAndSortedLoans.length === 0 ? (
+                  {paginatedLoans.length === 0 ? (
                     <tr>
                       <td colSpan={9} className="px-6 py-12 text-center">
                         <div className="flex flex-col items-center gap-2">
@@ -711,7 +724,7 @@ const Cashier_Payments = () => {
                       </td>
                     </tr>
                   ) : (
-                    filteredAndSortedLoans.map((loan) => (
+                    paginatedLoans.map((loan) => (
                       <tr key={loan.loan_id} className="table-row-enter hover:bg-green-50 transition">
                         <td className="px-6 py-4 text-sm font-medium text-gray-900">
                           {loan.member_name}
@@ -783,6 +796,8 @@ const Cashier_Payments = () => {
                   )}
                 </tbody>
               </table>
+
+              <Pagination page={page} totalPages={totalPages} onChange={setPage} />
             </div>
           </div>
 
@@ -956,114 +971,49 @@ const Cashier_Payments = () => {
               </div>
             </div>
           )}
-
-          {/* Payment Records Table */}
-          <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
-            <div className="border-b border-gray-200 bg-linear-to-r from-gray-50 to-gray-100 px-6 py-4">
-              <h2 className="text-lg font-bold text-gray-900">Payment Records</h2>
-              <p className="text-sm text-gray-600 mt-1">{paymentRecords.length} transactions recorded</p>
-            </div>
-            
-            {paymentRecords.length === 0 ? (
-              <div className="px-6 py-12 text-center">
-                <div className="flex flex-col items-center gap-3">
-                  <Banknote size={40} className="text-gray-300" />
-                  <p className="text-sm text-gray-500">
-                    No payments recorded yet
-                  </p>
-                  <p className="text-xs text-gray-400">
-                    Payments will appear here once submitted
-                  </p>
-                </div>
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="bg-[#66B538] text-white uppercase text-[13px] tracking-wider">
-                    <tr>
-                      <th className="px-6 py-3 text-left font-semibold">
-                        Payment ID
-                      </th>
-                      <th className="px-6 py-3 text-left font-semibold">
-                        Member Info
-                      </th>
-                      <th className="px-6 py-3 text-left font-semibold">
-                        Amount
-                      </th>
-                      <th className="px-6 py-3 text-left font-semibold">
-                        Payment Date
-                      </th>
-                      <th className="px-6 py-3 text-left font-semibold">
-                        Penalties
-                      </th>
-                      <th className="px-6 py-3 text-left font-semibold">
-                        Deficiency
-                      </th>
-                      <th className="px-6 py-3 text-left font-semibold">
-                        Status
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {paymentRecords.map((record) => {
-                      const relatedLoan = loans.find((l) => l.loan_id === record.loan_id);
-                      return (
-                        <tr key={record.payment_id} className="table-row-enter hover:bg-green-50 transition">
-                          <td className="px-6 py-3 text-xs font-mono text-gray-700">
-                            <span className="inline-flex rounded bg-gray-100 px-2 py-1">
-                              {record.payment_id?.slice(0, 8)}...
-                            </span>
-                          </td>
-                          <td className="px-6 py-3 text-sm">
-                            <div>
-                              <p className="font-medium text-gray-900">{relatedLoan?.member_name || "N/A"}</p>
-                              <p className="text-xs text-gray-500">{record.loan_id?.slice(0, 8)}...</p>
-                            </div>
-                          </td>
-                          <td className="px-6 py-3 text-sm font-semibold text-green-600">
-                            {formatCurrency(record.amount_paid)}
-                          </td>
-                          <td className="px-6 py-3 text-sm text-gray-700">
-                            {new Date(record.payment_date).toLocaleString("en-PH", {
-                              year: "numeric",
-                              month: "short",
-                              day: "numeric",
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            })}
-                          </td>
-                          <td className="px-6 py-3 text-sm text-orange-600 font-medium">
-                            {formatCurrency(record.penalties)}
-                          </td>
-                          <td className="px-6 py-3 text-sm text-gray-700">
-                            {record.deficiency}
-                          </td>
-                          <td className="px-6 py-3">
-                            <span
-                              className={`badge-animated inline-flex rounded-full px-3 py-1 text-xs font-semibold ${
-                                record.confirmation_status === "confirmed"
-                                  ? "bg-green-100 text-green-700"
-                                  : "bg-yellow-100 text-yellow-700"
-                              }`}
-                            >
-                              {record.confirmation_status === "confirmed"
-                                ? "Confirmed"
-                                : "Pending"}
-                            </span>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
         </main>
       </div>
     </div>
   );
 };
+
+const Pagination = ({ page, totalPages, onChange }) => (
+  <div className="flex items-center justify-center p-6 gap-2 border-t border-gray-100">
+    <button
+      className="w-8 h-8 flex items-center justify-center rounded-full border border-gray-300 bg-white text-gray-500 transition-colors hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+      disabled={page <= 1}
+      onClick={() => onChange(Math.max(page - 1, 1))}
+    >
+      <ChevronLeft className="w-4 h-4" />
+    </button>
+
+    {(() => {
+      const groupStart = Math.floor((page - 1) / 5) * 5 + 1;
+      const groupEnd = Math.min(groupStart + 4, totalPages);
+      return Array.from({ length: groupEnd - groupStart + 1 }, (_, i) => groupStart + i).map((p) => (
+        <button
+          key={p}
+          onClick={() => onChange(p)}
+          className={`w-8 h-8 flex items-center justify-center rounded-full border text-xs font-semibold transition-colors ${
+            p === page
+              ? "bg-[#16A34A] text-white border-[#16A34A]"
+              : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"
+          }`}
+        >
+          {p}
+        </button>
+      ));
+    })()}
+
+    <button
+      className="w-8 h-8 flex items-center justify-center rounded-full border border-gray-300 bg-white text-gray-500 transition-colors hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+      disabled={page >= totalPages}
+      onClick={() => onChange(Math.min(page + 1, totalPages))}
+    >
+      <ChevronRight className="w-4 h-4" />
+    </button>
+  </div>
+);
 
 export default Cashier_Payments;
 
