@@ -14,6 +14,10 @@ import {
   ArrowUpRight,
   Users,
   UserPlus,
+  Send,
+  PiggyBank,
+  ShoppingCart,
+  ArrowDownLeft,
 } from "lucide-react";
 import {
   AreaChart,
@@ -63,20 +67,20 @@ const Cashier_Dashboard = () => {
 
   const menuItems = [
     { name: "Dashboard", icon: LayoutDashboard, path: "/Cashier_Dashboard" },
-    { name: "Payments", icon: Banknote, path: "/Cashier_Payments" },
-    { name: "Disbursement", icon: Banknote, path: "/Cashier_Disbursement" },
+    { name: "Payments", icon: ArrowUpRight, path: "/Cashier_Payments" },
+    { name: "Disbursement", icon: Send, path: "/Cashier_Disbursement" },
     { name: "Membership Payments", icon: UserPlus, path: "/Cashier_MembershipPayments" },
     {
       name: "Deposits",
-      icon: Banknote,
+      icon: PiggyBank,
       isDropdown: true,
       subItems: [
         { name: "Savings", path: "/Cashier_Savings" },
         { name: "Capital Build-Up", path: "/Cashier_CBU" },
       ],
     },
-    { name: "Withdrawals", icon: Banknote, path: "/Cashier_Withdrawals" },
-    { name: "Grocery", icon: Banknote, path: "/Cashier_Grocery" },
+    { name: "Withdrawals", icon: ArrowDownLeft, path: "/Cashier_Withdrawals" },
+    { name: "Grocery", icon: ShoppingCart, path: "/Cashier_Grocery" },
   ];
 
   const handleSignOut = async (e) => {
@@ -92,7 +96,7 @@ const Cashier_Dashboard = () => {
   return (
     <div className="flex min-h-screen bg-gray-50">
       {/* SIDEBAR */}
-      <aside className="bg-white w-64 p-4 flex flex-col border-r border-gray-200">
+      <aside className="fixed left-0 top-0 h-screen bg-white w-64 p-4 flex flex-col border-r border-gray-200 overflow-y-auto z-50">
         <div className="flex flex-row items-start gap-2 mb-6">
           <img src={logo} alt="Logo" className="h-12 w-auto" />
           <div className="flex flex-col">
@@ -173,19 +177,15 @@ const Cashier_Dashboard = () => {
         >
           Sign out
         </button>
-      </aside>
+      </aside>  
 
-      {/* MAIN CONTENT AREA */}
-      <div className="flex-1 flex flex-col h-screen overflow-y-auto">
+      
+      <div className="flex-1 flex flex-col h-screen overflow-y-auto ml-64">
         <div className="flex-1 flex flex-col min-w-0">
   <header className="bg-white h-16 border-b border-gray-100 flex items-center justify-between px-8 shrink-0">
     
-    {/* Left Side: Dynamic Page Title */}
-    <div> 
-      <h1 className="text-xl font-bold text-green-600  tracking-tight">
-        Dashboard
-      </h1>
-    </div>
+    
+    
 
     {/* Right Side: Grouped Utilities */}
     <div className="flex items-center space-x-4">
