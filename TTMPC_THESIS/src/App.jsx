@@ -291,7 +291,7 @@ function App() {
         <div className="max-w-7xl mx-auto">
           <div className="flex flex-col lg:flex-row items-center gap-12 lg:gap-20 mb-24">
             <div className="flex-1 lg:pr-8 text-center lg:text-left">
-              <span className="text-[#66B539] font-bold tracking-wider uppercase mb-4 block text-sm">Our Legacy</span>
+              <span className="text-[#66B539] font-bold tracking-wider uppercase mb-4 block text-2xl">Our Legacy</span>
               <h2 className="text-3xl md:text-4xl font-extrabold text-gray-900 mb-6 tracking-tight">
                 Empowering the Community Since 1995.
               </h2>
