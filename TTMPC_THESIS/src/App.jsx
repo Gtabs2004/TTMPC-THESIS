@@ -1,4 +1,4 @@
-﻿import { useState } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { 
   AlertTriangle, 
@@ -16,8 +16,17 @@ import {
   Mail,
   Clock,
   ShieldAlert,
-  Files
+  Files,
+  Wallet,
+  Landmark,
+  HeartHandshake,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
+
+// -----------------------------------------------------------------------------
+// REUSABLE COMPONENTS
+// -----------------------------------------------------------------------------
 
 function Button({ children, variant = 'primary', className = '', to, ...props }) {
   const baseStyles = 'inline-block text-center px-7 py-3 rounded-full font-semibold transition-all duration-200 shadow-sm';
@@ -44,9 +53,9 @@ function Button({ children, variant = 'primary', className = '', to, ...props })
 
 function FeatureCard({ icon, title, description }) {
   return (
-    <div className="bg-white p-8 rounded-2xl shadow-sm hover:shadow-xl hover:shadow-green-900/5 transition-all duration-300 border border-gray-100 hover:border-green-200 group relative overflow-hidden flex flex-col h-full transform hover:-translate-y-1 cursor-default">
+    <div className="bg-white p-8 rounded-2xl shadow-sm hover:shadow-xl hover:shadow-green-900/5 transition-all duration-300 border border-gray-100 group relative overflow-hidden flex flex-col h-full transform hover:-translate-y-1 cursor-default">
       
-      <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-[#66B539] to-green-300 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+      <div className="absolute top-0 left-0 w-full h-1 opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-gradient-to-r from-[#66B539] to-green-300"></div>
 
       <div className="w-14 h-14 bg-gradient-to-br from-[#E9F7DE] to-white border border-green-100 text-[#66B539] rounded-xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300 shadow-sm">
         {icon}
@@ -60,10 +69,6 @@ function FeatureCard({ icon, title, description }) {
         {description}
       </p>
 
-      <div className="mt-6 flex items-center text-sm font-semibold text-[#66B539] opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-        Explore feature <span className="ml-1 group-hover:translate-x-1 transition-transform">→</span>
-      </div>
-      
     </div>
   );
 }
@@ -128,6 +133,91 @@ function StatsMarquee() {
   );
 }
 
+// -----------------------------------------------------------------------------
+// NEW: ABOUT SECTION IMAGE CAROUSEL
+// -----------------------------------------------------------------------------
+function AboutImageCarousel() {
+  const [currentIndex, setCurrentIndex] = useState(0);
+
+  const carouselImages = [
+    { id: 1, src: "assets/img/TTMPC-1.jpg", alt: "TTMPC Building" },
+    { id: 2, src: "assets/img/news_2.jpg", alt: "TTMPC Founding Team" },
+    { id: 3, src: "assets/img/news_3.jpg", alt: "TTMPC Community Outreach" },
+    { id: 4, src: "assets/img/TTMPC-4.jpg", alt: "TTMPC Event" },
+  ];
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentIndex((prev) => (prev === carouselImages.length - 1 ? 0 : prev + 1));
+    }, 3000); 
+    return () => clearInterval(timer);
+  }, [carouselImages.length]);
+
+  const goToNext = () => setCurrentIndex((prev) => (prev === carouselImages.length - 1 ? 0 : prev + 1));
+  const goToPrev = () => setCurrentIndex((prev) => (prev === 0 ? carouselImages.length - 1 : prev - 1));
+
+  return (
+    <div className="relative rounded-3xl bg-gray-50 border border-gray-200 shadow-xl overflow-hidden aspect-[4/3] group">
+      
+      {/* Sliding Track - Fixed Sub-pixel bleeding bug */}
+      <div 
+        className="flex w-full h-full transition-transform duration-700 ease-[cubic-bezier(0.25,0.1,0.25,1)]"
+        style={{ transform: `translateX(-${currentIndex * 100}%)` }}
+      >
+        {carouselImages.map((img) => (
+          // Fixed CSS: w-full flex-[0_0_100%] prevents the browser from showing next slide prematurely
+          <div key={img.id} className="w-full flex-[0_0_100%] relative h-full flex items-center justify-center bg-gray-100 shrink-0">
+            {img.src ? (
+              // Fixed CSS: object-contain ensures the entire photo is always visible
+              <img src={img.src} alt={img.alt} className="w-full h-full object-contain" />
+            ) : (
+              <div className="absolute inset-4 flex flex-col items-center justify-center text-gray-400 border-2 border-dashed border-gray-200 rounded-2xl bg-white">
+                <MapPin className="w-8 h-8 mb-3 text-gray-300" />
+                <span className="font-semibold text-sm tracking-wide">[ Insert Image {img.id} Here ]</span>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {/* Navigation Arrows */}
+      <div className="absolute inset-0 flex items-center justify-between p-4 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none">
+        <button 
+          onClick={goToPrev} 
+          className="pointer-events-auto p-2 rounded-full bg-white/70 text-gray-800 hover:bg-white hover:text-[#66B539] backdrop-blur-md shadow-lg transition-all focus:outline-none transform hover:scale-110"
+          aria-label="Previous image"
+        >
+          <ChevronLeft className="w-6 h-6" strokeWidth={2.5} />
+        </button>
+        <button 
+          onClick={goToNext} 
+          className="pointer-events-auto p-2 rounded-full bg-white/70 text-gray-800 hover:bg-white hover:text-[#66B539] backdrop-blur-md shadow-lg transition-all focus:outline-none transform hover:scale-110"
+          aria-label="Next image"
+        >
+          <ChevronRight className="w-6 h-6" strokeWidth={2.5} />
+        </button>
+      </div>
+
+      {/* Interactive Pagination Dots */}
+      <div className="absolute bottom-6 left-0 right-0 flex justify-center gap-2 z-20">
+        {carouselImages.map((_, idx) => (
+          <button
+            key={idx}
+            onClick={() => setCurrentIndex(idx)}
+            className={`h-2 rounded-full transition-all duration-300 shadow-sm ${
+              currentIndex === idx ? "bg-[#66B539] w-8" : "bg-gray-300/80 hover:bg-gray-400 w-2"
+            }`}
+            aria-label={`Go to slide ${idx + 1}`}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// -----------------------------------------------------------------------------
+// LUCIDE ICONS MAPPING
+// -----------------------------------------------------------------------------
 const Icons = {
   Warning: <AlertTriangle className="w-8 h-8 text-red-500" strokeWidth={2} />,
   Loan: <CreditCard className="w-7 h-7" strokeWidth={2} />,
@@ -138,6 +228,9 @@ const Icons = {
   Lightning: <Zap className="w-7 h-7" strokeWidth={2} />,
 };
 
+// -----------------------------------------------------------------------------
+// MAIN APP
+// -----------------------------------------------------------------------------
 function App() {
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -205,12 +298,12 @@ function App() {
       <section className="bg-gradient-to-b from-[#E9F7DE]/60 to-white pt-20 pb-24 px-4 overflow-hidden relative">
         <div className="max-w-7xl mx-auto flex flex-col lg:flex-row items-center gap-12 lg:gap-20">
           <div className="flex-1 text-center lg:text-left z-10">
-            <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold text-gray-900 mb-6 leading-[1.15] tracking-tight">
-              Manage <br className="hidden lg:block" />
-              <span className="text-[#66B539]">TTMPC Smarter.</span>
+            <h1 className="text-3xl md:text-5xl lg:text-6xl font-extrabold text-gray-900 mb-6 leading-[1.15] tracking-tight">
+              Tubungan <br className="hidden lg:block" />
+              <span className="text-[#66B539]"> Teachers' Multi-Purpose Cooperative</span>
             </h1>
             <p className="text-gray-600 text-lg md:text-xl mb-10 max-w-xl mx-auto lg:mx-0 leading-relaxed">
-              The complete financial system for TTMPC. Streamline loan approvals, forecast risks accurately, and automate daily operations.
+             Empowering our community through intelligent financial management since 1995.  
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
               <Button to="/role_selection" className="w-full sm:w-auto text-lg">Access Now</Button>
@@ -230,49 +323,65 @@ function App() {
       
       <StatsMarquee />
 
-      <section id="about" className="py-24 px-4 bg-gray-50 border-b border-gray-100">
-        <div className="max-w-5xl mx-auto text-center">
+      <section id="about" className="py-24 px-4 bg-white border-b border-gray-100">
+        <div className="max-w-7xl mx-auto">
           
-          <h2 className="text-3xl md:text-4xl font-extrabold text-gray-900 mb-5 tracking-tight">
-            The Challenges Holding TTMPC Back.
-          </h2>
-          <p className="text-gray-600 text-lg md:text-xl leading-relaxed mb-16 max-w-3xl mx-auto font-medium">
-            Manual workflows and fragmented data are creating invisible risks for your cooperative.
-          </p>
+          <div className="flex flex-col lg:flex-row items-center gap-12 lg:gap-20 mb-24">
+            <div className="flex-1 lg:pr-8 text-center lg:text-left">
+              <span className="text-[#66B539] font-bold tracking-wider uppercase  mb-4 block text-2xl">Our Legacy</span>
+              <h2 className="text-3xl md:text-4xl font-extrabold text-gray-900 mb-6 tracking-tight">
+                Empowering the Community Since 1995.
+              </h2>
+              <p className="text-gray-600 text-lg leading-relaxed mb-6">
+                Tubungan Teachers' Multi-Purpose Cooperative (TTMPC) was founded with a singular mission: to provide secure, accessible, and fair financial services to educators and local community members.
+              </p>
+              <p className="text-gray-600 text-lg leading-relaxed">
+                Over the decades, we have grown from a small group of passionate teachers into a robust financial institution, continuously adapting to serve the evolving needs of our members while staying true to our cooperative roots.
+              </p>
+            </div>
+            
+            <div className="flex-1 w-full">
+              <AboutImageCarousel />
+            </div>
+          </div>
+
+          <div className="text-center mb-16">
+            <h3 className="text-2xl md:text-3xl font-bold text-gray-900 mb-4 tracking-tight">Core Cooperative Services</h3>
+            <p className="text-gray-600 max-w-2xl mx-auto text-lg">We offer a variety of financial products designed to build your savings and support your goals.</p>
+          </div>
 
           <div className="grid md:grid-cols-3 gap-8 text-left">
-            
-            <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
-              <div className="w-12 h-12 bg-red-50 rounded-xl flex items-center justify-center text-red-500 mb-6 border border-red-100">
-                <Clock strokeWidth={2.5} className="w-6 h-6" />
+            <div className="bg-gray-50 p-8 rounded-2xl border border-gray-100 hover:bg-white hover:shadow-xl hover:shadow-green-900/5 transition-all duration-300 group cursor-default">
+              <div className="w-14 h-14 bg-white rounded-xl flex items-center justify-center text-[#66B539] mb-6 shadow-sm border border-gray-100 group-hover:scale-110 group-hover:bg-[#66B539] group-hover:text-white transition-all duration-300">
+                <Wallet strokeWidth={2} className="w-7 h-7" />
               </div>
-              <h3 className="text-xl font-bold text-gray-900 mb-3">Manual Overload</h3>
+              <h4 className="text-xl font-bold text-gray-900 mb-3">Savings & Deposits</h4>
               <p className="text-gray-600 leading-relaxed text-sm md:text-base">
-                Officers waste countless hours reconciling spreadsheets and manually tracking payments instead of focusing on member growth.
+                Secure your future with our high-yield share capital and regular savings accounts, designed exclusively for member growth.
               </p>
             </div>
 
-            <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
-              <div className="w-12 h-12 bg-red-50 rounded-xl flex items-center justify-center text-red-500 mb-6 border border-red-100">
-                <ShieldAlert strokeWidth={2.5} className="w-6 h-6" />
+            <div className="bg-gray-50 p-8 rounded-2xl border border-gray-100 hover:bg-white hover:shadow-xl hover:shadow-green-900/5 transition-all duration-300 group cursor-default">
+              <div className="w-14 h-14 bg-white rounded-xl flex items-center justify-center text-[#66B539] mb-6 shadow-sm border border-gray-100 group-hover:scale-110 group-hover:bg-[#66B539] group-hover:text-white transition-all duration-300">
+                <Landmark strokeWidth={2} className="w-7 h-7" />
               </div>
-              <h3 className="text-xl font-bold text-gray-900 mb-3">Risk-Prone</h3>
+              <h4 className="text-xl font-bold text-gray-900 mb-3">Loan Programs</h4>
               <p className="text-gray-600 leading-relaxed text-sm md:text-base">
-                Without predictive analytics, loan decisions rely on guesswork and incomplete histories, directly increasing your risk of bad debt.
+                Access fair and flexible loan options including Emergency, Consolidated, and Bonus loans tailored to your immediate financial needs.
               </p>
             </div>
 
-            <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
-              <div className="w-12 h-12 bg-red-50 rounded-xl flex items-center justify-center text-red-500 mb-6 border border-red-100">
-                <Files strokeWidth={2.5} className="w-6 h-6" />
+            <div className="bg-gray-50 p-8 rounded-2xl border border-gray-100 hover:bg-white hover:shadow-xl hover:shadow-green-900/5 transition-all duration-300 group cursor-default">
+              <div className="w-14 h-14 bg-white rounded-xl flex items-center justify-center text-[#66B539] mb-6 shadow-sm border border-gray-100 group-hover:scale-110 group-hover:bg-[#66B539] group-hover:text-white transition-all duration-300">
+                <HeartHandshake strokeWidth={2} className="w-7 h-7" />
               </div>
-              <h3 className="text-xl font-bold text-gray-900 mb-3">Fragmented Records</h3>
+              <h4 className="text-xl font-bold text-gray-900 mb-3">Member Benefits</h4>
               <p className="text-gray-600 leading-relaxed text-sm md:text-base">
-                Crucial member data is buried across physical cabinets and disconnected Excel files, making accurate financial analysis nearly impossible.
+                Enjoy annual dividends, patronage refunds, and community outreach programs as a valued co-owner of the cooperative.
               </p>
             </div>
-
           </div>
+
         </div>
       </section>
 
@@ -361,15 +470,7 @@ function App() {
                 Empowering our community through intelligent financial management since 1995.
               </p>
             </div>
-            <div>
-              <h4 className="text-lg font-bold mb-6 text-white">Platform</h4>
-              <ul className="space-y-4 text-gray-400 text-sm font-medium">
-                <li><Link to="/" className="hover:text-white transition-colors">Home</Link></li>
-                <li><a href="#about" className="hover:text-white transition-colors">About Us</a></li>
-                <li><a href="#features" className="hover:text-white transition-colors">Features & Capabilities</a></li>
-                <li><Link to="/role_selection" className="hover:text-white transition-colors">System Login</Link></li>
-              </ul>
-            </div>
+            
             <div>
               <h4 className="text-lg font-bold mb-6 text-white">Services</h4>
               <ul className="space-y-4 text-gray-400 text-sm font-medium">
