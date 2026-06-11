@@ -859,16 +859,31 @@ async def compute_loan(payload: LoanComputeRequest):
         if monthly_rate <= 0:
             raise HTTPException(status_code=400, detail="Interest rate for EMERGENCY is not configured in loan_types.")
 
-        principal_component = money(principal / Decimal(term))
         fee_policy = resolve_fee_policy("EMERGENCY")
         service_fee = compute_service_fee(fee_policy, principal)
         cbu_deduction = money(principal * fee_policy["cbu_rate"])
         insurance_fee = money((principal * fee_policy["insurance_per_thousand"]) / Decimal("1000"))
         notarial_fee = money(fee_policy["notarial_fee"])
 
+        # EMI formula: monthly_payment = principal * rate / (1 - (1 + rate)^-term)
+        one_plus_rate = Decimal("1") + monthly_rate
+        denominator = Decimal("1") - (one_plus_rate ** (-term))
+        monthly_payment = money(principal * monthly_rate / denominator)
+        
+        remaining_balance = principal
         for installment_no in range(1, term + 1):
-            interest_component = money((principal / Decimal(term)) * monthly_rate * Decimal(term - installment_no))
-            expected_amount = money(principal_component + interest_component)
+            interest_component = money(remaining_balance * monthly_rate)
+            principal_component = money(monthly_payment - interest_component)
+            expected_amount = monthly_payment
+            
+            if installment_no == term:
+                principal_component = money(remaining_balance)
+                expected_amount = money(principal_component + interest_component)
+            
+            remaining_balance = money(remaining_balance - principal_component)
+            if installment_no == term and abs(remaining_balance) < Decimal("0.01"):
+                remaining_balance = Decimal("0")
+            
             monthly_breakdown.append(
                 MonthlyBreakdownRow(
                     installment_no=installment_no,
@@ -879,8 +894,7 @@ async def compute_loan(payload: LoanComputeRequest):
                 )
             )
 
-        if monthly_breakdown:
-            monthly_amortization = monthly_breakdown[0].expected_amount
+        monthly_amortization = monthly_payment
 
     elif payload.loan_type == "bonus":
         member_category = str(payload.member_category).strip().lower()

@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { fetchLoanPrefill, submitUnifiedLoan } from './loanSubmission';
 import { buildEmergencyPayload, computeLoan } from './loanComputeApi';
 import { formatTinNumber, TIN_FORMATTED_MAX_LENGTH } from './tinFormat';
+import { supabase } from '../supabaseClient';
+import { resolveAccountFromSessionUser } from '../utils/sessionIdentity';
 
 const generateControlNumber = () => {
   const now = new Date();
@@ -62,6 +64,7 @@ function Emergency_Loan() {
   const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000';
   const PDF_PREVIEW_WINDOW_NAME = 'emergency-loan-preview';
   const inputStyles = 'border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-[#66B538] outline-none w-full bg-white text-sm transition-all';
+  const readOnlyInputStyles = 'border border-gray-300 rounded-md px-3 py-2 outline-none w-full bg-gray-100 text-sm text-gray-700 cursor-not-allowed';
   const labelStyles = 'block text-xs font-bold text-gray-700 mb-1';
   const sectionHeader = 'bg-[#66B538] text-white px-4 py-2 rounded-t-lg flex items-center gap-2 font-bold uppercase tracking-wide';
 
@@ -98,9 +101,252 @@ function Emergency_Loan() {
     source_of_income: '',
     payment_start_date: '',
     user_email: '',
+    member_class: 'NON-MIGS',
     borrower_id_type: '',
     borrower_id_number: '',
   });
+
+  const [calcResult, setCalcResult] = useState(null);
+  const [existingLoan, setExistingLoan] = useState(null);
+  const [showSummary, setShowSummary] = useState(false);
+  const [renewalError, setRenewalError] = useState('');
+  const [sixMonthOverride, setSixMonthOverride] = useState(false);
+
+  const isRenewal = String(formData.application_type || '').toLowerCase() === 'renewal';
+  const MIN_PAID_MONTHS_FOR_RENEWAL = 6;
+  const TERM_OPTIONS = [6, 12];
+  const STRESS_INDEX_CEILING = 40;
+  const MONTHLY_INTEREST_FACTOR = 0.02;
+
+  const RISK_COLORS = {
+    safe: 'text-[#2E7D32] bg-[#E9F7DE]',
+    low_risk: 'text-yellow-700 bg-yellow-100',
+    moderate_risk: 'text-orange-600 bg-orange-100',
+    high_risk: 'text-red-600 bg-red-100',
+  };
+
+  const computeMonthlyAmortization = (principal, term) => {
+    if (!principal || !term) return 0;
+    return Math.round(principal * MONTHLY_INTEREST_FACTOR / (1 - Math.pow(1 + MONTHLY_INTEREST_FACTOR, -term)) * 100) / 100;
+  };
+
+  const classifyRisk = (rawStressPct) => {
+    const safeNumber = Number.isFinite(rawStressPct) ? rawStressPct : 0;
+    let code = 'safe';
+    if (safeNumber > 40) code = 'high_risk';
+    else if (safeNumber >= 36) code = 'moderate_risk';
+    else if (safeNumber > 20) code = 'low_risk';
+    else if (safeNumber >= 20) code = 'low_risk';
+
+    const fallbackLabels = {
+      safe: 'Safe',
+      low_risk: 'Low Risk',
+      moderate_risk: 'Moderate Risk',
+      high_risk: 'High Risk',
+    };
+
+    return {
+      code,
+      label: fallbackLabels[code].toUpperCase(),
+      color: RISK_COLORS[code],
+      rawStressPct: safeNumber,
+      cappedStressPct: Math.min(safeNumber, STRESS_INDEX_CEILING),
+      overCap: safeNumber > STRESS_INDEX_CEILING,
+    };
+  };
+
+  useEffect(() => {
+    if (!isRenewal) {
+      setExistingLoan(null);
+      setRenewalError('');
+      return;
+    }
+
+    let isMounted = true;
+    (async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+          if (isMounted) setRenewalError('Please sign in to apply for renewal.');
+          return;
+        }
+
+        const account = await resolveAccountFromSessionUser(user);
+        const memberId = account?.user_id || account?.auth_user_id || user.id;
+
+        const { data: loanRows, error } = await supabase
+          .from('loans')
+          .select('control_number, principal_amount, loan_amount, monthly_amortization, term, application_date, loan_status, member_id')
+          .eq('member_id', memberId)
+          .order('application_date', { ascending: false });
+
+        if (!isMounted) return;
+        if (error) {
+          setRenewalError(error.message);
+          return;
+        }
+
+        if (!loanRows || loanRows.length === 0) {
+          setExistingLoan(null);
+          setRenewalError('No existing loan found. Renewal is not available.');
+          return;
+        }
+
+        const controlNumbers = loanRows.map((l) => l.control_number).filter(Boolean);
+        let paymentsByLoan = {};
+
+        if (controlNumbers.length) {
+          const { data: payments, error: payErr } = await supabase
+            .from('loan_payments')
+            .select('loan_id, amount_paid, confirmation_status')
+            .in('loan_id', controlNumbers);
+
+          if (payErr) {
+            setRenewalError(payErr.message);
+            return;
+          }
+
+          const confirmedStatuses = new Set(['validated', 'confirmed', 'bookkeeper_confirmed', 'approved']);
+          (payments || []).forEach((p) => {
+            const status = String(p.confirmation_status || 'confirmed').toLowerCase();
+            if (!confirmedStatuses.has(status)) return;
+            const key = String(p.loan_id);
+            paymentsByLoan[key] = (paymentsByLoan[key] || 0) + Number(p.amount_paid || 0);
+          });
+        }
+
+        const enriched = loanRows.map((l) => {
+          const principal = Number(l.principal_amount || l.loan_amount || 0);
+          const paid = Number(paymentsByLoan[String(l.control_number)] || 0);
+          const remaining = Math.max(principal - paid, 0);
+          return { ...l, principal, paid, remaining };
+        });
+
+        const active = enriched.find((l) => l.remaining > 0);
+        if (!active) {
+          setExistingLoan(null);
+          setRenewalError('No existing active loan found. Renewal is not available.');
+          return;
+        }
+
+        const start = new Date(active.application_date);
+        const now = new Date();
+        const monthsElapsed = (now.getFullYear() - start.getFullYear()) * 12 + (now.getMonth() - start.getMonth());
+        const monthly = Number(active.monthly_amortization || 0);
+        const monthsPaidByPayments = monthly > 0 ? Math.floor(Number(active.paid || 0) / monthly) : 0;
+        const paidMonths = Math.max(monthsElapsed, monthsPaidByPayments);
+
+        setExistingLoan({
+          controlNumber: active.control_number,
+          loanAmount: active.principal,
+          remainingBalance: active.remaining,
+          monthlyAmortization: monthly,
+          term: Number(active.term || 0),
+          applicationDate: active.application_date,
+          paidMonths,
+        });
+        setRenewalError('');
+      } catch (err) {
+        if (isMounted) setRenewalError(err.message || 'Unable to verify existing loan.');
+      }
+    })();
+
+    return () => { isMounted = false; };
+  }, [isRenewal]);
+
+  const sixMonthsPaid = sixMonthOverride || (existingLoan?.paidMonths ?? 0) >= MIN_PAID_MONTHS_FOR_RENEWAL;
+  const simulatedRemainingBalance = (() => {
+    const balance = Number(existingLoan?.remainingBalance || 0);
+    const monthly = Number(existingLoan?.monthlyAmortization || 0);
+    if (!sixMonthOverride || monthly <= 0) return balance;
+    return Math.max(balance - (monthly * MIN_PAID_MONTHS_FOR_RENEWAL), 0);
+  })();
+
+  const evaluateLoan = () => {
+    const principal = Number(formData.loan_amount_numeric || 0);
+    const netPay = Number(formData.latest_net_pay || 0);
+    const shareCapital = Number(formData.share_capital || 0);
+    const memberClass = String(formData.member_class || 'NON-MIGS').toUpperCase();
+    const term = Number(formData.loan_term_months || 0);
+
+    if (!principal || !netPay || !shareCapital || !term) {
+      setCalcResult({ error: 'Please complete Loan Amount, Term, Share Capital, and Latest Net Pay.' });
+      return;
+    }
+
+    if (isRenewal && !existingLoan) {
+      setCalcResult({ error: 'Renewal requires an existing active loan and verification.' });
+      return;
+    }
+
+    const multiplier = memberClass === 'MIGS' ? 5 : 3;
+    const existingBalance = isRenewal ? Number(simulatedRemainingBalance || 0) : 0;
+    const maxAllowed = (shareCapital * multiplier) - existingBalance;
+    const eligible = principal <= maxAllowed;
+    const loanCapacity = isRenewal
+      ? Math.max(((shareCapital * multiplier) + existingBalance) / 2, 0)
+      : Math.max(shareCapital * multiplier, 0);
+
+    const monthlyPayment = Number(formData.monthly_amortization || 0) || computeMonthlyAmortization(principal, term);
+    const stress = netPay > 0 ? (monthlyPayment / netPay) * 100 : 0;
+    const eligibilityPass = monthlyPayment < netPay * 0.40;
+
+    setCalcResult({
+      eligible,
+      maxAllowed,
+      multiplier,
+      memberClass,
+      monthlyPayment,
+      stressIndex: stress,
+      stressIndexOverCap: stress > STRESS_INDEX_CEILING,
+      risk: classifyRisk(stress),
+      netProceeds: 0,
+      existingBalance,
+      isRenewal,
+      loanCapacity,
+      takeHomePay: netPay,
+      takeHomeThreshold: netPay * 0.40,
+      eligibilityPass,
+    });
+  };
+
+  useEffect(() => {
+    const principal = Number(formData.loan_amount_numeric || 0);
+    const netPay = Number(formData.latest_net_pay || 0);
+    const shareCapital = Number(formData.share_capital || 0);
+    const term = Number(formData.loan_term_months || 0);
+    if (!principal || !netPay || !shareCapital || !term) {
+      setCalcResult(null);
+      return;
+    }
+
+    evaluateLoan();
+  }, [formData.loan_amount_numeric, formData.latest_net_pay, formData.share_capital, formData.member_class, formData.loan_term_months, isRenewal, existingLoan]);
+
+  const exceedsCeiling = calcResult && !calcResult.error && !calcResult.eligible;
+  const renewalBlocked = isRenewal && (!existingLoan || !sixMonthsPaid);
+  const eligibilityFailed = calcResult && !calcResult.error && calcResult.eligibilityPass === false;
+  const actualMonthlyAmortization = Number(formData.monthly_amortization || 0) || 0;
+  const hasComputedAmortization = actualMonthlyAmortization > 0;
+  const actualNetPay = Number(formData.latest_net_pay || 0);
+  const actualStressIndex = actualNetPay > 0 ? (actualMonthlyAmortization / actualNetPay) * 100 : 0;
+  const stressIndexExceeded = actualNetPay > 0 && actualMonthlyAmortization > 0 && actualStressIndex > STRESS_INDEX_CEILING;
+  const submissionBlockMessage =
+    stressIndexExceeded ? 'Monthly amortization exceeds latest net pay.' :
+    exceedsCeiling ? 'Loan amount exceeds the allowed debt ceiling.' :
+    renewalBlocked ? 'Renewal requires an existing active loan with at least 6 paid months.' :
+    eligibilityFailed ? 'Monthly amortization must be below 40% of take-home pay.' : '';
+
+  const formatCurrency = (value) => {
+    const numeric = Number(value || 0);
+    if (!Number.isFinite(numeric) || numeric <= 0) return '—';
+    return numeric.toLocaleString('en-PH', {
+      style: 'currency',
+      currency: 'PHP',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+  };
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -194,6 +440,7 @@ function Emergency_Loan() {
           spouse_occupation: profile.spouse_occupation ?? prev.spouse_occupation,
           latest_net_pay: (profile.latest_net_pay ?? profile.annual_income)?.toString() ?? prev.latest_net_pay,
           share_capital: profile.share_capital?.toString() ?? prev.share_capital,
+          member_class: profile.member_class ?? profile.class ?? prev.member_class,
           };
         });
       } catch (_err) {
@@ -255,17 +502,25 @@ function Emergency_Loan() {
     return () => clearTimeout(timer);
   }, [formData.loan_amount_numeric, formData.loan_term_months, formData.payment_start_date]);
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = (e) => {
     e.preventDefault();
-    setLoading(true);
-
+    
     const principal = Number(formData.loan_amount_numeric || 0);
     if (principal > 20000) {
       alert('Emergency loan maximum amount is 20,000.');
-      setLoading(false);
       return;
     }
 
+    if (submissionBlockMessage) {
+      alert(submissionBlockMessage);
+      return;
+    }
+
+    setShowSummary(true);
+  };
+
+  const handleConfirmSubmit = async () => {
+    setLoading(true);
     try {
       await submitUnifiedLoan({
         loanTypeCode: 'EMERGENCY',
@@ -283,6 +538,8 @@ function Emergency_Loan() {
           loan_purpose: formData.loan_purpose || null,
           monthly_amortization: formData.monthly_amortization || null,
           source_of_income: formData.source_of_income || null,
+          latest_net_pay: formData.latest_net_pay || null,
+          share_capital: formData.share_capital || null,
           payment_start_date: formData.payment_start_date || null,
           emergency_reason: formData.loan_purpose || null,
           emergency_notes: null,
@@ -292,9 +549,11 @@ function Emergency_Loan() {
       alert('Emergency Loan Application Submitted Successfully!');
       window.location.reload();
     } catch (err) {
-      alert('Submission Error: ' + err.message);
+      console.error('Emergency Loan Submission Error:', err);
+      alert('Submission Error: ' + (err.message || JSON.stringify(err)));
     } finally {
       setLoading(false);
+      setShowSummary(false);
     }
   };
 
@@ -351,25 +610,25 @@ function Emergency_Loan() {
         <div className="mt-10 bg-white rounded-lg shadow-md overflow-hidden max-w-6xl mx-auto w-full">
           <div className={sectionHeader}><span className="bg-white text-[#66B538] rounded-full w-6 h-6 flex items-center justify-center text-sm">1</span> BORROWER'S INFORMATION</div>
           <div className="p-8 grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div><label className={labelStyles}>Surname *</label><input name="surname" value={formData.surname} onChange={handleChange} className={inputStyles} required /></div>
-            <div><label className={labelStyles}>First Name *</label><input name="first_name" value={formData.first_name} onChange={handleChange} className={inputStyles} required /></div>
-            <div><label className={labelStyles}>Middle Name</label><input name="middle_name" value={formData.middle_name} onChange={handleChange} className={inputStyles} /></div>
-            <div><label className={labelStyles}>Contact No. *</label><input name="contact_no" value={formData.contact_no} onChange={handleChange} className={inputStyles} required /></div>
-            <div><label className={labelStyles}>Latest Net Pay *</label><input type="number" name="latest_net_pay" value={formData.latest_net_pay} onChange={handleChange} className={inputStyles} required /></div>
-            <div><label className={labelStyles}>Share Capital *</label><input type="number" name="share_capital" value={formData.share_capital} onChange={handleChange} className={inputStyles} required /></div>
-            <div className="md:col-span-3"><label className={labelStyles}>Residence Address *</label><input name="residence_address" value={formData.residence_address} onChange={handleChange} className={inputStyles} required /></div>
-            <div><label className={labelStyles}>Date of Birth *</label><input type="date" name="date_of_birth" value={formData.date_of_birth} onChange={handleChange} className={inputStyles} required /></div>
-            <div><label className={labelStyles}>Age *</label><input type="number" name="age" value={formData.age} onChange={handleChange} className={inputStyles} required /></div>
-            <div><label className={labelStyles}>Civil Status *</label><input name="civil_status" value={formData.civil_status} onChange={handleChange} className={inputStyles} required /></div>
-            <div><label className={labelStyles}>Gender *</label><input name="gender" value={formData.gender} onChange={handleChange} className={inputStyles} required /></div>
-            <div><label className={labelStyles}>TIN No. *</label><input name="tin_no" value={formData.tin_no} onChange={handleChange} inputMode="numeric" maxLength={TIN_FORMATTED_MAX_LENGTH} placeholder="123-456-789-000" className={inputStyles} required /></div>
-            <div><label className={labelStyles}>GSIS/SSS No. *</label><input name="gsis_sss_no" value={formData.gsis_sss_no} onChange={handleChange} className={inputStyles} required /></div>
-            <div><label className={labelStyles}>Employer Name *</label><input name="employer_name" value={formData.employer_name} onChange={handleChange} className={inputStyles} required /></div>
+            <div><label className={labelStyles}>Surname *</label><input name="surname" value={formData.surname} readOnly className={readOnlyInputStyles} required /></div>
+            <div><label className={labelStyles}>First Name *</label><input name="first_name" value={formData.first_name} readOnly className={readOnlyInputStyles} required /></div>
+            <div><label className={labelStyles}>Middle Name</label><input name="middle_name" value={formData.middle_name} readOnly className={readOnlyInputStyles} /></div>
+            <div><label className={labelStyles}>Contact No. *</label><input name="contact_no" value={formData.contact_no} readOnly className={readOnlyInputStyles} required /></div>
+            <div><label className={labelStyles}>Latest Net Pay *</label><input type="number" name="latest_net_pay" value={formData.latest_net_pay} readOnly className={readOnlyInputStyles} required /></div>
+            <div><label className={labelStyles}>Share Capital *</label><input type="number" name="share_capital" value={formData.share_capital} readOnly className={readOnlyInputStyles} required /></div>
+            <div className="md:col-span-3"><label className={labelStyles}>Residence Address *</label><input name="residence_address" value={formData.residence_address} readOnly className={readOnlyInputStyles} required /></div>
+            <div><label className={labelStyles}>Date of Birth *</label><input type="date" name="date_of_birth" value={formData.date_of_birth} readOnly className={readOnlyInputStyles} required /></div>
+            <div><label className={labelStyles}>Age *</label><input type="number" name="age" value={formData.age} readOnly className={readOnlyInputStyles} required /></div>
+            <div><label className={labelStyles}>Civil Status *</label><input name="civil_status" value={formData.civil_status} readOnly className={readOnlyInputStyles} required /></div>
+            <div><label className={labelStyles}>Gender *</label><input name="gender" value={formData.gender} readOnly className={readOnlyInputStyles} required /></div>
+            <div><label className={labelStyles}>TIN No. *</label><input name="tin_no" value={formData.tin_no} readOnly inputMode="numeric" maxLength={TIN_FORMATTED_MAX_LENGTH} placeholder="123-456-789-000" className={readOnlyInputStyles} required /></div>
+            <div><label className={labelStyles}>GSIS/SSS No. *</label><input name="gsis_sss_no" value={formData.gsis_sss_no} readOnly className={readOnlyInputStyles} required /></div>
+            <div><label className={labelStyles}>Employer Name *</label><input name="employer_name" value={formData.employer_name} readOnly className={readOnlyInputStyles} required /></div>
             <div><label className={labelStyles}>Office Address *</label><input name="office_address" value={formData.office_address} onChange={handleChange} className={inputStyles} required /></div>
             {isMarriedCivilStatus ? (
               <>
-                <div><label className={labelStyles}>Spouse Name *</label><input name="spouse_name" value={formData.spouse_name} onChange={handleChange} className={inputStyles} required /></div>
-                <div><label className={labelStyles}>Spouse Occupation *</label><input name="spouse_occupation" value={formData.spouse_occupation} onChange={handleChange} className={inputStyles} required /></div>
+                <div><label className={labelStyles}>Spouse Name *</label><input name="spouse_name" value={formData.spouse_name} readOnly className={readOnlyInputStyles} required /></div>
+                <div><label className={labelStyles}>Spouse Occupation *</label><input name="spouse_occupation" value={formData.spouse_occupation} readOnly className={readOnlyInputStyles} required /></div>
               </>
             ) : null}
           </div>
@@ -389,19 +648,27 @@ function Emergency_Loan() {
                 type="text" 
                 name="loan_amount_words" 
                 value={formData.loan_amount_words} 
-                onChange={handleChange} 
-                className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-[#66B538] outline-none bg-white text-sm transition-all mx-2 w-[22rem] inline-block align-middle" 
+                readOnly 
+                className="border border-gray-300 rounded-md px-3 py-1.5 outline-none bg-gray-100 text-sm transition-all mx-2 w-[22rem] inline-block align-middle" 
               />
               <div className="inline-flex items-center relative mr-2 align-middle">
                 <span className="absolute left-3 text-gray-400 text-xs font-medium">Php</span>
-                <input 
-                  type="number" 
-                  name="loan_amount_numeric" 
-                  value={formData.loan_amount_numeric} 
-                  onChange={handleChange} 
-                  max="20000"
-                  className="border border-gray-300 rounded-md pl-10 pr-3 py-1.5 focus:ring-2 focus:ring-[#66B538] outline-none bg-white text-sm transition-all w-40" 
-                />
+                <select
+                  name="loan_amount_numeric"
+                  value={formData.loan_amount_numeric}
+                  onChange={handleChange}
+                  className="border border-gray-300 rounded-md pl-10 pr-3 py-1.5 focus:ring-2 focus:ring-[#66B538] outline-none bg-white text-sm transition-all w-40"
+                >
+                  <option value="">Select</option>
+                  {Array.from({ length: 20 }, (_, index) => {
+                    const amount = String((index + 1) * 1000);
+                    return (
+                      <option key={amount} value={amount}>
+                        {Number(amount).toLocaleString('en-PH', { style: 'currency', currency: 'PHP', minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                      </option>
+                    );
+                  })}
+                </select>
               </div>
               for the purpose of
               <select 
@@ -446,11 +713,21 @@ function Emergency_Loan() {
               </select>
               months with a monthly amortization of
               <input 
-                type="number" 
+                type="text" 
                 name="monthly_amortization" 
-                value={formData.monthly_amortization} 
-                readOnly 
-                className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-[#66B538] outline-none bg-gray-50 text-sm transition-all mx-2 w-48 inline-block align-middle" 
+                value={hasComputedAmortization ? Number(formData.monthly_amortization).toLocaleString('en-PH', {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                }) : ''}
+                readOnly
+                tabIndex={-1}
+                aria-readonly
+                title="System-computed from principal, term and interest rate."
+                className={`border rounded-md px-3 py-1.5 outline-none text-sm transition-all mx-2 w-48 inline-block align-middle cursor-not-allowed select-text ${
+                  hasComputedAmortization
+                    ? 'border-[#66B538] bg-[#E9F7DE] text-[#2E7D32] font-semibold'
+                    : 'border-gray-200 bg-gray-100 text-gray-600'
+                }`}
               />
               , which I promise to pay the amount to <strong>Tubungan Teachers' Multi Purpose Cooperative</strong>
               
@@ -481,15 +758,15 @@ function Emergency_Loan() {
                 name="borrower_name" 
                 value={`${formData.first_name} ${formData.middle_name} ${formData.surname}`.trim()} 
                 readOnly 
-                className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-[#66B538] outline-none bg-gray-50 text-sm transition-all mx-2 w-[22rem] inline-block align-middle" 
+                className="border border-gray-300 rounded-md px-3 py-1.5 outline-none bg-gray-50 text-sm transition-all mx-2 w-[22rem] inline-block align-middle" 
               />
               of legal age, and an employee of
               <input 
                 type="text" 
                 name="employer_name" 
                 value={formData.employer_name} 
-                onChange={handleChange} 
-                className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-[#66B538] outline-none bg-white text-sm transition-all mx-2 w-96 inline-block align-middle" 
+                readOnly 
+                className="border border-gray-300 rounded-md px-3 py-1.5 outline-none bg-gray-100 text-sm text-gray-700 transition-all mx-2 w-96 inline-block align-middle" 
               />
               Tubungan, Iloilo.
               
@@ -510,11 +787,11 @@ function Emergency_Loan() {
                 <div className="inline-flex items-center relative mr-2 align-middle">
                   <span className="absolute left-3 text-gray-400 text-xs font-medium">Php</span>
                   <input 
-                    type="number" 
+                    type="text" 
                     name="loan_amount_numeric" 
-                    value={formData.loan_amount_numeric} 
-                    onChange={handleChange} 
-                    className="border border-gray-300 rounded-md pl-10 pr-3 py-1.5 focus:ring-2 focus:ring-[#66B538] outline-none bg-white text-sm transition-all w-40" 
+                    value={formData.loan_amount_numeric ? Number(formData.loan_amount_numeric).toLocaleString('en-PH', { style: 'decimal', minimumFractionDigits: 0, maximumFractionDigits: 0 }) : ''} 
+                    readOnly 
+                    className="border border-gray-300 rounded-md pl-10 pr-3 py-1.5 outline-none bg-gray-100 text-sm transition-all w-40" 
                   />
                 </div>
                 
@@ -531,6 +808,61 @@ function Emergency_Loan() {
               {loading ? 'Processing...' : 'Submit Application'}
             </button>
           </div>
+
+        {showSummary && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+            <div className="w-full max-w-lg rounded-lg bg-white shadow-xl border border-gray-200">
+              <div className="flex items-center justify-between px-6 py-4 border-b">
+                <h2 className="text-lg font-bold text-gray-800">Emergency Loan Application Summary</h2>
+                <button
+                  type="button"
+                  onClick={() => setShowSummary(false)}
+                  className="text-gray-400 hover:text-gray-600 text-xl leading-none"
+                  aria-label="Close summary"
+                >
+                  ×
+                </button>
+              </div>
+              <div className="px-6 py-5 text-sm text-gray-700">
+                <div className="grid grid-cols-1 gap-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-500">Loan Amount</span>
+                    <span className="font-semibold text-gray-900">{formatCurrency(formData.loan_amount_numeric)}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-500">Term</span>
+                    <span className="font-semibold text-gray-900">{formData.loan_term_months ? `${formData.loan_term_months} months` : '—'}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-500">Interest Rate</span>
+                    <span className="font-semibold text-gray-900">2.00%</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-500">Monthly Amortization</span>
+                    <span className="font-semibold text-green-700">{formatCurrency(formData.monthly_amortization)}</span>
+                  </div>
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center justify-end gap-3 px-6 py-4 border-t">
+                <button
+                  type="button"
+                  onClick={() => setShowSummary(false)}
+                  className="border border-gray-300 text-gray-700 px-4 py-2 rounded hover:bg-gray-50 font-semibold"
+                >
+                  Edit Details
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmSubmit}
+                  disabled={loading}
+                  className="bg-[#66B538] text-white px-5 py-2 rounded hover:bg-[#5aa12b] transition-colors font-bold disabled:opacity-50"
+                >
+                  {loading ? 'Submitting...' : 'Confirm Submit'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
         </div>
        
       </form>

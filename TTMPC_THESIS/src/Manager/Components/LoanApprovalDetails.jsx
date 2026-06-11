@@ -361,21 +361,50 @@ const LoanApprovalDetails = () => {
           }
         }
 
-        // Always recompute totals from principal + rate + term using add-on simple interest.
+        // Always recompute totals from principal + rate + term.
+        // For Emergency loans: use EMI (diminishing balance) formula
+        // For other loans: use simple add-on interest
         // The stored monthly_amortization may be stale (loans created under buggy rate values),
         // so we treat the formula as the source of truth at display time.
         const monthlyRateDecimal = effectiveInterestRate !== null
           ? Number(effectiveInterestRate) / 100
           : 0;
-        const monthlyInterestAmount = principalAmount > 0
-          ? principalAmount * monthlyRateDecimal
-          : 0;
-        const monthlyPrincipalAmount = (principalAmount > 0 && termMonths > 0)
-          ? principalAmount / termMonths
-          : 0;
-        const monthlyAmortization = monthlyInterestAmount + monthlyPrincipalAmount;
-        const resolvedTotalInterest = monthlyInterestAmount * termMonths;
-        const totalPayable = principalAmount + resolvedTotalInterest;
+
+        let monthlyAmortization, resolvedTotalInterest, totalPayable;
+        let monthlyInterestAmount = 0;
+        let monthlyPrincipalAmount = 0;
+
+        if (resolvedLoanType.toLowerCase().includes('emergency')) {
+          // Emergency: EMI formula (diminishing balance)
+          if (principalAmount > 0 && termMonths > 0 && monthlyRateDecimal > 0) {
+            const numerator = principalAmount * monthlyRateDecimal;
+            const denominator = 1 - Math.pow(1 + monthlyRateDecimal, -termMonths);
+            monthlyAmortization = numerator / denominator;
+            
+            let remaining = principalAmount;
+            resolvedTotalInterest = 0;
+            for (let i = 0; i < termMonths; i++) {
+              const interest = remaining * monthlyRateDecimal;
+              resolvedTotalInterest += interest;
+              remaining -= (monthlyAmortization - interest);
+            }
+          } else {
+            monthlyAmortization = 0;
+            resolvedTotalInterest = 0;
+          }
+        } else {
+          // Consolidated & others: simple add-on interest
+          monthlyInterestAmount = principalAmount > 0
+            ? principalAmount * monthlyRateDecimal
+            : 0;
+          monthlyPrincipalAmount = (principalAmount > 0 && termMonths > 0)
+            ? principalAmount / termMonths
+            : 0;
+          monthlyAmortization = monthlyInterestAmount + monthlyPrincipalAmount;
+          resolvedTotalInterest = monthlyInterestAmount * termMonths;
+        }
+
+        totalPayable = principalAmount + resolvedTotalInterest;
 
         const rawCoMakers = data.raw_payload?.optionalFields?.bookkeeper_loan_details?.coMakers
           ?? data.raw_payload?.coMakers

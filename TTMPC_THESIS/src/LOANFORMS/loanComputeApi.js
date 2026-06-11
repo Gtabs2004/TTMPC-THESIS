@@ -78,6 +78,12 @@ const FEE_POLICY_FALLBACKS = {
   },
 };
 
+// Default interest rates (percent per month) to use when `loan_types` row
+// is missing or not readable by the client. Emergency historically uses 2%.
+const DEFAULT_INTEREST_RATES = {
+  EMERGENCY: 2,
+};
+
 const resolveFeePolicy = async (loanTypeCode) => {
   const code = String(loanTypeCode || '').trim().toUpperCase();
   if (!code) return null;
@@ -139,6 +145,12 @@ const resolveLoanTypeInterestRate = async (loanTypeCode, loanTypeName) => {
     if (byName !== null) return byName;
   }
 
+  // Final fallback: use hard-coded defaults if available (avoids breaking
+  // local computation when DB rows are missing or RLS blocks read access).
+  if (code && Object.prototype.hasOwnProperty.call(DEFAULT_INTEREST_RATES, code)) {
+    return DEFAULT_INTEREST_RATES[code];
+  }
+
   return null;
 };
 
@@ -148,14 +160,31 @@ const buildMonthlyBreakdown = (loanType, principal, termMonths, monthlyRate, fir
   const monthlyPrincipal = money(principal / termMonths);
 
   if (loanType === 'emergency') {
+    const monthlyPayment = money(principal * monthlyRate / (1 - Math.pow(1 + monthlyRate, -termMonths)));
+    let remainingBalance = principal;
+
     for (let installmentNo = 1; installmentNo <= termMonths; installmentNo += 1) {
-      const interestComponent = money((principal / termMonths) * monthlyRate * (termMonths - installmentNo));
+      const interestComponent = money(remainingBalance * monthlyRate);
+      let principalComponent = money(monthlyPayment - interestComponent);
+      let expectedAmount = monthlyPayment;
+
+      if (installmentNo === termMonths) {
+        principalComponent = money(remainingBalance);
+        expectedAmount = money(principalComponent + interestComponent);
+      }
+
+      remainingBalance = money(remainingBalance - principalComponent);
+      if (installmentNo === termMonths && Math.abs(remainingBalance) < 0.01) {
+        remainingBalance = 0;
+      }
+
       breakdown.push({
         installment_no: installmentNo,
         due_date: addMonths(dueDate, installmentNo - 1).toISOString().split('T')[0],
-        expected_amount: money(monthlyPrincipal + interestComponent),
-        principal_component: monthlyPrincipal,
+        expected_amount: expectedAmount,
+        principal_component: principalComponent,
         interest_component: interestComponent,
+        remaining_balance: remainingBalance,
         schedule_status: 'Pending',
       });
     }

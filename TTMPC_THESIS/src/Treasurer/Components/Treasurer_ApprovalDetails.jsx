@@ -289,11 +289,6 @@ const Treasurer_ApprovalDetails = () => {
         }
 
         const principalAmount = Number(data.principal_amount ?? data.loan_amount ?? 0);
-        const monthlyAmortization = Number(
-          data.monthly_amortization
-          ?? data.raw_payload?.optionalFields?.monthly_amortization
-          ?? 0
-        );
         const termMonths = Number(data.term || 0);
         const resolvedLoanType = isKoicaSource
           ? (data.loan_type_code === 'NONMEMBER_BONUS' ? 'Nonmember Bonus Loan' : 'ABFF Loan')
@@ -303,13 +298,42 @@ const Treasurer_ApprovalDetails = () => {
           effectiveInterestRate = await resolveInterestRateFromLoanTypes(resolvedLoanType, data.loan_type_code);
         }
 
+        const monthlyRateDecimal = effectiveInterestRate !== null
+          ? Number(effectiveInterestRate) / 100
+          : 0;
+
+        let monthlyAmortization = Number(data.monthly_amortization ?? 0) 
+          || Number(data.raw_payload?.optionalFields?.monthly_amortization ?? 0);
+        let monthlyInterestAmount = 0;
+        let monthlyPrincipalAmount = 0;
+        
+        // For Emergency loans, recompute using EMI formula even if stored value exists
+        if (resolvedLoanType.toLowerCase().includes('emergency') && principalAmount > 0 && termMonths > 0 && monthlyRateDecimal > 0) {
+          const numerator = principalAmount * monthlyRateDecimal;
+          const denominator = 1 - Math.pow(1 + monthlyRateDecimal, -termMonths);
+          monthlyAmortization = numerator / denominator;
+        } else {
+          // For other loan types, compute component breakdown
+          monthlyInterestAmount = principalAmount > 0 ? principalAmount * monthlyRateDecimal : 0;
+          monthlyPrincipalAmount = (principalAmount > 0 && termMonths > 0) ? principalAmount / termMonths : 0;
+        }
+
         const hasStoredTotalInterest = data.total_interest !== null && data.total_interest !== undefined;
         let resolvedTotalInterest = hasStoredTotalInterest
           ? Number(data.total_interest)
           : Number(data.raw_payload?.optionalFields?.total_interest ?? NaN);
 
         if (!Number.isFinite(resolvedTotalInterest)) {
-          if (monthlyAmortization > 0 && termMonths > 0) {
+          if (resolvedLoanType.toLowerCase().includes('emergency') && principalAmount > 0 && termMonths > 0 && monthlyRateDecimal > 0) {
+            // Emergency: compute actual interest from EMI schedule
+            let remaining = principalAmount;
+            resolvedTotalInterest = 0;
+            for (let i = 0; i < termMonths; i++) {
+              const interest = remaining * monthlyRateDecimal;
+              resolvedTotalInterest += interest;
+              remaining -= (monthlyAmortization - interest);
+            }
+          } else if (monthlyAmortization > 0 && termMonths > 0) {
             resolvedTotalInterest = Math.max(0, (monthlyAmortization * termMonths) - principalAmount);
           } else if (effectiveInterestRate !== null && principalAmount > 0 && termMonths > 0) {
             resolvedTotalInterest = Math.max(0, principalAmount * (Number(effectiveInterestRate) / 100) * termMonths);
