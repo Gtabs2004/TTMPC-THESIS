@@ -36,8 +36,8 @@ const menuItems = [
     { name: "Reports", icon: BarChart3 },
     { name: "Audit Trail", icon: History },
     { name: "Grocery", icon: Coins },
+    { name: "Legacy Member Validation", icon: Search },
   ];
- 
 
   const handleSignOut = async (e) => {
     e.preventDefault();
@@ -55,7 +55,7 @@ const menuItems = [
         <div className="flex flex-row items-start gap-2 mb-6">
           <img src="/img/ttmpc logo.png" alt="Logo" className="h-12 w-auto" />
           <div className="flex flex-col">
-            <h1 className="text-xl font-bold text-[#389734]">TTMPC</h1>
+            <h1 className="texriutet-xl font-bold text-[#389734]">TTMPC</h1>
             <PortalSidebarIdentity className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold" fallbackPortal="Bookkeeper Portal" fallbackRole="Bookkeeper" />
           </div>
         </div>
@@ -66,18 +66,19 @@ const menuItems = [
         <nav className="flex flex-col gap-2 text-sm flex-grow">
   {(() => {
     const routeMap = {
-      Dashboard: "/dashboard",
-      "Manage Member": "/manage-member",
-      "Loan Approval": "/bookkeeper-loan-approval",
-      "Manage Loans": "/manage-loans",
-      Payments: "/payments",
-      "Savings Withdrawals": "/bookkeeper-savings-transactions",
-      Accounting: "/accounting",
-      "MIGS Scoring": "/migs",
-      Reports: "/reports",
-      "Audit Trail": "/audit-trail",
-      Grocery: "/grocery",
-    };
+    Dashboard: "/dashboard",
+    "Manage Member": "/manage-member",
+    "Loan Approval": "/bookkeeper-loan-approval",
+    "Manage Loans": "/manage-loans",
+    Payments: "/payments",
+    "Savings Withdrawals": "/bookkeeper-savings-transactions",
+    Accounting: "/accounting",
+    "MIGS Scoring": "/migs",
+    Reports: "/reports",
+    "Audit Trail": "/audit-trail",
+    Grocery: "/grocery",
+    "Legacy Member Validation": "/legacy-member-validation",
+  };
 
     return menuItems.map((item) => {
       const Icon = item.icon;

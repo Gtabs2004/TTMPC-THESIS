@@ -32,19 +32,21 @@ const Manage_Member = () => {
     setSortOrder("name_asc");
   };
 
-  const menuItems = [
-    { name: "Dashboard", icon: LayoutDashboard },
-    { name: "Manage Member", icon: Users },
-    { name: "Loan Approval", icon: FileText },
-    { name: "Manage Loans", icon: Briefcase },
-    { name: "Payments", icon: Wallet },
-    { name: "Savings Withdrawals", icon: CreditCard },
-    { name: "Accounting", icon: Calculator },
-    { name: "MIGS Scoring", icon: Activity },
-    { name: "Reports", icon: BarChart3 },
-    { name: "Audit Trail", icon: History },
-    { name: "Grocery", icon: Coins },
-  ];
+ const menuItems = [
+     { name: "Dashboard", icon: LayoutDashboard },
+     { name: "Manage Member", icon: Users },
+     { name: "Loan Approval", icon: FileText },
+     { name: "Manage Loans", icon: Briefcase },
+     { name: "Payments", icon: Wallet },
+     { name: "Savings Withdrawals", icon: CreditCard },
+     { name: "Accounting", icon: Calculator },
+     { name: "MIGS Scoring", icon: Activity },
+     { name: "Reports", icon: BarChart3 },
+     { name: "Audit Trail", icon: History },
+     { name: "Grocery", icon: Coins },
+     { name: "Legacy Member Validation", icon: Search },
+   ];
+ 
 
   const routeMap = {
     Dashboard: "/dashboard",
@@ -58,7 +60,8 @@ const Manage_Member = () => {
     Reports: "/reports",
     "Audit Trail": "/audit-trail",
     Grocery: "/grocery",
-  };
+    "Legacy Member Validation": "/legacy-member-validation",
+  }
 
   useEffect(() => {
     async function loadData() {
@@ -177,7 +180,7 @@ const Manage_Member = () => {
         <button onClick={handleSignOut} className="mt-auto w-full rounded-md p-2 text-xs bg-green-600 hover:bg-green-700 active:scale-[0.98] text-white font-bold transition-all duration-150 ease-in-out shadow-sm hover:shadow">Sign out</button>
       </aside>
 
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 flex flex-col h-screen overflow-y-auto">
        <header className="bg-white h-16 shadow-sm flex items-center justify-end px-8 border-b border-gray-100">
                         <div className="relative">
                           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400"/>

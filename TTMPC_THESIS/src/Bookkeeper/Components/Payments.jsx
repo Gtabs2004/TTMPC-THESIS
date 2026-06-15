@@ -67,21 +67,22 @@ const BookkeeperPayments = () => {
   const [loading, setLoading] = useState(false);
   const [workingPaymentId, setWorkingPaymentId] = useState("");
 
-  const menuItems = [
-    { name: "Dashboard", icon: LayoutDashboard },
-    { name: "Manage Member", icon: Users },
-    { name: "Loan Approval", icon: FileText },
-    { name: "Manage Loans", icon: Briefcase },
-    { name: "Payments", icon: Wallet },
-    { name: "Savings Withdrawals", icon: CreditCard },
-    { name: "Accounting", icon: Calculator },
-    { name: "MIGS Scoring", icon: Activity },
-    { name: "Reports", icon: BarChart3 },
-    { name: "Audit Trail", icon: History },
-    { name: "Grocery", icon: Coins },
-  ];
+   const menuItems = [
+      { name: "Dashboard", icon: LayoutDashboard },
+      { name: "Manage Member", icon: Users },
+      { name: "Loan Approval", icon: FileText },
+      { name: "Manage Loans", icon: Briefcase },
+      { name: "Payments", icon: Wallet },
+      { name: "Savings Withdrawals", icon: CreditCard },
+      { name: "Accounting", icon: Calculator },
+      { name: "MIGS Scoring", icon: Activity },
+      { name: "Reports", icon: BarChart3 },
+      { name: "Audit Trail", icon: History },
+      { name: "Grocery", icon: Coins },
+      { name: "Legacy Member Validation", icon: Search },
+    ];
 
-  const routeMap = {
+   const routeMap = {
     Dashboard: "/dashboard",
     "Manage Member": "/manage-member",
     "Loan Approval": "/bookkeeper-loan-approval",
@@ -93,6 +94,7 @@ const BookkeeperPayments = () => {
     Reports: "/reports",
     "Audit Trail": "/audit-trail",
     Grocery: "/grocery",
+    "Legacy Member Validation": "/legacy-member-validation",
   };
 
   const loanById = useMemo(() => {

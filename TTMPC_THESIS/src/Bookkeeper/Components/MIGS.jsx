@@ -37,19 +37,21 @@ const MIGS = () => {
   const [yearFilter, setYearFilter] = useState("2026");
   const [sortBy, setSortBy] = useState("Name A-Z");
 
-  const menuItems = [
-    { name: "Dashboard", icon: LayoutDashboard },
-    { name: "Manage Member", icon: Users },
-    { name: "Loan Approval", icon: FileText },
-    { name: "Manage Loans", icon: Briefcase },
-    { name: "Payments", icon: Wallet },
-    { name: "Savings Withdrawals", icon: CreditCard },
-    { name: "Accounting", icon: Calculator },
-    { name: "MIGS Scoring", icon: Activity },
-    { name: "Reports", icon: BarChart3 },
-    { name: "Audit Trail", icon: History },
-    { name: "Grocery", icon: Coins },
-  ];
+   const menuItems = [
+      { name: "Dashboard", icon: LayoutDashboard },
+      { name: "Manage Member", icon: Users },
+      { name: "Loan Approval", icon: FileText },
+      { name: "Manage Loans", icon: Briefcase },
+      { name: "Payments", icon: Wallet },
+      { name: "Savings Withdrawals", icon: CreditCard },
+      { name: "Accounting", icon: Calculator },
+      { name: "MIGS Scoring", icon: Activity },
+      { name: "Reports", icon: BarChart3 },
+      { name: "Audit Trail", icon: History },
+      { name: "Grocery", icon: Coins },
+      { name: "Legacy Member Validation", icon: Search },
+    ];
+  
 
   const routeMap = {
     Dashboard: "/dashboard",
@@ -63,8 +65,8 @@ const MIGS = () => {
     Reports: "/reports",
     "Audit Trail": "/audit-trail",
     Grocery: "/grocery",
+    "Legacy Member Validation": "/legacy-member-validation",
   };
-
   const mockData = [
     { id: 1, full_name: "Adelaida Soriano", member_id: "TTMPC-2024-051", capital: 9800, loan_balance: 98000, savings_balance: 52000, migs_score: 93, migs_status: "MIGS Qualified" },
     { id: 2, full_name: "Adoracion Salcedo", member_id: "TTMPC-2024-021", capital: 9200, loan_balance: 92000, savings_balance: 46000, migs_score: 88, migs_status: "MIGS Qualified" },
