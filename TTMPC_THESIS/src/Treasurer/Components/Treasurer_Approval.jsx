@@ -261,7 +261,7 @@ const Treasurer_Approval = () => {
         </button>
       </aside>
 
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 flex flex-col h-screen overflow-y-auto">
         <header className="bg-white h-16 shadow-sm flex items-center justify-end px-8 border-b border-gray-100">
           <div className="relative">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400" />

@@ -48,18 +48,19 @@ const Grocery = () => {
   const [activeTab, setActiveTab] = useState('All');
   
   const menuItems = [
-    { name: "Dashboard", icon: LayoutDashboard },
-    { name: "Manage Member", icon: Users },
-    { name: "Loan Approval", icon: FileText },
-    { name: "Manage Loans", icon: Briefcase },
-    { name: "Payments", icon: Wallet },
-    { name: "Savings Withdrawals", icon: CreditCard },
-    { name: "Accounting", icon: Calculator },
-    { name: "MIGS Scoring", icon: Activity },
-    { name: "Reports", icon: BarChart3 },
-    { name: "Audit Trail", icon: History },
-    { name: "Grocery", icon: Coins },
-  ];
+      { name: "Dashboard", icon: LayoutDashboard },
+      { name: "Manage Member", icon: Users },
+      { name: "Loan Approval", icon: FileText },
+      { name: "Manage Loans", icon: Briefcase },
+      { name: "Payments", icon: Wallet },
+      { name: "Savings Withdrawals", icon: CreditCard },
+      { name: "Accounting", icon: Calculator },
+      { name: "MIGS Scoring", icon: Activity },
+      { name: "Reports", icon: BarChart3 },
+      { name: "Audit Trail", icon: History },
+      { name: "Grocery", icon: Coins },
+      { name: "Legacy Member Validation", icon: Search },
+    ];
 
   const handleSignOut = async (e) => {
     e.preventDefault();
@@ -104,18 +105,19 @@ const Grocery = () => {
               <nav className="flex flex-col gap-2 text-sm flex-grow">
                 {(() => {
                   const routeMap = {
-                    Dashboard: "/dashboard",
-                    "Manage Member": "/manage-member",
-                    "Loan Approval": "/bookkeeper-loan-approval",
-                    "Manage Loans": "/manage-loans",
-                    Payments: "/payments",
-                    "Savings Withdrawals": "/bookkeeper-savings-transactions",
-                    Accounting: "/accounting",
-                    "MIGS Scoring": "/migs",
-                    Reports: "/reports",
-                    "Audit Trail": "/audit-trail",
-                    Grocery: "/grocery",
-                  };
+    Dashboard: "/dashboard",
+    "Manage Member": "/manage-member",
+    "Loan Approval": "/bookkeeper-loan-approval",
+    "Manage Loans": "/manage-loans",
+    Payments: "/payments",
+    "Savings Withdrawals": "/bookkeeper-savings-transactions",
+    Accounting: "/accounting",
+    "MIGS Scoring": "/migs",
+    Reports: "/reports",
+    "Audit Trail": "/audit-trail",
+    Grocery: "/grocery",
+    "Legacy Member Validation": "/legacy-member-validation",
+  };
       
                   return menuItems.map((item) => {
                     const Icon = item.icon;
