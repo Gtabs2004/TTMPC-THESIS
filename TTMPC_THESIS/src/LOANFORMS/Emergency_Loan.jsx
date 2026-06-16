@@ -116,6 +116,7 @@ function Emergency_Loan() {
   const MIN_PAID_MONTHS_FOR_RENEWAL = 6;
   const TERM_OPTIONS = [6, 12];
   const STRESS_INDEX_CEILING = 40;
+  const EMERGENCY_LOAN_AMOUNT_OPTIONS = ['10000', '20000'];
   const MONTHLY_INTEREST_FACTOR = 0.02;
 
   const RISK_COLORS = {
@@ -660,14 +661,11 @@ function Emergency_Loan() {
                   className="border border-gray-300 rounded-md pl-10 pr-3 py-1.5 focus:ring-2 focus:ring-[#66B538] outline-none bg-white text-sm transition-all w-40"
                 >
                   <option value="">Select</option>
-                  {Array.from({ length: 20 }, (_, index) => {
-                    const amount = String((index + 1) * 1000);
-                    return (
-                      <option key={amount} value={amount}>
-                        {Number(amount).toLocaleString('en-PH', { style: 'currency', currency: 'PHP', minimumFractionDigits: 0, maximumFractionDigits: 0 })}
-                      </option>
-                    );
-                  })}
+                  {EMERGENCY_LOAN_AMOUNT_OPTIONS.map((amount) => (
+                    <option key={amount} value={amount}>
+                      {Number(amount).toLocaleString('en-PH', { style: 'currency', currency: 'PHP', minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                    </option>
+                  ))}
                 </select>
               </div>
               for the purpose of
