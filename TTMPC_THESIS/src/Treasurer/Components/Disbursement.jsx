@@ -302,12 +302,6 @@ const Disbursements = () => {
             </div>
           </div>
 
-          {/* Banner Notices */}
-          <div className="rounded-xl border border-blue-100 bg-blue-50/80 px-4 py-3 text-sm text-blue-800 flex items-start gap-3 mb-6 shadow-sm">
-            <AlertCircle className="w-5 h-5 shrink-0 text-blue-600 mt-0.5" />
-            <p className="font-medium">{bannerNotice}</p>
-          </div>
-
           {errorMessage && (
             <div className="rounded-xl border border-red-100 bg-red-50/80 px-4 py-3 text-sm text-red-800 flex items-start gap-3 mb-6 shadow-sm">
               <AlertCircle className="w-5 h-5 shrink-0 text-red-600 mt-0.5" />
@@ -333,42 +327,6 @@ const Disbursements = () => {
                 </div>
               );
             })}
-          </div>
-
-          {/* Priority Queue Legend */}
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm mb-8 overflow-hidden transition-all duration-300">
-            <button
-              onClick={() => setShowPriorityLegend((v) => !v)}
-              className="w-full flex items-center justify-between px-6 py-4 hover:bg-gray-50 transition-colors"
-            >
-              <div className="flex items-center gap-4">
-                <div className="p-2 rounded-lg bg-indigo-50 text-indigo-600 border border-indigo-100">
-                  <ListOrdered className="w-5 h-5" />
-                </div>
-                <div className="text-left">
-                  <h3 className="text-sm font-bold text-gray-900">Priority Logic Reference</h3>
-                  <p className="text-xs text-gray-500 font-medium">Sorted by rank, then by date. Review queue hierarchy below.</p>
-                </div>
-              </div>
-              <ChevronRight className={`w-5 h-5 text-gray-400 transition-transform duration-300 ${showPriorityLegend ? "rotate-90" : ""}`} />
-            </button>
-            {showPriorityLegend && (
-              <div className="border-t border-gray-100 px-6 py-5 bg-gray-50/50">
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-4">
-                  {PRIORITY_RULES.map((rule) => (
-                    <div key={rule.rank} className="bg-white rounded-lg border border-gray-200 p-3 shadow-sm flex flex-col justify-between">
-                      <div>
-                        <span className={`inline-flex items-center justify-center min-w-7 h-7 rounded-full text-xs font-bold ring-1 mb-2 ${rankTone[rule.rank]}`}>
-                          #{rule.rank}
-                        </span>
-                        <p className="text-sm font-bold text-gray-900 leading-tight">{rule.label}</p>
-                      </div>
-                      <p className="text-xs text-gray-500 font-medium mt-2 pt-2 border-t border-gray-100">{rule.note}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
           </div>
 
           {/* Data Table Section */}
