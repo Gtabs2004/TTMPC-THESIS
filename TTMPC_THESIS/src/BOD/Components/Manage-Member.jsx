@@ -3,7 +3,18 @@ import { NavLink, useNavigate } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
 import { useNotification } from "../../contex/NotificationContext";
 import { PortalSidebarIdentity, PortalTopbarIdentity } from "../../components/PortalIdentity";
-import { LayoutDashboard, Users, CreditCard, CalendarCheck, Archive, Search, Bell, ChevronLeft, ChevronRight } from "lucide-react";
+import { 
+  LayoutDashboard, 
+  Users, 
+  CreditCard, 
+  CalendarCheck, 
+  Archive, 
+  Search, 
+  Bell, 
+  ChevronLeft, 
+  ChevronRight,
+  FileText 
+} from "lucide-react";
 import NotificationBell from "./NotificationBell";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
@@ -25,6 +36,7 @@ const BOD_Manage_Member = () => {
       { name: "Member Approvals", icon: Users },
       { name: "Manage Loans", icon: CreditCard },
       { name: "Manage Member", icon: Users },
+      { name: "Loan Policies", icon: FileText }
     ]},
     { section: "SECRETARY", items: [
       { name: "Training Attendance", icon: CalendarCheck },
@@ -37,6 +49,7 @@ const BOD_Manage_Member = () => {
     "Member Approvals": "/member-approvals",
     "Manage Loans": "/bod-manage-loans",
     "Manage Member": "/bod-manage-member",
+    "Loan Policies": "/bod-loan-policies",
     "Training Attendance": "/Secretary_Attendance",
     "Membership Records": "/Secretary_Records",
   };

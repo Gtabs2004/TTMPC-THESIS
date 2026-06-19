@@ -15,6 +15,7 @@ import {
   ChevronDown,
   ChevronRight,
   ChevronUp,
+  FileText
 } from "lucide-react";
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 const MEMBER_TONE_POOL = [
@@ -278,7 +279,8 @@ const BOD_Manage_Loans = () => {
         { name: "Member Approvals", icon: Users },
         { name: "Manage Loans", icon: CreditCard },
         { name: "Manage Member", icon: Users },
-      ],
+        { name: "Loan Policies", icon: FileText }
+      ]
     },
     {
       section: "SECRETARY",
@@ -294,6 +296,7 @@ const BOD_Manage_Loans = () => {
     "Member Approvals": "/member-approvals",
     "Manage Loans": "/bod-manage-loans",
     "Manage Member": "/bod-manage-member",
+    "Loan Policies": "/bod-loan-policies",
     "Training Attendance": "/Secretary_Attendance",
     "Membership Records": "/Secretary_Records",
   };

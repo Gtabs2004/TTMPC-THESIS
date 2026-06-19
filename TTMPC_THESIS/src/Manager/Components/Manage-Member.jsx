@@ -3,6 +3,7 @@ import { NavLink, useNavigate } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
 import { useNotification } from "../../contex/NotificationContext";
 import { PortalSidebarIdentity, PortalTopbarIdentity } from "../../components/PortalIdentity";
+import LoanNotificationBell from "../../components/LoanNotificationBell";
 import { LayoutDashboard, Users, Search, Bell, ChevronLeft, ChevronRight } from "lucide-react";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
@@ -81,38 +82,76 @@ const Manager_Manage_Member = () => {
   };
 
   return (
-    <div className="flex min-h-screen bg-gray-100">
-      <aside className="bg-white w-64 p-4 flex flex-col border-r border-gray-200">
-        <div className="flex flex-row items-start gap-2 mb-6">
-          <img src="/img/ttmpc logo.png" alt="Logo" className="h-12 w-auto" />
-          <div className="flex flex-col">
-            <h1 className="text-xl font-bold text-[#389734]">TTMPC</h1>
-            <p className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold">Manager Portal</p>
-          </div>
-        </div>
-        <hr className="w-full border-gray-200 mb-6" />
-        <nav className="flex flex-col gap-2 text-sm flex-grow">
-          {menuItems.map((item) => {
-            const Icon = item.icon;
-            return (
-              <NavLink key={item.name} to={routeMap[item.name]} className={({ isActive }) => `flex items-center gap-3 p-2 rounded-md transition-colors ${isActive ? "bg-green-50 text-green-700 font-semibold" : "text-gray-700 hover:bg-green-50 hover:text-green-700"}`}>
-                <Icon size={20} /><span>{item.name}</span>
-              </NavLink>
-            );
-          })}
-        </nav>
-        <button onClick={handleSignOut} className="mt-auto w-full rounded p-2 text-xs bg-green-600 hover:bg-green-700 text-white font-bold transition-colors">Sign out</button>
-      </aside>
-
-      <div className="flex-1 flex flex-col">
-        <header className="bg-white h-16 shadow-sm flex items-center justify-end px-8">
-          <div className="relative">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400" />
-            <input value={query} onChange={(e) => setQuery(e.target.value)} type="text" placeholder="Search member..." className="bg-gray-50 w-64 h-10 rounded-lg border border-gray-300 pl-10 pr-4 py-1 focus:outline-none focus:ring-2 focus:ring-green-500" />
-          </div>
-          <button className="ml-6 relative p-1 rounded-full text-gray-500 hover:bg-gray-100 transition-colors"><Bell className="w-5 h-5" /></button>
-        </header>
-
+    <div className="flex min-h-screen bg-gray-50">
+          {/* SIDEBAR (Kept from your original code) */}
+          <aside className="bg-white w-64 p-4 flex flex-col border-r border-gray-200">
+            <div className="flex flex-row items-start gap-2 mb-6">
+              <img src="/img/ttmpc logo.png" alt="Logo" className="h-12 w-auto" />
+              <div className="flex flex-col">
+                <h1 className="text-xl font-bold text-[#389734]">TTMPC</h1>
+                <PortalSidebarIdentity className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold" fallbackPortal="Manager Portal" fallbackRole="Manager" />
+              </div>
+            </div>
+    
+            <hr className="w-full border-gray-200 mb-6" />
+    
+            <nav className="flex flex-col gap-2 text-sm flex-grow">
+              {(() => {
+                const routeMap = {
+                  "Dashboard": "/manager-dashboard",
+                  "Loan Approval": "/loan-approval",
+                  "Manage Member": "/manager-manage-member",
+                };
+    
+                return menuItems.map((item) => {
+                  const Icon = item.icon;
+                  const to = routeMap[item.name] || `/${item.name.toLowerCase().replace(/\s+/g, '-')}`;
+    
+                  return (
+                    <NavLink
+                      key={item.name}
+                      to={to}
+                      className={({ isActive }) =>
+                        `flex items-center gap-3 p-2 rounded-md transition-colors ${
+                          isActive
+                            ? 'bg-green-50 text-green-700 font-semibold'
+                            : 'text-gray-700 hover:bg-green-50 hover:text-green-700'
+                        }`
+                      }
+                    >
+                      <Icon size={20} />
+                      <span>{item.name}</span>
+                    </NavLink>
+                  );
+                });
+              })()}
+            </nav>
+    
+            <button
+              onClick={handleSignOut}
+              className="mt-auto w-full rounded p-2 text-xs bg-green-600 hover:bg-green-700 text-white font-bold transition-colors"
+            >
+              Sign out
+            </button>
+          </aside>
+    
+          {/* MAIN CONTENT WRAPPER */}
+          <div className="flex-1 flex flex-col h-screen overflow-y-auto">
+            {/* HEADER (Kept mostly identical) */}
+            <header className="bg-white h-16 shadow-sm flex items-center justify-end px-8 shrink-0">
+              <div className="relative">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400"/>
+                <input 
+                  type="text" 
+                  className="bg-gray-50 w-52 h-10 rounded-lg border border-gray-300 px-4 py-1 pl-9 focus:outline-none focus:ring-2 focus:ring-green-500" 
+                  placeholder="Search..."
+                />
+              </div>
+              <LoanNotificationBell role="manager" />
+              <img src="/img/bookkeeper-profile.png" alt="Profile" className="ml-4 w-8 h-8 rounded-full bg-gray-200" />
+              <PortalTopbarIdentity className="text-sm font-medium text-gray-700" fallbackRole="Manager" />
+            </header>
+    
         <main className="p-8">
           <h1 className="font-bold text-2xl mb-6">Manage Member</h1>
           <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">

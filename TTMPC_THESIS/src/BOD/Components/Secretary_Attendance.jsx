@@ -18,7 +18,8 @@ import {
   Download,
   Archive,
   CalendarDays,
-  Clock3
+  Clock3,
+  FileText
 } from 'lucide-react';
 import logo from "../../assets/img/ttmpc logo.png";
 import NotificationBell from "./NotificationBell";
@@ -53,6 +54,7 @@ const Secretary_Attendance = () => {
         { name: "Member Approvals", icon: Users },
         { name: "Manage Loans", icon: CreditCard },
         { name: "Manage Member", icon: Users },
+        { name: "Loan Policies", icon: FileText }
       ]
     },
     {
@@ -425,6 +427,7 @@ const Secretary_Attendance = () => {
               "Member Approvals": "/member-approvals",
               "Manage Loans": "/bod-manage-loans",
               "Manage Member": "/bod-manage-member",
+              "Loan Policies": "/bod-loan-policies",
               "Training Attendance": "/Secretary_Attendance",
               "Membership Records": "/Secretary_Records"
             };
@@ -477,7 +480,7 @@ const Secretary_Attendance = () => {
           </div>
           <NotificationBell />
           <img src="/img/bookkeeper-profile.png" alt="Bookkeeper Profile" className="ml-4 w-8 h-8 rounded-full" />
-          <PortalTopbarIdentity className="text-sm font-medium text-gray-700" fallbackRole="Secretary" />
+          <PortalTopbarIdentity className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold" fallbackPortal="Secretary Portal" fallbackRole="Secretary" />
         </header>
 
         <main className="p-8 overflow-auto">
