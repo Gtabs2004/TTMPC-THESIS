@@ -20,7 +20,8 @@ import {
   ChevronRight,
   UserPlus,
   Download,
-  Archive 
+  Archive,
+  
 } from 'lucide-react';
 import logo from "../../assets/img/ttmpc logo.png";
 import NotificationBell from "./NotificationBell";
@@ -47,6 +48,7 @@ const Secretary_Records = () => {
         { name: "Member Approvals", icon: Users },
         { name: "Manage Loans", icon: CreditCard },
         { name: "Manage Member", icon: Users },
+        { name: "Loan Policies", icon: FileText }
       ]
     },
     {
@@ -128,7 +130,7 @@ const Secretary_Records = () => {
           <img src="/img/ttmpc logo.png" alt="Logo" className="h-12 w-auto" />
           <div className="flex flex-col">
             <h1 className="text-xl font-bold text-[#389734]">TTMPC</h1>
-            <PortalSidebarIdentity className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold" fallbackPortal="BOD Portal" fallbackRole="BOD" />
+            <PortalSidebarIdentity className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold" fallbackPortal="Secretary Portal" fallbackRole="Secretary" />
           </div>
         </div>
 
@@ -141,6 +143,7 @@ const Secretary_Records = () => {
               "Member Approvals": "/member-approvals",
               "Manage Loans": "/bod-manage-loans",
               "Manage Member": "/bod-manage-member",
+              "Loan Policies": "/bod-loan-policies",
               "Training Attendance": "/Secretary_Attendance",
               "Membership Records": "/Secretary_Records"
             };

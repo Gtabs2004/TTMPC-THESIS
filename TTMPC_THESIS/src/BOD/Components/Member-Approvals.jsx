@@ -18,7 +18,8 @@ import {
   Download,
   CalendarDays,
   CalendarCheck,
-  Archive
+  Archive,
+  FileText
 } from 'lucide-react';
 import { supabase } from "../../supabaseClient";
 import { resolveAccountFromSessionUser } from "../../utils/sessionIdentity";
@@ -180,6 +181,7 @@ const Member_Approvals = () => {
         { name: "Member Approvals", icon: Users },
         { name: "Manage Loans", icon: CreditCard },
         { name: "Manage Member", icon: Users },
+        { name: "Loan Policies", icon: FileText }
       ]
     },
     {
@@ -284,7 +286,14 @@ const Member_Approvals = () => {
               <p className="text-xs font-bold text-gray-400 px-2 uppercase tracking-wider">{sectionGroup.section}</p>
               {sectionGroup.items.map((item) => {
                 const Icon = item.icon;
-                const routeMap = { "Dashboard": "/BOD-dashboard", "Member Approvals": "/member-approvals", "Manage Loans": "/bod-manage-loans", "Manage Member": "/bod-manage-member", "Training Attendance": "/Secretary_Attendance", "Membership Records": "/Secretary_Records" };
+                const routeMap = {
+                   "Dashboard": "/BOD-dashboard", 
+                  "Member Approvals": "/member-approvals", 
+                  "Manage Loans": "/bod-manage-loans", 
+                  "Manage Member": "/bod-manage-member", 
+                   "Loan Policies": "/bod-loan-policies",
+                  "Training Attendance": "/Secretary_Attendance", 
+                  "Membership Records": "/Secretary_Records" };
                 const to = routeMap[item.name] || `/${item.name.toLowerCase().replace(/\s+/g, '-')}`;
                 return (
                   <NavLink key={item.name} to={to} className={({ isActive }) => `flex items-center gap-3 p-2 rounded-md transition-colors ${isActive ? 'bg-green-50 text-green-700 font-semibold' : 'text-gray-700 hover:bg-green-50 hover:text-green-700'}`}>
