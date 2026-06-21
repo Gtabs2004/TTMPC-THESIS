@@ -134,7 +134,7 @@ const Secretary_Records = () => {
           </div>
         </div>
 
-        <hr className="w-full border-gray-200 mb-6" />
+        <hr className="w-full border-gray-200 mb-6" />  
 
         <nav className="flex flex-col gap-2 text-sm flex-grow">
           {(() => {
