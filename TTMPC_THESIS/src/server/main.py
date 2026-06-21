@@ -525,6 +525,84 @@ def get_next_savings_cashier_transaction_id() -> str:
     return build_savings_cashier_transaction_id(max_sequence + 1)
 
 
+def resolve_legacy_savings_id(account_number: str | None) -> str | None:
+    """Inverse of resolve_savings_account_number: SA-NNNNNN -> legacy Savings_ID.
+
+    Returns None when the bridge row has no legacy_savings_id (CSV-migrated
+    accounts that were never opened in the legacy table)."""
+    key = str(account_number or "").strip()
+    if not key or not supabase:
+        return None
+    try:
+        response = (
+            supabase.table("savings_accounts")
+            .select("legacy_savings_id")
+            .eq("account_number", key)
+            .limit(1)
+            .execute()
+        )
+    except Exception:
+        return None
+    row = (response.data or [None])[0]
+    return str(row["legacy_savings_id"]) if row and row.get("legacy_savings_id") else None
+
+
+def resolve_savings_account_number(legacy_savings_id: str | None) -> str | None:
+    """Map a legacy Savings_Transactions.Savings_ID to savings_accounts.account_number.
+
+    Returns None if no bridge row exists yet (e.g. queue inserted before backfill ran).
+    Callers should treat None as a non-fatal skip — legacy table remains authoritative
+    until Phase 3 of the savings consolidation.
+    """
+    key = str(legacy_savings_id or "").strip()
+    if not key or not supabase:
+        return None
+    try:
+        response = (
+            supabase.table("savings_accounts")
+            .select("account_number")
+            .eq("legacy_savings_id", key)
+            .limit(1)
+            .execute()
+        )
+    except Exception:
+        return None
+    row = (response.data or [None])[0]
+    return str(row["account_number"]) if row and row.get("account_number") else None
+
+
+def mirror_savings_ledger_entry(
+    *,
+    account_number: str | None,
+    entry_type: str,
+    amount: Decimal,
+    transaction_id: str,
+    posted_by: str | None,
+    remarks: str | None,
+) -> None:
+    """Best-effort write to public.savings_ledger.
+
+    Failures are swallowed and logged — the legacy Savings_Transactions update
+    is still the source of truth until Phase 3. The savings_ledger trigger
+    auto-updates savings_accounts.balance, so a successful insert keeps the
+    new tables in sync with the legacy ones.
+    """
+    if not account_number or not supabase or amount <= 0:
+        return
+    try:
+        supabase.table("savings_ledger").insert({
+            "account_number": account_number,
+            "entry_type": entry_type,
+            "amount": decimal_to_float(amount),
+            "reference": transaction_id,
+            "source": "savings_queue_mirror",
+            "remarks": remarks,
+            "posted_by": posted_by or "system",
+        }).execute()
+    except Exception as exc:  # noqa: BLE001
+        print(f"[savings_ledger mirror] skipped ({entry_type} {amount} on {account_number}): {exc}")
+
+
 def build_bod_resolution_number(reference_value: str | None, membership_date_value: str | None) -> str:
     clean_ref = "".join(ch for ch in str(reference_value or "").upper() if ch.isalnum())
     suffix = clean_ref[-6:] if clean_ref else datetime.utcnow().strftime("%H%M%S")
@@ -658,16 +736,43 @@ def build_single_schedule_row(
     if term_months <= 0:
         raise ValueError("term_months must be greater than zero")
 
-    principal_component = money(principal / Decimal(term_months))
     penalty_rate_percent = Decimal("1") if loan_type == "bonus" else Decimal("2")
 
     if loan_type == "emergency":
-        interest_component = money(max(remaining_principal_before, Decimal("0")) * monthly_rate_decimal)
-    else:
-        interest_component = money(principal * monthly_rate_decimal)
+        # Mirror /api/loans/compute: equal principal in centavos with a
+        # last-month cleanup, interest on the balance AFTER the principal
+        # payment for the month.
+        total_principal_cents = int(
+            (principal * Decimal("100")).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
+        )
+        monthly_principal_cents = int(Decimal(total_principal_cents) / Decimal(term_months))
+        balance_before_cents = int(
+            (max(remaining_principal_before, Decimal("0")) * Decimal("100")).quantize(
+                Decimal("1"), rounding=ROUND_HALF_UP
+            )
+        )
 
-    expected_amount = money(principal_component + interest_component)
-    remaining_after = max(remaining_principal_before - principal_component, Decimal("0"))
+        if installment_no >= term_months:
+            principal_cents = balance_before_cents
+        else:
+            principal_cents = min(monthly_principal_cents, balance_before_cents)
+
+        ending_balance_cents = balance_before_cents - principal_cents
+        interest_cents = int(
+            (Decimal(ending_balance_cents) * monthly_rate_decimal).quantize(
+                Decimal("1"), rounding=ROUND_HALF_UP
+            )
+        )
+
+        principal_component = Decimal(principal_cents) / Decimal("100")
+        interest_component = Decimal(interest_cents) / Decimal("100")
+        expected_amount = Decimal(principal_cents + interest_cents) / Decimal("100")
+        remaining_after = Decimal(ending_balance_cents) / Decimal("100")
+    else:
+        principal_component = money(principal / Decimal(term_months))
+        interest_component = money(principal * monthly_rate_decimal)
+        expected_amount = money(principal_component + interest_component)
+        remaining_after = max(remaining_principal_before - principal_component, Decimal("0"))
 
     return {
         "schedule_id": build_sequence_id("TTMPCLP_SI_", start_sequence_number),
@@ -865,25 +970,43 @@ async def compute_loan(payload: LoanComputeRequest):
         insurance_fee = money((principal * fee_policy["insurance_per_thousand"]) / Decimal("1000"))
         notarial_fee = money(fee_policy["notarial_fee"])
 
-        # EMI formula: monthly_payment = principal * rate / (1 - (1 + rate)^-term)
-        one_plus_rate = Decimal("1") + monthly_rate
-        denominator = Decimal("1") - (one_plus_rate ** (-term))
-        monthly_payment = money(principal * monthly_rate / denominator)
-        
-        remaining_balance = principal
+        # Equal-principal, declining-interest schedule (matches client UI).
+        # Interest each month is computed on the balance AFTER the principal
+        # payment for that month. Final month does a cents cleanup so the
+        # ending balance lands exactly on zero. Work in integer centavos to
+        # avoid floating drift.
+        total_principal_cents = int((principal * Decimal("100")).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
+        monthly_principal_cents = int(Decimal(total_principal_cents) / Decimal(term))
+        accumulated_principal_cents = 0
+        balance_cents = total_principal_cents
+        first_total_payment = Decimal("0")
+
         for installment_no in range(1, term + 1):
-            interest_component = money(remaining_balance * monthly_rate)
-            principal_component = money(monthly_payment - interest_component)
-            expected_amount = monthly_payment
-            
-            if installment_no == term:
-                principal_component = money(remaining_balance)
-                expected_amount = money(principal_component + interest_component)
-            
-            remaining_balance = money(remaining_balance - principal_component)
-            if installment_no == term and abs(remaining_balance) < Decimal("0.01"):
-                remaining_balance = Decimal("0")
-            
+            starting_balance_cents = balance_cents
+
+            if installment_no < term:
+                principal_paid_cents = monthly_principal_cents
+            else:
+                principal_paid_cents = total_principal_cents - accumulated_principal_cents
+
+            ending_balance_cents = starting_balance_cents - principal_paid_cents
+            interest_paid_cents = int(
+                (Decimal(ending_balance_cents) * monthly_rate).quantize(
+                    Decimal("1"), rounding=ROUND_HALF_UP
+                )
+            )
+            total_payment_cents = principal_paid_cents + interest_paid_cents
+
+            balance_cents = ending_balance_cents
+            accumulated_principal_cents += principal_paid_cents
+
+            principal_component = Decimal(principal_paid_cents) / Decimal("100")
+            interest_component = Decimal(interest_paid_cents) / Decimal("100")
+            expected_amount = Decimal(total_payment_cents) / Decimal("100")
+
+            if installment_no == 1:
+                first_total_payment = expected_amount
+
             monthly_breakdown.append(
                 MonthlyBreakdownRow(
                     installment_no=installment_no,
@@ -894,7 +1017,7 @@ async def compute_loan(payload: LoanComputeRequest):
                 )
             )
 
-        monthly_amortization = monthly_payment
+        monthly_amortization = first_total_payment
 
     elif payload.loan_type == "bonus":
         member_category = str(payload.member_category).strip().lower()
@@ -2759,11 +2882,67 @@ async def create_savings_transaction(payload: SavingsTransactionCreateRequest):
 
         created_row = (response.data or [None])[0] if response else None
 
+        # Phase-2 mirror: create the savings_accounts bridge row so future
+        # deposits/withdrawals on this Savings_ID land in the new ledger too.
+        bridge_account_number: str | None = None
+        try:
+            member_lookup = (
+                supabase.table("member")
+                .select("id")
+                .eq("membership_id", membership_number_id)
+                .limit(1)
+                .execute()
+            )
+            member_row = (member_lookup.data or [None])[0]
+            member_uuid = member_row.get("id") if member_row else None
+
+            # Generate next free SA-NNNNNN by scanning existing rows.
+            existing = (
+                supabase.table("savings_accounts")
+                .select("account_number")
+                .like("account_number", "SA-%")
+                .execute()
+            )
+            max_seq = 0
+            for r in existing.data or []:
+                num = str(r.get("account_number") or "")
+                if num.startswith("SA-"):
+                    try:
+                        max_seq = max(max_seq, int(num[3:]))
+                    except ValueError:
+                        continue
+            bridge_account_number = f"SA-{max_seq + 1:06d}"
+
+            supabase.table("savings_accounts").insert({
+                "account_number": bridge_account_number,
+                "account_name": payload.account_name or savings_id,
+                "member_id": member_uuid,
+                "account_kind": "member" if member_uuid else "standalone",
+                "balance": 0,
+                "legacy_savings_id": savings_id,
+                "notes": f"Auto-created from POST /api/savings/transactions ({savings_id})",
+            }).execute()
+
+            # Seed opening balance as the first credit.
+            opening = Decimal(str(opening_savings_amount or 0))
+            if opening > 0:
+                mirror_savings_ledger_entry(
+                    account_number=bridge_account_number,
+                    entry_type="credit",
+                    amount=opening,
+                    transaction_id=f"OPEN-{savings_id}",
+                    posted_by="cashier",
+                    remarks="Account opening deposit",
+                )
+        except Exception as exc:  # noqa: BLE001
+            print(f"[savings_accounts bridge] skipped for {savings_id}: {exc}")
+
         return {
             "success": True,
             "data": {
                 "Savings_ID": savings_id,
                 "Account_Number": savings_id,
+                "savings_accounts_account_number": bridge_account_number,
                 "record": created_row or insert_payload,
             },
         }
@@ -2991,9 +3170,11 @@ async def post_cashier_savings_deposit(savings_id: str, payload: CashierSavingsD
 
         transaction_id = get_next_savings_cashier_transaction_id()
         posted_at_value = datetime.utcnow().isoformat()
+        bridged_account_number = resolve_savings_account_number(clean_savings_id)
         queue_payload = {
             "transaction_id": transaction_id,
             "savings_id": clean_savings_id,
+            "account_number": bridged_account_number,
             "membership_number_id": membership_key,
             "member_name": str(account_row.get("Account_Name") or "").strip() or None,
             "account_type": "Savings Deposit",
@@ -3036,6 +3217,16 @@ async def post_cashier_savings_deposit(savings_id: str, payload: CashierSavingsD
             )
         except Exception:
             pass
+
+        # Phase-2 mirror write: keep savings_accounts.balance in sync.
+        mirror_savings_ledger_entry(
+            account_number=bridged_account_number,
+            entry_type="credit",
+            amount=transaction_amount,
+            transaction_id=transaction_id,
+            posted_by="cashier",
+            remarks="Cashier deposit (auto-posted)",
+        )
 
         return {
             "success": True,
@@ -3080,6 +3271,7 @@ async def post_cashier_savings_withdrawal(savings_id: str, payload: CashierSavin
         queue_payload = {
             "transaction_id": transaction_id,
             "savings_id": clean_savings_id,
+            "account_number": resolve_savings_account_number(clean_savings_id),
             "membership_number_id": str(account_row.get("membership_number_id") or "").strip() or None,
             "member_name": str(account_row.get("Account_Name") or "").strip() or None,
             "account_type": "Savings Withdrawal",
@@ -3112,6 +3304,381 @@ async def post_cashier_savings_withdrawal(savings_id: str, payload: CashierSavin
         raise err
     except Exception as err:
         raise HTTPException(status_code=500, detail=f"Failed to post savings withdrawal: {err}")
+
+
+# ---------------------------------------------------------------------------
+# Phase-3 read endpoints (savings_accounts + savings_ledger)
+# These are the new canonical reads. The legacy /api/cashier/savings/accounts*
+# endpoints stay alive during cut-over so older UI continues to work.
+# ---------------------------------------------------------------------------
+
+def _resolve_account_number_from_param(param: str) -> str | None:
+    """Accept either a savings_accounts.account_number (SA-NNNNNN) directly,
+    or a legacy Savings_Transactions.Savings_ID and resolve it via the bridge.
+    Returns None if neither matches."""
+    if not supabase:
+        return None
+    key = str(param or "").strip()
+    if not key:
+        return None
+    if key.upper().startswith("SA-"):
+        return key
+    return resolve_savings_account_number(key)
+
+
+@app.get("/api/savings/accounts")
+async def list_savings_accounts(
+    kind: str | None = None,
+    status: str | None = None,
+    search: str | None = None,
+):
+    """List all savings accounts from the new canonical table.
+
+    Query params:
+      - kind:   'member' | 'standalone'
+      - status: 'active' | 'closed' | 'frozen'
+      - search: matches account_number, account_name (case-insensitive)
+    """
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+
+    try:
+        query = (
+            supabase.table("savings_accounts")
+            .select("account_number,account_name,member_id,account_kind,balance,status,legacy_savings_id,created_at,updated_at")
+            .order("account_name")
+        )
+        if kind:
+            query = query.eq("account_kind", kind)
+        if status:
+            query = query.eq("status", status)
+        rows = (query.execute().data or [])
+
+        if search:
+            term = search.strip().lower()
+            rows = [
+                r for r in rows
+                if term in str(r.get("account_number", "")).lower()
+                or term in str(r.get("account_name", "")).lower()
+            ]
+
+        # Enrich with membership_id when account is linked to a member.
+        member_ids = sorted({r["member_id"] for r in rows if r.get("member_id")})
+        member_lookup: dict[str, dict] = {}
+        if member_ids:
+            try:
+                member_rows = (
+                    supabase.table("member")
+                    .select("id,membership_id,first_name,last_name")
+                    .in_("id", member_ids)
+                    .execute()
+                ).data or []
+                for m in member_rows:
+                    member_lookup[m["id"]] = m
+            except Exception:
+                pass
+
+        for r in rows:
+            m = member_lookup.get(r.get("member_id"))
+            r["membership_id"] = m.get("membership_id") if m else None
+
+        return {"success": True, "data": rows, "count": len(rows)}
+    except HTTPException as err:
+        raise err
+    except Exception as err:
+        raise HTTPException(status_code=500, detail=f"Failed to list savings accounts: {err}")
+
+
+@app.get("/api/savings/accounts/{account_param}")
+async def get_savings_account(account_param: str):
+    """Fetch one savings account with the most recent ledger entries.
+
+    `account_param` may be a SA-NNNNNN number OR a legacy Savings_ID.
+    """
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+
+    account_number = _resolve_account_number_from_param(account_param)
+    if not account_number:
+        raise HTTPException(status_code=404, detail="Savings account not found.")
+
+    try:
+        acc_response = (
+            supabase.table("savings_accounts")
+            .select("*")
+            .eq("account_number", account_number)
+            .limit(1)
+            .execute()
+        )
+        account = (acc_response.data or [None])[0]
+        if not account:
+            raise HTTPException(status_code=404, detail="Savings account not found.")
+
+        ledger_response = (
+            supabase.table("savings_ledger")
+            .select("*")
+            .eq("account_number", account_number)
+            .order("posted_at", desc=True)
+            .limit(10)
+            .execute()
+        )
+        ledger = ledger_response.data or []
+
+        member: dict | None = None
+        if account.get("member_id"):
+            try:
+                member_response = (
+                    supabase.table("member")
+                    .select("id,membership_id,first_name,last_name,middle_name,is_bona_fide")
+                    .eq("id", account["member_id"])
+                    .limit(1)
+                    .execute()
+                )
+                member = (member_response.data or [None])[0]
+            except Exception:
+                member = None
+
+        return {
+            "success": True,
+            "data": {
+                "account": account,
+                "member": member,
+                "recent_ledger": ledger,
+            },
+        }
+    except HTTPException as err:
+        raise err
+    except Exception as err:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch savings account: {err}")
+
+
+@app.get("/api/savings/accounts/{account_param}/ledger")
+async def get_savings_account_ledger(
+    account_param: str,
+    limit: int = 100,
+    offset: int = 0,
+):
+    """Paginated debit/credit history for one account, newest first."""
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+
+    account_number = _resolve_account_number_from_param(account_param)
+    if not account_number:
+        raise HTTPException(status_code=404, detail="Savings account not found.")
+
+    safe_limit = max(1, min(int(limit or 100), 500))
+    safe_offset = max(0, int(offset or 0))
+
+    try:
+        response = (
+            supabase.table("savings_ledger")
+            .select("*")
+            .eq("account_number", account_number)
+            .order("posted_at", desc=True)
+            .range(safe_offset, safe_offset + safe_limit - 1)
+            .execute()
+        )
+        return {
+            "success": True,
+            "data": response.data or [],
+            "limit": safe_limit,
+            "offset": safe_offset,
+        }
+    except HTTPException as err:
+        raise err
+    except Exception as err:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch ledger: {err}")
+
+
+@app.post("/api/savings/accounts/{account_number}/deposit")
+async def post_savings_account_deposit(account_number: str, payload: CashierSavingsDepositRequest):
+    """New-table-native deposit. Writes savings_ledger credit (trigger updates
+    savings_accounts.balance) and mirrors to legacy Savings_Transactions when
+    a legacy_savings_id bridge exists."""
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+
+    account_number = str(account_number or "").strip()
+    if not account_number:
+        raise HTTPException(status_code=400, detail="account_number is required.")
+
+    try:
+        account_response = (
+            supabase.table("savings_accounts")
+            .select("account_number,account_name,member_id,balance,status,legacy_savings_id")
+            .eq("account_number", account_number)
+            .limit(1)
+            .execute()
+        )
+        account = (account_response.data or [None])[0]
+        if not account:
+            raise HTTPException(status_code=404, detail="Savings account not found.")
+        if account.get("status") != "active":
+            raise HTTPException(status_code=400, detail=f"Account is {account.get('status')}; deposits not allowed.")
+
+        amount = money(Decimal(str(payload.amount or 0)))
+        if amount <= 0:
+            raise HTTPException(status_code=400, detail="Deposit amount must be greater than zero.")
+
+        transaction_id = get_next_savings_cashier_transaction_id()
+        posted_at_value = datetime.utcnow().isoformat()
+
+        # Queue row (validated immediately since cashier-posted deposit).
+        try:
+            supabase.table("savings_transaction_queue").insert({
+                "transaction_id": transaction_id,
+                "savings_id": account.get("legacy_savings_id") or account_number,
+                "account_number": account_number,
+                "member_name": account.get("account_name"),
+                "account_type": "Savings Deposit",
+                "transaction_type": "deposit",
+                "amount": decimal_to_float(amount),
+                "transaction_status": "validated",
+                "entered_by_role": "cashier",
+                "requested_at": posted_at_value,
+                "verified_at": posted_at_value,
+                "verified_by": "system",
+                "posted_at": posted_at_value,
+                "notes": "Cashier deposit (auto-posted)",
+            }).execute()
+        except Exception as exc:  # noqa: BLE001
+            print(f"[deposit] queue insert failed: {exc}")
+
+        # Canonical write: ledger credit. Trigger updates savings_accounts.balance.
+        try:
+            supabase.table("savings_ledger").insert({
+                "account_number": account_number,
+                "entry_type": "credit",
+                "amount": decimal_to_float(amount),
+                "reference": transaction_id,
+                "source": "cashier_deposit",
+                "remarks": "Cashier deposit",
+                "posted_by": "cashier",
+            }).execute()
+        except Exception as exc:  # noqa: BLE001
+            raise HTTPException(status_code=500, detail=f"Failed to post ledger credit: {exc}")
+
+        # Mirror to legacy Savings_Transactions if bridge exists.
+        legacy_id = account.get("legacy_savings_id")
+        if legacy_id:
+            try:
+                legacy_response = (
+                    supabase.table("Savings_Transactions")
+                    .select("Balance,Savings_Amount,Amount")
+                    .eq("Savings_ID", legacy_id)
+                    .limit(1)
+                    .execute()
+                )
+                legacy_row = (legacy_response.data or [None])[0]
+                if legacy_row:
+                    current = Decimal(str(
+                        legacy_row.get("Balance")
+                        if legacy_row.get("Balance") is not None
+                        else (legacy_row.get("Savings_Amount") or legacy_row.get("Amount") or 0)
+                    ))
+                    new_legacy = int(money(current + amount).to_integral_value(rounding=ROUND_HALF_UP))
+                    supabase.table("Savings_Transactions").update({
+                        "Balance": new_legacy,
+                        "Amount": new_legacy,
+                    }).eq("Savings_ID", legacy_id).execute()
+            except Exception as exc:  # noqa: BLE001
+                print(f"[deposit] legacy mirror skipped: {exc}")
+
+        # Re-read account to return the trigger-updated balance.
+        try:
+            refreshed = (
+                supabase.table("savings_accounts")
+                .select("balance")
+                .eq("account_number", account_number)
+                .limit(1)
+                .execute()
+            )
+            new_balance = (refreshed.data or [{"balance": 0}])[0].get("balance") or 0
+        except Exception:
+            new_balance = decimal_to_float(Decimal(str(account.get("balance") or 0)) + amount)
+
+        return {
+            "success": True,
+            "message": "Deposit posted successfully.",
+            "data": {
+                "transaction_id": transaction_id,
+                "account_number": account_number,
+                "amount_deposited": decimal_to_float(amount),
+                "new_balance": float(new_balance),
+            },
+        }
+    except HTTPException as err:
+        raise err
+    except Exception as err:
+        raise HTTPException(status_code=500, detail=f"Failed to post deposit: {err}")
+
+
+@app.post("/api/savings/accounts/{account_number}/withdraw")
+async def post_savings_account_withdraw(account_number: str, payload: CashierSavingsWithdrawRequest):
+    """New-table-native withdrawal request. Inserts a pending_verification queue
+    row only; no balance change until Bookkeeper confirms."""
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+
+    account_number = str(account_number or "").strip()
+    if not account_number:
+        raise HTTPException(status_code=400, detail="account_number is required.")
+
+    try:
+        account_response = (
+            supabase.table("savings_accounts")
+            .select("account_number,account_name,balance,status,legacy_savings_id")
+            .eq("account_number", account_number)
+            .limit(1)
+            .execute()
+        )
+        account = (account_response.data or [None])[0]
+        if not account:
+            raise HTTPException(status_code=404, detail="Savings account not found.")
+        if account.get("status") != "active":
+            raise HTTPException(status_code=400, detail=f"Account is {account.get('status')}; withdrawals not allowed.")
+
+        amount = money(Decimal(str(payload.amount or 0)))
+        if amount <= 0:
+            raise HTTPException(status_code=400, detail="Withdrawal amount must be greater than zero.")
+
+        current_balance = Decimal(str(account.get("balance") or 0))
+        if amount > current_balance:
+            raise HTTPException(status_code=400, detail="Withdrawal exceeds available balance.")
+
+        transaction_id = get_next_savings_cashier_transaction_id()
+        try:
+            queue_response = supabase.table("savings_transaction_queue").insert({
+                "transaction_id": transaction_id,
+                "savings_id": account.get("legacy_savings_id") or account_number,
+                "account_number": account_number,
+                "member_name": account.get("account_name"),
+                "account_type": "Savings Withdrawal",
+                "transaction_type": "withdraw",
+                "amount": decimal_to_float(amount),
+                "transaction_status": "pending_verification",
+                "entered_by_role": "cashier",
+                "requested_at": datetime.utcnow().isoformat(),
+            }).execute()
+            queued = (queue_response.data or [None])[0]
+        except Exception as exc:  # noqa: BLE001
+            raise HTTPException(status_code=500, detail=f"Failed to queue withdrawal: {exc}")
+
+        return {
+            "success": True,
+            "message": "Withdrawal submitted; pending Bookkeeper verification.",
+            "data": {
+                "transaction_id": transaction_id,
+                "account_number": account_number,
+                "amount_requested": decimal_to_float(amount),
+                "transaction_status": "pending_verification",
+                "record": queued,
+            },
+        }
+    except HTTPException as err:
+        raise err
+    except Exception as err:
+        raise HTTPException(status_code=500, detail=f"Failed to post withdrawal: {err}")
 
 
 @app.get("/api/bookkeeper/savings-transactions")
@@ -3215,6 +3782,8 @@ async def confirm_bookkeeper_savings_transaction(transaction_id: str, payload: B
         if not savings_id:
             raise HTTPException(status_code=400, detail="savings_id is missing on transaction queue.")
 
+        # Try legacy Savings_Transactions first; if missing (account only lives
+        # in the new tables), fall back to savings_accounts.balance.
         savings_response = (
             supabase.table("Savings_Transactions")
             .select("Savings_ID,Balance,Savings_Amount,Amount")
@@ -3223,20 +3792,38 @@ async def confirm_bookkeeper_savings_transaction(transaction_id: str, payload: B
             .execute()
         )
         savings_row = (savings_response.data or [None])[0]
-        if not savings_row:
-            raise HTTPException(status_code=404, detail="Savings account not found.")
 
-        current_balance = Decimal(
-            str(
-                savings_row.get("Balance")
-                if savings_row.get("Balance") is not None
-                else (
-                    savings_row.get("Savings_Amount")
-                    if savings_row.get("Savings_Amount") is not None
-                    else savings_row.get("Amount") or 0
+        account_number_bridge = (
+            queue_row.get("account_number")
+            or resolve_savings_account_number(savings_id)
+        )
+
+        if savings_row:
+            current_balance = Decimal(
+                str(
+                    savings_row.get("Balance")
+                    if savings_row.get("Balance") is not None
+                    else (
+                        savings_row.get("Savings_Amount")
+                        if savings_row.get("Savings_Amount") is not None
+                        else savings_row.get("Amount") or 0
+                    )
                 )
             )
-        )
+        elif account_number_bridge:
+            new_acc_response = (
+                supabase.table("savings_accounts")
+                .select("balance")
+                .eq("account_number", account_number_bridge)
+                .limit(1)
+                .execute()
+            )
+            new_acc_row = (new_acc_response.data or [None])[0]
+            if not new_acc_row:
+                raise HTTPException(status_code=404, detail="Savings account not found.")
+            current_balance = Decimal(str(new_acc_row.get("balance") or 0))
+        else:
+            raise HTTPException(status_code=404, detail="Savings account not found.")
 
         transaction_amount = money(Decimal(str(queue_row.get("amount") or 0)))
         if transaction_amount <= 0:
@@ -3252,13 +3839,15 @@ async def confirm_bookkeeper_savings_transaction(transaction_id: str, payload: B
             new_balance = money(current_balance + transaction_amount)
             ledger_entry_type = "credit"
 
-        db_balance_value = int(new_balance.to_integral_value(rounding=ROUND_HALF_UP))
-        (
-            supabase.table("Savings_Transactions")
-            .update({"Balance": db_balance_value, "Amount": db_balance_value})
-            .eq("Savings_ID", savings_id)
-            .execute()
-        )
+        # Only mutate legacy table if the row exists.
+        if savings_row:
+            db_balance_value = int(new_balance.to_integral_value(rounding=ROUND_HALF_UP))
+            (
+                supabase.table("Savings_Transactions")
+                .update({"Balance": db_balance_value, "Amount": db_balance_value})
+                .eq("Savings_ID", savings_id)
+                .execute()
+            )
 
         verified_at_value = datetime.utcnow().isoformat()
         queue_update_payload = {
@@ -3296,6 +3885,19 @@ async def confirm_bookkeeper_savings_transaction(transaction_id: str, payload: B
             )
         except Exception:
             pass
+
+        # Phase-2 mirror write: keep savings_accounts.balance in sync.
+        # Deposits were already mirrored at cashier-post time (auto-validated),
+        # so only mirror withdrawals here to avoid double-credit.
+        if transaction_type == "withdraw":
+            mirror_savings_ledger_entry(
+                account_number=account_number_bridge,
+                entry_type="debit",
+                amount=transaction_amount,
+                transaction_id=clean_transaction_id,
+                posted_by=payload.validated_by or "bookkeeper",
+                remarks=payload.notes or "Bookkeeper-confirmed withdrawal",
+            )
 
         return {
             "success": True,

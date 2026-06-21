@@ -70,6 +70,7 @@ function Emergency_Loan() {
 
   const [loading, setLoading] = useState(false);
   const [printing, setPrinting] = useState(false);
+  const [showSummary, setShowSummary] = useState(false);
   const [formData, setFormData] = useState({
     application_type: 'New',
     control_no: generateControlNumber(),
@@ -108,7 +109,7 @@ function Emergency_Loan() {
 
   const [calcResult, setCalcResult] = useState(null);
   const [existingLoan, setExistingLoan] = useState(null);
-  const [showSummary, setShowSummary] = useState(false);
+  const [amortizationSchedule, setAmortizationSchedule] = useState([]);
   const [renewalError, setRenewalError] = useState('');
   const [sixMonthOverride, setSixMonthOverride] = useState(false);
 
@@ -126,10 +127,129 @@ function Emergency_Loan() {
     high_risk: 'text-red-600 bg-red-100',
   };
 
-  const computeMonthlyAmortization = (principal, term) => {
-    if (!principal || !term) return 0;
-    return Math.round(principal * MONTHLY_INTEREST_FACTOR / (1 - Math.pow(1 + MONTHLY_INTEREST_FACTOR, -term)) * 100) / 100;
+  const generateAmortizationSchedule = (loanAmount, term) => {
+    const loanAmountNum = parseFloat(loanAmount);
+    const termNum = parseInt(term, 10);
+
+    if (!loanAmountNum || !termNum || loanAmountNum <= 0 || termNum <= 0) {
+        return [];
+    }
+
+    const interestRate = 0.02; // 2% monthly
+    const schedule = [];
+
+    let balanceInCents = Math.round(loanAmountNum * 100);
+    const totalPrincipalInCents = balanceInCents;
+    
+    // Per prompt: principal is rounded to 2 decimal places for months 1 to N-1
+    const monthlyPrincipalInCents = Math.round(totalPrincipalInCents / termNum);
+    let accumulatedPrincipalInCents = 0;
+
+    for (let month = 1; month <= termNum; month++) {
+        const startingBalanceInCents = balanceInCents;
+
+        let principalPaidInCents;
+        if (month < termNum) {
+            principalPaidInCents = monthlyPrincipalInCents;
+        } else {
+            // Final month's principal is a "cleanup" to ensure the balance is exactly zero
+            principalPaidInCents = totalPrincipalInCents - accumulatedPrincipalInCents;
+        }
+        
+        const endingBalanceInCents = startingBalanceInCents - principalPaidInCents;
+        
+        // Per policy: Interest is calculated on the balance AFTER the principal payment for the month.
+        const interestPaidInCents = Math.round(endingBalanceInCents * interestRate);
+        const totalPaymentInCents = principalPaidInCents + interestPaidInCents;
+        
+        balanceInCents = endingBalanceInCents; // Update balance for next iteration
+        accumulatedPrincipalInCents += principalPaidInCents;
+
+        schedule.push({ month, startingBalance: startingBalanceInCents / 100, principalPaid: principalPaidInCents / 100, interestPaid: interestPaidInCents / 100, totalPayment: totalPaymentInCents / 100, remainingBalance: balanceInCents / 100 });
+    }
+    return schedule;
   };
+
+  useEffect(() => {
+    const principal = Number(formData.loan_amount_numeric || 0);
+    const term = Number(formData.loan_term_months || 0);
+
+    if (!principal || !term || principal > 20000 || (term !== 6 && term !== 12)) {
+      setFormData((prev) => ({ ...prev, monthly_amortization: '', total_interest: '' }));
+      setAmortizationSchedule([]);
+      return;
+    }
+
+    let cancelled = false;
+
+    const applyBackendBreakdown = (rows, monthlyAmortization, totalInterest) => {
+      if (cancelled) return;
+      let balance = Number(principal);
+      const schedule = rows.map((row, index) => {
+        const principalPaid = Number(row.principal_component || 0);
+        const interestPaid = Number(row.interest_component || 0);
+        const totalPayment = Number(row.expected_amount || principalPaid + interestPaid);
+        const startingBalance = balance;
+        balance = Math.max(0, balance - principalPaid);
+        if (index === rows.length - 1 && Math.abs(balance) < 0.01) balance = 0;
+        return {
+          month: row.installment_no ?? index + 1,
+          startingBalance,
+          principalPaid,
+          interestPaid,
+          totalPayment,
+          remainingBalance: balance,
+        };
+      });
+      setAmortizationSchedule(schedule);
+      setFormData((prev) => ({
+        ...prev,
+        monthly_amortization: String(Number(monthlyAmortization || 0)),
+        total_interest: Number(totalInterest || 0).toFixed(2),
+      }));
+    };
+
+    (async () => {
+      try {
+        const payload = buildEmergencyPayload({
+          loan_amount_numeric: principal,
+          loan_term_months: term,
+          payment_start_date: formData.payment_start_date || null,
+        });
+        const result = await computeLoan(payload);
+        if (cancelled) return;
+        const rows = result?.monthly_breakdown || result?.data?.monthly_breakdown || [];
+        if (Array.isArray(rows) && rows.length === term) {
+          applyBackendBreakdown(
+            rows,
+            result.monthly_amortization ?? result.data?.monthly_amortization,
+            result.total_interest ?? result.data?.total_interest,
+          );
+          return;
+        }
+        throw new Error('Empty or mismatched breakdown from compute service.');
+      } catch (_err) {
+        if (cancelled) return;
+        const schedule = generateAmortizationSchedule(principal, term);
+        setAmortizationSchedule(schedule);
+        if (schedule.length > 0) {
+          const firstMonthPayment = schedule[0].totalPayment;
+          const totalInterest = schedule.reduce((acc, row) => acc + row.interestPaid, 0);
+          setFormData((prev) => ({
+            ...prev,
+            monthly_amortization: String(firstMonthPayment),
+            total_interest: String(totalInterest.toFixed(2)),
+          }));
+        } else {
+          setFormData((prev) => ({ ...prev, monthly_amortization: '', total_interest: '' }));
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [formData.loan_amount_numeric, formData.loan_term_months, formData.payment_start_date]);
 
   const classifyRisk = (rawStressPct) => {
     const safeNumber = Number.isFinite(rawStressPct) ? rawStressPct : 0;
@@ -288,7 +408,7 @@ function Emergency_Loan() {
       ? Math.max(((shareCapital * multiplier) + existingBalance) / 2, 0)
       : Math.max(shareCapital * multiplier, 0);
 
-    const monthlyPayment = Number(formData.monthly_amortization || 0) || computeMonthlyAmortization(principal, term);
+    const monthlyPayment = Number(formData.monthly_amortization || 0); // Rely on backend for amortization
     const stress = netPay > 0 ? (monthlyPayment / netPay) * 100 : 0;
     const eligibilityPass = monthlyPayment < netPay * 0.40;
 
@@ -339,8 +459,8 @@ function Emergency_Loan() {
     eligibilityFailed ? 'Monthly amortization must be below 40% of take-home pay.' : '';
 
   const formatCurrency = (value) => {
-    const numeric = Number(value || 0);
-    if (!Number.isFinite(numeric) || numeric <= 0) return '—';
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) return '—';
     return numeric.toLocaleString('en-PH', {
       style: 'currency',
       currency: 'PHP',
@@ -468,41 +588,6 @@ function Emergency_Loan() {
     }
   }, [formData.loan_amount_numeric]);
 
-  useEffect(() => {
-    const principal = Number(formData.loan_amount_numeric || 0);
-    const term = Number(formData.loan_term_months || 0);
-
-    if (!principal || !term) {
-      setFormData((prev) => ({ ...prev, monthly_amortization: '' }));
-      return;
-    }
-
-    if (principal > 20000) {
-      setFormData((prev) => ({ ...prev, monthly_amortization: '' }));
-      return;
-    }
-
-    // Emergency loan backend rule: only 6 or 12 months.
-    if (term !== 6 && term !== 12) {
-      return;
-    }
-
-    const timer = setTimeout(async () => {
-      try {
-        const data = await computeLoan(buildEmergencyPayload(formData));
-        setFormData((prev) => ({
-          ...prev,
-          monthly_amortization: data?.monthly_amortization ? String(data.monthly_amortization) : prev.monthly_amortization,
-          total_interest: data?.total_interest ? String(data.total_interest) : prev.total_interest,
-        }));
-      } catch (_err) {
-        // Keep form usable even if compute API is temporarily unavailable.
-      }
-    }, 350);
-
-    return () => clearTimeout(timer);
-  }, [formData.loan_amount_numeric, formData.loan_term_months, formData.payment_start_date]);
-
   const handleSubmit = (e) => {
     e.preventDefault();
     
@@ -515,6 +600,16 @@ function Emergency_Loan() {
     if (submissionBlockMessage) {
       alert(submissionBlockMessage);
       return;
+    }
+
+    if (submissionBlockMessage) {
+      alert(submissionBlockMessage);
+      return;
+    }
+
+    if (formData.loan_amount_numeric && formData.loan_term_months) {
+      const schedule = generateAmortizationSchedule(formData.loan_amount_numeric, formData.loan_term_months);
+      setAmortizationSchedule(schedule);
     }
 
     setShowSummary(true);
@@ -706,27 +801,8 @@ function Emergency_Loan() {
                 className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-[#66B538] outline-none bg-white text-sm transition-all mx-2 w-32 inline-block align-middle text-gray-600"
               >
                 <option value="">Select Term</option>
-                <option value="6">6</option>
-                <option value="12">12</option>
-              </select>
-              months with a monthly amortization of
-              <input 
-                type="text" 
-                name="monthly_amortization" 
-                value={hasComputedAmortization ? Number(formData.monthly_amortization).toLocaleString('en-PH', {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2,
-                }) : ''}
-                readOnly
-                tabIndex={-1}
-                aria-readonly
-                title="System-computed from principal, term and interest rate."
-                className={`border rounded-md px-3 py-1.5 outline-none text-sm transition-all mx-2 w-48 inline-block align-middle cursor-not-allowed select-text ${
-                  hasComputedAmortization
-                    ? 'border-[#66B538] bg-[#E9F7DE] text-[#2E7D32] font-semibold'
-                    : 'border-gray-200 bg-gray-100 text-gray-600'
-                }`}
-              />
+                {TERM_OPTIONS.map(term => <option key={term} value={term}>{term} months</option>)}
+              </select> months
               , which I promise to pay the amount to <strong>Tubungan Teachers' Multi Purpose Cooperative</strong>
               
               <br />
@@ -738,6 +814,75 @@ function Emergency_Loan() {
 
           </div>
         </div>
+
+        {/* --- AMORTIZATION SCHEDULE & SUMMARY (MOVED FROM MODAL) --- */}
+        {amortizationSchedule.length > 0 && (
+          <div className="mt-8 bg-white rounded-lg shadow-md overflow-hidden max-w-6xl mx-auto w-full animate-in fade-in duration-500">
+            <div className="bg-green-50 px-6 py-4 border-b border-green-200">
+              <h2 className="text-lg font-bold text-green-800">Loan Breakdown & Amortization Schedule</h2>
+            </div>
+            <div className="p-6 text-sm text-gray-700">
+              {(() => {
+                const loanAmount = parseFloat(formData.loan_amount_numeric) || 0;
+                const serviceFee = 100;
+                const cbu = loanAmount * 0.02;
+                const netProceeds = loanAmount - serviceFee - cbu;
+
+                return (
+                  <>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6 text-center">
+                      <div>
+                        <p className="text-xs text-gray-500 uppercase font-semibold">Loan Amount</p>
+                        <p className="text-lg font-bold text-gray-900">{formatCurrency(loanAmount)}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-500 uppercase font-semibold">Service Fee</p>
+                        <p className="text-lg font-bold text-red-600">- {formatCurrency(serviceFee)}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-500 uppercase font-semibold">Capital Build-Up</p>
+                        <p className="text-lg font-bold text-red-600">- {formatCurrency(cbu)}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-500 uppercase font-semibold">Net Proceeds</p>
+                        <p className="text-lg font-bold text-green-700">{formatCurrency(netProceeds)}</p>
+                      </div>
+                    </div>
+
+                    <h3 className="text-md font-bold text-gray-800 mb-3 text-center">{formData.loan_term_months}-Month Amortization Schedule</h3>
+                    <div className="overflow-x-auto rounded-lg border border-gray-200">
+                      <table className="min-w-full divide-y divide-gray-200 text-xs">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th className="px-4 py-2 text-left font-medium text-gray-500 uppercase tracking-wider">Month</th>
+                            <th className="px-4 py-2 text-right font-medium text-gray-500 uppercase tracking-wider">Starting Balance</th>
+                            <th className="px-4 py-2 text-right font-medium text-gray-500 uppercase tracking-wider">Principal</th>
+                            <th className="px-4 py-2 text-right font-medium text-gray-500 uppercase tracking-wider">Interest</th>
+                            <th className="px-4 py-2 text-right font-medium text-gray-500 uppercase tracking-wider">Total Payment</th>
+                            <th className="px-4 py-2 text-right font-medium text-gray-500 uppercase tracking-wider">Remaining Balance</th>
+                          </tr>
+                        </thead>
+                        <tbody className="bg-white divide-y divide-gray-200">
+                          {amortizationSchedule.map((row) => (
+                            <tr key={row.month}>
+                              <td className="px-4 py-2 whitespace-nowrap font-medium text-gray-900">{row.month}</td>
+                              <td className="px-4 py-2 whitespace-nowrap text-right text-gray-600">{formatCurrency(row.startingBalance)}</td>
+                              <td className="px-4 py-2 whitespace-nowrap text-right text-gray-600">{formatCurrency(row.principalPaid)}</td>
+                              <td className="px-4 py-2 whitespace-nowrap text-right text-red-600">{formatCurrency(row.interestPaid)}</td>
+                              <td className="px-4 py-2 whitespace-nowrap text-right font-bold text-gray-900">{formatCurrency(row.totalPayment)}</td>
+                              <td className="px-4 py-2 whitespace-nowrap text-right font-semibold text-blue-600">{formatCurrency(row.remainingBalance)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </>
+                );
+              })()}
+            </div>
+          </div>
+        )}
+
          <div className="mt-8 bg-white rounded-lg shadow-md overflow-hidden max-w-6xl mx-auto w-full mb-8">
           <div className={sectionHeader}>
             <span className="bg-white text-[#66B538] rounded-full w-6 h-6 flex items-center justify-center text-sm">3</span>
@@ -806,12 +951,13 @@ function Emergency_Loan() {
               {loading ? 'Processing...' : 'Submit Application'}
             </button>
           </div>
-
+        </div>
+       
         {showSummary && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
             <div className="w-full max-w-lg rounded-lg bg-white shadow-xl border border-gray-200">
               <div className="flex items-center justify-between px-6 py-4 border-b">
-                <h2 className="text-lg font-bold text-gray-800">Emergency Loan Application Summary</h2>
+                <h2 className="text-lg font-bold text-gray-800">Loan Application Summary</h2>
                 <button
                   type="button"
                   onClick={() => setShowSummary(false)}
@@ -833,11 +979,7 @@ function Emergency_Loan() {
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-gray-500">Interest Rate</span>
-                    <span className="font-semibold text-gray-900">2.00%</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-gray-500">Monthly Amortization</span>
-                    <span className="font-semibold text-green-700">{formatCurrency(formData.monthly_amortization)}</span>
+                    <span className="font-semibold text-gray-900">2% per month</span>
                   </div>
                 </div>
               </div>
@@ -861,8 +1003,6 @@ function Emergency_Loan() {
             </div>
           </div>
         )}
-        </div>
-       
       </form>
     </div>
   );

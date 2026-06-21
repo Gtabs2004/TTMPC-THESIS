@@ -7,7 +7,6 @@ import {
   LayoutDashboard,
   Users,
   FileText,
-  CreditCard,
   Calculator,
   Activity,
   BarChart3,
@@ -19,7 +18,11 @@ import {
   XCircle,
   RefreshCw,
   Briefcase,
-  Coins
+  Coins,
+  Printer,
+  PiggyBank,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react";
 import logo from "../../assets/img/ttmpc logo.png";
 
@@ -55,6 +58,7 @@ const BookkeeperSavingsTransactions = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [activeTab, setActiveTab] = useState("pending_verification");
   const [workingId, setWorkingId] = useState("");
+  const [isSavingsOpen, setIsSavingsOpen] = useState(true);
 
   const menuItems = [
       { name: "Dashboard", icon: LayoutDashboard },
@@ -62,7 +66,15 @@ const BookkeeperSavingsTransactions = () => {
       { name: "Loan Approval", icon: FileText },
       { name: "Manage Loans", icon: Briefcase },
       { name: "Payments", icon: Wallet },
-      { name: "Savings Withdrawals", icon: CreditCard },
+      {
+        name: "Savings Accounts",
+        icon: PiggyBank,
+        isDropdown: true,
+        subItems: [
+          { name: "All Accounts", path: "/bookkeeper-savings-accounts" },
+          { name: "Savings Withdrawals", path: "/bookkeeper-savings-transactions" },
+        ],
+      },
       { name: "Accounting", icon: Calculator },
       { name: "MIGS Scoring", icon: Activity },
       { name: "Reports", icon: BarChart3 },
@@ -77,14 +89,13 @@ const BookkeeperSavingsTransactions = () => {
     "Loan Approval": "/bookkeeper-loan-approval",
     "Manage Loans": "/manage-loans",
     Payments: "/payments",
-    "Savings Withdrawals": "/bookkeeper-savings-transactions",
     Accounting: "/accounting",
     "MIGS Scoring": "/migs",
     Reports: "/reports",
     "Audit Trail": "/audit-trail",
     Grocery: "/grocery",
     "Legacy Member Validation": "/legacy-member-validation",
-  };  
+  };
 
   const withdrawalRows = useMemo(
     () => rows.filter((row) => String(row.transaction_type || "").toLowerCase() === "withdraw"),
@@ -209,6 +220,41 @@ const BookkeeperSavingsTransactions = () => {
         <nav className="flex flex-col gap-2 text-sm flex-grow">
           {menuItems.map((item) => {
             const Icon = item.icon;
+            if (item.isDropdown) {
+              return (
+                <div key={item.name} className="flex flex-col">
+                  <button
+                    onClick={() => setIsSavingsOpen(!isSavingsOpen)}
+                    className="flex items-center justify-between p-2 rounded-md text-gray-700 hover:bg-green-50 hover:text-green-700 transition-colors w-full"
+                  >
+                    <div className="flex items-center gap-3">
+                      <Icon size={20} />
+                      <span>{item.name}</span>
+                    </div>
+                    {isSavingsOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                  </button>
+                  {isSavingsOpen && (
+                    <div className="flex flex-col mt-1 space-y-1">
+                      {item.subItems.map((subItem) => (
+                        <NavLink
+                          key={subItem.name}
+                          to={subItem.path}
+                          className={({ isActive }) =>
+                            `block pl-11 pr-4 py-2 rounded-md transition-colors text-[13px] ${
+                              isActive
+                                ? "text-green-700 font-semibold"
+                                : "text-gray-500 hover:text-green-700 hover:bg-green-50"
+                            }`
+                          }
+                        >
+                          {subItem.name}
+                        </NavLink>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            }
             const to = routeMap[item.name] || `/${item.name.toLowerCase().replace(/\s+/g, "-")}`;
             return (
               <NavLink
@@ -254,111 +300,130 @@ const BookkeeperSavingsTransactions = () => {
           <PortalTopbarIdentity className="ml-4 text-sm font-medium text-gray-700" fallbackRole="Bookkeeper" />
         </header>
 
-        <main className="p-8">
-          <div className="flex items-center justify-between mb-6">
-            <h1 className="font-bold text-2xl text-gray-800">Savings Withdrawal Verification</h1>
+        <main className="p-6">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h1 className="text-xl font-bold text-gray-900">Savings Withdrawal Verification</h1>
+              <p className="text-xs text-gray-500 mt-0.5">Review and confirm cashier-submitted withdrawals</p>
+            </div>
             <button
               onClick={fetchRows}
               disabled={loading}
-              className="px-4 py-2 rounded-lg bg-white border border-gray-300 text-gray-700 hover:bg-gray-100 text-sm font-semibold inline-flex items-center gap-2"
+              className="px-3 py-1.5 rounded-md bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 text-xs font-semibold inline-flex items-center gap-1.5"
             >
-              <RefreshCw size={15} />
-              Refresh Queue
+              <RefreshCw size={13} />
+              Refresh
             </button>
           </div>
 
-          <div className="bg-white rounded-lg border border-gray-200 p-4 mb-4 flex flex-wrap gap-3 items-center">
+          <div className="bg-white rounded-lg border border-gray-200 p-3 mb-4 flex flex-wrap gap-2 items-center">
             <input
               value={searchTerm}
               onChange={(event) => setSearchTerm(event.target.value)}
               placeholder="Search by transaction ID, savings ID, or member name"
-              className="w-full md:w-96 bg-gray-50 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+              className="flex-1 min-w-[200px] md:max-w-md bg-gray-50 border border-gray-300 rounded-md px-3 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-green-500"
             />
 
             <button
               onClick={() => setActiveTab("pending_verification")}
-              className={`px-3 py-2 rounded-lg text-xs font-semibold ${activeTab === "pending_verification" ? "bg-amber-100 text-amber-800" : "bg-gray-100 text-gray-700"}`}
+              className={`px-2.5 py-1.5 rounded-md text-[11px] font-semibold ${activeTab === "pending_verification" ? "bg-amber-100 text-amber-800" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}`}
             >
               Pending ({tabCounts.pending})
             </button>
             <button
               onClick={() => setActiveTab("validated")}
-              className={`px-3 py-2 rounded-lg text-xs font-semibold ${activeTab === "validated" ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-700"}`}
+              className={`px-2.5 py-1.5 rounded-md text-[11px] font-semibold ${activeTab === "validated" ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}`}
             >
               Validated ({tabCounts.validated})
             </button>
             <button
               onClick={() => setActiveTab("rejected")}
-              className={`px-3 py-2 rounded-lg text-xs font-semibold ${activeTab === "rejected" ? "bg-red-100 text-red-800" : "bg-gray-100 text-gray-700"}`}
+              className={`px-2.5 py-1.5 rounded-md text-[11px] font-semibold ${activeTab === "rejected" ? "bg-red-100 text-red-800" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}`}
             >
               Rejected ({tabCounts.rejected})
             </button>
           </div>
 
-          <div className="border border-gray-200 rounded-xl shadow-lg overflow-hidden enhanced-table">
+          <div className="border border-gray-200 rounded-lg shadow-sm overflow-hidden bg-white">
             <div className="overflow-x-auto">
-              <table className="w-full text-left">
-                <thead className="bg-gradient-to-r from-green-700 to-green-600 text-white uppercase text-[8px] tracking-wider">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-[#66B538] text-white uppercase tracking-wider text-[10px]">
                   <tr>
-                    <th className="px-6 py-4 font-bold text-sm">Transaction ID</th>
-                    <th className="px-6 py-4 font-bold text-sm">Member</th>
-                    <th className="px-6 py-4 font-bold text-sm">Savings ID</th>
-                    <th className="px-6 py-4 font-bold text-sm">Type</th>
-                    <th className="px-6 py-4 font-bold text-sm">Amount</th>
-                    <th className="px-6 py-4 font-bold text-sm">Requested At</th>
-                    <th className="px-6 py-4 font-bold text-sm">Status</th>
-                    <th className="px-6 py-4 font-bold text-sm text-right">Actions</th>
+                    <th className="px-3 py-2.5 font-semibold">Transaction ID</th>
+                    <th className="px-3 py-2.5 font-semibold">Member</th>
+                    <th className="px-3 py-2.5 font-semibold">Savings ID</th>
+                    <th className="px-3 py-2.5 font-semibold">Type</th>
+                    <th className="px-3 py-2.5 font-semibold text-right">Amount</th>
+                    <th className="px-3 py-2.5 font-semibold">Requested</th>
+                    <th className="px-3 py-2.5 font-semibold">Status</th>
+                    <th className="px-3 py-2.5 font-semibold text-right">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-200">
+                <tbody className="divide-y divide-gray-100">
                   {loading ? (
                     <tr>
-                      <td colSpan="8" className="px-6 py-8 text-center text-gray-500">Loading savings transactions...</td>
+                      <td colSpan="8" className="px-3 py-6 text-center text-gray-500">Loading savings transactions...</td>
                     </tr>
                   ) : filteredRows.length === 0 ? (
                     <tr>
-                      <td colSpan="8" className="px-6 py-8 text-center text-gray-500">No transactions found for this tab.</td>
+                      <td colSpan="8" className="px-3 py-6 text-center text-gray-500">No transactions found for this tab.</td>
                     </tr>
                   ) : (
                     filteredRows.map((row) => (
-                      <tr key={row.transaction_id} className="table-row-enter hover:bg-green-50 transition-colors duration-200">
-                        <td className="px-6 py-4 font-semibold text-gray-900">{row.transaction_id}</td>
-                        <td className="px-6 py-4 text-gray-800">{row.member_name || "Unknown Member"}</td>
-                        <td className="px-6 py-4 text-gray-800">{row.savings_id}</td>
-                        <td className="px-6 py-4">
-                          <span className="badge-animated bg-gray-100 text-gray-700">
+                      <tr key={row.transaction_id} className="hover:bg-green-50 transition-colors">
+                        <td className="px-3 py-2 font-mono text-gray-900">{row.transaction_id}</td>
+                        <td className="px-3 py-2 text-gray-800">{row.member_name || "Unknown Member"}</td>
+                        <td className="px-3 py-2 font-mono text-gray-700">{row.savings_id}</td>
+                        <td className="px-3 py-2">
+                          <span className="inline-flex px-2 py-0.5 rounded-full bg-gray-100 text-gray-700 text-[10px] font-medium">
                             {row.account_type || row.transaction_type}
                           </span>
                         </td>
-                        <td className="px-6 py-4 font-bold text-gray-900">{formatCurrency(row.amount)}</td>
-                        <td className="px-6 py-4 text-gray-600 text-sm">{formatDate(row.requested_at)}</td>
-                        <td className="px-6 py-4">
-                          <span className={`status-badge ${getStatusStyle(row.transaction_status)}`}>
+                        <td className="px-3 py-2 text-right font-semibold text-gray-900 tabular-nums">{formatCurrency(row.amount)}</td>
+                        <td className="px-3 py-2 text-gray-600">{formatDate(row.requested_at)}</td>
+                        <td className="px-3 py-2">
+                          <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold ${getStatusStyle(row.transaction_status)}`}>
                             {row.transaction_status}
                           </span>
                         </td>
-                        <td className="px-6 py-4 text-right">
+                        <td className="px-3 py-2 text-right">
                           {row.transaction_status === "pending_verification" ? (
-                            <div className="inline-flex items-center gap-2">
+                            <div className="inline-flex items-center gap-1.5">
                               <button
                                 onClick={() => confirmPost(row.transaction_id)}
                                 disabled={workingId === row.transaction_id}
-                                className="btn-enhanced px-3 py-1.5 rounded-md bg-green-600 hover:bg-green-700 text-white text-xs font-semibold inline-flex items-center gap-1"
+                                className="px-2 py-1 rounded bg-green-600 hover:bg-green-700 text-white text-[11px] font-semibold inline-flex items-center gap-1 disabled:opacity-50"
                               >
-                                <CheckCircle size={14} />
-                                Confirm Post
+                                <CheckCircle size={12} />
+                                Confirm
                               </button>
                               <button
                                 onClick={() => rejectTransaction(row.transaction_id)}
                                 disabled={workingId === row.transaction_id}
-                                className="btn-enhanced px-3 py-1.5 rounded-md bg-red-600 hover:bg-red-700 text-white text-xs font-semibold inline-flex items-center gap-1"
+                                className="px-2 py-1 rounded bg-red-600 hover:bg-red-700 text-white text-[11px] font-semibold inline-flex items-center gap-1 disabled:opacity-50"
                               >
-                                <XCircle size={14} />
+                                <XCircle size={12} />
                                 Reject
                               </button>
                             </div>
                           ) : (
-                            <span className="text-xs text-gray-500">No actions</span>
+                            // TODO: PRINT-RECEIPT-OVERLAY · withdrawal slip after bookkeeper validates
+                            <button
+                              onClick={() =>
+                                addNotification(
+                                  `Print withdrawal slip for ${row.transaction_id} — coming soon.`,
+                                  "info"
+                                )
+                              }
+                              className="px-2 py-1 rounded border border-dashed border-blue-400 bg-blue-50 hover:bg-blue-100 text-blue-700 text-[11px] font-semibold inline-flex items-center gap-1"
+                              title="PRINT-RECEIPT-OVERLAY · Coming soon"
+                            >
+                              <Printer size={12} />
+                              Print
+                              <span className="ml-0.5 text-[8px] uppercase tracking-wider bg-blue-200 text-blue-800 px-1 rounded-full">
+                                Soon
+                              </span>
+                            </button>
                           )}
                         </td>
                       </tr>

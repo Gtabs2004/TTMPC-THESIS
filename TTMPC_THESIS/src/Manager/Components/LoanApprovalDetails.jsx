@@ -373,21 +373,43 @@ const LoanApprovalDetails = () => {
         let monthlyAmortization, resolvedTotalInterest, totalPayable;
         let monthlyInterestAmount = 0;
         let monthlyPrincipalAmount = 0;
+        let emergencyScheduleRows = null;
 
         if (resolvedLoanType.toLowerCase().includes('emergency')) {
-          // Emergency: EMI formula (diminishing balance)
+          // Emergency: equal-principal, declining-interest in centavos. Mirrors
+          // backend /api/loans/compute and Emergency_Loan.jsx UI.
           if (principalAmount > 0 && termMonths > 0 && monthlyRateDecimal > 0) {
-            const numerator = principalAmount * monthlyRateDecimal;
-            const denominator = 1 - Math.pow(1 + monthlyRateDecimal, -termMonths);
-            monthlyAmortization = numerator / denominator;
-            
-            let remaining = principalAmount;
-            resolvedTotalInterest = 0;
-            for (let i = 0; i < termMonths; i++) {
-              const interest = remaining * monthlyRateDecimal;
-              resolvedTotalInterest += interest;
-              remaining -= (monthlyAmortization - interest);
+            const totalPrincipalCents = Math.round(principalAmount * 100);
+            const monthlyPrincipalCents = Math.round(totalPrincipalCents / termMonths);
+            let accumulatedCents = 0;
+            let balanceCents = totalPrincipalCents;
+            let firstTotalCents = 0;
+            let totalInterestCents = 0;
+            const rows = [];
+
+            for (let i = 1; i <= termMonths; i += 1) {
+              const startingBalanceCents = balanceCents;
+              const principalCents = i < termMonths
+                ? monthlyPrincipalCents
+                : totalPrincipalCents - accumulatedCents;
+              const endingBalanceCents = startingBalanceCents - principalCents;
+              const interestCents = Math.round(endingBalanceCents * monthlyRateDecimal);
+              if (i === 1) firstTotalCents = principalCents + interestCents;
+              totalInterestCents += interestCents;
+              balanceCents = endingBalanceCents;
+              accumulatedCents += principalCents;
+              rows.push({
+                month: i,
+                startingBalance: startingBalanceCents / 100,
+                principal: principalCents / 100,
+                interest: interestCents / 100,
+                totalPayment: (principalCents + interestCents) / 100,
+                remainingBalance: endingBalanceCents / 100,
+              });
             }
+            monthlyAmortization = firstTotalCents / 100;
+            resolvedTotalInterest = totalInterestCents / 100;
+            emergencyScheduleRows = rows;
           } else {
             monthlyAmortization = 0;
             resolvedTotalInterest = 0;
@@ -458,6 +480,7 @@ const LoanApprovalDetails = () => {
             monthlyInterestAddOn: formatCurrency(monthlyInterestAmount),
             monthlyPrincipalPortion: formatCurrency(monthlyPrincipalAmount),
             monthlyAmortization: formatCurrency(monthlyAmortization),
+            emergencySchedule: emergencyScheduleRows,
           },
           risk: {
             prevLoans: { value: 'N/A', label: 'NOT YET COMPUTED', color: 'text-gray-500' },
@@ -1369,49 +1392,87 @@ const LoanApprovalDetails = () => {
               <h2 className="flex items-center text-lg font-bold text-gray-800 mb-4">
                 <Calculator className="w-5 h-5 mr-2 text-[#1D6021]" /> Loan Computation Summary
               </h2>
-              <div className="bg-[#EAF1EB] rounded-xl p-6">
-                {/* Loan-level rows */}
-                <div className="space-y-2.5 mb-4">
-                  <div className="flex justify-between items-baseline text-sm">
-                    <span className="text-gray-600 font-medium">Term</span>
-                    <span className="font-bold text-gray-800">{loanDetails.computation.term}</span>
+              {Array.isArray(loanDetails.computation.emergencySchedule)
+                && loanDetails.computation.emergencySchedule.length > 0 ? null : (
+                <div className="bg-[#EAF1EB] rounded-xl p-6">
+                  {/* Loan-level rows */}
+                  <div className="space-y-2.5 mb-4">
+                    <div className="flex justify-between items-baseline text-sm">
+                      <span className="text-gray-600 font-medium">Term</span>
+                      <span className="font-bold text-gray-800">{loanDetails.computation.term}</span>
+                    </div>
+                    <div className="flex justify-between items-baseline text-sm">
+                      <span className="text-gray-600 font-medium">Principal</span>
+                      <span className="font-bold text-gray-800">{loanDetails.computation.principal}</span>
+                    </div>
+                    <div className="flex justify-between items-baseline text-sm">
+                      <span className="text-gray-600 font-medium">Total Interest</span>
+                      <span className="font-bold text-gray-800">{loanDetails.computation.totalInterest}</span>
+                    </div>
+                    <div className="flex justify-between items-baseline text-sm border-t border-gray-300/70 pt-2.5">
+                      <span className="text-gray-700 font-semibold">Total Payment</span>
+                      <span className="font-extrabold text-gray-900">{loanDetails.computation.totalPayable}</span>
+                    </div>
                   </div>
-                  <div className="flex justify-between items-baseline text-sm">
-                    <span className="text-gray-600 font-medium">Principal</span>
-                    <span className="font-bold text-gray-800">{loanDetails.computation.principal}</span>
-                  </div>
-                  <div className="flex justify-between items-baseline text-sm">
-                    <span className="text-gray-600 font-medium">Total Interest</span>
-                    <span className="font-bold text-gray-800">{loanDetails.computation.totalInterest}</span>
-                  </div>
-                  <div className="flex justify-between items-baseline text-sm border-t border-gray-300/70 pt-2.5">
-                    <span className="text-gray-700 font-semibold">Total Payment</span>
-                    <span className="font-extrabold text-gray-900">{loanDetails.computation.totalPayable}</span>
-                  </div>
-                </div>
 
-                {/* Monthly breakdown */}
-                <div className="bg-white/60 rounded-lg p-3 mb-4 space-y-2">
-                  <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Monthly Breakdown</p>
-                  <div className="flex justify-between items-baseline text-sm">
-                    <span className="text-gray-600">Interest (Add-on)</span>
-                    <span className="font-semibold text-gray-800">{loanDetails.computation.monthlyInterestAddOn}</span>
+                  {/* Monthly breakdown */}
+                  <div className="bg-white/60 rounded-lg p-3 mb-4 space-y-2">
+                    <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Monthly Breakdown</p>
+                    <div className="flex justify-between items-baseline text-sm">
+                      <span className="text-gray-600">Interest (Add-on)</span>
+                      <span className="font-semibold text-gray-800">{loanDetails.computation.monthlyInterestAddOn}</span>
+                    </div>
+                    <div className="flex justify-between items-baseline text-sm">
+                      <span className="text-gray-600">Principal Portion</span>
+                      <span className="font-semibold text-gray-800">{loanDetails.computation.monthlyPrincipalPortion}</span>
+                    </div>
                   </div>
-                  <div className="flex justify-between items-baseline text-sm">
-                    <span className="text-gray-600">Principal Portion</span>
-                    <span className="font-semibold text-gray-800">{loanDetails.computation.monthlyPrincipalPortion}</span>
-                  </div>
-                </div>
 
-                {/* Headline monthly amortization */}
-                <div className="border-t border-gray-300 pt-4 flex justify-between items-center">
-                  <div>
-                    <p className="text-[10px] font-bold text-[#1D6021] uppercase tracking-wider">Monthly Amortization</p>
-                    <p className="text-[9px] text-gray-500">Payable per month</p>
+                  {/* Headline monthly amortization */}
+                  <div className="border-t border-gray-300 pt-4 flex justify-between items-center">
+                    <div>
+                      <p className="text-[10px] font-bold text-[#1D6021] uppercase tracking-wider">Monthly Amortization</p>
+                      <p className="text-[9px] text-gray-500">Payable per month</p>
+                    </div>
+                    <span className="text-2xl font-black text-[#1D6021]">{loanDetails.computation.monthlyAmortization}</span>
                   </div>
-                  <span className="text-2xl font-black text-[#1D6021]">{loanDetails.computation.monthlyAmortization}</span>
                 </div>
-              </div>
+              )}
+
+              {Array.isArray(loanDetails.computation.emergencySchedule)
+                && loanDetails.computation.emergencySchedule.length > 0 ? (
+                <div className="bg-white border border-gray-200 rounded-xl p-4">
+                  <h3 className="text-sm font-bold text-[#1D6021] text-center mb-3">
+                    {loanDetails.computation.termMonths}-Month Amortization Schedule
+                  </h3>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="text-gray-500 uppercase tracking-wider text-[10px] border-b border-gray-200">
+                          <th className="py-2 px-2 text-left font-semibold">Month</th>
+                          <th className="py-2 px-2 text-right font-semibold">Starting Balance</th>
+                          <th className="py-2 px-2 text-right font-semibold">Principal</th>
+                          <th className="py-2 px-2 text-right font-semibold">Interest</th>
+                          <th className="py-2 px-2 text-right font-semibold">Total Payment</th>
+                          <th className="py-2 px-2 text-right font-semibold">Remaining Balance</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {loanDetails.computation.emergencySchedule.map((row) => (
+                          <tr key={row.month} className="border-b border-gray-100 last:border-b-0">
+                            <td className="py-2 px-2 font-semibold text-gray-700">{row.month}</td>
+                            <td className="py-2 px-2 text-right text-[#1D6021]">{formatCurrency(row.startingBalance)}</td>
+                            <td className="py-2 px-2 text-right text-gray-800">{formatCurrency(row.principal)}</td>
+                            <td className="py-2 px-2 text-right text-red-600">{formatCurrency(row.interest)}</td>
+                            <td className="py-2 px-2 text-right font-bold text-gray-900">{formatCurrency(row.totalPayment)}</td>
+                            <td className="py-2 px-2 text-right text-[#1D6021]">{formatCurrency(row.remainingBalance)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ) : null}
             </div>
           
 

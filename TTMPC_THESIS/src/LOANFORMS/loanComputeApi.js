@@ -160,31 +160,35 @@ const buildMonthlyBreakdown = (loanType, principal, termMonths, monthlyRate, fir
   const monthlyPrincipal = money(principal / termMonths);
 
   if (loanType === 'emergency') {
-    const monthlyPayment = money(principal * monthlyRate / (1 - Math.pow(1 + monthlyRate, -termMonths)));
-    let remainingBalance = principal;
+    // Equal-principal, declining-interest schedule. Interest each month is
+    // computed on the balance AFTER the principal payment for that month.
+    // Final month does a cents cleanup so the ending balance lands exactly on
+    // zero. Work in integer centavos to avoid floating drift.
+    const totalPrincipalCents = Math.round(principal * 100);
+    const monthlyPrincipalCents = Math.round(totalPrincipalCents / termMonths);
+    let accumulatedPrincipalCents = 0;
+    let balanceCents = totalPrincipalCents;
 
     for (let installmentNo = 1; installmentNo <= termMonths; installmentNo += 1) {
-      const interestComponent = money(remainingBalance * monthlyRate);
-      let principalComponent = money(monthlyPayment - interestComponent);
-      let expectedAmount = monthlyPayment;
+      const startingBalanceCents = balanceCents;
+      const principalPaidCents = installmentNo < termMonths
+        ? monthlyPrincipalCents
+        : totalPrincipalCents - accumulatedPrincipalCents;
 
-      if (installmentNo === termMonths) {
-        principalComponent = money(remainingBalance);
-        expectedAmount = money(principalComponent + interestComponent);
-      }
+      const endingBalanceCents = startingBalanceCents - principalPaidCents;
+      const interestPaidCents = Math.round(endingBalanceCents * monthlyRate);
+      const totalPaymentCents = principalPaidCents + interestPaidCents;
 
-      remainingBalance = money(remainingBalance - principalComponent);
-      if (installmentNo === termMonths && Math.abs(remainingBalance) < 0.01) {
-        remainingBalance = 0;
-      }
+      balanceCents = endingBalanceCents;
+      accumulatedPrincipalCents += principalPaidCents;
 
       breakdown.push({
         installment_no: installmentNo,
         due_date: addMonths(dueDate, installmentNo - 1).toISOString().split('T')[0],
-        expected_amount: expectedAmount,
-        principal_component: principalComponent,
-        interest_component: interestComponent,
-        remaining_balance: remainingBalance,
+        expected_amount: totalPaymentCents / 100,
+        principal_component: principalPaidCents / 100,
+        interest_component: interestPaidCents / 100,
+        remaining_balance: endingBalanceCents / 100,
         schedule_status: 'Pending',
       });
     }
