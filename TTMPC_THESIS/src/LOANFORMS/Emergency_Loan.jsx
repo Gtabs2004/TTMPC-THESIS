@@ -5,6 +5,7 @@ import { buildEmergencyPayload, computeLoan } from './loanComputeApi';
 import { formatTinNumber, TIN_FORMATTED_MAX_LENGTH } from './tinFormat';
 import { supabase } from '../supabaseClient';
 import { resolveAccountFromSessionUser } from '../utils/sessionIdentity';
+import { useMigsLabel } from '../hooks/useMigsLabel';
 
 const generateControlNumber = () => {
   const now = new Date();
@@ -102,13 +103,15 @@ function Emergency_Loan() {
     source_of_income: '',
     payment_start_date: '',
     user_email: '',
-    member_class: 'NON-MIGS',
+    member_class: '',  // Empty until live MIGS label loads.
     borrower_id_type: '',
     borrower_id_number: '',
   });
 
   const [calcResult, setCalcResult] = useState(null);
   const [existingLoan, setExistingLoan] = useState(null);
+  const [borrowerMemberId, setBorrowerMemberId] = useState(null);
+  const { data: migsLabel, status: migsLabelStatus } = useMigsLabel(borrowerMemberId);
   const [amortizationSchedule, setAmortizationSchedule] = useState([]);
   const [renewalError, setRenewalError] = useState('');
   const [sixMonthOverride, setSixMonthOverride] = useState(false);
@@ -387,7 +390,7 @@ function Emergency_Loan() {
     const principal = Number(formData.loan_amount_numeric || 0);
     const netPay = Number(formData.latest_net_pay || 0);
     const shareCapital = Number(formData.share_capital || 0);
-    const memberClass = String(formData.member_class || 'NON-MIGS').toUpperCase();
+    const memberClass = String(formData.member_class || '').toUpperCase();
     const term = Number(formData.loan_term_months || 0);
 
     if (!principal || !netPay || !shareCapital || !term) {
@@ -400,7 +403,19 @@ function Emergency_Loan() {
       return;
     }
 
-    const multiplier = memberClass === 'MIGS' ? 5 : 3;
+    // Block evaluation until the live MIGS label resolves.
+    if (!memberClass) {
+      setCalcResult({
+        error: migsLabelStatus === 'loading'
+          ? 'Loading your official MIGS classification…'
+          : migsLabelStatus === 'unscored'
+            ? 'Your MIGS classification has not been finalized yet. Please ask the Bookkeeper to run "Compute All MIGS" before applying.'
+            : 'Unable to load your MIGS classification. Please refresh, or contact the Bookkeeper.',
+      });
+      return;
+    }
+
+    const multiplier = Number(migsLabel?.loan_multiplier) || (memberClass === 'MIGS' ? 5 : 3);
     const existingBalance = isRenewal ? Number(simulatedRemainingBalance || 0) : 0;
     const maxAllowed = (shareCapital * multiplier) - existingBalance;
     const eligible = principal <= maxAllowed;
@@ -570,10 +585,31 @@ function Emergency_Loan() {
     };
 
     loadPrefill();
+
+    // Resolve the current member's id for the MIGS label hook.
+    (async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user || !isMounted) return;
+        const account = await resolveAccountFromSessionUser(user);
+        const id = account?.user_id || account?.auth_user_id || user.id;
+        if (isMounted && id) setBorrowerMemberId(id);
+      } catch {
+        // Capacity calc blocks until label loads.
+      }
+    })();
+
     return () => {
       isMounted = false;
     };
   }, []);
+
+  // Sync the local member_class once the official MIGS label resolves.
+  useEffect(() => {
+    if (!migsLabel) return;
+    const next = String(migsLabel.label || '').toUpperCase().startsWith('MIGS') ? 'MIGS' : 'NON-MIGS';
+    setFormData((prev) => (prev.member_class === next ? prev : { ...prev, member_class: next }));
+  }, [migsLabel]);
 
   // Auto-fill loan_amount_words when loan_amount_numeric changes
   useEffect(() => {

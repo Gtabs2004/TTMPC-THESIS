@@ -61,6 +61,7 @@ const Secretary_Attendance = () => {
       section: "SECRETARY",
       items: [
         { name: "Training Attendance", icon: CalendarCheck },
+        { name: "General Assembly", icon: CalendarDays },
         { name: "Membership Records", icon: Archive  }
       ]
     }
@@ -429,6 +430,7 @@ const Secretary_Attendance = () => {
               "Manage Member": "/bod-manage-member",
               "Loan Policies": "/bod-loan-policies",
               "Training Attendance": "/Secretary_Attendance",
+              "General Assembly": "/secretary-general-assembly",
               "Membership Records": "/Secretary_Records"
             };
 

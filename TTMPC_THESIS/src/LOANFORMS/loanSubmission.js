@@ -662,6 +662,42 @@ export async function submitUnifiedLoan({
     user_email: user.email,
   };
 
+  // MIGS cap guard: source of truth = /api/migs/label snapshot. Blocks any
+  // loan whose principal exceeds (member's CBU × MIGS multiplier). The form
+  // already enforces this client-side, but a stale page or a malicious POST
+  // could bypass the UI — this is the last line of defense.
+  if (memberId && targetTable === 'loans') {
+    try {
+      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000';
+      const labelResponse = await fetch(
+        `${API_BASE_URL}/api/migs/label/${encodeURIComponent(memberId)}`
+      );
+      const labelResult = await labelResponse.json().catch(() => ({}));
+      if (labelResponse.ok && labelResult?.success && labelResult?.data) {
+        const multiplier = Number(labelResult.data.loan_multiplier) || 3;
+        const shareCapital = Number(
+          optionalFields?.share_capital
+          ?? applicantProfile?.share_capital
+          ?? 0
+        );
+        const requestedPrincipal = Number(toFloat(principalAmount ?? loanAmount) || 0);
+        if (shareCapital > 0 && requestedPrincipal > shareCapital * multiplier) {
+          throw new Error(
+            `Loan amount exceeds MIGS cap. Requested ₱${requestedPrincipal.toLocaleString()} > ` +
+            `${multiplier}× CBU (₱${(shareCapital * multiplier).toLocaleString()}). ` +
+            `Member is currently classified as ${labelResult.data.label || 'Unscored'}.`
+          );
+        }
+      }
+    } catch (guardError) {
+      // Only re-throw the explicit cap error; swallow network/transient errors
+      // so a temporarily-down label service doesn't block legitimate loans.
+      if (guardError?.message?.startsWith('Loan amount exceeds MIGS cap')) {
+        throw guardError;
+      }
+    }
+  }
+
   const { error: loanInsertError } = await supabase.from('loans').insert([payload]);
   if (loanInsertError) throw loanInsertError;
 

@@ -19,7 +19,9 @@ import {
   Eye,
   Briefcase,
   Wallet,
-  Coins
+  Coins,
+  Loader2,
+  Zap,
 } from "lucide-react";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
@@ -36,6 +38,8 @@ const MIGS = () => {
   const [statusFilter, setStatusFilter] = useState("All Status");
   const [yearFilter, setYearFilter] = useState("2026");
   const [sortBy, setSortBy] = useState("Name A-Z");
+  const [computing, setComputing] = useState(false);
+  const [lastComputeRun, setLastComputeRun] = useState(null);
 
    const menuItems = [
       { name: "Dashboard", icon: LayoutDashboard },
@@ -67,27 +71,31 @@ const MIGS = () => {
     Grocery: "/grocery",
     "Legacy Member Validation": "/legacy-member-validation",
   };
-  const mockData = [
-    { id: 1, full_name: "Adelaida Soriano", member_id: "TTMPC-2024-051", capital: 9800, loan_balance: 98000, savings_balance: 52000, migs_score: 93, migs_status: "MIGS Qualified" },
-    { id: 2, full_name: "Adoracion Salcedo", member_id: "TTMPC-2024-021", capital: 9200, loan_balance: 92000, savings_balance: 46000, migs_score: 88, migs_status: "MIGS Qualified" },
-    { id: 3, full_name: "Aida Valdez", member_id: "TTMPC-2024-117", capital: 3900, loan_balance: 29000, savings_balance: 9000, migs_score: 47, migs_status: "Non-MIGS" },
-    { id: 4, full_name: "Alfonsina Yap", member_id: "TTMPC-2024-143", capital: 7400, loan_balance: 67500, savings_balance: 30500, migs_score: 78, migs_status: "MIGS Qualified" },
-    { id: 5, full_name: "Alfredo Castillo", member_id: "TTMPC-2024-016", capital: 10500, loan_balance: 105000, savings_balance: 55000, migs_score: 100, migs_status: "MIGS Qualified" },
-    { id: 6, full_name: "Amalia Tayag", member_id: "TTMPC-2024-093", capital: 7700, loan_balance: 71000, savings_balance: 32000, migs_score: 73, migs_status: "MIGS Qualified" },
-    { id: 7, full_name: "Ambrosio Samson", member_id: "TTMPC-2024-060", capital: 1600, loan_balance: 11000, savings_balance: 3000, migs_score: 10, migs_status: "Non-MIGS" },
-    { id: 8, full_name: "Ana Cruz", member_id: "TTMPC-2024-003", capital: 3500, loan_balance: 15000, savings_balance: 8000, migs_score: 23, migs_status: "Non-MIGS" },
-    { id: 9, full_name: "Angelita Domingo", member_id: "TTMPC-2024-029", capital: 8800, loan_balance: 88000, savings_balance: 40000, migs_score: 88, migs_status: "MIGS Qualified" },
-    { id: 10, full_name: "Apolinario Bacani", member_id: "TTMPC-2024-073", capital: 7400, loan_balance: 67000, savings_balance: 30000, migs_score: 73, migs_status: "MIGS Qualified" },
-  ];
-
   useEffect(() => {
-    setLoading(true);
-    setTimeout(() => {
-      setRows(mockData);
-      setLoading(false);
-      addNotification("MIGS scoring data loaded successfully", "success");
-    }, 500);
-  }, []);
+    const fetchMigsMembers = async () => {
+      setLoading(true);
+      try {
+        const response = await fetch(
+          `${API_BASE_URL}/api/migs/members?year=${encodeURIComponent(yearFilter)}`
+        );
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok || !result?.success) {
+          throw new Error(result?.detail || "Failed to load MIGS members.");
+        }
+        setRows(Array.isArray(result.data) ? result.data : []);
+        addNotification(
+          `Loaded ${result.count || 0} members for MIGS scoring.`,
+          "success"
+        );
+      } catch (err) {
+        setRows([]);
+        addNotification(err?.message || "Unable to fetch MIGS members.", "error");
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchMigsMembers();
+  }, [yearFilter]);
 
   const filtered = useMemo(() => {
     let result = rows;
@@ -102,14 +110,13 @@ const MIGS = () => {
     }
 
     // Status filter
-    if (statusFilter !== "All Status") {
+    if (statusFilter === "Pending") {
+      result = result.filter((r) => r.migs_status == null);
+    } else if (statusFilter !== "All Status") {
       result = result.filter((r) => r.migs_status === statusFilter);
     }
 
-    // Year filter (assuming created_year field exists)
-    if (yearFilter !== "2026") {
-      result = result.filter((r) => String(r.created_year || "") === yearFilter);
-    }
+    // Year filter is applied server-side via the API call; no client-side filtering needed.
 
     // Sort
     if (sortBy === "Name A-Z") {
@@ -135,6 +142,37 @@ const MIGS = () => {
     setCurrentPage(1);
   }, [query, rows, statusFilter, yearFilter, sortBy]);
 
+  const handleComputeAll = async () => {
+    if (computing) return;
+    if (!window.confirm(
+      "Recompute and label every member's MIGS classification?\n\n" +
+      "This saves a snapshot to the system so other modules (loan approval, member view) can use the official label."
+    )) {
+      return;
+    }
+    setComputing(true);
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/migs/recompute-all?year=${encodeURIComponent(yearFilter)}`,
+        { method: "POST" }
+      );
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(result?.detail || "Failed to compute MIGS for all members.");
+      }
+      const total = (result?.inserted || 0) + (result?.updated || 0);
+      setLastComputeRun(result?.accrual_date || new Date().toISOString().slice(0, 10));
+      addNotification(
+        `Labeled ${total} members as of ${result?.accrual_date}. ${result?.errors?.length ? `(${result.errors.length} errors)` : ""}`,
+        result?.errors?.length ? "warning" : "success"
+      );
+    } catch (err) {
+      addNotification(err?.message || "Compute failed.", "error");
+    } finally {
+      setComputing(false);
+    }
+  };
+
   const handleSignOut = async (e) => {
     e.preventDefault();
     try {
@@ -158,6 +196,31 @@ const MIGS = () => {
 
   return (
     <div className="flex min-h-screen bg-gray-100">
+      {computing && (
+        <div className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm flex items-center justify-center">
+          <div className="bg-white rounded-xl shadow-2xl px-8 py-7 max-w-sm w-full mx-4 border border-gray-200">
+            <div className="flex flex-col items-center text-center">
+              <div className="relative w-14 h-14 mb-4">
+                <div className="absolute inset-0 rounded-full border-4 border-green-100"></div>
+                <Loader2 className="w-14 h-14 text-[#2C7A3F] animate-spin" />
+              </div>
+              <h3 className="text-lg font-bold text-gray-900 mb-1">
+                Computing MIGS Classifications
+              </h3>
+              <p className="text-sm text-gray-600 mb-4">
+                Scoring every member and writing snapshots to the system. This usually takes 30–60 seconds.
+              </p>
+              <div className="w-full bg-gray-100 rounded-full h-1.5 overflow-hidden">
+                <div className="bg-[#2C7A3F] h-1.5 rounded-full animate-pulse w-3/4"></div>
+              </div>
+              <p className="text-[11px] uppercase tracking-wider text-gray-400 mt-3">
+                Please don't close this window
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       <aside className="fixed inset-y-0 left-0 bg-white w-64 p-4 flex flex-col border-r border-gray-200 z-30">
         <div className="flex flex-row items-start gap-2 mb-6">
           <img src="/img/ttmpc logo.png" alt="Logo" className="h-12 w-auto" />
@@ -209,7 +272,33 @@ const MIGS = () => {
         </header>
 
         <main className="p-8 flex-1 overflow-y-auto">
-          <h1 className="font-bold text-2xl mb-6">MIGS Scoring</h1>
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h1 className="font-bold text-2xl text-gray-900">MIGS Scoring</h1>
+              <p className="text-xs text-gray-500 mt-0.5">
+                Compute classification for every member and label them in the system.
+                {lastComputeRun ? ` Last run: ${lastComputeRun}.` : ""}
+              </p>
+            </div>
+            <button
+              onClick={handleComputeAll}
+              disabled={computing}
+              className="px-4 py-2 rounded-lg bg-[#2C7A3F] hover:bg-[#1f5a2d] text-white text-sm font-semibold inline-flex items-center gap-2 transition-colors disabled:opacity-80 disabled:cursor-not-allowed"
+              title="Recompute all members and write the snapshot to member_classification_temporal"
+            >
+              {computing ? (
+                <>
+                  <Loader2 size={15} className="animate-spin" />
+                  Computing...
+                </>
+              ) : (
+                <>
+                  <Zap size={15} />
+                  Compute All MIGS
+                </>
+              )}
+            </button>
+          </div>
 
           {/* Filters Section */}
           <div className="flex gap-4 mb-6 items-center justify-between">
@@ -231,6 +320,7 @@ const MIGS = () => {
                 className="px-4 py-2 rounded-lg border border-gray-200 bg-white text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#2C7A3F]"
               >
                 <option>All Status</option>
+                <option>Pending</option>
                 <option>MIGS Qualified</option>
                 <option>Non-MIGS</option>
               </select>
@@ -294,17 +384,27 @@ const MIGS = () => {
                         <td className="px-4 py-3 text-center text-gray-700">₱{(r.loan_balance || 0).toLocaleString()}</td>
                         <td className="px-4 py-3 text-center text-gray-700">₱{(r.savings_balance || 0).toLocaleString()}</td>
                         <td className="px-4 py-3 text-center">
-                          <div className="flex items-center justify-center gap-1">
-                            <span className="font-bold text-gray-800">{r.migs_score || 0}</span>
-                            <span className="text-gray-400">/</span>
-                            <span className="text-gray-500">100</span>
-                          </div>
+                          {r.migs_score == null ? (
+                            <span className="text-gray-400 text-xs italic">Not scored</span>
+                          ) : (
+                            <div className="flex items-center justify-center gap-1">
+                              <span className="font-bold text-gray-800">{r.migs_score}</span>
+                              <span className="text-gray-400">/</span>
+                              <span className="text-gray-500">100</span>
+                            </div>
+                          )}
                         </td>
                         <td className="px-4 py-3 text-center">
-                          <span className={`badge-animated inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold border ${getMIGSStatusColor(r.migs_status)}`}>
-                            <span>{getMIGSStatusIcon(r.migs_status)}</span>
-                            {r.migs_status === "MIGS Qualified" ? "MIGS Qualified" : "Non-MIGS"}
-                          </span>
+                          {r.migs_status == null ? (
+                            <span className="inline-flex px-3 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-500 border border-gray-200">
+                              Pending
+                            </span>
+                          ) : (
+                            <span className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold border ${getMIGSStatusColor(r.migs_status)}`}>
+                              <span>{getMIGSStatusIcon(r.migs_status)}</span>
+                              {r.migs_status === "MIGS Qualified" ? "MIGS Qualified" : "Non-MIGS"}
+                            </span>
+                          )}
                         </td>
                         <td className="px-4 py-3 text-center">
                           <button
