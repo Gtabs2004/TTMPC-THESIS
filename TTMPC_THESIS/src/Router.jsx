@@ -31,6 +31,7 @@ import Member_Approvals from "./BOD/Components/Member-Approvals";
 import MemberApprovalDetails from "./BOD/Components/MemberApprovalDetails";
 import M_Dashboard from "./Manager/Components/M-Dashboard";
 import Loan_Approval from "./Manager/Components/loan-approval";
+import Manager_Reports from "./Manager/Components/Manager_Reports";
 import Role_Selection from "./Index_Pages/role_selection";
 import LoanApprovalDetails from "./Manager/Components/LoanApprovalDetails";
 import Member_Dashboard from "./Member/Components/Member_Dashboard";
@@ -118,6 +119,7 @@ export const router = createBrowserRouter([
     {path: "/manager-dashboard", element:<M_Dashboard/>},
     {path: "/manager-manage-member", element:<Manager_Manage_Member/>},
     {path: "/loan-approval", element:<Loan_Approval/>},
+    {path: "/manager-reports", element:<Manager_Reports/>},
     {path: "/role_selection", element:<Role_Selection/>},
     {path: "/memberlogin", element:<MemberLogin/>},
     {path: "/loan-approval/:id", element:<LoanApprovalDetails/>},
