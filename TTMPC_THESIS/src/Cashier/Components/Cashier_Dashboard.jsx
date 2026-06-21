@@ -182,13 +182,13 @@ const Cashier_Dashboard = () => {
       
       <div className="flex-1 flex flex-col h-screen overflow-y-auto ml-64">
         <div className="flex-1 flex flex-col min-w-0">
-  <header className="bg-white h-16 border-b border-gray-100 flex items-center justify-between px-8 shrink-0">
+  <header className="bg-white h-16 border-b border-gray-100 flex items-center justify-between px-8 shrink-0 ">
     
     
     
 
     {/* Right Side: Grouped Utilities */}
-    <div className="flex items-center space-x-4">
+    <div className="flex items-center space-x-4 ml-auto">
       
       {/* Search Input */}
       <div className="relative">

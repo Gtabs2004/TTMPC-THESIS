@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+﻿import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import {
   AlertCircle,
@@ -284,23 +284,50 @@ const Cashier_Savings = () => {
       </aside>
 
       {/* MAIN */}
-      <div className="flex-1 flex flex-col h-screen overflow-y-auto ml-64">
-        <header className="bg-white h-16 shadow-sm flex items-center justify-end px-8 shrink-0">
+    <div className="flex-1 flex flex-col h-screen overflow-y-auto ml-64">
+            <div className="flex-1 flex flex-col min-w-0">
+      <header className="bg-white h-16 border-b border-gray-100 flex items-center justify-between px-8 shrink-0 ">
+        
+        
+        
+    
+        {/* Right Side: Grouped Utilities */}
+        <div className="flex items-center space-x-4 ml-auto">
+          
+          {/* Search Input */}
           <div className="relative">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
             <input
               type="text"
               placeholder="Search..."
-              className="bg-gray-50 w-52 h-10 rounded-lg border border-gray-300 px-4 pl-9 py-1 focus:outline-none focus:ring-2 focus:ring-green-500"
+              className="bg-gray-50 w-60 h-10 rounded-lg border border-gray-200 px-4 pl-9 py-1 focus:outline-none focus:ring-2 focus:ring-[#00A859] focus:border-transparent transition-all placeholder-gray-400 text-sm"
             />
           </div>
-          <button className="ml-6 relative p-1 rounded-full text-gray-500 hover:bg-gray-100 transition-colors">
+    
+          {/* Notifications */}
+          <button className="relative p-2 rounded-full text-gray-500 hover:bg-gray-50 transition-colors">
             <Bell className="w-5 h-5" />
-            <span className="absolute top-1 right-1 block h-2 w-2 rounded-full bg-red-500 ring-2 ring-white" />
+            {/* Adjusted badge alignment so it sits perfectly on the shoulder of the bell */}
+            <span className="absolute top-1.5 right-1.5 block h-2 w-2 rounded-full bg-red-500 ring-2 ring-white"></span>
           </button>
-          <PortalTopbarIdentity className="ml-4 font-medium text-gray-700" fallbackRole="Cashier" />
-        </header>
-
+    
+          {/* Profile Divider (Optional but adds a premium touch) */}
+          <span className="h-6 w-px bg-gray-200"></span>
+    
+          {/* User Identity Group */}
+          <div className="flex items-center space-x-3">
+            <img
+              src="/img/bookkeeper-profile.png"
+              alt="Profile"
+              className="w-9 h-9 rounded-full object-cover border border-gray-100 bg-gray-50"
+            />
+            <PortalTopbarIdentity className="text-sm font-semibold text-green-600" fallbackRole="Cashier" />
+          </div>
+    
+        </div>
+      </header>
+    </div>
+    
         <main className="p-8 overflow-auto">
           {/* TITLE BLOCK */}
           <div className="mb-8">
