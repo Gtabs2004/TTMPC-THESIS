@@ -5,9 +5,9 @@ import { useNotification } from "../../contex/NotificationContext";
 import { PortalSidebarIdentity, PortalTopbarIdentity } from "../../components/PortalIdentity";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
 import { supabase } from "../../supabaseClient"; // Make sure this path is correct
-import { 
-  LayoutDashboard, 
-  Users, 
+import {
+  LayoutDashboard,
+  Users,
   Search,
   Bell,
   UserPlus,
@@ -15,7 +15,8 @@ import {
   BadgeCheck,
   Banknote,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  BarChart3,
 } from 'lucide-react';
 
 const Loan_Approval = () => {
@@ -29,6 +30,7 @@ const Loan_Approval = () => {
     { name: "Dashboard", icon: LayoutDashboard },
     { name: "Loan Approval", icon: Users },
     { name: "Manage Member", icon: Users },
+    { name: "Reports", icon: BarChart3 },
   ];
 
   // Fetch data from Supabase on mount
@@ -175,6 +177,7 @@ const Loan_Approval = () => {
                  "Dashboard": "/manager-dashboard",
                  "Loan Approval": "/loan-approval",
                  "Manage Member": "/manager-manage-member",
+                 "Reports": "/manager-reports",
                };
    
                return menuItems.map((item) => {
