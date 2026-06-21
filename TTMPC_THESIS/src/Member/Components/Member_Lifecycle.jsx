@@ -19,6 +19,7 @@ import {
   X,
   RefreshCw,
   Search,
+  Settings,
   ShieldCheck,
   User,
   Users,
@@ -34,6 +35,7 @@ import {
   Repeat,
   Trophy,
 } from "lucide-react";
+import SettingsDrawer from './SettingsDrawer';
 
 // 7 member-facing stages, in order.
 const LIFECYCLE_STAGES = [
@@ -236,6 +238,7 @@ const Member_Lifecycle = () => {
   const [memberLabel, setMemberLabel] = useState('Member');
   const [avatarUrl, setAvatarUrl] = useState('');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [selectedLoanId, setSelectedLoanId] = useState('');
   const [showDetails, setShowDetails] = useState(false);
   const [showSchedule, setShowSchedule] = useState(false);
@@ -245,8 +248,8 @@ const Member_Lifecycle = () => {
     { name: "Member Loans", icon: Activity },
     { name: "Statement of Account", icon: Receipt },
     { name: "Loan Lifecycle", icon: History },
-    { name: "Member Profile", icon: Users },
     { name: "Member Savings", icon: CreditCard },
+    { name: "Member Profile", icon: Users },
   ];
 
   const routeMap = {
@@ -451,8 +454,9 @@ const Member_Lifecycle = () => {
   };
 
   return (
-    <div className="relative flex min-h-screen bg-[#F8F9FA]">
+    <div className="relative flex min-h-screen bg-[#F8F9FA] dark:bg-gray-950">
       <style>{styles}</style>
+      <SettingsDrawer isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
       {isSidebarOpen ? (
         <button
           aria-label="Close sidebar overlay"
@@ -461,7 +465,7 @@ const Member_Lifecycle = () => {
         />
       ) : null}
       <aside
-        className={`fixed inset-y-0 left-0 z-30 w-64 transform bg-white p-4 flex flex-col border-r border-gray-200 transition-transform duration-200 ease-out lg:fixed lg:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-30 w-64 transform bg-white dark:bg-gray-900 p-4 flex flex-col border-r border-gray-200 dark:border-gray-800 transition-transform duration-200 ease-out lg:fixed lg:translate-x-0 ${
           isSidebarOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
@@ -476,11 +480,11 @@ const Member_Lifecycle = () => {
           <img src="/img/ttmpc logo.png" alt="Logo" className="h-12 w-auto" />
           <div className="flex flex-col">
             <h1 className="text-xl font-bold text-[#389734]">TTMPC</h1>
-            <p className="text-[10px] uppercase tracking-wider text-gray-500 font-bold">Members Portal</p>
+            <p className="text-[10px] uppercase tracking-wider text-gray-500 dark:text-gray-400 font-bold">Members Portal</p>
           </div>
         </div>
 
-        <hr className="w-full border-gray-100 mb-6" />
+        <hr className="w-full border-gray-100 dark:border-gray-800 mb-6" />
 
         <nav className="flex grow flex-col gap-2 text-sm">
           {menuItems.map((item) => {
@@ -493,8 +497,8 @@ const Member_Lifecycle = () => {
                 className={({ isActive }) =>
                   `flex items-center gap-3 p-2.5 rounded-lg transition-colors ${
                     isActive
-                      ? "bg-[#EAF1EB] text-[#1D6021] font-bold"
-                      : "text-gray-600 hover:bg-gray-50 hover:text-[#1D6021] font-medium"
+                      ? "bg-[#EAF1EB] text-[#1D6021] font-bold dark:bg-green-900/30 dark:text-green-400"
+                      : "text-gray-600 hover:bg-gray-50 hover:text-[#1D6021] font-medium dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-green-400"
                   }`
                 }
               >
@@ -518,7 +522,7 @@ const Member_Lifecycle = () => {
       </aside>
 
       <div className="flex-1 flex flex-col overflow-hidden lg:ml-64">
-        <header className="bg-white h-16 shadow-sm flex items-center justify-between px-4 sm:px-6 lg:px-8 z-10 border-b border-gray-100">
+        <header className="bg-white dark:bg-gray-900 h-16 shadow-sm flex items-center justify-between px-4 sm:px-6 lg:px-8 z-10 border-b border-gray-100 dark:border-gray-800">
           <div className="flex items-center gap-2 sm:gap-3">
             <button
               aria-label="Open sidebar"
@@ -527,7 +531,7 @@ const Member_Lifecycle = () => {
             >
               <Menu className="h-5 w-5" />
             </button>
-            <h1 className="text-base sm:text-lg font-extrabold text-[#1a4a2f] lg:hidden">Lifecycle</h1>
+            <h1 className="text-base sm:text-lg font-extrabold text-[#1a4a2f] dark:text-green-400 lg:hidden">Lifecycle</h1>
           </div>
 
           <div className="flex items-center gap-2 sm:gap-4">
@@ -535,24 +539,32 @@ const Member_Lifecycle = () => {
             <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
             <input
               type="text"
-              className="bg-gray-50 w-64 h-10 rounded-full border border-gray-200 pl-10 pr-4 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-[#1D6021] focus:bg-white transition-all"
+              className="bg-gray-50 w-64 h-10 rounded-full border border-gray-200 pl-10 pr-4 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-[#1D6021] focus:bg-white transition-all dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100 dark:placeholder-gray-500 dark:focus:bg-gray-800"
               placeholder="Search..."
               readOnly
             />
           </div>
           <LoanNotificationBell role="member" accentClass="bg-[#1D6021]" />
 
-          <div className="flex items-center gap-2 sm:gap-3 border-l border-gray-200 pl-2 sm:pl-4 cursor-pointer">
-            <div className="w-8 h-8 rounded-full bg-gray-200 overflow-hidden border border-gray-300">
+          <button
+            onClick={() => setIsSettingsOpen(true)}
+            className="p-2 rounded-md text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+            aria-label="Open settings"
+          >
+            <Settings className="w-5 h-5" />
+          </button>
+
+          <div className="flex items-center gap-2 sm:gap-3 border-l border-gray-200 dark:border-gray-700 pl-2 sm:pl-4 cursor-pointer">
+            <div className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 overflow-hidden border border-gray-300 dark:border-gray-600">
               {avatarUrl ? (
                 <img src={avatarUrl} alt="Profile" className="w-full h-full object-cover" />
               ) : (
-                <div className="w-full h-full flex items-center justify-center bg-gray-100 text-gray-500">
+                <div className="w-full h-full flex items-center justify-center bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400">
                   <User className="w-4 h-4" />
                 </div>
               )}
             </div>
-            <p className="hidden sm:block text-sm font-bold text-gray-700">{memberLabel}</p>
+            <p className="hidden sm:block text-sm font-bold text-gray-700 dark:text-gray-200">{memberLabel}</p>
           </div>
           </div>
         </header>
@@ -560,9 +572,9 @@ const Member_Lifecycle = () => {
         <main className="p-4 sm:p-6 lg:p-8 overflow-y-auto pb-28 lg:pb-0">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6 gap-3">
             <div>
-              <h1 className="hidden lg:block font-extrabold text-[#1a4a2f] text-2xl">My Loan Journey</h1>
-              <h1 className="lg:hidden font-extrabold text-[#1a4a2f] text-xl">My Loan Journey</h1>
-              <p className="text-xs text-gray-500 mt-1">
+              <h1 className="hidden lg:block font-extrabold text-[#1a4a2f] dark:text-green-400 text-2xl">My Loan Journey</h1>
+              <h1 className="lg:hidden font-extrabold text-[#1a4a2f] dark:text-green-400 text-xl">My Loan Journey</h1>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                 Track your loan from application through completion.
               </p>
             </div>
@@ -571,7 +583,7 @@ const Member_Lifecycle = () => {
                 <select
                   value={selectedLoanId}
                   onChange={(e) => { setSelectedLoanId(e.target.value); setShowDetails(false); setShowSchedule(false); }}
-                  className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#1D6021]/30"
+                  className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#1D6021]/30 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
                 >
                   {loans.map((l) => (
                     <option key={l.loan_id} value={l.loan_id}>
@@ -591,30 +603,30 @@ const Member_Lifecycle = () => {
           </div>
 
           {error ? (
-            <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 animate-fade-in-up">
+            <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 animate-fade-in-up dark:border-red-900 dark:bg-red-900/20 dark:text-red-400">
               {error}
             </div>
           ) : null}
 
           {!selectedLoan && !loading ? (
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-10 text-center">
-              <div className="mx-auto w-14 h-14 rounded-full bg-[#EAF1EB] flex items-center justify-center text-[#1D6021] mb-4">
+            <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm p-10 text-center">
+              <div className="mx-auto w-14 h-14 rounded-full bg-[#EAF1EB] dark:bg-green-900/30 flex items-center justify-center text-[#1D6021] mb-4">
                 <Wallet className="w-7 h-7" />
               </div>
-              <h3 className="font-extrabold text-gray-900 text-lg mb-1">No loans yet</h3>
-              <p className="text-sm text-gray-500">Once you submit a loan application, your journey will appear here.</p>
+              <h3 className="font-extrabold text-gray-900 dark:text-white text-lg mb-1">No loans yet</h3>
+              <p className="text-sm text-gray-500 dark:text-gray-400">Once you submit a loan application, your journey will appear here.</p>
             </div>
           ) : null}
 
           {selectedLoan ? (
             <>
               {/* Loan Summary Card */}
-              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 sm:p-6 mb-6 animate-fade-in-up">
+              <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm p-5 sm:p-6 mb-6 animate-fade-in-up">
                 <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-5">
                   <div>
-                    <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-1">{selectedLoan.loan_type}</p>
-                    <h2 className="text-xl sm:text-2xl font-extrabold text-gray-900">{formatCurrency(selectedLoan.principal)}</h2>
-                    <p className="text-xs text-gray-500 mt-0.5 font-mono">Loan ID: {selectedLoan.loan_id}</p>
+                    <p className="text-[11px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-1">{selectedLoan.loan_type}</p>
+                    <h2 className="text-xl sm:text-2xl font-extrabold text-gray-900 dark:text-white">{formatCurrency(selectedLoan.principal)}</h2>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 font-mono">Loan ID: {selectedLoan.loan_id}</p>
                   </div>
                   {selectedStatus ? (
                     <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold border ${toneStyles[selectedStatus.tone]}`}>
@@ -626,46 +638,46 @@ const Member_Lifecycle = () => {
                 {/* Payment Progress */}
                 <div className="mb-5">
                   <div className="flex items-center justify-between mb-2">
-                    <p className="text-xs font-bold text-gray-600 uppercase tracking-wider">Payment Progress</p>
+                    <p className="text-xs font-bold text-gray-600 dark:text-gray-400 uppercase tracking-wider">Payment Progress</p>
                     <p className="text-sm font-extrabold text-[#1D6021]">{selectedLoan.progress_percent}%</p>
                   </div>
-                  <div className="h-2.5 w-full rounded-full bg-gray-100 overflow-hidden">
+                  <div className="h-2.5 w-full rounded-full bg-gray-100 dark:bg-gray-700 overflow-hidden">
                     <div
                       className="h-full bg-gradient-to-r from-[#1D6021] to-[#66B53B] transition-all duration-500"
                       style={{ width: `${selectedLoan.progress_percent}%` }}
                     />
                   </div>
-                  <p className="text-[11px] text-gray-500 mt-1.5 font-medium">
+                  <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1.5 font-medium">
                     {formatCurrency(selectedLoan.amount_paid)} paid of {formatCurrency(selectedLoan.total_payable)} total
                   </p>
                 </div>
 
                 {/* Key numbers */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  <div className="rounded-xl border border-gray-100 bg-[#FAF9FB] p-3">
-                    <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Total Payable</p>
-                    <p className="text-sm font-extrabold text-gray-900">{formatCurrency(selectedLoan.total_payable)}</p>
+                  <div className="rounded-xl border border-gray-100 dark:border-gray-700 bg-[#FAF9FB] dark:bg-gray-800 p-3">
+                    <p className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Total Payable</p>
+                    <p className="text-sm font-extrabold text-gray-900 dark:text-white">{formatCurrency(selectedLoan.total_payable)}</p>
                   </div>
-                  <div className="rounded-xl border border-gray-100 bg-[#FAF9FB] p-3">
-                    <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Remaining Balance</p>
+                  <div className="rounded-xl border border-gray-100 dark:border-gray-700 bg-[#FAF9FB] dark:bg-gray-800 p-3">
+                    <p className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Remaining Balance</p>
                     <p className="text-sm font-extrabold text-[#1D6021]">{formatCurrency(selectedLoan.remaining_balance)}</p>
                   </div>
-                  <div className="rounded-xl border border-gray-100 bg-[#FAF9FB] p-3">
-                    <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Next Due Date</p>
-                    <p className="text-sm font-extrabold text-gray-900">{formatShortDate(selectedLoan.next_due_schedule?.due_date)}</p>
+                  <div className="rounded-xl border border-gray-100 dark:border-gray-700 bg-[#FAF9FB] dark:bg-gray-800 p-3">
+                    <p className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Next Due Date</p>
+                    <p className="text-sm font-extrabold text-gray-900 dark:text-white">{formatShortDate(selectedLoan.next_due_schedule?.due_date)}</p>
                   </div>
-                  <div className="rounded-xl border border-gray-100 bg-[#FAF9FB] p-3">
-                    <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Monthly Amortization</p>
-                    <p className="text-sm font-extrabold text-gray-900">{formatCurrency(selectedLoan.monthly_amortization)}</p>
+                  <div className="rounded-xl border border-gray-100 dark:border-gray-700 bg-[#FAF9FB] dark:bg-gray-800 p-3">
+                    <p className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Monthly Amortization</p>
+                    <p className="text-sm font-extrabold text-gray-900 dark:text-white">{formatCurrency(selectedLoan.monthly_amortization)}</p>
                   </div>
                 </div>
               </div>
 
               {/* Stepper Timeline */}
-              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 sm:p-6 mb-6 animate-fade-in-up">
+              <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm p-5 sm:p-6 mb-6 animate-fade-in-up">
                 <div className="flex items-center gap-2 mb-5">
                   <CalendarClock className="w-5 h-5 text-[#1D6021]" />
-                  <h3 className="font-extrabold text-gray-900">Loan Journey</h3>
+                  <h3 className="font-extrabold text-gray-900 dark:text-white">Loan Journey</h3>
                 </div>
 
                 {/* Desktop: horizontal stepper */}
@@ -683,22 +695,22 @@ const Member_Lifecycle = () => {
                                 ? 'bg-[#1D6021] text-white'
                                 : isActive
                                   ? 'bg-[#66B53B] text-white ring-4 ring-[#66B53B]/20'
-                                  : 'bg-gray-100 text-gray-400'
+                                  : 'bg-gray-100 dark:bg-gray-700 text-gray-400'
                             }`}>
                               {isComplete ? <CheckCircle2 className="w-5 h-5" /> : <StageIcon className="w-4 h-4" />}
                             </div>
-                            <p className={`mt-2 text-[11px] font-bold leading-tight ${isActive ? 'text-[#1D6021]' : isComplete ? 'text-gray-700' : 'text-gray-400'}`}>
+                            <p className={`mt-2 text-[11px] font-bold leading-tight ${isActive ? 'text-[#1D6021]' : isComplete ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400'}`}>
                               {stage.label}
                             </p>
                           </div>
                           {idx < LIFECYCLE_STAGES.length - 1 ? (
-                            <div className={`flex-1 h-0.5 mt-5 ${idx < selectedStageIndex ? 'bg-[#1D6021]' : 'bg-gray-200'}`} />
+                            <div className={`flex-1 h-0.5 mt-5 ${idx < selectedStageIndex ? 'bg-[#1D6021]' : 'bg-gray-200 dark:bg-gray-700'}`} />
                           ) : null}
                         </React.Fragment>
                       );
                     })}
                   </div>
-                  <p className="mt-5 text-sm text-gray-600 font-medium">
+                  <p className="mt-5 text-sm text-gray-600 dark:text-gray-400 font-medium">
                     <span className="font-bold text-[#1D6021]">Current step:</span>{' '}
                     {LIFECYCLE_STAGES[selectedStageIndex]?.description}
                   </p>
@@ -717,16 +729,16 @@ const Member_Lifecycle = () => {
                             ? 'bg-[#1D6021] text-white'
                             : isActive
                               ? 'bg-[#66B53B] text-white ring-4 ring-[#66B53B]/20'
-                              : 'bg-gray-100 text-gray-400'
+                              : 'bg-gray-100 dark:bg-gray-700 text-gray-400'
                         }`}>
                           {isComplete ? <CheckCircle2 className="w-4 h-4" /> : <StageIcon className="w-4 h-4" />}
                         </div>
                         <div className="pt-1">
-                          <p className={`text-sm font-bold ${isActive ? 'text-[#1D6021]' : isComplete ? 'text-gray-800' : 'text-gray-400'}`}>
+                          <p className={`text-sm font-bold ${isActive ? 'text-[#1D6021]' : isComplete ? 'text-gray-800 dark:text-gray-200' : 'text-gray-400'}`}>
                             {stage.label}
                           </p>
                           {isActive ? (
-                            <p className="text-xs text-gray-500 font-medium mt-0.5">{stage.description}</p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400 font-medium mt-0.5">{stage.description}</p>
                           ) : null}
                         </div>
                       </li>
@@ -736,24 +748,24 @@ const Member_Lifecycle = () => {
               </div>
 
               {/* Recent Payments (simplified) */}
-              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm mb-6 animate-fade-in-up overflow-hidden">
-                <div className="px-5 py-4 border-b border-gray-100 flex items-center gap-2">
+              <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm mb-6 animate-fade-in-up overflow-hidden">
+                <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-800 flex items-center gap-2">
                   <Wallet className="w-4 h-4 text-[#1D6021]" />
-                  <h3 className="font-extrabold text-gray-900">Recent Payments</h3>
+                  <h3 className="font-extrabold text-gray-900 dark:text-white">Recent Payments</h3>
                 </div>
                 {recentPayments.length === 0 ? (
-                  <div className="p-8 text-center text-sm text-gray-500">
+                  <div className="p-8 text-center text-sm text-gray-500 dark:text-gray-400">
                     No payments recorded for this loan yet.
                   </div>
                 ) : (
-                  <ul className="divide-y divide-gray-100">
+                  <ul className="divide-y divide-gray-100 dark:divide-gray-800">
                     {recentPayments.map((row, idx) => {
                       const status = paymentStatusLabel(row.confirmation_status);
                       return (
                         <li key={`${row.payment_id}-${idx}`} className="px-5 py-3.5 flex items-center justify-between gap-3">
                           <div>
-                            <p className="text-sm font-bold text-gray-900">{formatCurrency(row.amount_paid)}</p>
-                            <p className="text-[11px] text-gray-500 font-medium">{formatShortDate(row.payment_date)}</p>
+                            <p className="text-sm font-bold text-gray-900 dark:text-white">{formatCurrency(row.amount_paid)}</p>
+                            <p className="text-[11px] text-gray-500 dark:text-gray-400 font-medium">{formatShortDate(row.payment_date)}</p>
                           </div>
                           <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider border ${toneStyles[status.tone]}`}>
                             {status.text}
@@ -766,59 +778,59 @@ const Member_Lifecycle = () => {
               </div>
 
               {/* Expandable: Loan Details */}
-              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm mb-4 overflow-hidden">
+              <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm mb-4 overflow-hidden">
                 <button
                   type="button"
                   onClick={() => setShowDetails((v) => !v)}
-                  className="w-full px-5 py-4 flex items-center justify-between text-left hover:bg-gray-50 transition-colors"
+                  className="w-full px-5 py-4 flex items-center justify-between text-left hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
                 >
                   <span className="flex items-center gap-2">
                     <ShieldCheck className="w-4 h-4 text-[#1D6021]" />
-                    <span className="font-extrabold text-gray-900">View Loan Details</span>
+                    <span className="font-extrabold text-gray-900 dark:text-white">View Loan Details</span>
                   </span>
-                  {showDetails ? <ChevronUp className="w-4 h-4 text-gray-500" /> : <ChevronDown className="w-4 h-4 text-gray-500" />}
+                  {showDetails ? <ChevronUp className="w-4 h-4 text-gray-500 dark:text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-500 dark:text-gray-400" />}
                 </button>
                 {showDetails ? (
-                  <div className="px-5 py-4 border-t border-gray-100 grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
-                    <p><span className="text-gray-500 font-medium">Applied on:</span> <span className="font-bold text-gray-900">{formatShortDate(selectedLoan.application_date)}</span></p>
-                    <p><span className="text-gray-500 font-medium">Disbursed on:</span> <span className="font-bold text-gray-900">{formatShortDate(selectedLoan.disbursal_date)}</span></p>
-                    <p><span className="text-gray-500 font-medium">Term:</span> <span className="font-bold text-gray-900">{selectedLoan.term} months</span></p>
-                    <p><span className="text-gray-500 font-medium">Total Interest:</span> <span className="font-bold text-gray-900">{formatCurrency(selectedLoan.total_interest)}</span></p>
+                  <div className="px-5 py-4 border-t border-gray-100 dark:border-gray-800 grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                    <p><span className="text-gray-500 dark:text-gray-400 font-medium">Applied on:</span> <span className="font-bold text-gray-900 dark:text-white">{formatShortDate(selectedLoan.application_date)}</span></p>
+                    <p><span className="text-gray-500 dark:text-gray-400 font-medium">Disbursed on:</span> <span className="font-bold text-gray-900 dark:text-white">{formatShortDate(selectedLoan.disbursal_date)}</span></p>
+                    <p><span className="text-gray-500 dark:text-gray-400 font-medium">Term:</span> <span className="font-bold text-gray-900 dark:text-white">{selectedLoan.term} months</span></p>
+                    <p><span className="text-gray-500 dark:text-gray-400 font-medium">Total Interest:</span> <span className="font-bold text-gray-900 dark:text-white">{formatCurrency(selectedLoan.total_interest)}</span></p>
                   </div>
                 ) : null}
               </div>
 
               {/* Expandable: Full Schedule */}
               {selectedLoan.schedules && selectedLoan.schedules.length > 0 ? (
-                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm mb-6 overflow-hidden">
+                <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm mb-6 overflow-hidden">
                   <button
                     type="button"
                     onClick={() => setShowSchedule((v) => !v)}
-                    className="w-full px-5 py-4 flex items-center justify-between text-left hover:bg-gray-50 transition-colors"
+                    className="w-full px-5 py-4 flex items-center justify-between text-left hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
                   >
                     <span className="flex items-center gap-2">
                       <CalendarClock className="w-4 h-4 text-[#1D6021]" />
-                      <span className="font-extrabold text-gray-900">View Payment Schedule</span>
+                      <span className="font-extrabold text-gray-900 dark:text-white">View Payment Schedule</span>
                     </span>
-                    {showSchedule ? <ChevronUp className="w-4 h-4 text-gray-500" /> : <ChevronDown className="w-4 h-4 text-gray-500" />}
+                    {showSchedule ? <ChevronUp className="w-4 h-4 text-gray-500 dark:text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-500 dark:text-gray-400" />}
                   </button>
                   {showSchedule ? (
-                    <div className="border-t border-gray-100">
-                      <div className="px-5 py-3 bg-[#FAF9FB] grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
+                    <div className="border-t border-gray-100 dark:border-gray-800">
+                      <div className="px-5 py-3 bg-[#FAF9FB] dark:bg-gray-800 grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
                         <div>
-                          <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Monthly Amortization</p>
+                          <p className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Monthly Amortization</p>
                           <p className="text-sm font-extrabold text-[#1D6021]">{formatCurrency(selectedLoan.monthly_amortization)}</p>
                         </div>
                         <div>
-                          <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Term</p>
-                          <p className="text-sm font-extrabold text-gray-900">{selectedLoan.term} months</p>
+                          <p className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Term</p>
+                          <p className="text-sm font-extrabold text-gray-900 dark:text-white">{selectedLoan.term} months</p>
                         </div>
                         <div className="col-span-2 sm:col-span-1">
-                          <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Total Payable</p>
-                          <p className="text-sm font-extrabold text-gray-900">{formatCurrency(selectedLoan.total_payable)}</p>
+                          <p className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Total Payable</p>
+                          <p className="text-sm font-extrabold text-gray-900 dark:text-white">{formatCurrency(selectedLoan.total_payable)}</p>
                         </div>
                       </div>
-                      <ul className="divide-y divide-gray-100">
+                      <ul className="divide-y divide-gray-100 dark:divide-gray-800">
                         {selectedLoan.schedules.map((sched, idx) => {
                           const status = paymentStatusLabel(sched.schedule_status === 'Paid' ? 'validated' : sched.schedule_status);
                           // Per-installment amount = principal_component + interest_component.
@@ -840,11 +852,11 @@ const Member_Lifecycle = () => {
                           return (
                             <li key={`${sched.schedule_id || sched.installment_no}-${idx}`} className="px-5 py-3 flex items-center justify-between gap-3">
                               <div>
-                                <p className="text-sm font-bold text-gray-900">Installment #{sched.installment_no}</p>
-                                <p className="text-[11px] text-gray-500 font-medium">Due {formatShortDate(sched.due_date)}</p>
+                                <p className="text-sm font-bold text-gray-900 dark:text-white">Installment #{sched.installment_no}</p>
+                                <p className="text-[11px] text-gray-500 dark:text-gray-400 font-medium">Due {formatShortDate(sched.due_date)}</p>
                               </div>
                               <div className="text-right">
-                                <p className="text-sm font-extrabold text-gray-900">{formatCurrency(perInstallment)}</p>
+                                <p className="text-sm font-extrabold text-gray-900 dark:text-white">{formatCurrency(perInstallment)}</p>
                                 <span className={`inline-block mt-1 rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider border ${toneStyles[status.tone]}`}>
                                   {sched.schedule_status === 'Paid' ? 'Paid' : 'Unpaid'}
                                 </span>
@@ -898,7 +910,7 @@ const Member_Lifecycle = () => {
         </main>
 
         {/* Bottom Navigation - Mobile Only */}
-        <nav className="fixed bottom-0 left-0 right-0 lg:hidden bg-white border-t border-gray-200 px-2 py-2">
+        <nav className="fixed bottom-0 left-0 right-0 lg:hidden bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800 px-2 py-2">
           <div className="max-w-lg mx-auto">
             <div className="flex items-center justify-around gap-1">
               {(() => {
@@ -923,7 +935,7 @@ const Member_Lifecycle = () => {
                         `flex flex-col items-center justify-center px-2.5 py-2 rounded-full transition-all ${
                           isActive
                             ? 'bg-[#1D6021] text-white'
-                            : 'text-gray-600 hover:text-[#1D6021]'
+                            : 'text-gray-600 hover:text-[#1D6021] dark:text-gray-400 dark:hover:text-green-400'
                         }`
                       }
                     >

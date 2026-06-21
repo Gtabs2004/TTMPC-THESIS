@@ -24,7 +24,9 @@ import {
   ArrowLeft,
   ChevronRight,
   Banknote,
+  Settings,
 } from "lucide-react";
+import SettingsDrawer from './SettingsDrawer';
 
 const styles = `
   @keyframes fadeInUp { from { opacity: 0; transform: translateY(20px);} to { opacity: 1; transform: translateY(0);} }
@@ -72,14 +74,15 @@ const Member_StatementOfAccount = () => {
   const [avatarUrl, setAvatarUrl] = useState("");
   const [memberId, setMemberId] = useState(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   const menuItems = [
     { name: "Dashboard", icon: LayoutDashboard },
     { name: "Member Loans", icon: Activity },
     { name: "Statement of Account", icon: Receipt },
     { name: "Loan Lifecycle", icon: History },
-    { name: "Member Profile", icon: Users },
     { name: "Member Savings", icon: CreditCard },
+    { name: "Member Profile", icon: Users }
   ];
 
   const routeMap = {
@@ -321,8 +324,9 @@ const Member_StatementOfAccount = () => {
   };
 
   return (
-    <div className="relative flex min-h-screen bg-[#F8F9FA]">
+    <div className="relative flex min-h-screen bg-[#F8F9FA] dark:bg-gray-950">
       <style>{styles}</style>
+      <SettingsDrawer isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
 
       {isSidebarOpen ? (
         <button
@@ -333,7 +337,7 @@ const Member_StatementOfAccount = () => {
       ) : null}
 
       <aside
-        className={`fixed inset-y-0 left-0 z-30 w-64 transform bg-white p-4 flex flex-col border-r border-gray-200 transition-transform duration-200 ease-out lg:fixed lg:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-30 w-64 transform bg-white dark:bg-gray-900 p-4 flex flex-col border-r border-gray-200 dark:border-gray-800 transition-transform duration-200 ease-out lg:fixed lg:translate-x-0 ${
           isSidebarOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
@@ -348,11 +352,11 @@ const Member_StatementOfAccount = () => {
           <img src="/img/ttmpc logo.png" alt="Logo" className="h-12 w-auto" />
           <div className="flex flex-col">
             <h1 className="text-xl font-bold text-[#389734]">TTMPC</h1>
-            <p className="text-[10px] uppercase tracking-wider text-gray-500 font-bold">Members Portal</p>
+            <p className="text-[10px] uppercase tracking-wider text-gray-500 dark:text-gray-400 font-bold">Members Portal</p>
           </div>
         </div>
 
-        <hr className="w-full border-gray-100 mb-6" />
+        <hr className="w-full border-gray-100 dark:border-gray-800 mb-6" />
 
         <nav className="flex grow flex-col gap-2 text-sm">
           {menuItems.map((item) => {
@@ -365,8 +369,8 @@ const Member_StatementOfAccount = () => {
                 className={({ isActive }) =>
                   `flex items-center gap-3 p-2.5 rounded-lg transition-colors ${
                     isActive
-                      ? "bg-[#EAF1EB] text-[#1D6021] font-bold"
-                      : "text-gray-600 hover:bg-gray-50 hover:text-[#1D6021] font-medium"
+                      ? "bg-[#EAF1EB] text-[#1D6021] font-bold dark:bg-green-900/30 dark:text-green-400"
+                      : "text-gray-600 hover:bg-gray-50 hover:text-[#1D6021] font-medium dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-green-400"
                   }`
                 }
               >
@@ -390,7 +394,7 @@ const Member_StatementOfAccount = () => {
       </aside>
 
       <div className="flex-1 flex flex-col overflow-hidden lg:ml-64">
-        <header className="bg-white h-16 shadow-sm flex items-center justify-between px-4 sm:px-6 lg:px-8 z-10 border-b border-gray-100">
+        <header className="bg-white dark:bg-gray-900 h-16 shadow-sm flex items-center justify-between px-4 sm:px-6 lg:px-8 z-10 border-b border-gray-100 dark:border-gray-800">
           <div className="flex items-center gap-2 sm:gap-3">
             <button
               aria-label="Open sidebar"
@@ -399,7 +403,7 @@ const Member_StatementOfAccount = () => {
             >
               <Menu className="h-5 w-5" />
             </button>
-            <h1 className="text-base sm:text-lg font-extrabold text-[#1a4a2f] lg:hidden">Statement of Account</h1>
+            <h1 className="text-base sm:text-lg font-extrabold text-[#1a4a2f] dark:text-green-400 lg:hidden">Statement of Account</h1>
           </div>
 
           <div className="flex items-center gap-2 sm:gap-4">
@@ -407,23 +411,30 @@ const Member_StatementOfAccount = () => {
               <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
               <input
                 type="text"
-                className="bg-gray-50 w-64 h-10 rounded-full border border-gray-200 pl-10 pr-4 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-[#1D6021] focus:bg-white transition-all"
+                className="bg-gray-50 dark:bg-gray-800 w-64 h-10 rounded-full border border-gray-200 dark:border-gray-700 pl-10 pr-4 py-1 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#1D6021] focus:bg-white dark:focus:bg-gray-800 transition-all"
                 placeholder="Search..."
               />
             </div>
             <LoanNotificationBell role="member" accentClass="bg-[#1D6021]" />
+            <button
+              onClick={() => setIsSettingsOpen(true)}
+              className="p-2 rounded-md text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+              aria-label="Open settings"
+            >
+              <Settings className="w-5 h-5" />
+            </button>
 
-            <div className="flex items-center gap-2 sm:gap-3 border-l border-gray-200 pl-2 sm:pl-4 cursor-pointer">
-              <div className="w-8 h-8 rounded-full bg-gray-200 overflow-hidden border border-gray-300">
+            <div className="flex items-center gap-2 sm:gap-3 border-l border-gray-200 dark:border-gray-700 pl-2 sm:pl-4 cursor-pointer">
+              <div className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 overflow-hidden border border-gray-300 dark:border-gray-600">
                 {avatarUrl ? (
                   <img src={avatarUrl} alt="Member Profile" className="w-full h-full object-cover" />
                 ) : (
-                  <div className="w-full h-full flex items-center justify-center bg-gray-100 text-gray-500">
+                  <div className="w-full h-full flex items-center justify-center bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400">
                     <User className="w-4 h-4" />
                   </div>
                 )}
               </div>
-              <p className="hidden sm:block text-sm font-bold text-gray-700">{memberLabel}</p>
+              <p className="hidden sm:block text-sm font-bold text-gray-700 dark:text-gray-200">{memberLabel}</p>
             </div>
           </div>
         </header>
@@ -431,21 +442,21 @@ const Member_StatementOfAccount = () => {
         <main className="p-4 sm:p-6 lg:p-8 overflow-y-auto pb-28 lg:pb-0 animate-fade-in-up">
           {!selectedLoan ? (
             <>
-              <h1 className="hidden lg:block font-extrabold text-[#1a4a2f] text-2xl mb-2">Statement of Account</h1>
-              <p className="text-sm text-gray-500 font-medium mb-8">
+              <h1 className="hidden lg:block font-extrabold text-[#1a4a2f] dark:text-green-400 text-2xl mb-2">Statement of Account</h1>
+              <p className="text-sm text-gray-500 dark:text-gray-400 font-medium mb-8">
                 Select a loan to view its payment history and download the statement.
               </p>
 
               {loadingLoans ? (
-                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 text-sm text-gray-500">
+                <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 p-8 text-sm text-gray-500 dark:text-gray-400">
                   Loading your loans…
                 </div>
               ) : loanError ? (
-                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 text-sm text-red-600">
+                <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 p-8 text-sm text-red-600">
                   {loanError}
                 </div>
               ) : loans.length === 0 ? (
-                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 text-sm text-gray-500">
+                <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 p-8 text-sm text-gray-500 dark:text-gray-400">
                   No Consolidated, Emergency, or Bonus loans found on your account.
                 </div>
               ) : (
@@ -457,7 +468,7 @@ const Member_StatementOfAccount = () => {
                         key={loan.control_number}
                         type="button"
                         onClick={() => setSelectedLoan(loan)}
-                        className={`text-left bg-white rounded-2xl shadow-sm border ${k.ring} p-6 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 flex flex-col`}
+                        className={`text-left bg-white dark:bg-gray-900 rounded-2xl shadow-sm border ${k.ring} p-6 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 flex flex-col`}
                       >
                         <div className="flex items-start justify-between mb-4">
                           <div className={`w-10 h-10 rounded-lg ${k.bg} flex items-center justify-center`}>
@@ -468,24 +479,24 @@ const Member_StatementOfAccount = () => {
                           </span>
                         </div>
 
-                        <p className="text-xs font-bold text-gray-500 mb-1">{loan.type}</p>
-                        <p className="text-[10px] font-mono text-gray-400 mb-4 break-all">{loan.control_number}</p>
+                        <p className="text-xs font-bold text-gray-500 dark:text-gray-400 mb-1">{loan.type}</p>
+                        <p className="text-[10px] font-mono text-gray-400 dark:text-gray-500 mb-4 break-all">{loan.control_number}</p>
 
                         <div className="flex justify-between text-sm mb-2">
-                          <span className="text-gray-500 font-medium">Principal</span>
-                          <span className="font-bold text-gray-900">{formatCurrency(loan.principal)}</span>
+                          <span className="text-gray-500 dark:text-gray-400 font-medium">Principal</span>
+                          <span className="font-bold text-gray-900 dark:text-white">{formatCurrency(loan.principal)}</span>
                         </div>
                         <div className="flex justify-between text-sm mb-2">
-                          <span className="text-gray-500 font-medium">Total Interest</span>
-                          <span className="font-bold text-gray-900">{formatCurrency(loan.totalInterest)}</span>
+                          <span className="text-gray-500 dark:text-gray-400 font-medium">Total Interest</span>
+                          <span className="font-bold text-gray-900 dark:text-white">{formatCurrency(loan.totalInterest)}</span>
                         </div>
                         <div className="flex justify-between text-sm mb-4">
-                          <span className="text-gray-500 font-medium">Monthly</span>
+                          <span className="text-gray-500 dark:text-gray-400 font-medium">Monthly</span>
                           <span className="font-bold text-[#1D6021]">{formatCurrency(loan.monthly)}</span>
                         </div>
 
-                        <div className="mt-auto pt-4 border-t border-gray-100 flex items-center justify-between">
-                          <span className="text-[10px] uppercase tracking-wider font-bold text-gray-400">
+                        <div className="mt-auto pt-4 border-t border-gray-100 dark:border-gray-800 flex items-center justify-between">
+                          <span className="text-[10px] uppercase tracking-wider font-bold text-gray-400 dark:text-gray-500">
                             Applied {formatDate(loan.applicationDate)}
                           </span>
                           <span className="inline-flex items-center gap-1 text-xs font-bold text-[#1D6021]">
@@ -505,12 +516,12 @@ const Member_StatementOfAccount = () => {
                   <button
                     type="button"
                     onClick={() => setSelectedLoan(null)}
-                    className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-bold text-gray-700 hover:bg-gray-50"
+                    className="inline-flex items-center gap-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-xs font-bold text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700"
                   >
                     <ArrowLeft className="w-4 h-4" /> Back to loans
                   </button>
                   <div>
-                    <h1 className="font-extrabold text-[#1a4a2f] text-xl sm:text-2xl mt-4">{selectedLoan.type}</h1>
+                    <h1 className="font-extrabold text-[#1a4a2f] dark:text-green-400 text-xl sm:text-2xl mt-4">{selectedLoan.type}</h1>
                     <p className="text-[10px] font-mono text-gray-400">{selectedLoan.control_number}</p>
                   </div>
                 </div>
@@ -524,31 +535,31 @@ const Member_StatementOfAccount = () => {
                 </button>
               </div>
 
-              <div className="mb-6 rounded-xl border border-green-200 bg-green-50 p-4 grid grid-cols-1 sm:grid-cols-4 gap-4">
+              <div className="mb-6 rounded-xl border border-green-200 dark:border-green-900 bg-green-50 dark:bg-green-900/20 p-4 grid grid-cols-1 sm:grid-cols-4 gap-4">
                 <div>
-                  <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Member Name</p>
+                  <p className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Member Name</p>
                   <p className="text-sm font-bold text-[#1D6021]">{memberLabel}</p>
                 </div>
                 <div>
-                  <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Account Number</p>
+                  <p className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Account Number</p>
                   <p className="text-sm font-bold text-[#1D6021]">{accountNumber}</p>
                 </div>
                 <div>
-                  <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Loan Principal</p>
+                  <p className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Loan Principal</p>
                   <p className="text-sm font-bold text-[#1D6021]">{formatCurrency(selectedLoan.principal)}</p>
                 </div>
                 <div>
-                  <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Generated On</p>
+                  <p className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Generated On</p>
                   <p className="text-sm font-bold text-[#1D6021]">
                     {new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "2-digit" })}
                   </p>
                 </div>
               </div>
 
-              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mb-8 flex flex-col">
-                <div className="p-6 flex items-center justify-between border-b border-gray-100">
-                  <h3 className="text-lg font-bold text-gray-900">Payment History</h3>
-                  <span className="bg-gray-100 text-gray-500 px-3 py-1 rounded text-[9px] font-extrabold tracking-widest uppercase">
+              <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 overflow-hidden mb-8 flex flex-col">
+                <div className="p-6 flex items-center justify-between border-b border-gray-100 dark:border-gray-800">
+                  <h3 className="text-lg font-bold text-gray-900 dark:text-white">Payment History</h3>
+                  <span className="bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 px-3 py-1 rounded text-[9px] font-extrabold tracking-widest uppercase">
                     {rows.length} {rows.length === 1 ? "Entry" : "Entries"}
                   </span>
                 </div>
@@ -570,7 +581,7 @@ const Member_StatementOfAccount = () => {
                     <tbody>
                       {loadingRows ? (
                         <tr>
-                          <td colSpan="8" className="p-5 text-sm text-gray-500">Loading payment history…</td>
+                          <td colSpan="8" className="p-5 text-sm text-gray-500 dark:text-gray-400">Loading payment history…</td>
                         </tr>
                       ) : rowsError ? (
                         <tr>
@@ -578,26 +589,26 @@ const Member_StatementOfAccount = () => {
                         </tr>
                       ) : rows.length === 0 ? (
                         <tr>
-                          <td colSpan="8" className="p-5 text-sm text-gray-500">No validated payments found for this loan.</td>
+                          <td colSpan="8" className="p-5 text-sm text-gray-500 dark:text-gray-400">No validated payments found for this loan.</td>
                         </tr>
                       ) : (
                         rows.map((r) => (
-                          <tr key={r.payment_id} className="table-row-enter border-b border-gray-50 hover:bg-green-50 transition-colors last:border-0">
-                            <td className="px-6 py-4 text-sm font-medium text-gray-700">{formatDate(r.payment_date)}</td>
-                            <td className="px-6 py-4 text-xs font-mono text-gray-600 break-all">{r.reference_id || "—"}</td>
-                            <td className="px-6 py-4 text-sm font-bold text-gray-700 text-right">{formatCurrency(r.principal_paid)}</td>
-                            <td className="px-6 py-4 text-sm font-bold text-gray-700 text-right">{formatCurrency(r.interest_paid)}</td>
-                            <td className="px-6 py-4 text-sm font-medium text-gray-600 text-right">{formatCurrency(r.deficiency)}</td>
+                          <tr key={r.payment_id} className="table-row-enter border-b border-gray-50 dark:border-gray-800 hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors last:border-0">
+                            <td className="px-6 py-4 text-sm font-medium text-gray-700 dark:text-gray-200">{formatDate(r.payment_date)}</td>
+                            <td className="px-6 py-4 text-xs font-mono text-gray-600 dark:text-gray-400 break-all">{r.reference_id || "—"}</td>
+                            <td className="px-6 py-4 text-sm font-bold text-gray-700 dark:text-gray-200 text-right">{formatCurrency(r.principal_paid)}</td>
+                            <td className="px-6 py-4 text-sm font-bold text-gray-700 dark:text-gray-200 text-right">{formatCurrency(r.interest_paid)}</td>
+                            <td className="px-6 py-4 text-sm font-medium text-gray-600 dark:text-gray-400 text-right">{formatCurrency(r.deficiency)}</td>
                             <td className="px-6 py-4 text-sm font-medium text-red-400 text-right">{formatCurrency(r.penalty)}</td>
                             <td className="px-6 py-4 text-sm font-black text-[#1D6021] text-right">{formatCurrency(r.total_amount_paid)}</td>
-                            <td className="px-6 py-4 text-sm font-bold text-gray-900 text-right">{formatCurrency(r.outstanding_balance)}</td>
+                            <td className="px-6 py-4 text-sm font-bold text-gray-900 dark:text-white text-right">{formatCurrency(r.outstanding_balance)}</td>
                           </tr>
                         ))
                       )}
                     </tbody>
                     {!loadingRows && !rowsError && rows.length > 0 ? (
                       <tfoot>
-                        <tr className="bg-[#EAF1EB] text-[#1D6021]">
+                        <tr className="bg-[#EAF1EB] text-[#1D6021] dark:bg-green-900/30 dark:text-green-400">
                           <td className="px-6 py-4 text-xs font-extrabold uppercase tracking-wider" colSpan="2">Totals</td>
                           <td className="px-6 py-4 text-sm font-black text-right">{formatCurrency(totals.principal)}</td>
                           <td className="px-6 py-4 text-sm font-black text-right">{formatCurrency(totals.interest)}</td>
@@ -616,7 +627,7 @@ const Member_StatementOfAccount = () => {
         </main>
 
         {/* Bottom Navigation - Mobile Only */}
-        <nav className="fixed bottom-0 left-0 right-0 lg:hidden bg-white border-t border-gray-200 px-2 py-2">
+        <nav className="fixed bottom-0 left-0 right-0 lg:hidden bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800 px-2 py-2">
           <div className="max-w-lg mx-auto">
             <div className="flex items-center justify-around gap-1">
               {menuItems.map((item) => {
@@ -630,7 +641,7 @@ const Member_StatementOfAccount = () => {
                       `flex flex-col items-center justify-center px-2.5 py-2 rounded-full transition-all ${
                         isActive
                           ? 'bg-[#1D6021] text-white'
-                          : 'text-gray-600 hover:text-[#1D6021]'
+                          : 'text-gray-600 hover:text-[#1D6021] dark:text-gray-400 dark:hover:text-green-400'
                       }`
                     }
                   >

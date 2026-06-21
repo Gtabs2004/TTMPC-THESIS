@@ -24,8 +24,10 @@ import {
   History,
   User,
   Receipt,
-  Library
+  Library,
+  Settings,
 } from 'lucide-react';
+import SettingsDrawer from './SettingsDrawer';
 
 const styles = `
   @keyframes fadeInUp {
@@ -139,15 +141,15 @@ const Member_Loans = () => {
   const [avatarUrl, setAvatarUrl] = useState('');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isCalculatorOpen, setIsCalculatorOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   const menuItems = [
     { name: "Dashboard", icon: LayoutDashboard },
     { name: "Member Loans", icon: Activity },
-   
     { name: "Statement of Account", icon: Receipt },
     { name: "Loan Lifecycle", icon: History },
+    { name: "Member Savings", icon: CreditCard },
     { name: "Member Profile", icon: Users },
-    { name: "Member Savings", icon: CreditCard }
   ];
 
   const handleSignOut = async (e) => {
@@ -273,8 +275,9 @@ const Member_Loans = () => {
   }, [loans]);
 
   return (
-    <div className="relative flex min-h-screen bg-[#F8F9FA]">
+    <div className="relative flex min-h-screen bg-[#F8F9FA] dark:bg-gray-950">
       <style>{styles}</style>
+      <SettingsDrawer isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
       {isSidebarOpen ? (
         <button
           aria-label="Close sidebar overlay"
@@ -284,7 +287,7 @@ const Member_Loans = () => {
       ) : null}
       {/* Sidebar */}
       <aside
-        className={`fixed inset-y-0 left-0 z-30 w-64 transform bg-white p-4 flex flex-col border-r border-gray-200 transition-transform duration-200 ease-out lg:fixed lg:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-30 w-64 transform bg-white dark:bg-gray-900 p-4 flex flex-col border-r border-gray-200 dark:border-gray-800 transition-transform duration-200 ease-out lg:fixed lg:translate-x-0 ${
           isSidebarOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
@@ -299,13 +302,13 @@ const Member_Loans = () => {
           <img src="/img/ttmpc logo.png" alt="Logo" className="h-12 w-auto" />
           <div className="flex flex-col">
             <h1 className="text-xl font-bold text-[#389734]">TTMPC</h1>
-            <p className="text-[10px] uppercase tracking-wider text-gray-500 font-bold">
+            <p className="text-[10px] uppercase tracking-wider text-gray-500 dark:text-gray-400 font-bold">
               Members Portal
             </p>
           </div>
         </div>
    
-        <hr className="w-full border-gray-100 mb-6" />
+        <hr className="w-full border-gray-100 dark:border-gray-800 mb-6" />
    
         <nav className="flex grow flex-col gap-2 text-sm">
           {(() => {
@@ -330,8 +333,8 @@ const Member_Loans = () => {
                   className={({ isActive }) =>
                     `flex items-center gap-3 p-2.5 rounded-lg transition-colors ${
                       isActive
-                        ? 'bg-[#EAF1EB] text-[#1D6021] font-bold'
-                        : 'text-gray-600 hover:bg-gray-50 hover:text-[#1D6021] font-medium'
+                        ? 'bg-[#EAF1EB] text-[#1D6021] font-bold dark:bg-green-900/30 dark:text-green-400'
+                        : 'text-gray-600 hover:bg-gray-50 hover:text-[#1D6021] font-medium dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-green-400'
                     }`
                   }
                 >
@@ -358,7 +361,7 @@ const Member_Loans = () => {
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden lg:ml-64">
         {/* Header */}
-        <header className="bg-white h-16 shadow-sm flex items-center justify-between px-4 sm:px-6 lg:px-8 z-10 border-b border-gray-100">
+        <header className="bg-white dark:bg-gray-900 h-16 shadow-sm flex items-center justify-between px-4 sm:px-6 lg:px-8 z-10 border-b border-gray-100 dark:border-gray-800">
           <div className="flex items-center gap-2 sm:gap-3">
             <button
               aria-label="Open sidebar"
@@ -367,7 +370,7 @@ const Member_Loans = () => {
             >
               <Menu className="h-5 w-5" />
             </button>
-            <h1 className="text-base sm:text-lg font-extrabold text-[#1a4a2f] lg:hidden">Loans</h1>
+            <h1 className="text-base sm:text-lg font-extrabold text-[#1a4a2f] dark:text-green-400 lg:hidden">Loans</h1>
           </div>
 
           <div className="flex items-center gap-2 sm:gap-4">
@@ -375,35 +378,43 @@ const Member_Loans = () => {
             <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400"/>
             <input 
               type="text" 
-              className="bg-gray-50 w-64 h-10 rounded-full border border-gray-200 pl-10 pr-4 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-[#1D6021] focus:bg-white transition-all"
+              className="bg-gray-50 dark:bg-gray-800 w-64 h-10 rounded-full border border-gray-200 dark:border-gray-700 pl-10 pr-4 py-1 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#1D6021] focus:bg-white dark:focus:bg-gray-800 transition-all"
               placeholder="Search..."
             />
           </div>
           <LoanNotificationBell role="member" accentClass="bg-[#1D6021]" />
 
-          <div className="flex items-center gap-2 sm:gap-3 border-l border-gray-200 pl-2 sm:pl-4 cursor-pointer">
-            <div className="w-8 h-8 rounded-full bg-gray-200 overflow-hidden border border-gray-300">
+          <button
+            onClick={() => setIsSettingsOpen(true)}
+            className="p-2 rounded-md text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+            aria-label="Open settings"
+          >
+            <Settings className="w-5 h-5" />
+          </button>
+
+          <div className="flex items-center gap-2 sm:gap-3 border-l border-gray-200 dark:border-gray-700 pl-2 sm:pl-4 cursor-pointer">
+            <div className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 overflow-hidden border border-gray-300 dark:border-gray-600">
               {avatarUrl ? (
                 <img src={avatarUrl} alt="Member Profile" className="w-full h-full object-cover" />
               ) : (
-                <div className="w-full h-full flex items-center justify-center bg-gray-100 text-gray-500">
+                <div className="w-full h-full flex items-center justify-center bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400">
                   <User className="w-4 h-4" />
                 </div>
               )}
             </div>
-            <p className="hidden sm:block text-sm font-bold text-gray-700">{memberLabel}</p>
+            <p className="hidden sm:block text-sm font-bold text-gray-700 dark:text-gray-200">{memberLabel}</p>
           </div>
           </div>
         </header>
    
         {/* Scrollable Page Content */}
         <main className="p-4 sm:p-6 lg:p-8 overflow-y-auto pb-28 lg:pb-0">
-          <h1 className="hidden lg:block font-extrabold text-[#1a4a2f] text-2xl mb-8">Loans</h1>
+          <h1 className="hidden lg:block font-extrabold text-[#1a4a2f] dark:text-green-400 text-2xl mb-8">Loans</h1>
 
-          <div className="mb-6 rounded-xl border border-green-200 bg-green-50 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="mb-6 rounded-xl border border-green-200 dark:border-green-900 bg-green-50 dark:bg-green-900/20 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div>
               <p className="text-sm font-bold text-[#1D6021]">Need the full loan lifecycle?</p>
-              <p className="text-xs text-gray-600">View approvals, status transitions, and real-time recorded payments in one screen.</p>
+              <p className="text-xs text-gray-600 dark:text-gray-400">View approvals, status transitions, and real-time recorded payments in one screen.</p>
             </div>
             <button
               type="button"
@@ -418,39 +429,39 @@ const Member_Loans = () => {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6 mb-8">
             
             {/* Balance Card */}
-            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col relative overflow-hidden">
-              <div className="w-8 h-8 rounded-lg bg-gray-50 flex items-center justify-center mb-4 border border-gray-200">
+            <div className="bg-white dark:bg-gray-900 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col relative overflow-hidden">
+              <div className="w-8 h-8 rounded-lg bg-gray-50 dark:bg-gray-800 flex items-center justify-center mb-4 border border-gray-200 dark:border-gray-700">
                 <Banknote className="w-4 h-4 text-gray-600" />
               </div>
-              <p className="text-xs font-bold text-gray-500 mb-1">Total Outstanding Balance</p>
-              <h3 className="text-2xl sm:text-3xl font-black text-gray-900 mb-2">{formatCurrency(totalOutstanding)}</h3>
-              <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider mt-auto flex items-center">
+              <p className="text-xs font-bold text-gray-500 dark:text-gray-400 mb-1">Total Outstanding Balance</p>
+              <h3 className="text-2xl sm:text-3xl font-black text-gray-900 dark:text-white mb-2">{formatCurrency(totalOutstanding)}</h3>
+              <p className="text-[9px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider mt-auto flex items-center">
                 <CalendarClock className="w-3 h-3 mr-1" /> Last Updated: {latestLoan?.nextDue || 'N/A'}
               </p>
             </div>
 
             {/* Commitment Card */}
-            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col relative overflow-hidden">
-               <div className="absolute top-6 right-6 bg-[#EAF1EB] text-[#1D6021] px-2 py-1 rounded text-[9px] font-extrabold tracking-wider uppercase">
+            <div className="bg-white dark:bg-gray-900 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col relative overflow-hidden">
+               <div className="absolute top-6 right-6 bg-[#EAF1EB] text-[#1D6021] dark:bg-green-900/30 dark:text-green-400 px-2 py-1 rounded text-[9px] font-extrabold tracking-wider uppercase">
                 Auto-Debit Active
               </div>
-              <div className="w-8 h-8 rounded-lg bg-gray-50 flex items-center justify-center mb-4 border border-gray-200">
+              <div className="w-8 h-8 rounded-lg bg-gray-50 dark:bg-gray-800 flex items-center justify-center mb-4 border border-gray-200 dark:border-gray-700">
                 <CalendarClock className="w-4 h-4 text-[#1D6021]" />
               </div>
-              <p className="text-xs font-bold text-gray-500 mb-1">Monthly Commitment</p>
-              <h3 className="text-2xl sm:text-3xl font-black text-gray-900 mb-2">{formatCurrency(totalMonthly)}</h3>
-              <p className="text-[10px] font-bold text-gray-600 mt-auto">
+              <p className="text-xs font-bold text-gray-500 dark:text-gray-400 mb-1">Monthly Commitment</p>
+              <h3 className="text-2xl sm:text-3xl font-black text-gray-900 dark:text-white mb-2">{formatCurrency(totalMonthly)}</h3>
+              <p className="text-[10px] font-bold text-gray-600 dark:text-gray-400 mt-auto">
                 Next Deduction: {latestLoan?.nextDue || 'N/A'}
               </p>
             </div>
 
             {/* Active Loans Card */}
-            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col relative overflow-hidden">
-              <div className="w-8 h-8 rounded-lg bg-gray-50 flex items-center justify-center mb-4 border border-gray-200">
+            <div className="bg-white dark:bg-gray-900 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col relative overflow-hidden">
+              <div className="w-8 h-8 rounded-lg bg-gray-50 dark:bg-gray-800 flex items-center justify-center mb-4 border border-gray-200 dark:border-gray-700">
                 <FileText className="w-4 h-4 text-gray-600" />
               </div>
-              <p className="text-xs font-bold text-gray-500 mb-1">Active Loans</p>
-              <h3 className="text-2xl sm:text-3xl font-black text-gray-900 mb-2">{loans.length}</h3>
+              <p className="text-xs font-bold text-gray-500 dark:text-gray-400 mb-1">Active Loans</p>
+              <h3 className="text-2xl sm:text-3xl font-black text-gray-900 dark:text-white mb-2">{loans.length}</h3>
               
               <div className="flex items-center gap-2 mt-auto">
                 <div className="flex -space-x-1.5">
@@ -460,17 +471,17 @@ const Member_Loans = () => {
                     </div>
                   ))}
                 </div>
-                <p className="text-[10px] font-medium text-gray-400">{loanTypeBadges.join(', ') || 'No loans'}</p>
+                <p className="text-[10px] font-medium text-gray-400 dark:text-gray-500">{loanTypeBadges.join(', ') || 'No loans'}</p>
               </div>
             </div>
 
           </div>
 
           {/* Active Loans Summary Table */}
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mb-8 flex flex-col">
-            <div className="p-6 flex items-center justify-between border-b border-gray-100">
-               <h3 className="text-lg font-bold text-gray-900">Active Loans Summary</h3>
-               <span className="bg-gray-100 text-gray-500 px-3 py-1 rounded text-[9px] font-extrabold tracking-widest uppercase">
+          <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 overflow-hidden mb-8 flex flex-col">
+            <div className="p-6 flex items-center justify-between border-b border-gray-100 dark:border-gray-800">
+               <h3 className="text-lg font-bold text-gray-900 dark:text-white">Active Loans Summary</h3>
+               <span className="bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 px-3 py-1 rounded text-[9px] font-extrabold tracking-widest uppercase">
                  Read-Only View
                </span>
             </div>
@@ -491,7 +502,7 @@ const Member_Loans = () => {
               <tbody>
                 {loadingLoans ? (
                   <tr>
-                    <td colSpan="7" className="p-5 text-sm text-gray-500">Loading loans...</td>
+                    <td colSpan="7" className="p-5 text-sm text-gray-500 dark:text-gray-400">Loading loans...</td>
                   </tr>
                 ) : loanError ? (
                   <tr>
@@ -499,19 +510,19 @@ const Member_Loans = () => {
                   </tr>
                 ) : loans.length === 0 ? (
                   <tr>
-                    <td colSpan="7" className="p-5 text-sm text-gray-500">No loan records found.</td>
+                    <td colSpan="7" className="p-5 text-sm text-gray-500 dark:text-gray-400">No loan records found.</td>
                   </tr>
                 ) : loans.map((loan, idx) => (
-                  <tr key={idx} className="table-row-enter border-b border-gray-50 hover:bg-green-50 transition-colors last:border-0">
+                  <tr key={idx} className="table-row-enter border-b border-gray-50 dark:border-gray-800 hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors last:border-0">
                     <td className="px-6 py-4">
-                      <p className="text-sm font-bold text-gray-900">{loan.type}</p>
-                      <p className="text-[10px] text-gray-400 font-medium">ID: {loan.id}</p>
+                      <p className="text-sm font-bold text-gray-900 dark:text-white">{loan.type}</p>
+                      <p className="text-[10px] text-gray-400 dark:text-gray-500 font-medium">ID: {loan.id}</p>
                     </td>
-                    <td className="px-6 py-4 text-sm font-bold text-gray-600">{loan.originalAmount}</td>
-                    <td className="px-6 py-4 text-sm font-black text-gray-900">{loan.balance}</td>
-                    <td className="px-6 py-4 text-sm font-bold text-gray-700">{loan.interestRate}</td>
+                    <td className="px-6 py-4 text-sm font-bold text-gray-600 dark:text-gray-400">{loan.originalAmount}</td>
+                    <td className="px-6 py-4 text-sm font-black text-gray-900 dark:text-white">{loan.balance}</td>
+                    <td className="px-6 py-4 text-sm font-bold text-gray-700 dark:text-gray-200">{loan.interestRate}</td>
                     <td className="px-6 py-4 text-sm font-bold text-[#1D6021]">{loan.payment}</td>
-                    <td className="px-6 py-4 text-sm font-medium text-gray-500">{loan.nextDue}</td>
+                    <td className="px-6 py-4 text-sm font-medium text-gray-500 dark:text-gray-400">{loan.nextDue}</td>
                     <td className="px-6 py-4">
                       <span className={`badge-animated px-2.5 py-1 rounded text-[10px] font-extrabold tracking-wider ${
                         loan.status === 'Active' ? 'bg-[#EAF1EB] text-[#1D6021]' : loan.status === 'Rejected' ? 'bg-red-100 text-red-700' : 'bg-[#FEF08A] text-[#854D0E]'
@@ -530,29 +541,29 @@ const Member_Loans = () => {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
             
             {/* Recent Payment Breakdown */}
-            <div className="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-gray-100 p-5 sm:p-8 flex flex-col">
-              <div className="mb-6 pb-6 border-b border-gray-100">
-                <h3 className="text-lg font-bold text-gray-900">Recent Payment Breakdown</h3>
-                <p className="text-xs text-gray-400 font-medium mt-1">{latestLoan ? `${latestLoan.id} (${latestLoan.type})` : 'No loan selected'}</p>
+            <div className="lg:col-span-2 bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 p-5 sm:p-8 flex flex-col">
+              <div className="mb-6 pb-6 border-b border-gray-100 dark:border-gray-800">
+                <h3 className="text-lg font-bold text-gray-900 dark:text-white">Recent Payment Breakdown</h3>
+                <p className="text-xs text-gray-400 dark:text-gray-500 font-medium mt-1">{latestLoan ? `${latestLoan.id} (${latestLoan.type})` : 'No loan selected'}</p>
               </div>
 
               <div className="space-y-6 flex-1">
                 <div className="flex justify-between items-center text-sm">
-                  <span className="text-gray-600 font-medium">Principal Amount</span>
-                  <span className="font-bold text-gray-900">{latestLoan?.originalAmount || 'N/A'}</span>
+                  <span className="text-gray-600 dark:text-gray-400 font-medium">Principal Amount</span>
+                  <span className="font-bold text-gray-900 dark:text-white">{latestLoan?.originalAmount || 'N/A'}</span>
                 </div>
                 <div className="flex justify-between items-center text-sm">
-                  <span className="text-gray-600 font-medium">Interest</span>
-                  <span className="font-bold text-gray-900">{latestLoan?.interestRate || 'N/A'}</span>
+                  <span className="text-gray-600 dark:text-gray-400 font-medium">Interest</span>
+                  <span className="font-bold text-gray-900 dark:text-white">{latestLoan?.interestRate || 'N/A'}</span>
                 </div>
                 <div className="flex justify-between items-center text-sm">
-                  <span className="text-gray-600 font-medium">Service Fee / Insurance</span>
-                  <span className="font-bold text-gray-900">See loan computation summary</span>
+                  <span className="text-gray-600 dark:text-gray-400 font-medium">Service Fee / Insurance</span>
+                  <span className="font-bold text-gray-900 dark:text-white">See loan computation summary</span>
                 </div>
               </div>
 
-              <div className="flex justify-between items-center mt-8 pt-6 border-t border-gray-100">
-                <span className="font-bold text-gray-900">Total Monthly Ammortization</span>
+              <div className="flex justify-between items-center mt-8 pt-6 border-t border-gray-100 dark:border-gray-800">
+                <span className="font-bold text-gray-900 dark:text-white">Total Monthly Ammortization</span>
                 <span className="text-xl font-black text-[#1D6021]">{latestLoan?.payment || 'N/A'}</span>
               </div>
 
@@ -565,24 +576,24 @@ const Member_Loans = () => {
             </div>
 
             {/* Loan Eligibility Tool */}
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 sm:p-8 flex flex-col">
+            <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 p-5 sm:p-8 flex flex-col">
               <div className="flex items-center gap-3 mb-4">
                 <div className="w-8 h-8 rounded-lg bg-[#EAF1EB] flex items-center justify-center border border-green-100">
                   <Calculator className="w-4 h-4 text-[#1D6021]" />
                 </div>
-                <h3 className="text-lg font-bold text-gray-900">Loan Eligibility</h3>
+                <h3 className="text-lg font-bold text-gray-900 dark:text-white">Loan Eligibility</h3>
               </div>
               
-              <p className="text-sm text-gray-500 font-medium mb-8 leading-relaxed">
+              <p className="text-sm text-gray-500 dark:text-gray-400 font-medium mb-8 leading-relaxed">
                 Wondering if you qualify for a new loan? Use our calculator to check your borrowing capacity based on your current net take-home pay.
               </p>
 
-              <div className="bg-[#FAF9FB] rounded-xl p-5 mb-8 border border-gray-100">
+              <div className="bg-[#FAF9FB] dark:bg-gray-800 rounded-xl p-5 mb-8 border border-gray-100 dark:border-gray-700">
                 <div className="flex justify-between items-start mb-4">
-                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Quick<br/>Status</p>
+                  <p className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Quick<br/>Status</p>
                   <p className="text-[10px] font-extrabold text-[#1D6021] uppercase tracking-wider text-right">Ready To<br/>Calculate</p>
                 </div>
-                <p className="text-[10px] text-gray-400 font-medium italic">
+                <p className="text-[10px] text-gray-400 dark:text-gray-500 font-medium italic">
                   Last payroll data synced:<br/>10/28/2023
                 </p>
               </div>
@@ -595,7 +606,7 @@ const Member_Loans = () => {
                 <ArrowRight className="w-4 h-4" /> Open Loan Calculator
               </button>
               
-              <p className="text-center text-[9px] font-bold text-gray-400 uppercase tracking-widest mt-auto">
+              <p className="text-center text-[9px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mt-auto">
                 Institutional Planning Tool
               </p>
             </div>
@@ -605,7 +616,7 @@ const Member_Loans = () => {
         </main>
 
         {/* Bottom Navigation - Mobile Only */}
-        <nav className="fixed bottom-0 left-0 right-0 lg:hidden bg-white border-t border-gray-200 px-2 py-2">
+        <nav className="fixed bottom-0 left-0 right-0 lg:hidden bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800 px-2 py-2">
           <div className="max-w-lg mx-auto">
             <div className="flex items-center justify-around gap-1">
               {(() => {
@@ -631,7 +642,7 @@ const Member_Loans = () => {
                         `flex flex-col items-center justify-center px-2.5 py-2 rounded-full transition-all ${
                           isActive
                             ? 'bg-[#1D6021] text-white'
-                            : 'text-gray-600 hover:text-[#1D6021]'
+                            : 'text-gray-600 hover:text-[#1D6021] dark:text-gray-400 dark:hover:text-green-400'
                         }`
                       }
                     >
