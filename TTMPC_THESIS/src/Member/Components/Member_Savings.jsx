@@ -6,11 +6,11 @@ import { supabase } from "../../supabaseClient";
 import { resolveMemberContextFromSessionUser } from "../../utils/sessionIdentity";
 import { loadMemberAvatarSignedUrl } from "../../utils/memberAvatar";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
-import { 
-  LayoutDashboard, 
-  Users, 
-  CreditCard, 
-  Activity, 
+import {
+  LayoutDashboard,
+  Users,
+  CreditCard,
+  Activity,
   History,
   Search,
   Bell,
@@ -25,7 +25,9 @@ import {
   MinusCircle,
   User,
   Receipt,
+  Settings,
 } from 'lucide-react';
+import SettingsDrawer from './SettingsDrawer';
 
 const styles = `
   @keyframes fadeInUp {
@@ -110,6 +112,7 @@ const Member_Savings = () => {
   const navigate = useNavigate();
   const { addNotification } = useNotification();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [loadingSavings, setLoadingSavings] = useState(true);
   const [savingsError, setSavingsError] = useState('');
   const [regularSavings, setRegularSavings] = useState(0);
@@ -123,8 +126,8 @@ const Member_Savings = () => {
     { name: "Member Loans", icon: Activity },
     { name: "Statement of Account", icon: Receipt },
     { name: "Loan Lifecycle", icon: History },
+    { name: "Member Savings", icon: CreditCard },
     { name: "Member Profile", icon: Users },
-    { name: "Member Savings", icon: CreditCard }
   ];
 
   const handleSignOut = async (e) => {
@@ -282,8 +285,9 @@ const Member_Savings = () => {
   };
 
   return (
-    <div className="relative flex min-h-screen bg-[#F8F9FA]">
+    <div className="relative flex min-h-screen bg-[#F8F9FA] dark:bg-gray-950">
       <style>{styles}</style>
+      <SettingsDrawer isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
       {isSidebarOpen ? (
         <button
           aria-label="Close sidebar overlay"
@@ -293,7 +297,7 @@ const Member_Savings = () => {
       ) : null}
       {/* Sidebar */}
       <aside
-        className={`fixed inset-y-0 left-0 z-30 w-64 transform bg-white p-4 flex flex-col border-r border-gray-200 transition-transform duration-200 ease-out lg:fixed lg:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-30 w-64 transform bg-white dark:bg-gray-900 p-4 flex flex-col border-r border-gray-200 dark:border-gray-800 transition-transform duration-200 ease-out lg:fixed lg:translate-x-0 ${
           isSidebarOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
@@ -308,13 +312,13 @@ const Member_Savings = () => {
           <img src="/img/ttmpc logo.png" alt="Logo" className="h-12 w-auto" />
           <div className="flex flex-col">
             <h1 className="text-xl font-bold text-[#389734]">TTMPC</h1>
-            <p className="text-[10px] uppercase tracking-wider text-gray-500 font-bold">
+            <p className="text-[10px] uppercase tracking-wider text-gray-500 dark:text-gray-400 font-bold">
               Members Portal
             </p>
           </div>
         </div>
    
-        <hr className="w-full border-gray-100 mb-6" />
+        <hr className="w-full border-gray-100 dark:border-gray-800 mb-6" />
    
         <nav className="flex grow flex-col gap-2 text-sm">
           {(() => {
@@ -338,8 +342,8 @@ const Member_Savings = () => {
                   className={({ isActive }) =>
                     `flex items-center gap-3 p-2.5 rounded-lg transition-colors ${
                       isActive
-                        ? 'bg-[#EAF1EB] text-[#1D6021] font-bold'
-                        : 'text-gray-600 hover:bg-gray-50 hover:text-[#1D6021] font-medium'
+                        ? 'bg-[#EAF1EB] text-[#1D6021] font-bold dark:bg-green-900/30 dark:text-green-400'
+                        : 'text-gray-600 hover:bg-gray-50 hover:text-[#1D6021] font-medium dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-green-400'
                     }`
                   }
                 >
@@ -366,7 +370,7 @@ const Member_Savings = () => {
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col overflow-hidden lg:ml-64">
         {/* Header */}
-        <header className="bg-white h-16 shadow-sm flex items-center justify-between px-4 sm:px-6 lg:px-8 z-10 border-b border-gray-100">
+        <header className="bg-white dark:bg-gray-900 h-16 shadow-sm flex items-center justify-between px-4 sm:px-6 lg:px-8 z-10 border-b border-gray-100 dark:border-gray-800">
           <div className="flex items-center gap-2 sm:gap-3">
             <button
               aria-label="Open sidebar"
@@ -375,31 +379,39 @@ const Member_Savings = () => {
             >
               <Menu className="h-5 w-5" />
             </button>
-            <h1 className="text-base sm:text-lg font-extrabold text-[#1a4a2f] lg:hidden">Savings</h1>
+            <h1 className="text-base sm:text-lg font-extrabold text-[#1a4a2f] dark:text-green-400 lg:hidden">Savings</h1>
           </div>
 
           <div className="flex items-center gap-2 sm:gap-4">
           <div className="relative hidden md:block">
             <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400"/>
-            <input 
-              type="text" 
-              className="bg-gray-50 w-64 h-10 rounded-full border border-gray-200 pl-10 pr-4 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-[#1D6021] focus:bg-white transition-all"
+            <input
+              type="text"
+              className="bg-gray-50 dark:bg-gray-800 w-64 h-10 rounded-full border border-gray-200 dark:border-gray-700 pl-10 pr-4 py-1 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#1D6021] focus:bg-white dark:focus:bg-gray-800 transition-all"
               placeholder="Search..."
             />
           </div>
           <LoanNotificationBell role="member" accentClass="bg-[#1D6021]" />
 
-          <div className="flex items-center gap-2 sm:gap-3 border-l border-gray-200 pl-2 sm:pl-4 cursor-pointer">
-            <div className="w-8 h-8 rounded-full bg-gray-200 overflow-hidden border border-gray-300">
+          <button
+            onClick={() => setIsSettingsOpen(true)}
+            className="p-2 rounded-md text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+            aria-label="Open settings"
+          >
+            <Settings className="w-5 h-5" />
+          </button>
+
+          <div className="flex items-center gap-2 sm:gap-3 border-l border-gray-200 dark:border-gray-700 pl-2 sm:pl-4 cursor-pointer">
+            <div className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 overflow-hidden border border-gray-300 dark:border-gray-600">
               {avatarUrl ? (
                 <img src={avatarUrl} alt="Profile" className="w-full h-full object-cover" />
               ) : (
-                <div className="w-full h-full flex items-center justify-center bg-gray-100 text-gray-500">
+                <div className="w-full h-full flex items-center justify-center bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400">
                   <User className="w-4 h-4" />
                 </div>
               )}
             </div>
-            <p className="hidden sm:block text-sm font-bold text-gray-700">{memberLabel}</p>
+            <p className="hidden sm:block text-sm font-bold text-gray-700 dark:text-gray-200">{memberLabel}</p>
           </div>
           </div>
         </header>
@@ -410,30 +422,30 @@ const Member_Savings = () => {
           {/* Top Summary Cards */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6 mb-8">
             {/* Regular Savings Card */}
-            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col">
-              <div className="w-10 h-10 rounded-lg bg-[#EAF1EB] flex items-center justify-center mb-6">
-                <Wallet className="w-5 h-5 text-[#1D6021]" />
+            <div className="bg-white dark:bg-gray-900 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col">
+              <div className="w-10 h-10 rounded-lg bg-[#EAF1EB] dark:bg-green-900/30 flex items-center justify-center mb-6">
+                <Wallet className="w-5 h-5 text-[#1D6021] dark:text-green-400" />
               </div>
-              <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">Regular Savings</p>
-              <h3 className="text-2xl sm:text-3xl font-black text-gray-900">{formatCurrency(regularSavings)}</h3>
+              <p className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-1">Regular Savings</p>
+              <h3 className="text-2xl sm:text-3xl font-black text-gray-900 dark:text-white">{formatCurrency(regularSavings)}</h3>
             </div>
 
             {/* Time Deposit Card */}
-            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col">
-              <div className="w-10 h-10 rounded-lg bg-[#EAF1EB] flex items-center justify-center mb-6">
-                <CalendarDays className="w-5 h-5 text-[#1D6021]" />
+            <div className="bg-white dark:bg-gray-900 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col">
+              <div className="w-10 h-10 rounded-lg bg-[#EAF1EB] dark:bg-green-900/30 flex items-center justify-center mb-6">
+                <CalendarDays className="w-5 h-5 text-[#1D6021] dark:text-green-400" />
               </div>
-              <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">Time Deposit</p>
-              <h3 className="text-2xl sm:text-3xl font-black text-gray-900">{formatCurrency(timeDeposit)}</h3>
+              <p className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-1">Time Deposit</p>
+              <h3 className="text-2xl sm:text-3xl font-black text-gray-900 dark:text-white">{formatCurrency(timeDeposit)}</h3>
             </div>
 
             {/* Total Savings Card */}
-            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col">
+            <div className="bg-white dark:bg-gray-900 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col">
               <div className="w-10 h-10 rounded-lg bg-[#1D6021] flex items-center justify-center mb-6">
                 <Banknote className="w-5 h-5 text-white" />
               </div>
-              <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">Total Savings</p>
-              <h3 className="text-2xl sm:text-3xl font-black text-gray-900">{formatCurrency(totalSavings)}</h3>
+              <p className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-1">Total Savings</p>
+              <h3 className="text-2xl sm:text-3xl font-black text-gray-900 dark:text-white">{formatCurrency(totalSavings)}</h3>
             </div>
           </div>
 
@@ -444,15 +456,15 @@ const Member_Savings = () => {
           ) : null}
 
           {/* Savings Ledger Container */}
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col">
-            
+          <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 overflow-hidden flex flex-col">
+
             {/* Ledger Header */}
-            <div className="p-6 flex items-center justify-between border-b border-gray-100">
+            <div className="p-6 flex items-center justify-between border-b border-gray-100 dark:border-gray-800">
                <div>
-                 <h3 className="text-xl font-bold text-gray-900">Savings Ledger</h3>
-                 <p className="text-xs text-gray-400 font-medium mt-1">Detailed history of all savings transactions</p>
+                 <h3 className="text-xl font-bold text-gray-900 dark:text-white">Savings Ledger</h3>
+                 <p className="text-xs text-gray-400 dark:text-gray-500 font-medium mt-1">Detailed history of all savings transactions</p>
                </div>
-               <button className="flex items-center gap-2 bg-[#EAF1EB] text-[#1D6021] hover:bg-[#d8e6da] transition-colors px-4 py-2 rounded-lg text-xs font-bold">
+               <button className="flex items-center gap-2 bg-[#EAF1EB] dark:bg-green-900/30 text-[#1D6021] dark:text-green-400 hover:bg-[#d8e6da] dark:hover:bg-green-900/50 transition-colors px-4 py-2 rounded-lg text-xs font-bold">
                  <Download className="w-3.5 h-3.5" /> Export Statement
                </button>
             </div>
@@ -478,16 +490,16 @@ const Member_Savings = () => {
                       <td colSpan={4} className="p-6 text-center text-sm text-gray-500">No savings transactions yet.</td>
                     </tr>
                   ) : ledgerData.map((row) => (
-                    <tr key={row.id} className="table-row-enter border-b border-gray-50 hover:bg-green-50 transition-colors last:border-0">
-                      <td className="px-6 py-4 text-sm text-gray-500 font-medium whitespace-nowrap">{row.date}</td>
-                      <td className="px-6 py-4 text-sm font-bold text-gray-700 flex items-center gap-3">
+                    <tr key={row.id} className="table-row-enter border-b border-gray-50 dark:border-gray-800 hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors last:border-0">
+                      <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400 font-medium whitespace-nowrap">{row.date}</td>
+                      <td className="px-6 py-4 text-sm font-bold text-gray-700 dark:text-gray-200 flex items-center gap-3">
                         {renderTransactionIcon(row.typeIcon)}
                         {row.type}
                       </td>
                       <td className={`px-6 py-4 text-sm font-bold text-right whitespace-nowrap ${row.amountColor}`}>
                         {row.amount}
                       </td>
-                      <td className="px-6 py-4 text-sm font-black text-gray-900 text-right pr-8 whitespace-nowrap">
+                      <td className="px-6 py-4 text-sm font-black text-gray-900 dark:text-white text-right pr-8 whitespace-nowrap">
                         {row.balance}
                       </td>
                     </tr>
@@ -497,7 +509,7 @@ const Member_Savings = () => {
             </div>
 
             {/* Footer */}
-            <div className="p-5 border-t border-gray-100 flex items-center justify-between text-xs font-medium text-gray-500">
+            <div className="p-5 border-t border-gray-100 dark:border-gray-800 flex items-center justify-between text-xs font-medium text-gray-500 dark:text-gray-400">
               <span>Entries: {ledgerData.length}</span>
               <span>Regular + Time Deposit = {formatCurrency(totalSavings)}</span>
             </div>
@@ -507,7 +519,7 @@ const Member_Savings = () => {
         </main>
 
         {/* Bottom Navigation - Mobile Only */}
-        <nav className="fixed bottom-0 left-0 right-0 lg:hidden bg-white border-t border-gray-200 px-2 py-2">
+        <nav className="fixed bottom-0 left-0 right-0 lg:hidden bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800 px-2 py-2">
           <div className="max-w-lg mx-auto">
             <div className="flex items-center justify-around gap-1">
               {(() => {
@@ -532,7 +544,7 @@ const Member_Savings = () => {
                         `flex flex-col items-center justify-center px-2.5 py-2 rounded-full transition-all ${
                           isActive
                             ? 'bg-[#1D6021] text-white'
-                            : 'text-gray-600 hover:text-[#1D6021]'
+                            : 'text-gray-600 dark:text-gray-400 hover:text-[#1D6021] dark:hover:text-green-400'
                         }`
                       }
                     >

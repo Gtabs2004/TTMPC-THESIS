@@ -31,7 +31,9 @@ import {
   AlertCircle,
   Wallet,
   Phone,
+  Settings,
 } from 'lucide-react';
+import SettingsDrawer from './SettingsDrawer';
 
 const PROFILE_SECTIONS = [
   {
@@ -275,6 +277,7 @@ const Members_Profile = () => {
   const [passwordSuccess, setPasswordSuccess] = useState('');
   const [updatingPassword, setUpdatingPassword] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   // PDS form state
   const [activeTab, setActiveTab] = useState(PROFILE_SECTIONS[0].id);
@@ -323,8 +326,8 @@ const Members_Profile = () => {
     { name: "Member Loans", icon: Activity },
     { name: "Statement of Account", icon: Receipt },
     { name: "Loan Lifecycle", icon: History },
+    { name: "Member Savings", icon: CreditCard },
     { name: "Member Profile", icon: Users },
-    { name: "Member Savings", icon: CreditCard }
   ];
 
   const handleSignOut = async (e) => {
@@ -729,8 +732,9 @@ const Members_Profile = () => {
   }, []);
 
   return (
-    <div className="relative flex min-h-screen bg-[#F8F9FA]">
+    <div className="relative flex min-h-screen bg-[#F8F9FA] dark:bg-gray-950">
       <style>{styles}</style>
+      <SettingsDrawer isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
       {isSidebarOpen ? (
         <button
           aria-label="Close sidebar overlay"
@@ -740,7 +744,7 @@ const Members_Profile = () => {
       ) : null}
       {/* Sidebar */}
       <aside
-        className={`fixed inset-y-0 left-0 z-30 w-64 transform bg-white p-4 flex flex-col border-r border-gray-200 transition-transform duration-200 ease-out lg:fixed lg:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-30 w-64 transform bg-white dark:bg-gray-900 p-4 flex flex-col border-r border-gray-200 dark:border-gray-800 transition-transform duration-200 ease-out lg:fixed lg:translate-x-0 ${
           isSidebarOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
@@ -755,13 +759,13 @@ const Members_Profile = () => {
           <img src="/img/ttmpc logo.png" alt="Logo" className="h-12 w-auto" />
           <div className="flex flex-col">
             <h1 className="text-xl font-bold text-[#389734]">TTMPC</h1>
-            <p className="text-[10px] uppercase tracking-wider text-gray-500 font-bold">
+            <p className="text-[10px] uppercase tracking-wider text-gray-500 dark:text-gray-400 font-bold">
               Members Portal
             </p>
           </div>
         </div>
    
-        <hr className="w-full border-gray-100 mb-6" />
+        <hr className="w-full border-gray-100 dark:border-gray-800 mb-6" />
    
         <nav className="flex grow flex-col gap-2 text-sm">
           {(() => {
@@ -785,8 +789,8 @@ const Members_Profile = () => {
                   className={({ isActive }) =>
                     `flex items-center gap-3 p-2.5 rounded-lg transition-colors ${
                       isActive
-                        ? 'bg-[#EAF1EB] text-[#1D6021] font-bold'
-                        : 'text-gray-600 hover:bg-gray-50 hover:text-[#1D6021] font-medium'
+                        ? 'bg-[#EAF1EB] text-[#1D6021] font-bold dark:bg-green-900/30 dark:text-green-400'
+                        : 'text-gray-600 hover:bg-gray-50 hover:text-[#1D6021] font-medium dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-green-400'
                     }`
                   }
                 >
@@ -813,7 +817,7 @@ const Members_Profile = () => {
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden lg:ml-64">
         {/* Header */}
-        <header className="bg-white h-16 shadow-sm flex items-center justify-between px-4 sm:px-6 lg:px-8 z-10 border-b border-gray-100">
+        <header className="bg-white dark:bg-gray-900 h-16 shadow-sm flex items-center justify-between px-4 sm:px-6 lg:px-8 z-10 border-b border-gray-100 dark:border-gray-800">
           <div className="flex items-center gap-2 sm:gap-3">
             <button
               aria-label="Open sidebar"
@@ -822,31 +826,39 @@ const Members_Profile = () => {
             >
               <Menu className="h-5 w-5" />
             </button>
-            <h1 className="text-base sm:text-lg font-extrabold text-[#1a4a2f] lg:hidden">Profile</h1>
+            <h1 className="text-base sm:text-lg font-extrabold text-[#1a4a2f] dark:text-green-400 lg:hidden">Profile</h1>
           </div>
 
           <div className="flex items-center gap-2 sm:gap-4">
           <div className="relative hidden md:block">
             <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400"/>
             <input 
-              type="text" 
-              className="bg-gray-50 w-64 h-10 rounded-full border border-gray-200 pl-10 pr-4 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-[#1D6021] focus:bg-white transition-all"
+              type="text"
+              className="bg-gray-50 w-64 h-10 rounded-full border border-gray-200 pl-10 pr-4 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-[#1D6021] focus:bg-white transition-all dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100 dark:placeholder-gray-500 dark:focus:bg-gray-800"
               placeholder="Search..."
             />
           </div>
           <LoanNotificationBell role="member" accentClass="bg-[#1D6021]" />
 
-          <div className="flex items-center gap-2 sm:gap-3 border-l border-gray-200 pl-2 sm:pl-4 cursor-pointer">
-            <div className="w-8 h-8 rounded-full bg-gray-200 overflow-hidden border border-gray-300">
+          <button
+            onClick={() => setIsSettingsOpen(true)}
+            className="p-2 rounded-md text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+            aria-label="Open settings"
+          >
+            <Settings className="w-5 h-5" />
+          </button>
+
+          <div className="flex items-center gap-2 sm:gap-3 border-l border-gray-200 dark:border-gray-700 pl-2 sm:pl-4 cursor-pointer">
+            <div className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 overflow-hidden border border-gray-300 dark:border-gray-600">
               {avatarUrl ? (
                 <img src={avatarUrl} alt="Member Profile" className="w-full h-full object-cover" />
               ) : (
-                <div className="w-full h-full flex items-center justify-center bg-gray-100 text-gray-500">
+                <div className="w-full h-full flex items-center justify-center bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400">
                   <User className="w-4 h-4" />
                 </div>
               )}
             </div>
-            <p className="hidden sm:block text-sm font-bold text-gray-700">{profile?.fullName || 'Member'}</p>
+            <p className="hidden sm:block text-sm font-bold text-gray-700 dark:text-gray-200">{profile?.fullName || 'Member'}</p>
           </div>
           </div>
         </header>
@@ -855,24 +867,24 @@ const Members_Profile = () => {
         <main className="p-4 sm:p-6 lg:p-8 overflow-y-auto pb-28 lg:pb-0">
           
           {/* Top Profile Header Card */}
-          <div className="bg-white p-4 sm:p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col sm:flex-row items-center justify-between mb-8 gap-4">
+          <div className="bg-white dark:bg-gray-900 p-4 sm:p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col sm:flex-row items-center justify-between mb-8 gap-4">
             <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-6 text-center sm:text-left">
-              <div className="w-20 h-20 rounded-full bg-[#EAF1EB] overflow-hidden border border-gray-200">
+              <div className="w-20 h-20 rounded-full bg-[#EAF1EB] dark:bg-green-900/30 overflow-hidden border border-gray-200 dark:border-gray-700">
                 {avatarUrl ? (
                   <img src={avatarUrl} alt={profile?.fullName || 'Member profile'} className="w-full h-full object-cover" />
                 ) : (
-                  <div className="w-full h-full flex items-center justify-center text-gray-500 bg-gray-100">
+                  <div className="w-full h-full flex items-center justify-center text-gray-500 bg-gray-100 dark:bg-gray-800">
                     <User className="w-8 h-8" />
                   </div>
                 )}
               </div>
               <div>
-                <h1 className="text-xl sm:text-2xl font-black text-gray-900 mb-2">{profile?.fullName || 'Loading...'}</h1>
+                <h1 className="text-xl sm:text-2xl font-black text-gray-900 dark:text-white mb-2">{profile?.fullName || 'Loading...'}</h1>
                 <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 text-sm">
-                  <span className="bg-[#EAF1EB] text-[#1D6021] px-2.5 py-1 rounded text-[10px] font-extrabold tracking-widest uppercase">
+                  <span className="bg-[#EAF1EB] text-[#1D6021] dark:bg-green-900/30 dark:text-green-400 px-2.5 py-1 rounded text-[10px] font-extrabold tracking-widest uppercase">
                     {profile?.memberType || 'Member'}
                   </span>
-                  <span className="text-gray-400 font-medium">Joined {profile?.joinedDate || 'N/A'}</span>
+                  <span className="text-gray-400 dark:text-gray-500 font-medium">Joined {profile?.joinedDate || 'N/A'}</span>
                 </div>
               </div>
             </div>
@@ -906,25 +918,25 @@ const Members_Profile = () => {
           ) : null}
 
           {loadingProfile ? (
-            <div className="mb-6 p-4 rounded-xl border border-gray-200 bg-white text-sm text-gray-600">
+            <div className="mb-6 p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm text-gray-600 dark:text-gray-400">
               Loading profile data...
             </div>
           ) : null}
 
           {/* Completion + status banner */}
-          <div className="mb-6 bg-white rounded-2xl shadow-sm border border-gray-100 p-5 flex flex-col sm:flex-row sm:items-center gap-4">
+          <div className="mb-6 bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 p-5 flex flex-col sm:flex-row sm:items-center gap-4">
             <div className="flex-1">
               <div className="flex items-center justify-between mb-2">
-                <p className="text-sm font-bold text-gray-900">Profile Completion</p>
+                <p className="text-sm font-bold text-gray-900 dark:text-white">Profile Completion</p>
                 <p className="text-sm font-extrabold text-[#1D6021]">{completionPercent}%</p>
               </div>
-              <div className="h-2 w-full rounded-full bg-gray-100 overflow-hidden">
+              <div className="h-2 w-full rounded-full bg-gray-100 dark:bg-gray-700 overflow-hidden">
                 <div
                   className="h-full bg-[#1D6021] transition-all duration-500"
                   style={{ width: `${completionPercent}%` }}
                 />
               </div>
-              <p className="text-[11px] text-gray-500 mt-2 font-medium">
+              <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-2 font-medium">
                 {completionPercent === 100
                   ? 'Your profile is complete and up to date.'
                   : 'Complete every section to keep your records audit-ready.'}
@@ -951,7 +963,7 @@ const Members_Profile = () => {
           {/* Tabbed editor */}
           <div className="grid grid-cols-1 lg:grid-cols-[260px,1fr] gap-6">
             {/* Tab nav */}
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-3 h-fit overflow-x-auto">
+            <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 p-3 h-fit overflow-x-auto">
               <div className="flex lg:flex-col gap-1 min-w-max lg:min-w-0">
                 {visibleSections.map((section) => {
                   const Icon = section.icon;
@@ -964,8 +976,8 @@ const Members_Profile = () => {
                       onClick={() => handleTabClick(section.id)}
                       className={`flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg text-left transition-colors ${
                         isActive
-                          ? 'bg-[#EAF1EB] text-[#1D6021]'
-                          : 'text-gray-600 hover:bg-gray-50'
+                          ? 'bg-[#EAF1EB] text-[#1D6021] dark:bg-green-900/30 dark:text-green-400'
+                          : 'text-gray-600 hover:bg-gray-50 dark:text-gray-400 dark:hover:bg-gray-800'
                       }`}
                     >
                       <span className="flex items-center gap-3">
@@ -973,7 +985,7 @@ const Members_Profile = () => {
                         <span className="text-sm font-bold whitespace-nowrap">{section.label}</span>
                       </span>
                       <span className={`text-[10px] font-bold rounded-full px-2 py-0.5 ${
-                        isActive ? 'bg-white text-[#1D6021]' : 'bg-gray-100 text-gray-500'
+                        isActive ? 'bg-white dark:bg-gray-800 text-[#1D6021]' : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400'
                       }`}>
                         {sectionFilled}/{section.fields.length}
                       </span>
@@ -981,12 +993,12 @@ const Members_Profile = () => {
                   );
                 })}
 
-                <div className="hidden lg:block border-t border-gray-100 my-3" />
+                <div className="hidden lg:block border-t border-gray-100 dark:border-gray-800 my-3" />
 
                 <button
                   type="button"
                   onClick={handleOpenChangePassword}
-                  className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-left text-gray-600 hover:bg-gray-50"
+                  className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-left text-gray-600 hover:bg-gray-50 dark:text-gray-400 dark:hover:bg-gray-800"
                 >
                   <Lock size={16} />
                   <span className="text-sm font-bold whitespace-nowrap">Account Security</span>
@@ -995,25 +1007,25 @@ const Members_Profile = () => {
             </div>
 
             {/* Active section panel */}
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col">
+            <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 overflow-hidden flex flex-col">
               {visibleSections.filter((s) => s.id === activeTab).map((section) => {
                 const Icon = section.icon;
                 return (
                   <div key={section.id} className="flex flex-col">
-                    <div className="px-6 py-5 border-b border-gray-100 bg-[#FAF9FB] flex items-start justify-between gap-3">
+                    <div className="px-6 py-5 border-b border-gray-100 dark:border-gray-800 bg-[#FAF9FB] dark:bg-gray-800 flex items-start justify-between gap-3">
                       <div className="flex items-start gap-3">
-                        <div className="rounded-lg bg-[#EAF1EB] text-[#1D6021] p-2">
+                        <div className="rounded-lg bg-[#EAF1EB] dark:bg-green-900/30 text-[#1D6021] dark:text-green-400 p-2">
                           <Icon className="w-5 h-5" />
                         </div>
                         <div>
-                          <h2 className="font-extrabold text-gray-900 text-base">{section.label}</h2>
+                          <h2 className="font-extrabold text-gray-900 dark:text-white text-base">{section.label}</h2>
                           {section.description ? (
-                            <p className="text-xs text-gray-500 font-medium mt-0.5">{section.description}</p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400 font-medium mt-0.5">{section.description}</p>
                           ) : null}
                         </div>
                       </div>
                       {section.readOnly ? (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 text-gray-600 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider">
+                        <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider">
                           <ShieldCheck className="w-3 h-3" /> Read-only
                         </span>
                       ) : null}
@@ -1024,13 +1036,13 @@ const Members_Profile = () => {
                         const error = fieldErrors[field.key];
                         const value = formData[field.key] ?? '';
                         const inputClass = `w-full rounded-lg border ${
-                          error ? 'border-red-300 focus:ring-red-200' : 'border-gray-200 focus:ring-[#1D6021]/30 focus:border-[#1D6021]'
-                        } bg-white px-3 py-2.5 text-sm text-gray-900 outline-none focus:ring-2 transition disabled:bg-gray-50 disabled:text-gray-500 disabled:cursor-not-allowed`;
+                          error ? 'border-red-300 focus:ring-red-200' : 'border-gray-200 dark:border-gray-700 focus:ring-[#1D6021]/30 focus:border-[#1D6021]'
+                        } bg-white dark:bg-gray-800 px-3 py-2.5 text-sm text-gray-900 dark:text-gray-100 outline-none focus:ring-2 transition disabled:bg-gray-50 dark:disabled:bg-gray-700 disabled:text-gray-500 dark:disabled:text-gray-500 disabled:cursor-not-allowed`;
                         const disabled = section.readOnly || loadingProfile;
                         const isFull = field.fullWidth;
                         return (
                           <div key={field.key} className={isFull ? 'md:col-span-2' : ''}>
-                            <label className="block text-[11px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">
+                            <label className="block text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1.5">
                               {field.label}{field.required ? <span className="text-red-500 ml-0.5">*</span> : null}
                             </label>
                             {field.type === 'textarea' ? (
@@ -1078,13 +1090,13 @@ const Members_Profile = () => {
                     </div>
 
                     {!section.readOnly ? (
-                      <div className="px-6 py-4 border-t border-gray-100 bg-gray-50 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                      <div className="px-6 py-4 border-t border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-800 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                         <div className="flex items-center gap-2 self-end sm:self-auto">
                           <button
                             type="button"
                             onClick={handleDiscardChanges}
                             disabled={!isDirty || savingProfile}
-                            className="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 text-sm font-semibold hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed"
+                            className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 text-sm font-semibold hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed"
                           >
                             Discard
                           </button>
@@ -1099,8 +1111,8 @@ const Members_Profile = () => {
                         </div>
                       </div>
                     ) : (
-                      <div className="px-6 py-4 border-t border-gray-100 bg-gray-50">
-                        <p className="text-xs text-gray-500 font-medium">
+                      <div className="px-6 py-4 border-t border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-800">
+                        <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">
                           These figures are maintained by the cooperative office. Contact the BOD/Manager for adjustments.
                         </p>
                       </div>
@@ -1114,9 +1126,9 @@ const Members_Profile = () => {
           {/* Save confirmation modal */}
           {showConfirmSave ? (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-              <div className="w-full max-w-md bg-white rounded-2xl shadow-xl border border-gray-200 p-6">
-                <h3 className="text-lg font-extrabold text-gray-900 mb-2">Save profile changes?</h3>
-                <p className="text-sm text-gray-600 mb-5">
+              <div className="w-full max-w-md bg-white dark:bg-gray-900 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-6">
+                <h3 className="text-lg font-extrabold text-gray-900 dark:text-white mb-2">Save profile changes?</h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-5">
                   Your updates will be written to your Personal Data Sheet and will be visible across all cooperative modules.
                 </p>
                 <div className="flex items-center justify-end gap-3">
@@ -1124,7 +1136,7 @@ const Members_Profile = () => {
                     type="button"
                     onClick={() => setShowConfirmSave(false)}
                     disabled={savingProfile}
-                    className="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 text-sm font-semibold hover:bg-gray-50 disabled:opacity-50"
+                    className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 text-sm font-semibold hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-50"
                   >
                     Review again
                   </button>
@@ -1144,16 +1156,16 @@ const Members_Profile = () => {
           {/* Unsaved changes warning when switching tabs */}
           {pendingTabChange ? (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-              <div className="w-full max-w-md bg-white rounded-2xl shadow-xl border border-gray-200 p-6">
-                <h3 className="text-lg font-extrabold text-gray-900 mb-2">Discard unsaved changes?</h3>
-                <p className="text-sm text-gray-600 mb-5">
+              <div className="w-full max-w-md bg-white dark:bg-gray-900 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-6">
+                <h3 className="text-lg font-extrabold text-gray-900 dark:text-white mb-2">Discard unsaved changes?</h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-5">
                   You have unsaved edits in this section. Switching tabs will discard them. Continue?
                 </p>
                 <div className="flex items-center justify-end gap-3">
                   <button
                     type="button"
                     onClick={() => confirmTabChange(false)}
-                    className="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 text-sm font-semibold hover:bg-gray-50"
+                    className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 text-sm font-semibold hover:bg-gray-50 dark:hover:bg-gray-800"
                   >
                     Keep editing
                   </button>
@@ -1170,23 +1182,23 @@ const Members_Profile = () => {
           ) : null}
 
           {/* Notification preferences (kept) */}
-          <div className="mt-6 bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-100 bg-[#FAF9FB] flex items-center gap-2 text-[#1D6021]">
+          <div className="mt-6 bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 overflow-hidden">
+            <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-800 bg-[#FAF9FB] dark:bg-gray-800 flex items-center gap-2 text-[#1D6021]">
               <ShieldCheck className="w-5 h-5" />
-              <h2 className="font-extrabold text-gray-900 text-base">Notification Preferences</h2>
+              <h2 className="font-extrabold text-gray-900 dark:text-white text-base">Notification Preferences</h2>
             </div>
             <div className="p-6 flex flex-col gap-5">
               <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="font-bold text-gray-900 text-sm">SMS Notifications</h3>
-                  <p className="text-[11px] text-gray-400 font-medium">Receive alerts via phone</p>
+                  <h3 className="font-bold text-gray-900 dark:text-white text-sm">SMS Notifications</h3>
+                  <p className="text-[11px] text-gray-400 dark:text-gray-500 font-medium">Receive alerts via phone</p>
                 </div>
                 <ToggleSwitch isOn={smsNotif} onToggle={() => setSmsNotif(!smsNotif)} />
               </div>
               <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="font-bold text-gray-900 text-sm">Email Notifications</h3>
-                  <p className="text-[11px] text-gray-400 font-medium">Receive monthly statements</p>
+                  <h3 className="font-bold text-gray-900 dark:text-white text-sm">Email Notifications</h3>
+                  <p className="text-[11px] text-gray-400 dark:text-gray-500 font-medium">Receive monthly statements</p>
                 </div>
                 <ToggleSwitch isOn={emailNotif} onToggle={() => setEmailNotif(!emailNotif)} />
               </div>
@@ -1197,27 +1209,27 @@ const Members_Profile = () => {
 
         {showPasswordModal ? (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-            <form onSubmit={handleChangePassword} className="w-full max-w-md bg-white rounded-xl shadow-xl border border-gray-200 p-6">
-              <h3 className="text-lg font-bold text-gray-900 mb-4">Change Password</h3>
+            <form onSubmit={handleChangePassword} className="w-full max-w-md bg-white dark:bg-gray-900 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 p-6">
+              <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">Change Password</h3>
 
               <div className="mb-4">
-                <label className="block text-sm font-semibold text-gray-700 mb-2">New Password</label>
+                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">New Password</label>
                 <input
                   type="password"
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-[#1D6021] outline-none"
+                  className="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-[#1D6021] outline-none"
                   placeholder="Enter new password"
                 />
               </div>
 
               <div className="mb-4">
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Confirm Password</label>
+                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Confirm Password</label>
                 <input
                   type="password"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-[#1D6021] outline-none"
+                  className="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-[#1D6021] outline-none"
                   placeholder="Confirm new password"
                 />
               </div>
@@ -1230,7 +1242,7 @@ const Members_Profile = () => {
                 <button
                   type="button"
                   onClick={() => setShowPasswordModal(false)}
-                  className="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 text-sm font-semibold hover:bg-gray-50"
+                  className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 text-sm font-semibold hover:bg-gray-50 dark:hover:bg-gray-800"
                 >
                   Cancel
                 </button>
@@ -1247,7 +1259,7 @@ const Members_Profile = () => {
         ) : null}
 
         {/* Bottom Navigation - Mobile Only */}
-        <nav className="fixed bottom-0 left-0 right-0 lg:hidden bg-white border-t border-gray-200 px-2 py-2">
+        <nav className="fixed bottom-0 left-0 right-0 lg:hidden bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800 px-2 py-2">
           <div className="max-w-lg mx-auto">
             <div className="flex items-center justify-around gap-1">
               {(() => {
@@ -1272,7 +1284,7 @@ const Members_Profile = () => {
                         `flex flex-col items-center justify-center px-2.5 py-2 rounded-full transition-all ${
                           isActive
                             ? 'bg-[#1D6021] text-white'
-                            : 'text-gray-600 hover:text-[#1D6021]'
+                            : 'text-gray-600 hover:text-[#1D6021] dark:text-gray-400 dark:hover:text-green-400'
                         }`
                       }
                     >
