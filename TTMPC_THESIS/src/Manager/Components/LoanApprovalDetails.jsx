@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '../../supabaseClient';
 import { formatTinNumber } from '../../LOANFORMS/tinFormat';
+import { useMigsLabel, getMigsBadgeClasses } from '../../hooks/useMigsLabel';
 import {
   ArrowLeft,
   User,
@@ -104,6 +105,8 @@ const LoanApprovalDetails = () => {
   const [sendSms, setSendSms] = useState(true);
   const [sendEmail, setSendEmail] = useState(true);
   const [loanDetails, setLoanDetails] = useState(null);
+  const [borrowerMemberId, setBorrowerMemberId] = useState(null);
+  const { data: migsLabel, status: migsStatusFetch } = useMigsLabel(borrowerMemberId);
   const [supportingDocs, setSupportingDocs] = useState([]);
   const [supportingDocUrls, setSupportingDocUrls] = useState({});
   const [docLoading, setDocLoading] = useState(false);
@@ -319,6 +322,8 @@ const LoanApprovalDetails = () => {
               loan_purpose,
               source_of_income,
               member:member_id (
+                id,
+                membership_id,
                 first_name,
                 last_name,
                 is_bona_fide
@@ -449,10 +454,12 @@ const LoanApprovalDetails = () => {
           rawPayload: data.raw_payload || {},
           memberName,
           status: formatStatus(data.loan_status || data.application_status),
+          borrowerMemberId: data.member?.id || data.member_id || null,
           summary: {
             loanType: resolvedLoanType,
             recommendedAmount: formatCurrency(data.loan_amount),
             term: `${data.term || 0} Months`,
+            // Legacy fallback only; the live MIGS label from useMigsLabel is preferred in the UI.
             migsStatus: isKoicaSource ? 'N/A' : (data.member?.is_bona_fide ? 'MIGS' : 'NON-MIGS'),
             memberEmail: (
               data.user_email
@@ -491,6 +498,7 @@ const LoanApprovalDetails = () => {
 
         if (isMounted) {
           setLoanDetails(mapped);
+          setBorrowerMemberId(mapped.borrowerMemberId || null);
           setCoMakerDetails(normalizedCoMakers);
           setSupportingDocs(normalizeSupportingDocuments(mapped.rawPayload || {}));
         }
@@ -1215,9 +1223,29 @@ const LoanApprovalDetails = () => {
                 </div>
                 <div>
                   <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">MIGS Status</p>
-                  <span className="bg-green-100 text-green-700 px-2 py-0.5 rounded text-[10px] font-bold">
-                    {loanDetails.summary.migsStatus}
-                  </span>
+                  {(() => {
+                    const liveLabel = migsLabel?.label;
+                    const fallback = loanDetails.summary.migsStatus;
+                    const label = liveLabel || fallback || 'Pending';
+                    const score = migsLabel?.score;
+                    return (
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${getMigsBadgeClasses(label)}`}>
+                          {migsStatusFetch === 'loading' ? 'Loading…' : label}
+                        </span>
+                        {score != null && (
+                          <span className="text-[10px] font-bold text-gray-500">
+                            {score}/100
+                          </span>
+                        )}
+                        {migsLabel?.loan_multiplier && (
+                          <span className="text-[10px] font-bold text-gray-500">
+                            ·  {migsLabel.loan_multiplier}x cap
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
                 <div className="col-span-2 border-t border-gray-200 pt-4">
                   <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Loan Purpose</p>

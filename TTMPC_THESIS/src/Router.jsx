@@ -58,6 +58,7 @@ import Cashier_Savings from "./Cashier/Components/Cashier_Savings";
 import Savings_Details from "./Cashier/Components/Savings_Details";
 import Add_Savings from "./Cashier/Components/Add_Savings";
 import Secretary_Attendance from "./BOD/Components/Secretary_Attendance";
+import Secretary_General_Assembly from "./BOD/Components/Secretary_General_Assembly";
 import Secretary_Records from "./BOD/Components/Secretary_Records";
 import Record_Details from "./BOD/Components/Record_Details";
 import BOD_Manage_Member from "./BOD/Components/Manage-Member";
@@ -146,6 +147,7 @@ export const router = createBrowserRouter([
     {path: "/add_savings", element:<Add_Savings/>},
     {path: "/Savings_Details/:id", element:<Savings_Details/>},
     {path: "/Secretary_Attendance", element:<Secretary_Attendance/>},
+    {path: "/secretary-general-assembly", element:<Secretary_General_Assembly/>},
     {path: "/Secretary_Records", element:<Secretary_Records/>},
     {path: "/bod-manage-member", element:<BOD_Manage_Member/>},
     {path: "/bod-manage-loans", element:<BOD_Manage_Loans/>},

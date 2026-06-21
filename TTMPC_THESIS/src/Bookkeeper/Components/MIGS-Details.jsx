@@ -59,47 +59,33 @@ const MIGSDetails = () => {
     "Audit Trail": "/audit-trail",
   };
 
-  // Mock data - replace with API call
-  const mockMemberData = {
-    "TTMPC-2024-051": {
-      full_name: "Adelaida Soriano",
-      member_id: "TTMPC-2024-051",
-      year: 2026,
-      migs_score: 93,
-      migs_status: "MIGS Qualified",
-      scoring_breakdown: [
-        { criterion: "Capital Build-Up", value: 9800, score: 17, max_score: 20, progress: 85 },
-        { criterion: "Loan Availed", value: 98000, score: 16, max_score: 20, progress: 80 },
-        { criterion: "Savings / Time Deposit", value: 52000, score: 15, max_score: 15, progress: 100 },
-        { criterion: "Payment Record", value: 0, score: 20, max_score: 20, progress: 100 },
-        { criterion: "Groceries Availed", value: 48000, score: 10, max_score: 10, progress: 100 },
-        { criterion: "Loans from Other PLIs", value: "None", score: 10, max_score: 10, progress: 100 },
-        { criterion: "Assembly Attendance", value: "Present", score: 5, max_score: 5, progress: 100 },
-      ],
-    },
-  };
-
   useEffect(() => {
     const loadMemberData = async () => {
       setLoading(true);
+      setError("");
       try {
-        // Simulate API call
-        setTimeout(() => {
-          if (memberId && mockMemberData[memberId]) {
-            setMemberData(mockMemberData[memberId]);
-          } else {
-            setError("Member data not found");
-          }
-          setLoading(false);
-        }, 500);
+        const year = new Date().getFullYear();
+        const response = await fetch(
+          `${API_BASE_URL}/api/migs/members/${encodeURIComponent(memberId)}?year=${year}`
+        );
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok || !result?.success) {
+          throw new Error(result?.detail || "Failed to load member data.");
+        }
+        setMemberData(result.data || null);
       } catch (err) {
-        setError("Failed to load member data");
+        setError(err?.message || "Failed to load member data");
+        setMemberData(null);
+      } finally {
         setLoading(false);
       }
     };
 
     if (memberId) {
       loadMemberData();
+    } else {
+      setError("No member selected.");
+      setLoading(false);
     }
   }, [memberId]);
 
@@ -197,25 +183,32 @@ const MIGSDetails = () => {
                   <div className="flex items-center gap-4">
                     <div className="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center">
                       <span className="text-lg font-bold text-green-700">
-                        {memberData.full_name.charAt(0)}
+                        {(memberData.full_name || "?").charAt(0)}
                       </span>
                     </div>
                     <div>
-                      <h1 className="text-2xl font-bold text-gray-900">{memberData.full_name}</h1>
+                      <h1 className="text-2xl font-bold text-gray-900">{memberData.full_name || "Unknown Member"}</h1>
                       <p className="text-gray-600">
-                        # {memberData.member_id} <span className="text-gray-400 ml-4"> {memberData.year}</span>
+                        # {memberData.member_id || "—"}
+                        <span className="text-gray-400 ml-4">{memberData.year || ""}</span>
                       </p>
                     </div>
                   </div>
                   <div className="text-right">
-                    <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-full font-semibold text-sm ${
-                      memberData.migs_status === "MIGS Qualified"
-                        ? "bg-green-100 text-green-700"
-                        : "bg-red-100 text-red-700"
-                    }`}>
-                      <span>✓</span>
-                      {memberData.migs_status}
-                    </div>
+                    {memberData.migs_status ? (
+                      <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-full font-semibold text-sm ${
+                        memberData.migs_status === "MIGS Qualified"
+                          ? "bg-green-100 text-green-700"
+                          : "bg-red-100 text-red-700"
+                      }`}>
+                        <span>✓</span>
+                        {memberData.migs_status}
+                      </div>
+                    ) : (
+                      <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full font-semibold text-sm bg-gray-100 text-gray-500 border border-gray-200">
+                        Not scored yet
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -244,39 +237,58 @@ const MIGSDetails = () => {
                           </tr>
                         </thead>
                         <tbody>
-                          {memberData.scoring_breakdown.map((item, index) => (
-                            <tr key={index} className="border-t border-gray-100 hover:bg-gray-50 transition-colors">
-                              <td className="px-6 py-4 font-medium text-gray-800">{item.criterion}</td>
-                              <td className="px-6 py-4 text-gray-700">
-                                {typeof item.value === "number"
-                                  ? `₱${item.value.toLocaleString()}`
-                                  : item.value}
-                              </td>
-                              <td className="px-6 py-4 text-center">
-                                <span className="font-bold text-gray-800">
-                                  {item.score} <span className="text-gray-400">/ {item.max_score}</span>
-                                </span>
-                              </td>
-                              <td className="px-6 py-4">
-                                <div className="flex items-center gap-2">
-                                  <div className="flex-1 bg-gray-200 rounded-full h-2">
-                                    <div
-                                      className="bg-green-600 h-2 rounded-full transition-all"
-                                      style={{ width: `${item.progress}%` }}
-                                    ></div>
-                                  </div>
-                                  <span className="text-xs font-semibold text-gray-600 w-8 text-right">
-                                    {item.progress}%
-                                  </span>
-                                </div>
-                              </td>
-                              <td className="px-6 py-4 text-center">
-                                <button className="p-1.5 rounded-lg hover:bg-gray-200 transition-colors">
-                                  <Edit2 className="w-4 h-4 text-gray-600" />
-                                </button>
-                              </td>
-                            </tr>
-                          ))}
+                          {memberData.scoring_breakdown.map((item, index) => {
+                            const isCurrency =
+                              item.criterion.toLowerCase().includes("capital") ||
+                              item.criterion.toLowerCase().includes("loan availed") ||
+                              item.criterion.toLowerCase().includes("savings") ||
+                              item.criterion.toLowerCase().includes("groceries");
+                            const formattedValue =
+                              item.value == null
+                                ? <span className="text-gray-400 italic text-xs">Not wired yet</span>
+                                : typeof item.value === "number"
+                                ? isCurrency
+                                  ? `₱${item.value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                                  : item.value.toLocaleString()
+                                : item.value;
+                            return (
+                              <tr key={index} className="border-t border-gray-100 hover:bg-gray-50 transition-colors">
+                                <td className="px-6 py-4 font-medium text-gray-800">{item.criterion}</td>
+                                <td className="px-6 py-4 text-gray-700">{formattedValue}</td>
+                                <td className="px-6 py-4 text-center">
+                                  {item.score == null ? (
+                                    <span className="text-gray-400 italic text-xs">— / {item.max_score}</span>
+                                  ) : (
+                                    <span className="font-bold text-gray-800">
+                                      {item.score} <span className="text-gray-400">/ {item.max_score}</span>
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="px-6 py-4">
+                                  {item.progress == null ? (
+                                    <span className="text-gray-400 italic text-xs">Pending</span>
+                                  ) : (
+                                    <div className="flex items-center gap-2">
+                                      <div className="flex-1 bg-gray-200 rounded-full h-2">
+                                        <div
+                                          className="bg-green-600 h-2 rounded-full transition-all"
+                                          style={{ width: `${item.progress}%` }}
+                                        ></div>
+                                      </div>
+                                      <span className="text-xs font-semibold text-gray-600 w-8 text-right">
+                                        {item.progress}%
+                                      </span>
+                                    </div>
+                                  )}
+                                </td>
+                                <td className="px-6 py-4 text-center">
+                                  <button className="p-1.5 rounded-lg hover:bg-gray-200 transition-colors" disabled title="Override coming soon">
+                                    <Edit2 className="w-4 h-4 text-gray-400" />
+                                  </button>
+                                </td>
+                              </tr>
+                            );
+                          })}
                         </tbody>
                       </table>
                     </div>
@@ -292,38 +304,55 @@ const MIGSDetails = () => {
                     </div>
 
                     <div className="text-center mb-6">
-                      <div className="inline-flex items-center justify-center">
-                        <span className="text-5xl font-bold text-green-700">{memberData.migs_score}</span>
-                        <div className="ml-2 flex flex-col">
-                          <span className="text-gray-400">/</span>
-                          <span className="text-gray-500 text-lg">100</span>
+                      {memberData.migs_score == null ? (
+                        <div className="inline-flex flex-col items-center">
+                          <span className="text-5xl font-bold text-gray-300">—</span>
+                          <span className="text-xs text-gray-400 mt-1 uppercase tracking-wider">Pending score</span>
                         </div>
-                      </div>
+                      ) : (
+                        <div className="inline-flex items-center justify-center">
+                          <span className="text-5xl font-bold text-green-700">{memberData.migs_score}</span>
+                          <div className="ml-2 flex flex-col">
+                            <span className="text-gray-400">/</span>
+                            <span className="text-gray-500 text-lg">100</span>
+                          </div>
+                        </div>
+                      )}
                     </div>
 
                     <div className="bg-gray-50 rounded-lg p-4 mb-6">
                       <div className="w-full bg-gray-200 rounded-full h-3 mb-2">
                         <div
                           className="bg-green-600 h-3 rounded-full transition-all"
-                          style={{ width: `${memberData.migs_score}%` }}
+                          style={{ width: `${memberData.migs_score || 0}%` }}
                         ></div>
                       </div>
                       <p className="text-xs text-gray-600 text-center font-medium">
-                        {memberData.migs_score}% Complete
+                        {memberData.migs_score == null
+                          ? "Scoring engine pending"
+                          : `${memberData.migs_score}% Complete`}
                       </p>
                     </div>
 
                     <div className="text-center mb-6">
-                      <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg font-semibold text-sm ${
-                        memberData.migs_status === "MIGS Qualified"
-                          ? "bg-green-50 text-green-700 border border-green-200"
-                          : "bg-red-50 text-red-700 border border-red-200"
-                      }`}>
-                        <span>✓</span>
-                        Classification
-                      </div>
+                      {memberData.migs_status == null ? (
+                        <div className="inline-flex items-center gap-2 px-4 py-2 rounded-lg font-semibold text-sm bg-gray-100 text-gray-500 border border-gray-200">
+                          Not classified
+                        </div>
+                      ) : (
+                        <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg font-semibold text-sm ${
+                          memberData.migs_status === "MIGS Qualified"
+                            ? "bg-green-50 text-green-700 border border-green-200"
+                            : "bg-red-50 text-red-700 border border-red-200"
+                        }`}>
+                          <span>✓</span>
+                          Classification
+                        </div>
+                      )}
                       <p className="text-xs text-gray-500 mt-2 font-medium">
-                        {memberData.migs_status === "MIGS Qualified"
+                        {memberData.migs_status == null
+                          ? "Awaiting MIGS scoring engine"
+                          : memberData.migs_status === "MIGS Qualified"
                           ? "Member qualifies for MIGS"
                           : "Member does not qualify"}
                       </p>

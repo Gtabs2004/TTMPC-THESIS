@@ -5,7 +5,7 @@ import calendar
 from datetime import date, datetime, timedelta
 from decimal import Decimal, ROUND_HALF_UP
 from typing import Annotated, Any, Literal, Union
-from fastapi import BackgroundTasks, FastAPI, HTTPException, Response
+from fastapi import BackgroundTasks, Body, FastAPI, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, model_validator
 from supabase import create_client, Client
@@ -3679,6 +3679,914 @@ async def post_savings_account_withdraw(account_number: str, payload: CashierSav
         raise err
     except Exception as err:
         raise HTTPException(status_code=500, detail=f"Failed to post withdrawal: {err}")
+
+
+# ---------------------------------------------------------------------------
+# MIGS scoring — read-only roster + per-member detail for the bookkeeper.
+# Live values: capital, loan availed YTD, savings balance, late-payment count.
+# Defaulted values (until those modules are wired): groceries=0, PLI=no
+# outside loan (10 pts), attendance=absent (0 pts). Scoring engine in
+# migs_engine.py awards points and classifies MIGS vs Non-MIGS.
+# ---------------------------------------------------------------------------
+from migs_engine import compute_migs_score, result_to_dict  # noqa: E402
+
+@app.get("/api/migs/members")
+async def list_migs_members(year: int | None = None):
+    """List all members with the raw inputs needed for MIGS scoring.
+
+    Query params:
+      - year: filter loan-availed and late-payment counts to this calendar year.
+              Defaults to the current UTC year. Capital and savings are
+              point-in-time balances and ignore the year filter.
+    """
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+
+    target_year = int(year) if year else datetime.utcnow().year
+
+    try:
+        # --- Member roster ------------------------------------------------
+        member_table = _resolve_member_table(supabase) if "_resolve_member_table" in globals() else "member"
+        members_response = (
+            supabase.table(member_table)
+            .select("id,membership_id,first_name,last_name,is_bona_fide")
+            .order("last_name")
+            .execute()
+        )
+        members = members_response.data or []
+        member_ids = [m["id"] for m in members if m.get("id")]
+        if not member_ids:
+            return {"success": True, "data": [], "year": target_year, "count": 0}
+
+        # --- Middle name from personal_data_sheet (latest row per member) -
+        # member table only stores first/last; PDS has middle/surname split.
+        membership_keys = [m.get("membership_id") for m in members if m.get("membership_id")]
+        pds_by_membership: dict[str, dict] = {}
+        if membership_keys:
+            try:
+                pds_response = (
+                    supabase.table("personal_data_sheet")
+                    .select("membership_number_id,first_name,middle_name,surname,last_name,created_at")
+                    .in_("membership_number_id", membership_keys)
+                    .order("created_at", desc=True)
+                    .execute()
+                )
+                for row in pds_response.data or []:
+                    key = row.get("membership_number_id")
+                    if key and key not in pds_by_membership:
+                        pds_by_membership[key] = row
+            except Exception as exc:  # noqa: BLE001
+                print(f"[migs] PDS lookup failed: {exc}")
+
+        # --- Capital Build-Up (latest ending_share_capital per member) ----
+        # We need the most recent row per member, so pull all rows ordered
+        # by transaction_date DESC and pick the first occurrence of each id.
+        cbu_by_member: dict[str, float] = {}
+        try:
+            cbu_response = (
+                supabase.table("capital_build_up")
+                .select("member_id,ending_share_capital,transaction_date")
+                .in_("member_id", member_ids)
+                .order("transaction_date", desc=True)
+                .execute()
+            )
+            for row in cbu_response.data or []:
+                mid = row.get("member_id")
+                if mid and mid not in cbu_by_member:
+                    cbu_by_member[mid] = float(row.get("ending_share_capital") or 0)
+        except Exception as exc:  # noqa: BLE001
+            print(f"[migs] cbu lookup failed: {exc}")
+
+        # --- Loan availed YTD (sum of principal_amount this year) ---------
+        loans_by_member: dict[str, float] = {m: 0.0 for m in member_ids}
+        try:
+            loans_response = (
+                supabase.table("loans")
+                .select("member_id,principal_amount,application_date,loan_status")
+                .in_("member_id", member_ids)
+                .gte("application_date", f"{target_year}-01-01")
+                .lte("application_date", f"{target_year}-12-31")
+                .execute()
+            )
+            for row in loans_response.data or []:
+                status_lc = str(row.get("loan_status") or "").lower()
+                if status_lc in {"rejected", "cancelled", "canceled"}:
+                    continue
+                mid = row.get("member_id")
+                if mid:
+                    loans_by_member[mid] = loans_by_member.get(mid, 0.0) + float(
+                        row.get("principal_amount") or 0
+                    )
+        except Exception as exc:  # noqa: BLE001
+            print(f"[migs] loans lookup failed: {exc}")
+
+        # --- Savings balance (sum of savings_accounts.balance, kind=member, active)
+        savings_by_member: dict[str, float] = {m: 0.0 for m in member_ids}
+        try:
+            savings_response = (
+                supabase.table("savings_accounts")
+                .select("member_id,balance,account_kind,status")
+                .in_("member_id", member_ids)
+                .eq("account_kind", "member")
+                .eq("status", "active")
+                .execute()
+            )
+            for row in savings_response.data or []:
+                mid = row.get("member_id")
+                if mid:
+                    savings_by_member[mid] = savings_by_member.get(mid, 0.0) + float(
+                        row.get("balance") or 0
+                    )
+        except Exception as exc:  # noqa: BLE001
+            print(f"[migs] savings lookup failed: {exc}")
+
+        # --- Late payment count YTD ---------------------------------------
+        # Pull validated payments for this year, join in-memory to schedules
+        # so we can compare payment_date > due_date.
+        late_count_by_member: dict[str, int] = {m: 0 for m in member_ids}
+        try:
+            payments_response = (
+                supabase.table("loan_payments")
+                .select("loan_id,schedule_id,payment_date,confirmation_status")
+                .gte("payment_date", f"{target_year}-01-01")
+                .lte("payment_date", f"{target_year}-12-31")
+                .eq("confirmation_status", "validated")
+                .execute()
+            )
+            payments = payments_response.data or []
+
+            schedule_ids = sorted({p["schedule_id"] for p in payments if p.get("schedule_id")})
+            loan_ids = sorted({p["loan_id"] for p in payments if p.get("loan_id")})
+
+            schedule_due: dict[str, str] = {}
+            if schedule_ids:
+                sched_response = (
+                    supabase.table("loan_schedules")
+                    .select("id,due_date")
+                    .in_("id", schedule_ids)
+                    .execute()
+                )
+                for s in sched_response.data or []:
+                    if s.get("id") and s.get("due_date"):
+                        schedule_due[s["id"]] = s["due_date"]
+
+            loan_to_member: dict[str, str] = {}
+            if loan_ids:
+                loan_member_response = (
+                    supabase.table("loans")
+                    .select("control_number,member_id")
+                    .in_("control_number", loan_ids)
+                    .execute()
+                )
+                for l in loan_member_response.data or []:
+                    if l.get("control_number") and l.get("member_id"):
+                        loan_to_member[l["control_number"]] = l["member_id"]
+
+            for p in payments:
+                due_str = schedule_due.get(p.get("schedule_id"))
+                paid_str = p.get("payment_date")
+                if not due_str or not paid_str:
+                    continue
+                try:
+                    paid_dt = datetime.fromisoformat(str(paid_str).replace("Z", "+00:00")).date()
+                    due_dt = datetime.fromisoformat(str(due_str)).date() if "T" in str(due_str) else datetime.strptime(str(due_str), "%Y-%m-%d").date()
+                except Exception:
+                    continue
+                if paid_dt > due_dt:
+                    mid = loan_to_member.get(p.get("loan_id"))
+                    if mid:
+                        late_count_by_member[mid] = late_count_by_member.get(mid, 0) + 1
+        except Exception as exc:  # noqa: BLE001
+            print(f"[migs] late-payment lookup failed: {exc}")
+
+        # --- General Assembly attendance (this year) ----------------------
+        # Member is "Present" if general_assembly_attendance has any row with
+        # status='Present' within the target year.
+        ga_present_by_member: dict[str, bool] = {}
+        try:
+            ga_response = (
+                supabase.table("general_assembly_attendance")
+                .select("member_id,status,meeting_date")
+                .eq("status", "Present")
+                .gte("meeting_date", f"{target_year}-01-01")
+                .lte("meeting_date", f"{target_year}-12-31")
+                .execute()
+            )
+            for row in ga_response.data or []:
+                mid = row.get("member_id")
+                if mid:
+                    ga_present_by_member[mid] = True
+        except Exception as exc:  # noqa: BLE001
+            print(f"[migs] GA attendance lookup failed: {exc}")
+
+        # --- Compose response --------------------------------------------
+        rows = []
+        for m in members:
+            mid = m.get("id")
+            pds = pds_by_membership.get(m.get("membership_id")) or {}
+            first = pds.get("first_name") or m.get("first_name")
+            middle = pds.get("middle_name")
+            last = pds.get("surname") or pds.get("last_name") or m.get("last_name")
+            full_name = " ".join(
+                str(part).strip()
+                for part in (first, middle, last)
+                if str(part or "").strip()
+            ).strip() or "Unknown Member"
+
+            capital_v = cbu_by_member.get(mid, 0.0)
+            loan_v = loans_by_member.get(mid, 0.0)
+            savings_v = savings_by_member.get(mid, 0.0)
+            late_v = late_count_by_member.get(mid, 0)
+
+            attendance_v = ga_present_by_member.get(mid, False)
+            result = compute_migs_score(
+                cbu_added=capital_v,
+                loan_availed=loan_v,
+                savings_balance=savings_v,
+                late_payment_count=late_v,
+                # Unwired modules — pass None so engine applies safe defaults:
+                # groceries=0 (3 pts base), outside_loan=False (10 pts).
+                groceries_availed=None,
+                has_outside_loan=None,
+                assembly_present=attendance_v,
+            )
+
+            rows.append({
+                "id": mid,
+                "member_id": m.get("membership_id"),
+                "full_name": full_name,
+                "is_bona_fide": bool(m.get("is_bona_fide")),
+                "capital": capital_v,
+                "loan_balance": loan_v,
+                "savings_balance": savings_v,
+                "late_payment_count": late_v,
+                # Unwired criteria — surfaced for transparency in the UI.
+                "groceries_availed": None,
+                "has_outside_loan": None,
+                "assembly_attendance": "Present" if attendance_v else "Absent",
+                # Live score + classification.
+                "migs_score": result.total_score,
+                "migs_status": result.status,
+                "loan_multiplier": result.loan_multiplier,
+                "can_vote": result.can_vote,
+            })
+
+        return {
+            "success": True,
+            "data": rows,
+            "year": target_year,
+            "count": len(rows),
+        }
+    except HTTPException as err:
+        raise err
+    except Exception as err:
+        raise HTTPException(status_code=500, detail=f"Failed to load MIGS members: {err}")
+
+
+@app.post("/api/migs/recompute-all")
+async def recompute_all_migs(year: int | None = None):
+    """Run the MIGS engine for every member and persist a snapshot row into
+    public.member_classification_temporal.
+
+    Snapshot keying:
+      - accrual_date = current week's Saturday (table constraint requires it)
+      - one row per (member_id, accrual_date); re-running the same week
+        updates the existing row instead of creating duplicates.
+
+    Other modules can then read the latest snapshot via /api/migs/label/{id}.
+    """
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+
+    target_year = int(year) if year else datetime.utcnow().year
+
+    # Resolve the upcoming/current Saturday (ISO weekday 6).
+    today = datetime.utcnow().date()
+    days_until_sat = (5 - today.weekday()) % 7  # weekday(): Mon=0..Sun=6, Sat=5
+    accrual_date = (today if days_until_sat == 0 else today.replace()) if days_until_sat == 0 else today
+    if days_until_sat != 0:
+        from datetime import timedelta
+        # Snap to the most recent past Saturday so the snapshot covers a complete week.
+        days_since_sat = (today.weekday() - 5) % 7
+        accrual_date = today - timedelta(days=days_since_sat)
+    accrual_iso = accrual_date.isoformat()
+
+    # Resolve classification_level FK ids once.
+    try:
+        levels_response = (
+            supabase.table("classification_level")
+            .select("classification_level_id,code")
+            .in_("code", ["migs", "non_migs"])
+            .execute()
+        )
+        levels = {row["code"]: row["classification_level_id"] for row in levels_response.data or []}
+        if "migs" not in levels or "non_migs" not in levels:
+            raise HTTPException(
+                status_code=500,
+                detail="classification_level rows missing. Apply migs_classification_levels.sql.",
+            )
+    except HTTPException as err:
+        raise err
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=500, detail=f"Failed to resolve classification levels: {exc}")
+
+    # Reuse the same data-gathering as /api/migs/members.
+    try:
+        members_payload = await list_migs_members(year=target_year)  # type: ignore[arg-type]
+    except HTTPException as err:
+        raise err
+    members = members_payload.get("data", [])
+
+    # Compute all rows in-memory first, then write in two bulk calls.
+    from migs_engine import compute_migs_score
+    payloads = []
+    errors = []
+    for m in members:
+        mid = m.get("id")
+        if not mid:
+            continue
+        result = compute_migs_score(
+            cbu_added=m.get("capital") or 0,
+            loan_availed=m.get("loan_balance") or 0,
+            savings_balance=m.get("savings_balance") or 0,
+            late_payment_count=m.get("late_payment_count") or 0,
+            groceries_availed=None,
+            has_outside_loan=None,
+            assembly_present=(m.get("assembly_attendance") == "Present"),
+        )
+        bp = {c.criterion: c.score for c in result.breakdown}
+        # Schema constraint allows `final_status` only on first-week snapshots
+        # (accrual day <= 7). Outside that window, leave it NULL — the label is
+        # still resolvable via classification_level_id.
+        in_first_week = accrual_date.day <= 7
+        payloads.append({
+            "membership_number_id": mid,
+            "classification_level_id": levels["migs"] if result.status == "MIGS Qualified" else levels["non_migs"],
+            "accrual_date": accrual_iso,
+            "cbu_points":        bp.get("Capital Build-Up", 0),
+            "loan_points":       bp.get("Loan Availed", 0),
+            "savings_points":    bp.get("Savings / Time Deposit", 0),
+            "payment_points":    bp.get("Payment Record (late count)", 0),
+            "grocery_points":    bp.get("Groceries Availed", 0),
+            "pli_points":        bp.get("Loans from Other PLIs", 0),
+            "attendance_points": bp.get("Assembly Attendance", 0),
+            "final_status": result.status if in_first_week else None,
+        })
+
+    # Bulk wipe + insert for this snapshot date. Two network calls instead of 2N.
+    inserted = 0
+    updated = 0
+    if payloads:
+        try:
+            # Count how many existed before (for reporting; not strictly needed).
+            pre = (
+                supabase.table("member_classification_temporal")
+                .select("classification_id", count="exact")
+                .eq("accrual_date", accrual_iso)
+                .execute()
+            )
+            pre_count = pre.count or 0
+
+            supabase.table("member_classification_temporal").delete().eq(
+                "accrual_date", accrual_iso
+            ).execute()
+
+            # Supabase Python client batch-inserts in one network round-trip.
+            supabase.table("member_classification_temporal").insert(payloads).execute()
+
+            # Treat overlap as "updated", new ones as "inserted".
+            updated = min(pre_count, len(payloads))
+            inserted = max(0, len(payloads) - pre_count)
+        except Exception as exc:  # noqa: BLE001
+            errors.append({"member": "BULK", "error": str(exc)[:400]})
+
+    return {
+        "success": True if not errors else False,
+        "accrual_date": accrual_iso,
+        "year": target_year,
+        "members_processed": len(members),
+        "inserted": inserted,
+        "updated": updated,
+        "errors": errors,
+    }
+
+
+@app.get("/api/migs/label/{member_key}")
+async def get_migs_label(member_key: str):
+    """Cheap MIGS classification lookup for other modules.
+
+    Returns the most recent snapshot row from member_classification_temporal.
+    Used by loan-approval, member-dashboard, etc. to know if a member is MIGS
+    without re-running the scoring engine.
+
+    `member_key` accepts either member.id (UUID) or member.membership_id.
+    """
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+
+    key = str(member_key or "").strip()
+    if not key:
+        raise HTTPException(status_code=400, detail="member_key is required.")
+
+    try:
+        member_table = _resolve_member_table(supabase) if "_resolve_member_table" in globals() else "member"
+        lookup_field = "id" if len(key) == 36 and key.count("-") == 4 else "membership_id"
+        member_response = (
+            supabase.table(member_table)
+            .select("id,membership_id,first_name,last_name")
+            .eq(lookup_field, key)
+            .limit(1)
+            .execute()
+        )
+        member = (member_response.data or [None])[0]
+        if not member:
+            raise HTTPException(status_code=404, detail="Member not found.")
+
+        snapshot_response = (
+            supabase.table("member_classification_temporal")
+            .select("accrual_date,total_score,final_status,classification_level_id,cbu_points,loan_points,savings_points,payment_points,grocery_points,pli_points,attendance_points")
+            .eq("membership_number_id", member["id"])
+            .order("accrual_date", desc=True)
+            .limit(1)
+            .execute()
+        )
+        snapshot = (snapshot_response.data or [None])[0]
+
+        if not snapshot:
+            return {
+                "success": True,
+                "data": {
+                    "member_id": member["id"],
+                    "membership_id": member.get("membership_id"),
+                    "label": "Unscored",
+                    "score": None,
+                    "as_of": None,
+                    "loan_multiplier": 3.0,
+                    "can_vote": False,
+                },
+            }
+
+        # final_status is only populated on first-week snapshots (schema constraint).
+        # Fall back to the classification_level lookup for mid-month snapshots.
+        label = snapshot.get("final_status")
+        if not label and snapshot.get("classification_level_id"):
+            try:
+                level_response = (
+                    supabase.table("classification_level")
+                    .select("label")
+                    .eq("classification_level_id", snapshot["classification_level_id"])
+                    .limit(1)
+                    .execute()
+                )
+                lvl = (level_response.data or [None])[0]
+                if lvl:
+                    label = lvl.get("label")
+            except Exception:
+                pass
+        snapshot["final_status"] = label
+        is_migs = str(label or "").lower().startswith("migs")
+        return {
+            "success": True,
+            "data": {
+                "member_id": member["id"],
+                "membership_id": member.get("membership_id"),
+                "label": snapshot.get("final_status"),
+                "score": snapshot.get("total_score"),
+                "as_of": snapshot.get("accrual_date"),
+                "loan_multiplier": 5.0 if is_migs else 3.0,
+                "can_vote": is_migs,
+                "breakdown": {
+                    "cbu":        snapshot.get("cbu_points"),
+                    "loan":       snapshot.get("loan_points"),
+                    "savings":    snapshot.get("savings_points"),
+                    "payment":    snapshot.get("payment_points"),
+                    "grocery":    snapshot.get("grocery_points"),
+                    "pli":        snapshot.get("pli_points"),
+                    "attendance": snapshot.get("attendance_points"),
+                },
+            },
+        }
+    except HTTPException as err:
+        raise err
+    except Exception as err:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch MIGS label: {err}")
+
+
+@app.get("/api/migs/members/{member_key}")
+async def get_migs_member_detail(member_key: str, year: int | None = None):
+    """Single-member MIGS detail for the Evaluate page.
+
+    `member_key` may be either the member.id UUID or the membership_id (e.g. TTMPC-123).
+    Returns the same raw fields as the list endpoint plus a scoring_breakdown stub
+    so the existing UI can render. Score/status remain null until the engine ships.
+    """
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+
+    target_year = int(year) if year else datetime.utcnow().year
+    key = str(member_key or "").strip()
+    if not key:
+        raise HTTPException(status_code=400, detail="member_key is required.")
+
+    try:
+        member_table = _resolve_member_table(supabase) if "_resolve_member_table" in globals() else "member"
+        lookup_field = "id" if len(key) == 36 and key.count("-") == 4 else "membership_id"
+        member_response = (
+            supabase.table(member_table)
+            .select("id,membership_id,first_name,last_name,is_bona_fide")
+            .eq(lookup_field, key)
+            .limit(1)
+            .execute()
+        )
+        member = (member_response.data or [None])[0]
+        if not member:
+            raise HTTPException(status_code=404, detail="Member not found.")
+
+        mid = member["id"]
+        membership_id = member.get("membership_id")
+
+        # --- Middle name from PDS -----------------------------------------
+        pds = None
+        if membership_id:
+            try:
+                pds_response = (
+                    supabase.table("personal_data_sheet")
+                    .select("first_name,middle_name,surname,last_name")
+                    .eq("membership_number_id", membership_id)
+                    .order("created_at", desc=True)
+                    .limit(1)
+                    .execute()
+                )
+                pds = (pds_response.data or [None])[0]
+            except Exception:
+                pds = None
+        pds = pds or {}
+        first = pds.get("first_name") or member.get("first_name")
+        middle = pds.get("middle_name")
+        last = pds.get("surname") or pds.get("last_name") or member.get("last_name")
+        full_name = " ".join(
+            str(part).strip() for part in (first, middle, last) if str(part or "").strip()
+        ).strip() or "Unknown Member"
+
+        # --- Capital ------------------------------------------------------
+        capital = 0.0
+        try:
+            cbu_response = (
+                supabase.table("capital_build_up")
+                .select("ending_share_capital,transaction_date")
+                .eq("member_id", mid)
+                .order("transaction_date", desc=True)
+                .limit(1)
+                .execute()
+            )
+            cbu_row = (cbu_response.data or [None])[0]
+            if cbu_row:
+                capital = float(cbu_row.get("ending_share_capital") or 0)
+        except Exception as exc:  # noqa: BLE001
+            print(f"[migs detail] cbu lookup failed: {exc}")
+
+        # --- Loan availed (this year) ------------------------------------
+        loan_availed = 0.0
+        try:
+            loans_response = (
+                supabase.table("loans")
+                .select("principal_amount,application_date,loan_status")
+                .eq("member_id", mid)
+                .gte("application_date", f"{target_year}-01-01")
+                .lte("application_date", f"{target_year}-12-31")
+                .execute()
+            )
+            for row in loans_response.data or []:
+                status_lc = str(row.get("loan_status") or "").lower()
+                if status_lc in {"rejected", "cancelled", "canceled"}:
+                    continue
+                loan_availed += float(row.get("principal_amount") or 0)
+        except Exception as exc:  # noqa: BLE001
+            print(f"[migs detail] loans lookup failed: {exc}")
+
+        # --- Savings ------------------------------------------------------
+        savings = 0.0
+        try:
+            savings_response = (
+                supabase.table("savings_accounts")
+                .select("balance")
+                .eq("member_id", mid)
+                .eq("account_kind", "member")
+                .eq("status", "active")
+                .execute()
+            )
+            for row in savings_response.data or []:
+                savings += float(row.get("balance") or 0)
+        except Exception as exc:  # noqa: BLE001
+            print(f"[migs detail] savings lookup failed: {exc}")
+
+        # --- Late payments (this year) -----------------------------------
+        late_count = 0
+        try:
+            loans_for_member = (
+                supabase.table("loans")
+                .select("control_number")
+                .eq("member_id", mid)
+                .execute()
+            ).data or []
+            control_numbers = [l["control_number"] for l in loans_for_member if l.get("control_number")]
+            if control_numbers:
+                payments_response = (
+                    supabase.table("loan_payments")
+                    .select("schedule_id,payment_date,confirmation_status,loan_id")
+                    .in_("loan_id", control_numbers)
+                    .gte("payment_date", f"{target_year}-01-01")
+                    .lte("payment_date", f"{target_year}-12-31")
+                    .eq("confirmation_status", "validated")
+                    .execute()
+                )
+                payments = payments_response.data or []
+                schedule_ids = sorted({p["schedule_id"] for p in payments if p.get("schedule_id")})
+                schedule_due: dict[str, str] = {}
+                if schedule_ids:
+                    sched_response = (
+                        supabase.table("loan_schedules")
+                        .select("id,due_date")
+                        .in_("id", schedule_ids)
+                        .execute()
+                    )
+                    for s in sched_response.data or []:
+                        if s.get("id") and s.get("due_date"):
+                            schedule_due[s["id"]] = s["due_date"]
+                for p in payments:
+                    due_str = schedule_due.get(p.get("schedule_id"))
+                    paid_str = p.get("payment_date")
+                    if not due_str or not paid_str:
+                        continue
+                    try:
+                        paid_dt = datetime.fromisoformat(str(paid_str).replace("Z", "+00:00")).date()
+                        due_dt = (
+                            datetime.fromisoformat(str(due_str)).date()
+                            if "T" in str(due_str)
+                            else datetime.strptime(str(due_str), "%Y-%m-%d").date()
+                        )
+                    except Exception:
+                        continue
+                    if paid_dt > due_dt:
+                        late_count += 1
+        except Exception as exc:  # noqa: BLE001
+            print(f"[migs detail] late-payment lookup failed: {exc}")
+
+        # --- General Assembly attendance (this year) ----------------------
+        attendance_present = False
+        try:
+            ga_response = (
+                supabase.table("general_assembly_attendance")
+                .select("status,meeting_date")
+                .eq("member_id", mid)
+                .eq("status", "Present")
+                .gte("meeting_date", f"{target_year}-01-01")
+                .lte("meeting_date", f"{target_year}-12-31")
+                .limit(1)
+                .execute()
+            )
+            attendance_present = bool(ga_response.data)
+        except Exception as exc:  # noqa: BLE001
+            print(f"[migs detail] GA lookup failed: {exc}")
+
+        # --- Score using the engine (safe defaults for unwired modules) ---
+        result = compute_migs_score(
+            cbu_added=capital,
+            loan_availed=loan_availed,
+            savings_balance=savings,
+            late_payment_count=late_count,
+            groceries_availed=None,
+            has_outside_loan=None,
+            assembly_present=attendance_present,
+        )
+        scored = result_to_dict(result)
+
+        return {
+            "success": True,
+            "data": {
+                "id": mid,
+                "member_id": membership_id,
+                "full_name": full_name,
+                "is_bona_fide": bool(member.get("is_bona_fide")),
+                "year": target_year,
+                "capital": capital,
+                "loan_availed": loan_availed,
+                "savings_balance": savings,
+                "late_payment_count": late_count,
+                "migs_score": scored["total_score"],
+                "migs_status": scored["status"],
+                "loan_multiplier": scored["loan_multiplier"],
+                "can_vote": scored["can_vote"],
+                "scoring_breakdown": scored["breakdown"],
+            },
+        }
+    except HTTPException as err:
+        raise err
+    except Exception as err:
+        raise HTTPException(status_code=500, detail=f"Failed to load MIGS member detail: {err}")
+
+
+# ---------------------------------------------------------------------------
+# General Assembly attendance — Secretary portal.
+# Stores Present/Absent + remarks per member into attendance_logs with
+# meeting_type='GA'. Each GA day is identified by (meeting_date, membership_number_id).
+# The MIGS scoring engine reads from this table to award the 5pt attendance criterion.
+# ---------------------------------------------------------------------------
+
+@app.get("/api/secretary/general-assembly/{year}")
+async def get_ga_attendance_roster(year: int):
+    """Return every coop member with their GA attendance status for the year.
+
+    Defaults each member to status='Absent' (no row) unless an attendance_logs
+    row exists with meeting_type='GA' for that member within the year.
+    """
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+
+    try:
+        year_int = int(year)
+        member_table = _resolve_member_table(supabase) if "_resolve_member_table" in globals() else "member"
+        members_response = (
+            supabase.table(member_table)
+            .select("id,membership_id,first_name,last_name")
+            .order("last_name")
+            .execute()
+        )
+        members = members_response.data or []
+
+        # Load PDS for middle names (best-effort).
+        membership_keys = [m.get("membership_id") for m in members if m.get("membership_id")]
+        pds_by_membership: dict[str, dict] = {}
+        if membership_keys:
+            try:
+                pds_response = (
+                    supabase.table("personal_data_sheet")
+                    .select("membership_number_id,first_name,middle_name,surname,last_name,created_at")
+                    .in_("membership_number_id", membership_keys)
+                    .order("created_at", desc=True)
+                    .execute()
+                )
+                for row in pds_response.data or []:
+                    key = row.get("membership_number_id")
+                    if key and key not in pds_by_membership:
+                        pds_by_membership[key] = row
+            except Exception:
+                pds_by_membership = {}
+
+        # Load existing GA rows for the year.
+        ga_by_member: dict[str, dict] = {}
+        ga_meeting_date_used: str | None = None
+        try:
+            ga_response = (
+                supabase.table("general_assembly_attendance")
+                .select("member_id,meeting_date,status,remarks,recorded_at")
+                .gte("meeting_date", f"{year_int}-01-01")
+                .lte("meeting_date", f"{year_int}-12-31")
+                .order("recorded_at", desc=True)
+                .execute()
+            )
+            for row in ga_response.data or []:
+                mid = row.get("member_id")
+                if mid and mid not in ga_by_member:
+                    ga_by_member[mid] = row
+                    if row.get("meeting_date") and not ga_meeting_date_used:
+                        ga_meeting_date_used = str(row["meeting_date"])
+        except Exception as exc:  # noqa: BLE001
+            print(f"[GA] roster lookup failed: {exc}")
+
+        rows = []
+        for m in members:
+            mid = m.get("id")
+            pds = pds_by_membership.get(m.get("membership_id")) or {}
+            first = pds.get("first_name") or m.get("first_name")
+            middle = pds.get("middle_name")
+            last = pds.get("surname") or pds.get("last_name") or m.get("last_name")
+            full_name = " ".join(
+                str(p).strip() for p in (first, middle, last) if str(p or "").strip()
+            ).strip() or "Unknown Member"
+
+            log = ga_by_member.get(mid)
+            rows.append({
+                "id": mid,
+                "membership_id": m.get("membership_id"),
+                "full_name": full_name,
+                "status": (log or {}).get("status") or "Absent",
+                "remarks": (log or {}).get("remarks") or "",
+                "meeting_date": (log or {}).get("meeting_date"),
+                "recorded_at": (log or {}).get("recorded_at"),
+            })
+
+        return {
+            "success": True,
+            "year": year_int,
+            "default_meeting_date": ga_meeting_date_used or f"{year_int}-03-01",
+            "data": rows,
+            "count": len(rows),
+        }
+    except HTTPException as err:
+        raise err
+    except Exception as err:
+        raise HTTPException(status_code=500, detail=f"Failed to load GA roster: {err}")
+
+
+@app.post("/api/secretary/general-assembly/save")
+async def save_ga_attendance(payload: dict = Body(...)):
+    """Bulk-save GA attendance for a given meeting date.
+
+    Body shape:
+      {
+        "meeting_date": "2026-03-15",
+        "recorded_by": "<uuid|null>",
+        "entries": [
+          { "membership_number_id": "<member.id uuid>", "status": "Present", "remarks": "" },
+          ...
+        ]
+      }
+
+    Upserts one row per member into attendance_logs with meeting_type='GA'.
+    Conflict key: (membership_number_id, meeting_date, meeting_type).
+    """
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+
+    meeting_date = str(payload.get("meeting_date") or "").strip()
+    if not meeting_date:
+        raise HTTPException(status_code=400, detail="meeting_date is required.")
+    try:
+        datetime.strptime(meeting_date, "%Y-%m-%d")
+    except ValueError:
+        raise HTTPException(status_code=400, detail="meeting_date must be YYYY-MM-DD.")
+
+    entries = payload.get("entries") or []
+    if not isinstance(entries, list) or not entries:
+        raise HTTPException(status_code=400, detail="entries must be a non-empty list.")
+
+    recorded_by = payload.get("recorded_by") or None
+    now_iso = datetime.utcnow().isoformat()
+
+    inserted = 0
+    updated = 0
+    errors = []
+
+    for entry in entries:
+        mid = str(entry.get("membership_number_id") or "").strip()
+        status = str(entry.get("status") or "").strip()
+        remarks = str(entry.get("remarks") or "").strip() or None
+        if not mid:
+            continue
+        if status not in {"Present", "Absent"}:
+            errors.append({"member": mid, "error": f"invalid status '{status}'"})
+            continue
+
+        # Look up existing row (member_id + meeting_date).
+        try:
+            existing = (
+                supabase.table("general_assembly_attendance")
+                .select("id")
+                .eq("member_id", mid)
+                .eq("meeting_date", meeting_date)
+                .limit(1)
+                .execute()
+            )
+            existing_row = (existing.data or [None])[0]
+        except Exception as exc:  # noqa: BLE001
+            errors.append({"member": mid, "error": f"lookup failed: {exc}"})
+            continue
+
+        if existing_row:
+            try:
+                supabase.table("general_assembly_attendance").update({
+                    "status": status,
+                    "remarks": remarks,
+                    "recorded_at": now_iso,
+                    "recorded_by": recorded_by,
+                    "updated_at": now_iso,
+                }).eq("id", existing_row["id"]).execute()
+                updated += 1
+            except Exception as exc:  # noqa: BLE001
+                errors.append({"member": mid, "error": f"update failed: {exc}"})
+        else:
+            insert_payload = {
+                "member_id": mid,
+                "meeting_date": meeting_date,
+                "status": status,
+                "remarks": remarks,
+                "recorded_at": now_iso,
+                "recorded_by": recorded_by,
+            }
+            try:
+                supabase.table("general_assembly_attendance").insert(insert_payload).execute()
+                inserted += 1
+            except Exception as exc:  # noqa: BLE001
+                errors.append({"member": mid, "error": f"insert failed: {exc}"})
+
+    return {
+        "success": True if not errors else False,
+        "inserted": inserted,
+        "updated": updated,
+        "errors": errors,
+        "meeting_date": meeting_date,
+    }
 
 
 @app.get("/api/bookkeeper/savings-transactions")
