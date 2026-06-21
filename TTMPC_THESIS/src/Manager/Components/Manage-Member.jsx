@@ -4,7 +4,7 @@ import { UserAuth } from "../../contex/AuthContext";
 import { useNotification } from "../../contex/NotificationContext";
 import { PortalSidebarIdentity, PortalTopbarIdentity } from "../../components/PortalIdentity";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
-import { LayoutDashboard, Users, Search, Bell, ChevronLeft, ChevronRight } from "lucide-react";
+import { LayoutDashboard, Users, Search, Bell, ChevronLeft, ChevronRight, BarChart3 } from "lucide-react";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 const ITEMS_PER_PAGE = 10;
@@ -22,12 +22,14 @@ const Manager_Manage_Member = () => {
     { name: "Dashboard", icon: LayoutDashboard },
     { name: "Loan Approval", icon: Users },
     { name: "Manage Member", icon: Users },
+    { name: "Reports", icon: BarChart3 },
   ];
 
   const routeMap = {
     "Dashboard": "/manager-dashboard",
     "Loan Approval": "/loan-approval",
     "Manage Member": "/manager-manage-member",
+    "Reports": "/manager-reports",
   };
 
   useEffect(() => {
