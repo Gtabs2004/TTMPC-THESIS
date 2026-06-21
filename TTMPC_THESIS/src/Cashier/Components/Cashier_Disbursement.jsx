@@ -26,7 +26,8 @@ import {
   Send,
   PiggyBank,
   ArrowDownLeft,
-  ShoppingCart
+  ShoppingCart,
+  Printer
 } from "lucide-react";
 import logo from "../../assets/img/ttmpc logo.png";
 
@@ -723,7 +724,24 @@ const Cashier_Disbursement = () => {
               </div>
             </div>
 
-            <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 flex justify-end">
+            <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 flex justify-between items-center">
+              {/* TODO: PRINT-RECEIPT-OVERLAY · loan disbursement voucher */}
+              <button
+                type="button"
+                onClick={() =>
+                  alert(
+                    "PRINT-RECEIPT-OVERLAY · Coming soon.\n\nWill render only the variable fields (member, amount, date, reference) onto the cooperative's pre-printed disbursement voucher bond paper."
+                  )
+                }
+                className="rounded-lg border-2 border-dashed border-blue-400 bg-blue-50 hover:bg-blue-100 text-blue-700 text-sm font-semibold px-4 py-2 transition inline-flex items-center gap-2"
+                title="PRINT-RECEIPT-OVERLAY · Coming soon"
+              >
+                <Printer size={16} />
+                Print Voucher
+                <span className="ml-1 text-[10px] uppercase tracking-wider bg-blue-200 text-blue-800 px-1.5 py-0.5 rounded-full">
+                  Soon
+                </span>
+              </button>
               <button
                 type="button"
                 onClick={() => setConfirmation(null)}

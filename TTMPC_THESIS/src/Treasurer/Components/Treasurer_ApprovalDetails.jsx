@@ -1,18 +1,22 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '../../supabaseClient';
-import { 
-  ArrowLeft, 
-  User, 
-  Calculator, 
-  BarChart2, 
-  Paperclip, 
-  FileImage, 
-  X, 
-  Check, 
+import {
+  ArrowLeft,
+  User,
+  Calculator,
+  BarChart2,
+  Paperclip,
+  FileImage,
+  X,
+  Check,
   FileEdit,
   AlertCircle,
   ExternalLink,
+  ClipboardCheck,
+  Briefcase,
+  Wallet,
+  Banknote,
 } from 'lucide-react';
 
 const SUPPORTING_DOCS_BUCKET = 'Supporting_Documents';
@@ -65,6 +69,19 @@ const CustomCheckbox = ({ checked, onChange, label }) => (
     />
     <span>{label}</span>
   </label>
+);
+
+const QuickStat = ({ label, value, accent = false }) => (
+  <div
+    className={`rounded-lg border px-3 py-2 ${
+      accent ? 'border-[#1D6021]/30 bg-[#1D6021]/5' : 'border-gray-200 bg-white'
+    }`}
+  >
+    <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider">{label}</p>
+    <p className={`text-sm font-bold ${accent ? 'text-[#1D6021]' : 'text-gray-800'} truncate`}>
+      {value}
+    </p>
+  </div>
 );
 
 const Treasurer_ApprovalDetails = () => {
@@ -302,18 +319,48 @@ const Treasurer_ApprovalDetails = () => {
           ? Number(effectiveInterestRate) / 100
           : 0;
 
-        let monthlyAmortization = Number(data.monthly_amortization ?? 0) 
+        let monthlyAmortization = Number(data.monthly_amortization ?? 0)
           || Number(data.raw_payload?.optionalFields?.monthly_amortization ?? 0);
         let monthlyInterestAmount = 0;
         let monthlyPrincipalAmount = 0;
-        
-        // For Emergency loans, recompute using EMI formula even if stored value exists
+        let emergencyTotalInterest = null;
+        let emergencyScheduleRows = null;
+
+        // Emergency: equal-principal, declining-interest in centavos. Mirrors
+        // backend /api/loans/compute and Emergency_Loan.jsx UI.
         if (resolvedLoanType.toLowerCase().includes('emergency') && principalAmount > 0 && termMonths > 0 && monthlyRateDecimal > 0) {
-          const numerator = principalAmount * monthlyRateDecimal;
-          const denominator = 1 - Math.pow(1 + monthlyRateDecimal, -termMonths);
-          monthlyAmortization = numerator / denominator;
+          const totalPrincipalCents = Math.round(principalAmount * 100);
+          const monthlyPrincipalCents = Math.round(totalPrincipalCents / termMonths);
+          let accumulatedCents = 0;
+          let balanceCents = totalPrincipalCents;
+          let firstTotalCents = 0;
+          let totalInterestCents = 0;
+          const rows = [];
+
+          for (let i = 1; i <= termMonths; i += 1) {
+            const startingBalanceCents = balanceCents;
+            const principalCents = i < termMonths
+              ? monthlyPrincipalCents
+              : totalPrincipalCents - accumulatedCents;
+            const endingBalanceCents = startingBalanceCents - principalCents;
+            const interestCents = Math.round(endingBalanceCents * monthlyRateDecimal);
+            if (i === 1) firstTotalCents = principalCents + interestCents;
+            totalInterestCents += interestCents;
+            balanceCents = endingBalanceCents;
+            accumulatedCents += principalCents;
+            rows.push({
+              month: i,
+              startingBalance: startingBalanceCents / 100,
+              principal: principalCents / 100,
+              interest: interestCents / 100,
+              totalPayment: (principalCents + interestCents) / 100,
+              remainingBalance: endingBalanceCents / 100,
+            });
+          }
+          monthlyAmortization = firstTotalCents / 100;
+          emergencyTotalInterest = totalInterestCents / 100;
+          emergencyScheduleRows = rows;
         } else {
-          // For other loan types, compute component breakdown
           monthlyInterestAmount = principalAmount > 0 ? principalAmount * monthlyRateDecimal : 0;
           monthlyPrincipalAmount = (principalAmount > 0 && termMonths > 0) ? principalAmount / termMonths : 0;
         }
@@ -323,17 +370,10 @@ const Treasurer_ApprovalDetails = () => {
           ? Number(data.total_interest)
           : Number(data.raw_payload?.optionalFields?.total_interest ?? NaN);
 
-        if (!Number.isFinite(resolvedTotalInterest)) {
-          if (resolvedLoanType.toLowerCase().includes('emergency') && principalAmount > 0 && termMonths > 0 && monthlyRateDecimal > 0) {
-            // Emergency: compute actual interest from EMI schedule
-            let remaining = principalAmount;
-            resolvedTotalInterest = 0;
-            for (let i = 0; i < termMonths; i++) {
-              const interest = remaining * monthlyRateDecimal;
-              resolvedTotalInterest += interest;
-              remaining -= (monthlyAmortization - interest);
-            }
-          } else if (monthlyAmortization > 0 && termMonths > 0) {
+        if (emergencyTotalInterest !== null) {
+          resolvedTotalInterest = emergencyTotalInterest;
+        } else if (!Number.isFinite(resolvedTotalInterest)) {
+          if (monthlyAmortization > 0 && termMonths > 0) {
             resolvedTotalInterest = Math.max(0, (monthlyAmortization * termMonths) - principalAmount);
           } else if (effectiveInterestRate !== null && principalAmount > 0 && termMonths > 0) {
             resolvedTotalInterest = Math.max(0, principalAmount * (Number(effectiveInterestRate) / 100) * termMonths);
@@ -384,11 +424,13 @@ const Treasurer_ApprovalDetails = () => {
             managerReviewRequestedAt: data.manager_review_requested_at || null,
           },
           computation: {
+            termMonths,
             principal: formatCurrency(principalAmount),
             interestRate: effectiveInterestRate !== null ? `${Number(effectiveInterestRate)}% Monthly` : 'N/A',
             totalInterest: formatCurrency(resolvedTotalInterest),
             totalPayable: formatCurrency(totalPayable),
             monthlyAmortization: formatCurrency(monthlyAmortization),
+            emergencySchedule: emergencyScheduleRows,
           },
           risk: {
             prevLoans: { value: 'N/A', label: 'NOT YET COMPUTED', color: 'text-gray-500' },
@@ -594,41 +636,140 @@ const Treasurer_ApprovalDetails = () => {
     );
   }
 
-  return (
-    <div className="p-8 bg-gray-50 min-h-screen relative">
-      {/* Back Button */}
-      <button 
-        onClick={() => navigate(backRoute)}
-        className="flex items-center text-sm text-[#1D6021] font-semibold mb-6 hover:underline"
-      >
-        <ArrowLeft className="w-4 h-4 mr-2" /> Back to Loan Queue
-      </button>
+  // ---- Workflow step derivation ----
+  const statusLower = String(loanDetails.status || '').toLowerCase();
+  const workflowSteps = [
+    { key: 'bookkeeper', label: 'Bookkeeper Review', icon: ClipboardCheck },
+    { key: 'manager',    label: 'Manager Approval',  icon: Briefcase },
+    { key: 'treasurer',  label: 'Treasurer Review',  icon: Wallet },
+    { key: 'disburse',   label: 'Disbursement',      icon: Banknote },
+  ];
+  let currentStepIdx;
+  if (statusLower.includes('disburs') || statusLower.includes('released') || statusLower.includes('paid')) {
+    currentStepIdx = 3;
+  } else if (isBookkeeperFlow) {
+    currentStepIdx = 0;
+  } else {
+    // Treasurer flow: active step is Treasurer Review
+    currentStepIdx = 2;
+  }
 
-      {/* Header */}
-      <div className="flex justify-between items-start mb-8">
-        <div>
-          <h1 className="text-3xl font-bold text-[#1a4a2f] mb-2">Loan Approval Details</h1>
-          <p className="text-sm text-gray-500">
-            Application ID: <span className="font-bold text-[#1D6021] mr-2">{loanDetails.id}</span> | 
-            Member: <span className="font-bold text-gray-800 ml-2">{loanDetails.memberName}</span>
-          </p>
-          {actionError ? (
-            <p className="text-sm text-red-600 mt-2">{actionError}</p>
-          ) : null}
+  // ---- Section anchors ----
+  const sectionTabs = [
+    { id: 'section-summary',     label: 'Summary',       icon: User },
+    { id: 'section-computation', label: 'Computation',   icon: Calculator },
+    { id: 'section-assessment',  label: 'Assessment',    icon: BarChart2 },
+    { id: 'section-documents',   label: 'Documents',     icon: Paperclip },
+    { id: 'section-notes',       label: 'Bookkeeper',    icon: FileEdit },
+  ];
+  const scrollToSection = (id) => {
+    const el = document.getElementById(id);
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  return (
+    <div className="bg-gray-50 min-h-screen relative pb-28" style={{ scrollPaddingTop: '11rem' }}>
+      {/* STICKY HEADER */}
+      <div className="sticky top-0 z-30 bg-white/95 backdrop-blur border-b border-gray-200 shadow-sm">
+        <div className="px-8 pt-4 pb-3">
+          <button
+            onClick={() => navigate(backRoute)}
+            className="flex items-center text-xs text-[#1D6021] font-semibold mb-2 hover:underline"
+          >
+            <ArrowLeft className="w-3.5 h-3.5 mr-1.5" /> Back to Loan Queue
+          </button>
+
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="min-w-0">
+              <h1 className="text-xl md:text-2xl font-bold text-[#1a4a2f] truncate">
+                {loanDetails.memberName}
+              </h1>
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-500 mt-0.5">
+                <span>
+                  Control # <span className="font-mono font-bold text-[#1D6021]">{loanDetails.id}</span>
+                </span>
+                <span className="text-gray-300">\u00B7</span>
+                <span>{loanDetails.summary.loanType}</span>
+                <span className="text-gray-300">\u00B7</span>
+                <span className="font-bold text-gray-800">{loanDetails.summary.recommendedAmount}</span>
+              </div>
+            </div>
+            <span className="bg-[#FEF08A] text-[#854D0E] px-3 py-1 rounded-full text-xs font-bold flex items-center shrink-0">
+              <span className="w-1.5 h-1.5 rounded-full bg-[#EAB308] mr-1.5"></span>
+              {loanDetails.status}
+            </span>
+          </div>
+
+          {/* Workflow steps */}
+          <div className="mt-3 flex items-center gap-1 overflow-x-auto">
+            {workflowSteps.map((step, idx) => {
+              const Icon = step.icon;
+              const done = idx < currentStepIdx;
+              const active = idx === currentStepIdx;
+              return (
+                <React.Fragment key={step.key}>
+                  <div
+                    className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold whitespace-nowrap ${
+                      active
+                        ? 'bg-[#1D6021] text-white'
+                        : done
+                        ? 'bg-green-50 text-[#1D6021]'
+                        : 'bg-gray-100 text-gray-400'
+                    }`}
+                  >
+                    <Icon className="w-3 h-3" />
+                    {step.label}
+                  </div>
+                  {idx < workflowSteps.length - 1 && (
+                    <span className={`w-4 h-px ${done ? 'bg-[#1D6021]' : 'bg-gray-200'}`} />
+                  )}
+                </React.Fragment>
+              );
+            })}
+          </div>
+
+          {/* Quick stats strip */}
+          <div className="mt-3 grid grid-cols-2 md:grid-cols-4 gap-2">
+            <QuickStat label="Principal" value={loanDetails.computation.principal} />
+            <QuickStat label="Term" value={`${loanDetails.computation.termMonths || 0} Months`} />
+            <QuickStat label="Monthly Amort." value={loanDetails.computation.monthlyAmortization} accent />
+            <QuickStat label="Total Payment" value={loanDetails.computation.totalPayable} />
+          </div>
+
+          {/* Section nav tabs */}
+          <div className="mt-3 flex items-center gap-1 overflow-x-auto -mx-1 px-1">
+            {sectionTabs.map((tab) => {
+              const Icon = tab.icon;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => scrollToSection(tab.id)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold text-gray-600 hover:bg-[#1D6021]/10 hover:text-[#1D6021] transition-colors whitespace-nowrap"
+                >
+                  <Icon className="w-3.5 h-3.5" />
+                  {tab.label}
+                </button>
+              );
+            })}
+          </div>
         </div>
-        <span className="bg-[#FEF08A] text-[#854D0E] px-4 py-1.5 rounded-full text-sm font-bold flex items-center">
-          <span className="w-2 h-2 rounded-full bg-[#EAB308] mr-2"></span>
-          {loanDetails.status}
-        </span>
       </div>
+
+      <div className="p-8">
+      {actionError ? (
+        <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">
+          {actionError}
+        </div>
+      ) : null}
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
         <div className="grid grid-cols-1 lg:grid-cols-2 p-8 gap-8">
-          
+
           {/* Left Column */}
           <div className="flex flex-col gap-8">
             {/* Member & Loan Summary */}
-            <div>
+            <div id="section-summary" className="scroll-mt-44">
               <h2 className="flex items-center text-lg font-bold text-gray-800 mb-4">
                 <User className="w-5 h-5 mr-2 text-[#1D6021]" /> Member & Loan Summary
               </h2>
@@ -662,128 +803,113 @@ const Treasurer_ApprovalDetails = () => {
               </div>
             </div>
 
-            <div>
+            {/* Treasurer's Disbursement Assessment */}
+            <div id="section-assessment" className="scroll-mt-44">
               <h2 className="flex items-center text-lg font-bold text-gray-800 mb-4">
-                <FileEdit className="w-5 h-5 mr-2 text-[#1D6021]" /> Bookkeeper Internal Review
+                <BarChart2 className="w-5 h-5 mr-2 text-[#1D6021]" /> Treasurer's Disbursement Assessment
               </h2>
-              <div className="bg-[#F8F9FA] border border-gray-200 rounded-xl p-5 space-y-4">
-                <div>
-                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Internal Remarks</p>
-                  <p className="text-sm text-gray-700 whitespace-pre-wrap">{loanDetails.summary.bookkeeperInternalRemarks}</p>
-                </div>
-                <div className="border-t border-gray-200 pt-3">
-                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Manager Approval</p>
-                  <p className="text-sm font-semibold text-green-700">{loanDetails.summary.managerApprovalStatus}</p>
-                </div>
-                <div className="border-t border-gray-200 pt-3">
-                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-3">Co-Makers (Loan Details)</p>
-                  <div className="space-y-3">
-                    {(loanDetails.summary.bookkeeperCoMakers || []).map((row, index) => {
-                      const hasValue = String(row.membership_number_id || '').trim()
-                        || String(row.name || '').trim()
-                        || String(row.id_no || '').trim()
-                        || String(row.mobile || '').trim()
-                        || String(row.email || '').trim()
-                        || String(row.address || '').trim();
-
-                      return (
-                        <div key={`treasurer-co-maker-${index}`} className="border border-gray-200 rounded-lg p-3 bg-white">
-                          <p className="text-xs font-bold text-gray-700 mb-2">Co-Maker {index + 1}</p>
-                          {hasValue ? (
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs text-gray-700">
-                              <p><span className="font-semibold">Membership No:</span> {row.membership_number_id || 'N/A'}</p>
-                              <p><span className="font-semibold">Name:</span> {row.name || 'N/A'}</p>
-                              <p><span className="font-semibold">ID No:</span> {row.id_no || 'N/A'}</p>
-                              <p><span className="font-semibold">Mobile:</span> {row.mobile || 'N/A'}</p>
-                              <p><span className="font-semibold">Email:</span> {row.email || 'N/A'}</p>
-                              <p className="md:col-span-2"><span className="font-semibold">Address:</span> {row.address || 'N/A'}</p>
-                            </div>
-                          ) : (
-                            <p className="text-xs text-gray-500">No co-maker details provided.</p>
-                          )}
-                        </div>
-                      );
-                    })}
+              <div className="bg-white rounded-xl border border-gray-200 p-6">
+                <div className="space-y-6">
+                  {/* Fund Availability */}
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-semibold text-gray-700">Cooperative Fund Availability</span>
+                    <div className="flex items-center gap-2">
+                      <div className="w-32 h-3 bg-gray-200 rounded-full overflow-hidden">
+                        <div className="h-3 bg-[#1D6021] rounded-full" style={{ width: '80%' }}></div>
+                      </div>
+                      <span className="text-xs font-bold text-green-700">Sufficient</span>
+                    </div>
+                  </div>
+                  {/* Financial Impact Assessment */}
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-semibold text-gray-700">Financial Impact Assessment</span>
+                    <span className="text-xs font-bold text-gray-800">Projected Interest Revenue: {"\u20B1"}100,000.00</span>
+                  </div>
+                  {/* Recommendation Status */}
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-semibold text-gray-700">Recommendation Status</span>
+                    <span className="px-3 py-1 rounded-full bg-green-100 text-green-700 text-xs font-bold border border-green-200">Highly Recommended</span>
                   </div>
                 </div>
-                {loanDetails.summary.bookkeeperReviewedAt ? (
-                  <div className="border-t border-gray-200 pt-3">
-                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Reviewed At</p>
-                    <p className="text-sm text-gray-700">{new Date(loanDetails.summary.bookkeeperReviewedAt).toLocaleString()}</p>
-                  </div>
-                ) : null}
               </div>
             </div>
           </div>
 
           {/* Right Column */}
           <div className="flex flex-col gap-8">
-            {/* Loan Computation Summary (hidden for now)
-            <div>
+            <div id="section-computation" className="scroll-mt-44">
               <h2 className="flex items-center text-lg font-bold text-gray-800 mb-4">
                 <Calculator className="w-5 h-5 mr-2 text-[#1D6021]" /> Loan Computation Summary
               </h2>
-              <div className="bg-[#EAF1EB] rounded-xl p-6">
-                <div className="space-y-4 mb-4">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-600 font-medium">Principal Amount</span>
-                    <span className="font-bold text-gray-800">{loanDetails.computation.principal}</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-600 font-medium">Interest Rate</span>
-                    <span className="font-bold text-gray-800">{loanDetails.computation.interestRate}</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-600 font-medium">Total Interest</span>
-                    <span className="font-bold text-gray-800">{loanDetails.computation.totalInterest}</span>
-                  </div>
-                </div>
-                <div className="border-t border-gray-300 pt-4 mb-4 flex justify-between items-center">
-                  <span className="font-bold text-gray-900">Total Payment (Principal + Interest)</span>
-                  <span className="font-bold text-gray-900">{loanDetails.computation.totalPayable}</span>
-                </div>
-                <div className="border-t border-gray-300 pt-4 flex justify-between items-center">
-                  <div>
-                    <p className="text-[10px] font-bold text-[#1D6021] uppercase tracking-wider">Payable Per Month</p>
-                    <p className="text-[9px] text-gray-500">Monthly amortization amount</p>
-                  </div>
-                  <span className="text-2xl font-black text-[#1D6021]">{loanDetails.computation.monthlyAmortization}</span>
-                </div>
-              </div>
-            </div>
-            */}
-
-            {/* Treasurer's Disbursement Assessment */}
-            <div className="bg-white rounded-xl border border-gray-200 p-6 mb-4">
-              <h2 className="flex items-center text-lg font-bold text-gray-800 mb-4">
-                <BarChart2 className="w-5 h-5 mr-2 text-[#1D6021]" /> Treasurer's Disbursement Assessment
-              </h2>
-              <div className="space-y-6">
-                {/* Fund Availability */}
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-semibold text-gray-700">Cooperative Fund Availability</span>
-                  <div className="flex items-center gap-2">
-                    <div className="w-32 h-3 bg-gray-200 rounded-full overflow-hidden">
-                      <div className="h-3 bg-[#1D6021] rounded-full" style={{ width: '80%' }}></div>
+              {Array.isArray(loanDetails.computation.emergencySchedule)
+                && loanDetails.computation.emergencySchedule.length > 0 ? null : (
+                <div className="bg-[#EAF1EB] rounded-xl p-6">
+                  <div className="space-y-2.5 mb-4">
+                    <div className="flex justify-between items-baseline text-sm">
+                      <span className="text-gray-600 font-medium">Principal Amount</span>
+                      <span className="font-bold text-gray-800">{loanDetails.computation.principal}</span>
                     </div>
-                    <span className="text-xs font-bold text-green-700">Sufficient</span>
+                    <div className="flex justify-between items-baseline text-sm">
+                      <span className="text-gray-600 font-medium">Interest Rate</span>
+                      <span className="font-bold text-gray-800">{loanDetails.computation.interestRate}</span>
+                    </div>
+                    <div className="flex justify-between items-baseline text-sm">
+                      <span className="text-gray-600 font-medium">Total Interest</span>
+                      <span className="font-bold text-gray-800">{loanDetails.computation.totalInterest}</span>
+                    </div>
+                    <div className="flex justify-between items-baseline text-sm border-t border-gray-300/70 pt-2.5">
+                      <span className="text-gray-700 font-semibold">Total Payment</span>
+                      <span className="font-extrabold text-gray-900">{loanDetails.computation.totalPayable}</span>
+                    </div>
+                  </div>
+                  <div className="border-t border-gray-300 pt-4 flex justify-between items-center">
+                    <div>
+                      <p className="text-[10px] font-bold text-[#1D6021] uppercase tracking-wider">Monthly Amortization</p>
+                      <p className="text-[9px] text-gray-500">Payable per month</p>
+                    </div>
+                    <span className="text-2xl font-black text-[#1D6021]">{loanDetails.computation.monthlyAmortization}</span>
                   </div>
                 </div>
-                {/* Financial Impact Assessment */}
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-semibold text-gray-700">Financial Impact Assessment</span>
-                  <span className="text-xs font-bold text-gray-800">Projected Interest Revenue: {"\u20B1"}100,000.00</span>
+              )}
+
+              {Array.isArray(loanDetails.computation.emergencySchedule)
+                && loanDetails.computation.emergencySchedule.length > 0 ? (
+                <div className="bg-white border border-gray-200 rounded-xl p-4">
+                  <h3 className="text-sm font-bold text-[#1D6021] text-center mb-3">
+                    {loanDetails.computation.termMonths}-Month Amortization Schedule
+                  </h3>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="text-gray-500 uppercase tracking-wider text-[10px] border-b border-gray-200">
+                          <th className="py-2 px-2 text-left font-semibold">Month</th>
+                          <th className="py-2 px-2 text-right font-semibold">Starting Balance</th>
+                          <th className="py-2 px-2 text-right font-semibold">Principal</th>
+                          <th className="py-2 px-2 text-right font-semibold">Interest</th>
+                          <th className="py-2 px-2 text-right font-semibold">Total Payment</th>
+                          <th className="py-2 px-2 text-right font-semibold">Remaining Balance</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {loanDetails.computation.emergencySchedule.map((row) => (
+                          <tr key={row.month} className="border-b border-gray-100 last:border-b-0">
+                            <td className="py-2 px-2 font-semibold text-gray-700">{row.month}</td>
+                            <td className="py-2 px-2 text-right text-[#1D6021]">{formatCurrency(row.startingBalance)}</td>
+                            <td className="py-2 px-2 text-right text-gray-800">{formatCurrency(row.principal)}</td>
+                            <td className="py-2 px-2 text-right text-red-600">{formatCurrency(row.interest)}</td>
+                            <td className="py-2 px-2 text-right font-bold text-gray-900">{formatCurrency(row.totalPayment)}</td>
+                            <td className="py-2 px-2 text-right text-[#1D6021]">{formatCurrency(row.remainingBalance)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
-                {/* Recommendation Status */}
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-semibold text-gray-700">Recommendation Status</span>
-                  <span className="px-3 py-1 rounded-full bg-green-100 text-green-700 text-xs font-bold border border-green-200">Highly Recommended</span>
-                </div>
-              </div>
+              ) : null}
             </div>
 
             {/* Supporting Documents */}
-            <div>
+            <div id="section-documents" className="scroll-mt-44">
               <h2 className="flex items-center text-lg font-bold text-gray-800 mb-4">
                 <Paperclip className="w-5 h-5 mr-2 text-[#1D6021]" /> Supporting Documents
               </h2>
@@ -827,35 +953,97 @@ const Treasurer_ApprovalDetails = () => {
               )}
             </div>
           </div>
-
         </div>
 
-        {/* Footer Actions */}
-        <div className="bg-[#F8F9FA] border-t border-gray-200 p-6 flex justify-end gap-4">
-          {isBookkeeperFlow ? (
-            <button 
-              onClick={() => setActiveModal('recommend')}
-              className="flex items-center px-6 py-2.5 rounded-lg bg-[#1D6021] text-white hover:bg-[#154718] font-bold text-sm transition-colors cursor-pointer"
-            >
-              <Check className="w-4 h-4 mr-2" /> Recommend for Approval
-            </button>
-          ) : (
-            <>
-              
-              <button 
-                onClick={() => setActiveModal('reschedule')}
-                className="flex items-center px-6 py-2.5 rounded-lg border border-yellow-200 text-yellow-700 bg-[#FEF9C3] hover:bg-yellow-200 font-bold text-sm transition-colors cursor-pointer"
+        {/* Bookkeeper Internal Review (full-width row) */}
+        <div id="section-notes" className="scroll-mt-44 px-8 pb-8">
+          <h2 className="flex items-center text-lg font-bold text-gray-800 mb-4">
+            <FileEdit className="w-5 h-5 mr-2 text-[#1D6021]" /> Bookkeeper Internal Review
+          </h2>
+          <div className="bg-[#F8F9FA] border border-gray-200 rounded-xl p-5 space-y-4">
+            <div>
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Internal Remarks</p>
+              <p className="text-sm text-gray-700 whitespace-pre-wrap">{loanDetails.summary.bookkeeperInternalRemarks}</p>
+            </div>
+            <div className="border-t border-gray-200 pt-3">
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Manager Approval</p>
+              <p className="text-sm font-semibold text-green-700">{loanDetails.summary.managerApprovalStatus}</p>
+            </div>
+            <div className="border-t border-gray-200 pt-3">
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-3">Co-Makers (Loan Details)</p>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                {(loanDetails.summary.bookkeeperCoMakers || []).map((row, index) => {
+                  const hasValue = String(row.membership_number_id || '').trim()
+                    || String(row.name || '').trim()
+                    || String(row.id_no || '').trim()
+                    || String(row.mobile || '').trim()
+                    || String(row.email || '').trim()
+                    || String(row.address || '').trim();
+
+                  return (
+                    <div key={`treasurer-co-maker-${index}`} className="border border-gray-200 rounded-lg p-3 bg-white">
+                      <p className="text-xs font-bold text-gray-700 mb-2">Co-Maker {index + 1}</p>
+                      {hasValue ? (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs text-gray-700">
+                          <p><span className="font-semibold">Membership No:</span> {row.membership_number_id || 'N/A'}</p>
+                          <p><span className="font-semibold">Name:</span> {row.name || 'N/A'}</p>
+                          <p><span className="font-semibold">ID No:</span> {row.id_no || 'N/A'}</p>
+                          <p><span className="font-semibold">Mobile:</span> {row.mobile || 'N/A'}</p>
+                          <p><span className="font-semibold">Email:</span> {row.email || 'N/A'}</p>
+                          <p className="md:col-span-2"><span className="font-semibold">Address:</span> {row.address || 'N/A'}</p>
+                        </div>
+                      ) : (
+                        <p className="text-xs text-gray-500">No co-maker details provided.</p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+            {loanDetails.summary.bookkeeperReviewedAt ? (
+              <div className="border-t border-gray-200 pt-3">
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Reviewed At</p>
+                <p className="text-sm text-gray-700">{new Date(loanDetails.summary.bookkeeperReviewedAt).toLocaleString()}</p>
+              </div>
+            ) : null}
+          </div>
+        </div>
+      </div>
+      </div>
+
+      {/* STICKY ACTION FOOTER */}
+      <div className="fixed bottom-0 left-0 right-0 z-30 bg-white/95 backdrop-blur border-t border-gray-200 shadow-lg">
+        <div className="px-8 py-3 flex flex-wrap items-center justify-between gap-3">
+          <div className="text-xs text-gray-500 hidden md:block">
+            <span className="font-semibold text-gray-700">{loanDetails.memberName}</span> \u00B7
+            <span className="ml-1 font-mono">{loanDetails.id}</span> \u00B7
+            <span className="ml-1 font-bold text-[#1D6021]">{loanDetails.computation.monthlyAmortization}/mo</span>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 ml-auto">
+            {isBookkeeperFlow ? (
+              <button
+                onClick={() => setActiveModal('recommend')}
+                className="flex items-center px-5 py-2 rounded-lg bg-[#1D6021] text-white hover:bg-[#154718] font-bold text-sm transition-colors"
               >
-                <FileEdit className="w-4 h-4 mr-2" /> Reschedule
+                <Check className="w-4 h-4 mr-2" /> Recommend for Approval
               </button>
-              <button 
-                onClick={() => setActiveModal('disburse')}
-                className="flex items-center px-6 py-2.5 rounded-lg bg-[#1D6021] text-white hover:bg-[#154718] font-bold text-sm transition-colors cursor-pointer"
-              >
-                <Check className="w-4 h-4 mr-2" /> Approve for Disbursement
-              </button>
-            </>
-          )}
+            ) : (
+              <>
+                <button
+                  onClick={() => setActiveModal('reschedule')}
+                  className="flex items-center px-4 py-2 rounded-lg border border-yellow-200 text-yellow-700 bg-[#FEF9C3] hover:bg-yellow-200 font-bold text-sm transition-colors"
+                >
+                  <FileEdit className="w-4 h-4 mr-2" /> Reschedule
+                </button>
+                <button
+                  onClick={() => setActiveModal('disburse')}
+                  className="flex items-center px-5 py-2 rounded-lg bg-[#1D6021] text-white hover:bg-[#154718] font-bold text-sm transition-colors"
+                >
+                  <Check className="w-4 h-4 mr-2" /> Approve for Disbursement
+                </button>
+              </>
+            )}
+          </div>
         </div>
       </div>
 

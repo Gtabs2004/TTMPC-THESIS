@@ -119,9 +119,13 @@ const calculateAmortization = (loan) => {
 
 
   if (loan.loan_type === "emergency") {
-    const factor = Math.pow(1 + monthlyRate, months);
-    const emi = (principal * monthlyRate * factor) / (factor - 1);
-    return roundCurrency(emi);
+    // First-month total payment under the equal-principal / declining-interest
+    // schedule (matches /api/loans/compute and the Emergency_Loan UI).
+    const totalPrincipalCents = Math.round(principal * 100);
+    const monthlyPrincipalCents = Math.round(totalPrincipalCents / months);
+    const endingBalanceCents = totalPrincipalCents - monthlyPrincipalCents;
+    const interestCents = Math.round(endingBalanceCents * monthlyRate);
+    return roundCurrency((monthlyPrincipalCents + interestCents) / 100);
   }
 
 
