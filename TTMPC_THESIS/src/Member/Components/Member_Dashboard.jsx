@@ -5,6 +5,7 @@ import { UserAuth } from "../../contex/AuthContext";
 import { useNotification } from "../../contex/NotificationContext";
 import { supabase } from "../../supabaseClient";
 import { resolveMemberContextFromSessionUser } from "../../utils/sessionIdentity";
+import { useMigsLabel, getMigsBadgeClasses } from "../../hooks/useMigsLabel";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
 import LoanCalculatorModal from "./LoanCalculatorModal";
 import { 
@@ -104,6 +105,8 @@ const MemberDashboard = () => {
   const navigate = useNavigate();
   const { addNotification } = useNotification();
   const [profile, setProfile] = useState(null);
+  const [migsMemberKey, setMigsMemberKey] = useState(null);
+  const { data: migsLabel, status: migsLabelStatus } = useMigsLabel(migsMemberKey);
   const [isCalculatorOpen, setIsCalculatorOpen] = useState(false);
   const [memberLoans, setMemberLoans] = useState([]);
   const [recentTransactions, setRecentTransactions] = useState([]);
@@ -201,6 +204,7 @@ const MemberDashboard = () => {
         setLoadingProfile(true);
         setProfileError('');
 
+        // Sequential — auth + context must resolve before per-member queries.
         const { data: authData, error: authError } = await supabase.auth.getUser();
         if (authError) throw authError;
 
@@ -213,54 +217,40 @@ const MemberDashboard = () => {
         if (!memberId) throw new Error('Please sign in again to load your dashboard.');
 
         const temporaryFlag = Boolean(account?.is_temporary);
+        const membershipId = String(account?.membership_id || memberRow?.membership_number_id || '').trim();
 
-        const { data: profileRow, error: profileFetchError } = await supabase
-          .from('profiles')
-          .select('avatar_url')
-          .eq('id', sessionUser.id)
-          .maybeSingle();
+        // BATCH 1 — independent queries that don't need loanIds yet. Fan out in parallel.
+        const [
+          profileResult,
+          applicationByIdResult,
+          applicationByEmailResult,
+          loansResult,
+          cbuResult,
+          savingsResult,
+        ] = await Promise.all([
+          supabase.from('profiles').select('avatar_url').eq('id', sessionUser.id).maybeSingle(),
+          account?.membership_id
+            ? supabase.from('member_applications').select('*').eq('membership_id', account.membership_id).order('created_at', { ascending: false }).limit(1).maybeSingle()
+            : Promise.resolve({ data: null, error: null }),
+          authEmail
+            ? supabase.from('member_applications').select('*').ilike('email', authEmail).order('created_at', { ascending: false }).limit(1).maybeSingle()
+            : Promise.resolve({ data: null, error: null }),
+          supabase.from('loans').select('control_number, principal_amount, loan_amount, total_interest, monthly_amortization, loan_status, application_date, term').eq('member_id', memberId).order('application_date', { ascending: false }),
+          supabase.from('capital_build_up').select('starting_share_capital, ending_share_capital, capital_added, transaction_date').eq('member_id', memberId).order('transaction_date', { ascending: false }),
+          membershipId
+            ? supabase.from('Savings_Transactions').select('Balance, Savings_Amount, Amount').eq('membership_number_id', membershipId)
+            : Promise.resolve({ data: [], error: null }),
+        ]);
 
-        if (profileFetchError && profileFetchError.code !== 'PGRST116') {
-          throw profileFetchError;
-        }
+        const { data: profileRow, error: profileFetchError } = profileResult;
+        if (profileFetchError && profileFetchError.code !== 'PGRST116') throw profileFetchError;
 
-        let latestApplication = null;
-        if (account?.membership_id) {
-          const { data, error } = await supabase
-            .from('member_applications')
-            .select('*')
-            .eq('membership_id', account.membership_id)
-            .order('created_at', { ascending: false })
-            .limit(1)
-            .maybeSingle();
-          if (!error && data) latestApplication = data;
-        }
+        // Prefer membership_id match; fall back to email match.
+        const latestApplication = applicationByIdResult?.data || applicationByEmailResult?.data || null;
 
-        if (!latestApplication && authEmail) {
-          const { data, error } = await supabase
-            .from('member_applications')
-            .select('*')
-            .ilike('email', authEmail)
-            .order('created_at', { ascending: false })
-            .limit(1)
-            .maybeSingle();
-          if (!error && data) latestApplication = data;
-        }
-
-        const { data: loansData, error: loansError } = await supabase
-          .from('loans')
-          .select('control_number, principal_amount, loan_amount, total_interest, monthly_amortization, loan_status, application_date, term')
-          .eq('member_id', memberId)
-          .order('application_date', { ascending: false });
-
+        const { data: loansData, error: loansError } = loansResult;
         if (loansError) throw loansError;
-
-        const { data: cbuRows, error: cbuError } = await supabase
-          .from('capital_build_up')
-          .select('starting_share_capital, ending_share_capital, capital_added, transaction_date')
-          .eq('member_id', memberId)
-          .order('transaction_date', { ascending: false });
-
+        const { data: cbuRows, error: cbuError } = cbuResult;
         if (cbuError) throw cbuError;
 
         const cbuRow = (cbuRows && cbuRows[0]) || null;
@@ -292,39 +282,41 @@ const MemberDashboard = () => {
           .join(' ')
           .trim() || 'Member';
         const shareCapital = Number.isFinite(shareCapitalBalance) ? shareCapitalBalance : 0;
-        const membershipId = String(account?.membership_id || memberRow?.membership_number_id || '').trim();
 
-        let savingsAccountTotal = 0;
-        if (membershipId) {
-          const { data: savingsRows } = await supabase
-            .from('Savings_Transactions')
-            .select('Balance, Savings_Amount, Amount')
-            .eq('membership_number_id', membershipId);
-
-          savingsAccountTotal = (savingsRows || []).reduce((sum, row) => {
-            const amount = Number(row?.Balance ?? row?.Savings_Amount ?? row?.Amount ?? 0);
-            return sum + (Number.isFinite(amount) ? amount : 0);
-          }, 0);
-        }
+        const savingsAccountTotal = (savingsResult?.data || []).reduce((sum, row) => {
+          const amount = Number(row?.Balance ?? row?.Savings_Amount ?? row?.Amount ?? 0);
+          return sum + (Number.isFinite(amount) ? amount : 0);
+        }, 0);
 
         const loanIds = normalizedLoans
           .map((loan) => String(loan.control_number || '').trim())
           .filter(Boolean);
 
-        let derivedNextDueDate = null;
-        if (loanIds.length) {
-          const { data: scheduleRows } = await supabase
-            .from('loan_schedules')
-            .select('loan_id, due_date, schedule_status, expected_amount')
-            .in('loan_id', loanIds)
-            .order('due_date', { ascending: true });
+        // BATCH 2 — queries that need loanIds and/or are recent-activity only.
+        // Fan out the schedule, savings queue, payment, and avatar fetches together.
+        const [
+          schedulesResult,
+          savingsQueueResult,
+          paymentsResult,
+          resolvedAvatarUrl,
+        ] = await Promise.all([
+          loanIds.length
+            ? supabase.from('loan_schedules').select('loan_id, due_date, schedule_status, expected_amount').in('loan_id', loanIds).order('due_date', { ascending: true })
+            : Promise.resolve({ data: [], error: null }),
+          membershipId
+            ? supabase.from('savings_transaction_queue').select('transaction_id, transaction_type, amount, requested_at, transaction_status').eq('membership_number_id', membershipId).order('requested_at', { ascending: false }).limit(6)
+            : Promise.resolve({ data: [], error: null }),
+          loanIds.length
+            ? supabase.from('loan_payments').select('id, payment_date, amount_paid, penalties, loan_id').in('loan_id', loanIds).order('payment_date', { ascending: false }).limit(6)
+            : Promise.resolve({ data: [], error: null }),
+          resolveAvatarDisplayUrl(profileRow?.avatar_url, sessionUser.id),
+        ]);
 
-          const nextSchedule = (scheduleRows || []).find((row) => {
-            const status = String(row?.schedule_status || '').trim().toLowerCase();
-            return !['paid', 'fully paid', 'completed'].includes(status);
-          });
-          derivedNextDueDate = nextSchedule?.due_date || null;
-        }
+        const nextSchedule = (schedulesResult?.data || []).find((row) => {
+          const statusText = String(row?.schedule_status || '').trim().toLowerCase();
+          return !['paid', 'fully paid', 'completed'].includes(statusText);
+        });
+        const derivedNextDueDate = nextSchedule?.due_date || null;
 
         const transactionRows = [];
         if (shareCapital > 0) {
@@ -340,60 +332,40 @@ const MemberDashboard = () => {
           });
         }
 
-        if (membershipId) {
-          const { data: savingsQueueRows } = await supabase
-            .from('savings_transaction_queue')
-            .select('transaction_id, transaction_type, amount, requested_at, transaction_status')
-            .eq('membership_number_id', membershipId)
-            .order('requested_at', { ascending: false })
-            .limit(6);
-
-          (savingsQueueRows || []).forEach((row) => {
-            const isWithdraw = String(row?.transaction_type || '').toLowerCase() === 'withdraw';
-            const amount = Number(row?.amount || 0);
-            transactionRows.push({
-              id: row?.transaction_id || `savings-${Math.random()}`,
-              timestamp: row?.requested_at,
-              date: formatDate(row?.requested_at),
-              desc: isWithdraw ? 'Savings Withdrawal' : 'Savings Deposit',
-              category: 'SAVINGS',
-              type: 'savings',
-              amount: `${isWithdraw ? '-' : '+'}${formatCurrency(Math.abs(amount)).replace('₱ ', '₱')}`,
-              highlight: !isWithdraw,
-            });
+        (savingsQueueResult?.data || []).forEach((row) => {
+          const isWithdraw = String(row?.transaction_type || '').toLowerCase() === 'withdraw';
+          const amount = Number(row?.amount || 0);
+          transactionRows.push({
+            id: row?.transaction_id || `savings-${Math.random()}`,
+            timestamp: row?.requested_at,
+            date: formatDate(row?.requested_at),
+            desc: isWithdraw ? 'Savings Withdrawal' : 'Savings Deposit',
+            category: 'SAVINGS',
+            type: 'savings',
+            amount: `${isWithdraw ? '-' : '+'}${formatCurrency(Math.abs(amount)).replace('₱ ', '₱')}`,
+            highlight: !isWithdraw,
           });
-        }
+        });
 
-        if (loanIds.length) {
-          const { data: paymentRows } = await supabase
-            .from('loan_payments')
-            .select('id, payment_date, amount_paid, penalties, loan_id')
-            .in('loan_id', loanIds)
-            .order('payment_date', { ascending: false })
-            .limit(6);
-
-          (paymentRows || []).forEach((row) => {
-            const paid = Number(row?.amount_paid || 0);
-            const penalties = Number(row?.penalties || 0);
-            const totalPaid = paid + penalties;
-            transactionRows.push({
-              id: row?.id || `loan-${Math.random()}`,
-              timestamp: row?.payment_date,
-              date: formatDate(row?.payment_date),
-              desc: `Loan Repayment (${row?.loan_id || 'Loan'})`,
-              category: 'LOAN',
-              type: 'loan',
-              amount: `-${formatCurrency(totalPaid).replace('₱ ', '₱')}`,
-              highlight: false,
-            });
+        (paymentsResult?.data || []).forEach((row) => {
+          const paid = Number(row?.amount_paid || 0);
+          const penalties = Number(row?.penalties || 0);
+          const totalPaid = paid + penalties;
+          transactionRows.push({
+            id: row?.id || `loan-${Math.random()}`,
+            timestamp: row?.payment_date,
+            date: formatDate(row?.payment_date),
+            desc: `Loan Repayment (${row?.loan_id || 'Loan'})`,
+            category: 'LOAN',
+            type: 'loan',
+            amount: `-${formatCurrency(totalPaid).replace('₱ ', '₱')}`,
+            highlight: false,
           });
-        }
+        });
 
         const latestTransactions = transactionRows
           .sort((a, b) => new Date(b.timestamp || 0).getTime() - new Date(a.timestamp || 0).getTime())
           .slice(0, 6);
-
-        const resolvedAvatarUrl = await resolveAvatarDisplayUrl(profileRow?.avatar_url, sessionUser.id);
 
         if (isMounted) {
           setProfile({
@@ -402,9 +374,10 @@ const MemberDashboard = () => {
             joinDate: formatDate(memberRow?.date_of_membership || memberRow?.created_at || latestApplication?.created_at),
             memberType: 'Member',
             isActive: true,
-            migsPercent: 95,
             shareCapital,
           });
+          // Trigger MIGS label fetch — endpoint accepts either UUID or membership_id.
+          setMigsMemberKey(memberId || account?.membership_id || memberRow?.id || null);
           setIsTemporaryAccount(temporaryFlag);
           setMemberLoans(normalizedLoans);
           setTotalSavings(savingsAccountTotal);
@@ -767,10 +740,46 @@ const MemberDashboard = () => {
                 <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider text-center">Profile<br/>Updated</p>
               </div>
               <div className="flex flex-col items-center">
-                <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full border-8 border-[#1D6021] flex items-center justify-center mb-3">
-                  <span className="font-extrabold text-gray-900 text-lg">{profile?.migsPercent ?? 0}%</span>
-                </div>
-                <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider text-center">MIGS<br/>Standing</p>
+                {(() => {
+                  const score = migsLabel?.score;
+                  const label = migsLabel?.label;
+                  const isMigs = String(label || '').toLowerCase().startsWith('migs');
+                  const isUnscored = !label || label === 'Unscored';
+                  const ringColor = isUnscored
+                    ? 'border-gray-300'
+                    : (isMigs ? 'border-[#1D6021]' : 'border-rose-600');
+                  return (
+                    <>
+                      <div className={`w-16 h-16 sm:w-20 sm:h-20 rounded-full border-8 ${ringColor} flex items-center justify-center mb-2`}>
+                        {migsLabelStatus === 'loading' ? (
+                          <span className="text-[10px] text-gray-400 font-bold">...</span>
+                        ) : score != null ? (
+                          <span className="font-extrabold text-gray-900 text-lg leading-none">{score}</span>
+                        ) : (
+                          <span className="text-xs text-gray-400 font-bold">—</span>
+                        )}
+                      </div>
+                      <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider text-center">
+                        MIGS<br/>Standing
+                      </p>
+                      {label && !isUnscored && (
+                        <span className={`mt-1.5 inline-flex px-2 py-0.5 rounded text-[9px] font-bold ${getMigsBadgeClasses(label)}`}>
+                          {label}
+                        </span>
+                      )}
+                      {isUnscored && migsLabelStatus === 'unscored' && (
+                        <span className="mt-1.5 inline-flex px-2 py-0.5 rounded text-[9px] font-bold bg-gray-100 text-gray-500 border border-gray-300">
+                          Not yet scored
+                        </span>
+                      )}
+                      {migsLabel?.loan_multiplier && (
+                        <p className="mt-1 text-[9px] text-gray-500">
+                          {migsLabel.loan_multiplier}× loan cap
+                        </p>
+                      )}
+                    </>
+                  );
+                })()}
               </div>
             </div>
 

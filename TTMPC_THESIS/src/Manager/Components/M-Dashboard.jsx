@@ -1,20 +1,22 @@
-﻿import React from "react";
+﻿import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
 import { useNotification } from "../../contex/NotificationContext";
 import { PortalSidebarIdentity, PortalTopbarIdentity } from "../../components/PortalIdentity";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
 import LoanDemandForecastCard from "../../components/LoanDemandForecastCard";
-import { 
-  LayoutDashboard, 
-  Users, 
+import { supabase } from "../../supabaseClient";
+import {
+  LayoutDashboard,
+  Users,
   Search,
   Bell,
   ClipboardCheck,
   CheckCircle,
   Wallet,
   AlertTriangle,
-  ChevronDown
+  ChevronDown,
+  BarChart3,
 } from 'lucide-react';
 import {
   AreaChart,
@@ -27,39 +29,178 @@ import {
   Cell
 } from "recharts";
 
-// --- MOCK DATA FOR CHARTS & TABLE ---
-const trendData = [
-  { name: 'JAN', value: 20 },
-  { name: 'FEB', value: 35 },
-  { name: 'MAR', value: 85 },
-  { name: 'APR', value: 95 },
-  { name: 'MAY', value: 125 },
-  { name: 'JUN', value: 150 },
-];
+const formatCurrency = (value) => {
+  const amount = Number(value || 0);
+  return `₱${amount.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+};
 
-const distributionData = [
-  { name: 'Salary Loans', value: 45, color: '#166534' }, // Dark Green
-  { name: 'Emergency', value: 25, color: '#3b82f6' },    // Blue
-  { name: 'Personal', value: 20, color: '#f59e0b' },     // Orange
-  { name: 'Business', value: 10, color: '#ef4444' },     // Red
-];
+const formatDate = (value) => {
+  if (!value) return '—';
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return '—';
+  return d.toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' });
+};
 
-const recentRequests = [
-  { id: 1, name: "Dr. Elena Rodriguez", type: "Consolidated", amount: "₱60,000", status: "REVIEWING" },
-  { id: 2, name: "Prof. Marcus Chen", type: "Consolidated", amount: "₱100,000", status: "REVIEWING" },
-  { id: 3, name: "Sarah Jenkins", type: "Emergency", amount: "₱25,000", status: "IN PROCESS" },
-];
+const TYPE_COLORS = ['#166534', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'];
 
 const M_Dashboard = () => {
   const { session, signOut } = UserAuth();
   const navigate = useNavigate();
   const { addNotification } = useNotification();
-  
+
+  const [stats, setStats] = useState({
+    pendingApprovals: 0,
+    approvedThisMonth: 0,
+    activeLoans: 0,
+    delinquentRate: 0,
+  });
+  const [trendData, setTrendData] = useState([]);
+  const [distributionData, setDistributionData] = useState([]);
+  const [recentRequests, setRecentRequests] = useState([]);
+  const [loading, setLoading] = useState(true);
+
   const menuItems = [
     { name: "Dashboard", icon: LayoutDashboard },
     { name: "Loan Approval", icon: Users },
     { name: "Manage Member", icon: Users },
+    { name: "Reports", icon: BarChart3 },
   ];
+
+  useEffect(() => {
+    let isMounted = true;
+    const loadDashboard = async () => {
+      setLoading(true);
+      try {
+        const now = new Date();
+        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
+        // 6-month trailing window for the trend chart.
+        const trendStart = new Date(now.getFullYear(), now.getMonth() - 5, 1).toISOString().slice(0, 10);
+
+        // Parallel fetch — five small queries.
+        const [
+          pendingResult,
+          approvedMonthResult,
+          activeLoansResult,
+          recentSixMonthsResult,
+          delinquencyResult,
+        ] = await Promise.all([
+          supabase
+            .from('loans')
+            .select('control_number, loan_amount, application_date, loan_type_id, member:member_id(first_name, last_name), loan_types:loan_type_id(name)', { count: 'exact' })
+            .eq('loan_status', 'recommended for approval')
+            .order('application_date', { ascending: false })
+            .limit(5),
+          supabase
+            .from('loans')
+            .select('control_number', { count: 'exact', head: true })
+            .gte('disbursal_date', monthStart)
+            .in('loan_status', ['released', 'partially paid', 'fully paid']),
+          supabase
+            .from('loans')
+            .select('control_number, loan_type_id, loan_types:loan_type_id(name)')
+            .in('loan_status', ['released', 'partially paid']),
+          supabase
+            .from('loans')
+            .select('application_date, loan_status')
+            .gte('application_date', trendStart)
+            .in('loan_status', ['released', 'partially paid', 'fully paid', 'recommended for approval']),
+          // Delinquency proxy: count active loans where any schedule is overdue.
+          supabase
+            .from('loan_schedules')
+            .select('loan_id, schedule_status')
+            .eq('schedule_status', 'overdue'),
+        ]);
+
+        if (!isMounted) return;
+
+        // KPI 1: pending approvals
+        const pendingCount = pendingResult?.count || (pendingResult?.data || []).length || 0;
+
+        // KPI 2: approved this month
+        const approvedMonth = approvedMonthResult?.count || 0;
+
+        // KPI 3: total active loans + KPI 4 source
+        const activeLoans = activeLoansResult?.data || [];
+        const activeLoanIds = new Set(activeLoans.map((l) => l.control_number));
+
+        // KPI 4: delinquency rate = unique active loans with overdue schedule / total active loans
+        const overdueLoanIds = new Set(
+          (delinquencyResult?.data || [])
+            .map((s) => s.loan_id)
+            .filter((id) => activeLoanIds.has(id))
+        );
+        const delinquentRate = activeLoans.length
+          ? (overdueLoanIds.size / activeLoans.length) * 100
+          : 0;
+
+        setStats({
+          pendingApprovals: pendingCount,
+          approvedThisMonth: approvedMonth,
+          activeLoans: activeLoans.length,
+          delinquentRate,
+        });
+
+        // Distribution chart — group active loans by loan type name
+        const typeCounts = new Map();
+        activeLoans.forEach((l) => {
+          const name = l.loan_types?.name || 'Other';
+          typeCounts.set(name, (typeCounts.get(name) || 0) + 1);
+        });
+        const total = activeLoans.length || 1;
+        const distRows = [...typeCounts.entries()]
+          .sort((a, b) => b[1] - a[1])
+          .map(([name, count], i) => ({
+            name,
+            value: Math.round((count / total) * 100),
+            count,
+            color: TYPE_COLORS[i % TYPE_COLORS.length],
+          }));
+        setDistributionData(distRows);
+
+        // Trend chart — bucket the last 6 months by application_date
+        const buckets = new Map();
+        for (let i = 5; i >= 0; i -= 1) {
+          const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+          const key = d.toLocaleDateString('en-US', { month: 'short' }).toUpperCase();
+          buckets.set(key, 0);
+        }
+        (recentSixMonthsResult?.data || []).forEach((row) => {
+          if (!row.application_date) return;
+          const d = new Date(row.application_date);
+          const key = d.toLocaleDateString('en-US', { month: 'short' }).toUpperCase();
+          if (buckets.has(key)) buckets.set(key, buckets.get(key) + 1);
+        });
+        setTrendData([...buckets.entries()].map(([name, value]) => ({ name, value })));
+
+        // Recent requests — top 5 pending Manager review
+        const recentRows = (pendingResult?.data || []).map((l) => {
+          const firstName = String(l.member?.first_name || '').trim();
+          const lastName = String(l.member?.last_name || '').trim();
+          const name = `${firstName} ${lastName}`.trim() || 'Unknown Member';
+          return {
+            id: l.control_number,
+            name,
+            type: l.loan_types?.name || '—',
+            amount: formatCurrency(l.loan_amount),
+            date: formatDate(l.application_date),
+            status: 'RECOMMENDED',
+          };
+        });
+        setRecentRequests(recentRows);
+      } catch (err) {
+        if (isMounted) {
+          addNotification(err?.message || 'Unable to load dashboard metrics.', 'error');
+        }
+      } finally {
+        if (isMounted) setLoading(false);
+      }
+    };
+    loadDashboard();
+    return () => { isMounted = false; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const totalActive = stats.activeLoans || 0;
 
   const handleSignOut = async (e) => {
     e.preventDefault();
@@ -91,6 +232,7 @@ const M_Dashboard = () => {
               "Dashboard": "/manager-dashboard",
               "Loan Approval": "/loan-approval",
               "Manage Member": "/manager-manage-member",
+              "Reports": "/manager-reports",
             };
 
             return menuItems.map((item) => {
@@ -156,9 +298,9 @@ const M_Dashboard = () => {
               </div>
               <div>
                 <h3 className="text-gray-500 text-sm font-medium">Pending Approvals</h3>
-                <p className="font-bold text-3xl text-gray-800 mt-1">12</p>
-                <p className="text-xs font-medium text-gray-400 mt-2"><span className="text-green-600">+5%</span> from last week</p>
-              </div>  
+                <p className="font-bold text-3xl text-gray-800 mt-1">{loading ? '—' : stats.pendingApprovals}</p>
+                <p className="text-xs font-medium text-gray-400 mt-2">Loans recommended for your approval</p>
+              </div>
             </div>
 
             {/* Card 2 */}
@@ -169,8 +311,8 @@ const M_Dashboard = () => {
               </div>
               <div>
                 <h3 className="text-gray-500 text-sm font-medium">Approved Loans</h3>
-                <p className="font-bold text-3xl text-gray-800 mt-1">30</p>
-                <p className="text-xs font-medium text-gray-400 mt-2"><span className="text-red-500">-2%</span> from last month</p>
+                <p className="font-bold text-3xl text-gray-800 mt-1">{loading ? '—' : stats.approvedThisMonth}</p>
+                <p className="text-xs font-medium text-gray-400 mt-2">Disbursed this month</p>
               </div>
             </div>
 
@@ -182,8 +324,8 @@ const M_Dashboard = () => {
               </div>
               <div>
                 <h3 className="text-gray-500 text-sm font-medium">Total Active Loans</h3>
-                <p className="font-bold text-3xl text-gray-800 mt-1">150</p>
-                <p className="text-xs font-medium text-gray-400 mt-2"><span className="text-green-600">+12%</span> year to date</p>
+                <p className="font-bold text-3xl text-gray-800 mt-1">{loading ? '—' : stats.activeLoans}</p>
+                <p className="text-xs font-medium text-gray-400 mt-2">Released or partially paid</p>
               </div>
             </div>
 
@@ -195,8 +337,8 @@ const M_Dashboard = () => {
               </div>
               <div>
                 <h3 className="text-gray-500 text-sm font-medium">Delinquent Rate</h3>
-                <p className="font-bold text-3xl text-gray-800 mt-1">2.4%</p>
-                <p className="text-xs font-medium text-gray-400 mt-2"><span className="text-green-600">-0.5%</span> improvement</p>
+                <p className="font-bold text-3xl text-gray-800 mt-1">{loading ? '—' : `${stats.delinquentRate.toFixed(1)}%`}</p>
+                <p className="text-xs font-medium text-gray-400 mt-2">Active loans with overdue schedules</p>
               </div>
             </div>
 
@@ -255,22 +397,26 @@ const M_Dashboard = () => {
                 </ResponsiveContainer>
                 {/* Center Text inside Donut */}
                 <div className="absolute flex flex-col items-center justify-center">
-                  <span className="text-2xl font-bold text-gray-800">150</span>
+                  <span className="text-2xl font-bold text-gray-800">{totalActive}</span>
                   <span className="text-[10px] text-gray-400 font-bold tracking-widest">TOTAL</span>
                 </div>
               </div>
 
               {/* Custom Legend */}
               <div className="mt-4 flex flex-col gap-2">
-                {distributionData.map((item, index) => (
-                  <div key={index} className="flex justify-between items-center text-sm">
-                    <div className="flex items-center gap-2">
-                      <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: item.color }}></span>
-                      <span className="text-gray-600">{item.name}</span>
+                {distributionData.length === 0 ? (
+                  <p className="text-xs text-gray-400 italic text-center py-2">No active loans yet</p>
+                ) : (
+                  distributionData.map((item, index) => (
+                    <div key={index} className="flex justify-between items-center text-sm">
+                      <div className="flex items-center gap-2">
+                        <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: item.color }}></span>
+                        <span className="text-gray-600">{item.name}</span>
+                      </div>
+                      <span className="font-bold text-gray-800">{item.value}%</span>
                     </div>
-                    <span className="font-bold text-gray-800">{item.value}%</span>
-                  </div>
-                ))}
+                  ))
+                )}
               </div>
             </div>
 
@@ -279,8 +425,13 @@ const M_Dashboard = () => {
           {/* RECENT REQUESTS TABLE */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
             <div className="p-6 flex justify-between items-center border-b border-gray-100">
-              <h3 className="text-gray-800 font-bold text-lg">Recent Approval Requests</h3>
-              <button className="text-green-700 text-sm font-bold hover:underline">View All</button>
+              <h3 className="text-gray-800 font-bold text-lg">Pending Approval Requests</h3>
+              <button
+                onClick={() => navigate('/loan-approval')}
+                className="text-green-700 text-sm font-bold hover:underline"
+              >
+                View All
+              </button>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
@@ -289,39 +440,53 @@ const M_Dashboard = () => {
                     <th className="p-4 pl-6">MEMBER NAME</th>
                     <th className="p-4">LOAN TYPE</th>
                     <th className="p-4">AMOUNT</th>
+                    <th className="p-4">APPLIED</th>
                     <th className="p-4">STATUS</th>
                     <th className="p-4 pr-6">ACTION</th>
                   </tr>
                 </thead>
                 <tbody className="text-sm">
-                  {recentRequests.map((req) => (
-                    <tr key={req.id} className="table-row-enter border-b border-gray-50 hover:bg-green-50 transition-colors">
-                      <td className="p-4 pl-6 font-bold text-gray-800">{req.name}</td>
-                      <td className="p-4 text-gray-500">{req.type}</td>
-                      <td className="p-4 font-bold text-gray-800">{req.amount}</td>
-                      <td className="p-4">
-                        <span className={`badge-animated px-2.5 py-1 rounded-md text-[10px] font-bold tracking-wider ${
-                          req.status === 'REVIEWING' 
-                            ? 'bg-orange-100 text-orange-600' 
-                            : 'bg-blue-100 text-blue-600'
-                        }`}>
-                          {req.status}
-                        </span>
-                      </td>
-                      <td className="p-4 pr-6">
-                        <button className="btn-enhanced text-green-700 font-bold hover:text-green-800 transition-colors">Approve</button>
+                  {loading ? (
+                    <tr>
+                      <td colSpan={6} className="p-6 text-center text-gray-400 text-sm">Loading approval queue…</td>
+                    </tr>
+                  ) : recentRequests.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="p-6 text-center text-gray-400 text-sm">
+                        No loans waiting for your review. Nice work.
                       </td>
                     </tr>
-                  ))}
+                  ) : (
+                    recentRequests.map((req) => (
+                      <tr
+                        key={req.id}
+                        onClick={() => navigate(`/loan-approval/${encodeURIComponent(req.id)}`)}
+                        className="border-b border-gray-50 hover:bg-green-50 transition-colors cursor-pointer"
+                      >
+                        <td className="p-4 pl-6 font-bold text-gray-800">{req.name}</td>
+                        <td className="p-4 text-gray-500">{req.type}</td>
+                        <td className="p-4 font-bold text-gray-800">{req.amount}</td>
+                        <td className="p-4 text-gray-500 text-xs">{req.date}</td>
+                        <td className="p-4">
+                          <span className="px-2.5 py-1 rounded-md text-[10px] font-bold tracking-wider bg-orange-100 text-orange-600">
+                            {req.status}
+                          </span>
+                        </td>
+                        <td className="p-4 pr-6">
+                          <button
+                            onClick={(e) => { e.stopPropagation(); navigate(`/loan-approval/${encodeURIComponent(req.id)}`); }}
+                            className="text-green-700 font-bold hover:text-green-800 transition-colors"
+                          >
+                            Review
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>
           </div>
-
-          <div className="mt-8">
-            <LoanDemandForecastCard defaultLoanType="consolidated" periods={12} />
-          </div>
-
         </main>
       </div>
     </div>
