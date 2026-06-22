@@ -166,6 +166,32 @@ const Member_Savings = () => {
           .trim();
         const signedAvatarUrl = await loadMemberAvatarSignedUrl(supabase, sessionUser.id);
 
+        // 1. Find this member's savings account(s) in the new schema
+        const { data: savingsAccountRows, error: savingsAccountError } = await supabase
+          .from('savings_accounts')
+          .select('account_number, balance, account_kind, status, account_name')
+          .eq('member_id', memberId);
+
+        if (savingsAccountError) throw savingsAccountError;
+
+        const accountNumbers = (savingsAccountRows || []).map((r) => r.account_number);
+        const totalRegular = (savingsAccountRows || []).reduce((sum, r) => sum + Number(r?.balance || 0), 0);
+
+        // 2. Pull the ledger entries for those accounts
+        let ledgerRows = [];
+        if (accountNumbers.length > 0) {
+          const { data: ledger, error: ledgerError } = await supabase
+            .from('savings_ledger')
+            .select('id, account_number, entry_type, amount, running_balance, reference, source, remarks, posted_at')
+            .in('account_number', accountNumbers)
+            .order('posted_at', { ascending: false });
+
+          if (!ledgerError && Array.isArray(ledger)) {
+            ledgerRows = ledger;
+          }
+        }
+
+        // 3. CBU still relevant for new-system members (post go-live)
         const { data: cbuRows, error: cbuError } = await supabase
           .from('capital_build_up')
           .select('starting_share_capital, ending_share_capital, capital_added, transaction_date')
@@ -173,73 +199,67 @@ const Member_Savings = () => {
           .order('transaction_date', { ascending: false });
 
         if (cbuError) throw cbuError;
-
         const cbuRow = (cbuRows && cbuRows[0]) || null;
-        const openingRegularSavings = cbuRow
-          ? (cbuRow.ending_share_capital !== null && cbuRow.ending_share_capital !== undefined
-              ? Number(cbuRow.ending_share_capital)
-              : (cbuRows || []).reduce((sum, row) => sum + Number(row?.capital_added || 0), 0))
-          : 0;
 
-        let savingsAccounts = [];
-        if (membershipId) {
-          const { data: accountRows, error: accountError } = await supabase
-            .from('Savings_Transactions')
-            .select('Savings_ID, Account_Number, Balance, Savings_Amount, Amount, created_at, membership_number_id')
-            .eq('membership_number_id', membershipId)
-            .order('created_at', { ascending: false });
-
-          if (!accountError && Array.isArray(accountRows)) {
-            savingsAccounts = accountRows;
-          }
-        }
-
-        const computedTimeDeposit = savingsAccounts.reduce((sum, row) => {
-          const balance = Number(row?.Balance ?? row?.Savings_Amount ?? row?.Amount ?? 0);
-          return sum + (Number.isFinite(balance) ? balance : 0);
-        }, 0);
-
+        // 4. Pending/in-flight transactions (queue) - still tracked by membership_id
         let queueRows = [];
         if (membershipId) {
           const { data: queueData, error: queueError } = await supabase
             .from('savings_transaction_queue')
             .select('transaction_id, transaction_type, amount, transaction_status, requested_at')
             .eq('membership_number_id', membershipId)
-            .order('requested_at', { ascending: true });
+            .order('requested_at', { ascending: false });
 
           if (!queueError && Array.isArray(queueData)) {
             queueRows = queueData;
           }
         }
 
-        let runningBalance = openingRegularSavings;
-        const mappedLedger = queueRows.map((row, index) => {
-          const rawAmount = Number(row?.amount || 0);
-          const isWithdraw = String(row?.transaction_type || '').toLowerCase() === 'withdraw';
-          const signedAmount = isWithdraw ? -Math.abs(rawAmount) : Math.abs(rawAmount);
-          runningBalance += signedAmount;
+        // Build the unified ledger view: ledger rows (posted) + queue rows (pending)
+        const mappedLedger = [
+          ...ledgerRows.map((row) => {
+            const isCredit = String(row?.entry_type || '').toLowerCase() === 'credit';
+            const amount = Number(row?.amount || 0);
+            const signed = isCredit ? amount : -amount;
+            return {
+              id: row.id,
+              date: formatDate(row?.posted_at),
+              type: row?.remarks || (isCredit ? 'Savings Deposit' : 'Savings Withdrawal'),
+              typeIcon: isCredit ? 'plus' : 'minus',
+              amount: `${signed >= 0 ? '+' : '-'}${formatCurrency(Math.abs(signed))}`,
+              amountColor: signed >= 0 ? 'text-green-600' : 'text-red-500',
+              balance: formatCurrency(Number(row?.running_balance || 0)),
+              status: 'posted',
+            };
+          }),
+          ...queueRows
+            .filter((row) => String(row?.transaction_status || '').toLowerCase() !== 'validated')
+            .map((row, index) => {
+              const rawAmount = Number(row?.amount || 0);
+              const isWithdraw = String(row?.transaction_type || '').toLowerCase() === 'withdraw';
+              const signedAmount = isWithdraw ? -Math.abs(rawAmount) : Math.abs(rawAmount);
+              return {
+                id: row?.transaction_id || `txn-${index + 1}`,
+                date: formatDate(row?.requested_at),
+                type: `${isWithdraw ? 'Savings Withdrawal' : 'Savings Deposit'} (pending)`,
+                typeIcon: isWithdraw ? 'minus' : 'plus',
+                amount: `${signedAmount >= 0 ? '+' : '-'}${formatCurrency(Math.abs(signedAmount))}`,
+                amountColor: 'text-gray-500',
+                balance: '—',
+                status: String(row?.transaction_status || 'pending_verification'),
+              };
+            }),
+        ];
 
-          return {
-            id: row?.transaction_id || `txn-${index + 1}`,
-            date: formatDate(row?.requested_at),
-            type: isWithdraw ? 'Savings Withdrawal' : 'Savings Deposit',
-            typeIcon: isWithdraw ? 'minus' : 'plus',
-            amount: `${signedAmount >= 0 ? '+' : '-'}${formatCurrency(Math.abs(signedAmount))}`,
-            amountColor: signedAmount >= 0 ? 'text-green-600' : 'text-red-500',
-            balance: formatCurrency(runningBalance),
-            status: String(row?.transaction_status || 'pending_verification'),
-          };
-        }).reverse();
-
-        if (mappedLedger.length === 0) {
+        if (mappedLedger.length === 0 && totalRegular > 0) {
           mappedLedger.push({
             id: 'opening-balance',
             date: formatDate(cbuRow?.transaction_date),
-            type: 'Opening Share Capital',
+            type: 'Opening Balance',
             typeIcon: 'trend',
-            amount: `+${formatCurrency(openingRegularSavings)}`,
+            amount: `+${formatCurrency(totalRegular)}`,
             amountColor: 'text-green-600',
-            balance: formatCurrency(openingRegularSavings),
+            balance: formatCurrency(totalRegular),
             status: 'posted',
           });
         }
@@ -247,8 +267,8 @@ const Member_Savings = () => {
         if (isMounted) {
           setMemberLabel(fullName || 'Member');
           setAvatarUrl(signedAvatarUrl || '');
-          setRegularSavings(openingRegularSavings);
-          setTimeDeposit(computedTimeDeposit);
+          setRegularSavings(totalRegular);
+          setTimeDeposit(0);
           setLedgerData(mappedLedger);
         }
       } catch (err) {

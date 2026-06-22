@@ -40,6 +40,9 @@ const ALLOWED_TYPES = ["consolidated", "emergency", "bonus"];
 const formatCurrency = (value) =>
   `₱${Number(value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
+const formatCurrencyPdf = (value) =>
+  `PHP ${Number(value || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
 const formatDate = (value) => {
   if (!value) return "N/A";
   const d = new Date(value);
@@ -249,7 +252,7 @@ const Member_StatementOfAccount = () => {
     doc.setFont("helvetica", "bold");
     doc.setFontSize(16);
     doc.setTextColor(29, 96, 33);
-    doc.text("TTMPC — Statement of Account", 40, 50);
+    doc.text("TTMPC - Statement of Account", 40, 50);
 
     doc.setFont("helvetica", "normal");
     doc.setFontSize(10);
@@ -277,27 +280,16 @@ const Member_StatementOfAccount = () => {
       ]],
       body: rows.map((r) => [
         formatDate(r.payment_date),
-        r.reference_id || "—",
-        formatCurrency(r.principal_paid),
-        formatCurrency(r.interest_paid),
-        formatCurrency(r.deficiency),
-        formatCurrency(r.penalty),
-        formatCurrency(r.total_amount_paid),
-        formatCurrency(r.outstanding_balance),
+        r.reference_id || "-",
+        formatCurrencyPdf(r.principal_paid),
+        formatCurrencyPdf(r.interest_paid),
+        formatCurrencyPdf(r.deficiency),
+        formatCurrencyPdf(r.penalty),
+        formatCurrencyPdf(r.total_amount_paid),
+        formatCurrencyPdf(r.outstanding_balance),
       ]),
-      foot: [[
-        "TOTALS",
-        "",
-        formatCurrency(totals.principal),
-        formatCurrency(totals.interest),
-        formatCurrency(totals.deficiency),
-        formatCurrency(totals.penalty),
-        formatCurrency(totals.paid),
-        "",
-      ]],
       styles: { fontSize: 9, cellPadding: 6, overflow: "linebreak", valign: "middle" },
       headStyles: { fillColor: [29, 96, 33], textColor: 255, fontStyle: "bold" },
-      footStyles: { fillColor: [234, 241, 235], textColor: [29, 96, 33], fontStyle: "bold" },
       alternateRowStyles: { fillColor: [250, 249, 251] },
       columnStyles: {
         0: { cellWidth: 80 },
@@ -310,6 +302,53 @@ const Member_StatementOfAccount = () => {
         7: { halign: "right" },
       },
       margin: { left: 40, right: 40 },
+    });
+
+    // ===== TOTALS SECTION (rule + label + stacked figures on the right) =====
+    const totalsGap = 22;                    // gap below table before the rule
+    const sidePadding = 40;                  // page-edge padding (matches table margin)
+    const totalsLabelX = 50;                 // x-position of "TOTALS" label
+    const rightFigureRightPad = 50;          // distance from right edge to the right-aligned figures
+    const totalsFontSize = 11;
+    const lineSpacing = 16;                  // gap between stacked figures
+
+    const ruleY = doc.lastAutoTable.finalY + totalsGap;
+    const totalsY = ruleY + 18;              // first text line, below the rule
+
+    // Latest outstanding balance comes from the most recent payment row
+    const sortedRows = [...rows].sort((a, b) =>
+      String(a.payment_date).localeCompare(String(b.payment_date))
+    );
+    const latestBalance = Number(sortedRows[sortedRows.length - 1]?.outstanding_balance || 0);
+
+    // Horizontal rule above the totals
+    doc.setDrawColor(180, 180, 180);
+    doc.setLineWidth(0.75);
+    doc.line(sidePadding, ruleY, pageWidth - sidePadding, ruleY);
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(totalsFontSize);
+    doc.setTextColor(29, 96, 33);
+
+    // Left label
+    doc.text("TOTALS", totalsLabelX, totalsY);
+
+    // Right-stacked figures (top -> bottom)
+    const totalsLines = [
+      `Total Principal: ${formatCurrencyPdf(totals.principal)}`,
+      `Total Interest: ${formatCurrencyPdf(totals.interest)}`,
+      `Total Penalty: ${formatCurrencyPdf(totals.penalty)}`,
+      `Total Deficiency: ${formatCurrencyPdf(totals.deficiency)}`,
+      `Total Amount Paid: ${formatCurrencyPdf(totals.paid)}`,
+      `Outstanding Balance: ${formatCurrencyPdf(latestBalance)}`,
+    ];
+    totalsLines.forEach((line, i) => {
+      doc.text(
+        line,
+        pageWidth - rightFigureRightPad,
+        totalsY + i * lineSpacing,
+        { align: "right" }
+      );
     });
 
     const safeName = (memberLabel || "member").replace(/[^a-z0-9]+/gi, "_");
@@ -615,7 +654,13 @@ const Member_StatementOfAccount = () => {
                           <td className="px-6 py-4 text-sm font-black text-right">{formatCurrency(totals.deficiency)}</td>
                           <td className="px-6 py-4 text-sm font-black text-right">{formatCurrency(totals.penalty)}</td>
                           <td className="px-6 py-4 text-sm font-black text-right">{formatCurrency(totals.paid)}</td>
-                          <td className="px-6 py-4"></td>
+                          <td className="px-6 py-4 text-sm font-black text-right">
+                            {formatCurrency(
+                              [...rows].sort((a, b) =>
+                                String(a.payment_date).localeCompare(String(b.payment_date))
+                              )[rows.length - 1]?.outstanding_balance || 0
+                            )}
+                          </td>
                         </tr>
                       </tfoot>
                     ) : null}
