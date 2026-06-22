@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python TTMPC_THESIS/src/server/migration/_check_savings.py TTMPC-212)"
+    ]
+  }
+}
