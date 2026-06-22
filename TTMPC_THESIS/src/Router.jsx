@@ -80,6 +80,8 @@ import Cashier_Grocery from "./Cashier/Components/Cashier_Grocery";
 import BOD_Manage_Loans from "./BOD/Components/Manage-Loans";
 import BOD_Loan_Policies from "./BOD/Components/Loan-Policies";
 import MIGSDetails from "./Bookkeeper/Components/MIGS-Details";
+import Conso_Choice from "./Index_Pages/conso_choice";
+import Consolidated_Up from"./LOANFORMS/Consolidated_Up";
 
 
 
@@ -176,4 +178,6 @@ export const router = createBrowserRouter([
     {path: "/grocery", element:<Grocery/>},
     {path: "/grocery-ledger", element:<Grocery_Ledger/>},
     {path: "/Cashier_Grocery", element:<Cashier_Grocery/>},
+    {path:"/conso_choice", element:<Conso_Choice/>},
+    {path:"/Consolidated_Up", element:<Consolidated_Up/>},
 ]);

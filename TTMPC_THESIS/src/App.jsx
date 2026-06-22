@@ -221,7 +221,7 @@ function App() {
             <ul className="flex items-center gap-8 text-sm font-semibold text-gray-600">
               <li><Link to="/" className="hover:text-[#66B539] transition-colors">Home</Link></li>
               <li><a href="#about" className="hover:text-[#66B539] transition-colors">About</a></li>
-              <li><a href="#features" className="hover:text-[#66B539] transition-colors">Features</a></li>
+              <li><Link to="loan_services" className="hover:text-[#66B539] transition-colors">Features</Link></li>
               <li><a href="#contact" className="hover:text-[#66B539] transition-colors">Contact</a></li>
             </ul>
             <div className="flex items-center gap-6 ml-8 pl-8 border-l border-gray-200 h-8">
