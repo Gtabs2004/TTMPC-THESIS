@@ -52,6 +52,7 @@ const M_Dashboard = () => {
     pendingApprovals: 0,
     approvedThisMonth: 0,
     activeLoans: 0,
+    totalLoans: 0,
     delinquentRate: 0,
   });
   const [trendData, setTrendData] = useState([]);
@@ -81,6 +82,8 @@ const M_Dashboard = () => {
           pendingResult,
           approvedMonthResult,
           activeLoansResult,
+          totalLoansResult,
+          loanTypesResult,
           recentSixMonthsResult,
           delinquencyResult,
         ] = await Promise.all([
@@ -97,8 +100,16 @@ const M_Dashboard = () => {
             .in('loan_status', ['released', 'partially paid', 'fully paid']),
           supabase
             .from('loans')
-            .select('control_number, loan_type_id, loan_types:loan_type_id(name)')
-            .in('loan_status', ['released', 'partially paid']),
+            .select('control_number, loan_type_id, loan_types:loan_type_id(name)', { count: 'exact' })
+            .in('loan_status', ['released', 'partially paid'])
+            .limit(10000),
+          supabase
+            .from('loans')
+            .select('control_number, loan_type_id', { count: 'exact' })
+            .limit(10000),
+          supabase
+            .from('loan_types')
+            .select('id, name'),
           supabase
             .from('loans')
             .select('application_date, loan_status')
@@ -121,7 +132,10 @@ const M_Dashboard = () => {
 
         // KPI 3: total active loans + KPI 4 source
         const activeLoans = activeLoansResult?.data || [];
+        const activeLoansCount = activeLoansResult?.count ?? activeLoans.length;
         const activeLoanIds = new Set(activeLoans.map((l) => l.control_number));
+        const allLoans = totalLoansResult?.data || [];
+        const totalLoansCount = totalLoansResult?.count ?? allLoans.length;
 
         // KPI 4: delinquency rate = unique active loans with overdue schedule / total active loans
         const overdueLoanIds = new Set(
@@ -129,24 +143,28 @@ const M_Dashboard = () => {
             .map((s) => s.loan_id)
             .filter((id) => activeLoanIds.has(id))
         );
-        const delinquentRate = activeLoans.length
-          ? (overdueLoanIds.size / activeLoans.length) * 100
+        const delinquentRate = activeLoansCount
+          ? (overdueLoanIds.size / activeLoansCount) * 100
           : 0;
 
         setStats({
           pendingApprovals: pendingCount,
           approvedThisMonth: approvedMonth,
-          activeLoans: activeLoans.length,
+          activeLoans: activeLoansCount,
+          totalLoans: totalLoansCount,
           delinquentRate,
         });
 
-        // Distribution chart — group active loans by loan type name
+        // Distribution chart — group all loans on file by loan type name
+        const typeNameById = new Map(
+          (loanTypesResult?.data || []).map((t) => [t.id, t.name])
+        );
         const typeCounts = new Map();
-        activeLoans.forEach((l) => {
-          const name = l.loan_types?.name || 'Other';
+        allLoans.forEach((l) => {
+          const name = typeNameById.get(l.loan_type_id) || 'Other';
           typeCounts.set(name, (typeCounts.get(name) || 0) + 1);
         });
-        const total = activeLoans.length || 1;
+        const total = allLoans.length || 1;
         const distRows = [...typeCounts.entries()]
           .sort((a, b) => b[1] - a[1])
           .map(([name, count], i) => ({
@@ -200,7 +218,7 @@ const M_Dashboard = () => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const totalActive = stats.activeLoans || 0;
+  const totalActive = stats.totalLoans || 0;
 
   const handleSignOut = async (e) => {
     e.preventDefault();
@@ -323,9 +341,11 @@ const M_Dashboard = () => {
                 <span className="bg-blue-50 text-blue-600 rounded-full px-3 py-1 text-xs font-bold">Total Portfolio</span>
               </div>
               <div>
-                <h3 className="text-gray-500 text-sm font-medium">Total Active Loans</h3>
-                <p className="font-bold text-3xl text-gray-800 mt-1">{loading ? '—' : stats.activeLoans}</p>
-                <p className="text-xs font-medium text-gray-400 mt-2">Released or partially paid</p>
+                <h3 className="text-gray-500 text-sm font-medium">Total Loans on File</h3>
+                <p className="font-bold text-3xl text-gray-800 mt-1">{loading ? '—' : stats.totalLoans}</p>
+                <p className="text-xs font-medium text-gray-400 mt-2">
+                  {loading ? 'Loading…' : `${stats.activeLoans} active (released or partially paid)`}
+                </p>
               </div>
             </div>
 
