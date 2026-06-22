@@ -44,7 +44,7 @@ const Loan_Services = () => {
 
         <div className="flex flex-col sm:flex-row gap-6 mt-4 w-full max-w-2xl justify-center items-center">
           <Link
-            to="/Consolidated_Loan"
+            to="/conso_choice"
             className="bg-white h-48 w-full sm:w-48 md:h-56 md:w-56 rounded-2xl flex flex-col items-center justify-center cursor-pointer shadow-sm border border-slate-100 hover:shadow-lg hover:border-[#A0D284] transition-all group"
           >
             <div className="bg-blue-50 p-5 rounded-full mb-4 group-hover:scale-110 transition-transform duration-300">

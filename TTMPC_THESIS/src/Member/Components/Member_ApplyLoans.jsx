@@ -30,7 +30,7 @@ const selectorOptions = [
   {
     key: "consolidated",
     label: "Consolidated Loan",
-    path: "/Consolidated_Loan",
+    path: "/conso_choice",
     icon: Library,
     tone: "bg-blue-50 text-blue-600",
   },

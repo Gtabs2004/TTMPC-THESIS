@@ -123,6 +123,7 @@ const MemberDashboard = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const fileInputRef = useRef(null);
+  const [memberLabel, setMemberLabel] = useState('Member');
 
   const menuItems = [
     { name: "Dashboard", icon: LayoutDashboard },
@@ -587,53 +588,53 @@ const MemberDashboard = () => {
    
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col overflow-hidden lg:ml-64">
-        {/* Header */}
-        <header className="bg-white dark:bg-gray-900 h-16 shadow-sm flex items-center justify-between px-4 sm:px-6 lg:px-8 z-10 border-b border-gray-100 dark:border-gray-800">
-          <div className="flex items-center gap-2 sm:gap-3">
-            <button
-              aria-label="Open sidebar"
-              onClick={() => setIsSidebarOpen(true)}
-              className="rounded-md p-2 text-gray-600 hover:bg-gray-100 lg:hidden"
-            >
-              <Menu className="h-5 w-5" />
-            </button>
-            <h1 className="text-base sm:text-lg font-extrabold text-[#1a4a2f] dark:text-green-400 lg:hidden">Dashboard</h1>
-          </div>
-
-          <div className="flex items-center gap-2 sm:gap-4">
-          <div className="relative hidden md:block">
-            <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400"/>
-            <input 
-              type="text" 
-              className="bg-gray-50 dark:bg-gray-800 w-64 h-10 rounded-full border border-gray-200 dark:border-gray-700 pl-10 pr-4 py-1 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#1D6021] focus:bg-white dark:focus:bg-gray-800 transition-all"
-              placeholder="Search..."
-            />
-          </div>
-          <LoanNotificationBell role="member" accentClass="bg-[#1D6021]" />
-
-          <button
-            onClick={() => setIsSettingsOpen(true)}
-            className="p-2 rounded-md text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-            aria-label="Open settings"
-          >
-            <Settings className="w-5 h-5" />
-          </button>
-
-          <div className="flex items-center gap-2 sm:gap-3 border-l border-gray-200 dark:border-gray-700 pl-2 sm:pl-4 cursor-pointer">
-            <div className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 overflow-hidden border border-gray-300 dark:border-gray-600">
-              {avatarUrl ? (
-                <img src={avatarUrl} alt="Profile" className="w-full h-full object-cover" />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400">
-                  <User className="w-4 h-4" />
+              {/* Header */}
+              <header className="bg-white dark:bg-gray-900 h-16 shadow-sm flex items-center justify-between px-4 sm:px-6 lg:px-8 z-10 border-b border-gray-100 dark:border-gray-800">
+                <div className="flex items-center gap-2 sm:gap-3">
+                  <button
+                    aria-label="Open sidebar"
+                    onClick={() => setIsSidebarOpen(true)}
+                    className="rounded-md p-2 text-gray-600 hover:bg-gray-100 lg:hidden"
+                  >
+                    <Menu className="h-5 w-5" />
+                  </button>
+                  <h1 className="text-base sm:text-lg font-extrabold text-[#1a4a2f] dark:text-green-400 lg:hidden">Loans</h1>
                 </div>
-              )}
-            </div>
-            <p className="hidden sm:block text-sm font-bold text-gray-700 dark:text-gray-200">{profile?.fullName || 'Member'}</p>
-          </div>
-          </div>
-        </header>
-   
+      
+                <div className="flex items-center gap-2 sm:gap-4">
+                <div className="relative hidden md:block">
+                  <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400"/>
+                  <input 
+                    type="text" 
+                    className="bg-gray-50 dark:bg-gray-800 w-64 h-10 rounded-full border border-gray-200 dark:border-gray-700 pl-10 pr-4 py-1 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#1D6021] focus:bg-white dark:focus:bg-gray-800 transition-all"
+                    placeholder="Search..."
+                  />
+                </div>
+                <LoanNotificationBell role="member" accentClass="bg-[#1D6021]" />
+      
+                <button
+                  onClick={() => setIsSettingsOpen(true)}
+                  className="p-2 rounded-md text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                  aria-label="Open settings"
+                >
+                  <Settings className="w-5 h-5" />
+                </button>
+      
+                <div className="flex items-center gap-2 sm:gap-3 border-l border-gray-200 dark:border-gray-700 pl-2 sm:pl-4 cursor-pointer">
+                  <div className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 overflow-hidden border border-gray-300 dark:border-gray-600">
+                    {avatarUrl ? (
+                      <img src={avatarUrl} alt="Member Profile" className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400">
+                        <User className="w-4 h-4" />
+                      </div>
+                    )}
+                  </div>
+                  <p className="hidden sm:block text-sm font-bold text-gray-700 dark:text-gray-200">{memberLabel}</p>
+                </div>
+                </div>
+              </header>
+         
         {/* Scrollable Main */}
         <main className="p-4 sm:p-6 lg:p-8 overflow-y-auto pb-28 lg:pb-0">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
