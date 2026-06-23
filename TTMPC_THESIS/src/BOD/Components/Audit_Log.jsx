@@ -9,6 +9,7 @@ import {
   Users,
   CreditCard,
   CalendarCheck,
+  CalendarDays,
   Archive,
   FileText,
   AlertTriangle,

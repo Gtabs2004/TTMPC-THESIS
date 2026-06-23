@@ -3,18 +3,19 @@ import { useNavigate, NavLink } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
 import { useNotification } from "../../contex/NotificationContext";
 import { PortalSidebarIdentity, PortalTopbarIdentity } from "../../components/PortalIdentity";
-import { 
-  LayoutDashboard, 
-  Users, 
-  FileText, 
-  CreditCard, 
-  Calculator, 
-  Activity, 
-  BarChart3, 
+import {
+  LayoutDashboard,
+  Users,
+  FileText,
+  CreditCard,
+  Calculator,
+  Activity,
+  BarChart3,
   History,
   Search,
   Bell,
   CalendarCheck,
+  CalendarDays,
   Eye,
   ChevronLeft,
   ChevronRight,
@@ -22,6 +23,7 @@ import {
   Download,
   Archive,
   AlertTriangle,
+  ShieldCheck,
   X as CloseIcon,
 } from 'lucide-react';
 import logo from "../../assets/img/ttmpc logo.png";
@@ -84,25 +86,28 @@ const Secretary_Records = () => {
     }
   };
   
-  const menuItems = [
-    {
-      section: "BOD",
-      items: [
-        { name: "Dashboard", icon: LayoutDashboard },
-        { name: "Member Approvals", icon: Users },
-        { name: "Manage Loans", icon: CreditCard },
-        { name: "Manage Member", icon: Users },
-        { name: "Loan Policies", icon: FileText }
-      ]
-    },
-    {
-      section: "SECRETARY",
-      items: [
-        { name: "Training Attendance", icon: CalendarCheck },
-        { name: "Membership Records", icon: Archive  }
-      ]
-    }
-  ];
+   const menuItems = [
+      {
+        section: "BOD",
+        items: [
+          { name: "Dashboard", icon: LayoutDashboard },
+          { name: "Member Approvals", icon: Users },
+          { name: "Loan Approvals", icon: ShieldCheck },
+          { name: "Manage Loans", icon: CreditCard },
+          { name: "Manage Member", icon: Users },
+          { name: "Termination Inbox", icon: AlertTriangle },
+          { name: "Loan Policies", icon: FileText },
+        ],
+      },
+      {
+        section: "SECRETARY",
+        items: [
+          { name: "Training Attendance", icon: CalendarCheck },
+          { name: "General Assembly", icon: CalendarDays },
+          { name: "Membership Records", icon: Archive },
+        ],
+      },
+    ];
   
   const handleSignOut = async (e) => {
     e.preventDefault();
@@ -182,15 +187,18 @@ const Secretary_Records = () => {
 
         <nav className="flex flex-col gap-2 text-sm flex-grow">
           {(() => {
-            const routeMap = {
-              "Dashboard": "/BOD-dashboard",
-              "Member Approvals": "/member-approvals",
-              "Manage Loans": "/bod-manage-loans",
-              "Manage Member": "/bod-manage-member",
-              "Loan Policies": "/bod-loan-policies",
-              "Training Attendance": "/Secretary_Attendance",
-              "Membership Records": "/Secretary_Records"
-            };
+             const routeMap = {
+    "Dashboard": "/BOD-dashboard",
+    "Member Approvals": "/member-approvals",
+    "Loan Approvals": "/bod-loan-approvals",
+    "Manage Loans": "/bod-manage-loans",
+    "Manage Member": "/bod-manage-member",
+    "Termination Inbox": "/bod-termination-inbox",
+    "Loan Policies": "/bod-loan-policies",
+    "Training Attendance": "/Secretary_Attendance",
+    "General Assembly": "/Secretary_General_Assembly",
+    "Membership Records": "/Secretary_Records",
+  };
         
             return menuItems.map((sectionGroup) => (
               <div key={sectionGroup.section} className="mb-4 flex flex-col gap-2">

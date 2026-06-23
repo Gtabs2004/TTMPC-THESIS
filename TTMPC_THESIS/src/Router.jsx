@@ -93,6 +93,7 @@ import Consolidated_Up from"./LOANFORMS/Consolidated_Up";
 
 
 
+
 export const router = createBrowserRouter([
     {path: "/", element: <App/>},
     {path: "/Bonus_Loan", element: <Bonus_Loan/>},
@@ -158,7 +159,7 @@ export const router = createBrowserRouter([
     {path: "/add_savings", element:<Add_Savings/>},
     {path: "/Savings_Details/:id", element:<Savings_Details/>},
     {path: "/Secretary_Attendance", element:<Secretary_Attendance/>},
-    {path: "/secretary-general-assembly", element:<Secretary_General_Assembly/>},
+    {path: "/Secretary_General_Assembly", element:<Secretary_General_Assembly/>},
     {path: "/Secretary_Records", element:<Secretary_Records/>},
     {path: "/bod-manage-member", element:<BOD_Manage_Member/>},
     {path: "/bod-termination-inbox", element:<Termination_Inbox/>},
@@ -195,4 +196,5 @@ export const router = createBrowserRouter([
     {path: "/Cashier_Grocery", element:<Cashier_Grocery/>},
     {path:"/conso_choice", element:<Conso_Choice/>},
     {path:"/Consolidated_Up", element:<Consolidated_Up/>},
+    
 ]);
