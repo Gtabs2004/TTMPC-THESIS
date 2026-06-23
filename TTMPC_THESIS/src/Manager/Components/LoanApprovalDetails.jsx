@@ -89,7 +89,12 @@ const LoanApprovalDetails = () => {
   const sourceParam = new URLSearchParams(location.search).get('source');
   const isKoicaSource = sourceParam === 'koica';
   const isBookkeeperFlow = location.pathname.startsWith('/bookkeeper-loan-approval');
-  const backRoute = isBookkeeperFlow ? '/bookkeeper-loan-approval' : '/loan-approval';
+  const isBodFlow = location.pathname.startsWith('/bod-loan-approval');
+  const backRoute = isBookkeeperFlow
+    ? '/bookkeeper-loan-approval'
+    : isBodFlow
+    ? '/bod-loan-approvals'
+    : '/loan-approval';
 
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
@@ -104,6 +109,11 @@ const LoanApprovalDetails = () => {
   const [coMakerMemberLoading, setCoMakerMemberLoading] = useState(false);
   const [sendSms, setSendSms] = useState(true);
   const [sendEmail, setSendEmail] = useState(true);
+  // BOD-specific approval inputs
+  const [bodResolutionNo, setBodResolutionNo] = useState('');
+  const [bodResolutionDate, setBodResolutionDate] = useState('');
+  const [bodSignedForm, setBodSignedForm] = useState(null);
+  const [bodRemarks, setBodRemarks] = useState('');
   const [loanDetails, setLoanDetails] = useState(null);
   const [borrowerMemberId, setBorrowerMemberId] = useState(null);
   const { data: migsLabel, status: migsStatusFetch } = useMigsLabel(borrowerMemberId);
@@ -458,6 +468,7 @@ const LoanApprovalDetails = () => {
           summary: {
             loanType: resolvedLoanType,
             recommendedAmount: formatCurrency(data.loan_amount),
+            recommendedAmountRaw: Number(data.loan_amount || 0),
             term: `${data.term || 0} Months`,
             // Legacy fallback only; the live MIGS label from useMigsLabel is preferred in the UI.
             migsStatus: isKoicaSource ? 'N/A' : (data.member?.is_bona_fide ? 'MIGS' : 'NON-MIGS'),
@@ -881,6 +892,75 @@ const LoanApprovalDetails = () => {
     }
   };
 
+  const applyBodDecision = async (decision) => {
+    if (!loanDetails?.id) return;
+    setActionError('');
+
+    if (decision === 'approve') {
+      if (!bodResolutionNo.trim()) { setActionError('Board Resolution No. is required.'); return; }
+      if (!bodResolutionDate) { setActionError('Resolution date is required.'); return; }
+      if (!bodSignedForm) { setActionError('Signed BOD form is required.'); return; }
+    } else if (decision === 'reject') {
+      if (!bodRemarks.trim()) { setActionError('Rejection reason is required.'); return; }
+    }
+
+    try {
+      setSaving(true);
+
+      let signedPath = null;
+      if (decision === 'approve' && bodSignedForm) {
+        const safe = String(bodSignedForm.name || 'file').replace(/[^a-zA-Z0-9._-]+/g, '_');
+        const path = `bod_resolution/${loanDetails.id}_${Date.now()}_${safe}`;
+        const { error: upErr } = await supabase.storage
+          .from('Supporting_Documents')
+          .upload(path, bodSignedForm, { upsert: false, contentType: bodSignedForm.type });
+        if (upErr) throw new Error(upErr.message || 'Upload failed.');
+        signedPath = path;
+      }
+
+      const { data: { user } = {} } = await supabase.auth.getUser();
+      const nowIso = new Date().toISOString();
+      const bodPayload = {
+        decision: decision === 'approve' ? 'approved' : 'rejected',
+        resolution_no: bodResolutionNo || null,
+        resolution_date: bodResolutionDate || null,
+        signed_form_path: signedPath,
+        remarks: bodRemarks.trim() || null,
+        decided_by: user?.id || null,
+        decided_at: nowIso,
+      };
+
+      const nextStatus = decision === 'approve' ? 'recommended for approval' : 'bod rejected';
+      const { data: updatedRows, error } = await supabase
+        .from(loanDetails.sourceTable || 'loans')
+        .update({
+          loan_status: nextStatus,
+          application_status: nextStatus,
+          bod_approval_payload: bodPayload,
+        })
+        .eq('control_number', loanDetails.id)
+        .select('control_number, loan_status');
+      if (error) throw error;
+      if (!updatedRows || updatedRows.length === 0) {
+        throw new Error(
+          'The loan was not updated. Your account may not have permission to update loans. '
+          + 'Run the bod_loan_update_policy.sql migration so the BOD role can write to loans.'
+        );
+      }
+
+      setActiveModal(null);
+      setBodResolutionNo('');
+      setBodResolutionDate('');
+      setBodSignedForm(null);
+      setBodRemarks('');
+      navigate('/bod-loan-approvals');
+    } catch (err) {
+      setActionError(err?.message || 'Failed to submit BOD decision.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const applyLoanStatusUpdate = async (modalType) => {
     if (!loanDetails?.id) return;
 
@@ -906,7 +986,21 @@ const LoanApprovalDetails = () => {
     }
 
     let nextStatus = 'pending';
-    if (isBookkeeperFlow && modalType === 'recommend') nextStatus = 'recommended for approval';
+    if (isBookkeeperFlow && modalType === 'recommend') {
+      // Consolidated loans above ₱500K need BOD approval before going to the Manager.
+      const isConsolidated = String(loanDetails.summary?.loanType || '').toLowerCase().includes('consolidated');
+      const rawAmount = Number(
+        loanDetails.summary?.recommendedAmountRaw
+        ?? loanDetails.rawPayload?.loan_amount
+        ?? String(loanDetails.summary?.recommendedAmount || '').replace(/[^0-9.]/g, '')
+        ?? 0
+      );
+      if (isConsolidated && rawAmount > 500000) {
+        nextStatus = 'recommended for bod approval';
+      } else {
+        nextStatus = 'recommended for approval';
+      }
+    }
     if (!isBookkeeperFlow && modalType === 'proceed') nextStatus = 'to be disbursed';
     if (!isBookkeeperFlow && modalType === 'reject') nextStatus = 'rejected';
     if (!isBookkeeperFlow && modalType === 'revise') nextStatus = 'revision_requested';
@@ -1070,23 +1164,41 @@ const LoanApprovalDetails = () => {
 
   // ---- Workflow step derivation ----
   const statusLower = String(loanDetails.status || '').toLowerCase();
-  const workflowSteps = [
-    { key: 'bookkeeper', label: 'Bookkeeper Review', icon: ClipboardCheck },
-    { key: 'manager',    label: 'Manager Approval',  icon: Briefcase },
-    { key: 'treasurer',  label: 'Treasurer Review',  icon: Wallet },
-    { key: 'disburse',   label: 'Disbursement',      icon: Banknote },
-  ];
+  const loanAmountValue = Number(loanDetails.summary?.recommendedAmountRaw || 0);
+  const loanTypeLower = String(loanDetails.summary?.loanType || '').toLowerCase();
+  const requiresBodStep = loanTypeLower.includes('consolidated') && loanAmountValue > 500000;
+
+  const workflowSteps = requiresBodStep
+    ? [
+        { key: 'bookkeeper', label: 'Bookkeeper Review', icon: ClipboardCheck },
+        { key: 'bod',        label: 'BOD Approval',      icon: ShieldCheck },
+        { key: 'manager',    label: 'Manager Approval',  icon: Briefcase },
+        { key: 'treasurer',  label: 'Treasurer Review',  icon: Wallet },
+        { key: 'disburse',   label: 'Disbursement',      icon: Banknote },
+      ]
+    : [
+        { key: 'bookkeeper', label: 'Bookkeeper Review', icon: ClipboardCheck },
+        { key: 'manager',    label: 'Manager Approval',  icon: Briefcase },
+        { key: 'treasurer',  label: 'Treasurer Review',  icon: Wallet },
+        { key: 'disburse',   label: 'Disbursement',      icon: Banknote },
+      ];
+
+  const stepIndex = (key) => workflowSteps.findIndex((s) => s.key === key);
+
   let currentStepIdx;
   if (statusLower.includes('disburs') || statusLower.includes('released') || statusLower.includes('paid')) {
-    currentStepIdx = 3;
-  } else if (statusLower.includes('treasurer') || statusLower.includes('approved by manager')) {
-    currentStepIdx = 2;
-  } else if (statusLower.includes('manager') || statusLower.includes('approved by bookkeeper')) {
-    currentStepIdx = 1;
+    currentStepIdx = stepIndex('disburse');
+  } else if (statusLower.includes('treasurer') || statusLower.includes('approved by manager') || statusLower.includes('to be disbursed') || statusLower.includes('ready for disbursement')) {
+    currentStepIdx = stepIndex('treasurer');
+  } else if (statusLower.includes('bod')) {
+    // 'recommended for bod approval' or 'bod rejected' — show BOD step active.
+    currentStepIdx = requiresBodStep ? stepIndex('bod') : stepIndex('manager');
+  } else if (statusLower.includes('recommended for approval') || statusLower.includes('manager') || statusLower.includes('approved by bookkeeper')) {
+    currentStepIdx = stepIndex('manager');
   } else if (isBookkeeperFlow || statusLower.includes('bookkeeper') || statusLower.includes('pending')) {
-    currentStepIdx = 0;
+    currentStepIdx = stepIndex('bookkeeper');
   } else {
-    currentStepIdx = 1;
+    currentStepIdx = stepIndex('manager');
   }
 
   // ---- Section anchors ----
@@ -1711,8 +1823,31 @@ const LoanApprovalDetails = () => {
                 }}
                 className="flex items-center px-5 py-2 rounded-lg bg-[#1D6021] text-white hover:bg-[#154718] font-bold text-sm transition-colors"
               >
-                <Check className="w-4 h-4 mr-2" /> {String(loanDetails?.status || '').toLowerCase().includes('revision') ? 'Resubmit to Manager' : 'Recommend for Approval'}
+                <Check className="w-4 h-4 mr-2" /> {(() => {
+                  const isConsolidatedHigh =
+                    String(loanDetails?.summary?.loanType || '').toLowerCase().includes('consolidated')
+                    && Number(loanDetails?.summary?.recommendedAmountRaw || 0) > 500000;
+                  const nextStage = isConsolidatedHigh ? 'BOD' : 'Manager';
+                  return String(loanDetails?.status || '').toLowerCase().includes('revision')
+                    ? `Resubmit to ${nextStage}`
+                    : `Recommend for ${nextStage} Approval`;
+                })()}
               </button>
+            ) : isBodFlow ? (
+              <>
+                <button
+                  onClick={() => setActiveModal('bod_reject')}
+                  className="flex items-center px-4 py-2 rounded-lg border border-red-200 text-red-600 bg-red-50 hover:bg-red-100 font-bold text-sm transition-colors"
+                >
+                  <X className="w-4 h-4 mr-2" /> Reject
+                </button>
+                <button
+                  onClick={() => setActiveModal('bod_approve')}
+                  className="flex items-center px-5 py-2 rounded-lg bg-[#1D6021] text-white hover:bg-[#154718] font-bold text-sm transition-colors"
+                >
+                  <ShieldCheck className="w-4 h-4 mr-2" /> Approve
+                </button>
+              </>
             ) : (
               <>
                 <button
@@ -1808,38 +1943,125 @@ const LoanApprovalDetails = () => {
               </>
             )}
 
-            {/* Recommend Modal */}
-            {activeModal === 'recommend' && (
+            {/* BOD Approve Modal */}
+            {activeModal === 'bod_approve' && (
               <>
-                <h3 className="text-xl font-bold text-gray-900 mb-4">
-                  {String(loanDetails?.status || '').toLowerCase().includes('revision')
-                    ? 'Resubmit to Manager'
-                    : 'Recommend for Manager Approval'}
+                <h3 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
+                  <ShieldCheck className="w-5 h-5 text-[#1D6021]" /> BOD Approve Loan
                 </h3>
                 <p className="text-sm text-gray-600 mb-4">
-                  You are about to forward this loan of <span className="font-bold text-gray-900">{loanDetails.memberName}</span> to the Manager queue.
+                  Record the physical board resolution that authorized approval for <span className="font-bold text-gray-900">{loanDetails.memberName}</span>.
                 </p>
-
-                <div className="mb-6">
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Internal Remarks (Bookkeeper) <span className="text-red-500">*</span>
-                  </label>
-                  <textarea
-                    rows="4"
+                <div className="rounded-md bg-blue-50 border border-blue-200 px-3 py-2 text-xs text-blue-800 mb-4">
+                  Resolution number, date, and the signed BOD form are all required for the audit trail.
+                </div>
+                <div className="mb-3">
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Board Resolution No. <span className="text-red-500">*</span></label>
+                  <input
+                    type="text"
                     className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-[#1D6021] focus:border-[#1D6021] outline-none"
-                    placeholder="Enter internal notes for the Manager..."
-                    value={bookkeeperInternalRemarks}
-                    onChange={(e) => setBookkeeperInternalRemarks(e.target.value)}
+                    placeholder="e.g. BR-2026-014"
+                    value={bodResolutionNo}
+                    onChange={(e) => setBodResolutionNo(e.target.value)}
+                  />
+                </div>
+                <div className="mb-3">
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Resolution Date <span className="text-red-500">*</span></label>
+                  <input
+                    type="date"
+                    className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-[#1D6021] focus:border-[#1D6021] outline-none"
+                    value={bodResolutionDate}
+                    onChange={(e) => setBodResolutionDate(e.target.value)}
+                  />
+                </div>
+                <div className="mb-3">
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Signed BOD Form <span className="text-red-500">*</span></label>
+                  <label className="cursor-pointer border border-dashed border-gray-300 rounded-lg p-3 text-sm text-gray-600 hover:bg-gray-50 flex items-center gap-2">
+                    <Paperclip className="w-4 h-4" />
+                    <span>{bodSignedForm ? bodSignedForm.name : 'Choose file (PDF or image)'}</span>
+                    <input
+                      type="file"
+                      accept="image/*,application/pdf"
+                      className="hidden"
+                      onChange={(e) => setBodSignedForm(e.target.files?.[0] || null)}
+                    />
+                  </label>
+                </div>
+                <div className="mb-6">
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Remarks</label>
+                  <textarea
+                    rows="3"
+                    className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-[#1D6021] focus:border-[#1D6021] outline-none"
+                    placeholder="Optional notes for the Manager…"
+                    value={bodRemarks}
+                    onChange={(e) => setBodRemarks(e.target.value)}
                   ></textarea>
                 </div>
-                <p className="text-xs text-gray-500 mb-4">
-                  Co-maker details are encoded under Bookkeeper Internal Review and will be forwarded to Manager with this recommendation.
-                </p>
               </>
             )}
 
+            {/* BOD Reject Modal */}
+            {activeModal === 'bod_reject' && (
+              <>
+                <h3 className="text-xl font-bold text-gray-900 mb-4">BOD Reject Loan</h3>
+                <p className="text-sm text-gray-600 mb-6">
+                  Rejecting returns this loan to the Bookkeeper for revision or cancellation.
+                </p>
+                <div className="mb-6">
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Reason for Rejection <span className="text-red-500">*</span></label>
+                  <textarea
+                    rows="4"
+                    className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none"
+                    placeholder="State the reason…"
+                    value={bodRemarks}
+                    onChange={(e) => setBodRemarks(e.target.value)}
+                  ></textarea>
+                </div>
+              </>
+            )}
+
+            {/* Recommend Modal */}
+            {activeModal === 'recommend' && (() => {
+              const isConsolidatedHigh =
+                String(loanDetails?.summary?.loanType || '').toLowerCase().includes('consolidated')
+                && Number(loanDetails?.summary?.recommendedAmountRaw || 0) > 500000;
+              const nextStage = isConsolidatedHigh ? 'BOD' : 'Manager';
+              const isRevision = String(loanDetails?.status || '').toLowerCase().includes('revision');
+              return (
+                <>
+                  <h3 className="text-xl font-bold text-gray-900 mb-4">
+                    {isRevision ? `Resubmit to ${nextStage}` : `Recommend for ${nextStage} Approval`}
+                  </h3>
+                  <p className="text-sm text-gray-600 mb-4">
+                    You are about to forward this loan of <span className="font-bold text-gray-900">{loanDetails.memberName}</span> to the {nextStage} queue.
+                  </p>
+                  {isConsolidatedHigh ? (
+                    <div className="rounded-md bg-blue-50 border border-blue-200 px-3 py-2 text-xs text-blue-800 mb-4">
+                      This Consolidated loan is over ₱500,000 and requires <b>BOD approval first</b>. It will go to the Manager only after the BOD signs off.
+                    </div>
+                  ) : null}
+
+                  <div className="mb-6">
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Internal Remarks (Bookkeeper) <span className="text-red-500">*</span>
+                    </label>
+                    <textarea
+                      rows="4"
+                      className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-[#1D6021] focus:border-[#1D6021] outline-none"
+                      placeholder={`Enter internal notes for the ${nextStage}...`}
+                      value={bookkeeperInternalRemarks}
+                      onChange={(e) => setBookkeeperInternalRemarks(e.target.value)}
+                    ></textarea>
+                  </div>
+                  <p className="text-xs text-gray-500 mb-4">
+                    Co-maker details are encoded under Bookkeeper Internal Review and will be forwarded with this recommendation.
+                  </p>
+                </>
+              );
+            })()}
+
             {/* Shared Notification Options */}
-            <div className="mb-8">
+            <div className={`mb-8 ${activeModal === 'bod_approve' || activeModal === 'bod_reject' ? 'hidden' : ''}`}>
               <h4 className="text-[10px] font-bold text-green-700 uppercase tracking-wider mb-3">Notification Options</h4>
               <div className="flex flex-col gap-2">
                 <CustomCheckbox
@@ -1896,13 +2118,37 @@ const LoanApprovalDetails = () => {
                   {saving ? 'Saving...' : 'Confirm Approval'}
                 </button>
               )}
-              {activeModal === 'recommend' && (
+              {activeModal === 'recommend' && (() => {
+                const isConsolidatedHigh =
+                  String(loanDetails?.summary?.loanType || '').toLowerCase().includes('consolidated')
+                  && Number(loanDetails?.summary?.recommendedAmountRaw || 0) > 500000;
+                const nextStage = isConsolidatedHigh ? 'BOD' : 'Manager';
+                return (
+                  <button
+                    onClick={() => applyLoanStatusUpdate('recommend')}
+                    disabled={saving}
+                    className="px-6 py-2.5 rounded-lg bg-[#1D6021] hover:bg-[#154718] text-white font-medium text-sm transition-colors w-1/2 disabled:opacity-50"
+                  >
+                    {saving ? 'Saving...' : `Send to ${nextStage}`}
+                  </button>
+                );
+              })()}
+              {activeModal === 'bod_approve' && (
                 <button
-                  onClick={() => applyLoanStatusUpdate('recommend')}
+                  onClick={() => applyBodDecision('approve')}
                   disabled={saving}
                   className="px-6 py-2.5 rounded-lg bg-[#1D6021] hover:bg-[#154718] text-white font-medium text-sm transition-colors w-1/2 disabled:opacity-50"
                 >
-                  {saving ? 'Saving...' : 'Send to Manager'}
+                  {saving ? 'Submitting…' : 'Confirm BOD Approval'}
+                </button>
+              )}
+              {activeModal === 'bod_reject' && (
+                <button
+                  onClick={() => applyBodDecision('reject')}
+                  disabled={saving}
+                  className="px-6 py-2.5 rounded-lg bg-[#DC2626] hover:bg-red-700 text-white font-medium text-sm transition-colors w-1/2 disabled:opacity-50"
+                >
+                  {saving ? 'Submitting…' : 'Confirm Rejection'}
                 </button>
               )}
             </div>

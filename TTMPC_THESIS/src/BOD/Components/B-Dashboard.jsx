@@ -1,83 +1,312 @@
 ﻿import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
-// Assuming AuthContext and PortalIdentity are standard imports in your project
 import { UserAuth } from "../../contex/AuthContext";
 import { useNotification } from "../../contex/NotificationContext";
 import { PortalSidebarIdentity, PortalTopbarIdentity } from "../../components/PortalIdentity";
 import LoanDemandForecastCard from "../../components/LoanDemandForecastCard";
+import { supabase } from "../../supabaseClient";
 import {
-  LayoutDashboard, Users, Archive, CalendarCheck, Search, Bell,
-  Download, Calendar, TrendingUp, AlertCircle, CreditCard, HeartHandshake,
+  LayoutDashboard, Users, Archive, CalendarCheck, Search,
+  Download, Calendar, TrendingUp, AlertCircle, CreditCard, CheckCircle2,
   Clock, ArrowUpRight, ArrowDownRight, FileText
 } from 'lucide-react';
 import NotificationBell from "./NotificationBell";
-import { 
-  ComposedChart, Line, Area, BarChart, Bar, ScatterChart, Scatter, PieChart, Pie, Cell, 
-  XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart // LineChart moved here to fix the import conflict
+import {
+  BarChart, Bar, ScatterChart, Scatter, PieChart, Pie, Cell,
+  XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
 } from 'recharts';
 
-// --- MOCK DATA FOR CHARTS ---
-const seasonalData = [
-  { month: 'Jan', demand: 4000, forecast: 4200, riskZone: 0 },
-  { month: 'Feb', demand: 3000, forecast: 3100, riskZone: 0 },
-  { month: 'Mar', demand: 5000, forecast: 5500, riskZone: 1000 },
-  { month: 'Apr', demand: 8000, forecast: 8500, riskZone: 3000 },
-  { month: 'May', demand: 4500, forecast: 4800, riskZone: 0 },
-];
-
-const delinquencyData = [
-  { month: 'Jan', '30-Day': 400, '60-Day': 200, '90-Day': 100 },
-  { month: 'Feb', '30-Day': 300, '60-Day': 250, '90-Day': 120 },
-  { month: 'Mar', '30-Day': 450, '60-Day': 200, '90-Day': 150 },
-  { month: 'Apr', '30-Day': 600, '60-Day': 300, '90-Day': 200 },
-];
-
-const genderData = [
-  { name: 'Female', value: 65 },
-  { name: 'Male', value: 35 }
-  
-];
-
-const scatterData = [
-  { debt: 10000, repaymentSpeed: 95 },
-  { debt: 25000, repaymentSpeed: 80 },
-  { debt: 50000, repaymentSpeed: 60 },
-  { debt: 75000, repaymentSpeed: 45 },
-  { debt: 100000, repaymentSpeed: 20 }, 
-];
-
-// --- NEW MOCK DATA: TRANSACTION HISTORY ---
-const transactionHistory = [
-  { id: 'TXN-0921', member: 'Maria Santos', type: 'Loan Disbursement', amount: '₱50,000', date: 'Mar 22, 2026', status: 'Completed', isCredit: false },
-  { id: 'TXN-0920', member: 'Juan Dela Cruz', type: 'Share Capital Dep.', amount: '₱5,000', date: 'Mar 21, 2026', status: 'Completed', isCredit: true },
-  { id: 'TXN-0919', member: 'Elena Gomez', type: 'Loan Repayment', amount: '₱12,500', date: 'Mar 21, 2026', status: 'Pending', isCredit: true },
-  { id: 'TXN-0918', member: 'AgriCoop Ventures', type: 'Corporate Dividend', amount: '₱150,000', date: 'Mar 20, 2026', status: 'Completed', isCredit: false },
-  { id: 'TXN-0917', member: 'Mark Reyes', type: 'Emergency Loan', amount: '₱10,000', date: 'Mar 19, 2026', status: 'Completed', isCredit: false },
-];
-
 const COLORS = ['#2C7A3F', '#4ADE80', '#9CA3AF'];
+
+const formatCurrency = (v) => `₱${Number(v || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+const formatCurrencyShort = (v) => {
+  const n = Number(v || 0);
+  if (Math.abs(n) >= 1_000_000) return `₱${(n / 1_000_000).toFixed(1)}M`;
+  if (Math.abs(n) >= 1_000) return `₱${(n / 1_000).toFixed(1)}K`;
+  return `₱${n.toFixed(0)}`;
+};
+const formatDateShort = (v) => {
+  if (!v) return '—';
+  const d = new Date(v);
+  if (Number.isNaN(d.getTime())) return '—';
+  return d.toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' });
+};
+const monthKey = (d) => d.toLocaleDateString('en-US', { month: 'short' });
 
 const Dashboard_BOD = () => {
   const { session, signOut } = UserAuth();
   const navigate = useNavigate();
   const { addNotification } = useNotification();
   const [chartsReady, setChartsReady] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  const [kpis, setKpis] = useState({
+    totalLoansCount: 0,
+    delinquencyRate: 0,
+    avgDebtCapacity: 0,
+    approvedThisMonth: 0,
+  });
+  const [delinquencyTrend, setDelinquencyTrend] = useState([]);
+  const [approvedTrend, setApprovedTrend] = useState([]);
+  const [genderData, setGenderData] = useState([]);
+  const [genderTotal, setGenderTotal] = useState(0);
+  const [debtScatter, setDebtScatter] = useState([]);
+  const [recentTxns, setRecentTxns] = useState([]);
 
   useEffect(() => {
     const frameId = window.requestAnimationFrame(() => setChartsReady(true));
     return () => window.cancelAnimationFrame(frameId);
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    const load = async () => {
+      setLoading(true);
+      try {
+        const now = new Date();
+        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
+        const sixMoStart = new Date(now.getFullYear(), now.getMonth() - 5, 1).toISOString().slice(0, 10);
+
+        const [
+          activeLoansRes,
+          allLoansForVolRes,
+          totalLoansCountRes,
+          paymentsRes,
+          overdueSchedRes,
+          approvedTrendRes,
+          gendersRes,
+          recentPaymentsRes,
+          recentDisbursalRes,
+        ] = await Promise.all([
+          // Active loans for debt scatter + avg debt
+          supabase
+            .from('loans')
+            .select('control_number, member_id, principal_amount, loan_amount, monthly_amortization, term, loan_status')
+            .in('loan_status', ['released', 'partially paid'])
+            .limit(10000),
+          // Disbursed loans for "approved this month" calculation
+          supabase
+            .from('loans')
+            .select('loan_amount, principal_amount, disbursal_date')
+            .in('loan_status', ['released', 'partially paid', 'fully paid'])
+            .limit(20000),
+          // Total loans on file
+          supabase
+            .from('loans')
+            .select('control_number', { count: 'exact', head: true }),
+          // Validated payments for transaction volume + repayment speed
+          supabase
+            .from('loan_payments')
+            .select('loan_id, amount_paid, payment_date, confirmation_status')
+            .limit(20000),
+          // Delinquency: overdue schedules with due dates
+          supabase
+            .from('loan_schedules')
+            .select('loan_id, due_date, schedule_status')
+            .eq('schedule_status', 'overdue')
+            .gte('due_date', sixMoStart)
+            .limit(20000),
+          // Approved-per-month trend
+          supabase
+            .from('loans')
+            .select('disbursal_date, loan_status')
+            .gte('disbursal_date', sixMoStart)
+            .in('loan_status', ['released', 'partially paid', 'fully paid'])
+            .limit(20000),
+          // Gender distribution from personal_data_sheet
+          supabase
+            .from('personal_data_sheet')
+            .select('gender')
+            .limit(20000),
+          // Recent payments
+          supabase
+            .from('loan_payments')
+            .select('id, loan_id, amount_paid, payment_date, confirmation_status, payment_reference')
+            .order('payment_date', { ascending: false })
+            .limit(5),
+          // Recent disbursals
+          supabase
+            .from('loans')
+            .select('control_number, loan_amount, disbursal_date, loan_status, member:member_id(first_name, last_name), loan_types:loan_type_id(name)')
+            .not('disbursal_date', 'is', null)
+            .order('disbursal_date', { ascending: false })
+            .limit(5),
+        ]);
+
+        if (cancelled) return;
+
+        // Surface any per-query errors to the console so we can see what RLS / column issue is in play.
+        const debugResults = {
+          activeLoansRes, allLoansForVolRes, totalLoansCountRes, paymentsRes,
+          overdueSchedRes, approvedTrendRes, gendersRes, recentPaymentsRes, recentDisbursalRes,
+        };
+        Object.entries(debugResults).forEach(([key, res]) => {
+          if (res?.error) console.warn(`[BOD Dashboard] ${key} error:`, res.error);
+        });
+
+        const activeLoans = activeLoansRes?.data || [];
+        const allDisbursed = allLoansForVolRes?.data || [];
+        const allPayments = paymentsRes?.data || [];
+        const overdueSched = overdueSchedRes?.data || [];
+        const approvedRows = approvedTrendRes?.data || [];
+        const genderRows = gendersRes?.data || [];
+        const recentPayments = recentPaymentsRes?.data || [];
+        const recentDisbursals = recentDisbursalRes?.data || [];
+
+        // ---- KPI: total loans on file ----
+        const totalLoansCount = totalLoansCountRes?.count || 0;
+
+        // ---- KPI: delinquency rate = overdue schedules' unique active loans / active loans ----
+        const activeIds = new Set(activeLoans.map((l) => l.control_number));
+        const overdueLoanIds = new Set(
+          overdueSched.map((s) => s.loan_id).filter((id) => activeIds.has(id))
+        );
+        const delinquencyRate = activeLoans.length
+          ? (overdueLoanIds.size / activeLoans.length) * 100
+          : 0;
+
+        // ---- KPI: avg debt capacity = mean of remaining principal across active loans ----
+        const avgDebt = activeLoans.length
+          ? activeLoans.reduce((s, l) => s + Number(l.principal_amount || l.loan_amount || 0), 0) / activeLoans.length
+          : 0;
+
+        // ---- KPI: approved this month ----
+        const approvedThisMonth = allDisbursed.filter(
+          (l) => l.disbursal_date && l.disbursal_date >= monthStart
+        ).length;
+
+        setKpis({
+          totalLoansCount,
+          delinquencyRate,
+          avgDebtCapacity: avgDebt,
+          approvedThisMonth,
+        });
+
+        // ---- Delinquency trajectory (last 6 mo, 30/60/90+ bucketing) ----
+        const buckets = new Map();
+        for (let i = 5; i >= 0; i -= 1) {
+          const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+          buckets.set(monthKey(d), { month: monthKey(d), '30-Day': 0, '60-Day': 0, '90-Day': 0 });
+        }
+        overdueSched.forEach((s) => {
+          if (!s.due_date) return;
+          const due = new Date(s.due_date);
+          const ageDays = Math.floor((now - due) / (1000 * 60 * 60 * 24));
+          if (ageDays < 0) return;
+          const key = monthKey(due);
+          if (!buckets.has(key)) return;
+          const slot = buckets.get(key);
+          if (ageDays >= 90) slot['90-Day'] += 1;
+          else if (ageDays >= 60) slot['60-Day'] += 1;
+          else if (ageDays >= 30) slot['30-Day'] += 1;
+        });
+        setDelinquencyTrend([...buckets.values()]);
+
+        // ---- Approved-per-month trend ----
+        const approvedBuckets = new Map();
+        for (let i = 5; i >= 0; i -= 1) {
+          const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+          approvedBuckets.set(monthKey(d), { month: monthKey(d), count: 0 });
+        }
+        approvedRows.forEach((r) => {
+          if (!r.disbursal_date) return;
+          const d = new Date(r.disbursal_date);
+          const key = monthKey(d);
+          if (approvedBuckets.has(key)) approvedBuckets.get(key).count += 1;
+        });
+        setApprovedTrend([...approvedBuckets.values()]);
+
+        // ---- Gender distribution ----
+        const genderCounts = new Map();
+        genderRows.forEach((r) => {
+          const raw = String(r.gender || '').trim();
+          if (!raw) return;
+          const norm = raw.toLowerCase().startsWith('f') ? 'Female'
+            : raw.toLowerCase().startsWith('m') ? 'Male'
+            : 'Other';
+          genderCounts.set(norm, (genderCounts.get(norm) || 0) + 1);
+        });
+        const genderArr = [...genderCounts.entries()].map(([name, value]) => ({ name, value }));
+        setGenderData(genderArr);
+        setGenderTotal(genderArr.reduce((s, g) => s + g.value, 0));
+
+        // ---- Debt vs repayment speed scatter ----
+        const validatedByLoan = new Map();
+        allPayments.forEach((p) => {
+          const status = String(p.confirmation_status || '').toLowerCase();
+          if (!status.includes('valid') && status !== 'confirmed' && status !== 'approved') return;
+          validatedByLoan.set(p.loan_id, (validatedByLoan.get(p.loan_id) || 0) + Number(p.amount_paid || 0));
+        });
+        const scatter = activeLoans.slice(0, 200).map((l) => {
+          const principal = Number(l.principal_amount || l.loan_amount || 0);
+          const monthly = Number(l.monthly_amortization || 0);
+          const term = Number(l.term || 0);
+          const expected = monthly * term || principal;
+          const paid = validatedByLoan.get(l.control_number) || 0;
+          const speed = expected > 0 ? Math.min(100, Math.round((paid / expected) * 100)) : 0;
+          return { debt: principal, repaymentSpeed: speed };
+        }).filter((d) => d.debt > 0);
+        setDebtScatter(scatter);
+
+        // ---- Recent transactions: merge payments + disbursals, newest first ----
+        const memberNameByLoan = new Map();
+        recentDisbursals.forEach((l) => {
+          const m = l.member || {};
+          memberNameByLoan.set(l.control_number, `${m.first_name || ''} ${m.last_name || ''}`.trim() || 'Member');
+        });
+
+        const txnRows = [];
+        recentDisbursals.forEach((l) => {
+          txnRows.push({
+            id: l.control_number,
+            member: memberNameByLoan.get(l.control_number) || 'Member',
+            type: `${l.loan_types?.name || 'Loan'} Disbursement`,
+            amountValue: Number(l.loan_amount || 0),
+            date: l.disbursal_date,
+            status: 'Completed',
+            isCredit: false,
+          });
+        });
+        recentPayments.forEach((p) => {
+          const status = String(p.confirmation_status || '').toLowerCase();
+          const isPending = status.includes('pending');
+          txnRows.push({
+            id: p.payment_reference || `PMT-${p.id}`,
+            member: memberNameByLoan.get(p.loan_id) || p.loan_id || 'Member',
+            type: 'Loan Repayment',
+            amountValue: Number(p.amount_paid || 0),
+            date: p.payment_date,
+            status: isPending ? 'Pending' : 'Completed',
+            isCredit: true,
+          });
+        });
+        txnRows.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
+        setRecentTxns(txnRows.slice(0, 6));
+      } catch (err) {
+        if (!cancelled) addNotification(err?.message || 'Failed to load dashboard data.', 'error');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+
+    load();
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const menuItems = [
-    { section: "BOD", items: [{ name: "Dashboard", icon: LayoutDashboard }, { name: "Member Approvals", icon: Users }, { name: "Manage Loans", icon: CreditCard }, { name: "Manage Member", icon: Users }, { name: "Loan Policies", icon: FileText }] },
+    { section: "BOD", items: [{ name: "Dashboard", icon: LayoutDashboard }, { name: "Member Approvals", icon: Users }, { name: "Loan Approvals", icon: CheckCircle2 }, { name: "Manage Loans", icon: CreditCard }, { name: "Manage Member", icon: Users }, { name: "Audit Log", icon: FileText }, { name: "Loan Policies", icon: FileText }] },
     { section: "SECRETARY", items: [{ name: "Training Attendance", icon: CalendarCheck }, { name: "Membership Records", icon: Archive }] }
   ];
 
   const routeMap = {
     "Dashboard": "/BOD-dashboard",
     "Member Approvals": "/member-approvals",
+    "Loan Approvals": "/bod-loan-approvals",
     "Manage Loans": "/bod-manage-loans",
     "Manage Member": "/bod-manage-member",
+    "Audit Log": "/bod-audit-log",
     "Loan Policies": "/bod-loan-policies",
     "Training Attendance": "/Secretary_Attendance",
     "Membership Records": "/Secretary_Records",
@@ -157,65 +386,62 @@ const Dashboard_BOD = () => {
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 flex flex-col justify-between">
               <div className="flex justify-between items-start">
                 <div>
-                  <p className="text-sm font-semibold text-gray-500 mb-1">Total Transaction Vol.</p>
-                  <h3 className="text-2xl font-bold text-gray-800">₱42.5M</h3>
+                  <p className="text-sm font-semibold text-gray-500 mb-1">Total Loans</p>
+                  <h3 className="text-2xl font-bold text-gray-800">{loading ? '—' : kpis.totalLoansCount.toLocaleString()}</h3>
                 </div>
                 <div className="p-2 bg-green-50 rounded-lg text-[#2C7A3F]"><TrendingUp className="w-5 h-5" /></div>
               </div>
-              <p className="text-sm text-green-600 font-medium mt-4">+12.5% <span className="text-gray-400 font-normal">vs last month</span></p>
+              <p className="text-sm text-gray-500 font-medium mt-4">All loans on file in the cooperative</p>
             </div>
-            
+
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 flex flex-col justify-between">
               <div className="flex justify-between items-start">
                 <div>
                   <p className="text-sm font-semibold text-gray-500 mb-1">Delinquency Rate</p>
-                  <h3 className="text-2xl font-bold text-gray-800">4.2%</h3>
+                  <h3 className="text-2xl font-bold text-gray-800">{loading ? '—' : `${kpis.delinquencyRate.toFixed(1)}%`}</h3>
                 </div>
                 <div className="p-2 bg-red-50 rounded-lg text-red-500"><AlertCircle className="w-5 h-5" /></div>
               </div>
-              <p className="text-sm text-red-500 font-medium mt-4">+0.8% <span className="text-gray-400 font-normal">vs last month</span></p>
+              <p className="text-sm text-gray-500 font-medium mt-4">Active loans with overdue schedules</p>
             </div>
-            
+
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 flex flex-col justify-between">
               <div className="flex justify-between items-start">
                 <div>
                   <p className="text-sm font-semibold text-gray-500 mb-1">Avg Debt Capacity</p>
-                  <h3 className="text-2xl font-bold text-gray-800">₱150K</h3>
+                  <h3 className="text-2xl font-bold text-gray-800">{loading ? '—' : formatCurrencyShort(kpis.avgDebtCapacity)}</h3>
                 </div>
                 <div className="p-2 bg-blue-50 rounded-lg text-blue-500"><CreditCard className="w-5 h-5" /></div>
               </div>
-              <p className="text-sm text-gray-500 font-medium mt-4">Healthy leverage threshold</p>
+              <p className="text-sm text-gray-500 font-medium mt-4">Mean principal across active loans</p>
             </div>
-            
+
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 flex flex-col justify-between">
               <div className="flex justify-between items-start">
                 <div>
-                  <p className="text-sm font-semibold text-gray-500 mb-1">Loyalty Score</p>
-                  <h3 className="text-2xl font-bold text-gray-800">92/100</h3>
+                  <p className="text-sm font-semibold text-gray-500 mb-1">Approved This Month</p>
+                  <h3 className="text-2xl font-bold text-gray-800">{loading ? '—' : kpis.approvedThisMonth}</h3>
                 </div>
-                <div className="p-2 bg-purple-50 rounded-lg text-purple-500"><HeartHandshake className="w-5 h-5" /></div>
+                <div className="p-2 bg-green-50 rounded-lg text-[#2C7A3F]"><CheckCircle2 className="w-5 h-5" /></div>
               </div>
-              <p className="text-sm text-green-600 font-medium mt-4">+2 pts <span className="text-gray-400 font-normal">YTD</span></p>
+              <p className="text-sm text-gray-500 font-medium mt-4">Disbursed in {new Date().toLocaleDateString('en-US', { month: 'long' })}</p>
             </div>
           </div>
 
           {/* ROW 2: STRATEGIC TRENDS */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8 min-w-0">
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 min-w-0">
-              <h3 className="text-lg font-bold text-gray-800 mb-1">Seasonal Loan Demand & Risk Forecast</h3>
-              <p className="text-sm text-gray-500 mb-4">Monthly demand trends with seasonal risk indicators</p>
+              <h3 className="text-lg font-bold text-gray-800 mb-1">Approved Loans per Month</h3>
+              <p className="text-sm text-gray-500 mb-4">Disbursed loans over the last 6 months</p>
               <div className="h-72">
                 {chartsReady ? <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={240}>
-                  <ComposedChart data={seasonalData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                  <BarChart data={approvedTrend} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="0" vertical={false} stroke="#f0f0f0" />
                     <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#9CA3AF' }} />
-                    <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#9CA3AF' }} />
+                    <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#9CA3AF' }} allowDecimals={false} />
                     <Tooltip cursor={{ fill: '#f9fafb' }} contentStyle={{ borderRadius: '12px', border: '1px solid #E5E7EB', boxShadow: '0 10px 25px -5px rgb(0 0 0 / 0.1)', backgroundColor: '#FFFFFF', padding: '12px' }}/>
-                    <Legend wrapperStyle={{ paddingTop: '20px' }} />
-                    <Area type="monotone" dataKey="demand" name="Actual Demand" fill="#D1FAE5" stroke="#10B981" strokeWidth={2} />
-                    <Line type="monotone" dataKey="forecast" name="Forecast" stroke="#059669" strokeWidth={2} strokeDasharray="5 5" dot={false} />
-                    <Area type="monotone" dataKey="riskZone" name="Risk Zone" fill="#FECACA" stroke="#DC2626" strokeWidth={1} />
-                  </ComposedChart>
+                    <Bar dataKey="count" name="Approved" fill="#2C7A3F" radius={[6, 6, 0, 0]} />
+                  </BarChart>
                 </ResponsiveContainer> : <div className="h-full w-full rounded-lg bg-gray-50" />}
               </div>
             </div>
@@ -225,10 +451,10 @@ const Dashboard_BOD = () => {
               <p className="text-sm text-gray-500 mb-4">Stacked delinquency aging by month</p>
               <div className="h-72">
                 {chartsReady ? <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={240}>
-                  <BarChart data={delinquencyData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                  <BarChart data={delinquencyTrend} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="0" vertical={false} stroke="#f0f0f0" />
                     <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#9CA3AF' }} />
-                    <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#9CA3AF' }} />
+                    <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#9CA3AF' }} allowDecimals={false} />
                     <Tooltip cursor={{ fill: '#f9fafb' }} contentStyle={{ borderRadius: '12px', border: '1px solid #E5E7EB', boxShadow: '0 10px 25px -5px rgb(0 0 0 / 0.1)', backgroundColor: '#FFFFFF', padding: '12px' }}/>
                     <Legend wrapperStyle={{ paddingTop: '20px' }} />
                     <Bar dataKey="30-Day" stackId="a" fill="#FCD34D" radius={[4, 4, 0, 0]} />
@@ -241,41 +467,25 @@ const Dashboard_BOD = () => {
           </div>
 
           {/* ROW 3: DEMOGRAPHICS & DIAGNOSTICS */}
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 mb-8 min-w-0">
-            
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 min-w-0">
-              <h3 className="text-sm font-bold text-gray-800 mb-1">Member Churn / Dropout</h3>
-              <p className="text-xs text-gray-500 mb-4">Monthly attrition trend</p>
-              <div className="h-48">
-                {chartsReady ? <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={160}>
-                  <LineChart data={seasonalData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="0" vertical={false} stroke="#f0f0f0" />
-                    <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#9CA3AF' }} />
-                    <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#9CA3AF' }} />
-                    <Tooltip cursor={{ fill: '#f9fafb' }} contentStyle={{ borderRadius: '12px', border: '1px solid #E5E7EB', boxShadow: '0 10px 25px -5px rgb(0 0 0 / 0.1)', backgroundColor: '#FFFFFF', padding: '12px' }} />
-                    <Line type="monotone" dataKey="riskZone" name="Dropout Vol." stroke="#DC2626" strokeWidth={3} dot={{ fill: '#DC2626', r: 4 }} activeDot={{ r: 6 }} />
-                  </LineChart>
-                </ResponsiveContainer> : <div className="h-full w-full rounded-lg bg-gray-50" />}
-              </div>
-            </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8 min-w-0">
 
-            {/* UPDATED GENDER CHART */}
+            {/* Gender Distribution (live) */}
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 flex flex-col items-center min-w-0">
               <div className="w-full flex justify-between items-center mb-4">
                  <div>
                    <h3 className="text-sm font-bold text-gray-800">Gender Distribution</h3>
-                   <p className="text-xs text-gray-500 mt-0.5">Active member composition</p>
+                   <p className="text-xs text-gray-500 mt-0.5">Member composition</p>
                  </div>
-                 <span className="text-xs font-medium bg-green-50 text-green-700 px-3 py-1 rounded-lg">100 Members</span>
+                 <span className="text-xs font-medium bg-green-50 text-green-700 px-3 py-1 rounded-lg">{genderTotal} Members</span>
               </div>
               <div className="h-48 w-full">
-                {chartsReady ? <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={160}>
+                {chartsReady && genderData.length > 0 ? <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={160}>
                   <PieChart>
-                    <Pie 
-                      data={genderData} 
-                      innerRadius={50} 
-                      outerRadius={70} 
-                      paddingAngle={3} 
+                    <Pie
+                      data={genderData}
+                      innerRadius={50}
+                      outerRadius={70}
+                      paddingAngle={3}
                       dataKey="value"
                       stroke="white"
                       strokeWidth={2}
@@ -285,23 +495,23 @@ const Dashboard_BOD = () => {
                     <Tooltip contentStyle={{ borderRadius: '12px', border: '1px solid #E5E7EB', boxShadow: '0 10px 25px -5px rgb(0 0 0 / 0.1)', backgroundColor: '#FFFFFF', padding: '12px' }} formatter={(value) => `${value} members`} />
                     <Legend verticalAlign="bottom" height={36} iconType="circle" wrapperStyle={{ paddingTop: '16px' }} />
                   </PieChart>
-                </ResponsiveContainer> : <div className="h-full w-full rounded-lg bg-gray-50" />}
+                </ResponsiveContainer> : <div className="h-full w-full rounded-lg bg-gray-50 flex items-center justify-center text-xs text-gray-400">{loading ? 'Loading…' : 'No gender data available'}</div>}
               </div>
             </div>
 
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 min-w-0">
-              <h3 className="text-sm font-bold text-gray-800 mb-1">Debt Capacity vs Repayment Health</h3>
-              <p className="text-xs text-gray-500 mb-4">Member clusters by debt and repayment speed</p>
+              <h3 className="text-sm font-bold text-gray-800 mb-1">Debt Capacity vs Repayment Speed</h3>
+              <p className="text-xs text-gray-500 mb-4">Per-loan principal vs % paid of expected</p>
               <div className="h-48">
-                {chartsReady ? <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={160}>
+                {chartsReady && debtScatter.length > 0 ? <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={160}>
                   <ScatterChart margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="0" vertical={false} stroke="#f0f0f0" />
-                    <XAxis type="number" dataKey="debt" name="Debt (₱)" tickFormatter={(val) => `${val/1000}k`} axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#9CA3AF' }} />
-                    <YAxis type="number" dataKey="repaymentSpeed" name="Speed %" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#9CA3AF' }} />
-                    <Tooltip cursor={{ strokeDasharray: '0' }} contentStyle={{ borderRadius: '12px', border: '1px solid #E5E7EB', boxShadow: '0 10px 25px -5px rgb(0 0 0 / 0.1)', backgroundColor: '#FFFFFF', padding: '12px' }} />
-                    <Scatter name="Members" data={scatterData} fill="#10B981" />
+                    <XAxis type="number" dataKey="debt" name="Principal" tickFormatter={(val) => `${(val/1000).toFixed(0)}k`} axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#9CA3AF' }} />
+                    <YAxis type="number" dataKey="repaymentSpeed" name="Speed %" domain={[0, 100]} axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#9CA3AF' }} />
+                    <Tooltip cursor={{ strokeDasharray: '0' }} contentStyle={{ borderRadius: '12px', border: '1px solid #E5E7EB', boxShadow: '0 10px 25px -5px rgb(0 0 0 / 0.1)', backgroundColor: '#FFFFFF', padding: '12px' }} formatter={(value, name) => name === 'Principal' ? formatCurrency(value) : `${value}%`} />
+                    <Scatter name="Loans" data={debtScatter} fill="#10B981" />
                   </ScatterChart>
-                </ResponsiveContainer> : <div className="h-full w-full rounded-lg bg-gray-50" />}
+                </ResponsiveContainer> : <div className="h-full w-full rounded-lg bg-gray-50 flex items-center justify-center text-xs text-gray-400">{loading ? 'Loading…' : 'No active loans to plot'}</div>}
               </div>
             </div>
 
@@ -327,16 +537,20 @@ const Dashboard_BOD = () => {
                   </tr>
                 </thead>
                 <tbody className="text-sm text-gray-700 divide-y divide-gray-50">
-                  {transactionHistory.map((txn) => (
-                    <tr key={txn.id} className="table-row-enter hover:bg-green-50 transition-colors">
+                  {loading ? (
+                    <tr><td colSpan={6} className="p-6 text-center text-gray-400">Loading transactions…</td></tr>
+                  ) : recentTxns.length === 0 ? (
+                    <tr><td colSpan={6} className="p-6 text-center text-gray-400">No recent transactions.</td></tr>
+                  ) : recentTxns.map((txn) => (
+                    <tr key={`${txn.id}-${txn.date}`} className="table-row-enter hover:bg-green-50 transition-colors">
                       <td className="p-4 font-medium text-gray-900">{txn.id}</td>
                       <td className="p-4">{txn.member}</td>
                       <td className="p-4 text-gray-500">{txn.type}</td>
-                      <td className="p-4 text-gray-500">{txn.date}</td>
+                      <td className="p-4 text-gray-500">{formatDateShort(txn.date)}</td>
                       <td className="p-4 text-right font-medium">
                         <div className="flex items-center justify-end gap-1">
                           {txn.isCredit ? <ArrowDownRight className="w-4 h-4 text-green-500" /> : <ArrowUpRight className="w-4 h-4 text-red-500" />}
-                          <span className={txn.isCredit ? "text-green-600" : "text-gray-800"}>{txn.amount}</span>
+                          <span className={txn.isCredit ? "text-green-600" : "text-gray-800"}>{formatCurrency(txn.amountValue)}</span>
                         </div>
                       </td>
                       <td className="p-4 text-center">

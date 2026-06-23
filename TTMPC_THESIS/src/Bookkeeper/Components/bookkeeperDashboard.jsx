@@ -4,6 +4,7 @@ import { UserAuth } from "../../contex/AuthContext";
 import { PortalSidebarIdentity, PortalTopbarIdentity } from "../../components/PortalIdentity";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
 import { supabase } from "../../supabaseClient";
+import RecentActivityCard from "../../components/RecentActivityCard";
 import {
   LayoutDashboard,
   Users,
@@ -99,6 +100,7 @@ const Dashboard = () => {
     { name: "Accounting", icon: Calculator },
     { name: "MIGS Scoring", icon: Activity },
     { name: "Reports", icon: BarChart3 },
+    { name: "Audit Log", icon: History },
     { name: "Audit Trail", icon: History },
     { name: "Grocery", icon: Coins },
     { name: "Legacy Member Validation", icon: Search },
@@ -114,6 +116,7 @@ const Dashboard = () => {
     Accounting: "/accounting",
     "MIGS Scoring": "/migs",
     Reports: "/reports",
+    "Audit Log": "/bookkeeper-audit-log",
     "Audit Trail": "/audit-trail",
     Grocery: "/grocery",
     "Legacy Member Validation": "/legacy-member-validation",
@@ -485,6 +488,11 @@ const Dashboard = () => {
                 </ResponsiveContainer>
               </div>
             </div>
+          </div>
+
+          {/* My Audit Activity (clickable -> full audit log) */}
+          <div className="mb-6">
+            <RecentActivityCard to="/bookkeeper-audit-log" title="My Audit Activity" />
           </div>
 
           {/* Bottom Activity Section */}

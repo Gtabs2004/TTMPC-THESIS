@@ -3,6 +3,7 @@ import { useNavigate, NavLink } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
 import { useNotification } from "../../contex/NotificationContext";
 import { PortalSidebarIdentity, PortalTopbarIdentity } from "../../components/PortalIdentity";
+import RecentActivityCard from "../../components/RecentActivityCard";
 import {
   LayoutDashboard,
   Search,
@@ -81,6 +82,7 @@ const Cashier_Dashboard = () => {
     },
     { name: "Withdrawals", icon: ArrowDownLeft, path: "/Cashier_Withdrawals" },
     { name: "Grocery", icon: ShoppingCart, path: "/Cashier_Grocery" },
+    { name: "Audit Log", icon: ShoppingCart, path: "/cashier-audit-log" },
   ];
 
   const handleSignOut = async (e) => {
@@ -426,6 +428,10 @@ const Cashier_Dashboard = () => {
                 <button className="px-3 py-1 border border-gray-200 rounded-md hover:bg-gray-50 text-gray-600">Next</button>
               </div>
             </div>
+          </div>
+
+          <div className="mt-6">
+            <RecentActivityCard to="/cashier-audit-log" title="My Audit Activity" />
           </div>
 
         </main>

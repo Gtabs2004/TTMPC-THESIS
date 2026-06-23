@@ -6,6 +6,7 @@ import { PortalSidebarIdentity, PortalTopbarIdentity } from "../../components/Po
 import LoanNotificationBell from "../../components/LoanNotificationBell";
 import LoanDemandForecastCard from "../../components/LoanDemandForecastCard";
 import { supabase } from "../../supabaseClient";
+import RecentActivityCard from "../../components/RecentActivityCard";
 import {
   LayoutDashboard,
   Users,
@@ -65,6 +66,7 @@ const M_Dashboard = () => {
     { name: "Loan Approval", icon: Users },
     { name: "Manage Member", icon: Users },
     { name: "Reports", icon: BarChart3 },
+    { name: "Audit Log", icon: BarChart3 },
   ];
 
   useEffect(() => {
@@ -251,6 +253,7 @@ const M_Dashboard = () => {
               "Loan Approval": "/loan-approval",
               "Manage Member": "/manager-manage-member",
               "Reports": "/manager-reports",
+              "Audit Log": "/manager-audit-log",
             };
 
             return menuItems.map((item) => {
@@ -440,6 +443,11 @@ const M_Dashboard = () => {
               </div>
             </div>
 
+          </div>
+
+          {/* My Audit Activity */}
+          <div className="mb-6">
+            <RecentActivityCard to="/manager-audit-log" title="My Audit Activity" />
           </div>
 
           {/* RECENT REQUESTS TABLE */}
