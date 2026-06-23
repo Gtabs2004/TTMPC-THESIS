@@ -21,7 +21,8 @@ import {
   UserPlus,
   Download,
   Archive,
-  
+  AlertTriangle,
+  X as CloseIcon,
 } from 'lucide-react';
 import logo from "../../assets/img/ttmpc logo.png";
 import NotificationBell from "./NotificationBell";
@@ -39,6 +40,49 @@ const Secretary_Records = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
+
+  const [termTarget, setTermTarget] = useState(null);
+  const [termForm, setTermForm] = useState({ resolution_no: "", resolution_date: "", effective_date: "", reason: "", notes: "" });
+  const [termBusy, setTermBusy] = useState(false);
+
+  const openTerminate = (member) => {
+    setTermForm({ resolution_no: "", resolution_date: "", effective_date: "", reason: "", notes: "" });
+    setTermTarget(member);
+  };
+
+  const submitTerminate = async () => {
+    if (!termTarget?.applicant_id) return;
+    if (!termForm.reason.trim()) {
+      addNotification("Reason is required.", "error");
+      return;
+    }
+    setTermBusy(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/admin/staff/termination/request`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          member_id: termTarget.applicant_id,
+          resolution_no: termForm.resolution_no || null,
+          resolution_date: termForm.resolution_date || null,
+          effective_date: termForm.effective_date || null,
+          reason: termForm.reason,
+          notes: termForm.notes || null,
+          requested_by_role: "secretary",
+        }),
+      });
+      const payload = await res.json().catch(() => ({}));
+      if (!res.ok || !payload?.success) {
+        throw new Error(payload?.detail || "Request failed.");
+      }
+      addNotification("Termination submitted. Account locked; awaiting BOD confirmation.", "success");
+      setTermTarget(null);
+    } catch (err) {
+      addNotification(err?.message || "Failed to submit termination.", "error");
+    } finally {
+      setTermBusy(false);
+    }
+  };
   
   const menuItems = [
     {
@@ -250,12 +294,22 @@ const Secretary_Records = () => {
                     <td className="py-4 text-gray-800 font-medium">{Number(member.shares || 0).toFixed(2)}</td>
                     <td className="py-4 text-gray-800 font-medium">{formatCurrency(member.paid_up_capital)}</td>
                     <td className="py-4">
-                      <button 
-                        onClick={() => navigate(`/record-details/${member.member_uuid}`)}
-                        className="btn-enhanced text-[#1e9e4a] hover:text-green-800 transition-colors p-1"
-                      >
-                        <Eye size={20} strokeWidth={2} />
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => navigate(`/record-details/${member.member_uuid}`)}
+                          className="btn-enhanced text-[#1e9e4a] hover:text-green-800 transition-colors p-1"
+                          title="View record"
+                        >
+                          <Eye size={20} strokeWidth={2} />
+                        </button>
+                        <button
+                          onClick={() => openTerminate(member)}
+                          className="text-red-600 hover:text-red-700 transition-colors p-1"
+                          title="Terminate member"
+                        >
+                          <AlertTriangle size={18} strokeWidth={2} />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -299,6 +353,93 @@ const Secretary_Records = () => {
           </div>
         </main>
       </div>
+
+      {termTarget ? (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5 text-red-500" />
+                <h3 className="font-bold text-gray-800">Terminate Membership</h3>
+              </div>
+              <button onClick={() => setTermTarget(null)} className="text-gray-400 hover:text-gray-600">
+                <CloseIcon className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="px-6 py-4 space-y-4">
+              <div className="rounded-md bg-orange-50 border border-orange-200 px-3 py-2 text-xs text-orange-800">
+                Submitting will immediately lock <b>{termTarget.applicant_id}</b> ({termTarget.applicant_name}) and forward a confirmation request to the BOD.
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 mb-1">Resolution Number</label>
+                <input
+                  type="text"
+                  value={termForm.resolution_no}
+                  onChange={(e) => setTermForm((f) => ({ ...f, resolution_no: e.target.value }))}
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                  placeholder="e.g. BR-2026-014"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">Resolution Date</label>
+                  <input
+                    type="date"
+                    value={termForm.resolution_date}
+                    onChange={(e) => setTermForm((f) => ({ ...f, resolution_date: e.target.value }))}
+                    className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">Effective Date</label>
+                  <input
+                    type="date"
+                    value={termForm.effective_date}
+                    onChange={(e) => setTermForm((f) => ({ ...f, effective_date: e.target.value }))}
+                    className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 mb-1">Reason <span className="text-red-500">*</span></label>
+                <textarea
+                  value={termForm.reason}
+                  onChange={(e) => setTermForm((f) => ({ ...f, reason: e.target.value }))}
+                  rows={2}
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                  placeholder="e.g. Voluntary resignation, policy violation, etc."
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 mb-1">Notes</label>
+                <textarea
+                  value={termForm.notes}
+                  onChange={(e) => setTermForm((f) => ({ ...f, notes: e.target.value }))}
+                  rows={2}
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                  placeholder="Additional context for the BOD..."
+                />
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 px-6 py-4 border-t border-gray-100">
+              <button
+                onClick={() => setTermTarget(null)}
+                disabled={termBusy}
+                className="text-sm font-bold rounded-md px-4 py-2 border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={submitTerminate}
+                disabled={termBusy || !termForm.reason.trim()}
+                className="bg-red-600 text-white text-sm font-bold rounded-md px-4 py-2 hover:bg-red-700 disabled:opacity-50"
+              >
+                {termBusy ? "Submitting..." : "Submit Termination"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 };

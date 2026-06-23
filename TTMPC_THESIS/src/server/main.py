@@ -7570,4 +7570,273 @@ async def mark_legacy_member_no_history(payload: _NoHistoryPayload):
     except Exception as err:
         raise HTTPException(status_code=500, detail=f"Failed to mark no-history: {err}")
 
+
+# ============================================================================
+# Staff Account Management (BOD + Secretary)
+# ----------------------------------------------------------------------------
+# Endpoints for changing a member_account role, deactivating/reactivating
+# accounts, and the Secretary -> BOD termination workflow.
+# ============================================================================
+
+ALLOWED_ROLES = {
+    "member",
+    "bookkeeper",
+    "manager",
+    "cashier",
+    "treasurer",
+    "secretary",
+    "bod",
+}
+
+
+class StaffRoleChangeRequest(BaseModel):
+    member_id: str
+    new_role: str
+    actor_user_id: str | None = None
+
+
+class StaffDeactivateRequest(BaseModel):
+    member_id: str
+    is_active: bool
+    actor_user_id: str | None = None
+
+
+class StaffTerminationCreateRequest(BaseModel):
+    member_id: str
+    resolution_no: str | None = None
+    resolution_date: str | None = None
+    effective_date: str | None = None
+    reason: str | None = None
+    notes: str | None = None
+    requested_by: str | None = None
+    requested_by_role: str | None = None
+
+
+class StaffTerminationDecisionRequest(BaseModel):
+    request_id: int
+    decision: Literal["approved", "rejected"]
+    decided_by: str | None = None
+    decision_notes: str | None = None
+
+
+def _lookup_member_account(member_id: str):
+    """Find the member_account row by membership_id (e.g. TTMPC-293)."""
+    clean = str(member_id or "").strip()
+    if not clean:
+        raise HTTPException(status_code=400, detail="member_id is required.")
+
+    account_row = None
+    # member_account stores membership_id directly. Try id+is_active first,
+    # then fall back if the is_active column hasn't been migrated yet.
+    for select_cols in (
+        "user_id, auth_user_id, email, role, membership_id, is_active",
+        "user_id, auth_user_id, email, role, membership_id",
+    ):
+        try:
+            account_row = (
+                supabase.table("member_account")
+                .select(select_cols)
+                .eq("membership_id", clean)
+                .limit(1)
+                .execute()
+            ).data
+            account_row = (account_row or [None])[0]
+            break
+        except Exception:
+            continue
+
+    if not account_row:
+        raise HTTPException(status_code=404, detail=f"member_account not found for {clean}.")
+
+    # Synthesize an "id" key the rest of the endpoints can rely on. We use
+    # user_id as the stable identifier for member_account updates.
+    account_row.setdefault("id", account_row.get("user_id"))
+    account_row.setdefault("is_active", True)
+    return {"membership_id": clean}, account_row
+
+
+@app.post("/api/admin/staff/role")
+def staff_change_role(payload: StaffRoleChangeRequest):
+    if supabase is None:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+
+    new_role = str(payload.new_role or "").strip().lower()
+    if new_role not in ALLOWED_ROLES:
+        raise HTTPException(status_code=400, detail=f"Role '{payload.new_role}' is not allowed.")
+
+    member_row, account_row = _lookup_member_account(payload.member_id)
+
+    try:
+        supabase.table("member_account").update({"role": new_role}).eq(
+            "user_id", account_row["user_id"]
+        ).execute()
+    except Exception as err:
+        raise HTTPException(status_code=500, detail=f"Failed to update role: {err}")
+
+    # Best-effort: mirror role into auth.users app_metadata so RLS sees it.
+    auth_user_id = account_row.get("auth_user_id")
+    if auth_user_id:
+        try:
+            supabase.auth.admin.update_user_by_id(
+                auth_user_id, {"app_metadata": {"role": new_role}}
+            )
+        except Exception:
+            pass
+
+    return {"success": True, "member_id": payload.member_id, "role": new_role}
+
+
+@app.post("/api/admin/staff/deactivate")
+def staff_set_active(payload: StaffDeactivateRequest):
+    if supabase is None:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+
+    _, account_row = _lookup_member_account(payload.member_id)
+
+    try:
+        supabase.table("member_account").update(
+            {"is_active": bool(payload.is_active)}
+        ).eq("id", account_row["id"]).execute()
+    except Exception as err:
+        raise HTTPException(status_code=500, detail=f"Failed to update is_active: {err}")
+
+    return {"success": True, "member_id": payload.member_id, "is_active": bool(payload.is_active)}
+
+
+@app.post("/api/admin/staff/termination/request")
+def staff_request_termination(payload: StaffTerminationCreateRequest):
+    """Secretary submits a termination request.
+
+    Side effects:
+      - Immediately sets member_account.is_active = false (safety lock).
+      - Creates a staff_termination_requests row in 'awaiting_bod_confirmation'.
+      - Inserts a BOD-bound row in loan_notifications (best-effort) so the BOD
+        sees an actionable alert.
+    """
+    if supabase is None:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+
+    _, account_row = _lookup_member_account(payload.member_id)
+
+    insert_row = {
+        "member_id": str(payload.member_id).strip(),
+        "member_account_id": account_row.get("user_id"),
+        "previous_role": account_row.get("role"),
+        "resolution_no": payload.resolution_no,
+        "resolution_date": payload.resolution_date,
+        "effective_date": payload.effective_date,
+        "reason": payload.reason,
+        "notes": payload.notes,
+        "status": "awaiting_bod_confirmation",
+        "requested_by": payload.requested_by,
+        "requested_by_role": payload.requested_by_role,
+    }
+
+    try:
+        created = (
+            supabase.table("staff_termination_requests")
+            .insert(insert_row)
+            .execute()
+        ).data
+        created_row = (created or [None])[0] or insert_row
+    except Exception as err:
+        raise HTTPException(status_code=500, detail=f"Failed to create termination request: {err}")
+
+    # Immediate safety lock.
+    try:
+        supabase.table("member_account").update({"is_active": False}).eq(
+            "user_id", account_row["user_id"]
+        ).execute()
+    except Exception:
+        pass
+
+    # Best-effort BOD notification — non-fatal if the schema/columns differ.
+    try:
+        supabase.table("loan_notifications").insert({
+            "recipient_role": "bod",
+            "notification_type": "staff_termination_pending",
+            "payload": {
+                "request_id": created_row.get("id"),
+                "member_id": payload.member_id,
+                "previous_role": account_row.get("role"),
+                "resolution_no": payload.resolution_no,
+            },
+        }).execute()
+    except Exception:
+        pass
+
+    return {"success": True, "request": created_row}
+
+
+@app.post("/api/admin/staff/termination/decision")
+def staff_decide_termination(payload: StaffTerminationDecisionRequest):
+    """BOD approves or rejects a pending termination request."""
+    if supabase is None:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+
+    if payload.decision not in ("approved", "rejected"):
+        raise HTTPException(status_code=400, detail="Invalid decision.")
+
+    request_row = (
+        supabase.table("staff_termination_requests")
+        .select("*")
+        .eq("id", payload.request_id)
+        .limit(1)
+        .execute()
+    ).data
+    request_row = (request_row or [None])[0]
+    if not request_row:
+        raise HTTPException(status_code=404, detail="Termination request not found.")
+
+    if str(request_row.get("status") or "").lower() != "awaiting_bod_confirmation":
+        raise HTTPException(status_code=409, detail="Request has already been decided.")
+
+    try:
+        supabase.table("staff_termination_requests").update({
+            "status": payload.decision,
+            "decided_by": payload.decided_by,
+            "decision_notes": payload.decision_notes,
+            "decided_at": datetime.utcnow().isoformat(),
+        }).eq("id", payload.request_id).execute()
+    except Exception as err:
+        raise HTTPException(status_code=500, detail=f"Failed to record decision: {err}")
+
+    # If rejected, restore the account; if approved, leave is_active = false.
+    if payload.decision == "rejected" and request_row.get("member_account_id"):
+        try:
+            supabase.table("member_account").update({"is_active": True}).eq(
+                "user_id", request_row["member_account_id"]
+            ).execute()
+        except Exception:
+            pass
+
+    return {"success": True, "request_id": payload.request_id, "decision": payload.decision}
+
+
+@app.get("/api/admin/staff/termination/requests")
+def staff_list_termination_requests(status: str | None = None):
+    if supabase is None:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+
+    try:
+        query = supabase.table("staff_termination_requests").select("*").order(
+            "requested_at", desc=True
+        )
+        if status:
+            query = query.eq("status", status.strip().lower())
+        data = query.execute().data or []
+    except Exception as err:
+        raise HTTPException(status_code=500, detail=f"Failed to list requests: {err}")
+
+    return {"success": True, "data": data}
+
+
+@app.get("/api/admin/staff/account/{member_id}")
+def staff_get_account(member_id: str):
+    if supabase is None:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+
+    _, account_row = _lookup_member_account(member_id)
+    return {"success": True, "data": account_row}
+
     return {"success": True, "data": {"legacy_master_uuid": legacy_uuid}}

@@ -141,15 +141,7 @@ function Consolidated_Up() {
     borrower_id_type: '',
     borrower_id_number: '',
     member_class: '',
-    // Co-maker fields for >500k
-    co_maker_1_name: '',
-    co_maker_1_email: '',
-    co_maker_1_contact: '',
-    co_maker_1_address: '',
-    co_maker_2_name: '',
-    co_maker_2_email: '',
-    co_maker_2_contact: '',
-    co_maker_2_address: '',
+    // Co-makers for >500K are captured by the Bookkeeper during internal review, not here.
   });
 
   const NEW_LOAN_NET_PROCEEDS = 0; 
@@ -501,9 +493,6 @@ function Consolidated_Up() {
     'source_of_income', 'user_email',
     'borrower_id_type', 'borrower_id_number',
     'bonus_amount_words', 'bonus_amount_numeric',
-    // Co-Makers Added for >500k Output
-    'co_maker_1_name', 'co_maker_1_email', 'co_maker_1_contact', 'co_maker_1_address',
-    'co_maker_2_name', 'co_maker_2_email', 'co_maker_2_contact', 'co_maker_2_address',
   ];
 
   const buildPdfPayload = () => {
@@ -767,16 +756,6 @@ function Consolidated_Up() {
           latest_net_pay: formData.latest_net_pay || null,
           share_capital: formData.share_capital || null,
           consolidated_notes: null,
-          // Storing co-maker JSON in consolidated_notes or a similar field depends on backend implementation
-          // If your DB explicitly stores these in dedicated columns, they should be mapped appropriately here.
-          co_maker_1_name: formData.co_maker_1_name || null,
-          co_maker_1_email: formData.co_maker_1_email || null,
-          co_maker_1_contact: formData.co_maker_1_contact || null,
-          co_maker_1_address: formData.co_maker_1_address || null,
-          co_maker_2_name: formData.co_maker_2_name || null,
-          co_maker_2_email: formData.co_maker_2_email || null,
-          co_maker_2_contact: formData.co_maker_2_contact || null,
-          co_maker_2_address: formData.co_maker_2_address || null,
         },
       });
 
@@ -1163,66 +1142,10 @@ function Consolidated_Up() {
           </div>
         </div>
 
-        {/* Section 4: CO-MAKERS' INFORMATION (For >500k Tier) */}
+        {/* Section 4: ADDITIONAL INFORMATION */}
         <div className="mt-8 bg-white rounded-lg shadow-md overflow-hidden max-w-6xl mx-auto w-full">
           <div className={sectionHeader}>
             <span className="bg-white text-[#66B538] rounded-full w-6 h-6 flex items-center justify-center text-sm">4</span>
-            CO-MAKERS' INFORMATION
-          </div>
-          <div className="p-8">
-            <p className="text-sm text-gray-600 mb-6 font-medium">Loans exceeding ₱500,000 require exactly two (2) co-makers to accept joint liability.</p>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              
-              {/* Co-Maker 1 */}
-              <div className="space-y-4 border border-gray-200 p-6 rounded-lg bg-gray-50/50 shadow-sm">
-                <h3 className="font-bold text-[#66B538] uppercase tracking-wide border-b border-gray-200 pb-2">Primary Co-Maker</h3>
-                <div>
-                  <label className={labelStyles}>Full Name <span className="text-red-500">*</span></label>
-                  <input type="text" name="co_maker_1_name" value={formData.co_maker_1_name} onChange={handleChange} className={inputStyles} required />
-                </div>
-                <div>
-                  <label className={labelStyles}>Email Address <span className="text-red-500">*</span></label>
-                  <input type="email" name="co_maker_1_email" value={formData.co_maker_1_email} onChange={handleChange} className={inputStyles} required />
-                </div>
-                <div>
-                  <label className={labelStyles}>Contact No. <span className="text-red-500">*</span></label>
-                  <input type="text" name="co_maker_1_contact" value={formData.co_maker_1_contact} onChange={handleChange} className={inputStyles} required />
-                </div>
-                <div>
-                  <label className={labelStyles}>Residence Address <span className="text-red-500">*</span></label>
-                  <input type="text" name="co_maker_1_address" value={formData.co_maker_1_address} onChange={handleChange} className={inputStyles} required />
-                </div>
-              </div>
-
-              {/* Co-Maker 2 */}
-              <div className="space-y-4 border border-gray-200 p-6 rounded-lg bg-gray-50/50 shadow-sm">
-                <h3 className="font-bold text-[#66B538] uppercase tracking-wide border-b border-gray-200 pb-2">Secondary Co-Maker</h3>
-                <div>
-                  <label className={labelStyles}>Full Name <span className="text-red-500">*</span></label>
-                  <input type="text" name="co_maker_2_name" value={formData.co_maker_2_name} onChange={handleChange} className={inputStyles} required />
-                </div>
-                <div>
-                  <label className={labelStyles}>Email Address <span className="text-red-500">*</span></label>
-                  <input type="email" name="co_maker_2_email" value={formData.co_maker_2_email} onChange={handleChange} className={inputStyles} required />
-                </div>
-                <div>
-                  <label className={labelStyles}>Contact No. <span className="text-red-500">*</span></label>
-                  <input type="text" name="co_maker_2_contact" value={formData.co_maker_2_contact} onChange={handleChange} className={inputStyles} required />
-                </div>
-                <div>
-                  <label className={labelStyles}>Residence Address <span className="text-red-500">*</span></label>
-                  <input type="text" name="co_maker_2_address" value={formData.co_maker_2_address} onChange={handleChange} className={inputStyles} required />
-                </div>
-              </div>
-              
-            </div>
-          </div>
-        </div>
-
-        {/* Section 5: ADDITIONAL INFORMATION */}
-        <div className="mt-8 bg-white rounded-lg shadow-md overflow-hidden max-w-6xl mx-auto w-full">
-          <div className={sectionHeader}>
-            <span className="bg-white text-[#66B538] rounded-full w-6 h-6 flex items-center justify-center text-sm">5</span>
             BORROWER'S ADDITIONAL INFORMATION
           </div>
           <div className="p-8 grid grid-cols-1 md:grid-cols-2 gap-6">

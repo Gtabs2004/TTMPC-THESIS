@@ -9,11 +9,12 @@ import {
   CreditCard, 
   CalendarCheck, 
   Archive, 
-  Search, 
-  Bell, 
-  ChevronLeft, 
+  Search,
+  Bell,
+  ChevronLeft,
   ChevronRight,
-  FileText 
+  FileText,
+  AlertTriangle,
 } from "lucide-react";
 import NotificationBell from "./NotificationBell";
 
@@ -34,8 +35,10 @@ const BOD_Manage_Member = () => {
     { section: "BOD", items: [
       { name: "Dashboard", icon: LayoutDashboard },
       { name: "Member Approvals", icon: Users },
+      { name: "Loan Approvals", icon: CreditCard },
       { name: "Manage Loans", icon: CreditCard },
       { name: "Manage Member", icon: Users },
+      { name: "Termination Inbox", icon: AlertTriangle },
       { name: "Loan Policies", icon: FileText }
     ]},
     { section: "SECRETARY", items: [
@@ -49,6 +52,8 @@ const BOD_Manage_Member = () => {
     "Member Approvals": "/member-approvals",
     "Manage Loans": "/bod-manage-loans",
     "Manage Member": "/bod-manage-member",
+    "Loan Approvals": "/bod-loan-approvals",
+    "Termination Inbox": "/bod-termination-inbox",
     "Loan Policies": "/bod-loan-policies",
     "Training Attendance": "/Secretary_Attendance",
     "Membership Records": "/Secretary_Records",

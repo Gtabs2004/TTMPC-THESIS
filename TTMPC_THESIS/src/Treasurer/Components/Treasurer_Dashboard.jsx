@@ -5,6 +5,7 @@ import { useNotification } from "../../contex/NotificationContext";
 import { PortalSidebarIdentity, PortalTopbarIdentity } from "../../components/PortalIdentity";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
 import LoanDemandForecastCard from "../../components/LoanDemandForecastCard";
+import RecentActivityCard from "../../components/RecentActivityCard";
 import { 
   LayoutDashboard, 
   Users, 
@@ -69,6 +70,7 @@ const Treasurer_Dashboard = () => {
     { name: "Payments", icon: Users },
     { name: "Loan-Approval", icon: CreditCard },
     { name: "Accounting", icon: BarChart3 },
+    { name: "Audit Log", icon: BarChart3 },
   ];
 
   const handleSignOut = async (e) => {
@@ -104,6 +106,7 @@ const Treasurer_Dashboard = () => {
               "Payments": "/treasurer-payments",
               "Loan-Approval": "/treasurer-approval",
               "Accounting": "/treasurer-accounting",
+              "Audit Log": "/treasurer-audit-log",
             };
 
             return menuItems.map((item) => {
@@ -357,6 +360,10 @@ const Treasurer_Dashboard = () => {
                 <button className="px-3 py-1 border border-gray-200 rounded-md hover:bg-gray-50 text-gray-600">Next</button>
               </div>
             </div>
+          </div>
+
+          <div className="mt-8">
+            <RecentActivityCard to="/treasurer-audit-log" title="My Audit Activity" />
           </div>
 
           <div className="mt-8">
