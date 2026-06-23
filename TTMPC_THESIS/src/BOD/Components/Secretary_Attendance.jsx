@@ -19,7 +19,9 @@ import {
   Archive,
   CalendarDays,
   Clock3,
-  FileText
+  FileText,
+  ShieldCheck,
+    AlertTriangle,
 } from 'lucide-react';
 import logo from "../../assets/img/ttmpc logo.png";
 import NotificationBell from "./NotificationBell";
@@ -47,26 +49,28 @@ const Secretary_Attendance = () => {
   const [savingAttendance, setSavingAttendance] = useState(false);
 
   const menuItems = [
-    {
-      section: "BOD",
-      items: [
-        { name: "Dashboard", icon: LayoutDashboard },
-        { name: "Member Approvals", icon: Users },
-        { name: "Manage Loans", icon: CreditCard },
-        { name: "Manage Member", icon: Users },
-        { name: "Loan Policies", icon: FileText }
-      ]
-    },
-    {
-      section: "SECRETARY",
-      items: [
-        { name: "Training Attendance", icon: CalendarCheck },
-        { name: "General Assembly", icon: CalendarDays },
-        { name: "Membership Records", icon: Archive  }
-      ]
-    }
-  ];
-
+     {
+       section: "BOD",
+       items: [
+         { name: "Dashboard", icon: LayoutDashboard },
+         { name: "Member Approvals", icon: Users },
+         { name: "Loan Approvals", icon: ShieldCheck },
+         { name: "Manage Loans", icon: CreditCard },
+         { name: "Manage Member", icon: Users },
+         { name: "Termination Inbox", icon: AlertTriangle },
+         { name: "Loan Policies", icon: FileText },
+       ],
+     },
+     {
+       section: "SECRETARY",
+       items: [
+         { name: "Training Attendance", icon: CalendarCheck },
+         { name: "General Assembly", icon: CalendarDays },
+         { name: "Membership Records", icon: Archive },
+       ],
+     },
+   ];
+ 
   const normalizeStatus = (value) => {
     const normalized = String(value || "")
       .trim()
@@ -424,15 +428,18 @@ const Secretary_Attendance = () => {
         <nav className="flex flex-col gap-2 text-sm flex-grow">
           {(() => {
             const routeMap = {
-              "Dashboard": "/BOD-dashboard",
-              "Member Approvals": "/member-approvals",
-              "Manage Loans": "/bod-manage-loans",
-              "Manage Member": "/bod-manage-member",
-              "Loan Policies": "/bod-loan-policies",
-              "Training Attendance": "/Secretary_Attendance",
-              "General Assembly": "/secretary-general-assembly",
-              "Membership Records": "/Secretary_Records"
-            };
+    "Dashboard": "/BOD-dashboard",
+    "Member Approvals": "/member-approvals",
+    "Loan Approvals": "/bod-loan-approvals",
+    "Manage Loans": "/bod-manage-loans",
+    "Manage Member": "/bod-manage-member",
+    "Termination Inbox": "/bod-termination-inbox",
+    "Loan Policies": "/bod-loan-policies",
+    "Training Attendance": "/Secretary_Attendance",
+    "General Assembly": "/Secretary_General_Assembly",
+    "Membership Records": "/Secretary_Records",
+  };
+
 
             return menuItems.map((sectionGroup) => (
               <div key={sectionGroup.section} className="mb-4 flex flex-col gap-2">

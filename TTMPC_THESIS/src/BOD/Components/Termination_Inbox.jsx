@@ -8,11 +8,14 @@ import {
   Users,
   CreditCard,
   CalendarCheck,
+  CalendarDays,
   Archive,
   FileText,
   AlertTriangle,
   CheckCircle2,
   XCircle,
+  ShieldCheck,
+   
 } from "lucide-react";
 import NotificationBell from "./NotificationBell";
 
@@ -41,30 +44,38 @@ const Termination_Inbox = () => {
   const [statusFilter, setStatusFilter] = useState("awaiting_bod_confirmation");
 
   const menuItems = [
-    { section: "BOD", items: [
-      { name: "Dashboard", icon: LayoutDashboard },
-      { name: "Member Approvals", icon: Users },
-      { name: "Loan Approvals", icon: CreditCard },
-      { name: "Manage Loans", icon: CreditCard },
-      { name: "Manage Member", icon: Users },
-      { name: "Termination Inbox", icon: AlertTriangle },
-      { name: "Loan Policies", icon: FileText }
-    ]},
-    { section: "SECRETARY", items: [
-      { name: "Training Attendance", icon: CalendarCheck },
-      { name: "Membership Records", icon: Archive },
-    ]},
-  ];
+      {
+        section: "BOD",
+        items: [
+          { name: "Dashboard", icon: LayoutDashboard },
+          { name: "Member Approvals", icon: Users },
+          { name: "Loan Approvals", icon: ShieldCheck },
+          { name: "Manage Loans", icon: CreditCard },
+          { name: "Manage Member", icon: Users },
+          { name: "Termination Inbox", icon: AlertTriangle },
+          { name: "Loan Policies", icon: FileText },
+        ],
+      },
+      {
+        section: "SECRETARY",
+        items: [
+          { name: "Training Attendance", icon: CalendarCheck },
+          { name: "General Assembly", icon: CalendarDays },
+          { name: "Membership Records", icon: Archive },
+        ],
+      },
+    ];
 
   const routeMap = {
     "Dashboard": "/BOD-dashboard",
     "Member Approvals": "/member-approvals",
+    "Loan Approvals": "/bod-loan-approvals",
     "Manage Loans": "/bod-manage-loans",
     "Manage Member": "/bod-manage-member",
-    "Loan Approvals": "/bod-loan-approvals",
     "Termination Inbox": "/bod-termination-inbox",
     "Loan Policies": "/bod-loan-policies",
     "Training Attendance": "/Secretary_Attendance",
+    "General Assembly": "/Secretary_General_Assembly",
     "Membership Records": "/Secretary_Records",
   };
 

@@ -9,6 +9,7 @@ import {
   Users,
   CreditCard,
   CalendarCheck,
+  CalendarDays,
   Archive,
   FileText,
   AlertTriangle,
@@ -17,6 +18,7 @@ import {
   UserPlus,
   ClipboardList,
   BadgeCheck,
+  
 } from "lucide-react";
 import NotificationBell from "./NotificationBell";
 
@@ -55,6 +57,7 @@ const BOD_Loan_Approval = () => {
       section: "SECRETARY",
       items: [
         { name: "Training Attendance", icon: CalendarCheck },
+        { name: "General Assembly", icon: CalendarDays },
         { name: "Membership Records", icon: Archive },
       ],
     },
@@ -69,6 +72,7 @@ const BOD_Loan_Approval = () => {
     "Termination Inbox": "/bod-termination-inbox",
     "Loan Policies": "/bod-loan-policies",
     "Training Attendance": "/Secretary_Attendance",
+    "General Assembly": "/Secretary_General_Assembly",
     "Membership Records": "/Secretary_Records",
   };
 

@@ -19,7 +19,9 @@ import {
   CalendarDays,
   CalendarCheck,
   Archive,
-  FileText
+  FileText,
+  ShieldCheck,
+  AlertTriangle 
 } from 'lucide-react';
 import { supabase } from "../../supabaseClient";
 import { resolveAccountFromSessionUser } from "../../utils/sessionIdentity";
@@ -173,26 +175,28 @@ const Member_Approvals = () => {
     setPage(1);
   }, [activeTab]);
 
-  const menuItems = [
-    {
-      section: "BOD",
-      items: [
-        { name: "Dashboard", icon: LayoutDashboard },
-        { name: "Member Approvals", icon: Users },
-        { name: "Manage Loans", icon: CreditCard },
-        { name: "Manage Member", icon: Users },
-        { name: "Loan Policies", icon: FileText }
-      ]
-    },
-    {
-      section: "SECRETARY",
-      items: [
-        { name: "Training Attendance", icon: CalendarCheck },
-        { name: "Membership Records", icon: Archive  }
-      ]
-    }
-  ];
-  
+    const menuItems = [
+       {
+         section: "BOD",
+         items: [
+           { name: "Dashboard", icon: LayoutDashboard },
+           { name: "Member Approvals", icon: Users },
+           { name: "Loan Approvals", icon: ShieldCheck },
+           { name: "Manage Loans", icon: CreditCard },
+           { name: "Manage Member", icon: Users },
+           { name: "Termination Inbox", icon: AlertTriangle },
+           { name: "Loan Policies", icon: FileText },
+         ],
+       },
+       {
+         section: "SECRETARY",
+         items: [
+           { name: "Training Attendance", icon: CalendarCheck },
+           { name: "General Assembly", icon: CalendarDays },
+           { name: "Membership Records", icon: Archive },
+         ],
+       },
+     ];
   const handleSignOut = async (e) => {
     e.preventDefault();
     navigate("/");
@@ -286,14 +290,19 @@ const Member_Approvals = () => {
               <p className="text-xs font-bold text-gray-400 px-2 uppercase tracking-wider">{sectionGroup.section}</p>
               {sectionGroup.items.map((item) => {
                 const Icon = item.icon;
-                const routeMap = {
-                   "Dashboard": "/BOD-dashboard", 
-                  "Member Approvals": "/member-approvals", 
-                  "Manage Loans": "/bod-manage-loans", 
-                  "Manage Member": "/bod-manage-member", 
-                   "Loan Policies": "/bod-loan-policies",
-                  "Training Attendance": "/Secretary_Attendance", 
-                  "Membership Records": "/Secretary_Records" };
+                 const routeMap = {
+    "Dashboard": "/BOD-dashboard",
+    "Member Approvals": "/member-approvals",
+    "Loan Approvals": "/bod-loan-approvals",
+    "Manage Loans": "/bod-manage-loans",
+    "Manage Member": "/bod-manage-member",
+    "Termination Inbox": "/bod-termination-inbox",
+    "Loan Policies": "/bod-loan-policies",
+    "Training Attendance": "/Secretary_Attendance",
+    "General Assembly": "/Secretary_General_Assembly",
+    "Membership Records": "/Secretary_Records",
+  };
+
                 const to = routeMap[item.name] || `/${item.name.toLowerCase().replace(/\s+/g, '-')}`;
                 return (
                   <NavLink key={item.name} to={to} className={({ isActive }) => `flex items-center gap-3 p-2 rounded-md transition-colors ${isActive ? 'bg-green-50 text-green-700 font-semibold' : 'text-gray-700 hover:bg-green-50 hover:text-green-700'}`}>

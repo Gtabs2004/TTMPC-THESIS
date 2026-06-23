@@ -7,6 +7,7 @@ import {
   Users,
   CreditCard,
   CalendarCheck,
+  CalendarDays,
   Archive,
   Search,
   Bell,
@@ -15,7 +16,9 @@ import {
   ChevronDown,
   ChevronRight,
   ChevronUp,
-  FileText
+  FileText,
+  ShieldCheck,
+  AlertTriangle
 } from "lucide-react";
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 const MEMBER_TONE_POOL = [
@@ -272,35 +275,40 @@ const BOD_Manage_Loans = () => {
   }, []);
 
   const menuItems = [
-    {
-      section: "BOD",
-      items: [
-        { name: "Dashboard", icon: LayoutDashboard },
-        { name: "Member Approvals", icon: Users },
-        { name: "Manage Loans", icon: CreditCard },
-        { name: "Manage Member", icon: Users },
-        { name: "Loan Policies", icon: FileText }
-      ]
-    },
-    {
-      section: "SECRETARY",
-      items: [
-        { name: "Training Attendance", icon: CalendarCheck },
-        { name: "Membership Records", icon: Archive },
-      ],
-    },
-  ];
+      {
+        section: "BOD",
+        items: [
+          { name: "Dashboard", icon: LayoutDashboard },
+          { name: "Member Approvals", icon: Users },
+          { name: "Loan Approvals", icon: ShieldCheck },
+          { name: "Manage Loans", icon: CreditCard },
+          { name: "Manage Member", icon: Users },
+          { name: "Termination Inbox", icon: AlertTriangle },
+          { name: "Loan Policies", icon: FileText },
+        ],
+      },
+      {
+        section: "SECRETARY",
+        items: [
+          { name: "Training Attendance", icon: CalendarCheck },
+          { name: "General Assembly", icon: CalendarDays },
+          { name: "Membership Records", icon: Archive },
+        ],
+      },
+    ];
 
   const routeMap = {
-    Dashboard: "/BOD-dashboard",
+    "Dashboard": "/BOD-dashboard",
     "Member Approvals": "/member-approvals",
+    "Loan Approvals": "/bod-loan-approvals",
     "Manage Loans": "/bod-manage-loans",
     "Manage Member": "/bod-manage-member",
+    "Termination Inbox": "/bod-termination-inbox",
     "Loan Policies": "/bod-loan-policies",
     "Training Attendance": "/Secretary_Attendance",
+    "General Assembly": "/Secretary_General_Assembly",
     "Membership Records": "/Secretary_Records",
   };
-
   const handleSignOut = async (e) => {
     e.preventDefault();
     try {

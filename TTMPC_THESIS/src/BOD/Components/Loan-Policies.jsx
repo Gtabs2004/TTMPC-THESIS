@@ -5,7 +5,9 @@ import { PortalSidebarIdentity } from "../../components/PortalIdentity";
 import { supabase } from "../../supabaseClient";
 import {
   LayoutDashboard, Users, Archive, CalendarCheck, CreditCard,
-  Save, RefreshCw, AlertCircle, CheckCircle2, Percent, Banknote, Shield, FileText,
+  Save, RefreshCw, AlertCircle, CheckCircle2, Percent, Banknote, Shield, FileText,ShieldCheck,
+  AlertTriangle,
+  CalendarDays 
 } from "lucide-react";
 import NotificationBell from "./NotificationBell";
 
@@ -47,19 +49,28 @@ const Loan_Policies = () => {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
-  const menuItems = [
-    { section: "BOD", items: [
-      { name: "Dashboard", icon: LayoutDashboard, to: "/BOD-dashboard" },
-      { name: "Member Approvals", icon: Users, to: "/member-approvals" },
-      { name: "Manage Loans", icon: CreditCard, to: "/bod-manage-loans" },
-      { name: "Manage Member", icon: Users, to: "/bod-manage-member" },
-      { name: "Loan Policies", icon: FileText, to: "/bod-loan-policies" },
-    ]},
-    { section: "SECRETARY", items: [
-      { name: "Training Attendance", icon: CalendarCheck, to: "/Secretary_Attendance" },
-      { name: "Membership Records", icon: Archive, to: "/Secretary_Records" },
-    ]},
-  ];
+    const menuItems = [
+      {
+        section: "BOD",
+        items: [
+          { name: "Dashboard", icon: LayoutDashboard },
+          { name: "Member Approvals", icon: Users },
+          { name: "Loan Approvals", icon: ShieldCheck },
+          { name: "Manage Loans", icon: CreditCard },
+          { name: "Manage Member", icon: Users },
+          { name: "Termination Inbox", icon: AlertTriangle },
+          { name: "Loan Policies", icon: FileText },
+        ],
+      },
+      {
+        section: "SECRETARY",
+        items: [
+          { name: "Training Attendance", icon: CalendarCheck },
+          { name: "General Assembly", icon: CalendarDays },
+          { name: "Membership Records", icon: Archive },
+        ],
+      },
+    ];
 
   const handleSignOut = async (e) => {
     e.preventDefault();
@@ -228,10 +239,24 @@ const Loan_Policies = () => {
               <p className="text-xs font-bold text-gray-400 px-2 uppercase tracking-wider">{group.section}</p>
               {group.items.map((item) => {
                 const Icon = item.icon;
+                const routeMap = {
+                  "Dashboard": "/BOD-dashboard",
+                  "Member Approvals": "/member-approvals",
+                  "Loan Approvals": "/bod-loan-approvals",
+                  "Manage Loans": "/bod-manage-loans",
+                  "Manage Member": "/bod-manage-member",
+                  "Termination Inbox": "/bod-termination-inbox",
+                  "Loan Policies": "/bod-loan-policies",
+                  "Training Attendance": "/Secretary_Attendance",
+                  "General Assembly": "/Secretary_Assembly", // Added this fallback
+                  "Membership Records": "/Secretary_Records",
+                };
+                const to = routeMap[item.name] || `/${item.name.toLowerCase().replace(/\s+/g, '-')}`;
+                
                 return (
                   <NavLink
                     key={item.name}
-                    to={item.to}
+                    to={to} // FIX: Changed from item.to to to
                     className={({ isActive }) =>
                       `flex items-center gap-3 p-2 rounded-md transition-colors ${
                         isActive
