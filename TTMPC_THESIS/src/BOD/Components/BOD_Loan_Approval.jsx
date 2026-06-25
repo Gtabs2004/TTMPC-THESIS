@@ -18,7 +18,7 @@ import {
   UserPlus,
   ClipboardList,
   BadgeCheck,
-  
+  History,
 } from "lucide-react";
 import NotificationBell from "./NotificationBell";
 
@@ -50,6 +50,7 @@ const BOD_Loan_Approval = () => {
         { name: "Manage Loans", icon: CreditCard },
         { name: "Manage Member", icon: Users },
         { name: "Termination Inbox", icon: AlertTriangle },
+        { name: "Audit Log", icon: History },
         { name: "Loan Policies", icon: FileText },
       ],
     },
@@ -70,6 +71,7 @@ const BOD_Loan_Approval = () => {
     "Manage Loans": "/bod-manage-loans",
     "Manage Member": "/bod-manage-member",
     "Termination Inbox": "/bod-termination-inbox",
+    "Audit Log": "/bod-audit-log",
     "Loan Policies": "/bod-loan-policies",
     "Training Attendance": "/Secretary_Attendance",
     "General Assembly": "/Secretary_General_Assembly",

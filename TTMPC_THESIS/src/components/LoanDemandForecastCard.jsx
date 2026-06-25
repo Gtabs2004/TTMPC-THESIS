@@ -1,23 +1,21 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
-  Area,
-  ComposedChart,
+  CartesianGrid,
   Legend,
   Line,
+  LineChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
-  CartesianGrid,
-  ReferenceLine,
 } from "recharts";
-import { TrendingUp, Loader2, AlertCircle, AlertTriangle, Info, Wallet } from "lucide-react";
+import { TrendingUp, Loader2, AlertCircle, Info } from "lucide-react";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 
 const LOAN_TYPES = [
-  { value: "consolidated", label: "Consolidated", color: "#1D6021", forecastColor: "#0D4F8B" },
-  { value: "emergency",    label: "Emergency",    color: "#B45309", forecastColor: "#92400E" },
+  { value: "consolidated", label: "Consolidated", color: "#1D6021" },
+  { value: "emergency",    label: "Emergency",    color: "#B45309" },
 ];
 
 const PHP = (value) =>
@@ -26,22 +24,61 @@ const PHP = (value) =>
     maximumFractionDigits: 0,
   })}`;
 
-const monthLabel = (iso) => {
-  if (!iso) return "";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleDateString("en-PH", { month: "short", year: "2-digit" });
-};
+const MONTH_LABELS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 /**
- * LoanDemandForecastCard — multi-loan demand panel.
- * Top: per-loan-type "next month" tiles + combined Total Liquidity Alert.
- * Bottom: detail chart with historical actuals + forecast band, toggle per loan type.
+ * Build 12 month rows for the target year, merging CSV actuals (past months)
+ * with API forecast (future months). The "boundary" between actual and forecast
+ * is the actuals.months array — any month with loan_count > 0 is treated as
+ * historical. Months without actuals fall back to the forecast for that period.
  */
-const LoanDemandForecastCard = ({ defaultLoanType = "consolidated", periods = 12, className = "" }) => {
-  const [activeLoanType, setActiveLoanType] = useState(defaultLoanType);
-  const [horizon, setHorizon] = useState(periods);
-  const [forecasts, setForecasts] = useState({}); // {consolidated: {...}, emergency: {...}}
+// Normalize any period representation ("2026-01", "2026-01-31", Date, …) to "YYYY-MM"
+// so we can join actuals and forecast by month regardless of source format.
+const monthKey = (period) => {
+  if (!period) return "";
+  const s = String(period);
+  // Already "YYYY-MM-…" — just truncate.
+  if (/^\d{4}-\d{2}/.test(s)) return s.slice(0, 7);
+  const d = new Date(s);
+  if (!Number.isNaN(d.getTime())) {
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  }
+  return s;
+};
+
+const buildYearSeries = (actuals, forecast, color, targetYear) => {
+  const year = targetYear ?? actuals?.year;
+  const fcByPeriod = new Map(
+    (forecast?.forecast || []).map((r) => [monthKey(r.period), r])
+  );
+  const actualsByPeriod = new Map(
+    (actuals?.months || []).map((r) => [monthKey(r.period), r])
+  );
+  return MONTH_LABELS.map((label, idx) => {
+    const m = idx + 1;
+    const key = `${year}-${String(m).padStart(2, "0")}`;
+    const actualRow = actualsByPeriod.get(key);
+    const fcRow = fcByPeriod.get(key);
+    const hasActual = actualRow && actualRow.loan_count > 0;
+    const actualValue = hasActual ? actualRow.actual : null;
+    const predictedValue = !hasActual && fcRow ? fcRow.predicted : null;
+    return {
+      label,
+      period: key,
+      actual: actualValue,
+      predicted: predictedValue,
+      lower: fcRow?.lower ?? null,
+      upper: fcRow?.upper ?? null,
+      color,
+      kind: hasActual ? "actual" : (predictedValue !== null ? "forecast" : "n/a"),
+    };
+  });
+};
+
+const LoanDemandForecastCard = ({ className = "" }) => {
+  const [actuals, setActuals] = useState({});    // {consolidated: {year, months: [...]}, emergency: ...}
+  const [forecasts, setForecasts] = useState({}); // {consolidated: {forecast: [...]}, emergency: ...}
+  const [displayYear, setDisplayYear] = useState(new Date().getFullYear());
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -51,153 +88,136 @@ const LoanDemandForecastCard = ({ defaultLoanType = "consolidated", periods = 12
       setLoading(true);
       setError("");
       try {
+        // Step 1: probe actuals to find what years the CSV has.
+        const probeRes = await fetch(
+          `${API_BASE_URL}/api/analytics/demand/actuals?loan_type=consolidated`,
+          { headers: { Accept: "application/json" } }
+        );
+        const probePayload = await probeRes.json().catch(() => ({}));
+        if (!probeRes.ok) {
+          throw new Error(probePayload?.detail || "Failed to discover available years.");
+        }
+        const latestCsvYear = Math.max(...(probePayload.available_years || [probePayload.year]));
+        // Display the *next* year after the latest CSV year, so months without
+        // actuals naturally fall through to forecast values.
+        const targetYear = latestCsvYear + 1;
+        if (cancelled) return;
+        setDisplayYear(targetYear);
+
+        // Step 2: fetch actuals (for targetYear) + forecast (long enough to reach Dec of targetYear).
+        // ──────────────────────────────────────────────────────────────────────
+        // IF YOU RETRAIN / SWAP THE SARIMA MODEL: update `trainingEndYear` to the
+        // last year present in the new model's training set. The model's forecast
+        // starts the month *after* training ends, so this number controls how
+        // many `periods` we request to reach Dec of the year we want to display.
+        // Files to update when retraining:
+        //   • src/server/models/consolidated_model.pkl
+        //   • src/server/models/emergency_model.pkl
+        //   • src/analytics/Loan Demand Forecasting/Data/df_modeling_export (1).csv
+        //     (regenerate so `available_years` reflects the new training range)
+        // ──────────────────────────────────────────────────────────────────────
+        const trainingEndYear = 2024;
+        const requiredPeriods = Math.max(12, (targetYear - trainingEndYear) * 12);
+
         const results = await Promise.all(
           LOAN_TYPES.map(async (t) => {
-            const res = await fetch(
-              `${API_BASE_URL}/api/analytics/demand/forecast?loan_type=${t.value}&periods=${horizon}`,
-              { headers: { Accept: "application/json" } }
-            );
-            const payload = await res.json().catch(() => ({}));
-            if (!res.ok) {
-              throw new Error(payload?.detail || `Failed to load ${t.label} forecast.`);
-            }
-            // Backend returns a flat envelope ({loan_type, historical, forecast, ...}).
-            // Older shape was {success, data:{...}} — fall back to that if seen.
-            const data = payload?.data ?? payload;
-            if (!data || !Array.isArray(data.forecast)) {
-              throw new Error(`Empty ${t.label} forecast response.`);
-            }
-            return [t.value, data];
+            const [actRes, fcRes] = await Promise.all([
+              fetch(`${API_BASE_URL}/api/analytics/demand/actuals?loan_type=${t.value}&year=${targetYear}`, {
+                headers: { Accept: "application/json" },
+              }),
+              fetch(`${API_BASE_URL}/api/analytics/demand/forecast?loan_type=${t.value}&periods=${requiredPeriods}`, {
+                headers: { Accept: "application/json" },
+              }),
+            ]);
+            const actPayload = await actRes.json().catch(() => ({}));
+            const fcPayload = await fcRes.json().catch(() => ({}));
+            if (!actRes.ok) throw new Error(actPayload?.detail || `Failed to load ${t.label} actuals.`);
+            if (!fcRes.ok) throw new Error(fcPayload?.detail || `Failed to load ${t.label} forecast.`);
+            const fcData = fcPayload?.data ?? fcPayload;
+            return [t.value, { actuals: actPayload, forecast: fcData }];
           })
         );
-        if (!cancelled) {
-          const map = {};
-          for (const [k, v] of results) map[k] = v;
-          setForecasts(map);
+        if (cancelled) return;
+        const actMap = {};
+        const fcMap = {};
+        for (const [k, v] of results) {
+          actMap[k] = v.actuals;
+          fcMap[k] = v.forecast;
         }
+        setActuals(actMap);
+        setForecasts(fcMap);
       } catch (err) {
-        if (!cancelled) setError(err?.message || "Unable to load forecast.");
+        if (!cancelled) setError(err?.message || "Unable to load forecast data.");
       } finally {
         if (!cancelled) setLoading(false);
       }
     };
     fetchAll();
-    return () => {
-      cancelled = true;
-    };
-  }, [horizon]);
+    return () => { cancelled = true; };
+  }, []);
 
-  // Per-loan summary
-  const summaries = useMemo(() => {
-    return LOAN_TYPES.map((t) => {
-      const data = forecasts[t.value];
-      if (!data) {
-        return { ...t, nextMonth: null, nextMonthBand: null, horizonTotal: 0, historicalAvg: 0 };
+  const seriesByType = useMemo(() => {
+    const out = {};
+    for (const t of LOAN_TYPES) {
+      out[t.value] = buildYearSeries(actuals[t.value], forecasts[t.value], t.color, displayYear);
+    }
+    return out;
+  }, [actuals, forecasts, displayYear]);
+
+  // Combine the two series into one chart dataset keyed by month label.
+  const chartData = useMemo(() => {
+    return MONTH_LABELS.map((label, idx) => {
+      const row = { label };
+      for (const t of LOAN_TYPES) {
+        const point = seriesByType[t.value]?.[idx];
+        if (!point) continue;
+        // For the chart, pick whichever value exists (actual or predicted) and
+        // tag whether it's a forecast so the table can highlight it.
+        const value = point.actual !== null ? point.actual : point.predicted;
+        row[`${t.value}_value`] = value;
+        row[`${t.value}_kind`] = point.kind;
       }
-      const fc = data.forecast || [];
-      const nextMonthRow = fc[0] || null;
-      const horizonTotal = fc.reduce((s, r) => s + (r.predicted || 0), 0);
-      const histTotal = (data.historical || []).reduce((s, r) => s + (r.actual || 0), 0);
-      const historicalAvg = data.historical?.length ? histTotal / data.historical.length : 0;
-      return {
-        ...t,
-        nextMonth: nextMonthRow ? nextMonthRow.predicted : null,
-        nextMonthPeriod: nextMonthRow?.period || null,
-        nextMonthBand: nextMonthRow ? [nextMonthRow.lower, nextMonthRow.upper] : null,
-        horizonTotal,
-        historicalAvg,
-      };
+      return row;
     });
-  }, [forecasts]);
+  }, [seriesByType]);
 
-  // Combined liquidity totals
-  const liquidity = useMemo(() => {
-    const nextMonthTotal = summaries.reduce((s, x) => s + (x.nextMonth || 0), 0);
-    const horizonTotal = summaries.reduce((s, x) => s + (x.horizonTotal || 0), 0);
-    const histAvgTotal = summaries.reduce((s, x) => s + (x.historicalAvg || 0), 0);
-    const trendPct = histAvgTotal > 0
-      ? ((horizonTotal / horizon - histAvgTotal) / histAvgTotal) * 100
-      : null;
-    const nextMonthPeriod = summaries.find((s) => s.nextMonthPeriod)?.nextMonthPeriod || null;
-    return { nextMonthTotal, horizonTotal, histAvgTotal, trendPct, nextMonthPeriod };
-  }, [summaries, horizon]);
-
-  // Chart data for the active loan type
-  const { chartData, lastActualPeriod } = useMemo(() => {
-    const data = forecasts[activeLoanType];
-    if (!data) return { chartData: [], lastActualPeriod: null };
-    const merged = [];
-    for (const row of data.historical || []) {
-      merged.push({
-        period: row.period,
-        label: monthLabel(row.period),
-        actual: row.actual,
-      });
-    }
-    const lastPeriod = (data.historical || []).slice(-1)[0]?.period || null;
-    for (const row of data.forecast || []) {
-      merged.push({
-        period: row.period,
-        label: monthLabel(row.period),
-        predicted: row.predicted,
-        band: [row.lower, row.upper],
-      });
-    }
-    return { chartData: merged, lastActualPeriod: lastPeriod };
-  }, [forecasts, activeLoanType]);
+  const currentYear = displayYear;
 
   const renderTooltip = ({ active, payload, label }) => {
     if (!active || !payload?.length) return null;
-    const row = payload[0]?.payload || {};
     return (
-      <div className="bg-white border border-gray-200 rounded-lg shadow-md px-3 py-2 text-xs">
-        <p className="font-bold text-gray-800 mb-1">{label}</p>
-        {row.actual !== undefined && (
-          <p className="text-[#1D6021]">
-            <span className="font-semibold">Actual:</span> {PHP(row.actual)}
-          </p>
-        )}
-        {row.predicted !== undefined && (
-          <>
-            <p className="text-[#0D4F8B]">
-              <span className="font-semibold">Forecast:</span> {PHP(row.predicted)}
+      <div className="bg-white border border-gray-200 rounded-lg shadow-md px-3 py-2 text-xs space-y-1">
+        <p className="font-bold text-gray-800">{label} {currentYear}</p>
+        {LOAN_TYPES.map((t) => {
+          const row = payload[0]?.payload || {};
+          const v = row[`${t.value}_value`];
+          const kind = row[`${t.value}_kind`];
+          if (v === undefined || v === null) return null;
+          return (
+            <p key={t.value} style={{ color: t.color }}>
+              <span className="font-semibold">{t.label}:</span> {PHP(v)}
+              <span className="ml-1 text-gray-400 font-normal">({kind === "actual" ? "actual" : "forecast"})</span>
             </p>
-            {row.band && (
-              <p className="text-gray-500">
-                <span className="font-semibold">80% CI:</span> {PHP(row.band[0])} – {PHP(row.band[1])}
-              </p>
-            )}
-          </>
-        )}
+          );
+        })}
       </div>
     );
   };
 
-  const activeMeta = LOAN_TYPES.find((t) => t.value === activeLoanType);
-
   return (
     <div className={`bg-white rounded-xl border border-gray-200 shadow-sm p-6 ${className}`}>
-      <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
+      <div className="flex flex-wrap items-start justify-between gap-3 mb-5">
         <div>
           <h2 className="flex items-center text-lg font-bold text-[#1F3E35]">
             <TrendingUp className="w-5 h-5 mr-2 text-[#1D6021]" />
-            Loan Demand Forecast & Liquidity Outlook
+            Loan Demand Forecast — {currentYear}
           </h2>
           <p className="text-xs text-gray-500 mt-1">
-            Next-month demand per loan type and combined liquidity required to cover the next {horizon} months.
+            Predicted monthly disbursement demand per loan type for {currentYear}.
+            Months with historical actuals (from the training dataset) show as actuals;
+            future months show SARIMA point forecasts.
           </p>
         </div>
-        <select
-          value={horizon}
-          onChange={(e) => setHorizon(Number(e.target.value))}
-          disabled={loading}
-          className="h-9 rounded-lg border border-gray-300 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#389734]"
-        >
-          <option value={6}>6 mo horizon</option>
-          <option value={12}>12 mo horizon</option>
-          <option value={18}>18 mo horizon</option>
-          <option value={24}>24 mo horizon</option>
-        </select>
       </div>
 
       {error && (
@@ -206,210 +226,103 @@ const LoanDemandForecastCard = ({ defaultLoanType = "consolidated", periods = 12
         </div>
       )}
 
-      {/* Next-month tiles per loan type */}
-      <div className="mb-5">
-        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">
-          Next Month Forecast
-          {liquidity.nextMonthPeriod && (
-            <span className="ml-2 text-gray-500 font-normal normal-case">
-              ({monthLabel(liquidity.nextMonthPeriod)})
-            </span>
-          )}
-        </p>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          {summaries.map((s) => (
-            <div
-              key={s.value}
-              className="border border-gray-200 rounded-lg px-4 py-3"
-              style={{ borderLeftWidth: 4, borderLeftColor: s.color }}
-            >
-              <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">
-                {s.label} Loan
-              </p>
-              <p className="text-xl font-black text-gray-800 mt-1">
-                {loading ? (
-                  <Loader2 className="w-4 h-4 inline animate-spin text-gray-400" />
-                ) : (
-                  PHP(s.nextMonth)
-                )}
-              </p>
-              {s.nextMonthBand && (
-                <p className="text-[10px] text-gray-400 mt-0.5">
-                  80% CI: {PHP(s.nextMonthBand[0])} – {PHP(s.nextMonthBand[1])}
-                </p>
-              )}
-            </div>
-          ))}
-
-          {/* Total Liquidity Alert tile */}
-          <div className="rounded-lg px-4 py-3 bg-gradient-to-br from-[#1D6021] to-[#0F4515] text-white shadow-md">
-            <p className="text-[11px] font-bold uppercase tracking-wider flex items-center gap-1 opacity-90">
-              <AlertTriangle className="w-3.5 h-3.5" /> Total Liquidity Alert
-            </p>
-            <p className="text-xl font-black mt-1">
-              {loading ? (
-                <Loader2 className="w-4 h-4 inline animate-spin" />
-              ) : (
-                PHP(liquidity.nextMonthTotal)
-              )}
-            </p>
-            <p className="text-[10px] opacity-80 mt-0.5">
-              Cash needed next month (all loan types)
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* Horizon totals */}
-      <div className="mb-6">
-        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">
-          Total Liquidity Needed — Next {horizon} Months
-        </p>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          {summaries.map((s) => (
-            <div key={s.value} className="border border-gray-200 rounded-lg px-4 py-3">
-              <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">
-                {s.label} — {horizon} mo
-              </p>
-              <p className="text-lg font-bold text-gray-800 mt-1">
-                {loading ? (
-                  <Loader2 className="w-4 h-4 inline animate-spin text-gray-400" />
-                ) : (
-                  PHP(s.horizonTotal)
-                )}
-              </p>
-              <p className="text-[10px] text-gray-400 mt-0.5">
-                Avg {PHP(s.horizonTotal / horizon)} / month
-              </p>
-            </div>
-          ))}
-
-          <div className="rounded-lg px-4 py-3 bg-[#FFF7ED] border border-amber-300">
-            <p className="text-[11px] font-bold uppercase tracking-wider flex items-center gap-1 text-amber-700">
-              <Wallet className="w-3.5 h-3.5" /> Combined Cash Demand
-            </p>
-            <p className="text-xl font-black mt-1 text-amber-800">
-              {loading ? (
-                <Loader2 className="w-4 h-4 inline animate-spin" />
-              ) : (
-                PHP(liquidity.horizonTotal)
-              )}
-            </p>
-            <p className="text-[10px] text-amber-700 mt-0.5">
-              {liquidity.trendPct === null
-                ? "next horizon"
-                : `${liquidity.trendPct >= 0 ? "+" : ""}${liquidity.trendPct.toFixed(1)}% vs historical avg`}
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* Detail chart */}
-      <div className="border-t border-gray-100 pt-4">
-        <div className="flex items-center justify-between mb-2">
-          <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">
-            Detail Chart
-          </p>
-          <div className="flex gap-1">
-            {LOAN_TYPES.map((t) => (
-              <button
-                key={t.value}
-                onClick={() => setActiveLoanType(t.value)}
-                className={`px-3 py-1 text-xs font-bold rounded-md transition-colors ${
-                  activeLoanType === t.value
-                    ? "bg-[#1D6021] text-white"
-                    : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                }`}
-              >
-                {t.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
+      {/* Line chart */}
+      <div className="h-72 mb-6">
         {loading ? (
-          <div className="h-72 flex items-center justify-center text-sm text-gray-500">
-            <Loader2 className="w-4 h-4 animate-spin mr-2" /> Loading...
-          </div>
-        ) : chartData.length > 0 ? (
-          <div className="h-72">
-            <ResponsiveContainer width="100%" height="100%">
-              <ComposedChart data={chartData} margin={{ top: 10, right: 12, left: 0, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="bandFill" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor={activeMeta?.forecastColor || "#0D4F8B"} stopOpacity={0.2} />
-                    <stop offset="100%" stopColor={activeMeta?.forecastColor || "#0D4F8B"} stopOpacity={0.02} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid stroke="#eef2f7" vertical={false} />
-                <XAxis dataKey="label" stroke="#94a3b8" tick={{ fontSize: 11 }} interval="preserveStartEnd" />
-                <YAxis
-                  stroke="#94a3b8"
-                  tick={{ fontSize: 11 }}
-                  tickFormatter={(v) => `₱${(v / 1000).toFixed(0)}k`}
-                  width={70}
-                />
-                <Tooltip content={renderTooltip} />
-                <Legend wrapperStyle={{ fontSize: 12 }} iconType="line" />
-                <Area
-                  type="monotone"
-                  dataKey="band"
-                  stroke="none"
-                  fill="url(#bandFill)"
-                  name="80% CI"
-                  isAnimationActive={false}
-                  connectNulls={false}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="actual"
-                  stroke={activeMeta?.color || "#1D6021"}
-                  strokeWidth={2}
-                  dot={{ r: 2 }}
-                  activeDot={{ r: 5 }}
-                  name="Historical"
-                  connectNulls={false}
-                  isAnimationActive={false}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="predicted"
-                  stroke={activeMeta?.forecastColor || "#0D4F8B"}
-                  strokeWidth={2}
-                  strokeDasharray="5 4"
-                  dot={{ r: 2 }}
-                  activeDot={{ r: 5 }}
-                  name="Forecast"
-                  connectNulls={false}
-                  isAnimationActive={false}
-                />
-                {lastActualPeriod && (
-                  <ReferenceLine
-                    x={monthLabel(lastActualPeriod)}
-                    stroke="#cbd5e1"
-                    strokeDasharray="3 3"
-                    label={{
-                      value: "Forecast start",
-                      fontSize: 10,
-                      fill: "#64748b",
-                      position: "insideTopRight",
-                    }}
-                  />
-                )}
-              </ComposedChart>
-            </ResponsiveContainer>
+          <div className="h-full flex items-center justify-center text-sm text-gray-500">
+            <Loader2 className="w-4 h-4 animate-spin mr-2" /> Loading…
           </div>
         ) : (
-          <div className="h-72 flex items-center justify-center text-sm text-gray-400">
-            No data available.
-          </div>
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={chartData} margin={{ top: 10, right: 12, left: 0, bottom: 0 }}>
+              <CartesianGrid stroke="#eef2f7" vertical={false} />
+              <XAxis dataKey="label" stroke="#94a3b8" tick={{ fontSize: 11 }} />
+              <YAxis
+                stroke="#94a3b8"
+                tick={{ fontSize: 11 }}
+                tickFormatter={(v) => `₱${(v / 1000).toFixed(0)}k`}
+                width={70}
+              />
+              <Tooltip content={renderTooltip} />
+              <Legend wrapperStyle={{ fontSize: 12 }} iconType="line" />
+              {LOAN_TYPES.map((t) => (
+                <Line
+                  key={t.value}
+                  type="monotone"
+                  dataKey={`${t.value}_value`}
+                  stroke={t.color}
+                  strokeWidth={2}
+                  dot={{ r: 3 }}
+                  activeDot={{ r: 5 }}
+                  name={t.label}
+                  connectNulls
+                  isAnimationActive={false}
+                />
+              ))}
+            </LineChart>
+          </ResponsiveContainer>
         )}
       </div>
 
-      <p className="mt-3 text-[10px] text-gray-400 flex items-start gap-1">
-        <Info className="w-3 h-3 mt-0.5" />
-        Model: SARIMA fit on monthly disbursement aggregates. The shaded band is an 80% confidence interval.
-        Liquidity totals are point estimates — use upper-bound for conservative cash planning.
+      {/* Per-loan-type tables */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+        {LOAN_TYPES.map((t) => (
+          <div key={t.value} className="border border-gray-200 rounded-lg overflow-hidden">
+            <div
+              className="px-4 py-3 border-b border-gray-200 flex items-center gap-2"
+              style={{ background: `${t.color}10` }}
+            >
+              <span className="w-2.5 h-2.5 rounded-full" style={{ background: t.color }} />
+              <h3 className="text-sm font-bold text-gray-800">{t.label} Loan</h3>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-gray-50">
+                  <tr className="text-[10px] uppercase tracking-wider text-gray-500">
+                    <th className="px-4 py-2 font-bold">Month</th>
+                    <th className="px-4 py-2 font-bold text-right">Amount</th>
+                    <th className="px-4 py-2 font-bold">Type</th>
+                    <th className="px-4 py-2 font-bold text-right">80% CI</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(seriesByType[t.value] || []).map((row) => {
+                    const value = row.actual !== null ? row.actual : row.predicted;
+                    const isForecast = row.kind === "forecast";
+                    return (
+                      <tr key={row.period} className="border-t border-gray-100">
+                        <td className="px-4 py-2 text-gray-700 font-medium">{row.label}</td>
+                        <td className="px-4 py-2 text-right font-bold text-gray-800">
+                          {value !== null ? PHP(value) : "—"}
+                        </td>
+                        <td className="px-4 py-2">
+                          {row.kind === "actual" ? (
+                            <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-green-50 text-green-700">Actual</span>
+                          ) : row.kind === "forecast" ? (
+                            <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-50 text-amber-700">Forecast</span>
+                          ) : (
+                            <span className="text-[10px] text-gray-400">—</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-2 text-right text-[10px] text-gray-500">
+                          {isForecast && row.lower !== null && row.upper !== null
+                            ? `${PHP(row.lower)} – ${PHP(row.upper)}`
+                            : "—"}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <p className="mt-4 text-[10px] text-gray-400 flex items-start gap-1">
+        <Info className="w-3 h-3 mt-0.5 shrink-0" />
+        Actuals are aggregated from the normalized loan dataset. Forecast values are SARIMA point estimates;
+        the 80% confidence interval indicates the range within which actual demand is expected to fall.
       </p>
     </div>
   );
