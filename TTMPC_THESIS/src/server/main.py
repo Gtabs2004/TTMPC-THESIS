@@ -7001,6 +7001,79 @@ async def get_loan_demand_forecast(
     return payload
 
 
+@app.get("/api/analytics/demand/actuals")
+def get_loan_demand_actuals(
+    loan_type: str = "consolidated",
+    year: int | None = None,
+):
+    """Monthly disbursement totals from the normalized loan CSV.
+
+    Returns 12 rows (Jan–Dec) for the requested year with `actual` summed by
+    LoanType. Months with no rows in the CSV come back with actual=0 so the
+    frontend can decide whether to show that month as actual=0 or fall back to
+    a forecast for future months.
+
+    Query params:
+      - loan_type: 'consolidated' or 'emergency' (case-insensitive)
+      - year:      4-digit year; defaults to the latest year present in the CSV.
+    """
+    lt = (loan_type or "").strip().lower()
+    if lt not in ("consolidated", "emergency"):
+        raise HTTPException(status_code=400, detail="Invalid loan_type. Use 'consolidated' or 'emergency'.")
+
+    csv_path = _REPO_ROOT / "src" / "analytics" / "Loan Demand Forecasting" / "Data" / "df_modeling_export (1).csv"
+    rows = _read_csv_resilient(csv_path)
+    if not rows:
+        raise HTTPException(status_code=503, detail="Loan demand CSV not found on server.")
+
+    parsed: list[tuple[int, int, float, str]] = []
+    years_seen: set[int] = set()
+    for r in rows:
+        raw_type = str(r.get("LoanType") or "").strip().lower()
+        if raw_type != lt:
+            continue
+        date_str = str(r.get("ApplicationDate") or "").strip()
+        if not date_str:
+            continue
+        try:
+            d = datetime.fromisoformat(date_str)
+        except ValueError:
+            continue
+        amount = 0.0
+        try:
+            amount = float(r.get("LoanAmount") or 0)
+        except (TypeError, ValueError):
+            amount = 0.0
+        parsed.append((d.year, d.month, amount, date_str))
+        years_seen.add(d.year)
+
+    if not years_seen:
+        raise HTTPException(status_code=404, detail=f"No CSV rows for loan_type '{lt}'.")
+
+    target_year = year if year is not None else max(years_seen)
+
+    monthly: dict[int, float] = {m: 0.0 for m in range(1, 13)}
+    count_by_month: dict[int, int] = {m: 0 for m in range(1, 13)}
+    for y, m, amt, _ in parsed:
+        if y == target_year:
+            monthly[m] += amt
+            count_by_month[m] += 1
+
+    return {
+        "loan_type": lt,
+        "year": target_year,
+        "available_years": sorted(years_seen),
+        "months": [
+            {
+                "period": f"{target_year}-{m:02d}",
+                "actual": round(monthly[m], 2),
+                "loan_count": count_by_month[m],
+            }
+            for m in range(1, 13)
+        ],
+    }
+
+
 # ---------------------------------------------------------------------------
 # Auth backfill for imported members
 # ---------------------------------------------------------------------------

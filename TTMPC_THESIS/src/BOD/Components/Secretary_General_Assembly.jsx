@@ -17,7 +17,8 @@ import {
   UserPlus,
   Users,
   ShieldCheck,
-  AlertTriangle
+  AlertTriangle,
+  History
 } from "lucide-react";
 
 import { UserAuth } from "../../contex/AuthContext";
@@ -57,6 +58,7 @@ const Secretary_General_Assembly = () => {
           { name: "Manage Loans", icon: CreditCard },
           { name: "Manage Member", icon: Users },
           { name: "Termination Inbox", icon: AlertTriangle },
+          { name: "Audit Log", icon: History },
           { name: "Loan Policies", icon: FileText },
         ],
       },
@@ -77,6 +79,7 @@ const Secretary_General_Assembly = () => {
     "Manage Loans": "/bod-manage-loans",
     "Manage Member": "/bod-manage-member",
     "Termination Inbox": "/bod-termination-inbox",
+    "Audit Log": "/bod-audit-log",
     "Loan Policies": "/bod-loan-policies",
     "Training Attendance": "/Secretary_Attendance",
     "General Assembly": "/Secretary_General_Assembly",

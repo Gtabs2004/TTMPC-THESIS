@@ -7,7 +7,8 @@ import {
   LayoutDashboard, Users, Archive, CalendarCheck, CreditCard,
   Save, RefreshCw, AlertCircle, CheckCircle2, Percent, Banknote, Shield, FileText,ShieldCheck,
   AlertTriangle,
-  CalendarDays 
+  CalendarDays,
+  History
 } from "lucide-react";
 import NotificationBell from "./NotificationBell";
 
@@ -59,6 +60,7 @@ const Loan_Policies = () => {
           { name: "Manage Loans", icon: CreditCard },
           { name: "Manage Member", icon: Users },
           { name: "Termination Inbox", icon: AlertTriangle },
+          { name: "Audit Log", icon: History },
           { name: "Loan Policies", icon: FileText },
         ],
       },
@@ -246,6 +248,7 @@ const Loan_Policies = () => {
                   "Manage Loans": "/bod-manage-loans",
                   "Manage Member": "/bod-manage-member",
                   "Termination Inbox": "/bod-termination-inbox",
+                  "Audit Log": "/bod-audit-log",
                   "Loan Policies": "/bod-loan-policies",
                   "Training Attendance": "/Secretary_Attendance",
                   "General Assembly": "/Secretary_Assembly", // Added this fallback

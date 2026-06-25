@@ -92,10 +92,6 @@ const Bookkeeper_Audit_Log = () => {
         </header>
 
         <main className="p-8 flex-1">
-          <div className="mb-6">
-            <h1 className="font-bold text-2xl text-gray-800">Audit Log</h1>
-            <p className="text-sm text-gray-500 mt-1">Your own actions recorded in the cooperative.</p>
-          </div>
           <AuditLogViewer showActorRoleFilter={false} onError={(msg) => addNotification(msg, "error")} />
         </main>
       </div>

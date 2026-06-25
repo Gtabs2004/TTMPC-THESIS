@@ -18,7 +18,8 @@ import {
   ChevronUp,
   FileText,
   ShieldCheck,
-  AlertTriangle
+  AlertTriangle,
+  History
 } from "lucide-react";
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 const MEMBER_TONE_POOL = [
@@ -284,6 +285,7 @@ const BOD_Manage_Loans = () => {
           { name: "Manage Loans", icon: CreditCard },
           { name: "Manage Member", icon: Users },
           { name: "Termination Inbox", icon: AlertTriangle },
+          { name: "Audit Log", icon: History },
           { name: "Loan Policies", icon: FileText },
         ],
       },
@@ -304,6 +306,7 @@ const BOD_Manage_Loans = () => {
     "Manage Loans": "/bod-manage-loans",
     "Manage Member": "/bod-manage-member",
     "Termination Inbox": "/bod-termination-inbox",
+    "Audit Log": "/bod-audit-log",
     "Loan Policies": "/bod-loan-policies",
     "Training Attendance": "/Secretary_Attendance",
     "General Assembly": "/Secretary_General_Assembly",

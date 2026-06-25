@@ -96,10 +96,6 @@ const Audit_Log = () => {
         </header>
 
         <main className="p-8">
-          <div className="mb-6">
-            <h1 className="font-bold text-2xl text-gray-800">Audit Log</h1>
-            <p className="text-sm text-gray-500 mt-1">Governance-level audit trail across all portals.</p>
-          </div>
           <AuditLogViewer
             showActorRoleFilter
             onError={(msg) => addNotification(msg, "error")}
