@@ -50,6 +50,25 @@ const getStatusStyle = (status) => {
   return "bg-gray-100 text-gray-700";
 };
 
+// Same 4-tier policy as Cashier_Payments:
+//   • due_date passed but < 1 month → "past_due" (soft gray)
+//   • 1+ month past due → "no_payment" (yellow warning)
+//   • 3+ months past due → "overdue" (red, penalty applies)
+const monthsBetween = (a, b) => (b.getFullYear() - a.getFullYear()) * 12 + (b.getMonth() - a.getMonth());
+
+const getDueStatus = (dueDate, status) => {
+  if (!dueDate) return null;
+  const due = new Date(dueDate);
+  if (Number.isNaN(due.getTime())) return null;
+  const today = new Date();
+  if (String(status || "").toLowerCase().includes("fully")) return null;
+  if (today <= due) return null;
+  const diff = monthsBetween(due, today);
+  if (diff >= 3) return "overdue";
+  if (diff >= 1) return "no_payment";
+  return "past_due";
+};
+
 const BookkeeperPayments = () => {
   const { signOut } = UserAuth();
   const navigate = useNavigate();
@@ -602,7 +621,25 @@ const BookkeeperPayments = () => {
                           {formatCurrency(loan.remaining_balance)}
                         </span>
                       </td>
-                      <td className="px-6 py-4 text-sm text-gray-700 font-medium">{loan.due_date}</td>
+                      <td className="px-6 py-4 text-sm text-gray-700 font-medium">
+                        <div className="flex flex-col gap-1">
+                          <span>{loan.due_date}</span>
+                          {(() => {
+                            const flag = getDueStatus(loan.due_date, loan.status);
+                            const meta = {
+                              past_due:   { label: "Past Due",           className: "bg-gray-100 text-gray-700" },
+                              no_payment: { label: "No Recent Payment",  className: "bg-yellow-100 text-yellow-800" },
+                              overdue:    { label: "Overdue · Penalty",  className: "bg-red-100 text-red-700" },
+                            }[flag];
+                            if (!meta) return null;
+                            return (
+                              <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold w-fit ${meta.className}`}>
+                                {meta.label}
+                              </span>
+                            );
+                          })()}
+                        </div>
+                      </td>
                       <td className="px-6 py-4">
                         <span className={`status-badge ${getStatusStyle(loan.status)}`}>
                           {loan.status}
