@@ -1,9 +1,10 @@
-﻿import React, { useState } from "react";
+﻿import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
 import { useNotification } from "../../contex/NotificationContext";
 import { PortalSidebarIdentity, PortalTopbarIdentity } from "../../components/PortalIdentity";
 import RecentActivityCard from "../../components/RecentActivityCard";
+import { supabase } from "../../supabaseClient";
 import {
   LayoutDashboard,
   Search,
@@ -33,38 +34,270 @@ import {
 } from "recharts";
 import logo from "../../assets/img/ttmpc logo.png";
 
-// --- MOCK DATA ---
-const trendData = [
-  { name: "8AM", value: 8 },
-  { name: "9AM", value: 22 },
-  { name: "10AM", value: 45 },
-  { name: "11AM", value: 68 },
-  { name: "12PM", value: 95 },
-  { name: "1PM", value: 72 },
-  { name: "2PM", value: 56 },
-  { name: "3PM", value: 38 },
-];
+const PHP = (v) => `₱${Number(v || 0).toLocaleString("en-PH", { maximumFractionDigits: 0 })}`;
 
-const distributionData = [
-  { name: "Loan Payments", value: 52, color: "#166534" },
-  { name: "Savings Deposits", value: 20, color: "#3b82f6" },
-  { name: "CBU Contributions", value: 11, color: "#8b5cf6" },
-  { name: "Withdrawals", value: 17, color: "#ef4444" },
-];
+const hourLabel = (d) => {
+  const h = d.getHours();
+  const suffix = h >= 12 ? "PM" : "AM";
+  const display = h % 12 === 0 ? 12 : h % 12;
+  return `${display}${suffix}`;
+};
 
-const recentActivity = [
-  { id: 1, name: "Maria Santos", desc: "Loan Payment", ref: "#LN-8821", amount: "₱12,500.00", time: "02:14 PM", type: "in" },
-  { id: 2, name: "James Wilson", desc: "Savings Withdrawal", ref: "#SW-4412", amount: "₱5,000.00", time: "01:58 PM", type: "out" },
-  { id: 3, name: "Robert Dizon", desc: "CBU Contribution", ref: "#CBU-331", amount: "₱2,200.00", time: "01:45 PM", type: "in" },
-  { id: 4, name: "Anna L. Garcia", desc: "Share Capital Deposit", ref: "#SC-772", amount: "₱15,000.00", time: "01:12 PM", type: "in" },
-  { id: 5, name: "Pedro Cruz", desc: "Loan Disbursement", ref: "#LD-9201", amount: "₱30,000.00", time: "12:35 PM", type: "out" },
-];
+const formatTime = (iso) => {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
+};
 
 const Cashier_Dashboard = () => {
   const { signOut } = UserAuth();
   const navigate = useNavigate();
   const { addNotification } = useNotification();
   const [isDepositsOpen, setIsDepositsOpen] = useState(false);
+
+  const [loading, setLoading] = useState(true);
+  const [kpis, setKpis] = useState({
+    totalTransactions: 0,
+    cashReceived: 0,
+    cashReleased: 0,
+    pendingPayouts: 0,
+    membersServed: 0,
+  });
+  const [trendData, setTrendData] = useState([]);
+  const [distributionData, setDistributionData] = useState([]);
+  const [recentActivity, setRecentActivity] = useState([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      setLoading(true);
+      try {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const isoToday = today.toISOString();
+
+        // Build hourly buckets (8AM–3PM, the active window from the original chart).
+        const hourLabels = ["8AM", "9AM", "10AM", "11AM", "12PM", "1PM", "2PM", "3PM"];
+        const trendBuckets = new Map(hourLabels.map((h) => [h, 0]));
+
+        const [
+          paymentsRes,
+          disbursalsRes,
+          membershipRes,
+          cbuRes,
+          ledgerRes,
+          readyLoansRes,
+        ] = await Promise.all([
+          // Loan payments today (cash IN)
+          supabase
+            .from("loan_payments")
+            .select("id, loan_id, amount_paid, payment_date, confirmation_status, payment_reference")
+            .gte("payment_date", isoToday)
+            .order("payment_date", { ascending: false })
+            .limit(2000),
+          // Loan disbursals today (cash OUT)
+          supabase
+            .from("loans")
+            .select("control_number, loan_amount, disbursal_date, loan_status, member:member_id(first_name, last_name), loan_types:loan_type_id(name)")
+            .gte("disbursal_date", isoToday)
+            .order("disbursal_date", { ascending: false })
+            .limit(2000),
+          // Membership payments today (cash IN — application/share fees)
+          supabase
+            .from("membership_payments")
+            .select("id, application_id, payment_date, payment_status, payment_type, amount")
+            .gte("payment_date", isoToday)
+            .order("payment_date", { ascending: false })
+            .limit(2000),
+          // CBU contributions today (cash IN)
+          supabase
+            .from("capital_build_up")
+            .select("id, member_id, transaction_date, capital_added")
+            .gte("transaction_date", isoToday)
+            .order("transaction_date", { ascending: false })
+            .limit(2000),
+          // Savings ledger today (deposits IN, withdrawals OUT)
+          supabase
+            .from("savings_ledger")
+            .select("id, account_number, entry_type, amount, reference, posted_at")
+            .gte("posted_at", isoToday)
+            .order("posted_at", { ascending: false })
+            .limit(2000),
+          // Pending disbursal queue (count only)
+          supabase
+            .from("loans")
+            .select("control_number", { count: "exact", head: true })
+            .in("loan_status", ["ready for disbursement", "to be disbursed"]),
+        ]);
+
+        if (cancelled) return;
+
+        const payments = paymentsRes?.data || [];
+        const disbursals = disbursalsRes?.data || [];
+        const memberships = membershipRes?.data || [];
+        const cbus = cbuRes?.data || [];
+        const ledger = ledgerRes?.data || [];
+        const pendingPayouts = readyLoansRes?.count || 0;
+
+        // Helper: bucket a timestamp into the hour label, if within window.
+        const bucket = (iso) => {
+          if (!iso) return;
+          const d = new Date(iso);
+          if (Number.isNaN(d.getTime())) return;
+          const label = hourLabel(d);
+          if (trendBuckets.has(label)) trendBuckets.set(label, trendBuckets.get(label) + 1);
+        };
+
+        let cashIn = 0;
+        let cashOut = 0;
+        const membersTodaySet = new Set();
+        const breakdown = {
+          loanPayments: 0,
+          savingsDeposits: 0,
+          cbuContributions: 0,
+          withdrawals: 0,
+          disbursals: 0,
+          memberships: 0,
+        };
+
+        payments.forEach((p) => {
+          cashIn += Number(p.amount_paid || 0);
+          bucket(p.payment_date);
+          breakdown.loanPayments += 1;
+          if (p.loan_id) membersTodaySet.add(`loan-${p.loan_id}`);
+        });
+        disbursals.forEach((d) => {
+          cashOut += Number(d.loan_amount || 0);
+          bucket(d.disbursal_date);
+          breakdown.disbursals += 1;
+          const memberKey = d.member ? `${d.member.first_name}-${d.member.last_name}` : d.control_number;
+          membersTodaySet.add(`m-${memberKey}`);
+        });
+        memberships.forEach((m) => {
+          cashIn += Number(m.amount || 0);
+          bucket(m.payment_date);
+          breakdown.memberships += 1;
+          if (m.application_id) membersTodaySet.add(`app-${m.application_id}`);
+        });
+        cbus.forEach((c) => {
+          cashIn += Number(c.capital_added || 0);
+          bucket(c.transaction_date);
+          breakdown.cbuContributions += 1;
+          if (c.member_id) membersTodaySet.add(`cbu-${c.member_id}`);
+        });
+        ledger.forEach((l) => {
+          const amt = Number(l.amount || 0);
+          const entry = String(l.entry_type || "").toLowerCase();
+          if (entry.includes("withdraw")) {
+            cashOut += amt;
+            breakdown.withdrawals += 1;
+          } else {
+            cashIn += amt;
+            breakdown.savingsDeposits += 1;
+          }
+          bucket(l.posted_at);
+          if (l.account_number) membersTodaySet.add(`sav-${l.account_number}`);
+        });
+
+        const totalTransactions =
+          payments.length + disbursals.length + memberships.length + cbus.length + ledger.length;
+
+        setKpis({
+          totalTransactions,
+          cashReceived: cashIn,
+          cashReleased: cashOut,
+          pendingPayouts,
+          membersServed: membersTodaySet.size,
+        });
+
+        setTrendData(hourLabels.map((h) => ({ name: h, value: trendBuckets.get(h) || 0 })));
+
+        // Distribution donut — collapse to the 4 buckets from the original design.
+        const total = totalTransactions || 1;
+        const distRows = [
+          { name: "Loan Payments",     count: breakdown.loanPayments + breakdown.disbursals, color: "#166534" },
+          { name: "Savings Deposits",  count: breakdown.savingsDeposits,                     color: "#3b82f6" },
+          { name: "CBU Contributions", count: breakdown.cbuContributions,                    color: "#8b5cf6" },
+          { name: "Withdrawals",       count: breakdown.withdrawals,                         color: "#ef4444" },
+        ].map((r) => ({ ...r, value: Math.round((r.count / total) * 100) }));
+        setDistributionData(distRows);
+
+        // Recent activity: merge all transaction sources, sort newest first, take top 6.
+        const memberLookup = new Map();
+        disbursals.forEach((d) => {
+          if (d.member) {
+            const name = `${d.member.first_name || ""} ${d.member.last_name || ""}`.trim();
+            memberLookup.set(d.control_number, name || "Member");
+          }
+        });
+
+        const activity = [];
+        payments.forEach((p) => activity.push({
+          id: `pmt-${p.id}`,
+          name: memberLookup.get(p.loan_id) || p.loan_id || "Member",
+          desc: "Loan Payment",
+          ref: `#${p.payment_reference || `PMT-${p.id}`}`,
+          amount: PHP(p.amount_paid),
+          time: formatTime(p.payment_date),
+          ts: p.payment_date,
+          type: "in",
+        }));
+        disbursals.forEach((d) => activity.push({
+          id: `dsb-${d.control_number}`,
+          name: memberLookup.get(d.control_number) || "Member",
+          desc: `${d.loan_types?.name || "Loan"} Disbursement`,
+          ref: `#${d.control_number}`,
+          amount: PHP(d.loan_amount),
+          time: formatTime(d.disbursal_date),
+          ts: d.disbursal_date,
+          type: "out",
+        }));
+        memberships.forEach((m) => activity.push({
+          id: `mem-${m.id}`,
+          name: m.application_id || "Applicant",
+          desc: `Membership ${m.payment_type || "Payment"}`,
+          ref: `#MEM-${m.id}`,
+          amount: PHP(m.amount),
+          time: formatTime(m.payment_date),
+          ts: m.payment_date,
+          type: "in",
+        }));
+        cbus.forEach((c) => activity.push({
+          id: `cbu-${c.id}`,
+          name: c.member_id || "Member",
+          desc: "CBU Contribution",
+          ref: `#CBU-${c.id}`,
+          amount: PHP(c.capital_added),
+          time: formatTime(c.transaction_date),
+          ts: c.transaction_date,
+          type: "in",
+        }));
+        ledger.forEach((l) => {
+          const isWithdrawal = String(l.entry_type || "").toLowerCase().includes("withdraw");
+          activity.push({
+            id: `sav-${l.id}`,
+            name: l.account_number || "Savings",
+            desc: isWithdrawal ? "Savings Withdrawal" : "Savings Deposit",
+            ref: `#${l.reference || `SAV-${l.id}`}`,
+            amount: PHP(l.amount),
+            time: formatTime(l.posted_at),
+            ts: l.posted_at,
+            type: isWithdrawal ? "out" : "in",
+          });
+        });
+        activity.sort((a, b) => new Date(b.ts || 0) - new Date(a.ts || 0));
+        setRecentActivity(activity.slice(0, 6));
+      } catch (err) {
+        if (!cancelled) addNotification(err?.message || "Failed to load dashboard data.", "error");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    load();
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const menuItems = [
     { name: "Dashboard", icon: LayoutDashboard, path: "/Cashier_Dashboard" },
@@ -238,10 +471,8 @@ const Cashier_Dashboard = () => {
               </div>
               <div>
                 <h3 className="text-gray-500 text-sm font-medium">Total Transactions</h3>
-                <p className="font-bold text-3xl text-gray-800 mt-1">142</p>
-                <p className="text-xs font-medium text-gray-400 mt-2">
-                  <span className="text-green-600">+12%</span> vs yesterday
-                </p>
+                <p className="font-bold text-3xl text-gray-800 mt-1">{loading ? "—" : kpis.totalTransactions}</p>
+                <p className="text-xs font-medium text-gray-400 mt-2">Recorded today</p>
               </div>
             </div>
 
@@ -252,23 +483,23 @@ const Cashier_Dashboard = () => {
               </div>
               <div>
                 <h3 className="text-gray-500 text-sm font-medium">Cash Received</h3>
-                <p className="font-bold text-3xl text-gray-800 mt-1">₱48,000</p>
-                <p className="text-xs font-medium text-gray-400 mt-2">
-                  <span className="text-green-600">+₱5.2k</span> added today
-                </p>
+                <p className="font-bold text-3xl text-gray-800 mt-1">{loading ? "—" : PHP(kpis.cashReceived)}</p>
+                <p className="text-xs font-medium text-gray-400 mt-2">Payments, deposits, CBU, membership</p>
               </div>
             </div>
 
             <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100 flex flex-col justify-between">
               <div className="flex justify-between items-start mb-4">
                 <div className="p-2 bg-red-50 text-red-500 rounded-lg"><ArrowUpRight size={20} /></div>
-                <span className="bg-orange-50 text-orange-600 rounded-full px-3 py-1 text-xs font-bold">2 Pending</span>
+                <span className="bg-orange-50 text-orange-600 rounded-full px-3 py-1 text-xs font-bold">
+                  {kpis.pendingPayouts} Pending
+                </span>
               </div>
               <div>
                 <h3 className="text-gray-500 text-sm font-medium">Cash Released</h3>
-                <p className="font-bold text-3xl text-gray-800 mt-1">₱10,000</p>
+                <p className="font-bold text-3xl text-gray-800 mt-1">{loading ? "—" : PHP(kpis.cashReleased)}</p>
                 <p className="text-xs font-medium text-gray-400 mt-2">
-                  <span className="text-orange-500">2</span> pending payouts
+                  <span className="text-orange-500">{kpis.pendingPayouts}</span> loans ready for disbursement
                 </p>
               </div>
             </div>
@@ -276,12 +507,12 @@ const Cashier_Dashboard = () => {
             <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100 flex flex-col justify-between">
               <div className="flex justify-between items-start mb-4">
                 <div className="p-2 bg-purple-50 text-purple-500 rounded-lg"><Users size={20} /></div>
-                <span className="bg-teal-50 text-teal-600 rounded-full px-3 py-1 text-xs font-bold">Active</span>
+                <span className="bg-teal-50 text-teal-600 rounded-full px-3 py-1 text-xs font-bold">Today</span>
               </div>
               <div>
                 <h3 className="text-gray-500 text-sm font-medium">Members Served</h3>
-                <p className="font-bold text-3xl text-gray-800 mt-1">86</p>
-                <p className="text-xs font-medium text-gray-400 mt-2">Current queue active</p>
+                <p className="font-bold text-3xl text-gray-800 mt-1">{loading ? "—" : kpis.membersServed}</p>
+                <p className="text-xs font-medium text-gray-400 mt-2">Unique accounts today</p>
               </div>
             </div>
           </div>
@@ -355,7 +586,7 @@ const Cashier_Dashboard = () => {
                   </PieChart>
                 </ResponsiveContainer>
                 <div className="absolute flex flex-col items-center justify-center">
-                  <span className="text-2xl font-bold text-gray-800">142</span>
+                  <span className="text-2xl font-bold text-gray-800">{kpis.totalTransactions}</span>
                   <span className="text-[10px] text-gray-400 font-bold tracking-widest">TOTAL</span>
                 </div>
               </div>
@@ -397,7 +628,11 @@ const Cashier_Dashboard = () => {
                   </tr>
                 </thead>
                 <tbody className="text-sm">
-                  {recentActivity.map((row) => (
+                  {loading ? (
+                    <tr><td colSpan={6} className="p-6 text-center text-gray-400">Loading activity…</td></tr>
+                  ) : recentActivity.length === 0 ? (
+                    <tr><td colSpan={6} className="p-6 text-center text-gray-400">No transactions recorded today.</td></tr>
+                  ) : recentActivity.map((row) => (
                     <tr key={row.id} className="table-row-enter border-b border-gray-50 hover:bg-green-50 transition-colors">
                       <td className="p-4 pl-6 font-bold text-gray-800">{row.name}</td>
                       <td className="p-4 text-gray-500">{row.desc}</td>
@@ -422,7 +657,7 @@ const Cashier_Dashboard = () => {
             </div>
 
             <div className="p-4 px-6 border-t border-gray-50 flex justify-between items-center text-xs text-gray-400 font-medium">
-              <span>Showing 5 of 142 transactions</span>
+              <span>Showing {recentActivity.length} of {kpis.totalTransactions} transactions today</span>
               <div className="flex gap-2">
                 <button className="px-3 py-1 border border-gray-200 rounded-md hover:bg-gray-50">Previous</button>
                 <button className="px-3 py-1 border border-gray-200 rounded-md hover:bg-gray-50 text-gray-600">Next</button>

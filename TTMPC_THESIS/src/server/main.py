@@ -1082,7 +1082,7 @@ async def get_cashier_loans_for_payments():
             loans_response = (
                 supabase.table("loans")
                 .select(
-                    "control_number,loan_amount,principal_amount,interest_rate,term,loan_status,application_date,monthly_amortization,total_interest," \
+                    "control_number,loan_amount,principal_amount,interest_rate,term,loan_status,application_date,disbursal_date,monthly_amortization,total_interest," \
                     "member:member_id(first_name,last_name,is_bona_fide),loan_type:loan_type_id(name,interest_rate)"
                 )
                 .order("application_date", desc=True)
@@ -1092,7 +1092,7 @@ async def get_cashier_loans_for_payments():
             loans_response = (
                 supabase.table("loans")
                 .select(
-                    "control_number,loan_amount,principal_amount,interest_rate,term,loan_status,application_date,total_interest," \
+                    "control_number,loan_amount,principal_amount,interest_rate,term,loan_status,application_date,disbursal_date,total_interest," \
                     "member:member_id(first_name,last_name,is_bona_fide),loan_type:loan_type_id(name,interest_rate)"
                 )
                 .order("application_date", desc=True)
@@ -1153,6 +1153,7 @@ async def get_cashier_loans_for_payments():
             payments_rows = payments_response.data or []
 
         confirmed_paid_by_loan: dict[str, Decimal] = {}
+        last_payment_date_by_loan: dict[str, str] = {}
         for payment in payments_rows:
             loan_key = str(payment.get("loan_id") or "")
             status = str(payment.get("confirmation_status") or "confirmed").strip().lower()
@@ -1160,6 +1161,10 @@ async def get_cashier_loans_for_payments():
             if not is_confirmed:
                 continue
             confirmed_paid_by_loan[loan_key] = confirmed_paid_by_loan.get(loan_key, Decimal("0")) + Decimal(str(payment.get("amount_paid") or 0))
+            # payments are pre-sorted by payment_date DESC, so first hit per loan is newest.
+            pay_date = payment.get("payment_date")
+            if loan_key and pay_date and loan_key not in last_payment_date_by_loan:
+                last_payment_date_by_loan[loan_key] = pay_date
 
         mapped_loans = []
         for loan in loans_rows:
@@ -1197,11 +1202,43 @@ async def get_cashier_loans_for_payments():
             if not next_schedule:
                 continue
 
+            # Count schedules whose due_date is already past today and are not
+            # marked paid. This catches loans where the *next* unpaid schedule
+            # is in the future but earlier installments were skipped.
+            today_for_missed = datetime.utcnow().date()
+            missed_count = 0
+            for sched in schedules:
+                sched_status = str(sched.get("schedule_status") or "").strip().lower()
+                if "paid" in sched_status:
+                    continue
+                sched_due = parse_date_value(sched.get("due_date"))
+                if sched_due and sched_due < today_for_missed:
+                    missed_count += 1
+
             due_date_value = parse_date_value(next_schedule.get("due_date") if next_schedule else None)
             grace_deadline = (due_date_value + timedelta(days=3)) if due_date_value else None
-            delayed_deadline = add_months(due_date_value, 1) if due_date_value else None
+            # When schedules earlier than `next_schedule.due_date` were missed,
+            # treat the *earliest* missed one as the reference for delay flags
+            # — otherwise a loan with skipped May payments but a June 27 next-
+            # due ends up flagged "On Time" until June 27.
+            earliest_missed_due = None
+            for sched in schedules:
+                sched_status = str(sched.get("schedule_status") or "").strip().lower()
+                if "paid" in sched_status:
+                    continue
+                d = parse_date_value(sched.get("due_date"))
+                if d and d < datetime.utcnow().date():
+                    if earliest_missed_due is None or d < earliest_missed_due:
+                        earliest_missed_due = d
+            reference_due_for_flags = earliest_missed_due or due_date_value
+            # "No-payment warning" — 1 month past due date, no money charged.
+            no_payment_warn_deadline = add_months(reference_due_for_flags, 1) if reference_due_for_flags else None
+            # "Penalty starts" — 3-month grace per updated policy.
+            penalty_start_deadline = add_months(reference_due_for_flags, 3) if reference_due_for_flags else None
             today_date = datetime.utcnow().date()
-            is_delayed = bool(delayed_deadline and today_date > delayed_deadline)
+            is_delayed = bool(no_payment_warn_deadline and today_date > no_payment_warn_deadline)
+            is_overdue_for_penalty = bool(penalty_start_deadline and today_date > penalty_start_deadline)
+            last_payment_iso = last_payment_date_by_loan.get(control_number)
 
             is_migs = bool(member.get("is_bona_fide"))
             # Use the same sanitizer used by disbursement/treasurer endpoints so legacy
@@ -1239,10 +1276,17 @@ async def get_cashier_loans_for_payments():
                     "interest_rate": decimal_to_float(resolved_interest_rate_percent),
                     "term_months": int(loan.get("term") or 0),
                     "amortization": decimal_to_float((loan.get("monthly_amortization") or 0)),
+                    "disbursal_date": loan.get("disbursal_date"),
                     "due_date": next_schedule.get("due_date") if next_schedule else None,
                     "grace_deadline": grace_deadline.isoformat() if grace_deadline else None,
-                    "delayed_deadline": delayed_deadline.isoformat() if delayed_deadline else None,
+                    "delayed_deadline": no_payment_warn_deadline.isoformat() if no_payment_warn_deadline else None,
+                    "penalty_start_deadline": penalty_start_deadline.isoformat() if penalty_start_deadline else None,
                     "is_delayed": is_delayed,
+                    "is_overdue_for_penalty": is_overdue_for_penalty,
+                    "missed_count": missed_count,
+                    "last_payment_date": last_payment_iso,
+                    "expected_installment": decimal_to_float(next_schedule.get("expected_amount") or 0),
+                    "penalty_rate_percent": decimal_to_float(next_schedule.get("penalty") or 0),
                     "remaining_balance": decimal_to_float(remaining_balance),
                     "total_payable": decimal_to_float(total_payable_amount),
                     "total_interest": decimal_to_float(total_interest_amount),

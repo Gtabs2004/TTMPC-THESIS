@@ -149,25 +149,63 @@ const toTitleCase = (value) => {
   return value.charAt(0).toUpperCase() + value.slice(1);
 };
 
-const calculatePenalty = (dueDate, remainingBalance) => {
-  if (!dueDate) {
-    return 0;
-  }
+// 4-tier delay status. Backend already factors in *skipped* prior installments
+// when setting `is_delayed` and `is_overdue_for_penalty`. We also surface the
+// soft "Past Due" tag and bump the badge based on `missed_count`.
+const resolveDelayStatus = (loan) => {
+  if (!loan?.due_date) return "on_time";
+  const today = new Date();
+  const due = new Date(loan.due_date);
+  if (Number.isNaN(due.getTime())) return "on_time";
+
+  if (loan.is_overdue_for_penalty) return "overdue";
+  if (loan.is_delayed) return "no_payment";
+  // Any past-due missed installment, even if it's only days behind.
+  if ((loan.missed_count || 0) > 0) return "past_due";
+  if (today > due) return "past_due";
+  return "on_time";
+};
+
+const formatDelayLabel = (key, missedCount) => {
+  if (key === "on_time") return "On Time";
+  const suffix = missedCount > 1 ? ` (${missedCount} mo)` : "";
+  if (key === "past_due")   return `Past Due${suffix}`;
+  if (key === "no_payment") return `No Recent Payment${suffix}`;
+  if (key === "overdue")    return `Overdue · Penalty${suffix}`;
+  return "On Time";
+};
+
+const DELAY_STATUS_META = {
+  on_time:    { className: "bg-green-100 text-green-700"  },
+  past_due:   { className: "bg-gray-100 text-gray-700"    },
+  no_payment: { className: "bg-yellow-100 text-yellow-800" },
+  overdue:    { className: "bg-red-100 text-red-700"      },
+};
+
+// Penalty policy (updated):
+//   • 3-month grace period after the schedule due date — no penalty.
+//   • Charged on the *missed installment amount* (not the whole remaining balance).
+//   • Rate comes from loan_schedules.penalty (1% for bonus, 2% for others).
+//
+// Inputs (all optional but recommended):
+//   dueDate            — ISO string of the schedule's due_date
+//   installmentAmount  — expected_amount for that installment; fallback to amortization
+//   penaltyRatePercent — schedule's penalty rate as a percent (e.g. 2 for 2%)
+//   loanType           — used only as last-resort fallback when rate is missing
+const calculatePenalty = (dueDate, installmentAmount, penaltyRatePercent = null, loanType = "") => {
+  if (!dueDate) return 0;
 
   const today = new Date();
   const due = new Date(dueDate);
+  if (Number.isNaN(due.getTime())) return 0;
 
-  if (Number.isNaN(due.getTime()) || remainingBalance <= 0) {
-    return 0;
-  }
+  const amount = Number(installmentAmount) || 0;
+  if (amount <= 0) return 0;
 
-  // One-month grace period after due date before penalty starts.
+  // 3-month grace period.
   const penaltyStartDate = new Date(due);
-  penaltyStartDate.setMonth(penaltyStartDate.getMonth() + 1);
-
-  if (today < penaltyStartDate) {
-    return 0;
-  }
+  penaltyStartDate.setMonth(penaltyStartDate.getMonth() + 3);
+  if (today < penaltyStartDate) return 0;
 
   const monthsOverdue = Math.max(
     1,
@@ -177,7 +215,14 @@ const calculatePenalty = (dueDate, remainingBalance) => {
       1
   );
 
-  return remainingBalance * 0.02 * monthsOverdue;
+  // Resolve rate: explicit override → fall back to loan-type default.
+  let rate = Number(penaltyRatePercent);
+  if (!Number.isFinite(rate) || rate <= 0) {
+    rate = String(loanType).toLowerCase() === "bonus" ? 1 : 2;
+  }
+  const ratePerMonth = rate / 100;
+
+  return amount * ratePerMonth * monthsOverdue;
 };
 
 const getLoanStatus = (remainingBalance, loanAmount) => {
@@ -338,6 +383,13 @@ const Cashier_Payments = () => {
           total_payable: Number(loan.total_payable || 0),
           total_interest: Number(loan.total_interest || 0),
           due_date: loan.due_date || null,
+          disbursal_date: loan.disbursal_date || null,
+          last_payment_date: loan.last_payment_date || null,
+          expected_installment: Number(loan.expected_installment || 0),
+          penalty_rate_percent: Number(loan.penalty_rate_percent || 0),
+          is_delayed: Boolean(loan.is_delayed),
+          is_overdue_for_penalty: Boolean(loan.is_overdue_for_penalty),
+          missed_count: Number(loan.missed_count || 0),
         };
 
         return {
@@ -384,7 +436,16 @@ const Cashier_Payments = () => {
 
   const selectedLoanPenalty = useMemo(() => {
     if (!selectedLoan) return 0;
-    return calculatePenalty(selectedLoan.due_date, selectedLoan.remaining_balance);
+    const installmentAmount =
+      Number(selectedLoan.expected_installment) > 0
+        ? Number(selectedLoan.expected_installment)
+        : Number(selectedLoan.amortization) || 0;
+    return calculatePenalty(
+      selectedLoan.due_date,
+      installmentAmount,
+      selectedLoan.penalty_rate_percent,
+      selectedLoan.loan_type
+    );
   }, [selectedLoan]);
 
   const updatedBalancePreview = useMemo(() => {
@@ -711,6 +772,9 @@ const Cashier_Payments = () => {
                     <th className="px-6 py-4 text-left text-xs font-semibold text-white">
                       Amortization
                     </th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-white">
+                      Disbursal Date
+                    </th>
                     <th className="px-6 py-4 text-left">
                       <button
                         onClick={() => handleSort("due_date")}
@@ -749,7 +813,7 @@ const Cashier_Payments = () => {
                 <tbody className="divide-y divide-gray-100">
                   {paginatedLoans.length === 0 ? (
                     <tr>
-                      <td colSpan={9} className="px-6 py-12 text-center">
+                      <td colSpan={10} className="px-6 py-12 text-center">
                         <div className="flex flex-col items-center gap-2">
                           <AlertCircle size={32} className="text-gray-300" />
                           <p className="text-sm text-gray-500">
@@ -777,28 +841,23 @@ const Cashier_Payments = () => {
                           {formatCurrency(loan.amortization)}
                         </td>
                         <td className="px-6 py-4 text-sm text-gray-700">
+                          {loan.disbursal_date ? new Date(loan.disbursal_date).toLocaleDateString() : "—"}
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-700">
                           {new Date(loan.due_date).toLocaleDateString()}
                         </td>
                         <td className="px-6 py-4">
-                          <span
-                            className={`badge-animated inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold ${
-                              loan.is_delayed
-                                ? "bg-red-100 text-red-700"
-                                : "bg-green-100 text-green-700"
-                            }`}
-                          >
-                            {loan.is_delayed ? (
-                              <>
-                                <AlertCircle size={12} />
-                                Delayed
-                              </>
-                            ) : (
-                              <>
-                                <CheckCircle2 size={12} />
-                                On Time
-                              </>
-                            )}
-                          </span>
+                          {(() => {
+                            const key = resolveDelayStatus(loan);
+                            const meta = DELAY_STATUS_META[key];
+                            const Icon = key === "on_time" ? CheckCircle2 : AlertCircle;
+                            return (
+                              <span className={`badge-animated inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold ${meta.className}`}>
+                                <Icon size={12} />
+                                {formatDelayLabel(key, loan.missed_count)}
+                              </span>
+                            );
+                          })()}
                         </td>
                         <td className="px-6 py-4 text-sm font-semibold text-gray-900">
                           {formatCurrency(loan.remaining_balance)}
@@ -856,6 +915,37 @@ const Cashier_Payments = () => {
 
                 {/* Modal Content */}
                 <div className="overflow-y-auto max-h-[calc(100vh-200px)] p-6">
+                  {/* Status banner — penalty warning takes precedence over no-payment */}
+                  {selectedLoan.is_overdue_for_penalty ? (
+                    <div className="mb-4 rounded-lg border-2 border-red-300 bg-red-50 px-4 py-3 flex items-start gap-3">
+                      <AlertCircle size={20} className="text-red-600 mt-0.5 shrink-0" />
+                      <div className="text-sm">
+                        <p className="font-bold text-red-800">Overdue — Penalty applies</p>
+                        <p className="text-red-700 mt-0.5">
+                          This installment was due {new Date(selectedLoan.due_date).toLocaleDateString()}. The
+                          3-month grace period has lapsed, so a penalty has been added below.
+                          {selectedLoan.last_payment_date
+                            ? ` Last payment recorded: ${new Date(selectedLoan.last_payment_date).toLocaleDateString()}.`
+                            : " No payment has ever been recorded on this loan."}
+                        </p>
+                      </div>
+                    </div>
+                  ) : selectedLoan.is_delayed ? (
+                    <div className="mb-4 rounded-lg border-2 border-yellow-300 bg-yellow-50 px-4 py-3 flex items-start gap-3">
+                      <AlertCircle size={20} className="text-yellow-700 mt-0.5 shrink-0" />
+                      <div className="text-sm">
+                        <p className="font-bold text-yellow-900">No payment in over 1 month</p>
+                        <p className="text-yellow-800 mt-0.5">
+                          Installment due {new Date(selectedLoan.due_date).toLocaleDateString()}.
+                          {selectedLoan.last_payment_date
+                            ? ` Last payment: ${new Date(selectedLoan.last_payment_date).toLocaleDateString()}.`
+                            : " No payment has ever been recorded on this loan."}
+                          {" "}Penalty will start after the 3-month grace period.
+                        </p>
+                      </div>
+                    </div>
+                  ) : null}
+
                   {/* Loan Overview Cards */}
                   <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-2">
                     <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
@@ -928,7 +1018,9 @@ const Cashier_Payments = () => {
                         <p className="text-xl font-bold text-yellow-900">{formatCurrency(selectedLoan.remaining_balance)}</p>
                       </div>
                       <div>
-                        <p className="text-xs text-yellow-700 mb-1">Penalty (if overdue)</p>
+                        <p className="text-xs text-yellow-700 mb-1">
+                          Penalty {selectedLoanPenalty > 0 ? "(applies)" : "(none yet)"}
+                        </p>
                         <p className="text-xl font-bold text-yellow-900">{formatCurrency(selectedLoanPenalty)}</p>
                       </div>
                       <div className="rounded bg-white p-2 border border-yellow-200">
