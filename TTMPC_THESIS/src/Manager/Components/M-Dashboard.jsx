@@ -17,7 +17,8 @@ import {
   Wallet,
   AlertTriangle,
   ChevronDown,
-  BarChart3,
+  History,
+  BarChart3 ,
 } from 'lucide-react';
 import {
   AreaChart,
@@ -63,10 +64,10 @@ const M_Dashboard = () => {
 
   const menuItems = [
     { name: "Dashboard", icon: LayoutDashboard },
-    { name: "Loan Approval", icon: Users },
+    { name: "Loan Approval", icon: ClipboardCheck },
     { name: "Manage Member", icon: Users },
     { name: "Reports", icon: BarChart3 },
-    { name: "Audit Log", icon: BarChart3 },
+    { name: "Audit Log", icon: History },
   ];
 
   useEffect(() => {

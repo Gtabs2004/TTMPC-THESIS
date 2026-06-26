@@ -17,6 +17,8 @@ import {
   ChevronLeft,
   ChevronRight,
   BarChart3,
+  History,
+  ClipboardCheck,
 } from 'lucide-react';
 
 const Loan_Approval = () => {
@@ -27,11 +29,12 @@ const Loan_Approval = () => {
   const [loading, setLoading] = useState(true);
   
   const menuItems = [
-    { name: "Dashboard", icon: LayoutDashboard },
-    { name: "Loan Approval", icon: Users },
-    { name: "Manage Member", icon: Users },
-    { name: "Reports", icon: BarChart3 },
-  ];
+      { name: "Dashboard", icon: LayoutDashboard },
+      { name: "Loan Approval", icon: ClipboardCheck },
+      { name: "Manage Member", icon: Users },
+      { name: "Reports", icon: BarChart3 },
+      { name: "Audit Log", icon: History },
+    ];
 
   // Fetch data from Supabase on mount
   useEffect(() => {
@@ -174,11 +177,13 @@ const Loan_Approval = () => {
            <nav className="flex flex-col gap-2 text-sm flex-grow">
              {(() => {
                const routeMap = {
-                 "Dashboard": "/manager-dashboard",
-                 "Loan Approval": "/loan-approval",
-                 "Manage Member": "/manager-manage-member",
-                 "Reports": "/manager-reports",
-               };
+                "Dashboard": "/manager-dashboard",
+                "Loan Approval": "/loan-approval",
+                "Manage Member": "/manager-manage-member",
+                "Reports": "/manager-reports",
+                "Audit Log": "/manager-audit-log",
+              };
+
    
                return menuItems.map((item) => {
                  const Icon = item.icon;

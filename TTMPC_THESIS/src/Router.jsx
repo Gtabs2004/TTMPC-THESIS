@@ -32,7 +32,6 @@ import MemberApprovalDetails from "./BOD/Components/MemberApprovalDetails";
 import Termination_Inbox from "./BOD/Components/Termination_Inbox";
 import BOD_Loan_Approval from "./BOD/Components/BOD_Loan_Approval";
 import BOD_Audit_Log from "./BOD/Components/Audit_Log";
-import Bookkeeper_Audit_Log from "./Bookkeeper/Components/Audit_Log";
 import Manager_Audit_Log from "./Manager/Components/Audit_Log";
 import Treasurer_Audit_Log from "./Treasurer/Components/Audit_Log";
 import Cashier_Audit_Log from "./Cashier/Components/Audit_Log";
@@ -166,7 +165,6 @@ export const router = createBrowserRouter([
     {path: "/bod-loan-approvals", element:<BOD_Loan_Approval/>},
     {path: "/bod-loan-approval/:id", element:<LoanApprovalDetails/>},
     {path: "/bod-audit-log", element:<BOD_Audit_Log/>},
-    {path: "/bookkeeper-audit-log", element:<Bookkeeper_Audit_Log/>},
     {path: "/manager-audit-log", element:<Manager_Audit_Log/>},
     {path: "/treasurer-audit-log", element:<Treasurer_Audit_Log/>},
     {path: "/cashier-audit-log", element:<Cashier_Audit_Log/>},

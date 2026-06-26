@@ -34,7 +34,6 @@ const Bookkeeper_Audit_Log = () => {
     { name: "Accounting", icon: Calculator },
     { name: "MIGS Scoring", icon: Activity },
     { name: "Reports", icon: BarChart3 },
-    { name: "Audit Log", icon: History },
     { name: "Grocery", icon: Coins },
     { name: "Legacy Member Validation", icon: Search },
   ];
@@ -49,7 +48,6 @@ const Bookkeeper_Audit_Log = () => {
     Accounting: "/accounting",
     "MIGS Scoring": "/migs",
     Reports: "/reports",
-    "Audit Log": "/bookkeeper-audit-log",
     Grocery: "/grocery",
     "Legacy Member Validation": "/legacy-member-validation",
   };
