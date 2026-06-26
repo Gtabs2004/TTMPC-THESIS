@@ -18,6 +18,7 @@ import {
   AlertTriangle,
   Wallet,
   Award,
+  History,
 } from "lucide-react";
 import {
   BarChart,
@@ -64,11 +65,13 @@ const Manager_Reports = () => {
   const [topBorrowers, setTopBorrowers] = useState([]);
 
   const menuItems = [
-    { name: "Dashboard", icon: LayoutDashboard },
-    { name: "Loan Approval", icon: Users },
-    { name: "Manage Member", icon: Users },
-    { name: "Reports", icon: BarChart3 },
-  ];
+      { name: "Dashboard", icon: LayoutDashboard },
+      { name: "Loan Approval", icon: Users },
+      { name: "Manage Member", icon: Users },
+      { name: "Reports", icon: BarChart3 },
+      { name: "Audit Log", icon: History },
+    ];
+
 
   const handleSignOut = async (e) => {
     e.preventDefault();
@@ -304,12 +307,13 @@ const Manager_Reports = () => {
 
         <nav className="flex flex-col gap-2 text-sm flex-grow">
           {(() => {
-            const routeMap = {
-              Dashboard: "/manager-dashboard",
-              "Loan Approval": "/loan-approval",
-              "Manage Member": "/manager-manage-member",
-              Reports: "/manager-reports",
-            };
+           const routeMap = {
+    "Dashboard": "/manager-dashboard",
+    "Loan Approval": "/loan-approval",
+    "Manage Member": "/manager-manage-member",
+    "Reports": "/manager-reports",
+    "Audit Log": "/manager-audit-log",
+  };
             return menuItems.map((item) => {
               const Icon = item.icon;
               const to =

@@ -13,7 +13,6 @@ import {
   Calculator,
   Activity,
   BarChart3,
-  History,
   Search,
   TrendingUp,
   TrendingDown,
@@ -22,6 +21,7 @@ import {
   Briefcase,
   Wallet,
   Coins,
+  History,
 } from "lucide-react";
 import {
   BarChart,
@@ -90,23 +90,22 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
 
-  const menuItems = [
-    { name: "Dashboard", icon: LayoutDashboard },
-    { name: "Manage Member", icon: Users },
-    { name: "Loan Approval", icon: FileText },
-    { name: "Manage Loans", icon: Briefcase },
-    { name: "Payments", icon: Wallet },
-    { name: "Savings Withdrawals", icon: CreditCard },
-    { name: "Accounting", icon: Calculator },
-    { name: "MIGS Scoring", icon: Activity },
-    { name: "Reports", icon: BarChart3 },
-    { name: "Audit Log", icon: History },
-    { name: "Audit Trail", icon: History },
-    { name: "Grocery", icon: Coins },
-    { name: "Legacy Member Validation", icon: Search },
-  ];
+   const menuItems = [
+       { name: "Dashboard", icon: LayoutDashboard },
+       { name: "Manage Member", icon: Users },
+       { name: "Loan Approval", icon: FileText },
+       { name: "Manage Loans", icon: Briefcase },
+       { name: "Payments", icon: Wallet },
+       { name: "Savings Withdrawals", icon: CreditCard },
+       { name: "Accounting", icon: Calculator },
+       { name: "MIGS Scoring", icon: Activity },
+       { name: "Reports", icon: BarChart3 },
+       { name: "Audit Trail", icon: History },
+       { name: "Grocery", icon: Coins },
+       { name: "Legacy Member Validation", icon: Search },
+     ];
 
-  const routeMap = {
+ const routeMap = {
     Dashboard: "/dashboard",
     "Manage Member": "/manage-member",
     "Loan Approval": "/bookkeeper-loan-approval",
@@ -116,11 +115,10 @@ const Dashboard = () => {
     Accounting: "/accounting",
     "MIGS Scoring": "/migs",
     Reports: "/reports",
-    "Audit Log": "/bookkeeper-audit-log",
     "Audit Trail": "/audit-trail",
     Grocery: "/grocery",
     "Legacy Member Validation": "/legacy-member-validation",
-  };
+  }
 
   const handleSignOut = async (e) => {
     e.preventDefault();
@@ -488,11 +486,6 @@ const Dashboard = () => {
                 </ResponsiveContainer>
               </div>
             </div>
-          </div>
-
-          {/* My Audit Activity (clickable -> full audit log) */}
-          <div className="mb-6">
-            <RecentActivityCard to="/bookkeeper-audit-log" title="My Audit Activity" />
           </div>
 
           {/* Bottom Activity Section */}

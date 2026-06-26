@@ -7,7 +7,10 @@ export const NotificationProvider = ({ children }) => {
 
   const addNotification = useCallback((message, type = 'info', duration = 4000) => {
     const id = Date.now();
-    setNotifications((prev) => [...prev, { id, message, type, duration }]);
+    setNotifications((prev) => {
+      if (prev.some((n) => n.message === message && n.type === type)) return prev;
+      return [...prev, { id, message, type, duration }];
+    });
     return id;
   }, []);
 

@@ -61,7 +61,7 @@ const Toast = ({ message, type = 'info', duration = 4000, onClose = () => {} }) 
       <Icon className={`w-5 h-5 mt-0.5 flex-shrink-0 ${styles.icon}`} />
       <p className={`text-sm font-medium flex-1 ${styles.text}`}>{message}</p>
       <button
-        onClick={() => setIsVisible(false)}
+        onClick={() => { setIsVisible(false); setTimeout(onClose, 300); }}
         className={`flex-shrink-0 ${styles.text} hover:opacity-70 transition-opacity`}
       >
         <X className="w-5 h-5" />

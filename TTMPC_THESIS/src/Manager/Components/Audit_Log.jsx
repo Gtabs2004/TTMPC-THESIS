@@ -10,6 +10,7 @@ import {
   Users,
   BarChart3,
   History,
+  ClipboardCheck
 } from "lucide-react";
 
 const Manager_Audit_Log = () => {
@@ -19,7 +20,7 @@ const Manager_Audit_Log = () => {
 
   const menuItems = [
     { name: "Dashboard", icon: LayoutDashboard },
-    { name: "Loan Approval", icon: Users },
+    { name: "Loan Approval", icon: ClipboardCheck },
     { name: "Manage Member", icon: Users },
     { name: "Reports", icon: BarChart3 },
     { name: "Audit Log", icon: History },
