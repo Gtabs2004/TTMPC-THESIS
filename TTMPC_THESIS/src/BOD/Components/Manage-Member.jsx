@@ -200,36 +200,36 @@ const BOD_Manage_Member = () => {
           <h1 className="font-bold text-2xl mb-6">Manage Member</h1>
           <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
             {!loading ? (
-              <table className="w-full text-sm">
-                <thead className="bg-[#66B53B] text-white uppercase text-[11px] tracking-wider text-center">
-                  <tr>
-                    <th className="px-4 py-3 text-center">Member ID</th>
-                    <th className="px-4 py-3 text-center">Name</th>
-                    <th className="px-4 py-3 text-center">Email</th>
-                    <th className="px-4 py-3 text-center">Contact</th>
-                    <th className="px-4 py-3 text-center">Address</th>
-                    <th className="px-4 py-3 text-center">Active Loans</th>
-                    <th className="px-4 py-3 text-center">Paid Loans</th>
-                    <th className="px-4 py-3 text-center">Action</th>
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-green-700 text-[10px] uppercase tracking-wider text-white font-extrabold">
+                    <th className="p-5 font-bold">Member ID</th>
+                    <th className="p-5 font-bold">Name</th>
+                    <th className="p-5 font-bold">Email</th>
+                    <th className="p-5 font-bold">Contact</th>
+                    <th className="p-5 font-bold">Address</th>
+                    <th className="p-5 font-bold">Active Loans</th>
+                    <th className="p-5 font-bold">Paid Loans</th>
+                    <th className="p-5 font-bold">Action</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filtered.length === 0 ? (
-                    <tr><td colSpan={8} className="px-4 py-8 text-center text-gray-500">No personal datasheet records found.</td></tr>
+                    <tr><td colSpan={8} className="p-5 text-sm text-center text-gray-500">No personal datasheet records found.</td></tr>
                   ) : (
                     paginatedRows.map((r) => {
                       const summary = loanSummaryByMemberId[String(r.member_id || "").trim()] || { paidCount: 0, activeCount: 0 };
 
                       return (
-                        <tr key={String(r.id)} className="table-row-enter border-t border-gray-100 hover:bg-green-50 transition-colors">
-                          <td className="px-4 py-3 font-semibold text-gray-800">{r.member_id}</td>
-                          <td className="px-4 py-3 text-gray-700 text-center">{r.full_name}</td>
-                          <td className="px-4 py-3 text-gray-700 text-center">{r.email}</td>
-                          <td className="px-4 py-3 text-gray-700 text-center">{r.contact_number}</td>
-                          <td className="px-4 py-3 text-gray-700 text-center">{r.address}</td>
-                          <td className="px-4 py-3 text-gray-700 text-center">{summary.activeCount}</td>
-                          <td className="px-4 py-3 text-gray-700 text-center">{summary.paidCount}</td>
-                          <td className="px-4 py-3 text-center">
+                        <tr key={String(r.id)} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
+                          <td className="p-5 text-sm font-semibold text-gray-800">{r.member_id}</td>
+                          <td className="p-5 text-sm text-gray-700 text-center">{r.full_name}</td>
+                          <td className="p-5 text-sm text-gray-700 text-center">{r.email}</td>
+                          <td className="p-5 text-sm text-gray-700 text-center">{r.contact_number}</td>
+                          <td className="p-5 text-sm text-gray-700 text-center">{r.address}</td>
+                          <td className="p-5 text-sm text-gray-700 text-center">{summary.activeCount}</td>
+                          <td className="p-5 text-sm text-gray-700 text-center">{summary.paidCount}</td>
+                          <td className="p-5 text-sm text-center">
                             <button
                               onClick={() => navigate(`/member_details?member_id=${encodeURIComponent(String(r.member_id || ""))}&portal=bod`, { state: { member: r, portal: "bod" } })}
                               className="text-[#1D6021] font-bold hover:underline transition-all"

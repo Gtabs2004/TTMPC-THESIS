@@ -185,16 +185,16 @@ const Termination_Inbox = () => {
           </div>
 
           <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-[#66B53B] text-white uppercase text-[11px] tracking-wider text-center">
-                <tr>
-                  <th className="px-4 py-3">Member ID</th>
-                  <th className="px-4 py-3">Previous Role</th>
-                  <th className="px-4 py-3">Resolution No.</th>
-                  <th className="px-4 py-3">Reason</th>
-                  <th className="px-4 py-3">Requested</th>
-                  <th className="px-4 py-3">Status</th>
-                  <th className="px-4 py-3">Action</th>
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-green-700 text-[10px] uppercase tracking-wider text-white font-extrabold">
+                  <th className="p-5 font-bold">Member ID</th>
+                  <th className="p-5 font-bold">Previous Role</th>
+                  <th className="p-5 font-bold">Resolution No.</th>
+                  <th className="p-5 font-bold">Reason</th>
+                  <th className="p-5 font-bold">Requested</th>
+                  <th className="p-5 font-bold">Status</th>
+                  <th className="p-5 font-bold">Action</th>
                 </tr>
               </thead>
               <tbody>
@@ -206,18 +206,18 @@ const Termination_Inbox = () => {
                   const status = STATUS_LABEL[r.status] || { text: r.status, className: "bg-gray-100 text-gray-600" };
                   const pending = r.status === "awaiting_bod_confirmation";
                   return (
-                    <tr key={r.id} className="border-t border-gray-100 hover:bg-green-50 transition-colors text-center">
-                      <td className="px-4 py-3 font-semibold text-gray-800">{r.member_id}</td>
-                      <td className="px-4 py-3 text-gray-700 capitalize">{r.previous_role || "—"}</td>
-                      <td className="px-4 py-3 text-gray-700">{r.resolution_no || "—"}</td>
-                      <td className="px-4 py-3 text-gray-700 text-left">{r.reason || "—"}</td>
-                      <td className="px-4 py-3 text-gray-700 text-xs">{formatDate(r.requested_at)}</td>
-                      <td className="px-4 py-3">
+                    <tr key={r.id} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors text-center">
+                      <td className="p-5 text-sm font-semibold text-gray-800">{r.member_id}</td>
+                      <td className="p-5 text-sm text-gray-700 capitalize">{r.previous_role || "—"}</td>
+                      <td className="p-5 text-sm text-gray-700">{r.resolution_no || "—"}</td>
+                      <td className="p-5 text-sm text-gray-700 text-left">{r.reason || "—"}</td>
+                      <td className="p-5 text-xs text-gray-700">{formatDate(r.requested_at)}</td>
+                      <td className="p-5 text-sm">
                         <span className={`px-2.5 py-1 rounded-md text-[10px] font-bold tracking-wider ${status.className}`}>
                           {status.text}
                         </span>
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="p-5 text-sm">
                         {pending ? (
                           <div className="flex gap-2 justify-center">
                             <button

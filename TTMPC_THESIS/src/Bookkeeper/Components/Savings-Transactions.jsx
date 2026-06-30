@@ -346,47 +346,47 @@ const BookkeeperSavingsTransactions = () => {
 
           <div className="border border-gray-200 rounded-lg shadow-sm overflow-hidden bg-white">
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead className="bg-[#66B538] text-white uppercase tracking-wider text-[10px]">
-                  <tr>
-                    <th className="px-3 py-2.5 font-semibold">Transaction ID</th>
-                    <th className="px-3 py-2.5 font-semibold">Member</th>
-                    <th className="px-3 py-2.5 font-semibold">Savings ID</th>
-                    <th className="px-3 py-2.5 font-semibold">Type</th>
-                    <th className="px-3 py-2.5 font-semibold text-right">Amount</th>
-                    <th className="px-3 py-2.5 font-semibold">Requested</th>
-                    <th className="px-3 py-2.5 font-semibold">Status</th>
-                    <th className="px-3 py-2.5 font-semibold text-right">Actions</th>
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-green-700 text-[10px] uppercase tracking-wider text-white font-extrabold">
+                    <th className="p-5 font-bold">Transaction ID</th>
+                    <th className="p-5 font-bold">Member</th>
+                    <th className="p-5 font-bold">Savings ID</th>
+                    <th className="p-5 font-bold">Type</th>
+                    <th className="p-5 font-bold text-right">Amount</th>
+                    <th className="p-5 font-bold">Requested</th>
+                    <th className="p-5 font-bold">Status</th>
+                    <th className="p-5 font-bold text-right">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100">
+                <tbody>
                   {loading ? (
                     <tr>
-                      <td colSpan="8" className="px-3 py-6 text-center text-gray-500">Loading savings transactions...</td>
+                      <td colSpan="8" className="p-5 text-sm text-center text-gray-500">Loading savings transactions...</td>
                     </tr>
                   ) : filteredRows.length === 0 ? (
                     <tr>
-                      <td colSpan="8" className="px-3 py-6 text-center text-gray-500">No transactions found for this tab.</td>
+                      <td colSpan="8" className="p-5 text-sm text-center text-gray-500">No transactions found for this tab.</td>
                     </tr>
                   ) : (
                     filteredRows.map((row) => (
-                      <tr key={row.transaction_id} className="hover:bg-green-50 transition-colors">
-                        <td className="px-3 py-2 font-mono text-gray-900">{row.transaction_id}</td>
-                        <td className="px-3 py-2 text-gray-800">{row.member_name || "Unknown Member"}</td>
-                        <td className="px-3 py-2 font-mono text-gray-700">{row.savings_id}</td>
-                        <td className="px-3 py-2">
+                      <tr key={row.transaction_id} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
+                        <td className="p-5 text-sm font-mono text-gray-900">{row.transaction_id}</td>
+                        <td className="p-5 text-sm text-gray-800">{row.member_name || "Unknown Member"}</td>
+                        <td className="p-5 text-sm font-mono text-gray-700">{row.savings_id}</td>
+                        <td className="p-5 text-sm">
                           <span className="inline-flex px-2 py-0.5 rounded-full bg-gray-100 text-gray-700 text-[10px] font-medium">
                             {row.account_type || row.transaction_type}
                           </span>
                         </td>
-                        <td className="px-3 py-2 text-right font-semibold text-gray-900 tabular-nums">{formatCurrency(row.amount)}</td>
-                        <td className="px-3 py-2 text-gray-600">{formatDate(row.requested_at)}</td>
-                        <td className="px-3 py-2">
+                        <td className="p-5 text-sm text-right font-semibold text-gray-900 tabular-nums">{formatCurrency(row.amount)}</td>
+                        <td className="p-5 text-sm text-gray-600">{formatDate(row.requested_at)}</td>
+                        <td className="p-5 text-sm">
                           <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold ${getStatusStyle(row.transaction_status)}`}>
                             {row.transaction_status}
                           </span>
                         </td>
-                        <td className="px-3 py-2 text-right">
+                        <td className="p-5 text-sm text-right">
                           {row.transaction_status === "pending_verification" ? (
                             <div className="inline-flex items-center gap-1.5">
                               <button

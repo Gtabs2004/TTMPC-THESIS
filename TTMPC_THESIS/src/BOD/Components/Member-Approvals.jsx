@@ -381,7 +381,7 @@ const Member_Approvals = () => {
               ))}
             </div>
 
-            <div className="flex justify-between items-center px-6 py-4">
+            <div className="flex justify-between items-center p-5 text-sm">
                <h2 className="text-lg font-bold text-gray-800">{isTrainingTab ? `${activeTab} Attendance & Evaluation` : `${activeTab} Applications`}</h2>
                <div className="text-xs text-gray-400">
                   Showing {totalCount === 0 ? 0 : (page - 1) * LIMIT + 1}-{Math.min(page * LIMIT, totalCount)} of {totalCount} applications
@@ -389,47 +389,47 @@ const Member_Approvals = () => {
             </div>
 
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
-                <thead className="bg-[#66B53B] text-white text-[13px] uppercase font-bold tracking-wider">
-                  <tr>
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-green-700 text-[10px] uppercase tracking-wider text-white font-extrabold">
                     {isTrainingTab ? (
                       <>
-                        <th className="px-6 py-4">Member Name</th>
-                        <th className="px-6 py-4">Training Schedule</th>
-                        <th className="px-6 py-4">Attendance Status</th>
-                        <th className="px-6 py-4">Evaluation Result</th>
+                        <th className="p-5 font-bold">Member Name</th>
+                        <th className="p-5 font-bold">Training Schedule</th>
+                        <th className="p-5 font-bold">Attendance Status</th>
+                        <th className="p-5 font-bold">Evaluation Result</th>
                       </>
                     ) : (
                       <>
-                        <th className="px-6 py-4">Application ID</th>
-                        <th className="px-6 py-4">Member Name</th>
-                        <th className="px-6 py-4">Annual Income</th>
-                        <th className="px-6 py-4">Submitted Date</th>
-                        {activeTab === "For Revision" && <th className="px-6 py-4">Revision Notes</th>}
+                        <th className="p-5 font-bold">Application ID</th>
+                        <th className="p-5 font-bold">Member Name</th>
+                        <th className="p-5 font-bold">Annual Income</th>
+                        <th className="p-5 font-bold">Submitted Date</th>
+                        {activeTab === "For Revision" && <th className="p-5 font-bold">Revision Notes</th>}
                       </>
                     )}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100">
+                <tbody>
                   {rowsForActiveTab.length === 0 ? (
-                    <tr><td colSpan="5" className="px-6 py-10 text-center text-gray-500">No {activeTab.toLowerCase()} records found.</td></tr>
+                    <tr><td colSpan="5" className="p-5 text-sm text-center text-gray-500">No {activeTab.toLowerCase()} records found.</td></tr>
                   ) : (
                     rowsForActiveTab.map((row, index) => (
-                      <tr key={index} className="table-row-enter hover:bg-green-50 transition-colors">
+                      <tr key={index} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
                         {isTrainingTab ? (
                           <>
-                            <td className="px-6 py-4 whitespace-nowrap">
+                            <td className="p-5 text-sm whitespace-nowrap">
                               <button onClick={() => canUseBodActions && navigate(`/member-approvals/${row.id}`)} className={`text-left font-semibold ${canUseBodActions ? 'text-gray-800 hover:text-blue-600 hover:underline' : 'text-gray-500'}`}>{row.name}</button>
                               <div className="text-xs text-gray-400">{row.email}</div>
                             </td>
-                            <td className="px-6 py-4 text-gray-600">{row.trainingDate}</td>
-                            <td className="px-6 py-4">
+                            <td className="p-5 text-sm text-gray-600">{row.trainingDate}</td>
+                            <td className="p-5 text-sm">
                               <span className={`badge-animated inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border ${row.attendance === "Present" ? "border-green-300 bg-green-50 text-green-700" : "border-red-300 bg-red-50 text-red-600"}`}>
                                 <span className={`w-1.5 h-1.5 rounded-full ${row.attendance === "Present" ? "bg-green-500" : "bg-red-500"}`} />
                                 {row.attendance}
                               </span>
                             </td>
-                            <td className="px-6 py-4">
+                            <td className="p-5 text-sm">
                               <button onClick={() => canUseBodActions && setSelectedEvaluationRow(row)} className={`badge-animated px-3 py-1 rounded-full text-xs font-semibold border ${row.result === "Passed" ? "border-green-300 bg-green-50 text-green-700" : "border-yellow-300 bg-yellow-50 text-yellow-700"}`}>
                                 {row.result === "Pending" ? "View Remarks" : row.result}
                               </button>
@@ -437,14 +437,14 @@ const Member_Approvals = () => {
                           </>
                         ) : (
                           <>
-                            <td className="px-6 py-4 font-bold text-[#2C7A3F]">{row.id}</td>
-                            <td className="px-6 py-4">
+                            <td className="p-5 text-sm font-bold text-[#2C7A3F]">{row.id}</td>
+                            <td className="p-5 text-sm">
                               <button onClick={() => canUseBodActions && navigate(`/member-approvals/${row.id}`)} className="font-bold text-gray-800 hover:text-blue-600 hover:underline">{row.name}</button>
                               <div className="text-xs text-gray-400">{row.email}</div>
                             </td>
-                            <td className="px-6 py-4 text-gray-600 font-medium">{row.annualIncome}</td>
-                            <td className="px-6 py-4 text-gray-500">{row.date}</td>
-                            {activeTab === "For Revision" && <td className="px-6 py-4"><span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-700">{row.reason}</span></td>}
+                            <td className="p-5 text-sm text-gray-600 font-medium">{row.annualIncome}</td>
+                            <td className="p-5 text-sm text-gray-500">{row.date}</td>
+                            {activeTab === "For Revision" && <td className="p-5 text-sm"><span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-700">{row.reason}</span></td>}
                           </>
                         )}
                       </tr>

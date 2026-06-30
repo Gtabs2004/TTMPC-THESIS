@@ -516,13 +516,13 @@ const Cashier_Disbursement = () => {
 
           <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-[#66B538] text-white uppercase text-[13px] tracking-wider">
-                  <tr>
-                    <th className="px-6 py-4 text-left font-semibold">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-green-700 text-[10px] uppercase tracking-wider text-white font-extrabold">
+                    <th className="p-5 font-bold">
                       Loan ID
                     </th>
-                    <th className="px-6 py-4 text-left font-semibold">
+                    <th className="p-5 font-bold">
                       <button
                         onClick={() => handleSort("member_name")}
                         className="flex items-center gap-2 font-semibold hover:text-green-100 transition group"
@@ -531,7 +531,7 @@ const Cashier_Disbursement = () => {
                         <ArrowUpDown size={14} className="opacity-0 group-hover:opacity-100 transition" />
                       </button>
                     </th>
-                    <th className="px-6 py-4 text-left font-semibold">
+                    <th className="p-5 font-bold">
                       <button
                         onClick={() => handleSort("loan_type")}
                         className="flex items-center gap-2 font-semibold hover:text-green-100 transition group"
@@ -540,7 +540,7 @@ const Cashier_Disbursement = () => {
                         <ArrowUpDown size={14} className="opacity-0 group-hover:opacity-100 transition" />
                       </button>
                     </th>
-                    <th className="px-6 py-4 text-left font-semibold">
+                    <th className="p-5 font-bold">
                       <button
                         onClick={() => handleSort("principal_amount")}
                         className="flex items-center gap-2 font-semibold hover:text-green-100 transition group"
@@ -549,10 +549,10 @@ const Cashier_Disbursement = () => {
                         <ArrowUpDown size={14} className="opacity-0 group-hover:opacity-100 transition" />
                       </button>
                     </th>
-                    <th className="px-6 py-4 text-left font-semibold">
+                    <th className="p-5 font-bold">
                       Interest
                     </th>
-                    <th className="px-6 py-4 text-left font-semibold">
+                    <th className="p-5 font-bold">
                       <button
                         onClick={() => handleSort("term_months")}
                         className="flex items-center gap-2 font-semibold hover:text-green-100 transition group"
@@ -561,18 +561,18 @@ const Cashier_Disbursement = () => {
                         <ArrowUpDown size={14} className="opacity-0 group-hover:opacity-100 transition" />
                       </button>
                     </th>
-                    <th className="px-6 py-4 text-left font-semibold">
+                    <th className="p-5 font-bold">
                       Status
                     </th>
-                    <th className="px-6 py-4 text-left font-semibold">
+                    <th className="p-5 font-bold">
                       Action
                     </th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100">
+                <tbody>
                   {filteredAndSortedLoans.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="px-6 py-12 text-center">
+                      <td colSpan={8} className="p-5 text-center">
                         <div className="flex flex-col items-center gap-3">
                           <Banknote size={40} className="text-gray-300" />
                           <p className="text-sm text-gray-500">
@@ -588,28 +588,28 @@ const Cashier_Disbursement = () => {
                     </tr>
                   ) : (
                     filteredAndSortedLoans.map((loan) => (
-                      <tr key={loan.loan_id} className="table-row-enter hover:bg-green-50 transition">
-                        <td className="px-6 py-4 text-xs font-mono text-gray-700">
+                      <tr key={loan.loan_id} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
+                        <td className="p-5 text-xs font-mono text-gray-700">
                           <span className="inline-flex rounded bg-gray-100 px-2 py-1">
                             {String(loan.loan_id).slice(0, 8)}...
                           </span>
                         </td>
-                        <td className="px-6 py-4 text-sm font-medium text-gray-900">
+                        <td className="p-5 text-sm font-medium text-gray-900">
                           {loan.member_name}
                         </td>
-                        <td className="px-6 py-4 text-sm text-gray-700">
+                        <td className="p-5 text-sm text-gray-700">
                           {toTitleCase(loan.loan_type)}
                         </td>
-                        <td className="px-6 py-4 text-sm text-gray-700 font-semibold">
+                        <td className="p-5 text-sm text-gray-700 font-semibold">
                           {formatCurrency(loan.principal_amount || loan.loan_amount)}
                         </td>
-                        <td className="px-6 py-4 text-sm text-gray-700">
+                        <td className="p-5 text-sm text-gray-700">
                           {Number(loan.interest_rate || 0)}%
                         </td>
-                        <td className="px-6 py-4 text-sm text-gray-700">
+                        <td className="p-5 text-sm text-gray-700">
                           {loan.term_months} mo
                         </td>
-                        <td className="px-6 py-4">
+                        <td className="p-5">
                           <span className="badge-animated inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold bg-blue-100 text-blue-700">
                             <CheckCircle2 size={12} />
                             {String(loan.loan_status || "")
@@ -618,7 +618,7 @@ const Cashier_Disbursement = () => {
                               .join(" ")}
                           </span>
                         </td>
-                        <td className="px-6 py-4">
+                        <td className="p-5">
                           <button
                             type="button"
                             onClick={() => openDisbursementPreview(loan)}
@@ -751,7 +751,7 @@ const Cashier_Disbursement = () => {
               </div>
             </div>
 
-            <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 flex justify-between items-center">
+            <div className="p-5 border-t border-gray-200 bg-gray-50 flex justify-between items-center">
               {/* TODO: PRINT-RECEIPT-OVERLAY · loan disbursement voucher */}
               <button
                 type="button"
@@ -895,7 +895,7 @@ const Cashier_Disbursement = () => {
               )}
             </div>
 
-            <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 flex justify-end gap-3">
+            <div className="p-5 border-t border-gray-200 bg-gray-50 flex justify-end gap-3">
               <button
                 type="button"
                 onClick={closeDisbursementPreview}

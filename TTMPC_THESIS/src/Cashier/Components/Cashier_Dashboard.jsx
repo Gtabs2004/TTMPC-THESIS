@@ -618,28 +618,28 @@ const Cashier_Dashboard = () => {
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr className="bg-[#66B538] text-white text-[11px] font-bold tracking-wider uppercase">
-                    <th className="p-4 pl-6">Member</th>
-                    <th className="p-4">Transaction</th>
-                    <th className="p-4">Reference</th>
-                    <th className="p-4">Amount</th>
-                    <th className="p-4">Time</th>
-                    <th className="p-4 pr-6">Type</th>
+                  <tr className="bg-green-700 text-[10px] uppercase tracking-wider text-white font-extrabold">
+                    <th className="p-5 font-bold">Member</th>
+                    <th className="p-5 font-bold">Transaction</th>
+                    <th className="p-5 font-bold">Reference</th>
+                    <th className="p-5 font-bold">Amount</th>
+                    <th className="p-5 font-bold">Time</th>
+                    <th className="p-5 font-bold">Type</th>
                   </tr>
                 </thead>
-                <tbody className="text-sm">
+                <tbody>
                   {loading ? (
-                    <tr><td colSpan={6} className="p-6 text-center text-gray-400">Loading activity…</td></tr>
+                    <tr><td colSpan={6} className="p-5 text-sm text-center text-gray-400">Loading activity…</td></tr>
                   ) : recentActivity.length === 0 ? (
-                    <tr><td colSpan={6} className="p-6 text-center text-gray-400">No transactions recorded today.</td></tr>
+                    <tr><td colSpan={6} className="p-5 text-sm text-center text-gray-400">No transactions recorded today.</td></tr>
                   ) : recentActivity.map((row) => (
-                    <tr key={row.id} className="table-row-enter border-b border-gray-50 hover:bg-green-50 transition-colors">
-                      <td className="p-4 pl-6 font-bold text-gray-800">{row.name}</td>
-                      <td className="p-4 text-gray-500">{row.desc}</td>
-                      <td className="p-4 text-gray-400 font-medium">{row.ref}</td>
-                      <td className="p-4 font-bold text-gray-800">{row.amount}</td>
-                      <td className="p-4 text-gray-500">{row.time}</td>
-                      <td className="p-4 pr-6">
+                    <tr key={row.id} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
+                      <td className="p-5 text-sm font-bold text-gray-800">{row.name}</td>
+                      <td className="p-5 text-sm text-gray-500">{row.desc}</td>
+                      <td className="p-5 text-sm text-gray-400 font-medium">{row.ref}</td>
+                      <td className="p-5 text-sm font-bold text-gray-800">{row.amount}</td>
+                      <td className="p-5 text-sm text-gray-500">{row.time}</td>
+                      <td className="p-5">
                         <span
                           className={`badge-animated px-2.5 py-1 rounded-md text-[10px] font-bold tracking-wider uppercase ${
                             row.type === "in"

@@ -276,34 +276,34 @@ const Secretary_Records = () => {
             </div>
             <table className="w-full text-left border-collapse text-sm">
               <thead>
-                <tr className="border-y border-gray-200 bg-[#66B538] text-white text-xs uppercase tracking-wider font-bold">
-                  <th className="px-6 py-4 font-medium">Membership Id</th>
-                  <th className="px-6 py-4 font-medium">Member Name</th>
-                  <th className="px-6 py-4 font-medium">Date Joined</th>
-                  <th className="px-6 py-4 font-medium">Shares</th>
-                  <th className="px-6 py-4 font-medium">Paid Up Capital</th>
-                  <th className="px-6 py-4 font-medium">Action</th>
+                <tr className="bg-green-700 text-[10px] uppercase tracking-wider text-white font-extrabold">
+                  <th className="p-5 font-bold">Membership Id</th>
+                  <th className="p-5 font-bold">Member Name</th>
+                  <th className="p-5 font-bold">Date Joined</th>
+                  <th className="p-5 font-bold">Shares</th>
+                  <th className="p-5 font-bold">Paid Up Capital</th>
+                  <th className="p-5 font-bold">Action</th>
                 </tr>
               </thead>
               <tbody>
                 {loading && (
                   <tr>
-                    <td colSpan={6} className="py-6 text-center text-blue-700">Loading membership records...</td>
+                    <td colSpan={6} className="p-5 text-sm text-center text-blue-700">Loading membership records...</td>
                   </tr>
                 )}
                 {paginatedRecords.length === 0 && !loading && (
                   <tr>
-                    <td colSpan={6} className="py-6 text-center text-gray-500">No records found.</td>
+                    <td colSpan={6} className="p-5 text-sm text-center text-gray-500">No records found.</td>
                   </tr>
                 )}
                 {paginatedRecords.map((member, index) => (
-                  <tr key={`${member.member_uuid}-${index}`} className="table-row-enter border-b border-gray-100 hover:bg-green-50 transition-colors">
-                    <td className="py-4 font-semibold text-[#1a4a2f]">{member.applicant_id}</td>
-                    <td className="py-4 text-gray-800 font-medium">{member.applicant_name}</td>
-                    <td className="py-4 text-gray-800 font-medium">{formatDate(member.date_joined)}</td>
-                    <td className="py-4 text-gray-800 font-medium">{Number(member.shares || 0).toFixed(2)}</td>
-                    <td className="py-4 text-gray-800 font-medium">{formatCurrency(member.paid_up_capital)}</td>
-                    <td className="py-4">
+                  <tr key={`${member.member_uuid}-${index}`} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
+                    <td className="p-5 font-semibold text-[#1a4a2f]">{member.applicant_id}</td>
+                    <td className="p-5 text-gray-800 font-medium">{member.applicant_name}</td>
+                    <td className="p-5 text-gray-800 font-medium">{formatDate(member.date_joined)}</td>
+                    <td className="p-5 text-gray-800 font-medium">{Number(member.shares || 0).toFixed(2)}</td>
+                    <td className="p-5 text-gray-800 font-medium">{formatCurrency(member.paid_up_capital)}</td>
+                    <td className="p-5">
                       <div className="flex items-center gap-2">
                         <button
                           onClick={() => navigate(`/record-details/${member.member_uuid}`)}
@@ -367,7 +367,7 @@ const Secretary_Records = () => {
       {termTarget ? (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-lg">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+            <div className="flex items-center justify-between px-6 p-5 border-b border-gray-100">
               <div className="flex items-center gap-2">
                 <AlertTriangle className="w-5 h-5 text-red-500" />
                 <h3 className="font-bold text-gray-800">Terminate Membership</h3>
@@ -376,7 +376,7 @@ const Secretary_Records = () => {
                 <CloseIcon className="w-5 h-5" />
               </button>
             </div>
-            <div className="px-6 py-4 space-y-4">
+            <div className="px-6 p-5 space-y-4">
               <div className="rounded-md bg-orange-50 border border-orange-200 px-3 py-2 text-xs text-orange-800">
                 Submitting will immediately lock <b>{termTarget.applicant_id}</b> ({termTarget.applicant_name}) and forward a confirmation request to the BOD.
               </div>
@@ -431,7 +431,7 @@ const Secretary_Records = () => {
                 />
               </div>
             </div>
-            <div className="flex justify-end gap-2 px-6 py-4 border-t border-gray-100">
+            <div className="flex justify-end gap-2 px-6 p-5 border-t border-gray-100">
               <button
                 onClick={() => setTermTarget(null)}
                 disabled={termBusy}

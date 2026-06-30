@@ -320,30 +320,30 @@ const Treasurer_Dashboard = () => {
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr className="bg-[#66B538] text-white text-[11px] font-bold tracking-wider uppercase">
-                    <th className="p-4 pl-6">Member Name</th>
-                    <th className="p-4">Loan ID</th>
-                    <th className="p-4">Loan Type</th>
-                    <th className="p-4">Amount</th>
-                    <th className="p-4">Applied Date</th>
-                    <th className="p-4">Status</th>
-                    <th className="p-4 pr-6"></th>
+                  <tr className="bg-green-700 text-[10px] uppercase tracking-wider text-white font-extrabold">
+                    <th className="p-5 font-bold">Member Name</th>
+                    <th className="p-5 font-bold">Loan ID</th>
+                    <th className="p-5 font-bold">Loan Type</th>
+                    <th className="p-5 font-bold">Amount</th>
+                    <th className="p-5 font-bold">Applied Date</th>
+                    <th className="p-5 font-bold">Status</th>
+                    <th className="p-5 font-bold"></th>
                   </tr>
                 </thead>
-                <tbody className="text-sm">
+                <tbody>
                   {recentActivity.map((row) => (
-                    <tr key={row.id} className="table-row-enter border-b border-gray-50 hover:bg-green-50 transition-colors">
-                      <td className="p-4 pl-6 font-bold text-gray-800">{row.name}</td>
-                      <td className="p-4 text-gray-400 font-medium">{row.loanId}</td>
-                      <td className="p-4 text-gray-600">{row.type}</td>
-                      <td className="p-4 font-bold text-gray-800">{row.amount}</td>
-                      <td className="p-4 text-gray-500">{row.date}</td>
-                      <td className="p-4">
+                    <tr key={row.id} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
+                      <td className="p-5 text-sm font-bold text-gray-800">{row.name}</td>
+                      <td className="p-5 text-sm text-gray-400 font-medium">{row.loanId}</td>
+                      <td className="p-5 text-sm text-gray-600">{row.type}</td>
+                      <td className="p-5 text-sm font-bold text-gray-800">{row.amount}</td>
+                      <td className="p-5 text-sm text-gray-500">{row.date}</td>
+                      <td className="p-5 text-sm">
                         <span className={`badge-animated px-2.5 py-1 rounded-md text-[10px] font-bold tracking-wider uppercase ${row.statusColor}`}>
                           {row.status}
                         </span>
                       </td>
-                      <td className="p-4 pr-6 text-gray-400 hover:text-gray-600 cursor-pointer text-right">
+                      <td className="p-5 text-sm text-gray-400 hover:text-gray-600 cursor-pointer text-right">
                         <MoreVertical size={16} className="inline" />
                       </td>
                     </tr>

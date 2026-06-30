@@ -552,7 +552,7 @@ const Savings_Details = () => {
 
               {/* LEDGER TABLE */}
               <div className="mb-8 rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
-                <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+                <div className="p-5 border-b border-gray-200 flex items-center justify-between">
                   <div>
                     <h2 className="text-lg font-bold text-gray-900">Transaction Ledger</h2>
                     <p className="text-xs text-gray-500 mt-0.5">
@@ -562,19 +562,19 @@ const Savings_Details = () => {
                 </div>
 
                 <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead className="bg-[#66B538] text-white uppercase text-[13px] tracking-wider">
-                      <tr>
-                        <th className="px-6 py-4 text-left font-semibold">Posted</th>
-                        <th className="px-6 py-4 text-left font-semibold">Type</th>
-                        <th className="px-6 py-4 text-right font-semibold">Amount</th>
-                        <th className="px-6 py-4 text-right font-semibold">Running Balance</th>
-                        <th className="px-6 py-4 text-left font-semibold">Reference</th>
-                        <th className="px-6 py-4 text-left font-semibold">Remarks</th>
-                        <th className="px-6 py-4 text-center font-semibold">Receipt</th>
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="bg-green-700 text-[10px] uppercase tracking-wider text-white font-extrabold">
+                        <th className="p-5 font-bold">Posted</th>
+                        <th className="p-5 font-bold">Type</th>
+                        <th className="p-5 font-bold text-right">Amount</th>
+                        <th className="p-5 font-bold text-right">Running Balance</th>
+                        <th className="p-5 font-bold">Reference</th>
+                        <th className="p-5 font-bold">Remarks</th>
+                        <th className="p-5 font-bold text-center">Receipt</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-100">
+                    <tbody>
                       {ledger.length === 0 ? (
                         <tr>
                           <td colSpan={7} className="px-6 py-12 text-center">
@@ -593,11 +593,11 @@ const Savings_Details = () => {
                         paginatedLedger.map((entry) => {
                           const isCredit = entry.entry_type === "credit";
                           return (
-                            <tr key={entry.id} className="hover:bg-gray-50 transition">
-                              <td className="px-6 py-4 text-sm text-gray-600">
+                            <tr key={entry.id} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
+                              <td className="p-5 text-sm text-gray-600">
                                 {formatDateTime(entry.posted_at)}
                               </td>
-                              <td className="px-6 py-4">
+                              <td className="p-5">
                                 <span
                                   className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${
                                     isCredit
@@ -614,24 +614,24 @@ const Savings_Details = () => {
                                 </span>
                               </td>
                               <td
-                                className={`px-6 py-4 text-right text-sm font-semibold ${
+                                className={`p-5 text-right text-sm font-semibold ${
                                   isCredit ? "text-emerald-700" : "text-rose-700"
                                 }`}
                               >
                                 {isCredit ? "+" : "−"}
                                 {formatCurrency(entry.amount)}
                               </td>
-                              <td className="px-6 py-4 text-right text-sm font-medium text-gray-900">
+                              <td className="p-5 text-right text-sm font-medium text-gray-900">
                                 {formatCurrency(entry.running_balance)}
                               </td>
-                              <td className="px-6 py-4 text-xs text-gray-500 font-mono">
+                              <td className="p-5 text-xs text-gray-500 font-mono">
                                 {entry.reference || "—"}
                               </td>
-                              <td className="px-6 py-4 text-xs text-gray-600">
+                              <td className="p-5 text-xs text-gray-600">
                                 {entry.remarks || entry.source || "—"}
                               </td>
                               {/* TODO: PRINT-RECEIPT-OVERLAY · per-entry reprint */}
-                              <td className="px-6 py-4 text-center">
+                              <td className="p-5 text-center">
                                 <button
                                   onClick={() => handlePrintReceipt(entry)}
                                   className="inline-flex items-center justify-center w-8 h-8 rounded-full border border-dashed border-blue-300 text-blue-600 hover:bg-blue-50 transition-colors"

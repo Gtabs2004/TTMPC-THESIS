@@ -22,7 +22,6 @@ import {
   FileText,
   ShieldCheck,
     AlertTriangle,
-    History,
 } from 'lucide-react';
 import logo from "../../assets/img/ttmpc logo.png";
 import NotificationBell from "./NotificationBell";
@@ -59,7 +58,6 @@ const Secretary_Attendance = () => {
          { name: "Manage Loans", icon: CreditCard },
          { name: "Manage Member", icon: Users },
          { name: "Termination Inbox", icon: AlertTriangle },
-         { name: "Audit Log", icon: History },
          { name: "Loan Policies", icon: FileText },
        ],
      },
@@ -436,13 +434,12 @@ const Secretary_Attendance = () => {
     "Manage Loans": "/bod-manage-loans",
     "Manage Member": "/bod-manage-member",
     "Termination Inbox": "/bod-termination-inbox",
-    "Audit Log": "/bod-audit-log",
     "Loan Policies": "/bod-loan-policies",
     "Training Attendance": "/Secretary_Attendance",
     "General Assembly": "/Secretary_General_Assembly",
     "Membership Records": "/Secretary_Records",
   };
-
+  
 
             return menuItems.map((sectionGroup) => (
               <div key={sectionGroup.section} className="mb-4 flex flex-col gap-2">
@@ -573,24 +570,24 @@ const Secretary_Attendance = () => {
             <div className="overflow-x-auto pb-4">
               <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr className="border-y border-gray-200 bg-[#66B53B] text-white text-xs uppercase tracking-wider font-bold">
-                    <th className="py-4 px-6">Member Name</th>
-                    <th className="py-4 px-6">Training Schedule</th>
-                    <th className="py-4 px-6">Attendance Status</th>
-                    <th className="py-4 px-6">Remarks</th>
+                  <tr className="bg-green-700 text-[10px] uppercase tracking-wider text-white font-extrabold">
+                    <th className="p-5 font-bold">Member Name</th>
+                    <th className="p-5 font-bold">Training Schedule</th>
+                    <th className="p-5 font-bold">Attendance Status</th>
+                    <th className="p-5 font-bold">Remarks</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100">
+                <tbody>
                   {tableData[activeTab]?.map((row) => (
-                    <tr key={row.id} className="table-row-enter hover:bg-green-50/50 transition-colors">
-                      <td className="py-4 px-6">
+                    <tr key={row.id} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
+                      <td className="p-5">
                         <p className="font-bold text-[#2A2B4A] text-sm">{row.name}</p>
                         <p className="text-xs text-gray-500">{row.email}</p>
                       </td>
-                      <td className="py-4 px-6 text-sm text-gray-600 font-medium">
+                      <td className="p-5 text-sm text-gray-600 font-medium">
                         {row.schedule}
                       </td>
-                      <td className="py-4 px-6">
+                      <td className="p-5">
                         {/* Note: I left this as a native select as before, but if you want this to ALSO be controlled by the modal, you can change it */}
                         <select 
                           className={`text-sm font-bold bg-transparent border border-gray-200 rounded-md py-1.5 px-3 pr-8 appearance-none focus:outline-none focus:ring-2 focus:ring-green-500 cursor-pointer
@@ -611,7 +608,7 @@ const Secretary_Attendance = () => {
                           <option value="Pending" className="text-gray-600">Pending</option>
                         </select>
                       </td>
-                      <td className="py-4 px-6">
+                      <td className="p-5">
                          {/* Trigger button for Modal instead of select */}
                          <button 
                           onClick={() => openModal(row)}

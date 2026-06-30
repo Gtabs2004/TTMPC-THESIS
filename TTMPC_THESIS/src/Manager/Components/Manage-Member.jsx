@@ -163,29 +163,29 @@ const Manager_Manage_Member = () => {
           <h1 className="font-bold text-2xl mb-6">Manage Member</h1>
           <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
             {!loading ? (
-              <table className="w-full text-sm">
-                <thead className="bg-[#66B538] text-white uppercase text-[13px] tracking-wider">
-                  <tr>
-                    <th className="px-4 py-3 text-left">Member ID</th>
-                    <th className="px-4 py-3 text-left">Name</th>
-                    <th className="px-4 py-3 text-left">Email</th>
-                    <th className="px-4 py-3 text-left">Contact</th>
-                    <th className="px-4 py-3 text-left">Address</th>
-                    <th className="px-4 py-3 text-center">Action</th>
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-green-700 text-[10px] uppercase tracking-wider text-white font-extrabold">
+                    <th className="p-5 font-bold">Member ID</th>
+                    <th className="p-5 font-bold">Name</th>
+                    <th className="p-5 font-bold">Email</th>
+                    <th className="p-5 font-bold">Contact</th>
+                    <th className="p-5 font-bold">Address</th>
+                    <th className="p-5 font-bold text-center">Action</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filtered.length === 0 ? (
-                    <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-500">No personal datasheet records found.</td></tr>
+                    <tr><td colSpan={6} className="p-5 text-sm text-center text-gray-500">No personal datasheet records found.</td></tr>
                   ) : (
                     paginatedRows.map((r) => (
-                      <tr key={String(r.id)} className="table-row-enter border-t border-gray-100 hover:bg-green-50 transition-colors">
-                        <td className="px-4 py-3 font-semibold text-gray-800">{r.member_id}</td>
-                        <td className="px-4 py-3 text-gray-700">{r.full_name}</td>
-                        <td className="px-4 py-3 text-gray-700">{r.email}</td>
-                        <td className="px-4 py-3 text-gray-700">{r.contact_number}</td>
-                        <td className="px-4 py-3 text-gray-700">{r.address}</td>
-                        <td className="px-4 py-3 text-center">
+                      <tr key={String(r.id)} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
+                        <td className="p-5 text-sm font-semibold text-gray-800">{r.member_id}</td>
+                        <td className="p-5 text-sm text-gray-700">{r.full_name}</td>
+                        <td className="p-5 text-sm text-gray-700">{r.email}</td>
+                        <td className="p-5 text-sm text-gray-700">{r.contact_number}</td>
+                        <td className="p-5 text-sm text-gray-700">{r.address}</td>
+                        <td className="p-5 text-sm text-center">
                           <button
                             onClick={() => navigate(`/member_details?member_id=${encodeURIComponent(String(r.member_id || ""))}`, { state: { member: r } })}
                             className="btn-enhanced text-[#1D6021] font-bold hover:text-green-800 transition-all"
