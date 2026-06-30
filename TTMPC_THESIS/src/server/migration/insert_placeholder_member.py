@@ -61,12 +61,14 @@ def main() -> int:
     )
     print(f"Auth user: {auth_user_id}  (created={was_created})")
 
-    # Create member_account row.
+    # Create member_account row. is_email_dummy=True so the route guard forces
+    # the change-email flow on first login (this is a placeholder address).
     ac.set_new_account_temporary(
         supabase,
         auth_user_id=auth_user_id,
         email=email,
         membership_id=membership_id,
+        is_email_dummy=True,
     )
 
     # Create the member record.
