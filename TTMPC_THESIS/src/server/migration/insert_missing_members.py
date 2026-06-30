@@ -64,12 +64,15 @@ def insert_one(supabase, csv_row: dict, today_iso: str) -> dict:
         supabase, email=email, last_name=last_name
     )
 
-    # 3. Create member_account row (is_temporary).
+    # 3. Create member_account row (is_temporary). is_email_dummy=True flags
+    #    the placeholder ttmpc-XXX@ttmpc.local email so the frontend route
+    #    guard forces this member through the change-email flow on first login.
     account_result = ac.set_new_account_temporary(
         supabase,
         auth_user_id=auth_user_id,
         email=email,
         membership_id=membership_id,
+        is_email_dummy=True,
     )
 
     # 4. Create the member row.

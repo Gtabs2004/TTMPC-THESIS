@@ -416,6 +416,7 @@ def set_new_account_temporary(
 	auth_user_id: str,
 	email: str | None,
 	membership_id: str | None = None,
+	is_email_dummy: bool = False,
 ) -> dict[str, Any]:
 	clean_email = str(email or "").strip().lower()
 
@@ -425,7 +426,9 @@ def set_new_account_temporary(
 			update_payload = {"is_temporary": True}
 			if membership_id:
 				update_payload["membership_id"] = membership_id
-			
+			if is_email_dummy:
+				update_payload["is_email_dummy"] = True
+
 			update_response = (
 				supabase.table(account_table)
 				.update(update_payload)
@@ -454,7 +457,9 @@ def set_new_account_temporary(
 			}
 			if membership_id:
 				insert_payload["membership_id"] = membership_id
-			
+			if is_email_dummy:
+				insert_payload["is_email_dummy"] = True
+
 			insert_response = supabase.table(account_table).insert(insert_payload).execute()
 			if insert_response.data and len(insert_response.data) > 0:
 				return {
