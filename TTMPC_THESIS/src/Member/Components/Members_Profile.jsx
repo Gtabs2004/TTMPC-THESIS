@@ -1,5 +1,5 @@
 ﻿import React, { useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate, NavLink } from "react-router-dom";
+import { useNavigate, NavLink, useSearchParams } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
 import { useNotification } from "../../contex/NotificationContext";
 import { supabase } from "../../supabaseClient";
@@ -258,6 +258,7 @@ const MEMBER_NOTIF_SETTINGS_KEY = 'member_profile_notification_settings';
 const Members_Profile = () => {
   const { session, signOut } = UserAuth();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { addNotification } = useNotification();
 
   // State for the security toggles
@@ -276,6 +277,11 @@ const Members_Profile = () => {
   const [passwordError, setPasswordError] = useState('');
   const [passwordSuccess, setPasswordSuccess] = useState('');
   const [updatingPassword, setUpdatingPassword] = useState(false);
+  const [passwordStep, setPasswordStep] = useState(1); // 1: enter passwords  2: enter OTP (recovery only)
+  const [currentPasswordInput, setCurrentPasswordInput] = useState('');
+  const [passwordOtp, setPasswordOtp] = useState('');
+  const [passwordOtpCooldown, setPasswordOtpCooldown] = useState(0);
+  const [passwordRecoveryMode, setPasswordRecoveryMode] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
@@ -502,27 +508,117 @@ const Members_Profile = () => {
     };
   }, []);
 
+  // OTP resend cooldown timer (password modal).
+  useEffect(() => {
+    if (passwordOtpCooldown <= 0) return;
+    const t = setTimeout(() => setPasswordOtpCooldown((c) => c - 1), 1000);
+    return () => clearTimeout(t);
+  }, [passwordOtpCooldown]);
+
+  // Auto-open the password modal when the route guard redirects here with
+  // ?forcePassword=1 (i.e., the user still has is_temporary=true).
+  useEffect(() => {
+    if (searchParams.get('forcePassword') === '1') {
+      handleOpenChangePassword();
+      const next = new URLSearchParams(searchParams);
+      next.delete('forcePassword');
+      setSearchParams(next, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000';
+
   const handleOpenChangePassword = () => {
     setPasswordError('');
     setPasswordSuccess('');
     setNewPassword('');
     setConfirmPassword('');
+    setCurrentPasswordInput('');
+    setPasswordOtp('');
+    setPasswordStep(1);
+    setPasswordRecoveryMode(false);
     setShowPasswordModal(true);
   };
 
-  const handleChangePassword = async (e) => {
+  const handleOpenChangeEmail = () => {
+    navigate('/members-profile/change-email');
+  };
+
+  const _passwordAuthHeaders = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) throw new Error('Your session has expired. Please sign in again.');
+    return {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${session.access_token}`,
+    };
+  };
+
+  // Step 1 — default path: user knows their current password. One-shot update.
+  const handleDirectPasswordChange = async (e) => {
     e.preventDefault();
+    setPasswordError('');
+
+    if (!currentPasswordInput) {
+      setPasswordError('Enter your current password.');
+      return;
+    }
+    if (!newPassword || !confirmPassword) {
+      setPasswordError('Please fill in all password fields.');
+      return;
+    }
+    if (newPassword.length < 8) {
+      setPasswordError('Password must be at least 8 characters.');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPasswordError('Password confirmation does not match.');
+      return;
+    }
+    if (newPassword === currentPasswordInput) {
+      setPasswordError('New password must differ from your current password.');
+      return;
+    }
+
+    try {
+      setUpdatingPassword(true);
+      const res = await fetch(`${API_BASE}/api/account/password/change-direct`, {
+        method: 'POST',
+        headers: await _passwordAuthHeaders(),
+        body: JSON.stringify({
+          current_password: currentPasswordInput,
+          new_password: newPassword,
+        }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.detail || 'Unable to update password.');
+
+      setIsTemporaryAccount(false);
+      setPasswordSuccess('Password updated successfully.');
+      setShowPasswordModal(false);
+      setNewPassword('');
+      setConfirmPassword('');
+      setCurrentPasswordInput('');
+    } catch (err) {
+      setPasswordError(err.message || 'Unable to update password.');
+    } finally {
+      setUpdatingPassword(false);
+    }
+  };
+
+  // Step 1 — recovery path: user forgot current password. Email an OTP instead.
+  const handleRequestPasswordOtp = async (e) => {
+    e?.preventDefault?.();
+    setPasswordError('');
 
     if (!newPassword || !confirmPassword) {
       setPasswordError('Please fill in all password fields.');
       return;
     }
-
     if (newPassword.length < 8) {
       setPasswordError('Password must be at least 8 characters.');
       return;
     }
-
     if (newPassword !== confirmPassword) {
       setPasswordError('Password confirmation does not match.');
       return;
@@ -530,33 +626,52 @@ const Members_Profile = () => {
 
     try {
       setUpdatingPassword(true);
-      setPasswordError('');
-
-      const { error: updateAuthError } = await supabase.auth.updateUser({
-        password: newPassword,
+      const res = await fetch(`${API_BASE}/api/account/password/request-otp`, {
+        method: 'POST',
+        headers: await _passwordAuthHeaders(),
+        body: JSON.stringify({ new_password: newPassword }),
       });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.detail || 'Failed to send verification code.');
 
-      if (updateAuthError) throw updateAuthError;
+      setPasswordStep(2);
+      setPasswordOtpCooldown(60);
+      setPasswordOtp('');
+    } catch (err) {
+      setPasswordError(err.message || 'Unable to send code.');
+    } finally {
+      setUpdatingPassword(false);
+    }
+  };
 
-      const { data: authData } = await supabase.auth.getUser();
-      const memberId = resolvedMemberId || authData?.user?.id;
-      if (memberId) {
-        // Clear member_account.password (plaintext temp password from
-        // migration backfill) so the stale value can't be recovered after
-        // the member sets their real password. The real credential lives
-        // only in auth.users.encrypted_password from this point on.
-        const { error: updateFlagError } = await supabase
-          .from(accountTableName)
-          .update({ is_temporary: false, password: null })
-          .eq('user_id', memberId);
+  // Step 2: submit OTP; backend performs the password update.
+  const handleConfirmPasswordOtp = async (e) => {
+    e.preventDefault();
+    setPasswordError('');
 
-        if (!updateFlagError) {
-          setIsTemporaryAccount(false);
-        }
-      }
+    if (!/^\d{6}$/.test(passwordOtp)) {
+      setPasswordError('Enter the 6-digit code.');
+      return;
+    }
 
+    try {
+      setUpdatingPassword(true);
+      const res = await fetch(`${API_BASE}/api/account/password/confirm`, {
+        method: 'POST',
+        headers: await _passwordAuthHeaders(),
+        body: JSON.stringify({ code: passwordOtp }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.detail || 'Invalid code.');
+
+      setIsTemporaryAccount(false);
       setPasswordSuccess('Password updated successfully.');
       setShowPasswordModal(false);
+      setPasswordStep(1);
+      setNewPassword('');
+      setConfirmPassword('');
+      setCurrentPasswordInput('');
+      setPasswordOtp('');
     } catch (err) {
       setPasswordError(err.message || 'Unable to update password.');
     } finally {
@@ -669,11 +784,7 @@ const Members_Profile = () => {
       setSaveSuccess('Profile updated successfully.');
       setShowConfirmSave(false);
       if (typeof addNotification === 'function') {
-        addNotification({
-          title: 'Profile updated',
-          message: 'Your personal data sheet has been saved.',
-          type: 'success',
-        });
+        addNotification('Your personal data sheet has been saved.', 'success');
       }
       if (successTimerRef.current) clearTimeout(successTimerRef.current);
       successTimerRef.current = setTimeout(() => setSaveSuccess(''), 4000);
@@ -888,9 +999,17 @@ const Members_Profile = () => {
                 </div>
               </div>
             </div>
-            <button onClick={handleOpenChangePassword} className="mt-4 sm:mt-0 flex items-center justify-center gap-2 bg-[#1D6021] text-white hover:bg-[#154718] transition-colors font-bold rounded-lg px-6 py-2.5 text-sm">
-              <Pencil className="w-4 h-4" /> {isTemporaryAccount ? 'Update Password' : 'Account Security'}
-            </button>
+            <div className="mt-4 sm:mt-0 flex flex-col sm:flex-row gap-2">
+              <button
+                onClick={handleOpenChangeEmail}
+                className="flex items-center justify-center gap-2 border border-[#1D6021] text-[#1D6021] hover:bg-[#1D6021]/10 transition-colors font-bold rounded-lg px-5 py-2.5 text-sm"
+              >
+                <Pencil className="w-4 h-4" /> Change Email
+              </button>
+              <button onClick={handleOpenChangePassword} className="flex items-center justify-center gap-2 bg-[#1D6021] text-white hover:bg-[#154718] transition-colors font-bold rounded-lg px-6 py-2.5 text-sm">
+                <Pencil className="w-4 h-4" /> {isTemporaryAccount ? 'Update Password' : 'Account Security'}
+              </button>
+            </div>
           </div>
 
           {isTemporaryAccount ? (
@@ -1209,49 +1328,147 @@ const Members_Profile = () => {
 
         {showPasswordModal ? (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-            <form onSubmit={handleChangePassword} className="w-full max-w-md bg-white dark:bg-gray-900 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 p-6">
-              <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">Change Password</h3>
+            <form
+              onSubmit={
+                passwordStep === 2
+                  ? handleConfirmPasswordOtp
+                  : (passwordRecoveryMode ? handleRequestPasswordOtp : handleDirectPasswordChange)
+              }
+              className="w-full max-w-md bg-white dark:bg-gray-900 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 p-6"
+            >
+              <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-1">
+                {passwordStep === 2
+                  ? 'Verify Code'
+                  : (passwordRecoveryMode ? 'Recover Password' : 'Change Password')}
+              </h3>
+              <p className="text-xs text-gray-500 mb-4">
+                {passwordStep === 2
+                  ? 'We sent a 6-digit code to your email. Enter it below to finish updating your password.'
+                  : (passwordRecoveryMode
+                      ? "We'll email a 6-digit code to your address on file. Enter your new password below."
+                      : 'Enter your current password and choose a new one.')}
+              </p>
 
-              <div className="mb-4">
-                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">New Password</label>
-                <input
-                  type="password"
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  className="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-[#1D6021] outline-none"
-                  placeholder="Enter new password"
-                />
-              </div>
+              {passwordStep === 1 ? (
+                <>
+                  {!passwordRecoveryMode && (
+                    <div className="mb-4">
+                      <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Current Password</label>
+                      <input
+                        type="password"
+                        value={currentPasswordInput}
+                        onChange={(e) => setCurrentPasswordInput(e.target.value)}
+                        autoComplete="current-password"
+                        className="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-[#1D6021] outline-none"
+                        placeholder="Enter your current password"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => { setPasswordRecoveryMode(true); setCurrentPasswordInput(''); setPasswordError(''); }}
+                        className="mt-2 text-xs text-[#1D6021] hover:underline"
+                      >
+                        Forgot your current password?
+                      </button>
+                    </div>
+                  )}
 
-              <div className="mb-4">
-                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Confirm Password</label>
-                <input
-                  type="password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  className="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-[#1D6021] outline-none"
-                  placeholder="Confirm new password"
-                />
-              </div>
+                  {passwordRecoveryMode && (
+                    <div className="mb-4 text-xs text-blue-800 bg-blue-50 border border-blue-100 rounded-lg p-3">
+                      A verification code will be sent to your email on file.
+                      <button
+                        type="button"
+                        onClick={() => { setPasswordRecoveryMode(false); setPasswordError(''); }}
+                        className="block mt-1 text-[#1D6021] hover:underline"
+                      >
+                        I remember my current password
+                      </button>
+                    </div>
+                  )}
+
+                  <div className="mb-4">
+                    <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">New Password</label>
+                    <input
+                      type="password"
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      autoComplete="new-password"
+                      className="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-[#1D6021] outline-none"
+                      placeholder="At least 8 characters"
+                    />
+                  </div>
+
+                  <div className="mb-4">
+                    <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Confirm New Password</label>
+                    <input
+                      type="password"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      autoComplete="new-password"
+                      className="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-[#1D6021] outline-none"
+                      placeholder="Repeat new password"
+                    />
+                  </div>
+                </>
+              ) : (
+                <div className="mb-4">
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">6-digit Code</label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    pattern="\d{6}"
+                    maxLength={6}
+                    value={passwordOtp}
+                    onChange={(e) => setPasswordOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                    className="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 rounded-lg px-3 py-2 text-lg tracking-[0.5em] text-center font-bold focus:ring-2 focus:ring-[#1D6021] outline-none"
+                    placeholder="000000"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleRequestPasswordOtp}
+                    disabled={passwordOtpCooldown > 0 || updatingPassword}
+                    className="mt-2 text-xs text-[#1D6021] hover:underline disabled:text-gray-400 disabled:no-underline"
+                  >
+                    {passwordOtpCooldown > 0 ? `Resend code in ${passwordOtpCooldown}s` : 'Resend code'}
+                  </button>
+                </div>
+              )}
 
               {passwordError ? (
                 <p className="text-sm text-red-600 mb-4">{passwordError}</p>
               ) : null}
 
               <div className="flex items-center justify-end gap-3">
-                <button
-                  type="button"
-                  onClick={() => setShowPasswordModal(false)}
-                  className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 text-sm font-semibold hover:bg-gray-50 dark:hover:bg-gray-800"
-                >
-                  Cancel
-                </button>
+                {passwordStep === 2 ? (
+                  <button
+                    type="button"
+                    onClick={() => { setPasswordStep(1); setPasswordOtp(''); setPasswordError(''); }}
+                    className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 text-sm font-semibold hover:bg-gray-50 dark:hover:bg-gray-800"
+                  >
+                    Back
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setShowPasswordModal(false)}
+                    disabled={isTemporaryAccount}
+                    className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 text-sm font-semibold hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-40 disabled:cursor-not-allowed"
+                    title={isTemporaryAccount ? 'You must change your temporary password before continuing.' : ''}
+                  >
+                    Cancel
+                  </button>
+                )}
                 <button
                   type="submit"
                   disabled={updatingPassword}
                   className="px-4 py-2 rounded-lg bg-[#1D6021] text-white text-sm font-semibold hover:bg-[#154718] disabled:opacity-50"
                 >
-                  {updatingPassword ? 'Updating...' : 'Update Password'}
+                  {updatingPassword
+                    ? (passwordStep === 2
+                        ? 'Verifying…'
+                        : (passwordRecoveryMode ? 'Sending code…' : 'Updating…'))
+                    : (passwordStep === 2
+                        ? 'Update Password'
+                        : (passwordRecoveryMode ? 'Send Code' : 'Update Password'))}
                 </button>
               </div>
             </form>
