@@ -29,6 +29,14 @@ from demand_model import (
 )
 from services.notification_service import dispatch_loan_status_email as _dispatch_loan_status_email
 from services.loan_notification_service import create_loan_notification as _create_loan_notification
+from services.auth_dependencies import get_current_user as _get_current_user
+from services.account_otp_service import (
+    OTP_TTL_SECONDS as _OTP_TTL_SECONDS,
+    issue_otp as _issue_otp,
+    verify_otp as _verify_otp,
+)
+from services.account_otp_email import send_otp_email as _send_otp_email
+from fastapi import Depends as _Depends
 
 # 1. Load Environment Variables
 # Load from project root .env explicitly for consistent behavior.
@@ -7955,5 +7963,329 @@ def staff_get_account(member_id: str):
 
     _, account_row = _lookup_member_account(member_id)
     return {"success": True, "data": account_row}
+
+
+# =============================================================================
+# Account Security: email + password change with OTP confirmation
+# =============================================================================
+
+import re as _re
+
+_EMAIL_RE_AS = _re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+_OTP_TTL_MIN = max(1, _OTP_TTL_SECONDS // 60)
+
+
+def _validate_password_strength(pw: str) -> str | None:
+    if not pw or len(pw) < 8:
+        return "Password must be at least 8 characters."
+    if len(pw) > 128:
+        return "Password is too long."
+    return None
+
+
+def _verify_current_password(email: str, password: str) -> bool:
+    """Verify a user's current password via Supabase signInWithPassword.
+    Uses a short-lived anon client so we don't taint the service-role session."""
+    anon_key = os.environ.get("VITE_SUPABASE_ANON_KEY")
+    if not (url and anon_key):
+        raise HTTPException(status_code=500, detail="Auth not configured")
+    try:
+        check_client: Client = create_client(url, anon_key)
+        resp = check_client.auth.sign_in_with_password({"email": email, "password": password})
+        return bool(getattr(resp, "user", None))
+    except Exception:
+        return False
+
+
+def _get_member_account_by_auth_user(auth_user_id: str) -> dict[str, Any] | None:
+    if not supabase:
+        return None
+    try:
+        resp = (
+            supabase.table("member_account")
+            .select("id, member_id, auth_user_id, is_temporary, is_email_dummy, pending_email")
+            .eq("auth_user_id", auth_user_id)
+            .limit(1)
+            .execute()
+        )
+        return resp.data[0] if resp.data else None
+    except Exception:
+        return None
+
+
+def _send_otp_or_500(*, to_email: str, code: str, purpose: str) -> None:
+    result = _send_otp_email(
+        to_email=to_email,
+        code=code,
+        purpose=purpose,  # type: ignore[arg-type]
+        ttl_minutes=_OTP_TTL_MIN,
+    )
+    if not result.success:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Could not send verification email: {result.error or 'unknown error'}",
+        )
+
+
+# ----- Request / Response models --------------------------------------------
+
+class EmailChangeRequestOtp(BaseModel):
+    new_email: str = Field(..., min_length=5, max_length=254)
+
+    @model_validator(mode="after")
+    def _normalize(self):
+        e = (self.new_email or "").strip().lower()
+        if not _EMAIL_RE_AS.match(e):
+            raise ValueError("Invalid email format")
+        self.new_email = e
+        return self
+
+
+class EmailChangeConfirm(BaseModel):
+    code: str = Field(..., min_length=6, max_length=6)
+
+
+class PasswordChangeDirect(BaseModel):
+    current_password: str
+    new_password: str = Field(..., min_length=8, max_length=128)
+
+
+class PasswordChangeRequestOtp(BaseModel):
+    """Recovery path — user forgot their current password. Identity is
+    proven by access to their email inbox (OTP) instead."""
+    new_password: str = Field(..., min_length=8, max_length=128)
+
+
+class PasswordChangeConfirm(BaseModel):
+    code: str = Field(..., min_length=6, max_length=6)
+
+
+# ----- Email change ----------------------------------------------------------
+
+@app.post("/api/account/email/request-otp")
+def account_email_request_otp(
+    payload: EmailChangeRequestOtp,
+    current_user: dict = _Depends(_get_current_user),
+):
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase not configured")
+
+    user_id = current_user["id"]
+    current_email = current_user.get("email") or ""
+
+    account = _get_member_account_by_auth_user(user_id)
+    is_initial = bool(account and account.get("is_email_dummy"))
+    purpose = "email_change_initial" if is_initial else "email_change"
+
+    if payload.new_email == current_email and not is_initial:
+        raise HTTPException(status_code=400, detail="New email is the same as your current email.")
+
+    # Identity is proven by (a) the verified session JWT this request carries,
+    # and (b) the OTP that will be sent to the new email — which the user must
+    # retrieve to complete the change. No current-password re-auth.
+
+    # Reject if the email is already taken by a different auth user.
+    try:
+        existing = supabase.auth.admin.list_users()
+        for u in existing or []:
+            if (getattr(u, "email", "") or "").lower() == payload.new_email and str(u.id) != user_id:
+                raise HTTPException(status_code=409, detail="That email is already in use.")
+    except HTTPException:
+        raise
+    except Exception:
+        pass  # defense-in-depth only; Supabase enforces uniqueness on commit
+
+    try:
+        issued = _issue_otp(
+            supabase,
+            auth_user_id=user_id,
+            purpose=purpose,
+            payload={"new_email": payload.new_email},
+        )
+    except PermissionError as exc:
+        raise HTTPException(status_code=429, detail=str(exc))
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Failed to issue OTP: {exc}")
+
+    # OTP goes to the NEW email — proves the user owns that inbox.
+    _send_otp_or_500(to_email=payload.new_email, code=issued.code, purpose=purpose)
+
+    return {
+        "ok": True,
+        "purpose": purpose,
+        "expires_at": issued.expires_at.isoformat(),
+        "message": "A verification code was sent to the new email address.",
+    }
+
+
+@app.post("/api/account/email/confirm")
+def account_email_confirm(
+    payload: EmailChangeConfirm,
+    current_user: dict = _Depends(_get_current_user),
+):
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase not configured")
+
+    user_id = current_user["id"]
+    account = _get_member_account_by_auth_user(user_id)
+    is_initial = bool(account and account.get("is_email_dummy"))
+    purpose = "email_change_initial" if is_initial else "email_change"
+
+    result = _verify_otp(supabase, auth_user_id=user_id, purpose=purpose, code=payload.code)
+    if not result.ok:
+        raise HTTPException(status_code=400, detail=result.error or "Invalid code.")
+
+    new_email = (result.payload or {}).get("new_email")
+    if not new_email or not _EMAIL_RE_AS.match(new_email):
+        raise HTTPException(status_code=500, detail="Stored email payload is invalid.")
+
+    # Commit immediately — OTP-to-new-inbox already proved ownership, so we
+    # skip Supabase's secondary confirm link (which would bounce for first-login
+    # dummy emails anyway).
+    try:
+        supabase.auth.admin.update_user_by_id(
+            user_id,
+            {"email": new_email, "email_confirm": True},
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Email update failed: {exc}")
+
+    if account:
+        try:
+            supabase.table("member_account").update(
+                {"is_email_dummy": False, "pending_email": None}
+            ).eq("auth_user_id", user_id).execute()
+        except Exception:
+            pass
+
+    return {"ok": True, "new_email": new_email, "is_initial": is_initial}
+
+
+# ----- Password change -------------------------------------------------------
+
+@app.post("/api/account/password/change-direct")
+def account_password_change_direct(
+    payload: PasswordChangeDirect,
+    current_user: dict = _Depends(_get_current_user),
+):
+    """One-shot password change for users who know their current password.
+    No OTP is sent — the current password itself is the proof of identity."""
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase not configured")
+
+    user_id = current_user["id"]
+    current_email = current_user.get("email") or ""
+    if not current_email:
+        raise HTTPException(status_code=400, detail="Your account has no email on file.")
+
+    err = _validate_password_strength(payload.new_password)
+    if err:
+        raise HTTPException(status_code=400, detail=err)
+    if payload.new_password == payload.current_password:
+        raise HTTPException(status_code=400, detail="New password must differ from the current one.")
+    if not _verify_current_password(current_email, payload.current_password):
+        raise HTTPException(status_code=401, detail="Current password is incorrect.")
+
+    try:
+        supabase.auth.admin.update_user_by_id(user_id, {"password": payload.new_password})
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Password update failed: {exc}")
+
+    try:
+        supabase.table("member_account").update(
+            {"is_temporary": False, "password": None}
+        ).eq("auth_user_id", user_id).execute()
+    except Exception:
+        pass
+
+    return {"ok": True}
+
+
+@app.post("/api/account/password/request-otp")
+def account_password_request_otp(
+    payload: PasswordChangeRequestOtp,
+    current_user: dict = _Depends(_get_current_user),
+):
+    """Recovery path — user forgot their current password. We email an OTP to
+    their address on file; possession of the inbox is the proof of identity."""
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase not configured")
+
+    user_id = current_user["id"]
+    current_email = current_user.get("email") or ""
+    if not current_email:
+        raise HTTPException(status_code=400, detail="Your account has no email on file.")
+
+    err = _validate_password_strength(payload.new_password)
+    if err:
+        raise HTTPException(status_code=400, detail=err)
+
+    try:
+        issued = _issue_otp(
+            supabase,
+            auth_user_id=user_id,
+            purpose="password_change",
+            payload={"new_password": payload.new_password},
+        )
+    except PermissionError as exc:
+        raise HTTPException(status_code=429, detail=str(exc))
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Failed to issue OTP: {exc}")
+
+    _send_otp_or_500(to_email=current_email, code=issued.code, purpose="password_change")
+
+    return {
+        "ok": True,
+        "expires_at": issued.expires_at.isoformat(),
+        "message": "A verification code was sent to your current email address.",
+    }
+
+
+@app.post("/api/account/password/confirm")
+def account_password_confirm(
+    payload: PasswordChangeConfirm,
+    current_user: dict = _Depends(_get_current_user),
+):
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase not configured")
+
+    user_id = current_user["id"]
+
+    result = _verify_otp(supabase, auth_user_id=user_id, purpose="password_change", code=payload.code)
+    if not result.ok:
+        raise HTTPException(status_code=400, detail=result.error or "Invalid code.")
+
+    new_password = (result.payload or {}).get("new_password")
+    if not new_password or _validate_password_strength(new_password):
+        raise HTTPException(status_code=500, detail="Stored password payload is invalid.")
+
+    try:
+        supabase.auth.admin.update_user_by_id(user_id, {"password": new_password})
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Password update failed: {exc}")
+
+    # Clear the plaintext temp password and flip is_temporary off.
+    try:
+        supabase.table("member_account").update(
+            {"is_temporary": False, "password": None}
+        ).eq("auth_user_id", user_id).execute()
+    except Exception:
+        pass
+
+    return {"ok": True}
+
+
+@app.get("/api/account/security-status")
+def account_security_status(current_user: dict = _Depends(_get_current_user)):
+    """Lightweight check used by the frontend route guard to decide whether
+    to force the user into the email-change or password-change flow."""
+    account = _get_member_account_by_auth_user(current_user["id"])
+    return {
+        "ok": True,
+        "is_email_dummy": bool(account and account.get("is_email_dummy")),
+        "is_temporary": bool(account and account.get("is_temporary")),
+        "email": current_user.get("email"),
+        "pending_email": (account or {}).get("pending_email"),
+    }
 
     return {"success": True, "data": {"legacy_master_uuid": legacy_uuid}}
