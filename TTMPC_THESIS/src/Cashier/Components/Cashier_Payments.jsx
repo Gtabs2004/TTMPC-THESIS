@@ -736,10 +736,10 @@ const Cashier_Payments = () => {
           {/* Main Loans Table */}
           <div className="mb-8 rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-[#66B538] text-white uppercase text-[13px] tracking-wider">
-                  <tr>
-                    <th className="px-6 py-4 text-left font-semibold">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-green-700 text-[10px] uppercase tracking-wider text-white font-extrabold">
+                    <th className="p-5 font-bold">
                       <button
                         onClick={() => handleSort("member_name")}
                         className="flex items-center gap-2 font-semibold hover:text-green-100 transition group"
@@ -748,7 +748,7 @@ const Cashier_Payments = () => {
                         <ArrowUpDown size={14} className="opacity-0 group-hover:opacity-100 transition" />
                       </button>
                     </th>
-                    <th className="px-6 py-4 text-left font-semibold">
+                    <th className="p-5 font-bold">
                       <button
                         onClick={() => handleSort("loan_amount")}
                         className="flex items-center gap-2 font-semibold hover:text-green-100 transition group"
@@ -757,10 +757,10 @@ const Cashier_Payments = () => {
                         <ArrowUpDown size={14} className="opacity-0 group-hover:opacity-100 transition" />
                       </button>
                     </th>
-                    <th className="px-6 py-4 text-left font-semibold">
+                    <th className="p-5 font-bold">
                       Interest Rate
                     </th>
-                    <th className="px-6 py-4 text-left font-semibold">
+                    <th className="p-5 font-bold">
                       <button
                         onClick={() => handleSort("term_months")}
                         className="flex items-center gap-2 font-semibold hover:text-green-100 transition group"
@@ -769,51 +769,51 @@ const Cashier_Payments = () => {
                         <ArrowUpDown size={14} className="opacity-0 group-hover:opacity-100 transition" />
                       </button>
                     </th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-white">
+                    <th className="p-5 font-bold">
                       Amortization
                     </th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-white">
+                    <th className="p-5 font-bold">
                       Disbursal Date
                     </th>
-                    <th className="px-6 py-4 text-left">
+                    <th className="p-5 font-bold">
                       <button
                         onClick={() => handleSort("due_date")}
-                        className="flex items-center gap-2 text-xs font-semibold text-white hover:text-gray-900 transition group"
+                        className="flex items-center gap-2 font-semibold hover:text-green-100 transition group"
                       >
                         Due Date
                         <ArrowUpDown size={14} className="opacity-0 group-hover:opacity-100 transition" />
                       </button>
                     </th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-white">
+                    <th className="p-5 font-bold">
                       Delay Status
                     </th>
-                    <th className="px-6 py-4 text-left">
+                    <th className="p-5 font-bold">
                       <button
                         onClick={() => handleSort("remaining_balance")}
-                        className="flex items-center gap-2 text-xs font-semibold text-white hover:text-gray-900 transition group"
+                        className="flex items-center gap-2 font-semibold hover:text-green-100 transition group"
                       >
                         Balance
                         <ArrowUpDown size={14} className="opacity-0 group-hover:opacity-100 transition" />
                       </button>
                     </th>
-                    <th className="px-6 py-4 text-left">
+                    <th className="p-5 font-bold">
                       <button
                         onClick={() => handleSort("loan_status")}
-                        className="flex items-center gap-2 text-xs font-semibold text-white hover:text-gray-900 transition group"
+                        className="flex items-center gap-2 font-semibold hover:text-green-100 transition group"
                       >
                         Status
                         <ArrowUpDown size={14} className="opacity-0 group-hover:opacity-100 transition" />
                       </button>
                     </th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-white">
+                    <th className="p-5 font-bold">
                       Action
                     </th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100">
+                <tbody>
                   {paginatedLoans.length === 0 ? (
                     <tr>
-                      <td colSpan={10} className="px-6 py-12 text-center">
+                      <td colSpan={10} className="p-5 text-center">
                         <div className="flex flex-col items-center gap-2">
                           <AlertCircle size={32} className="text-gray-300" />
                           <p className="text-sm text-gray-500">
@@ -824,29 +824,29 @@ const Cashier_Payments = () => {
                     </tr>
                   ) : (
                     paginatedLoans.map((loan) => (
-                      <tr key={loan.loan_id} className="table-row-enter hover:bg-green-50 transition">
-                        <td className="px-6 py-4 text-sm font-medium text-gray-900">
+                      <tr key={loan.loan_id} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
+                        <td className="p-5 text-sm font-medium text-gray-900">
                           {loan.member_name}
                         </td>
-                        <td className="px-6 py-4 text-sm text-gray-700 font-semibold">
+                        <td className="p-5 text-sm text-gray-700 font-semibold">
                           {formatCurrency(loan.loan_amount)}
                         </td>
-                        <td className="px-6 py-4 text-sm text-gray-700">
+                        <td className="p-5 text-sm text-gray-700">
                           {getDisplayedInterestRate(loan)}
                         </td>
-                        <td className="px-6 py-4 text-sm text-gray-700">
+                        <td className="p-5 text-sm text-gray-700">
                           {loan.term_months} mo
                         </td>
-                        <td className="px-6 py-4 text-sm text-gray-700">
+                        <td className="p-5 text-sm text-gray-700">
                           {formatCurrency(loan.amortization)}
                         </td>
-                        <td className="px-6 py-4 text-sm text-gray-700">
+                        <td className="p-5 text-sm text-gray-700">
                           {loan.disbursal_date ? new Date(loan.disbursal_date).toLocaleDateString() : "—"}
                         </td>
-                        <td className="px-6 py-4 text-sm text-gray-700">
+                        <td className="p-5 text-sm text-gray-700">
                           {new Date(loan.due_date).toLocaleDateString()}
                         </td>
-                        <td className="px-6 py-4">
+                        <td className="p-5">
                           {(() => {
                             const key = resolveDelayStatus(loan);
                             const meta = DELAY_STATUS_META[key];
@@ -859,10 +859,10 @@ const Cashier_Payments = () => {
                             );
                           })()}
                         </td>
-                        <td className="px-6 py-4 text-sm font-semibold text-gray-900">
+                        <td className="p-5 text-sm font-semibold text-gray-900">
                           {formatCurrency(loan.remaining_balance)}
                         </td>
-                        <td className="px-6 py-4">
+                        <td className="p-5">
                           <span
                             className={`badge-animated inline-flex rounded-full px-3 py-1 text-xs font-semibold ${
                               loan.loan_status === "Fully Paid"
@@ -875,7 +875,7 @@ const Cashier_Payments = () => {
                             {loan.loan_status}
                           </span>
                         </td>
-                        <td className="px-6 py-4">
+                        <td className="p-5">
                           <button
                             type="button"
                             onClick={() => openPaymentModal(loan)}

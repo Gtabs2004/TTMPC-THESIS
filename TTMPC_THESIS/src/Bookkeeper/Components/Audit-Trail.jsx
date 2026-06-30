@@ -262,34 +262,34 @@ const AuditTrail = () => {
 
             {/* Table */}
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm whitespace-nowrap">
-                <thead className="bg-green-700 text-white text-[10px] uppercase rounded-sm font-bold tracking-wider">
-                  <tr>
-                    <th className="px-6 py-4">Log ID</th>
-                    <th className="px-6 py-4">Date & Time</th>
-                    <th className="px-6 py-4">User</th>
-                    <th className="px-6 py-4">Role</th>
-                    <th className="px-6 py-4">Module</th>
-                    <th className="px-6 py-4">Action Type</th>
-                    <th className="px-6 py-4">Record</th>
-                    <th className="px-6 py-4">Status</th>
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-green-700 text-[10px] uppercase tracking-wider text-white font-extrabold">
+                    <th className="p-5 font-bold">Log ID</th>
+                    <th className="p-5 font-bold">Date & Time</th>
+                    <th className="p-5 font-bold">User</th>
+                    <th className="p-5 font-bold">Role</th>
+                    <th className="p-5 font-bold">Module</th>
+                    <th className="p-5 font-bold">Action Type</th>
+                    <th className="p-5 font-bold">Record</th>
+                    <th className="p-5 font-bold">Status</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100">
+                <tbody>
                   {auditLogs.map((log, index) => (
-                    <tr key={index} className="hover:bg-gray-50/50 transition-colors">
-                      <td className="px-6 py-4 font-medium text-gray-900">{log.id}</td>
-                      <td className="px-6 py-4 text-gray-500">{log.date}</td>
-                      <td className="px-6 py-4 font-bold text-gray-900">{log.user}</td>
-                      <td className="px-6 py-4 text-gray-500">{log.role}</td>
-                      <td className="px-6 py-4">
+                    <tr key={index} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
+                      <td className="p-5 text-sm font-medium text-gray-900">{log.id}</td>
+                      <td className="p-5 text-sm text-gray-500">{log.date}</td>
+                      <td className="p-5 text-sm font-bold text-gray-900">{log.user}</td>
+                      <td className="p-5 text-sm text-gray-500">{log.role}</td>
+                      <td className="p-5 text-sm">
                         <span className={`px-2.5 py-1 rounded-md text-[10px] font-bold tracking-wide ${log.moduleColor}`}>
                           {log.module}
                         </span>
                       </td>
-                      <td className="px-6 py-4 text-gray-600">{log.action}</td>
-                      <td className="px-6 py-4 text-gray-500 font-medium tracking-wide">{log.record}</td>
-                      <td className="px-6 py-4">
+                      <td className="p-5 text-sm text-gray-600">{log.action}</td>
+                      <td className="p-5 text-sm text-gray-500 font-medium tracking-wide">{log.record}</td>
+                      <td className="p-5 text-sm">
                         <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold tracking-wide ${
                           log.isFlagged ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-600'
                         }`}>

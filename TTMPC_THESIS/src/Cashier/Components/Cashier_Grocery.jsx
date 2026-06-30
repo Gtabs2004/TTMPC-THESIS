@@ -317,34 +317,34 @@ const Cashier_Grocery = () => {
 
             {/* Table */}
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
-                <thead className="bg-[#66B538] text-white uppercase text-[13px] tracking-wider">
-                  <tr>
-                    <th className="px-6 py-4 font-semibold">Grocery ID</th>
-                    <th className="px-6 py-4 font-semibold">Member ID</th>
-                    <th className="px-6 py-4 font-semibold">POS ID</th>
-                    <th className="px-6 py-4 font-semibold">Transaction Date</th>
-                    <th className="px-6 py-4 font-semibold text-right">Amount</th>
-                    <th className="px-6 py-4 font-semibold text-center">TX Status</th>
-                    <th className="px-6 py-4 font-semibold text-center">Payment</th>
-                    <th className="px-6 py-4 font-semibold text-right">Balance</th>
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-green-700 text-[10px] uppercase tracking-wider text-white font-extrabold">
+                    <th className="p-5 font-bold">Grocery ID</th>
+                    <th className="p-5 font-bold">Member ID</th>
+                    <th className="p-5 font-bold">POS ID</th>
+                    <th className="p-5 font-bold">Transaction Date</th>
+                    <th className="p-5 font-bold text-right">Amount</th>
+                    <th className="p-5 font-bold text-center">TX Status</th>
+                    <th className="p-5 font-bold text-center">Payment</th>
+                    <th className="p-5 font-bold text-right">Balance</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100">
+                <tbody>
                   {MOCK_TRANSACTIONS.map((tx) => (
-                    <tr key={tx.id} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-6 py-4 font-medium text-gray-700">{tx.id}</td>
-                      <td className="px-6 py-4 font-medium text-gray-700">{tx.memberId}</td>
-                      <td className="px-6 py-4 text-gray-500">{tx.posId}</td>
-                      <td className="px-6 py-4 text-gray-500">{tx.date}</td>
-                      <td className="px-6 py-4 font-medium text-gray-900">{tx.amount}</td>
-                      <td className="px-6 py-4">
+                    <tr key={tx.id} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
+                      <td className="p-5 font-medium text-gray-700">{tx.id}</td>
+                      <td className="p-5 font-medium text-gray-700">{tx.memberId}</td>
+                      <td className="p-5 text-gray-500">{tx.posId}</td>
+                      <td className="p-5 text-gray-500">{tx.date}</td>
+                      <td className="p-5 font-medium text-gray-900">{tx.amount}</td>
+                      <td className="p-5">
                         <StatusBadge type="status" text={tx.txStatus} />
                       </td>
-                      <td className="px-6 py-4">
+                      <td className="p-5">
                         <StatusBadge type="payment" text={tx.payment} />
                       </td>
-                      <td className={`px-6 py-4 font-semibold ${tx.balance !== 'P0.00' ? 'text-red-500' : 'text-gray-900'}`}>
+                      <td className={`p-5 font-semibold ${tx.balance !== 'P0.00' ? 'text-red-500' : 'text-gray-900'}`}>
                         {tx.balance}
                       </td>
                     </tr>
@@ -354,7 +354,7 @@ const Cashier_Grocery = () => {
             </div>
 
             {/* Pagination */}
-            <div className="px-6 py-4 border-t border-gray-200 flex justify-center items-center gap-2">
+            <div className="p-5 border-t border-gray-200 flex justify-center items-center gap-2">
               <button className="w-8 h-8 flex items-center justify-center rounded-full border border-gray-300 text-gray-500 hover:bg-gray-50">
                 <ChevronLeft className="w-4 h-4" />
               </button>

@@ -564,36 +564,36 @@ const BookkeeperPayments = () => {
           </div>
 
           <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-lg enhanced-table">
-            <table className="min-w-full enhanced-table">
-              <thead className="bg-green-700 border-b border-gray-200">
+            <table className="w-full text-left border-collapse">
+              <thead>
                 {activeTab === "active" || activeTab === "fully_paid" ? (
-                  <tr>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Loan ID</th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Member Name</th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Loan Type</th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Loan Amount</th>
-                    <th className="px-6 py-4 text-right text-xs font-bold text-white uppercase tracking-wider">Remaining Balance</th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Due Date</th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Status</th>
-                    <th className="px-6 py-4 text-center text-xs font-bold text-white uppercase tracking-wider">Action</th>
+                  <tr className="bg-green-700 text-[10px] uppercase tracking-wider text-white font-extrabold">
+                    <th className="p-5 font-bold">Loan ID</th>
+                    <th className="p-5 font-bold">Member Name</th>
+                    <th className="p-5 font-bold">Loan Type</th>
+                    <th className="p-5 font-bold">Loan Amount</th>
+                    <th className="p-5 font-bold text-right">Remaining Balance</th>
+                    <th className="p-5 font-bold">Due Date</th>
+                    <th className="p-5 font-bold">Status</th>
+                    <th className="p-5 font-bold text-center">Action</th>
                   </tr>
                 ) : (
-                  <tr>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Payment ID</th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Member Name</th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Loan Details</th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Payment Amount</th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Date Paid</th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Entered By</th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Status</th>
-                    <th className="px-6 py-4 text-center text-xs font-bold text-white uppercase tracking-wider">Action</th>
+                  <tr className="bg-green-700 text-[10px] uppercase tracking-wider text-white font-extrabold">
+                    <th className="p-5 font-bold">Payment ID</th>
+                    <th className="p-5 font-bold">Member Name</th>
+                    <th className="p-5 font-bold">Loan Details</th>
+                    <th className="p-5 font-bold">Payment Amount</th>
+                    <th className="p-5 font-bold">Date Paid</th>
+                    <th className="p-5 font-bold">Entered By</th>
+                    <th className="p-5 font-bold">Status</th>
+                    <th className="p-5 font-bold text-center">Action</th>
                   </tr>
                 )}
               </thead>
-              <tbody className="divide-y divide-gray-200">
+              <tbody>
                 {activeRecordCount === 0 && (
                   <tr>
-                    <td colSpan={8} className="px-6 py-16 text-center">
+                    <td colSpan={8} className="p-5 text-center">
                       <div className="flex flex-col items-center gap-2">
                         <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center">
                           <Eye size={24} className="text-gray-300" />
@@ -607,21 +607,21 @@ const BookkeeperPayments = () => {
 
                 {(activeTab === "active" || activeTab === "fully_paid") &&
                   filteredLoanRows.map((loan, index) => (
-                    <tr key={loan.loan_id} className="table-row-enter hover:bg-green-50 transition-colors duration-200">
-                      <td className="px-6 py-4 text-sm font-mono font-bold text-green-700">{loan.loan_id}</td>
-                      <td className="px-6 py-4 text-sm text-gray-800 font-semibold">{loan.member_name}</td>
-                      <td className="px-6 py-4">
+                    <tr key={loan.loan_id} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
+                      <td className="p-5 text-sm font-mono font-bold text-green-700">{loan.loan_id}</td>
+                      <td className="p-5 text-sm text-gray-800 font-semibold">{loan.member_name}</td>
+                      <td className="p-5">
                         <span className={`badge-animated ${getLoanTypeStyle(loan.loan_type_code)}`}>
                           {loan.loan_type}
                         </span>
                       </td>
-                      <td className="px-6 py-4 text-sm text-gray-800 font-semibold">{formatCurrency(loan.loan_amount)}</td>
-                      <td className="px-6 py-4 text-sm text-right font-bold">
+                      <td className="p-5 text-sm text-gray-800 font-semibold">{formatCurrency(loan.loan_amount)}</td>
+                      <td className="p-5 text-sm text-right font-bold">
                         <span className={loan.remaining_balance > 0 ? 'text-amber-600' : 'text-green-600'}>
                           {formatCurrency(loan.remaining_balance)}
                         </span>
                       </td>
-                      <td className="px-6 py-4 text-sm text-gray-700 font-medium">
+                      <td className="p-5 text-sm text-gray-700 font-medium">
                         <div className="flex flex-col gap-1">
                           <span>{loan.due_date}</span>
                           {(() => {
@@ -640,12 +640,12 @@ const BookkeeperPayments = () => {
                           })()}
                         </div>
                       </td>
-                      <td className="px-6 py-4">
+                      <td className="p-5">
                         <span className={`status-badge ${getStatusStyle(loan.status)}`}>
                           {loan.status}
                         </span>
                       </td>
-                      <td className="px-6 py-4 text-center">
+                      <td className="p-5 text-center">
                         <button
                           type="button"
                           onClick={() => openLoanDetailsFromLoan(loan)}
@@ -662,10 +662,10 @@ const BookkeeperPayments = () => {
                     const loan = loanById.get(item.loan_id);
 
                     return (
-                      <tr key={item.payment_id} className="table-row-enter hover:bg-green-50 transition-colors duration-200">
-                        <td className="px-6 py-4 text-sm font-mono font-bold text-green-700">{item.payment_id}</td>
-                        <td className="px-6 py-4 text-sm text-gray-800 font-semibold">{loan?.member_name || "Unknown Member"}</td>
-                        <td className="px-6 py-4">
+                      <tr key={item.payment_id} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
+                        <td className="p-5 text-sm font-mono font-bold text-green-700">{item.payment_id}</td>
+                        <td className="p-5 text-sm text-gray-800 font-semibold">{loan?.member_name || "Unknown Member"}</td>
+                        <td className="p-5">
                           <div className="text-xs text-gray-500 mb-1">Loan ID: {item.loan_id}</div>
                           <div>
                             <span className={`badge-animated ${getLoanTypeStyle(loan?.loan_type_code)}`}>
@@ -673,18 +673,18 @@ const BookkeeperPayments = () => {
                             </span>
                           </div>
                         </td>
-                        <td className="px-6 py-4 text-sm text-gray-800 font-semibold">
+                        <td className="p-5 text-sm text-gray-800 font-semibold">
                           <div>{formatCurrency(item.payment_amount)}</div>
                           <div className="text-xs text-gray-500 mt-1">Penalty: {formatCurrency(item.penalties)}</div>
                         </td>
-                        <td className="px-6 py-4 text-sm text-gray-700 font-medium">{new Date(item.date_paid).toLocaleDateString()}</td>
-                        <td className="px-6 py-4 text-sm text-gray-700 font-medium">{item.entered_by}</td>
-                        <td className="px-6 py-4">
+                        <td className="p-5 text-sm text-gray-700 font-medium">{new Date(item.date_paid).toLocaleDateString()}</td>
+                        <td className="p-5 text-sm text-gray-700 font-medium">{item.entered_by}</td>
+                        <td className="p-5">
                           <span className={`status-badge ${getStatusStyle(item.confirmation_status)}`}>
                             {item.confirmation_status}
                           </span>
                         </td>
-                        <td className="px-6 py-4 text-center">
+                        <td className="p-5 text-center">
                           <div className="flex flex-nowrap items-center gap-2 justify-center overflow-x-auto">
                             <button
                               type="button"

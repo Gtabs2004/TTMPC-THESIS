@@ -521,37 +521,37 @@ const Manager_Reports = () => {
               </div>
               <table className="w-full text-xs">
                 <thead>
-                  <tr className="bg-[#66B538] text-white uppercase tracking-wider text-[10px]">
-                    <th className="px-4 py-2.5 text-left font-semibold">Type</th>
-                    <th className="px-4 py-2.5 text-right font-semibold">Count</th>
-                    <th className="px-4 py-2.5 text-right font-semibold">Outstanding</th>
+                  <tr className="bg-green-700 text-[10px] uppercase tracking-wider text-white font-extrabold">
+                    <th className="p-5 font-bold">Type</th>
+                    <th className="p-5 font-bold text-right">Count</th>
+                    <th className="p-5 font-bold text-right">Outstanding</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100">
+                <tbody>
                   {loading ? (
                     <tr>
-                      <td colSpan={3} className="px-4 py-6 text-center text-gray-500">
+                      <td colSpan={3} className="p-5 text-sm text-center text-gray-500">
                         Loading…
                       </td>
                     </tr>
                   ) : loanTypeBreakdown.length === 0 ? (
                     <tr>
-                      <td colSpan={3} className="px-4 py-6 text-center text-gray-400 italic">
+                      <td colSpan={3} className="p-5 text-sm text-center text-gray-400 italic">
                         No active loans yet
                       </td>
                     </tr>
                   ) : (
                     loanTypeBreakdown.map((row) => (
-                      <tr key={row.name} className="hover:bg-gray-50">
-                        <td className="px-4 py-2 flex items-center gap-2">
+                      <tr key={row.name} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
+                        <td className="p-5 text-sm flex items-center gap-2">
                           <span
                             className="w-2 h-2 rounded-full"
                             style={{ backgroundColor: row.color }}
                           ></span>
                           <span className="text-gray-800 font-medium">{row.name}</span>
                         </td>
-                        <td className="px-4 py-2 text-right text-gray-700 tabular-nums">{row.count}</td>
-                        <td className="px-4 py-2 text-right font-semibold text-gray-900 tabular-nums">
+                        <td className="p-5 text-sm text-right text-gray-700 tabular-nums">{row.count}</td>
+                        <td className="p-5 text-sm text-right font-semibold text-gray-900 tabular-nums">
                           {formatCurrency(row.amount)}
                         </td>
                       </tr>
@@ -565,38 +565,38 @@ const Manager_Reports = () => {
               <div className="p-4 border-b border-gray-100">
                 <h3 className="text-gray-800 font-bold text-sm">Top 5 Borrowers — Outstanding</h3>
               </div>
-              <table className="w-full text-xs">
+              <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr className="bg-[#66B538] text-white uppercase tracking-wider text-[10px]">
-                    <th className="px-4 py-2.5 text-left font-semibold">Member</th>
-                    <th className="px-4 py-2.5 text-right font-semibold">Active Loans</th>
-                    <th className="px-4 py-2.5 text-right font-semibold">Outstanding</th>
+                  <tr className="bg-green-700 text-[10px] uppercase tracking-wider text-white font-extrabold">
+                    <th className="p-5 font-bold">Member</th>
+                    <th className="p-5 font-bold text-right">Active Loans</th>
+                    <th className="p-5 font-bold text-right">Outstanding</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100">
+                <tbody>
                   {loading ? (
                     <tr>
-                      <td colSpan={3} className="px-4 py-6 text-center text-gray-500">
+                      <td colSpan={3} className="p-5 text-sm text-center text-gray-500">
                         Loading…
                       </td>
                     </tr>
                   ) : topBorrowers.length === 0 ? (
                     <tr>
-                      <td colSpan={3} className="px-4 py-6 text-center text-gray-400 italic">
+                      <td colSpan={3} className="p-5 text-sm text-center text-gray-400 italic">
                         No active borrowers
                       </td>
                     </tr>
                   ) : (
                     topBorrowers.map((b) => (
-                      <tr key={b.member_id} className="hover:bg-gray-50">
-                        <td className="px-4 py-2">
+                      <tr key={b.member_id} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
+                        <td className="p-5 text-sm">
                           <p className="text-gray-900 font-medium">{b.name}</p>
                           {b.membership_id ? (
                             <p className="text-[10px] text-gray-500 mt-0.5">{b.membership_id}</p>
                           ) : null}
                         </td>
-                        <td className="px-4 py-2 text-right text-gray-700 tabular-nums">{b.loans}</td>
-                        <td className="px-4 py-2 text-right font-semibold text-gray-900 tabular-nums">
+                        <td className="p-5 text-sm text-right text-gray-700 tabular-nums">{b.loans}</td>
+                        <td className="p-5 text-sm text-right font-semibold text-gray-900 tabular-nums">
                           {formatCurrency(b.outstanding)}
                         </td>
                       </tr>

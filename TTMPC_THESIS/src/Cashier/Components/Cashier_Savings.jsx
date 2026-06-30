@@ -491,28 +491,28 @@ const Cashier_Savings = () => {
           {/* MAIN TABLE */}
           <div className="mb-8 rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-[#66B538] text-white uppercase text-[13px] tracking-wider">
-                  <tr>
-                    <th className="px-6 py-4 text-left font-semibold">Account No.</th>
-                    <th className="px-6 py-4 text-left font-semibold">Account Name</th>
-                    <th className="px-6 py-4 text-left font-semibold">Kind</th>
-                    <th className="px-6 py-4 text-right font-semibold">Balance</th>
-                    <th className="px-6 py-4 text-left font-semibold">Last Activity</th>
-                    <th className="px-6 py-4 text-center font-semibold">Status</th>
-                    <th className="px-6 py-4 text-center font-semibold">Action</th>
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-green-700 text-[10px] uppercase tracking-wider text-white font-extrabold">
+                    <th className="p-5 font-bold">Account No.</th>
+                    <th className="p-5 font-bold">Account Name</th>
+                    <th className="p-5 font-bold">Kind</th>
+                    <th className="p-5 font-bold text-right">Balance</th>
+                    <th className="p-5 font-bold">Last Activity</th>
+                    <th className="p-5 font-bold text-center">Status</th>
+                    <th className="p-5 font-bold text-center">Action</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100">
+                <tbody>
                   {status === "loading" ? (
                     <tr>
-                      <td colSpan={7} className="px-6 py-12 text-center text-gray-500">
+                      <td colSpan={7} className="p-5 text-sm text-center text-gray-500">
                         Loading savings accounts...
                       </td>
                     </tr>
                   ) : filtered.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="px-6 py-12 text-center">
+                      <td colSpan={7} className="p-5 text-center">
                         <div className="flex flex-col items-center gap-2">
                           <AlertCircle size={32} className="text-gray-300" />
                           <p className="text-sm text-gray-500">
@@ -527,45 +527,45 @@ const Cashier_Savings = () => {
                     paginated.map((row) => (
                       <tr
                         key={row.account_number}
-                        className="hover:bg-green-50 transition cursor-pointer"
+                        className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors cursor-pointer"
                         onClick={() =>
                           navigate(`/Savings_Details/${encodeURIComponent(row.account_number)}`)
                         }
                       >
-                        <td className="px-6 py-4">
+                        <td className="p-5">
                           <span className="font-mono text-sm text-gray-800">
                             {row.account_number}
                           </span>
                         </td>
-                        <td className="px-6 py-4">
+                        <td className="p-5">
                           <p className="text-sm font-medium text-gray-900">{row.account_name}</p>
                           {row.membership_id ? (
                             <p className="text-xs text-gray-500 mt-0.5">{row.membership_id}</p>
                           ) : null}
                         </td>
-                        <td className="px-6 py-4">
+                        <td className="p-5">
                           <span
                             className={`inline-flex px-2.5 py-1 rounded-full text-xs font-semibold ${getKindStyle(row.account_kind)}`}
                           >
                             {row.account_kind === "standalone" ? "Standalone" : "Member"}
                           </span>
                         </td>
-                        <td className="px-6 py-4 text-right">
+                        <td className="p-5 text-right">
                           <span className="text-sm font-semibold text-gray-900">
                             {formatCurrency(row.balance)}
                           </span>
                         </td>
-                        <td className="px-6 py-4 text-sm text-gray-600">
+                        <td className="p-5 text-sm text-gray-600">
                           {formatDate(row.updated_at || row.created_at)}
                         </td>
-                        <td className="px-6 py-4 text-center">
+                        <td className="p-5 text-center">
                           <span
                             className={`inline-flex px-3 py-1.5 rounded-full text-xs font-semibold ${getStatusStyle(row.status)}`}
                           >
                             {String(row.status || "active").toUpperCase()}
                           </span>
                         </td>
-                        <td className="px-6 py-4 text-center" onClick={(e) => e.stopPropagation()}>
+                        <td className="p-5 text-center" onClick={(e) => e.stopPropagation()}>
                           <button
                             onClick={() =>
                               navigate(`/Savings_Details/${encodeURIComponent(row.account_number)}`)

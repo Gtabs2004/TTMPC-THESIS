@@ -355,35 +355,35 @@ const MIGS = () => {
               <p className="p-6 text-blue-700 text-center">Loading MIGS scoring data...</p>
             ) : null}
             {!loading ? (
-              <table className="w-full text-sm enhanced-table">
-                <thead className="bg-gradient-to-r from-green-700 to-green-600 text-white text-center uppercase text-[13px] tracking-wider border-b border-gray-200">
-                  <tr>
-                    <th className="px-4 py-3 text-left font-semibold">Member Name</th>
-                    <th className="px-4 py-3 text-left font-semibold">ID</th>
-                    <th className="px-4 py-3 text-center font-semibold">Capital</th>
-                    <th className="px-4 py-3 text-center font-semibold">Loan</th>
-                    <th className="px-4 py-3 text-center font-semibold">Savings</th>
-                    <th className="px-4 py-3 text-center font-semibold">Score</th>
-                    <th className="px-4 py-3 text-center font-semibold">Status</th>
-                    <th className="px-4 py-3 text-center font-semibold">Action</th>
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-green-700 text-[10px] uppercase tracking-wider text-white font-extrabold">
+                    <th className="p-5 font-bold">Member Name</th>
+                    <th className="p-5 font-bold">ID</th>
+                    <th className="p-5 font-bold text-center">Capital</th>
+                    <th className="p-5 font-bold text-center">Loan</th>
+                    <th className="p-5 font-bold text-center">Savings</th>
+                    <th className="p-5 font-bold text-center">Score</th>
+                    <th className="p-5 font-bold text-center">Status</th>
+                    <th className="p-5 font-bold text-center">Action</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-200">
+                <tbody>
                   {filtered.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="px-4 py-8 text-center text-gray-500">
+                      <td colSpan={8} className="p-5 text-sm text-center text-gray-500">
                         No MIGS scoring records found.
                       </td>
                     </tr>
                   ) : (
                     paginatedRows.map((r) => (
-                      <tr key={String(r.id || r.member_id)} className="table-row-enter hover:bg-green-50 transition-colors duration-200">
-                        <td className="px-4 py-3 font-medium text-gray-800">{r.full_name}</td>
-                        <td className="px-4 py-3 text-gray-600 font-mono text-[12px]">{r.member_id}</td>
-                        <td className="px-4 py-3 text-center text-gray-700">₱{(r.capital || 0).toLocaleString()}</td>
-                        <td className="px-4 py-3 text-center text-gray-700">₱{(r.loan_balance || 0).toLocaleString()}</td>
-                        <td className="px-4 py-3 text-center text-gray-700">₱{(r.savings_balance || 0).toLocaleString()}</td>
-                        <td className="px-4 py-3 text-center">
+                      <tr key={String(r.id || r.member_id)} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
+                        <td className="p-5 text-sm font-medium text-gray-800">{r.full_name}</td>
+                        <td className="p-5 text-sm text-gray-600 font-mono text-[12px]">{r.member_id}</td>
+                        <td className="p-5 text-sm text-center text-gray-700">₱{(r.capital || 0).toLocaleString()}</td>
+                        <td className="p-5 text-sm text-center text-gray-700">₱{(r.loan_balance || 0).toLocaleString()}</td>
+                        <td className="p-5 text-sm text-center text-gray-700">₱{(r.savings_balance || 0).toLocaleString()}</td>
+                        <td className="p-5 text-sm text-center">
                           {r.migs_score == null ? (
                             <span className="text-gray-400 text-xs italic">Not scored</span>
                           ) : (
@@ -394,7 +394,7 @@ const MIGS = () => {
                             </div>
                           )}
                         </td>
-                        <td className="px-4 py-3 text-center">
+                        <td className="p-5 text-sm text-center">
                           {r.migs_status == null ? (
                             <span className="inline-flex px-3 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-500 border border-gray-200">
                               Pending
@@ -406,7 +406,7 @@ const MIGS = () => {
                             </span>
                           )}
                         </td>
-                        <td className="px-4 py-3 text-center">
+                        <td className="p-5 text-sm text-center">
                           <button
                             onClick={() => navigate(`/migs-evaluate?member_id=${encodeURIComponent(String(r.member_id || ""))}`)}
                             className="btn-enhanced text-[#1D6021] font-bold hover:text-[#0d4a1a] transition-colors flex items-center justify-center gap-1"

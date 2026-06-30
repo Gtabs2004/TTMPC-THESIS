@@ -253,30 +253,30 @@ const Payments = () => {
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr className="border-b border-gray-200 bg-[#66B538] text-xs font-semibold text-white uppercase tracking-wide">
-                    <th className="px-6 py-4">Payment ID</th>
-                    <th className="px-6 py-4">Member Name</th>
-                    <th className="px-6 py-4">Loan Type</th>
-                    <th className="px-6 py-4">Amount Paid</th>
-                    <th className="px-6 py-4">Payment Date</th>
-                    <th className="px-6 py-4">Status</th>
-                    <th className="px-6 py-4">Remaining Balance</th>
+                  <tr className="bg-green-700 text-[10px] uppercase tracking-wider text-white font-extrabold">
+                    <th className="p-5 font-bold">Payment ID</th>
+                    <th className="p-5 font-bold">Member Name</th>
+                    <th className="p-5 font-bold">Loan Type</th>
+                    <th className="p-5 font-bold">Amount Paid</th>
+                    <th className="p-5 font-bold">Payment Date</th>
+                    <th className="p-5 font-bold">Status</th>
+                    <th className="p-5 font-bold">Remaining Balance</th>
                   </tr>
                 </thead>
-                <tbody className="text-sm text-gray-700 divide-y divide-gray-100">
+                <tbody>
                   {paymentsData.map((row, index) => (
-                    <tr key={index} className="table-row-enter hover:bg-green-50 transition-colors">
-                      <td className="px-6 py-4 text-gray-500 font-medium">{row.id}</td>
-                      <td className="px-6 py-4 font-semibold text-gray-900">{row.name}</td>
-                      <td className="px-6 py-4">
+                    <tr key={index} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
+                      <td className="p-5 text-gray-500 font-medium">{row.id}</td>
+                      <td className="p-5 font-semibold text-gray-900">{row.name}</td>
+                      <td className="p-5">
                         {/* REVERTED TO ORIGINAL */}
                         <span className={`badge-animated px-3 py-1 rounded-full text-xs font-semibold ${getLoanBadgeClass(row.type)}`}>
                           {row.type}
                         </span>
                       </td>
-                      <td className="px-6 py-4 font-bold text-gray-900">{row.amount}</td>
-                      <td className="px-6 py-4 text-gray-500">{row.date}</td>
-                      <td className="px-6 py-4">
+                      <td className="p-5 font-bold text-gray-900">{row.amount}</td>
+                      <td className="p-5 text-gray-500">{row.date}</td>
+                      <td className="p-5">
                         {/* REVERTED TO ORIGINAL */}
                         <span className={`badge-animated px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1.5 w-max ${
                           row.status === 'On-Time' 
@@ -287,7 +287,7 @@ const Payments = () => {
                           {row.status}
                         </span>
                       </td>
-                      <td className="px-6 py-4 font-semibold text-gray-600">{row.balance}</td>
+                      <td className="p-5 font-semibold text-gray-600">{row.balance}</td>
                     </tr>
                   ))}
                 </tbody>

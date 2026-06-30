@@ -396,25 +396,25 @@ const Disbursements = () => {
               ) : (
                 <table className="w-full text-left border-collapse">
                   <thead>
-                    <tr className="bg-gray-50 border-b border-gray-200 text-xs font-bold text-gray-500 uppercase tracking-wider">
-                      <th className="px-6 py-4 font-bold w-20">Rank</th>
-                      <th className="px-6 py-4 font-bold">Member Information</th>
-                      <th className="px-6 py-4 font-bold">Loan Details</th>
-                      <th className="px-6 py-4 font-bold text-right">Released Amount</th>
-                      <th className="px-6 py-4 font-bold">Status</th>
-                      <th className="px-6 py-4 font-bold">Audit Info</th>
-                      <th className="px-6 py-4 font-bold text-right w-24">Actions</th>
+                    <tr className="bg-green-700 text-[10px] uppercase tracking-wider text-white font-extrabold">
+                      <th className="p-5 font-bold w-20">Rank</th>
+                      <th className="p-5 font-bold">Member Information</th>
+                      <th className="p-5 font-bold">Loan Details</th>
+                      <th className="p-5 font-bold text-right">Released Amount</th>
+                      <th className="p-5 font-bold">Status</th>
+                      <th className="p-5 font-bold">Audit Info</th>
+                      <th className="p-5 font-bold text-right w-24">Actions</th>
                     </tr>
                   </thead>
-                  <tbody className="text-sm text-gray-700 divide-y divide-gray-100">
+                  <tbody>
                     {visibleRows.map((row) => (
-                      <tr key={row.id} className="hover:bg-green-50/30 transition-colors group">
-                        <td className="px-6 py-4 align-top pt-5">
+                      <tr key={row.id} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
+                        <td className="p-5 align-top pt-5">
                           <span className={`inline-flex items-center justify-center min-w-8 h-7 px-2 rounded-full text-xs font-bold ring-1 ${rankTone[row.rank] || "bg-gray-100 text-gray-700 ring-gray-200"}`}>
                             #{row.rank}
                           </span>
                         </td>
-                        <td className="px-6 py-4">
+                        <td className="p-5">
                           <div className="font-bold text-gray-900 mb-0.5">{row.name}</div>
                           <div className="text-xs font-medium text-gray-500 flex items-center gap-1.5">
                             <Users className="w-3 h-3" /> {row.code}
@@ -422,19 +422,19 @@ const Disbursements = () => {
                             <span className="font-mono text-gray-400">ID: {row.id}</span>
                           </div>
                         </td>
-                        <td className="px-6 py-4">
+                        <td className="p-5">
                           <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-bold bg-gray-100 text-gray-800 border border-gray-200">
                             {row.type}
                           </span>
                           <div className="text-xs font-medium text-gray-500 mt-1.5 ml-1">{row.migs}</div>
                         </td>
-                        <td className="px-6 py-4 text-right align-top pt-5">
+                        <td className="p-5 text-right align-top pt-5">
                           <span className="font-extrabold text-gray-900 tabular-nums">
                             {formatCurrency(row.amount)}
                           </span>
                           <div className="text-xs font-medium text-gray-500 mt-1">{row.method}</div>
                         </td>
-                        <td className="px-6 py-4 align-top pt-5">
+                        <td className="p-5 align-top pt-5">
                           <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold border ${
                             row.hasDocuments ? "bg-green-50 text-green-700 border-green-200" : "bg-red-50 text-red-700 border-red-200"
                           }`}>
@@ -442,11 +442,11 @@ const Disbursements = () => {
                             {row.hasDocuments ? `Docs (${row.documentCount})` : "No Docs"}
                           </span>
                         </td>
-                        <td className="px-6 py-4 text-xs font-medium text-gray-500">
+                        <td className="p-5 text-xs font-medium text-gray-500">
                           <div className="mb-1 text-gray-900">{formatDate(row.releasedDate)}</div>
                           <div>By: {row.releasedBy}</div>
                         </td>
-                        <td className="px-6 py-4 align-top pt-4">
+                        <td className="p-5 align-top pt-4">
                           <div className="flex items-center justify-end gap-2 relative" ref={openMenuId === row.id ? menuRef : null}>
                             <button
                               onClick={() => setActiveLoan(row)}
@@ -534,7 +534,7 @@ const Disbursements = () => {
           <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
             
             {/* Modal Header */}
-            <div className="flex items-center justify-between px-6 py-4 bg-gray-50 border-b border-gray-200">
+            <div className="flex items-center justify-between p-5 bg-gray-50 border-b border-gray-200">
               <div className="flex items-center gap-3">
                 <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center text-green-700">
                   <Receipt className="w-4 h-4" />
@@ -613,7 +613,7 @@ const Disbursements = () => {
             </div>
 
             {/* Modal Footer */}
-            <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 flex justify-end gap-3">
+            <div className="p-5 bg-gray-50 border-t border-gray-200 flex justify-end gap-3">
               <button
                 onClick={() => setActiveLoan(null)}
                 className="px-5 py-2.5 rounded-lg bg-white border border-gray-300 text-gray-700 text-sm font-bold hover:bg-gray-50 transition-colors shadow-sm"

@@ -289,32 +289,32 @@ const Manage_Member = () => {
             {error ? <p className="p-6 text-sm text-red-600">{error}</p> : null}
             {!loading && !error ? (
               <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="bg-green-700 text-white uppercase text-[13px] tracking-wider">
-                    <tr>
-                      <th className="px-5 py-3.5 text-left font-semibold">Member ID</th>
-                      <th className="px-5 py-3.5 text-left font-semibold">Name</th>
-                      <th className="px-5 py-3.5 text-left font-semibold">Email</th>
-                      <th className="px-5 py-3.5 text-left font-semibold">Contact</th>
-                      <th className="px-5 py-3.5 text-left font-semibold">Address</th>
-                      <th className="px-5 py-3.5 text-right font-semibold">Action</th>
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-green-700 text-[10px] uppercase tracking-wider text-white font-extrabold">
+                      <th className="p-5 font-bold">Member ID</th>
+                      <th className="p-5 font-bold">Name</th>
+                      <th className="p-5 font-bold">Email</th>
+                      <th className="p-5 font-bold">Contact</th>
+                      <th className="p-5 font-bold">Address</th>
+                      <th className="p-5 font-bold text-right">Action</th>
                     </tr>
                   </thead>
                   <tbody>
                     {filtered.length === 0 ? (
-                      <tr><td colSpan={6} className="px-5 py-12 text-center text-gray-500">No personal datasheet records found.</td></tr>
+                      <tr><td colSpan={6} className="p-5 text-sm text-center text-gray-500">No personal datasheet records found.</td></tr>
                     ) : (
                       paginatedRows.map((r) => (
                         <tr
                           key={String(r.id)}
-                          className="border-t border-gray-100 transition-colors duration-150 ease-in-out hover:bg-green-50/40 group"
+                          className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors"
                         >
-                          <td className="px-5 py-3.5 font-semibold text-gray-800">{r.member_id}</td>
-                          <td className="px-5 py-3.5 text-gray-700">{r.full_name}</td>
-                          <td className="px-5 py-3.5 text-gray-700">{r.email}</td>
-                          <td className="px-5 py-3.5 text-gray-700">{r.contact_number}</td>
-                          <td className="px-5 py-3.5 text-gray-700">{r.address}</td>
-                          <td className="px-5 py-3.5 text-right">
+                          <td className="p-5 text-sm font-semibold text-gray-800">{r.member_id}</td>
+                          <td className="p-5 text-sm text-gray-700">{r.full_name}</td>
+                          <td className="p-5 text-sm text-gray-700">{r.email}</td>
+                          <td className="p-5 text-sm text-gray-700">{r.contact_number}</td>
+                          <td className="p-5 text-sm text-gray-700">{r.address}</td>
+                          <td className="p-5 text-sm text-right">
                             <button
                               onClick={() => navigate(`/member_details?member_id=${encodeURIComponent(String(r.member_id || ""))}&portal=bookkeeper`, { state: { member: r, portal: "bookkeeper" } })}
                               className="inline-flex items-center px-3 py-1.5 rounded-md text-[#1D6021] font-semibold border border-transparent hover:border-[#1D6021]/20 hover:bg-[#1D6021]/5 active:scale-[0.97] transition-all duration-150 ease-in-out"

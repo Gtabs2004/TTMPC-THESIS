@@ -432,42 +432,42 @@ const AuditLogViewer = ({ showActorRoleFilter = true, onError }) => {
 
         {/* Table */}
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm whitespace-nowrap">
-            <thead className="bg-green-700 text-white text-[10px] uppercase rounded-sm font-bold tracking-wider">
-              <tr>
-                <th className="px-6 py-4">Log ID</th>
-                <th className="px-6 py-4">Date &amp; Time</th>
-                <th className="px-6 py-4">User</th>
-                <th className="px-6 py-4">Role</th>
-                <th className="px-6 py-4">Module</th>
-                <th className="px-6 py-4">Action Type</th>
-                <th className="px-6 py-4">Record</th>
-                <th className="px-6 py-4">Status</th>
+          <table className="w-full text-left border-collapse whitespace-nowrap">
+            <thead>
+              <tr className="bg-green-700 text-[10px] uppercase tracking-wider text-white font-extrabold">
+                <th className="p-5 font-bold">Log ID</th>
+                <th className="p-5 font-bold">Date &amp; Time</th>
+                <th className="p-5 font-bold">User</th>
+                <th className="p-5 font-bold">Role</th>
+                <th className="p-5 font-bold">Module</th>
+                <th className="p-5 font-bold">Action Type</th>
+                <th className="p-5 font-bold">Record</th>
+                <th className="p-5 font-bold">Status</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
+            <tbody>
               {loading ? (
-                <tr><td colSpan={8} className="px-6 py-10 text-center text-gray-400">Loading…</td></tr>
+                <tr><td colSpan={8} className="p-5 text-sm text-center text-gray-400">Loading…</td></tr>
               ) : rows.length === 0 ? (
-                <tr><td colSpan={8} className="px-6 py-10 text-center text-gray-400">No audit entries match these filters.</td></tr>
+                <tr><td colSpan={8} className="p-5 text-sm text-center text-gray-400">No audit entries match these filters.</td></tr>
               ) : rows.map((r) => {
                 const moduleInfo = MODULE_BY_ENTITY[r.entity_type] || { label: r.entity_type, className: "bg-gray-50 text-gray-600" };
                 const flagged = FLAGGED_ACTIONS.has(r.action);
                 const status = flagged ? "Flagged" : "Success";
                 return (
-                  <tr key={r.id} className="hover:bg-gray-50/50 transition-colors">
-                    <td className="px-6 py-4 font-medium text-gray-900">{formatLogId(r.id)}</td>
-                    <td className="px-6 py-4 text-gray-500">{formatAuditTimestamp(r.occurred_at)}</td>
-                    <td className="px-6 py-4 font-bold text-gray-900">{r.actor_email || "—"}</td>
-                    <td className="px-6 py-4 text-gray-500">{formatRole(r.actor_role)}</td>
-                    <td className="px-6 py-4">
+                  <tr key={r.id} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
+                    <td className="p-5 font-medium text-gray-900">{formatLogId(r.id)}</td>
+                    <td className="p-5 text-gray-500">{formatAuditTimestamp(r.occurred_at)}</td>
+                    <td className="p-5 font-bold text-gray-900">{r.actor_email || "—"}</td>
+                    <td className="p-5 text-gray-500">{formatRole(r.actor_role)}</td>
+                    <td className="p-5">
                       <span className={`px-2.5 py-1 rounded-md text-[10px] font-bold tracking-wide ${moduleInfo.className}`}>
                         {moduleInfo.label}
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-gray-600">{ACTION_LABEL[r.action] || r.action}</td>
-                    <td className="px-6 py-4 text-gray-500 font-medium tracking-wide">{describeAuditContext(r)}</td>
-                    <td className="px-6 py-4">
+                    <td className="p-5 text-gray-600">{ACTION_LABEL[r.action] || r.action}</td>
+                    <td className="p-5 text-gray-500 font-medium tracking-wide">{describeAuditContext(r)}</td>
+                    <td className="p-5">
                       <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold tracking-wide ${
                         flagged ? "bg-red-50 text-red-600" : "bg-green-50 text-green-600"
                       }`}>

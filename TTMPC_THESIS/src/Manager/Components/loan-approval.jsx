@@ -273,7 +273,7 @@ const Loan_Approval = () => {
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr className="bg-[#66B538] border-b border-gray-200 text-[10px] uppercase tracking-wider text-[#2A2A48] font-extrabold text-white">
+                  <tr className="bg-green-700 text-[10px] uppercase tracking-wider text-white font-extrabold">
                     <th className="p-5 font-bold">Loan ID</th>
                     <th className="p-5 font-bold">Member Name</th>
                     <th className="p-5 font-bold">Loan Type</th>
@@ -295,7 +295,7 @@ const Loan_Approval = () => {
                     </tr>
                   ) : (
                     displayLoans.map((loan, idx) => (
-                      <tr key={idx} className="table-row-enter border-b border-gray-100 hover:bg-green-50 transition-colors">
+                      <tr key={idx} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
                         <td className="p-5 text-sm text-gray-500 font-medium">{loan.id}</td>
                         <td className="p-5 text-sm font-bold text-gray-800">{loan.name}</td>
                         <td className="p-5 text-sm">

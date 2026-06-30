@@ -493,11 +493,11 @@ const Member_Savings = () => {
             <div className="overflow-x-auto">
               <table className="w-full min-w-[640px] text-left border-collapse">
                 <thead>
-                  <tr className="bg-[#66B53B] text-white text-[10px] uppercase tracking-wider font-bold">
-                    <th className="px-6 py-4 font-bold">Date</th>
-                    <th className="px-6 py-4 font-bold">Transaction Type</th>
-                    <th className="px-6 py-4 font-bold text-right">Amount</th>
-                    <th className="px-6 py-4 font-bold text-right pr-8">Balance</th>
+                  <tr className="bg-green-700 text-[10px] uppercase tracking-wider text-white font-extrabold">
+                    <th className="p-5 font-bold">Date</th>
+                    <th className="p-5 font-bold">Transaction Type</th>
+                    <th className="p-5 font-bold text-right">Amount</th>
+                    <th className="p-5 font-bold text-right pr-8">Balance</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -510,16 +510,16 @@ const Member_Savings = () => {
                       <td colSpan={4} className="p-6 text-center text-sm text-gray-500">No savings transactions yet.</td>
                     </tr>
                   ) : ledgerData.map((row) => (
-                    <tr key={row.id} className="table-row-enter border-b border-gray-50 dark:border-gray-800 hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors last:border-0">
-                      <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400 font-medium whitespace-nowrap">{row.date}</td>
-                      <td className="px-6 py-4 text-sm font-bold text-gray-700 dark:text-gray-200 flex items-center gap-3">
+                    <tr key={row.id} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
+                      <td className="p-5 text-sm text-gray-500 dark:text-gray-400 font-medium whitespace-nowrap">{row.date}</td>
+                      <td className="p-5 text-sm font-bold text-gray-700 dark:text-gray-200 flex items-center gap-3">
                         {renderTransactionIcon(row.typeIcon)}
                         {row.type}
                       </td>
-                      <td className={`px-6 py-4 text-sm font-bold text-right whitespace-nowrap ${row.amountColor}`}>
+                      <td className={`p-5 text-sm font-bold text-right whitespace-nowrap ${row.amountColor}`}>
                         {row.amount}
                       </td>
-                      <td className="px-6 py-4 text-sm font-black text-gray-900 dark:text-white text-right pr-8 whitespace-nowrap">
+                      <td className="p-5 text-sm font-black text-gray-900 dark:text-white text-right pr-8 whitespace-nowrap">
                         {row.balance}
                       </td>
                     </tr>

@@ -539,33 +539,33 @@ const Dashboard_BOD = () => {
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr className="bg-[#66B53B] text-white text-xs uppercase tracking-wider font-semibold border-b border-gray-100">
-                    <th className="p-4 font-semibold">Transaction ID</th>
-                    <th className="p-4 font-semibold">Member / Entity</th>
-                    <th className="p-4 font-semibold">Type</th>
-                    <th className="p-4 font-semibold">Date</th>
-                    <th className="p-4 font-semibold text-right">Amount</th>
-                    <th className="p-4 font-semibold text-center">Status</th>
+                  <tr className="bg-green-700 text-[10px] uppercase tracking-wider text-white font-extrabold">
+                    <th className="p-5 font-bold">Transaction ID</th>
+                    <th className="p-5 font-bold">Member / Entity</th>
+                    <th className="p-5 font-bold">Type</th>
+                    <th className="p-5 font-bold">Date</th>
+                    <th className="p-5 font-bold text-right">Amount</th>
+                    <th className="p-5 font-bold text-center">Status</th>
                   </tr>
                 </thead>
-                <tbody className="text-sm text-gray-700 divide-y divide-gray-50">
+                <tbody>
                   {loading ? (
-                    <tr><td colSpan={6} className="p-6 text-center text-gray-400">Loading transactions…</td></tr>
+                    <tr><td colSpan={6} className="p-5 text-sm text-center text-gray-400">Loading transactions…</td></tr>
                   ) : recentTxns.length === 0 ? (
-                    <tr><td colSpan={6} className="p-6 text-center text-gray-400">No recent transactions.</td></tr>
+                    <tr><td colSpan={6} className="p-5 text-sm text-center text-gray-400">No recent transactions.</td></tr>
                   ) : recentTxns.map((txn) => (
-                    <tr key={`${txn.id}-${txn.date}`} className="table-row-enter hover:bg-green-50 transition-colors">
-                      <td className="p-4 font-medium text-gray-900">{txn.id}</td>
-                      <td className="p-4">{txn.member}</td>
-                      <td className="p-4 text-gray-500">{txn.type}</td>
-                      <td className="p-4 text-gray-500">{formatDateShort(txn.date)}</td>
-                      <td className="p-4 text-right font-medium">
+                    <tr key={`${txn.id}-${txn.date}`} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
+                      <td className="p-5 text-sm font-medium text-gray-900">{txn.id}</td>
+                      <td className="p-5 text-sm">{txn.member}</td>
+                      <td className="p-5 text-sm text-gray-500">{txn.type}</td>
+                      <td className="p-5 text-sm text-gray-500">{formatDateShort(txn.date)}</td>
+                      <td className="p-5 text-sm text-right font-medium">
                         <div className="flex items-center justify-end gap-1">
                           {txn.isCredit ? <ArrowDownRight className="w-4 h-4 text-green-500" /> : <ArrowUpRight className="w-4 h-4 text-red-500" />}
                           <span className={txn.isCredit ? "text-green-600" : "text-gray-800"}>{formatCurrency(txn.amountValue)}</span>
                         </div>
                       </td>
-                      <td className="p-4 text-center">
+                      <td className="p-5 text-sm text-center">
                         {txn.status === 'Completed' ? (
                           <span className="badge-animated inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
                             Completed

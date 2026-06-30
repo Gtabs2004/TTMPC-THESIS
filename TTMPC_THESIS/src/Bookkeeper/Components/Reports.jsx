@@ -340,29 +340,29 @@ const Reports = () => {
               <button className="text-xs font-bold text-green-700 hover:text-green-900 transition-colors">Full Archive</button>
             </div>
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
-                <thead className="bg-gradient-to-r from-green-700 to-green-600 text-white text-[10px] uppercase font-bold tracking-wider">
-                  <tr>
-                    <th className="px-6 py-3">Report Name</th>
-                    <th className="px-6 py-3">Category</th>
-                    <th className="px-6 py-3">Generation Date</th>
-                    <th className="px-6 py-3 text-right">Action</th>
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-green-700 text-[10px] uppercase tracking-wider text-white font-extrabold">
+                    <th className="p-5 font-bold">Report Name</th>
+                    <th className="p-5 font-bold">Category</th>
+                    <th className="p-5 font-bold">Generation Date</th>
+                    <th className="p-5 font-bold text-right">Action</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-200">
+                <tbody>
                   {reportList.map((report, idx) => (
-                    <tr key={idx} className="table-row-enter hover:bg-green-50 transition-colors duration-200">
-                      <td className="px-6 py-4 flex items-center gap-3">
+                    <tr key={idx} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
+                      <td className="p-5 text-sm flex items-center gap-3">
                         <FileText className="text-red-500" size={16} />
                         <span className="font-medium text-gray-800">{report.name}</span>
                       </td>
-                      <td className="px-6 py-4">
+                      <td className="p-5 text-sm">
                         <span className={`badge-animated px-2 py-1 rounded text-[10px] font-bold tracking-wide ${report.catColor}`}>
                           {report.category}
                         </span>
                       </td>
-                      <td className="px-6 py-4 text-gray-500 font-medium text-xs">{report.date}</td>
-                      <td className="px-6 py-4 text-right">
+                      <td className="p-5 text-sm text-gray-500 font-medium">{report.date}</td>
+                      <td className="p-5 text-sm text-right">
                         <button className="btn-enhanced inline-flex items-center gap-1.5 text-xs font-bold text-green-700 hover:text-green-900 transition-colors">
                           <FileDown size={14} />
                           Export PDF

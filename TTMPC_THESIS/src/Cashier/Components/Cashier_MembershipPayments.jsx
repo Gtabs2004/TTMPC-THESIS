@@ -517,21 +517,21 @@ const Cashier_MembershipPayments = () => {
           {/* APPLICANTS TABLE */}
           {activeTab === "applicants" && (
             <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-sm">
-              <table className="w-full">
-                <thead className="bg-[#66B538] text-white uppercase text-[12px] tracking-wider">
-                  <tr>
-                    <th className="px-6 py-4 text-left font-semibold">Applicant</th>
-                    <th className="px-6 py-4 text-left font-semibold">Contact</th>
-                    <th className="px-6 py-4 text-left font-semibold">Status</th>
-                    <th className="px-6 py-4 text-left font-semibold">Membership Fee</th>
-                    <th className="px-6 py-4 text-left font-semibold">Paid-Up Capital</th>
-                    <th className="px-6 py-4 text-center font-semibold">Action</th>
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-green-700 text-[10px] uppercase tracking-wider text-white font-extrabold">
+                    <th className="p-5 font-bold">Applicant</th>
+                    <th className="p-5 font-bold">Contact</th>
+                    <th className="p-5 font-bold">Status</th>
+                    <th className="p-5 font-bold">Membership Fee</th>
+                    <th className="p-5 font-bold">Paid-Up Capital</th>
+                    <th className="p-5 font-bold text-center">Action</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100">
+                <tbody>
                   {paginatedApplicants.length === 0 && (
                     <tr>
-                      <td colSpan={6} className="px-6 py-12 text-center text-gray-500 font-medium">
+                      <td colSpan={6} className="p-5 text-sm text-center text-gray-500 font-medium">
                         {loading
                           ? "Loading eligible applicants..."
                           : "No applicants match the current filter."}
@@ -539,29 +539,29 @@ const Cashier_MembershipPayments = () => {
                     </tr>
                   )}
                   {paginatedApplicants.map((row) => (
-                    <tr key={row.application_id} className="hover:bg-green-50/50 transition-colors">
-                      <td className="px-6 py-4">
+                    <tr key={row.application_id} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
+                      <td className="p-5">
                         <div className="text-sm font-bold text-gray-900">{row.full_name}</div>
                         <div className="text-[11px] text-gray-500">{row.application_id}</div>
                       </td>
-                      <td className="px-6 py-4 text-sm text-gray-700">
+                      <td className="p-5 text-sm text-gray-700">
                         <div>{row.email || "—"}</div>
                         <div className="text-[11px] text-gray-500">{row.contact_number || "—"}</div>
                       </td>
-                      <td className="px-6 py-4 text-sm">
+                      <td className="p-5 text-sm">
                         <span className="inline-flex items-center rounded-full bg-blue-50 text-blue-700 px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wider">
                           {row.application_status || "Pending"}
                         </span>
                       </td>
-                      <td className="px-6 py-4">{renderStatusBadge(row.membership_fee_paid)}</td>
-                      <td className="px-6 py-4">
+                      <td className="p-5">{renderStatusBadge(row.membership_fee_paid)}</td>
+                      <td className="p-5">
                         {renderPaidUpBadge(
                           row.paid_up_capital_paid,
                           row.paid_up_capital_amount,
                           row.paid_up_capital_satisfied
                         )}
                       </td>
-                      <td className="px-6 py-4 text-center">
+                      <td className="p-5 text-center">
                         <div className="flex flex-col gap-1.5 items-center">
                           {row.membership_fee_paid ? (
                             <span className="text-[10px] uppercase tracking-wider text-gray-400 font-semibold">
@@ -607,43 +607,43 @@ const Cashier_MembershipPayments = () => {
           {/* TRANSACTIONS TABLE */}
           {activeTab === "transactions" && (
             <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-sm">
-              <table className="w-full">
-                <thead className="bg-[#66B538] text-white uppercase text-[12px] tracking-wider">
-                  <tr>
-                    <th className="px-6 py-4 text-left font-semibold">Payment ID</th>
-                    <th className="px-6 py-4 text-left font-semibold">Applicant</th>
-                    <th className="px-6 py-4 text-right font-semibold">Amount</th>
-                    <th className="px-6 py-4 text-left font-semibold">Method</th>
-                    <th className="px-6 py-4 text-left font-semibold">Reference</th>
-                    <th className="px-6 py-4 text-left font-semibold">Status</th>
-                    <th className="px-6 py-4 text-left font-semibold">Processed By</th>
-                    <th className="px-6 py-4 text-left font-semibold">Payment Date</th>
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-green-700 text-[10px] uppercase tracking-wider text-white font-extrabold">
+                    <th className="p-5 font-bold">Payment ID</th>
+                    <th className="p-5 font-bold">Applicant</th>
+                    <th className="p-5 font-bold text-right">Amount</th>
+                    <th className="p-5 font-bold">Method</th>
+                    <th className="p-5 font-bold">Reference</th>
+                    <th className="p-5 font-bold">Status</th>
+                    <th className="p-5 font-bold">Processed By</th>
+                    <th className="p-5 font-bold">Payment Date</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100">
+                <tbody>
                   {paginatedTransactions.length === 0 && (
                     <tr>
-                      <td colSpan={8} className="px-6 py-12 text-center text-gray-500 font-medium">
+                      <td colSpan={8} className="p-5 text-sm text-center text-gray-500 font-medium">
                         {loading ? "Loading transactions..." : "No transactions recorded yet."}
                       </td>
                     </tr>
                   )}
                   {paginatedTransactions.map((row) => (
-                    <tr key={row.id} className="hover:bg-green-50/50 transition-colors">
-                      <td className="px-6 py-4 text-sm font-mono font-semibold text-gray-900">
+                    <tr key={row.id} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
+                      <td className="p-5 text-sm font-mono font-semibold text-gray-900">
                         {row.payment_id}
                       </td>
-                      <td className="px-6 py-4 text-sm text-gray-700">{row.applicant_name}</td>
-                      <td className="px-6 py-4 text-sm font-bold text-[#1D6021] text-right">
+                      <td className="p-5 text-sm text-gray-700">{row.applicant_name}</td>
+                      <td className="p-5 text-sm font-bold text-[#1D6021] text-right">
                         {formatCurrency(row.amount)}
                       </td>
-                      <td className="px-6 py-4 text-sm text-gray-700 capitalize">
+                      <td className="p-5 text-sm text-gray-700 capitalize">
                         {(row.payment_method || "").replace("_", " ")}
                       </td>
-                      <td className="px-6 py-4 text-sm text-gray-700">
+                      <td className="p-5 text-sm text-gray-700">
                         {row.reference_number || "—"}
                       </td>
-                      <td className="px-6 py-4">
+                      <td className="p-5">
                         <span
                           className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wider ${
                             row.payment_status === "paid"
@@ -656,10 +656,10 @@ const Cashier_MembershipPayments = () => {
                           {row.payment_status}
                         </span>
                       </td>
-                      <td className="px-6 py-4 text-sm text-gray-700">
+                      <td className="p-5 text-sm text-gray-700">
                         {row.processed_by_name || "—"}
                       </td>
-                      <td className="px-6 py-4 text-sm text-gray-700">
+                      <td className="p-5 text-sm text-gray-700">
                         {formatDateTime(row.payment_date)}
                       </td>
                     </tr>

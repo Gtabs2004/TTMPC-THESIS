@@ -489,14 +489,14 @@ const Member_Loans = () => {
             <div className="overflow-x-auto">
             <table className="w-full min-w-[900px] text-left border-collapse">
               <thead>
-                <tr className="bg-[#66B53B] text-white text-[10px] uppercase tracking-wider font-bold">
-                  <th className="px-6 py-4 font-bold">Loan Type</th>
-                  <th className="px-6 py-4 font-bold">Original Amount</th>
-                  <th className="px-6 py-4 font-bold">Remaining Balance</th>
-                  <th className="px-6 py-4 font-bold">Interest Rate</th>
-                  <th className="px-6 py-4 font-bold">Monthly Payment</th>
-                  <th className="px-6 py-4 font-bold">Next Due</th>
-                  <th className="px-6 py-4 font-bold">Status</th>
+                <tr className="bg-green-700 text-[10px] uppercase tracking-wider text-white font-extrabold">
+                  <th className="p-5 font-bold">Loan Type</th>
+                  <th className="p-5 font-bold">Original Amount</th>
+                  <th className="p-5 font-bold">Remaining Balance</th>
+                  <th className="p-5 font-bold">Interest Rate</th>
+                  <th className="p-5 font-bold">Monthly Payment</th>
+                  <th className="p-5 font-bold">Next Due</th>
+                  <th className="p-5 font-bold">Status</th>
                 </tr>
               </thead>
               <tbody>
@@ -513,17 +513,17 @@ const Member_Loans = () => {
                     <td colSpan="7" className="p-5 text-sm text-gray-500 dark:text-gray-400">No loan records found.</td>
                   </tr>
                 ) : loans.map((loan, idx) => (
-                  <tr key={idx} className="table-row-enter border-b border-gray-50 dark:border-gray-800 hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors last:border-0">
-                    <td className="px-6 py-4">
+                  <tr key={idx} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
+                    <td className="p-5">
                       <p className="text-sm font-bold text-gray-900 dark:text-white">{loan.type}</p>
                       <p className="text-[10px] text-gray-400 dark:text-gray-500 font-medium">ID: {loan.id}</p>
                     </td>
-                    <td className="px-6 py-4 text-sm font-bold text-gray-600 dark:text-gray-400">{loan.originalAmount}</td>
-                    <td className="px-6 py-4 text-sm font-black text-gray-900 dark:text-white">{loan.balance}</td>
-                    <td className="px-6 py-4 text-sm font-bold text-gray-700 dark:text-gray-200">{loan.interestRate}</td>
-                    <td className="px-6 py-4 text-sm font-bold text-[#1D6021]">{loan.payment}</td>
-                    <td className="px-6 py-4 text-sm font-medium text-gray-500 dark:text-gray-400">{loan.nextDue}</td>
-                    <td className="px-6 py-4">
+                    <td className="p-5 text-sm font-bold text-gray-600 dark:text-gray-400">{loan.originalAmount}</td>
+                    <td className="p-5 text-sm font-black text-gray-900 dark:text-white">{loan.balance}</td>
+                    <td className="p-5 text-sm font-bold text-gray-700 dark:text-gray-200">{loan.interestRate}</td>
+                    <td className="p-5 text-sm font-bold text-[#1D6021]">{loan.payment}</td>
+                    <td className="p-5 text-sm font-medium text-gray-500 dark:text-gray-400">{loan.nextDue}</td>
+                    <td className="p-5">
                       <span className={`badge-animated px-2.5 py-1 rounded text-[10px] font-extrabold tracking-wider ${
                         loan.status === 'Active' ? 'bg-[#EAF1EB] text-[#1D6021]' : loan.status === 'Rejected' ? 'bg-red-100 text-red-700' : 'bg-[#FEF08A] text-[#854D0E]'
                       }`}>

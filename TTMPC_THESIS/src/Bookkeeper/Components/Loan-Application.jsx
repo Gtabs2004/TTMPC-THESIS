@@ -179,17 +179,17 @@ const menuItems = [
         
           <div className="bg-white w-full rounded-2xl m-auto mt-6 p-8 shadow-sm border border-gray-100 min-h-fit">
             <h2 className="text-lg font-bold text-gray-800 mb-6">All Applications</h2>
-            <table className="w-full text-left border-collapse text-sm mb-24">
+            <table className="w-full text-left border-collapse">
                     <thead>
-                      <tr className="border-b border-gray-200 text-gray-500">
-                        <th className="pb-4 font-medium">Application ID</th>
-                        <th className="pb-4 font-medium">Member Name</th>
-                        <th className="pb-4 font-medium">Loan Type</th>
-                        <th className="pb-4 font-medium">Amount</th>
-                        <th className="pb-4 font-medium">Term</th>
-                        <th className="pb-4 font-medium"> MIGS Status</th>
-                        <th className="pb-4 font-medium">Submission</th>
-                        <th className="pb-4 font-medium">Status</th>
+                      <tr className="bg-green-700 text-[10px] uppercase tracking-wider text-white font-extrabold">
+                        <th className="p-5 font-bold">Application ID</th>
+                        <th className="p-5 font-bold">Member Name</th>
+                        <th className="p-5 font-bold">Loan Type</th>
+                        <th className="p-5 font-bold">Amount</th>
+                        <th className="p-5 font-bold">Term</th>
+                        <th className="p-5 font-bold">MIGS Status</th>
+                        <th className="p-5 font-bold">Submission</th>
+                        <th className="p-5 font-bold">Status</th>
                       </tr>
                   </thead>
                   <tbody>
@@ -198,16 +198,16 @@ const menuItems = [
                      { ID: "TTMPCL-002-123", name: "Erden Jhed Teope", type: "Emergency Loan", amount: "\u20B125,000", term: "12 Months", status: "Non-MIGS", purpose: "Medical Emergency" },
                      { ID: "TTMPCL-003-123", name: "Ashley Nicole Bulotaolo", type: "Consolidated Loan", amount: "\u20B1120,000", term: "24 Months", status: "Approved", purpose: "Debt Consolidation" },
                      { ID: "TTMPCL-004-123", name: "Romelyn Delos Reyes", type: "Bonus Loan", amount: "\u20B120,000", term: "6 Months", status: "Approved", purpose: "Education" },
-                     { ID: "TTMPCL-005-123", name: "Nash Ervine Siaton", type: "Bonus Loan", amount: "\u20B130,000", term: "12 Months", status: "Pending", purpose: "Business Capital" }  
+                     { ID: "TTMPCL-005-123", name: "Nash Ervine Siaton", type: "Bonus Loan", amount: "\u20B130,000", term: "12 Months", status: "Pending", purpose: "Business Capital" }
                     ].map((loan, index) => (
-                        <tr key={loan.ID} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
-                          <td className="py-4 font-semibold text-gray-800">{loan.ID}</td>
-                          <td className="py-4 text-gray-800 font-medium">{loan.name}</td>
-                          <td className="py-4 text-gray-600">{loan.type}</td>
-                          <td className="py-4 text-gray-800 font-medium">{loan.amount}</td>
-                          <td className="py-4 text-gray-600">{loan.date}</td>
-                          <td className="py-4 text-gray-600">{loan.status}</td>
-                          <td className="py-4 text-gray-600">{loan.purpose}</td>
+                        <tr key={loan.ID} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
+                          <td className="p-5 text-sm font-semibold text-gray-800">{loan.ID}</td>
+                          <td className="p-5 text-sm text-gray-800 font-medium">{loan.name}</td>
+                          <td className="p-5 text-sm text-gray-600">{loan.type}</td>
+                          <td className="p-5 text-sm text-gray-800 font-medium">{loan.amount}</td>
+                          <td className="p-5 text-sm text-gray-600">{loan.date}</td>
+                          <td className="p-5 text-sm text-gray-600">{loan.status}</td>
+                          <td className="p-5 text-sm text-gray-600">{loan.purpose}</td>
                         </tr>
                       ))}
                     </tbody>

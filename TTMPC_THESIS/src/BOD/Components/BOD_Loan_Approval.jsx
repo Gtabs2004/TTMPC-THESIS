@@ -227,7 +227,7 @@ const BOD_Loan_Approval = () => {
                 ) : filtered.map((loan) => {
                   const memberName = `${loan.member?.first_name || ""} ${loan.member?.last_name || ""}`.trim() || "Unknown Member";
                   return (
-                    <tr key={loan.control_number} className="table-row-enter border-b border-gray-100 hover:bg-green-50 transition-colors">
+                    <tr key={loan.control_number} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
                       <td className="p-5 text-sm text-gray-500 font-medium">{loan.control_number}</td>
                       <td className="p-5 text-sm font-bold text-gray-800">{memberName}</td>
                       <td className="p-5 text-sm">

@@ -339,29 +339,29 @@ const Cashier_CBU = () => {
             </div>
 
             <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-lg">
-              <table className="w-full">
-                <thead className="bg-[#66B538] text-white uppercase text-[13px] tracking-wider">
-                  <tr>
-                    <th className="px-6 py-4 text-left font-semibold">Member ID</th>
-                    <th className="px-6 py-4 text-left font-semibold">Member Name</th>
-                    <th className="px-6 py-4 text-right font-semibold">Current Balance</th>
-                    <th className="px-6 py-4 text-center font-semibold">Action</th>
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-green-700 text-[10px] uppercase tracking-wider text-white font-extrabold">
+                    <th className="p-5 font-bold">Member ID</th>
+                    <th className="p-5 font-bold">Member Name</th>
+                    <th className="p-5 font-bold text-right">Current Balance</th>
+                    <th className="p-5 font-bold text-center">Action</th>
                   </tr>
-                </thead>  
-                <tbody className="divide-y divide-gray-100">
+                </thead>
+                <tbody>
                   {filteredMembers.length === 0 && (
                     <tr>
-                      <td colSpan={4} className="px-6 py-12 text-center text-gray-500 font-medium">No member accounts matched your search.</td>
+                      <td colSpan={4} className="p-5 text-sm text-center text-gray-500 font-medium">No member accounts matched your search.</td>
                     </tr>
                   )}
                   {paginatedMembers.map((member) => {
                     const currentBal = Number(member.current_balance || 0);
                     return (
-                      <tr key={member.member_uuid || member.member_id} className="table-row-enter hover:bg-green-50 transition-colors">
-                        <td className="px-6 py-4 text-sm font-mono text-gray-600">{member.member_id}</td>
-                        <td className="px-6 py-4 text-sm font-semibold text-gray-900">{member.member_name}</td>
-                        <td className="px-6 py-4 text-sm font-semibold text-gray-700 text-right">{formatCurrency(currentBal)}</td>
-                        <td className="px-6 py-4 text-center">
+                      <tr key={member.member_uuid || member.member_id} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
+                        <td className="p-5 text-sm font-mono text-gray-600">{member.member_id}</td>
+                        <td className="p-5 text-sm font-semibold text-gray-900">{member.member_name}</td>
+                        <td className="p-5 text-sm font-semibold text-gray-700 text-right">{formatCurrency(currentBal)}</td>
+                        <td className="p-5 text-center">
                           <button
                             type="button"
                             onClick={() => proceedToDepositPage(member)}

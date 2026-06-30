@@ -296,36 +296,32 @@ const Grocery = () => {
 
             {/* Table */}
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm whitespace-nowrap">
-                <thead className="bg-green-700 text-white text-xs uppercase font-semibold">
-                  <tr>
-                    <th className="px-6 py-4">Grocery ID</th>
-                    <th className="px-6 py-4">Member ID</th>
-                 
-                    <th className="px-6 py-4">Transaction Date</th>
-                    <th className="px-6 py-4">Amount</th>
-                    <th className="px-6 py-4">Payment</th>
-                    <th className="px-6 py-4"> Status</th>
-                    
-                    <th className="px-6 py-4">Balance</th>
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-green-700 text-[10px] uppercase tracking-wider text-white font-extrabold">
+                    <th className="p-5 font-bold">Grocery ID</th>
+                    <th className="p-5 font-bold">Member ID</th>
+                    <th className="p-5 font-bold">Transaction Date</th>
+                    <th className="p-5 font-bold">Amount</th>
+                    <th className="p-5 font-bold">Payment</th>
+                    <th className="p-5 font-bold">Status</th>
+                    <th className="p-5 font-bold">Balance</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100">
+                <tbody>
                   {MOCK_TRANSACTIONS.map((tx) => (
-                    <tr key={tx.id} className="hover:bg-gray-50/50 transition-colors">
-                      <td className="px-6 py-4 font-medium text-gray-700">{tx.id}</td>
-                      <td className="px-6 py-4 font-medium text-gray-700">{tx.memberId}</td>
-                      
-                      <td className="px-6 py-4 text-gray-500">{tx.date}</td>
-                      <td className="px-6 py-4 font-medium text-gray-900">{tx.amount}</td>
-                      <td className="px-6 py-4">
+                    <tr key={tx.id} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
+                      <td className="p-5 text-sm font-medium text-gray-700">{tx.id}</td>
+                      <td className="p-5 text-sm font-medium text-gray-700">{tx.memberId}</td>
+                      <td className="p-5 text-sm text-gray-500">{tx.date}</td>
+                      <td className="p-5 text-sm font-medium text-gray-900">{tx.amount}</td>
+                      <td className="p-5 text-sm">
                          <StatusBadge type="payment" text={tx.payment} />
-                        
                       </td>
-                      <td className="px-6 py-4">
+                      <td className="p-5 text-sm">
                         <StatusBadge type="status" text={tx.txStatus} />
                       </td>
-                      <td className={`px-6 py-4 font-semibold ${tx.balance !== 'P0.00' ? 'text-red-500' : 'text-gray-900'}`}>
+                      <td className={`p-5 text-sm font-semibold ${tx.balance !== 'P0.00' ? 'text-red-500' : 'text-gray-900'}`}>
                         {tx.balance}
                       </td>
                     </tr>
@@ -335,23 +331,23 @@ const Grocery = () => {
             </div>
 
             {/* Pagination */}
-            <div className="px-6 py-4 border-t border-gray-200 flex justify-center items-center gap-2">
-              <button className="w-8 h-8 flex items-center justify-center rounded-full border border-gray-300 text-gray-500 hover:bg-gray-50">
+            <div className="flex items-center justify-center p-6 gap-2 border-t border-gray-100">
+              <button className="w-8 h-8 flex items-center justify-center rounded-full border border-gray-300 bg-white text-gray-500 transition-colors hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">
                 <ChevronLeft className="w-4 h-4" />
               </button>
               {[1, 2, 3, 4, 5].map((page) => (
-                <button 
-                  key={page} 
-                  className={`w-8 h-8 flex items-center justify-center rounded-full text-sm font-medium ${
-                    page === 1 
-                      ? 'bg-green-600 text-white' 
-                      : 'border border-gray-300 text-gray-600 hover:bg-gray-50'
+                <button
+                  key={page}
+                  className={`w-8 h-8 flex items-center justify-center rounded-full border text-xs font-semibold transition-colors ${
+                    page === 1
+                      ? 'bg-[#16A34A] text-white border-[#16A34A]'
+                      : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
                   }`}
                 >
                   {page}
                 </button>
               ))}
-              <button className="w-8 h-8 flex items-center justify-center rounded-full border border-gray-300 text-gray-500 hover:bg-gray-50">
+              <button className="w-8 h-8 flex items-center justify-center rounded-full border border-gray-300 bg-white text-gray-500 transition-colors hover:bg-gray-50">
                 <ChevronRight className="w-4 h-4" />
               </button>
             </div>

@@ -268,52 +268,52 @@ const Cashier_Withdrawals = () => {
             {/* Table */}
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
-                <thead className="bg-[#66B538] text-white uppercase text-[13px] tracking-wider">
-                  <tr>
-                    <th className="px-6 py-4 font-semibold">Transaction ID</th>
-                    <th className="px-6 py-4 font-semibold">Member Name</th>
-                    <th className="px-6 py-4 font-semibold">Savings ID</th>
-                    <th className="px-6 py-4 font-semibold text-right">Amount</th>
-                    <th className="px-6 py-4 font-semibold">Date Posted</th>
-                    <th className="px-6 py-4 font-semibold text-center">Status</th>
+                <thead>
+                  <tr className="bg-green-700 text-[10px] uppercase tracking-wider text-white font-extrabold">
+                    <th className="p-5 font-bold">Transaction ID</th>
+                    <th className="p-5 font-bold">Member Name</th>
+                    <th className="p-5 font-bold">Savings ID</th>
+                    <th className="p-5 font-bold text-right">Amount</th>
+                    <th className="p-5 font-bold">Date Posted</th>
+                    <th className="p-5 font-bold text-center">Status</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100">
+                <tbody>
                   {loading ? (
                     <tr>
-                      <td colSpan="6" className="px-6 py-6 text-center text-gray-500">Loading withdrawal transactions...</td>
+                      <td colSpan="6" className="p-5 text-sm text-center text-gray-500">Loading withdrawal transactions...</td>
                     </tr>
                   ) : filteredRows.length === 0 ? (
                     <tr>
-                      <td colSpan="6" className="px-6 py-6 text-center text-gray-500">No posted withdrawals found.</td>
+                      <td colSpan="6" className="p-5 text-sm text-center text-gray-500">No posted withdrawals found.</td>
                     </tr>
                   ) : (
                     filteredRows.map((row) => (
-                    <tr key={row.transaction_id} className="table-row-enter hover:bg-green-50 transition-colors">
-                      <td className="px-6 py-4">
+                    <tr key={row.transaction_id} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
+                      <td className="p-5">
                         <span className="font-mono text-sm text-gray-800">{row.transaction_id}</span>
                       </td>
 
-                      <td className="px-6 py-4">
+                      <td className="p-5">
                         <div>
                           <p className="font-medium text-gray-900">{row.member_name}</p>
                           <p className="text-xs text-gray-500">{row.membership_number_id || "N/A"}</p>
                         </div>
                       </td>
 
-                      <td className="px-6 py-4">
+                      <td className="p-5">
                         <span className="font-mono text-sm text-gray-800">{row.savings_id}</span>
                       </td>
 
-                      <td className="px-6 py-4 text-right">
+                      <td className="p-5 text-right">
                         <span className="font-semibold text-gray-900">{formatCurrency(row.amount)}</span>
                       </td>
 
-                      <td className="px-6 py-4">
+                      <td className="p-5">
                         <span className="text-sm text-gray-600">{formatDate(row.date_posted)}</span>
                       </td>
 
-                      <td className="px-6 py-4 text-center">
+                      <td className="p-5 text-center">
                         <span className={`badge-animated px-3 py-1.5 rounded-full text-xs font-semibold border ${getStatusStyle(row.status)}`}>
                           {row.status}
                         </span>

@@ -898,24 +898,24 @@ const MemberDashboard = () => {
                 <div className="overflow-x-auto">
                 <table className="w-full min-w-[640px] text-left border-collapse">
                   <thead>
-                    <tr className="border-b border-gray-100 text-[10px] uppercase tracking-wider text-white font-bold bg-[#66B53B]">
-                      <th className="px-6 py-4">Date</th>
-                      <th className="px-6 py-4">Description</th>
-                      <th className="px-6 py-4">Category</th>
-                      <th className="px-6 py-4 text-right">Amount</th>
+                    <tr className="bg-green-700 text-[10px] uppercase tracking-wider text-white font-extrabold">
+                      <th className="p-5">Date</th>
+                      <th className="p-5">Description</th>
+                      <th className="p-5">Category</th>
+                      <th className="p-5 text-right">Amount</th>
                     </tr>
                   </thead>
                   <tbody>
                     {recentTransactions.length ? recentTransactions.map((tx) => (
-                      <tr key={tx.id} className="table-row-enter border-b border-gray-50 dark:border-gray-800 hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors last:border-0">
-                        <td className="px-6 py-4 text-xs text-gray-500 dark:text-gray-400 font-medium">{tx.date}</td>
-                        <td className="px-6 py-4 text-sm font-bold text-gray-800 dark:text-gray-200">{tx.desc}</td>
-                        <td className="px-6 py-4">
+                      <tr key={tx.id} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
+                        <td className="p-5 text-xs text-gray-500 dark:text-gray-400 font-medium">{tx.date}</td>
+                        <td className="p-5 text-sm font-bold text-gray-800 dark:text-gray-200">{tx.desc}</td>
+                        <td className="p-5">
                           <span className={`badge-animated px-2 py-1 rounded text-[9px] font-extrabold tracking-wider ${getCategoryStyle(tx.type)}`}>
                             {tx.category}
                           </span>
                         </td>
-                        <td className={`px-6 py-4 text-sm font-bold text-right ${tx.highlight ? 'text-[#1D6021]' : 'text-gray-900 dark:text-white'}`}>
+                        <td className={`p-5 text-sm font-bold text-right ${tx.highlight ? 'text-[#1D6021]' : 'text-gray-900 dark:text-white'}`}>
                           {tx.amount}
                         </td>
                       </tr>

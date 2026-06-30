@@ -394,17 +394,17 @@ const Secretary_General_Assembly = () => {
           {/* Table */}
           <div className="border border-gray-200 rounded-lg shadow-sm overflow-hidden bg-white">
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead className="bg-[#66B538] text-white uppercase tracking-wider text-[10px]">
-                  <tr>
-                    <th className="px-3 py-2.5 font-semibold">Member ID</th>
-                    <th className="px-3 py-2.5 font-semibold">Member Name</th>
-                    <th className="px-3 py-2.5 font-semibold">Attendance</th>
-                    <th className="px-3 py-2.5 font-semibold">Remarks</th>
-                    <th className="px-3 py-2.5 font-semibold">Last Recorded</th>
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-green-700 text-[10px] uppercase tracking-wider text-white font-extrabold">
+                    <th className="p-5 font-bold">Member ID</th>
+                    <th className="p-5 font-bold">Member Name</th>
+                    <th className="p-5 font-bold">Attendance</th>
+                    <th className="p-5 font-bold">Remarks</th>
+                    <th className="p-5 font-bold">Last Recorded</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100">
+                <tbody>
                   {loading ? (
                     <tr>
                       <td colSpan={5} className="px-3 py-6 text-center text-gray-500">
@@ -428,13 +428,13 @@ const Secretary_General_Assembly = () => {
                       return (
                         <tr
                           key={row.id}
-                          className={`hover:bg-gray-50 transition-colors ${isDirty ? "bg-amber-50/40" : ""}`}
+                          className={`border-b border-gray-100 hover:bg-gray-50/50 transition-colors ${isDirty ? "bg-amber-50/40" : ""}`}
                         >
-                          <td className="px-3 py-2 font-mono text-gray-700">
+                          <td className="p-5 text-sm font-mono text-gray-700">
                             {row.membership_id || "—"}
                           </td>
-                          <td className="px-3 py-2 text-gray-900 font-medium">{row.full_name}</td>
-                          <td className="px-3 py-2">
+                          <td className="p-5 text-sm text-gray-900 font-medium">{row.full_name}</td>
+                          <td className="p-5 text-sm">
                             <select
                               value={status}
                               onChange={(event) =>
@@ -450,7 +450,7 @@ const Secretary_General_Assembly = () => {
                               <option value="Present">Present</option>
                             </select>
                           </td>
-                          <td className="px-3 py-2">
+                          <td className="p-5 text-sm">
                             <input
                               type="text"
                               value={effectiveRemarks(row) || ""}
@@ -461,7 +461,7 @@ const Secretary_General_Assembly = () => {
                               className="w-full bg-gray-50 border border-gray-200 rounded-md px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-green-500"
                             />
                           </td>
-                          <td className="px-3 py-2 text-gray-500 text-[11px]">
+                          <td className="p-5 text-sm text-gray-500 text-[11px]">
                             {row.recorded_at
                               ? new Date(row.recorded_at).toLocaleDateString("en-US", {
                                   year: "numeric",

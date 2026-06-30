@@ -396,24 +396,24 @@ const ManageLoans = () => {
           </div>
 
           <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-lg enhanced-table">
-            <table className="min-w-full">
-              <thead className="bg-green-700 border-b border-gray-200 ">
-                <tr>
-                  <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Loan ID</th>
-                  <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Member Name</th>
-                  <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Loan Type</th>
-                  <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Loan Amount</th>
-                  <th className="px-6 py-4 text-right text-xs font-bold text-white uppercase tracking-wider">Interest</th>
-                  <th className="px-6 py-4 text-right text-xs font-bold text-white uppercase tracking-wider">Amortization</th>
-                  <th className="px-6 py-4 text-right text-xs font-bold text-white uppercase tracking-wider">Remaining</th>
-                  <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Due Date</th>
-                  <th className="px-6 py-4 text-center text-xs font-bold text-white uppercase tracking-wider">Action</th>
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-green-700 text-[10px] uppercase tracking-wider text-white font-extrabold">
+                  <th className="p-5 font-bold">Loan ID</th>
+                  <th className="p-5 font-bold">Member Name</th>
+                  <th className="p-5 font-bold">Loan Type</th>
+                  <th className="p-5 font-bold">Loan Amount</th>
+                  <th className="p-5 font-bold text-right">Interest</th>
+                  <th className="p-5 font-bold text-right">Amortization</th>
+                  <th className="p-5 font-bold text-right">Remaining</th>
+                  <th className="p-5 font-bold">Due Date</th>
+                  <th className="p-5 font-bold text-center">Action</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-200">
+              <tbody>
                 {filteredLoans.length === 0 && (
                   <tr>
-                    <td colSpan={9} className="px-6 py-16 text-center">
+                    <td colSpan={9} className="p-5 text-center">
                       <div className="flex flex-col items-center gap-2">
                         <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center">
                           <Eye size={24} className="text-gray-300" />
@@ -427,24 +427,24 @@ const ManageLoans = () => {
 
                 {paginatedLoans.map((loan, index) => {
                   return (
-                    <tr key={loan.loan_id} className="table-row-enter hover:bg-green-50 transition-colors duration-200">
-                      <td className="px-6 py-4 text-sm font-mono font-bold text-green-700">{loan.loan_id}</td>
-                      <td className="px-6 py-4 text-sm text-gray-800 font-semibold">{loan.member_name}</td>
-                      <td className="px-6 py-4">
+                    <tr key={loan.loan_id} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
+                      <td className="p-5 text-sm font-mono font-bold text-green-700">{loan.loan_id}</td>
+                      <td className="p-5 text-sm text-gray-800 font-semibold">{loan.member_name}</td>
+                      <td className="p-5">
                         <span className={`badge-animated ${getLoanTypeStyle(loan.loan_type_code)}`}>
                           {loan.loan_type}
                         </span>
                       </td>
-                      <td className="px-6 py-4 text-sm text-gray-800 font-semibold">{formatCurrency(loan.loan_amount)}</td>
-                      <td className="px-6 py-4 text-sm text-gray-700 text-right font-medium">{loan.interest_rate}%</td>
-                      <td className="px-6 py-4 text-sm text-gray-700 text-right font-medium">{formatCurrency(loan.amortization)}</td>
-                      <td className="px-6 py-4 text-sm text-right font-bold">
+                      <td className="p-5 text-sm text-gray-800 font-semibold">{formatCurrency(loan.loan_amount)}</td>
+                      <td className="p-5 text-sm text-gray-700 text-right font-medium">{loan.interest_rate}%</td>
+                      <td className="p-5 text-sm text-gray-700 text-right font-medium">{formatCurrency(loan.amortization)}</td>
+                      <td className="p-5 text-sm text-right font-bold">
                         <span className={loan.remaining_balance > 0 ? 'text-amber-600' : 'text-green-600'}>
                           {formatCurrency(loan.remaining_balance)}
                         </span>
                       </td>
-                      <td className="px-6 py-4 text-sm text-gray-700 font-medium">{loan.due_date}</td>
-                      <td className="px-6 py-4 text-center">
+                      <td className="p-5 text-sm text-gray-700 font-medium">{loan.due_date}</td>
+                      <td className="p-5 text-center">
                         <button
                           type="button"
                           onClick={() => navigate(`/bookkeeper-loan-ledger/${loan.loan_id}`, { state: { loan } })}

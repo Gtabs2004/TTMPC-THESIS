@@ -465,23 +465,23 @@ const M_Dashboard = () => {
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr className="bg-[#66B538] text-white text-xs font-bold tracking-wider">
-                    <th className="p-4 pl-6">MEMBER NAME</th>
-                    <th className="p-4">LOAN TYPE</th>
-                    <th className="p-4">AMOUNT</th>
-                    <th className="p-4">APPLIED</th>
-                    <th className="p-4">STATUS</th>
-                    <th className="p-4 pr-6">ACTION</th>
+                  <tr className="bg-green-700 text-[10px] uppercase tracking-wider text-white font-extrabold">
+                    <th className="p-5 font-bold">MEMBER NAME</th>
+                    <th className="p-5 font-bold">LOAN TYPE</th>
+                    <th className="p-5 font-bold">AMOUNT</th>
+                    <th className="p-5 font-bold">APPLIED</th>
+                    <th className="p-5 font-bold">STATUS</th>
+                    <th className="p-5 font-bold">ACTION</th>
                   </tr>
                 </thead>
-                <tbody className="text-sm">
+                <tbody>
                   {loading ? (
                     <tr>
-                      <td colSpan={6} className="p-6 text-center text-gray-400 text-sm">Loading approval queue…</td>
+                      <td colSpan={6} className="p-5 text-sm text-center text-gray-400">Loading approval queue…</td>
                     </tr>
                   ) : recentRequests.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="p-6 text-center text-gray-400 text-sm">
+                      <td colSpan={6} className="p-5 text-sm text-center text-gray-400">
                         No loans waiting for your review. Nice work.
                       </td>
                     </tr>
@@ -490,18 +490,18 @@ const M_Dashboard = () => {
                       <tr
                         key={req.id}
                         onClick={() => navigate(`/loan-approval/${encodeURIComponent(req.id)}`)}
-                        className="border-b border-gray-50 hover:bg-green-50 transition-colors cursor-pointer"
+                        className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors cursor-pointer"
                       >
-                        <td className="p-4 pl-6 font-bold text-gray-800">{req.name}</td>
-                        <td className="p-4 text-gray-500">{req.type}</td>
-                        <td className="p-4 font-bold text-gray-800">{req.amount}</td>
-                        <td className="p-4 text-gray-500 text-xs">{req.date}</td>
-                        <td className="p-4">
+                        <td className="p-5 font-bold text-gray-800">{req.name}</td>
+                        <td className="p-5 text-gray-500">{req.type}</td>
+                        <td className="p-5 font-bold text-gray-800">{req.amount}</td>
+                        <td className="p-5 text-gray-500 text-xs">{req.date}</td>
+                        <td className="p-5">
                           <span className="px-2.5 py-1 rounded-md text-[10px] font-bold tracking-wider bg-orange-100 text-orange-600">
                             {req.status}
                           </span>
                         </td>
-                        <td className="p-4 pr-6">
+                        <td className="p-5">
                           <button
                             onClick={(e) => { e.stopPropagation(); navigate(`/loan-approval/${encodeURIComponent(req.id)}`); }}
                             className="text-green-700 font-bold hover:text-green-800 transition-colors"
