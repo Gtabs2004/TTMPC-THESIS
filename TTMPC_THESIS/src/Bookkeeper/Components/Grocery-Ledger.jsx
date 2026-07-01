@@ -1,6 +1,38 @@
-﻿import React, { useState, useEffect } from "react";
+﻿import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
+import { supabase } from "../../supabaseClient";
+
+const peso = (n) => `P${Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
+
+const INITIAL_COLORS = [
+  "text-teal-600 bg-teal-50",
+  "text-green-600 bg-green-50",
+  "text-blue-600 bg-blue-50",
+  "text-gray-600 bg-gray-100",
+  "text-purple-600 bg-purple-50",
+  "text-orange-600 bg-orange-50",
+];
+
+const periodKey = (date, filter) => {
+  const d = new Date(date);
+  if (filter === "Daily") {
+    return d.toLocaleDateString(undefined, { weekday: "long", year: "numeric", month: "long", day: "numeric" });
+  }
+  if (filter === "Weekly") {
+    const start = new Date(d);
+    const day = start.getDay() || 7;
+    start.setDate(start.getDate() - (day - 1));
+    const year = start.getFullYear();
+    const firstJan = new Date(year, 0, 1);
+    const weekNum = Math.ceil((((start - firstJan) / 86400000) + firstJan.getDay() + 1) / 7);
+    return `Week ${weekNum}, ${year}`;
+  }
+  if (filter === "Monthly") {
+    return d.toLocaleDateString(undefined, { month: "long", year: "numeric" });
+  }
+  return String(d.getFullYear());
+};
 import { PortalSidebarIdentity, PortalTopbarIdentity } from "../../components/PortalIdentity";
 import { 
   LayoutDashboard, 
@@ -24,8 +56,8 @@ import {
   Coins
 } from 'lucide-react';
 
-// --- MOCK DATA ORGANIZED BY TAB ---
-const MOCK_LEDGER_DATA = {
+// Legacy mock kept only as fallback shape reference; real data is fetched from Supabase.
+const _UNUSED_MOCK = {
   Daily: [
     {
       date: "Thursday, April 30, 2026",
@@ -96,18 +128,108 @@ const Grocery_Ledger = () => {
   const [activeFilter, setActiveFilter] = useState("Daily");
   const [expandedDates, setExpandedDates] = useState([]);
   const [expandedMembers, setExpandedMembers] = useState([]);
+  const [transactions, setTransactions] = useState([]);
+  const [memberLookup, setMemberLookup] = useState({});
+  const [loading, setLoading] = useState(true);
 
-  // Auto-expand the first date group when the filter changes
   useEffect(() => {
-    const currentData = MOCK_LEDGER_DATA[activeFilter];
-    if (currentData && currentData.length > 0) {
-      setExpandedDates([currentData[0].date]);
-      // Optional: Auto-expand the first member too
-      if (currentData[0].members.length > 0) {
-         setExpandedMembers([currentData[0].members[0].id]);
+    let cancelled = false;
+    const load = async () => {
+      setLoading(true);
+      const { data: txs } = await supabase
+        .from("GROCERY_TRANSACTIONS")
+        .select("*")
+        .order("TransactionDate", { ascending: false })
+        .limit(2000);
+      const { data: members } = await supabase
+        .from("member")
+        .select("id, membership_id, first_name, last_name")
+        .limit(2000);
+      if (cancelled) return;
+      const lookup = {};
+      (members || []).forEach((m) => {
+        lookup[m.id] = m;
+        if (m.membership_id) lookup[m.membership_id] = m;
+      });
+      setMemberLookup(lookup);
+      setTransactions(txs || []);
+      setLoading(false);
+    };
+    load();
+    return () => { cancelled = true; };
+  }, []);
+
+  const currentLedgerData = useMemo(() => {
+    const groups = new Map();
+    for (const t of transactions) {
+      const key = periodKey(t.TransactionDate, activeFilter);
+      if (!groups.has(key)) groups.set(key, { date: key, members: new Map() });
+      const g = groups.get(key);
+      const memberKey = t.membership_number_id || t.pos_member_ref || "unknown";
+      if (!g.members.has(memberKey)) {
+        const m = memberLookup[t.membership_number_id] || memberLookup[t.pos_member_ref];
+        const name = m ? `${m.first_name || ""} ${m.last_name || ""}`.trim() || m.membership_id : (t.pos_member_ref || "Unknown");
+        g.members.set(memberKey, {
+          id: `${key}-${memberKey}`,
+          name,
+          memberId: m?.membership_id || t.pos_member_ref || "—",
+          initial: (name[0] || "?").toUpperCase(),
+          initialColor: INITIAL_COLORS[Math.abs(memberKey.split("").reduce((s,c)=>s+c.charCodeAt(0),0)) % INITIAL_COLORS.length],
+          cash: 0, credit: 0, count: 0,
+          transactions: [],
+        });
+      }
+      const mm = g.members.get(memberKey);
+      const amt = Number(t.GroceryAmount || 0);
+      if (t.Status === "Completed") mm.cash += amt; else mm.credit += amt;
+      mm.count += 1;
+      mm.transactions.push({
+        posId: t.GroceryID,
+        date: new Date(t.TransactionDate).toLocaleString(),
+        type: t.Status === "Completed" ? "Cash" : "Credit",
+        status: t.Status === "Completed" ? "Paid" : "On Credit",
+        amount: peso(amt),
+      });
+    }
+    return Array.from(groups.values()).map((g) => {
+      const members = Array.from(g.members.values()).map((m) => ({
+        ...m,
+        txnText: `${m.count} txn${m.count === 1 ? "" : "s"}`,
+        cashAmount: peso(m.cash),
+        creditAmount: peso(m.credit),
+        totalAmount: peso(m.cash + m.credit),
+      }));
+      const totalCash = members.reduce((s, m) => s + m.cash, 0);
+      const totalCredit = members.reduce((s, m) => s + m.credit, 0);
+      return {
+        date: g.date,
+        memberCount: members.length,
+        totalCash: peso(totalCash),
+        totalCredit: peso(totalCredit),
+        totalAmount: peso(totalCash + totalCredit),
+        members,
+      };
+    });
+  }, [transactions, memberLookup, activeFilter]);
+
+  const summary = useMemo(() => {
+    let cash = 0, credit = 0, paidCount = 0, creditCount = 0;
+    for (const t of transactions) {
+      const amt = Number(t.GroceryAmount || 0);
+      if (t.Status === "Completed") { cash += amt; paidCount += 1; }
+      else { credit += amt; creditCount += 1; }
+    }
+    return { cash, credit, gross: cash + credit, paidCount, creditCount, total: transactions.length };
+  }, [transactions]);
+
+  useEffect(() => {
+    if (currentLedgerData.length > 0) {
+      setExpandedDates([currentLedgerData[0].date]);
+      if (currentLedgerData[0].members.length > 0) {
+        setExpandedMembers([currentLedgerData[0].members[0].id]);
       }
     }
-  }, [activeFilter]);
+  }, [activeFilter, transactions]);
 
   const menuItems = [
     { name: "Dashboard", icon: LayoutDashboard },
@@ -144,8 +266,6 @@ const Grocery_Ledger = () => {
       prev.includes(memberId) ? prev.filter(id => id !== memberId) : [...prev, memberId]
     );
   };
-
-  const currentLedgerData = MOCK_LEDGER_DATA[activeFilter] || [];
 
   return (
     <div className="flex min-h-screen bg-[#fafafa]">
@@ -252,7 +372,7 @@ const Grocery_Ledger = () => {
                   <BookOpen className="w-6 h-6 text-green-700" />
                   <h1 className="font-bold text-2xl text-[#1a3b47]">Ledger</h1>
                 </div>
-                <p className="text-sm text-gray-500 mt-1 ml-9">157 total records - All periods</p>
+                <p className="text-sm text-gray-500 mt-1 ml-9">{summary.total} total records - All periods</p>
               </div>
             </div>
             
@@ -266,27 +386,27 @@ const Grocery_Ledger = () => {
           <div className="grid grid-cols-5 gap-4 mb-8">
             <div className="bg-white rounded-xl p-5 border border-gray-200 shadow-sm flex flex-col justify-center">
               <p className="text-xs font-bold text-gray-500 tracking-wider uppercase mb-2">Total Gross</p>
-              <h2 className="text-2xl font-bold text-gray-900">P79,456.00</h2>
+              <h2 className="text-2xl font-bold text-gray-900">{peso(summary.gross)}</h2>
             </div>
-            
+
             <div className="bg-[#eef8f3] rounded-xl p-5 border border-green-100 shadow-sm flex flex-col justify-center">
               <p className="text-xs font-bold text-green-700 tracking-wider uppercase mb-2">Cash Sales</p>
-              <h2 className="text-2xl font-bold text-green-800">P50,983.00</h2>
+              <h2 className="text-2xl font-bold text-green-800">{peso(summary.cash)}</h2>
             </div>
-            
+
             <div className="bg-[#fff7f0] rounded-xl p-5 border border-orange-100 shadow-sm flex flex-col justify-center">
               <p className="text-xs font-bold text-orange-700 tracking-wider uppercase mb-2">On Credit Sales</p>
-              <h2 className="text-2xl font-bold text-orange-800">P28,473.00</h2>
+              <h2 className="text-2xl font-bold text-orange-800">{peso(summary.credit)}</h2>
             </div>
 
             <div className="bg-white rounded-xl p-5 border border-gray-200 shadow-sm flex flex-col justify-center">
               <p className="text-xs font-bold text-gray-500 tracking-wider uppercase mb-2">Paid Transactions</p>
-              <h2 className="text-2xl font-bold text-teal-600">97</h2>
+              <h2 className="text-2xl font-bold text-teal-600">{summary.paidCount}</h2>
             </div>
 
             <div className="bg-white rounded-xl p-5 border border-gray-200 shadow-sm flex flex-col justify-center">
               <p className="text-xs font-bold text-gray-500 tracking-wider uppercase mb-2">On Credit Transactions</p>
-              <h2 className="text-2xl font-bold text-orange-500">60</h2>
+              <h2 className="text-2xl font-bold text-orange-500">{summary.creditCount}</h2>
             </div>
           </div>
 
@@ -319,7 +439,11 @@ const Grocery_Ledger = () => {
 
             {/* Render Groups based on Active Filter */}
             <div className="space-y-6">
-              {currentLedgerData.map((group, gIdx) => {
+              {loading ? (
+                <div className="py-12 text-center text-gray-400 text-sm">Loading…</div>
+              ) : currentLedgerData.length === 0 ? (
+                <div className="py-12 text-center text-gray-400 text-sm">No grocery transactions yet.</div>
+              ) : currentLedgerData.map((group, gIdx) => {
                 const isGroupExpanded = expandedDates.includes(group.date);
 
                 return (

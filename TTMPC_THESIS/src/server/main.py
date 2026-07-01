@@ -3832,6 +3832,28 @@ async def list_migs_members(year: int | None = None):
         except Exception as exc:  # noqa: BLE001
             print(f"[migs] loans lookup failed: {exc}")
 
+        # --- Groceries availed YTD (sum of GroceryAmount this year) --------
+        grocery_by_member: dict[str, float] = {m: 0.0 for m in member_ids}
+        try:
+            grocery_response = (
+                supabase.table("GROCERY_TRANSACTIONS")
+                .select("membership_number_id,GroceryAmount,TransactionDate,Status")
+                .in_("membership_number_id", member_ids)
+                .gte("TransactionDate", f"{target_year}-01-01")
+                .lte("TransactionDate", f"{target_year}-12-31T23:59:59")
+                .execute()
+            )
+            for row in grocery_response.data or []:
+                if str(row.get("Status") or "") not in {"Completed", "On Credit"}:
+                    continue
+                mid = row.get("membership_number_id")
+                if mid:
+                    grocery_by_member[mid] = grocery_by_member.get(mid, 0.0) + float(
+                        row.get("GroceryAmount") or 0
+                    )
+        except Exception as exc:  # noqa: BLE001
+            print(f"[migs] grocery lookup failed: {exc}")
+
         # --- Savings balance (sum of savings_accounts.balance, kind=member, active)
         savings_by_member: dict[str, float] = {m: 0.0 for m in member_ids}
         try:
@@ -3949,6 +3971,7 @@ async def list_migs_members(year: int | None = None):
             loan_v = loans_by_member.get(mid, 0.0)
             savings_v = savings_by_member.get(mid, 0.0)
             late_v = late_count_by_member.get(mid, 0)
+            grocery_v = grocery_by_member.get(mid, 0.0)
 
             attendance_v = ga_present_by_member.get(mid, False)
             result = compute_migs_score(
@@ -3956,9 +3979,7 @@ async def list_migs_members(year: int | None = None):
                 loan_availed=loan_v,
                 savings_balance=savings_v,
                 late_payment_count=late_v,
-                # Unwired modules — pass None so engine applies safe defaults:
-                # groceries=0 (3 pts base), outside_loan=False (10 pts).
-                groceries_availed=None,
+                groceries_availed=grocery_v,
                 has_outside_loan=None,
                 assembly_present=attendance_v,
             )
@@ -3972,8 +3993,7 @@ async def list_migs_members(year: int | None = None):
                 "loan_balance": loan_v,
                 "savings_balance": savings_v,
                 "late_payment_count": late_v,
-                # Unwired criteria — surfaced for transparency in the UI.
-                "groceries_availed": None,
+                "groceries_availed": grocery_v,
                 "has_outside_loan": None,
                 "assembly_attendance": "Present" if attendance_v else "Absent",
                 # Live score + classification.
@@ -4062,7 +4082,7 @@ async def recompute_all_migs(year: int | None = None):
             loan_availed=m.get("loan_balance") or 0,
             savings_balance=m.get("savings_balance") or 0,
             late_payment_count=m.get("late_payment_count") or 0,
-            groceries_availed=None,
+            groceries_availed=m.get("groceries_availed") or 0,
             has_outside_loan=None,
             assembly_present=(m.get("assembly_attendance") == "Present"),
         )
@@ -4401,13 +4421,30 @@ async def get_migs_member_detail(member_key: str, year: int | None = None):
         except Exception as exc:  # noqa: BLE001
             print(f"[migs detail] GA lookup failed: {exc}")
 
+        # --- Groceries availed YTD ---------------------------------------
+        groceries = 0.0
+        try:
+            grocery_response = (
+                supabase.table("GROCERY_TRANSACTIONS")
+                .select("GroceryAmount,Status,TransactionDate")
+                .eq("membership_number_id", mid)
+                .gte("TransactionDate", f"{target_year}-01-01")
+                .lte("TransactionDate", f"{target_year}-12-31T23:59:59")
+                .execute()
+            )
+            for row in grocery_response.data or []:
+                if str(row.get("Status") or "") in {"Completed", "On Credit"}:
+                    groceries += float(row.get("GroceryAmount") or 0)
+        except Exception as exc:  # noqa: BLE001
+            print(f"[migs detail] grocery lookup failed: {exc}")
+
         # --- Score using the engine (safe defaults for unwired modules) ---
         result = compute_migs_score(
             cbu_added=capital,
             loan_availed=loan_availed,
             savings_balance=savings,
             late_payment_count=late_count,
-            groceries_availed=None,
+            groceries_availed=groceries,
             has_outside_loan=None,
             assembly_present=attendance_present,
         )
@@ -4425,6 +4462,7 @@ async def get_migs_member_detail(member_key: str, year: int | None = None):
                 "loan_availed": loan_availed,
                 "savings_balance": savings,
                 "late_payment_count": late_count,
+                "groceries_availed": groceries,
                 "migs_score": scored["total_score"],
                 "migs_status": scored["status"],
                 "loan_multiplier": scored["loan_multiplier"],
@@ -8286,6 +8324,114 @@ def account_security_status(current_user: dict = _Depends(_get_current_user)):
         "is_temporary": bool(account and account.get("is_temporary")),
         "email": current_user.get("email"),
         "pending_email": (account or {}).get("pending_email"),
+    }
+
+
+# =====================================================================
+# POS webhook simulator (dev-only) — signs a payload with the shared
+# secret and forwards it to the deployed Pos-webhook edge function so
+# we can exercise the real pipeline (sig verify → grocery_events →
+# GROCERY_TRANSACTIONS → member_grocery_totals) without a live POS.
+# =====================================================================
+
+import hmac as _hmac
+import hashlib as _hashlib
+import uuid as _uuid
+from datetime import datetime as _dt, timezone as _tz
+
+
+def _pos_webhook_config():
+    url = os.environ.get("POS_WEBHOOK_URL") or (
+        "https://gcnolzfwmdalltfilmea.supabase.co/functions/v1/Pos-webhook"
+    )
+    secret = (
+        os.environ.get("POS_WEBHOOK_SECRET")
+        or os.environ.get("POS_WEBHOOK_SECRET_V2")
+        or os.environ.get("VITE_POS_WEBHOOK_SECRET_V2")
+    )
+    if not secret:
+        raise HTTPException(
+            status_code=500,
+            detail="POS_WEBHOOK_SECRET (or POS_WEBHOOK_SECRET_V2) must be set in .env",
+        )
+    return url, secret
+
+
+class PosSimulateRequest(BaseModel):
+    membership_id: str = Field(..., description="member.membership_id, e.g. TTMPC-001")
+    amount: float = Field(..., gt=0)
+    status: Literal["Completed", "On Credit"] = "Completed"
+    balance_due: float | None = None
+    event_type: Literal["sale", "return", "void"] = "sale"
+
+
+@app.get("/api/dev/pos-simulator/members")
+def dev_pos_simulator_members():
+    """Members available for the simulator dropdown."""
+    if supabase is None:
+        raise HTTPException(500, "Supabase not configured")
+    resp = (
+        supabase.table("member")
+        .select("id, membership_id, first_name, last_name")
+        .not_.is_("membership_id", "null")
+        .order("membership_id")
+        .limit(500)
+        .execute()
+    )
+    return {"members": resp.data or []}
+
+
+@app.post("/api/dev/simulate-pos-event")
+def dev_simulate_pos_event(req: PosSimulateRequest):
+    """Sign a synthetic POS payload and POST it to the Pos-webhook edge function.
+    Returns the edge function's status + body verbatim."""
+    url, secret = _pos_webhook_config()
+
+    event_id = f"evt_sim_{_uuid.uuid4().hex[:16]}"
+    grocery_id = f"GR-SIM-{_uuid.uuid4().hex[:10].upper()}"
+    event_time = _dt.now(_tz.utc).isoformat().replace("+00:00", "Z")
+    balance = req.balance_due if req.balance_due is not None else (
+        0.0 if req.status == "Completed" else req.amount
+    )
+
+    payload = {
+        "event_id": event_id,
+        "event_type": req.event_type,
+        "event_time": event_time,
+        "grocery_id": grocery_id,
+        "member_id": req.membership_id,
+        "amount_total": round(req.amount, 2),
+        "payment_status": req.status,
+        "balance_due": round(balance, 2),
+    }
+
+    body_bytes = json.dumps(payload, separators=(",", ":")).encode("utf-8")
+    signature = _hmac.new(secret.encode("utf-8"), body_bytes, _hashlib.sha256).hexdigest()
+
+    request = urlrequest.Request(
+        url,
+        data=body_bytes,
+        method="POST",
+        headers={
+            "Content-Type": "application/json",
+            "x-pos-signature": signature,
+        },
+    )
+
+    try:
+        with urlrequest.urlopen(request, timeout=15) as resp:
+            status_code = resp.status
+            response_body = resp.read().decode("utf-8", errors="replace")
+    except HTTPError as e:
+        status_code = e.code
+        response_body = e.read().decode("utf-8", errors="replace") if e.fp else str(e)
+    except URLError as e:
+        raise HTTPException(502, f"Failed to reach webhook: {e.reason}")
+
+    return {
+        "webhook_status": status_code,
+        "webhook_response": response_body,
+        "payload_sent": payload,
     }
 
     return {"success": True, "data": {"legacy_master_uuid": legacy_uuid}}
