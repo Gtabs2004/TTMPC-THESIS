@@ -201,7 +201,6 @@ const Cashier_Withdrawals = () => {
             </aside>
       {/* 2. THE MAIN AREA */}
       <div className="flex-1 flex flex-col h-screen overflow-y-auto ml-64">
-              <div className="flex-1 flex flex-col min-w-0">
         <header className="bg-white h-16 border-b border-gray-100 flex items-center justify-between px-8 shrink-0 ">
           
           
@@ -242,8 +241,6 @@ const Cashier_Withdrawals = () => {
       
           </div>
         </header>
-      </div>
-      
 
         {/* 3. PAGE CONTENT */}
         <main className="p-8 overflow-auto">

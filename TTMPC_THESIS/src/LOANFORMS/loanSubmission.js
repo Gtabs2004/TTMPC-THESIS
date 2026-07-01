@@ -1,4 +1,5 @@
 import { supabase } from '../supabaseClient';
+import { invalidate } from '../Member/memberDataCache';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000';
 
@@ -715,6 +716,13 @@ export async function submitUnifiedLoan({
     memberId: memberId,
     actorUserId: user?.id || null,
   });
+
+  // Bust member-portal caches so the new loan shows up immediately when
+  // the user returns to the dashboard or loans page.
+  if (user?.id) {
+    invalidate(`member-loans:${user.id}`);
+    invalidate(`member-dashboard:${user.id}`);
+  }
 
   return {
     controlNumber,

@@ -6,6 +6,7 @@ import { supabase } from "../../supabaseClient";
 import { resolveMemberContextFromSessionUser } from "../../utils/sessionIdentity";
 import { loadMemberAvatarSignedUrl } from "../../utils/memberAvatar";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
+import { getOrFetch, peek } from "../memberDataCache";
 import {
   LayoutDashboard,
   Users,
@@ -143,11 +144,7 @@ const Member_Savings = () => {
   useEffect(() => {
     let isMounted = true;
 
-    const loadSavings = async () => {
-      try {
-        setLoadingSavings(true);
-        setSavingsError('');
-
+    const buildSavingsSnapshot = async () => {
         const { data: authData, error: authError } = await supabase.auth.getUser();
         if (authError) throw authError;
 
@@ -264,13 +261,39 @@ const Member_Savings = () => {
           });
         }
 
-        if (isMounted) {
-          setMemberLabel(fullName || 'Member');
-          setAvatarUrl(signedAvatarUrl || '');
-          setRegularSavings(totalRegular);
-          setTimeDeposit(0);
-          setLedgerData(mappedLedger);
+        return {
+          memberLabel: fullName || 'Member',
+          avatarUrl: signedAvatarUrl || '',
+          regularSavings: totalRegular,
+          timeDeposit: 0,
+          ledgerData: mappedLedger,
+          _sessionUserId: sessionUser.id,
+        };
+    };
+
+    const applySavingsSnapshot = (snap) => {
+      if (!snap) return;
+      setMemberLabel(snap.memberLabel);
+      setAvatarUrl(snap.avatarUrl);
+      setRegularSavings(snap.regularSavings);
+      setTimeDeposit(snap.timeDeposit);
+      setLedgerData(snap.ledgerData);
+    };
+
+    (async () => {
+      try {
+        setSavingsError('');
+        const { data: authData } = await supabase.auth.getUser();
+        const cacheKey = `member-savings:${authData?.user?.id || 'anon'}`;
+        const cached = peek(cacheKey);
+        if (cached) {
+          applySavingsSnapshot(cached);
+          setLoadingSavings(false);
+        } else {
+          setLoadingSavings(true);
         }
+        const snap = await getOrFetch(cacheKey, buildSavingsSnapshot, 60_000);
+        if (isMounted) applySavingsSnapshot(snap);
       } catch (err) {
         if (isMounted) {
           setSavingsError(err?.message || 'Unable to load savings data.');
@@ -280,13 +303,9 @@ const Member_Savings = () => {
           setTimeDeposit(0);
         }
       } finally {
-        if (isMounted) {
-          setLoadingSavings(false);
-        }
+        if (isMounted) setLoadingSavings(false);
       }
-    };
-
-    loadSavings();
+    })();
     return () => {
       isMounted = false;
     };

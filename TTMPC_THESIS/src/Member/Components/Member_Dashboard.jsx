@@ -8,6 +8,7 @@ import { resolveMemberContextFromSessionUser } from "../../utils/sessionIdentity
 import { useMigsLabel, getMigsBadgeClasses } from "../../hooks/useMigsLabel";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
 import LoanCalculatorModal from "./LoanCalculatorModal";
+import { getOrFetch, peek, invalidate } from "../memberDataCache";
 import {
   LayoutDashboard,
   Users,
@@ -203,11 +204,19 @@ const MemberDashboard = () => {
   useEffect(() => {
     let isMounted = true;
 
-    const loadDashboardData = async () => {
-      try {
-        setLoadingProfile(true);
-        setProfileError('');
+    const applySnapshot = (snap) => {
+      if (!isMounted || !snap) return;
+      setProfile(snap.profile);
+      setMigsMemberKey(snap.migsMemberKey);
+      setIsTemporaryAccount(snap.isTemporary);
+      setMemberLoans(snap.normalizedLoans);
+      setTotalSavings(snap.savingsAccountTotal);
+      setNextDueDate(snap.derivedNextDueDate);
+      setRecentTransactions(snap.latestTransactions);
+      setAvatarUrl(snap.resolvedAvatarUrl);
+    };
 
+    const buildSnapshot = async () => {
         // Sequential — auth + context must resolve before per-member queries.
         const { data: authData, error: authError } = await supabase.auth.getUser();
         if (authError) throw authError;
@@ -371,24 +380,44 @@ const MemberDashboard = () => {
           .sort((a, b) => new Date(b.timestamp || 0).getTime() - new Date(a.timestamp || 0).getTime())
           .slice(0, 6);
 
-        if (isMounted) {
-          setProfile({
+        return {
+          profile: {
             fullName,
             membershipId: account?.membership_id || memberRow?.membership_number_id || 'N/A',
             joinDate: formatDate(memberRow?.date_of_membership || memberRow?.created_at || latestApplication?.created_at),
             memberType: 'Member',
             isActive: true,
             shareCapital,
-          });
-          // Trigger MIGS label fetch — endpoint accepts either UUID or membership_id.
-          setMigsMemberKey(memberId || account?.membership_id || memberRow?.id || null);
-          setIsTemporaryAccount(temporaryFlag);
-          setMemberLoans(normalizedLoans);
-          setTotalSavings(savingsAccountTotal);
-          setNextDueDate(derivedNextDueDate);
-          setRecentTransactions(latestTransactions);
-          setAvatarUrl(resolvedAvatarUrl);
+          },
+          // Endpoint accepts either UUID or membership_id.
+          migsMemberKey: memberId || account?.membership_id || memberRow?.id || null,
+          isTemporary: temporaryFlag,
+          normalizedLoans,
+          savingsAccountTotal,
+          derivedNextDueDate,
+          latestTransactions,
+          resolvedAvatarUrl,
+          _sessionUserId: sessionUser.id,
+        };
+    };
+
+    const loadDashboardData = async () => {
+      try {
+        setProfileError('');
+        const { data: authData } = await supabase.auth.getUser();
+        const cacheKey = `member-dashboard:${authData?.user?.id || 'anon'}`;
+
+        // If we already have a fresh snapshot, paint it instantly and skip the spinner.
+        const cached = peek(cacheKey);
+        if (cached) {
+          applySnapshot(cached);
+          setLoadingProfile(false);
+        } else {
+          setLoadingProfile(true);
         }
+
+        const snap = await getOrFetch(cacheKey, buildSnapshot, 60_000);
+        applySnapshot(snap);
       } catch (err) {
         if (isMounted) {
           setProfileError(err.message || 'Unable to load member dashboard data.');
@@ -477,6 +506,8 @@ const MemberDashboard = () => {
       if (signedError) throw signedError;
 
       setAvatarUrl(signedData?.signedUrl || '');
+      // Drop cached snapshot so the fresh avatar URL persists across tab switches.
+      invalidate(`member-dashboard:${userId}`);
     } catch (err) {
       setAvatarUploadError(err?.message || 'Unable to upload profile photo.');
     } finally {

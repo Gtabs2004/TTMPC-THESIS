@@ -1,30 +1,51 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { supabase } from "../../supabaseClient";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 
-// Routes the guard is allowed to redirect *to* (so we don't infinite-loop
-// when the user is already on one of them).
 const ONBOARDING_ROUTES = new Set([
   "/members-profile",
   "/members-profile/change-email",
 ]);
 
-// Routes the guard should never act on (login, public pages, etc.).
 const SKIP_PREFIXES = ["/login", "/signup", "/forgot", "/reset"];
 
-/**
- * Wraps the app and forces members with is_email_dummy=true to the
- * change-email page, and members with is_temporary=true to the change-password
- * flow, before letting them navigate elsewhere.
- *
- * Polls the backend /account/security-status on every route change.
- */
+// Cache the security-status result for the lifetime of the SPA session so
+// tab-to-tab navigation doesn't blank the screen while re-fetching. The cache
+// is keyed by access token so a re-login invalidates it.
+let cachedStatus = null; // { token, body, fetchedAt }
+const STATUS_TTL_MS = 60_000;
+
+async function fetchStatus(session) {
+  const token = session?.access_token;
+  if (!token) return null;
+
+  const now = Date.now();
+  if (
+    cachedStatus &&
+    cachedStatus.token === token &&
+    now - cachedStatus.fetchedAt < STATUS_TTL_MS
+  ) {
+    return cachedStatus.body;
+  }
+
+  const res = await fetch(`${API_BASE}/api/account/security-status`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) return null;
+  const body = await res.json();
+  cachedStatus = { token, body, fetchedAt: now };
+  return body;
+}
+
 export default function MemberOnboardingGuard({ children }) {
   const location = useLocation();
   const navigate = useNavigate();
-  const [checked, setChecked] = useState(false);
+  // Start "checked" if we have a fresh cached status — avoids the blank flash
+  // on every sidebar navigation.
+  const [checked, setChecked] = useState(() => cachedStatus !== null);
+  const didInitialCheck = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -43,24 +64,18 @@ export default function MemberOnboardingGuard({ children }) {
           return;
         }
 
-        const res = await fetch(`${API_BASE}/api/account/security-status`, {
-          headers: { Authorization: `Bearer ${session.access_token}` },
-        });
-        if (!res.ok) {
-          if (!cancelled) setChecked(true);
+        const body = await fetchStatus(session);
+        if (cancelled) return;
+        if (!body) {
+          setChecked(true);
           return;
         }
-        const body = await res.json();
 
-        if (cancelled) return;
-
-        // Email is the highest-priority gate.
         if (body.is_email_dummy && path !== "/members-profile/change-email") {
           navigate("/members-profile/change-email", { replace: true });
           return;
         }
 
-        // Then forced password change (only meaningful if email is real).
         if (!body.is_email_dummy && body.is_temporary) {
           const alreadyOnProfile = path === "/members-profile";
           const alreadyForcing = location.search.includes("forcePassword=1");
@@ -73,6 +88,7 @@ export default function MemberOnboardingGuard({ children }) {
         }
 
         setChecked(true);
+        didInitialCheck.current = true;
       } catch {
         if (!cancelled) setChecked(true);
       }

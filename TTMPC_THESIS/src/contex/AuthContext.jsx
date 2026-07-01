@@ -1,7 +1,8 @@
 import { createContext, useContext, useEffect, useState } from "react";
 // 1. IMPORTANT: You must import the supabase client here!
 // Check your file structure. It might be '../supabaseClient' or '../config/supabaseClient'
-import { supabase } from '../supabaseClient'; 
+import { supabase } from '../supabaseClient';
+import { clearAll as clearMemberDataCache } from '../Member/memberDataCache';
 
 const AuthContext = createContext();
 
@@ -231,6 +232,8 @@ export const AuthContextProvider = ({ children }) => {
 
   // Sign out
   const signOut = async () => {
+    // Drop all cached member data so the next user doesn't see stale data.
+    clearMemberDataCache();
     const { error } = await supabase.auth.signOut();
     if (error) {
       console.error("Error signing out:", error);
