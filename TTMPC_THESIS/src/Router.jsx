@@ -88,6 +88,7 @@ import Manage_Member from "./Bookkeeper/Components/Manage-Member";
 import Manager_Manage_Member from "./Manager/Components/Manage-Member";
 import Savings_Forms from "./LOANFORMS/Savings_Forms";
 import Grocery from "./Bookkeeper/Components/Grocery";
+import PosSimulator from "./Bookkeeper/Components/PosSimulator";
 import Grocery_Ledger from "./Bookkeeper/Components/Grocery-Ledger";
 import Cashier_Grocery from "./Cashier/Components/Cashier_Grocery";
 import BOD_Manage_Loans from "./BOD/Components/Manage-Loans";
@@ -199,6 +200,7 @@ export const router = createBrowserRouter([
     {path: "/savings_forms", element:<Savings_Forms/>},
     {path: "/grocery", element:<Grocery/>},
     {path: "/grocery-ledger", element:<Grocery_Ledger/>},
+    {path: "/dev/pos-simulator", element:<PosSimulator/>},
     {path: "/Cashier_Grocery", element:<Cashier_Grocery/>},
     {path:"/conso_choice", element:<Conso_Choice/>},
     {path:"/Consolidated_Up", element:<Consolidated_Up/>},

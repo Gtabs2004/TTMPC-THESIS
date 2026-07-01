@@ -31,6 +31,25 @@ const MIGSDetails = () => {
   const [memberData, setMemberData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [toast, setToast] = useState(null);
+
+  const showToast = (message, kind = "success") => {
+    setToast({ message, kind });
+    setTimeout(() => setToast(null), 3500);
+  };
+
+  const fetchMember = async () => {
+    const year = new Date().getFullYear();
+    const response = await fetch(
+      `${API_BASE_URL}/api/migs/members/${encodeURIComponent(memberId)}?year=${year}`
+    );
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok || !result?.success) {
+      throw new Error(result?.detail || "Failed to load member data.");
+    }
+    return result.data || null;
+  };
 
   const menuItems = [
     { name: "Dashboard", icon: LayoutDashboard },
@@ -64,15 +83,7 @@ const MIGSDetails = () => {
       setLoading(true);
       setError("");
       try {
-        const year = new Date().getFullYear();
-        const response = await fetch(
-          `${API_BASE_URL}/api/migs/members/${encodeURIComponent(memberId)}?year=${year}`
-        );
-        const result = await response.json().catch(() => ({}));
-        if (!response.ok || !result?.success) {
-          throw new Error(result?.detail || "Failed to load member data.");
-        }
-        setMemberData(result.data || null);
+        setMemberData(await fetchMember());
       } catch (err) {
         setError(err?.message || "Failed to load member data");
         setMemberData(null);
@@ -99,19 +110,47 @@ const MIGSDetails = () => {
     }
   };
 
-  const handleRecalculate = () => {
-    console.log("Recalculating MIGS score for:", memberId);
-    // Add recalculation logic here
+  const handleRecalculate = async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const fresh = await fetchMember();
+      setMemberData(fresh);
+      showToast(`Recalculated. Score: ${fresh?.migs_score ?? "—"} (${fresh?.migs_status ?? "—"}).`);
+    } catch (err) {
+      showToast(err?.message || "Recalculation failed.", "error");
+    } finally {
+      setBusy(false);
+    }
   };
 
-  const handleSaveDraft = () => {
-    console.log("Saving draft for:", memberId);
-    // Add save draft logic here
-  };
-
-  const handleFinalizeScore = () => {
-    console.log("Finalizing score for:", memberId);
-    // Add finalize logic here
+  const handleFinalizeScore = async () => {
+    if (busy) return;
+    if (!window.confirm(
+      "Finalize and snapshot this year's MIGS classification for all members?\n\n" +
+      "This writes an official row to member_classification_temporal that other modules read."
+    )) return;
+    setBusy(true);
+    try {
+      const year = new Date().getFullYear();
+      const res = await fetch(
+        `${API_BASE_URL}/api/migs/recompute-all?year=${year}`,
+        { method: "POST" }
+      );
+      const result = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(result?.detail || "Finalize failed.");
+      const total = (result?.inserted || 0) + (result?.updated || 0);
+      const fresh = await fetchMember();
+      setMemberData(fresh);
+      showToast(
+        `Snapshot saved. ${total} members labeled as of ${result?.accrual_date}.`,
+        result?.errors?.length ? "warning" : "success"
+      );
+    } catch (err) {
+      showToast(err?.message || "Finalize failed.", "error");
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
@@ -365,26 +404,29 @@ const MIGSDetails = () => {
                       <div className="space-y-2">
                         <button
                           onClick={handleRecalculate}
-                          className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-700 font-semibold hover:bg-gray-50 transition-colors text-sm"
+                          disabled={busy}
+                          className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-700 font-semibold hover:bg-gray-50 transition-colors text-sm disabled:opacity-50"
                         >
-                          
-                          Recalculate
-                        </button>
-                        <button
-                          onClick={handleSaveDraft}
-                          className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-700 font-semibold hover:bg-gray-50 transition-colors text-sm"
-                        >
-                          <Download className="w-4 h-4" />
-                          Save Draft
+                          {busy ? "Working…" : "Recalculate"}
                         </button>
                         <button
                           onClick={handleFinalizeScore}
-                          className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-green-600 text-white font-semibold hover:bg-green-700 transition-colors text-sm"
+                          disabled={busy}
+                          className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-green-600 text-white font-semibold hover:bg-green-700 transition-colors text-sm disabled:opacity-50"
                         >
                           <span>✓</span>
                           Finalize Score
                         </button>
                       </div>
+                      {toast && (
+                        <div className={`mt-3 text-xs px-3 py-2 rounded-lg border ${
+                          toast.kind === "error" ? "bg-red-50 text-red-700 border-red-200" :
+                          toast.kind === "warning" ? "bg-orange-50 text-orange-700 border-orange-200" :
+                          "bg-green-50 text-green-700 border-green-200"
+                        }`}>
+                          {toast.message}
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>

@@ -1,6 +1,7 @@
-﻿import React, { useState } from "react";
+﻿import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, NavLink, Link } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
+import { supabase } from "../../supabaseClient";
 import { PortalSidebarIdentity, PortalTopbarIdentity } from "../../components/PortalIdentity";
 import { 
   LayoutDashboard,
@@ -45,6 +46,50 @@ const Cashier_Grocery = () => {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('All');
   const [isDepositsOpen, setIsDepositsOpen] = useState(true);
+  const [transactions, setTransactions] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from("GROCERY_TRANSACTIONS")
+        .select("*")
+        .order("TransactionDate", { ascending: false })
+        .limit(200);
+      if (cancelled) return;
+      if (!error) setTransactions(data || []);
+      setLoading(false);
+    };
+    load();
+    return () => { cancelled = true; };
+  }, []);
+
+  const rows = useMemo(() => transactions.map((t) => ({
+    id: t.GroceryID,
+    memberId: t.pos_member_ref || "—",
+    posId: "POS - 001",
+    date: t.TransactionDate ? new Date(t.TransactionDate).toLocaleString() : "",
+    amount: `P${Number(t.GroceryAmount).toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
+    txStatus: t.Status === "Completed" ? "Completed" : "Pending",
+    payment: t.Status === "Completed" ? "Paid" : "On Credit",
+    balance: `P${Number(t.balance_due || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
+    rawStatus: t.Status,
+  })), [transactions]);
+
+  const filteredRows = useMemo(() => {
+    if (activeTab === "Paid") return rows.filter((r) => r.rawStatus === "Completed");
+    if (activeTab === "On Credit") return rows.filter((r) => r.rawStatus === "On Credit");
+    return rows;
+  }, [rows, activeTab]);
+
+  const totals = useMemo(() => {
+    const paid = rows.filter((r) => r.rawStatus === "Completed").length;
+    const credit = rows.filter((r) => r.rawStatus === "On Credit").length;
+    const sum = transactions.reduce((s, t) => s + Number(t.GroceryAmount || 0), 0);
+    return { count: rows.length, paid, credit, sum };
+  }, [rows, transactions]);
   
   const menuItems = [
    { name: "Dashboard", icon: LayoutDashboard, path: "/Cashier_Dashboard" },
@@ -228,8 +273,8 @@ const Cashier_Grocery = () => {
               <div>
                 <p className="text-xs font-bold text-gray-500 tracking-wider uppercase mb-1">Total Transactions</p>
                 <div className="flex items-baseline gap-2">
-                  <h2 className="text-2xl font-bold text-gray-900">8</h2>
-                  <span className="text-sm text-gray-500">P18,000</span>
+                  <h2 className="text-2xl font-bold text-gray-900">{totals.count}</h2>
+                  <span className="text-sm text-gray-500">P{totals.sum.toLocaleString(undefined,{minimumFractionDigits:2})}</span>
                 </div>
               </div>
             </div>
@@ -241,7 +286,7 @@ const Cashier_Grocery = () => {
               </div>
               <div>
                 <p className="text-xs font-bold text-gray-500 tracking-wider uppercase mb-1">Paid</p>
-                <h2 className="text-2xl font-bold text-gray-900">6</h2>
+                <h2 className="text-2xl font-bold text-gray-900">{totals.paid}</h2>
               </div>
             </div>
 
@@ -252,7 +297,7 @@ const Cashier_Grocery = () => {
               </div>
               <div>
                 <p className="text-xs font-bold text-gray-500 tracking-wider uppercase mb-1">On Credit</p>
-                <h2 className="text-2xl font-bold text-gray-900">2</h2>
+                <h2 className="text-2xl font-bold text-gray-900">{totals.credit}</h2>
               </div>
             </div>
           </div>
@@ -263,9 +308,9 @@ const Cashier_Grocery = () => {
             {/* Tabs */}
             <div className="flex border-b border-gray-200 px-6">
               {[
-                { label: 'All', count: 12, color: 'green' },
-                { label: 'Paid', count: 8, color: 'blue' },
-                { label: 'On Credit', count: 5, color: 'orange' }
+                { label: 'All', count: totals.count, color: 'green' },
+                { label: 'Paid', count: totals.paid, color: 'blue' },
+                { label: 'On Credit', count: totals.credit, color: 'orange' }
               ].map((tab) => (
                 <button
                   key={tab.label}
@@ -331,7 +376,11 @@ const Cashier_Grocery = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {MOCK_TRANSACTIONS.map((tx) => (
+                  {loading ? (
+                    <tr><td colSpan={8} className="p-8 text-center text-gray-400 text-sm">Loading…</td></tr>
+                  ) : filteredRows.length === 0 ? (
+                    <tr><td colSpan={8} className="p-8 text-center text-gray-400 text-sm">No transactions yet.</td></tr>
+                  ) : filteredRows.map((tx) => (
                     <tr key={tx.id} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
                       <td className="p-5 font-medium text-gray-700">{tx.id}</td>
                       <td className="p-5 font-medium text-gray-700">{tx.memberId}</td>
