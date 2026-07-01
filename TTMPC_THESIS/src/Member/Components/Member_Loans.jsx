@@ -6,6 +6,7 @@ import { resolveMemberContextFromSessionUser } from "../../utils/sessionIdentity
 import LoanNotificationBell from "../../components/LoanNotificationBell";
 import { loadMemberAvatarSignedUrl } from "../../utils/memberAvatar";
 import LoanCalculatorModal from "./LoanCalculatorModal";
+import { getOrFetch, peek } from "../memberDataCache";
 import { 
   LayoutDashboard, 
   Users, 
@@ -179,11 +180,7 @@ const Member_Loans = () => {
     return raw ? raw.charAt(0).toUpperCase() + raw.slice(1) : 'Unknown';
   };
 
-  const loadMemberLoans = async () => {
-    try {
-      setLoadingLoans(true);
-      setLoanError('');
-
+  const buildLoansSnapshot = async () => {
       const { data: authData, error: authError } = await supabase.auth.getUser();
       if (authError) throw authError;
 
@@ -241,20 +238,48 @@ const Member_Loans = () => {
         };
       });
 
-      setLoans(rows);
-      setMemberLabel(fullName || 'Member');
-      setAvatarUrl(signedAvatarUrl || '');
-    } catch (err) {
-      setLoanError(err.message || 'Unable to load loan records.');
-      setMemberLabel('Member');
-      setAvatarUrl('');
-    } finally {
-      setLoadingLoans(false);
-    }
+      return {
+        rows,
+        memberLabel: fullName || 'Member',
+        avatarUrl: signedAvatarUrl || '',
+        _sessionUserId: sessionUser.id,
+      };
+  };
+
+  const applyLoansSnapshot = (snap) => {
+    if (!snap) return;
+    setLoans(snap.rows);
+    setMemberLabel(snap.memberLabel);
+    setAvatarUrl(snap.avatarUrl);
   };
 
   useEffect(() => {
-    loadMemberLoans();
+    let isMounted = true;
+    (async () => {
+      try {
+        setLoanError('');
+        const { data: authData } = await supabase.auth.getUser();
+        const cacheKey = `member-loans:${authData?.user?.id || 'anon'}`;
+        const cached = peek(cacheKey);
+        if (cached) {
+          applyLoansSnapshot(cached);
+          setLoadingLoans(false);
+        } else {
+          setLoadingLoans(true);
+        }
+        const snap = await getOrFetch(cacheKey, buildLoansSnapshot, 60_000);
+        if (isMounted) applyLoansSnapshot(snap);
+      } catch (err) {
+        if (isMounted) {
+          setLoanError(err.message || 'Unable to load loan records.');
+          setMemberLabel('Member');
+          setAvatarUrl('');
+        }
+      } finally {
+        if (isMounted) setLoadingLoans(false);
+      }
+    })();
+    return () => { isMounted = false; };
   }, []);
 
   const totalOutstanding = useMemo(
