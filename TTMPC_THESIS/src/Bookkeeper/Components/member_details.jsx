@@ -23,6 +23,10 @@ const StaffAccountPanel = ({ membershipId, viewerRole }) => {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [showTerminateModal, setShowTerminateModal] = useState(false);
+  const [termReason, setTermReason] = useState('');
+  const [termEffectiveDate, setTermEffectiveDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [termNotes, setTermNotes] = useState('');
 
   const isBod = viewerRole === 'bod';
 
@@ -81,14 +85,35 @@ const StaffAccountPanel = ({ membershipId, viewerRole }) => {
     }
   };
 
-  const handleToggleActive = async () => {
-    const next = !(account?.is_active ?? true);
+  const handleReactivate = async () => {
     const result = await callApi('/api/admin/staff/deactivate', {
       member_id: membershipId,
-      is_active: next,
+      is_active: true,
     });
     if (result) {
-      setMessage(next ? 'Account reactivated.' : 'Account deactivated.');
+      setMessage('Account reactivated.');
+      loadAccount();
+    }
+  };
+
+  const handleConfirmTerminate = async () => {
+    if (!termReason.trim()) {
+      setError('Please enter a reason for termination.');
+      return;
+    }
+    const result = await callApi('/api/admin/member/terminate', {
+      member_id: membershipId,
+      reason: termReason.trim(),
+      notes: termNotes.trim() || null,
+      effective_date: termEffectiveDate || null,
+    });
+    if (result) {
+      setMessage(
+        `Member terminated. Resolution ${result.resolution_no || ''} generated. Effective ${result.effective_date || ''}.`
+      );
+      setShowTerminateModal(false);
+      setTermReason('');
+      setTermNotes('');
       loadAccount();
     }
   };
@@ -151,20 +176,98 @@ const StaffAccountPanel = ({ membershipId, viewerRole }) => {
                 Save Role
               </button>
 
-              <button
-                onClick={handleToggleActive}
-                disabled={busy}
-                className={`text-sm font-bold rounded-md px-4 py-2 transition-colors ${isActive ? 'bg-orange-500 text-white hover:bg-orange-600' : 'bg-green-600 text-white hover:bg-green-700'}`}
-              >
-                <UserX className="w-4 h-4 inline mr-1" />
-                {isActive ? 'Deactivate Account' : 'Reactivate Account'}
-              </button>
+              {isActive ? (
+                <button
+                  onClick={() => { setError(''); setMessage(''); setShowTerminateModal(true); }}
+                  disabled={busy}
+                  className="text-sm font-bold rounded-md px-4 py-2 transition-colors bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
+                >
+                  <UserX className="w-4 h-4 inline mr-1" />
+                  Terminate Member
+                </button>
+              ) : (
+                <button
+                  onClick={handleReactivate}
+                  disabled={busy}
+                  className="text-sm font-bold rounded-md px-4 py-2 transition-colors bg-green-600 text-white hover:bg-green-700 disabled:opacity-50"
+                >
+                  <UserX className="w-4 h-4 inline mr-1" />
+                  Reactivate Account
+                </button>
+              )}
             </div>
             <p className="text-xs text-gray-400 mt-3">
-              Termination is handled by the Secretary via Membership Records. The BOD then approves it from the termination inbox.
+              Terminating a member stamps the member record with an auto-generated resolution number, deactivates all their portal accounts, and files the termination for the Secretary to record in Membership Records.
             </p>
         </div>
       </div>
+
+      {showTerminateModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
+          <div className="w-full max-w-lg bg-white rounded-xl shadow-2xl border border-gray-200 overflow-hidden">
+            <div className="px-6 py-4 bg-red-600 text-white">
+              <h3 className="font-bold text-lg flex items-center gap-2">
+                <UserX className="w-5 h-5" /> Terminate Member
+              </h3>
+              <p className="text-xs opacity-90 mt-0.5">
+                Resolution number and date are generated automatically. This action deactivates the member's account.
+              </p>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1">
+                  Reason <span className="text-red-500">*</span>
+                </label>
+                <textarea
+                  value={termReason}
+                  onChange={(e) => setTermReason(e.target.value)}
+                  rows={3}
+                  placeholder="e.g. Voluntary withdrawal, deceased, delinquency after due process, etc."
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1">
+                  Effective Date
+                </label>
+                <input
+                  type="date"
+                  value={termEffectiveDate}
+                  onChange={(e) => setTermEffectiveDate(e.target.value)}
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1">
+                  Additional Notes (optional)
+                </label>
+                <textarea
+                  value={termNotes}
+                  onChange={(e) => setTermNotes(e.target.value)}
+                  rows={2}
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
+                />
+              </div>
+            </div>
+            <div className="px-6 py-4 bg-gray-50 flex justify-end gap-3 border-t border-gray-200">
+              <button
+                onClick={() => setShowTerminateModal(false)}
+                disabled={busy}
+                className="text-sm font-semibold rounded-md px-4 py-2 bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmTerminate}
+                disabled={busy || !termReason.trim()}
+                className="text-sm font-bold rounded-md px-4 py-2 bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
+              >
+                {busy ? 'Terminating…' : 'Confirm Termination'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -113,6 +113,7 @@ function Emergency_Loan() {
   const [borrowerMemberId, setBorrowerMemberId] = useState(null);
   const { data: migsLabel, status: migsLabelStatus } = useMigsLabel(borrowerMemberId);
   const [amortizationSchedule, setAmortizationSchedule] = useState([]);
+  const [breakdownDetails, setBreakdownDetails] = useState(null);
   const [renewalError, setRenewalError] = useState('');
   const [sixMonthOverride, setSixMonthOverride] = useState(false);
 
@@ -121,56 +122,12 @@ function Emergency_Loan() {
   const TERM_OPTIONS = [6, 12];
   const STRESS_INDEX_CEILING = 40;
   const EMERGENCY_LOAN_AMOUNT_OPTIONS = ['10000', '20000'];
-  const MONTHLY_INTEREST_FACTOR = 0.02;
 
   const RISK_COLORS = {
     safe: 'text-[#2E7D32] bg-[#E9F7DE]',
     low_risk: 'text-yellow-700 bg-yellow-100',
     moderate_risk: 'text-orange-600 bg-orange-100',
     high_risk: 'text-red-600 bg-red-100',
-  };
-
-  const generateAmortizationSchedule = (loanAmount, term) => {
-    const loanAmountNum = parseFloat(loanAmount);
-    const termNum = parseInt(term, 10);
-
-    if (!loanAmountNum || !termNum || loanAmountNum <= 0 || termNum <= 0) {
-        return [];
-    }
-
-    const interestRate = 0.02; // 2% monthly
-    const schedule = [];
-
-    let balanceInCents = Math.round(loanAmountNum * 100);
-    const totalPrincipalInCents = balanceInCents;
-    
-    // Per prompt: principal is rounded to 2 decimal places for months 1 to N-1
-    const monthlyPrincipalInCents = Math.round(totalPrincipalInCents / termNum);
-    let accumulatedPrincipalInCents = 0;
-
-    for (let month = 1; month <= termNum; month++) {
-        const startingBalanceInCents = balanceInCents;
-
-        let principalPaidInCents;
-        if (month < termNum) {
-            principalPaidInCents = monthlyPrincipalInCents;
-        } else {
-            // Final month's principal is a "cleanup" to ensure the balance is exactly zero
-            principalPaidInCents = totalPrincipalInCents - accumulatedPrincipalInCents;
-        }
-        
-        const endingBalanceInCents = startingBalanceInCents - principalPaidInCents;
-        
-        // Per policy: Interest is calculated on the balance AFTER the principal payment for the month.
-        const interestPaidInCents = Math.round(endingBalanceInCents * interestRate);
-        const totalPaymentInCents = principalPaidInCents + interestPaidInCents;
-        
-        balanceInCents = endingBalanceInCents; // Update balance for next iteration
-        accumulatedPrincipalInCents += principalPaidInCents;
-
-        schedule.push({ month, startingBalance: startingBalanceInCents / 100, principalPaid: principalPaidInCents / 100, interestPaid: interestPaidInCents / 100, totalPayment: totalPaymentInCents / 100, remainingBalance: balanceInCents / 100 });
-    }
-    return schedule;
   };
 
   useEffect(() => {
@@ -180,12 +137,13 @@ function Emergency_Loan() {
     if (!principal || !term || principal > 20000 || (term !== 6 && term !== 12)) {
       setFormData((prev) => ({ ...prev, monthly_amortization: '', total_interest: '' }));
       setAmortizationSchedule([]);
+      setBreakdownDetails(null);
       return;
     }
 
     let cancelled = false;
 
-    const applyBackendBreakdown = (rows, monthlyAmortization, totalInterest) => {
+    const applyBackendBreakdown = (result, rows) => {
       if (cancelled) return;
       let balance = Number(principal);
       const schedule = rows.map((row, index) => {
@@ -204,11 +162,22 @@ function Emergency_Loan() {
           remainingBalance: balance,
         };
       });
+
+      const data = result?.data || result;
+      const deductions = data?.deductions || {};
       setAmortizationSchedule(schedule);
+      setBreakdownDetails({
+        service_fee: Number(deductions.service_fee || 0),
+        cbu_deduction: Number(deductions.cbu_deduction || 0),
+        insurance_fee: Number(deductions.insurance_fee || 0),
+        notarial_fee: Number(deductions.notarial_fee || 0),
+        total_deductions: Number(data.total_deductions || 0),
+        net_proceeds: Number(data.net_proceeds || 0),
+      });
       setFormData((prev) => ({
         ...prev,
-        monthly_amortization: String(Number(monthlyAmortization || 0)),
-        total_interest: Number(totalInterest || 0).toFixed(2),
+        monthly_amortization: String(Number(data.monthly_amortization || 0)),
+        total_interest: Number(data.total_interest || 0).toFixed(2),
       }));
     };
 
@@ -223,29 +192,17 @@ function Emergency_Loan() {
         if (cancelled) return;
         const rows = result?.monthly_breakdown || result?.data?.monthly_breakdown || [];
         if (Array.isArray(rows) && rows.length === term) {
-          applyBackendBreakdown(
-            rows,
-            result.monthly_amortization ?? result.data?.monthly_amortization,
-            result.total_interest ?? result.data?.total_interest,
-          );
+          applyBackendBreakdown(result, rows);
           return;
         }
         throw new Error('Empty or mismatched breakdown from compute service.');
       } catch (_err) {
         if (cancelled) return;
-        const schedule = generateAmortizationSchedule(principal, term);
-        setAmortizationSchedule(schedule);
-        if (schedule.length > 0) {
-          const firstMonthPayment = schedule[0].totalPayment;
-          const totalInterest = schedule.reduce((acc, row) => acc + row.interestPaid, 0);
-          setFormData((prev) => ({
-            ...prev,
-            monthly_amortization: String(firstMonthPayment),
-            total_interest: String(totalInterest.toFixed(2)),
-          }));
-        } else {
-          setFormData((prev) => ({ ...prev, monthly_amortization: '', total_interest: '' }));
-        }
+        // Do not fall back to hardcoded rates — leaving a stale preview
+        // would silently disagree with BOD-configured policy.
+        setAmortizationSchedule([]);
+        setBreakdownDetails(null);
+        setFormData((prev) => ({ ...prev, monthly_amortization: '', total_interest: '' }));
       }
     })();
 
@@ -643,10 +600,8 @@ function Emergency_Loan() {
       return;
     }
 
-    if (formData.loan_amount_numeric && formData.loan_term_months) {
-      const schedule = generateAmortizationSchedule(formData.loan_amount_numeric, formData.loan_term_months);
-      setAmortizationSchedule(schedule);
-    }
+    // Amortization schedule is kept in sync by the compute-loan effect above,
+    // which reads live BOD-configured policy values. Nothing to recompute here.
 
     setShowSummary(true);
   };
@@ -860,9 +815,15 @@ function Emergency_Loan() {
             <div className="p-6 text-sm text-gray-700">
               {(() => {
                 const loanAmount = parseFloat(formData.loan_amount_numeric) || 0;
-                const serviceFee = 100;
-                const cbu = loanAmount * 0.02;
-                const netProceeds = loanAmount - serviceFee - cbu;
+                // Fees come from the compute service, which reads BOD-configured
+                // policy in loan_fee_policies. Never hardcode rates here.
+                const serviceFee = Number(breakdownDetails?.service_fee || 0);
+                const cbu = Number(breakdownDetails?.cbu_deduction || 0);
+                const insurance = Number(breakdownDetails?.insurance_fee || 0);
+                const notarial = Number(breakdownDetails?.notarial_fee || 0);
+                const netProceeds = breakdownDetails
+                  ? Number(breakdownDetails.net_proceeds || 0)
+                  : loanAmount - serviceFee - cbu - insurance - notarial;
 
                 return (
                   <>

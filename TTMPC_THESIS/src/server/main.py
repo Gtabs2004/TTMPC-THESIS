@@ -7782,6 +7782,16 @@ class StaffTerminationDecisionRequest(BaseModel):
     decision_notes: str | None = None
 
 
+class BodTerminateMemberRequest(BaseModel):
+    """BOD-initiated termination. Resolution number/date are auto-generated
+    server-side; caller only supplies the reason and effective date."""
+    member_id: str
+    reason: str | None = None
+    notes: str | None = None
+    effective_date: str | None = None
+    terminated_by: str | None = None
+
+
 def _lookup_member_account(member_id: str):
     """Find the member_account row by membership_id (e.g. TTMPC-293)."""
     clean = str(member_id or "").strip()
@@ -7862,6 +7872,21 @@ def staff_set_active(payload: StaffDeactivateRequest):
         ).eq("id", account_row["id"]).execute()
     except Exception as err:
         raise HTTPException(status_code=500, detail=f"Failed to update is_active: {err}")
+
+    # Reactivating an account should also clear a prior termination stamp on
+    # the member row, otherwise the person still shows up as 'terminated' in
+    # every list even though their portal login works again.
+    if bool(payload.is_active):
+        membership_id = str(payload.member_id or "").strip()
+        if membership_id:
+            try:
+                supabase.table("member").update({
+                    "member_status": "active",
+                    "termination_date": None,
+                    "termination_resolution_number": None,
+                }).eq("membership_id", membership_id).execute()
+            except Exception:
+                pass
 
     return {"success": True, "member_id": payload.member_id, "is_active": bool(payload.is_active)}
 
@@ -7964,14 +7989,47 @@ def staff_decide_termination(payload: StaffTerminationDecisionRequest):
     except Exception as err:
         raise HTTPException(status_code=500, detail=f"Failed to record decision: {err}")
 
-    # If rejected, restore the account; if approved, leave is_active = false.
-    if payload.decision == "rejected" and request_row.get("member_account_id"):
-        try:
-            supabase.table("member_account").update({"is_active": True}).eq(
-                "user_id", request_row["member_account_id"]
-            ).execute()
-        except Exception:
-            pass
+    membership_id = str(request_row.get("member_id") or "").strip()
+
+    if payload.decision == "approved":
+        # Persist termination on the member record itself so every downstream
+        # view (Manage Member, dashboards, loan eligibility) treats the person
+        # as terminated. Without this the row lingers as an active member and
+        # only the request table reflects the decision.
+        if membership_id:
+            try:
+                effective_date = request_row.get("effective_date") or date.today().isoformat()
+                supabase.table("member").update({
+                    "member_status": "terminated",
+                    "termination_date": effective_date,
+                    "termination_resolution_number": request_row.get("resolution_no"),
+                }).eq("membership_id", membership_id).execute()
+            except Exception as err:
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Termination approved but failed to update member record: {err}",
+                )
+        # Keep the account locked (member_account.is_active already false from
+        # the request step).
+    else:
+        # Rejected: restore the account and clear any prior termination stamp
+        # so this member is fully reinstated.
+        if request_row.get("member_account_id"):
+            try:
+                supabase.table("member_account").update({"is_active": True}).eq(
+                    "user_id", request_row["member_account_id"]
+                ).execute()
+            except Exception:
+                pass
+        if membership_id:
+            try:
+                supabase.table("member").update({
+                    "member_status": "active",
+                    "termination_date": None,
+                    "termination_resolution_number": None,
+                }).eq("membership_id", membership_id).execute()
+            except Exception:
+                pass
 
     return {"success": True, "request_id": payload.request_id, "decision": payload.decision}
 
@@ -7992,6 +8050,132 @@ def staff_list_termination_requests(status: str | None = None):
         raise HTTPException(status_code=500, detail=f"Failed to list requests: {err}")
 
     return {"success": True, "data": data}
+
+
+def _generate_termination_resolution_no() -> str:
+    """Produce a resolution number like TERM-2026-0007 by counting existing
+    terminations in the current year. Best-effort; falls back to a timestamp
+    suffix if the count query fails."""
+    year = date.today().year
+    prefix = f"TERM-{year}-"
+    try:
+        rows = (
+            supabase.table("staff_termination_requests")
+            .select("resolution_no")
+            .ilike("resolution_no", f"{prefix}%")
+            .execute()
+        ).data or []
+        max_seq = 0
+        for row in rows:
+            tail = str(row.get("resolution_no") or "").split("-")[-1]
+            try:
+                max_seq = max(max_seq, int(tail))
+            except (ValueError, TypeError):
+                continue
+        return f"{prefix}{max_seq + 1:04d}"
+    except Exception:
+        return f"{prefix}{datetime.utcnow().strftime('%m%d%H%M%S')}"
+
+
+@app.post("/api/admin/member/terminate")
+def bod_terminate_member(payload: BodTerminateMemberRequest):
+    """BOD directly terminates a member.
+
+    Side effects (single atomic-ish flow):
+      - Auto-generates resolution number (TERM-YYYY-NNNN) and resolution date.
+      - Stamps member.termination_date + termination_resolution_number.
+      - Sets member_account.is_active = false (locks all login/portals).
+      - Inserts an 'approved' staff_termination_requests row so the Secretary
+        sees it in their Membership Records inbox for recording.
+    """
+    if supabase is None:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+
+    membership_id = str(payload.member_id or "").strip()
+    if not membership_id:
+        raise HTTPException(status_code=400, detail="member_id is required.")
+
+    _, account_row = _lookup_member_account(membership_id)
+
+    resolution_no = _generate_termination_resolution_no()
+    today_iso = date.today().isoformat()
+    effective_iso = payload.effective_date or today_iso
+
+    # 1) Stamp the member row. member_status is the authoritative flag every
+    #    downstream read should filter on ('active' vs 'terminated'); the date
+    #    and resolution number are kept alongside for audit / display.
+    try:
+        supabase.table("member").update({
+            "member_status": "terminated",
+            "termination_date": effective_iso,
+            "termination_resolution_number": resolution_no,
+        }).eq("membership_id", membership_id).execute()
+    except Exception as err:
+        raise HTTPException(status_code=500, detail=f"Failed to update member: {err}")
+
+    # 2) Deactivate the account so they can't log in anywhere.
+    if account_row.get("user_id"):
+        try:
+            supabase.table("member_account").update({"is_active": False}).eq(
+                "user_id", account_row["user_id"]
+            ).execute()
+        except Exception:
+            # Not fatal — member is already stamped as terminated.
+            pass
+
+    # 3) Log to staff_termination_requests as 'approved' so the Secretary can
+    #    see it in their inbox and record it in Membership Records. The BOD is
+    #    both requester and decider in this flow.
+    created_row = None
+    try:
+        now_iso = datetime.utcnow().isoformat()
+        created = (
+            supabase.table("staff_termination_requests")
+            .insert({
+                "member_id": membership_id,
+                "member_account_id": account_row.get("user_id"),
+                "previous_role": account_row.get("role"),
+                "resolution_no": resolution_no,
+                "resolution_date": today_iso,
+                "effective_date": effective_iso,
+                "reason": payload.reason,
+                "notes": payload.notes,
+                "status": "approved",
+                "requested_by": payload.terminated_by,
+                "requested_by_role": "bod",
+                "decided_by": payload.terminated_by,
+                "decision_notes": "BOD-initiated termination.",
+                "decided_at": now_iso,
+            })
+            .execute()
+        ).data
+        created_row = (created or [None])[0]
+    except Exception:
+        # Audit row is best-effort; the member is already terminated.
+        pass
+
+    # 4) Best-effort Secretary notification.
+    try:
+        supabase.table("loan_notifications").insert({
+            "recipient_role": "secretary",
+            "notification_type": "member_terminated",
+            "payload": {
+                "member_id": membership_id,
+                "resolution_no": resolution_no,
+                "effective_date": effective_iso,
+            },
+        }).execute()
+    except Exception:
+        pass
+
+    return {
+        "success": True,
+        "member_id": membership_id,
+        "resolution_no": resolution_no,
+        "resolution_date": today_iso,
+        "effective_date": effective_iso,
+        "audit_row": created_row,
+    }
 
 
 @app.get("/api/admin/staff/account/{member_id}")
