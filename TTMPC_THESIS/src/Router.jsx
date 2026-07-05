@@ -32,7 +32,6 @@ import Membership_Form from "./LOANFORMS/Membership_Form";
 import Dashboard_BOD from "./BOD/Components/B-Dashboard";
 import Member_Approvals from "./BOD/Components/Member-Approvals";
 import MemberApprovalDetails from "./BOD/Components/MemberApprovalDetails";
-import Termination_Inbox from "./BOD/Components/Termination_Inbox";
 import BOD_Loan_Approval from "./BOD/Components/BOD_Loan_Approval";
 import BOD_Audit_Log from "./BOD/Components/Audit_Log";
 import Manager_Audit_Log from "./Manager/Components/Audit_Log";
@@ -176,7 +175,6 @@ export const router = createBrowserRouter([
     {path: "/Secretary_General_Assembly", element:<Secretary_General_Assembly/>},
     {path: "/Secretary_Records", element:<Secretary_Records/>},
     {path: "/bod-manage-member", element:<BOD_Manage_Member/>},
-    {path: "/bod-termination-inbox", element:<Termination_Inbox/>},
     {path: "/bod-loan-approvals", element:<BOD_Loan_Approval/>},
     {path: "/bod-loan-approval/:id", element:<LoanApprovalDetails/>},
     {path: "/bod-audit-log", element:<BOD_Audit_Log/>},
