@@ -346,15 +346,18 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
 AS $$
+DECLARE
+  v_row jsonb := to_jsonb(NEW);
+  v_id  text  := coalesce(v_row->>'GroceryID', v_row->>'id');
 BEGIN
   IF TG_OP = 'INSERT' THEN
     PERFORM public.audit_write(
       'grocery',
-      NEW.id::text,
+      v_id,
       'record',
       NULL,
-      to_jsonb(NEW) - 'id',
-      jsonb_build_object('id', NEW.id)
+      v_row - 'GroceryID' - 'id',
+      jsonb_build_object('id', v_id)
     );
   END IF;
   RETURN NEW;

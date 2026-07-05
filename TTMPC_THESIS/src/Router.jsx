@@ -5,6 +5,9 @@ import Consolidated_Loan from "./LOANFORMS/Consolidated_Loan";
 import Emergency_Loan from "./LOANFORMS/Emergency_Loan";
 import Sign_Up from "./Index_Pages/sign_up";
 import MemberLogin from "./Index_Pages/memberlogin";
+import ForgotPassword from "./Index_Pages/ForgotPassword";
+import VerifyResetCode from "./Index_Pages/VerifyResetCode";
+import ResetPassword from "./Index_Pages/ResetPassword";
 import Login from "./Index_Pages/login";
 import Dashboard from "./Bookkeeper/Components/bookkeeperDashboard";
 import Records from "./Bookkeeper/Components/Member-Records";
@@ -139,6 +142,9 @@ export const router = createBrowserRouter([
     {path: "/manager-reports", element:<Manager_Reports/>},
     {path: "/role_selection", element:<Role_Selection/>},
     {path: "/memberlogin", element:<MemberLogin/>},
+    {path: "/forgot-password", element:<ForgotPassword/>},
+    {path: "/verify-reset-code", element:<VerifyResetCode/>},
+    {path: "/reset-password", element:<ResetPassword/>},
     {path: "/loan-approval/:id", element:<LoanApprovalDetails/>},
     {path: "/bookkeeper-loan-approval/:id", element:<LoanApprovalDetails/>},
     {path: "/member-dashboard", element: memberGuarded(<Member_Dashboard/>)},

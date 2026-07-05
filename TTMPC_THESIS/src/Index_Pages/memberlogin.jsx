@@ -125,16 +125,6 @@ function MemberLogin() {
               </button>
             </div>
           </form>
-
-          {/* SIGN UP LINK */}
-          <div className="mt-8 pt-6 border-t border-gray-100">
-            <p className="text-center text-sm text-gray-500">
-              Don't have an account?{' '}
-              <Link to="/sign_up" className="font-bold text-[#66B538] hover:text-green-700 transition-colors">
-                Sign up here
-              </Link>
-            </p>
-          </div>
         </div>
       </div>
       

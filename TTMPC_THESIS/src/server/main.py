@@ -8098,6 +8098,18 @@ class PasswordChangeConfirm(BaseModel):
     code: str = Field(..., min_length=6, max_length=6)
 
 
+class PasswordChangeSendCode(BaseModel):
+    """Recovery path v2 — issue an OTP without requiring the new password
+    up front. The new password is submitted together with the code at
+    verify time."""
+    pass
+
+
+class PasswordChangeVerifyAndSet(BaseModel):
+    code: str = Field(..., min_length=6, max_length=6)
+    new_password: str = Field(..., min_length=8, max_length=128)
+
+
 # ----- Email change ----------------------------------------------------------
 
 @app.post("/api/account/email/request-otp")
@@ -8303,6 +8315,76 @@ def account_password_confirm(
         raise HTTPException(status_code=500, detail=f"Password update failed: {exc}")
 
     # Clear the plaintext temp password and flip is_temporary off.
+    try:
+        supabase.table("member_account").update(
+            {"is_temporary": False, "password": None}
+        ).eq("auth_user_id", user_id).execute()
+    except Exception:
+        pass
+
+    return {"ok": True}
+
+
+@app.post("/api/account/password/send-code")
+def account_password_send_code(
+    current_user: dict = _Depends(_get_current_user),
+):
+    """Recovery path v2 — send an OTP to the user's email on file without
+    requiring the new password yet. The new password is provided later at
+    /api/account/password/verify-and-set together with the code."""
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase not configured")
+
+    user_id = current_user["id"]
+    current_email = current_user.get("email") or ""
+    if not current_email:
+        raise HTTPException(status_code=400, detail="Your account has no email on file.")
+
+    try:
+        issued = _issue_otp(
+            supabase,
+            auth_user_id=user_id,
+            purpose="password_change",
+            payload={},
+        )
+    except PermissionError as exc:
+        raise HTTPException(status_code=429, detail=str(exc))
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Failed to issue OTP: {exc}")
+
+    _send_otp_or_500(to_email=current_email, code=issued.code, purpose="password_change")
+
+    return {
+        "ok": True,
+        "expires_at": issued.expires_at.isoformat(),
+        "message": "A verification code was sent to your email address.",
+    }
+
+
+@app.post("/api/account/password/verify-and-set")
+def account_password_verify_and_set(
+    payload: PasswordChangeVerifyAndSet,
+    current_user: dict = _Depends(_get_current_user),
+):
+    """Recovery path v2 — verify the OTP and set the new password in one
+    request. Callers must have first called /api/account/password/send-code."""
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase not configured")
+
+    err = _validate_password_strength(payload.new_password)
+    if err:
+        raise HTTPException(status_code=400, detail=err)
+
+    user_id = current_user["id"]
+    result = _verify_otp(supabase, auth_user_id=user_id, purpose="password_change", code=payload.code)
+    if not result.ok:
+        raise HTTPException(status_code=400, detail=result.error or "Invalid code.")
+
+    try:
+        supabase.auth.admin.update_user_by_id(user_id, {"password": payload.new_password})
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Password update failed: {exc}")
+
     try:
         supabase.table("member_account").update(
             {"is_temporary": False, "password": None}
