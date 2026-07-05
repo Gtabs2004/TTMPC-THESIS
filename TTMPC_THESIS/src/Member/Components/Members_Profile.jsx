@@ -606,13 +606,45 @@ const Members_Profile = () => {
     }
   };
 
-  // Step 1 — recovery path: user forgot current password. Email an OTP instead.
+  // Step 1 — recovery path: user forgot current password. Email an OTP first,
+  // then collect the new password only after the code is verified.
   const handleRequestPasswordOtp = async (e) => {
     e?.preventDefault?.();
     setPasswordError('');
 
+    try {
+      setUpdatingPassword(true);
+      const res = await fetch(`${API_BASE}/api/account/password/send-code`, {
+        method: 'POST',
+        headers: await _passwordAuthHeaders(),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.detail || 'Failed to send verification code.');
+
+      setPasswordStep(2);
+      setPasswordOtpCooldown(60);
+      setPasswordOtp('');
+      setNewPassword('');
+      setConfirmPassword('');
+    } catch (err) {
+      setPasswordError(err.message || 'Unable to send code.');
+    } finally {
+      setUpdatingPassword(false);
+    }
+  };
+
+  // Step 2: user enters the code + the new password; backend verifies both
+  // atomically and updates the password.
+  const handleConfirmPasswordOtp = async (e) => {
+    e.preventDefault();
+    setPasswordError('');
+
+    if (!/^\d{6}$/.test(passwordOtp)) {
+      setPasswordError('Enter the 6-digit code.');
+      return;
+    }
     if (!newPassword || !confirmPassword) {
-      setPasswordError('Please fill in all password fields.');
+      setPasswordError('Please fill in your new password.');
       return;
     }
     if (newPassword.length < 8) {
@@ -626,40 +658,10 @@ const Members_Profile = () => {
 
     try {
       setUpdatingPassword(true);
-      const res = await fetch(`${API_BASE}/api/account/password/request-otp`, {
+      const res = await fetch(`${API_BASE}/api/account/password/verify-and-set`, {
         method: 'POST',
         headers: await _passwordAuthHeaders(),
-        body: JSON.stringify({ new_password: newPassword }),
-      });
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(body.detail || 'Failed to send verification code.');
-
-      setPasswordStep(2);
-      setPasswordOtpCooldown(60);
-      setPasswordOtp('');
-    } catch (err) {
-      setPasswordError(err.message || 'Unable to send code.');
-    } finally {
-      setUpdatingPassword(false);
-    }
-  };
-
-  // Step 2: submit OTP; backend performs the password update.
-  const handleConfirmPasswordOtp = async (e) => {
-    e.preventDefault();
-    setPasswordError('');
-
-    if (!/^\d{6}$/.test(passwordOtp)) {
-      setPasswordError('Enter the 6-digit code.');
-      return;
-    }
-
-    try {
-      setUpdatingPassword(true);
-      const res = await fetch(`${API_BASE}/api/account/password/confirm`, {
-        method: 'POST',
-        headers: await _passwordAuthHeaders(),
-        body: JSON.stringify({ code: passwordOtp }),
+        body: JSON.stringify({ code: passwordOtp, new_password: newPassword }),
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body.detail || 'Invalid code.');
@@ -1338,38 +1340,64 @@ const Members_Profile = () => {
             >
               <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-1">
                 {passwordStep === 2
-                  ? 'Verify Code'
+                  ? 'Verify Code & Set New Password'
                   : (passwordRecoveryMode ? 'Recover Password' : 'Change Password')}
               </h3>
               <p className="text-xs text-gray-500 mb-4">
                 {passwordStep === 2
-                  ? 'We sent a 6-digit code to your email. Enter it below to finish updating your password.'
+                  ? 'Enter the 6-digit code we emailed you, then choose a new password.'
                   : (passwordRecoveryMode
-                      ? "We'll email a 6-digit code to your address on file. Enter your new password below."
+                      ? "We'll email a 6-digit code to your address on file. You can set your new password after verifying the code."
                       : 'Enter your current password and choose a new one.')}
               </p>
 
               {passwordStep === 1 ? (
                 <>
                   {!passwordRecoveryMode && (
-                    <div className="mb-4">
-                      <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Current Password</label>
-                      <input
-                        type="password"
-                        value={currentPasswordInput}
-                        onChange={(e) => setCurrentPasswordInput(e.target.value)}
-                        autoComplete="current-password"
-                        className="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-[#1D6021] outline-none"
-                        placeholder="Enter your current password"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => { setPasswordRecoveryMode(true); setCurrentPasswordInput(''); setPasswordError(''); }}
-                        className="mt-2 text-xs text-[#1D6021] hover:underline"
-                      >
-                        Forgot your current password?
-                      </button>
-                    </div>
+                    <>
+                      <div className="mb-4">
+                        <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Current Password</label>
+                        <input
+                          type="password"
+                          value={currentPasswordInput}
+                          onChange={(e) => setCurrentPasswordInput(e.target.value)}
+                          autoComplete="current-password"
+                          className="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-[#1D6021] outline-none"
+                          placeholder="Enter your current password"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => { setPasswordRecoveryMode(true); setCurrentPasswordInput(''); setNewPassword(''); setConfirmPassword(''); setPasswordError(''); }}
+                          className="mt-2 text-xs text-[#1D6021] hover:underline"
+                        >
+                          Forgot your current password?
+                        </button>
+                      </div>
+
+                      <div className="mb-4">
+                        <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">New Password</label>
+                        <input
+                          type="password"
+                          value={newPassword}
+                          onChange={(e) => setNewPassword(e.target.value)}
+                          autoComplete="new-password"
+                          className="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-[#1D6021] outline-none"
+                          placeholder="At least 8 characters"
+                        />
+                      </div>
+
+                      <div className="mb-4">
+                        <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Confirm New Password</label>
+                        <input
+                          type="password"
+                          value={confirmPassword}
+                          onChange={(e) => setConfirmPassword(e.target.value)}
+                          autoComplete="new-password"
+                          className="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-[#1D6021] outline-none"
+                          placeholder="Repeat new password"
+                        />
+                      </div>
+                    </>
                   )}
 
                   {passwordRecoveryMode && (
@@ -1384,6 +1412,30 @@ const Members_Profile = () => {
                       </button>
                     </div>
                   )}
+                </>
+              ) : (
+                <>
+                  <div className="mb-4">
+                    <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">6-digit Code</label>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      pattern="\d{6}"
+                      maxLength={6}
+                      value={passwordOtp}
+                      onChange={(e) => setPasswordOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                      className="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 rounded-lg px-3 py-2 text-lg tracking-[0.5em] text-center font-bold focus:ring-2 focus:ring-[#1D6021] outline-none"
+                      placeholder="000000"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleRequestPasswordOtp}
+                      disabled={passwordOtpCooldown > 0 || updatingPassword}
+                      className="mt-2 text-xs text-[#1D6021] hover:underline disabled:text-gray-400 disabled:no-underline"
+                    >
+                      {passwordOtpCooldown > 0 ? `Resend code in ${passwordOtpCooldown}s` : 'Resend code'}
+                    </button>
+                  </div>
 
                   <div className="mb-4">
                     <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">New Password</label>
@@ -1409,28 +1461,6 @@ const Members_Profile = () => {
                     />
                   </div>
                 </>
-              ) : (
-                <div className="mb-4">
-                  <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">6-digit Code</label>
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    pattern="\d{6}"
-                    maxLength={6}
-                    value={passwordOtp}
-                    onChange={(e) => setPasswordOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                    className="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 rounded-lg px-3 py-2 text-lg tracking-[0.5em] text-center font-bold focus:ring-2 focus:ring-[#1D6021] outline-none"
-                    placeholder="000000"
-                  />
-                  <button
-                    type="button"
-                    onClick={handleRequestPasswordOtp}
-                    disabled={passwordOtpCooldown > 0 || updatingPassword}
-                    className="mt-2 text-xs text-[#1D6021] hover:underline disabled:text-gray-400 disabled:no-underline"
-                  >
-                    {passwordOtpCooldown > 0 ? `Resend code in ${passwordOtpCooldown}s` : 'Resend code'}
-                  </button>
-                </div>
               )}
 
               {passwordError ? (
@@ -1467,7 +1497,7 @@ const Members_Profile = () => {
                         ? 'Verifying…'
                         : (passwordRecoveryMode ? 'Sending code…' : 'Updating…'))
                     : (passwordStep === 2
-                        ? 'Update Password'
+                        ? 'Verify & Update Password'
                         : (passwordRecoveryMode ? 'Send Code' : 'Update Password'))}
                 </button>
               </div>

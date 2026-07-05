@@ -230,6 +230,54 @@ export const AuthContextProvider = ({ children }) => {
     }
   };
 
+  // Send a 6-digit recovery OTP to the user's email.
+  const sendPasswordResetOtp = async (email) => {
+    const normalizedEmail = email.trim().toLowerCase();
+
+    const { account } = await getAccountByEmail(normalizedEmail);
+    if (!account) {
+      return { success: false, error: "No account found for that email." };
+    }
+
+    const { error } = await supabase.auth.signInWithOtp({
+      email: normalizedEmail,
+      options: { shouldCreateUser: false },
+    });
+
+    if (error) {
+      return { success: false, error: error.message };
+    }
+    return { success: true };
+  };
+
+  // Verify the 6-digit code. On success Supabase issues a session that
+  // allows updateUser({ password }) to succeed.
+  const verifyPasswordResetOtp = async (email, token) => {
+    const normalizedEmail = email.trim().toLowerCase();
+
+    const { data, error } = await supabase.auth.verifyOtp({
+      email: normalizedEmail,
+      token: token.trim(),
+      type: "email",
+    });
+
+    if (error) {
+      return { success: false, error: error.message };
+    }
+    return { success: true, data };
+  };
+
+  // Set a new password on the currently authenticated (post-OTP) session.
+  const updatePassword = async (newPassword) => {
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    if (error) {
+      return { success: false, error: error.message };
+    }
+    // Sign out so the reset session doesn't linger; user re-logs in normally.
+    await supabase.auth.signOut();
+    return { success: true };
+  };
+
   // Sign out
   const signOut = async () => {
     // Drop all cached member data so the next user doesn't see stale data.
@@ -255,7 +303,15 @@ export const AuthContextProvider = ({ children }) => {
 
   return (
     <AuthContext.Provider
-      value={{ signUpNewUser, signInUser, session, signOut }}
+      value={{
+        signUpNewUser,
+        signInUser,
+        session,
+        signOut,
+        sendPasswordResetOtp,
+        verifyPasswordResetOtp,
+        updatePassword,
+      }}
     >
       {children}
     </AuthContext.Provider>

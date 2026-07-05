@@ -137,9 +137,6 @@ function Login() {
                 <label htmlFor="password" className="block text-sm font-semibold text-gray-700">
                   Password
                 </label>
-                <Link to="/forgot-password" className="text-sm font-medium text-[#66B538] hover:text-green-700 transition-colors">
-                  Forgot password?
-                </Link>
               </div>
               <div className="mt-2 relative rounded-md shadow-sm">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -182,15 +179,6 @@ function Login() {
             </div>
           </form>
 
-          {/* SIGN UP LINK */}
-          <div className="mt-8 pt-6 border-t border-gray-100">
-            <p className="text-center text-sm text-gray-500">
-              Don't have an account?{' '}
-              <Link to="/sign_up" className="font-bold text-[#66B538] hover:text-green-700 transition-colors">
-                Sign up here
-              </Link>
-            </p>
-          </div>
         </div>
       </div>
       
