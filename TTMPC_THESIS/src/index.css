@@ -114,11 +114,7 @@ body {
 }
 
 .enhanced-table tbody tr {
-  @apply border-b border-gray-200 transition-all duration-200 hover:bg-green-50;
-}
-
-.enhanced-table tbody tr:hover {
-  @apply shadow-md;
+  @apply border-b border-gray-200 transition-all duration-200;
 }
 
 .enhanced-table tbody td {

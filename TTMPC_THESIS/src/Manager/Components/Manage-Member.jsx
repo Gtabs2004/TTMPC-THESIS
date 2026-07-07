@@ -187,7 +187,7 @@ const Manager_Manage_Member = () => {
                         <td className="p-5 text-sm text-gray-700">{r.address}</td>
                         <td className="p-5 text-sm text-center">
                           <button
-                            onClick={() => navigate(`/member_details?member_id=${encodeURIComponent(String(r.member_id || ""))}`, { state: { member: r } })}
+                            onClick={() => navigate(`/member_details?member_id=${encodeURIComponent(String(r.member_id || ""))}`, { state: { member: r, portal: 'manager' } })}
                             className="btn-enhanced text-[#1D6021] font-bold hover:text-green-800 transition-all"
                           >
                             View

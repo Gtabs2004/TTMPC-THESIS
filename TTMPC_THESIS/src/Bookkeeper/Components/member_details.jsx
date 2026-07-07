@@ -312,6 +312,7 @@ const Member_Details = () => {
     const portal = statePortal || queryPortal;
 
     if (portal === 'bod') return '/bod-manage-member';
+    if (portal === 'manager') return '/manager-manage-member';
     return '/manage-member';
   }, [location]);
 
