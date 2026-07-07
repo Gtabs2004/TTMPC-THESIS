@@ -607,7 +607,7 @@ const BookkeeperPayments = () => {
 
                 {(activeTab === "active" || activeTab === "fully_paid") &&
                   filteredLoanRows.map((loan, index) => (
-                    <tr key={loan.loan_id} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
+                    <tr key={loan.loan_id} className="border-b border-gray-100">
                       <td className="p-5 text-sm font-mono font-bold text-green-700">{loan.loan_id}</td>
                       <td className="p-5 text-sm text-gray-800 font-semibold">{loan.member_name}</td>
                       <td className="p-5">
@@ -662,7 +662,7 @@ const BookkeeperPayments = () => {
                     const loan = loanById.get(item.loan_id);
 
                     return (
-                      <tr key={item.payment_id} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
+                      <tr key={item.payment_id} className="border-b border-gray-100">
                         <td className="p-5 text-sm font-mono font-bold text-green-700">{item.payment_id}</td>
                         <td className="p-5 text-sm text-gray-800 font-semibold">{loan?.member_name || "Unknown Member"}</td>
                         <td className="p-5">
@@ -685,11 +685,11 @@ const BookkeeperPayments = () => {
                           </span>
                         </td>
                         <td className="p-5 text-center">
-                          <div className="flex flex-nowrap items-center gap-2 justify-center overflow-x-auto">
+                          <div className="flex flex-nowrap items-center gap-2 justify-center whitespace-nowrap">
                             <button
                               type="button"
                               onClick={() => openLoanDetailsFromPayment(item)}
-                              className="btn-enhanced inline-flex items-center gap-1.5 rounded-lg bg-green-600 px-3 py-2 text-xs font-semibold text-white hover:bg-green-700"
+                              className="btn-enhanced inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-green-600 px-3 py-2 text-xs font-semibold text-white hover:bg-green-700"
                             >
                               <Eye size={14} /> View
                             </button>
@@ -699,7 +699,7 @@ const BookkeeperPayments = () => {
                                   type="button"
                                   onClick={() => approvePayment(item.payment_id)}
                                   disabled={workingPaymentId === item.payment_id}
-                                  className="btn-enhanced inline-flex items-center gap-1.5 rounded-lg bg-green-600 px-3 py-2 text-xs font-semibold text-white hover:bg-green-700 disabled:opacity-50"
+                                  className="btn-enhanced inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-green-600 px-3 py-2 text-xs font-semibold text-white hover:bg-green-700 disabled:opacity-50"
                                 >
                                   <CheckCircle size={14} /> {workingPaymentId === item.payment_id ? "Processing..." : "Approve"}
                                 </button>
@@ -707,7 +707,7 @@ const BookkeeperPayments = () => {
                                   type="button"
                                   onClick={() => openRejectFlow(item)}
                                   disabled={workingPaymentId === item.payment_id}
-                                  className="btn-enhanced inline-flex items-center gap-1.5 rounded-lg bg-red-600 px-3 py-2 text-xs font-semibold text-white hover:bg-red-700 disabled:opacity-50"
+                                  className="btn-enhanced inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-red-600 px-3 py-2 text-xs font-semibold text-white hover:bg-red-700 disabled:opacity-50"
                                 >
                                   <XCircle size={14} /> Reject
                                 </button>
