@@ -264,7 +264,7 @@ const LoanDemandForecastCard = ({ className = "" }) => {
         )}
       </div>
 
-      {/* Per-loan-type tables */}
+      {/* Per-loan-type tables — hidden for now, chart only.
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
         {LOAN_TYPES.map((t) => (
           <div key={t.value} className="border border-gray-200 rounded-lg overflow-hidden">
@@ -318,6 +318,7 @@ const LoanDemandForecastCard = ({ className = "" }) => {
           </div>
         ))}
       </div>
+      */}
 
       <p className="mt-4 text-[10px] text-gray-400 flex items-start gap-1">
         <Info className="w-3 h-3 mt-0.5 shrink-0" />
