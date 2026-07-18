@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useMemo, useState } from "react";
+﻿import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
 import { useNotification } from "../../contex/NotificationContext";
@@ -273,6 +273,13 @@ const Cashier_Payments = () => {
   const [sortConfig, setSortConfig] = useState({ key: "due_date", direction: "asc" });
   const [showFilters, setShowFilters] = useState(false);
   const [page, setPage] = useState(1);
+  const scrollContainerRef = useRef(null);
+
+  useEffect(() => {
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  }, [page]);
 
   // Derived data: filtered and sorted loans
   const filteredAndSortedLoans = useMemo(() => {
@@ -610,12 +617,12 @@ const Cashier_Payments = () => {
         
 
       
-     <div className="flex-1 flex flex-col h-screen overflow-y-auto ml-64">
-             <div className="flex-1 flex flex-col min-w-0">
+     <div ref={scrollContainerRef} className="flex-1 flex flex-col h-screen overflow-y-auto ml-64">
+             <div className="flex flex-col min-w-0">
        <header className="bg-white h-16 border-b border-gray-100 flex items-center justify-between px-8 shrink-0 ">
          
          
-         
+                  
      
          {/* Right Side: Grouped Utilities */}
          <div className="flex items-center space-x-4 ml-auto">
@@ -654,7 +661,7 @@ const Cashier_Payments = () => {
        </header>
      </div>
         {/* 3. CASHIER LOAN PAYMENTS */}
-        <main className="p-8 overflow-auto">
+        <main className="p-8 ">
           <div className="mb-8">
             <div className="flex items-center justify-between gap-4 mb-6">
               <div>
