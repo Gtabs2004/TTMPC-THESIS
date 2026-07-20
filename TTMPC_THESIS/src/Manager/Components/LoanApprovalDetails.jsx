@@ -104,6 +104,17 @@ const LoanApprovalDetails = () => {
   const [remarks, setRemarks] = useState('');
   const [bookkeeperInternalRemarks, setBookkeeperInternalRemarks] = useState('');
   const [coMakerDetails, setCoMakerDetails] = useState(EMPTY_CO_MAKERS);
+  const [collateralRows, setCollateralRows] = useState([]);
+  const [collateralSavingId, setCollateralSavingId] = useState(null);
+
+  const COLLATERAL_TYPE_LABEL = {
+    co_maker: 'Co-Maker Guarantee',
+    cbu_shares: 'CBU / Share Capital',
+    chattel: 'Chattel',
+    real_estate: 'Real Estate',
+    atm_hold: 'ATM Hold',
+    other: 'Other',
+  };
   const [coMakerSearch, setCoMakerSearch] = useState(['', '']);
   const [coMakerMemberOptions, setCoMakerMemberOptions] = useState([]);
   const [coMakerMemberLoading, setCoMakerMemberLoading] = useState(false);
@@ -126,6 +137,45 @@ const LoanApprovalDetails = () => {
   const [riskLoading, setRiskLoading] = useState(false);
   const [riskError, setRiskError] = useState('');
   const [revisionResetDone, setRevisionResetDone] = useState(false);
+
+  // Load collateral rows for this loan. Bookkeeper can edit appraised_value;
+  // Manager/BOD see read-only.
+  useEffect(() => {
+    if (!id) return;
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await supabase
+        .from('loan_collateral')
+        .select('*')
+        .eq('loan_control_number', id)
+        .order('created_at', { ascending: true });
+      if (!cancelled && !error) {
+        setCollateralRows(data || []);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [id]);
+
+  const updateCollateralAppraisal = (collateralId, value) => {
+    setCollateralRows((rows) =>
+      rows.map((r) => (r.collateral_id === collateralId ? { ...r, appraised_value: value } : r))
+    );
+  };
+
+  const saveCollateralAppraisal = async (row) => {
+    setCollateralSavingId(row.collateral_id);
+    const parsed = row.appraised_value === '' || row.appraised_value === null
+      ? null
+      : parseFloat(row.appraised_value);
+    const { error } = await supabase
+      .from('loan_collateral')
+      .update({ appraised_value: parsed, updated_at: new Date().toISOString() })
+      .eq('collateral_id', row.collateral_id);
+    setCollateralSavingId(null);
+    if (error) {
+      alert('Failed to save appraisal: ' + error.message);
+    }
+  };
 
   const formatCurrency = (value) => {
     const amount = Number(value || 0);
@@ -1801,6 +1851,84 @@ const LoanApprovalDetails = () => {
                 );
               })}
             </div>
+          </div>
+
+          {/* Collateral panel — Bookkeeper edits appraised_value; others read-only. */}
+          <div className="border-t border-gray-200 pt-4 mt-4">
+            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-3">Loan Collateral</p>
+            {collateralRows.length === 0 ? (
+              <div className="border border-dashed border-gray-300 rounded-md p-4 text-center text-xs text-gray-500">
+                No collateral declared for this loan.
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {collateralRows.map((row) => {
+                  const declared = Number(row.declared_value || 0);
+                  const appraised = row.appraised_value === '' || row.appraised_value === null || row.appraised_value === undefined
+                    ? null
+                    : Number(row.appraised_value);
+                  return (
+                    <div key={row.collateral_id} className="grid grid-cols-1 md:grid-cols-12 gap-2 items-center border border-gray-200 rounded-md p-3 bg-white">
+                      <div className="md:col-span-3">
+                        <p className="text-[10px] uppercase text-gray-400 font-bold">Type</p>
+                        <p className="text-sm font-semibold text-gray-800">{COLLATERAL_TYPE_LABEL[row.collateral_type] || row.collateral_type}</p>
+                      </div>
+                      <div className="md:col-span-4">
+                        <p className="text-[10px] uppercase text-gray-400 font-bold">Description</p>
+                        <p className="text-sm text-gray-700 truncate" title={row.description}>{row.description}</p>
+                      </div>
+                      <div className="md:col-span-2">
+                        <p className="text-[10px] uppercase text-gray-400 font-bold">Declared</p>
+                        <p className="text-sm font-semibold text-gray-800">{formatCurrency(declared)}</p>
+                      </div>
+                      <div className="md:col-span-3">
+                        <p className="text-[10px] uppercase text-gray-400 font-bold">Appraised</p>
+                        {isBookkeeperFlow ? (
+                          <div className="flex gap-1">
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={row.appraised_value ?? ''}
+                              onChange={(e) => updateCollateralAppraisal(row.collateral_id, e.target.value)}
+                              className="border border-gray-300 rounded px-2 py-1 text-sm w-full"
+                              placeholder="Set value"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => saveCollateralAppraisal(row)}
+                              disabled={collateralSavingId === row.collateral_id}
+                              className="px-2 py-1 text-[10px] font-bold rounded bg-[#1D6021] text-white hover:bg-[#154718] disabled:opacity-60"
+                            >
+                              {collateralSavingId === row.collateral_id ? '…' : 'Save'}
+                            </button>
+                          </div>
+                        ) : (
+                          <p className="text-sm font-semibold text-gray-800">
+                            {appraised === null ? <span className="text-gray-400 italic">Not appraised</span> : formatCurrency(appraised)}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+                {(() => {
+                  const totalDeclared = collateralRows.reduce((s, r) => s + Number(r.declared_value || 0), 0);
+                  const totalAppraised = collateralRows.reduce((s, r) => s + Number(r.appraised_value || 0), 0);
+                  const principal = Number(loanDetails?.computation?.principalAmountRaw || loanDetails?.summary?.loanAmountRaw || 0);
+                  const covered = totalAppraised >= principal && principal > 0;
+                  return (
+                    <div className="flex flex-wrap items-center justify-end gap-4 pt-2 text-xs">
+                      <span><span className="text-gray-500">Total Declared:</span> <span className="font-bold text-gray-800">{formatCurrency(totalDeclared)}</span></span>
+                      <span><span className="text-gray-500">Total Appraised:</span> <span className={`font-bold ${covered ? 'text-[#1D6021]' : 'text-red-600'}`}>{formatCurrency(totalAppraised)}</span></span>
+                      {principal > 0 && (
+                        <span className="text-gray-500">vs Principal {formatCurrency(principal)}</span>
+                      )}
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
           </div>
         </div>
       </div>

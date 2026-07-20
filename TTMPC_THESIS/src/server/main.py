@@ -2183,6 +2183,163 @@ def is_validated_payment_status(status_value: str | None) -> bool:
     return normalized in {"validated", "confirmed", "bookkeeper_confirmed", "approved"}
 
 
+# ---------------------------------------------------------------------------
+# Loan Eligibility — single source of truth for "can this member apply?"
+# ---------------------------------------------------------------------------
+# Rules (see WHAT_IFS_AND_CONSTRAINTS.txt):
+#   - A member with NO active loan can apply for a New loan.
+#   - A member with an active loan (loan_status in released/paid/partially paid)
+#     cannot apply New; they may only Renew.
+#   - Renewal requires >= 6 recorded loan_payments rows for that active loan.
+#   - Frontend disables the radios based on this endpoint. Submit handlers also
+#     re-check server-side (in submitUnifiedLoan) so a stale page can't bypass.
+#
+# Simulation: the frontend passes ?sim=clean|active_recent|active_renewable to
+# fabricate one of three states without touching real data. This exists so the
+# defense demo can flip states in one URL change. Never do this in production —
+# the frontend also gates ?sim on a demo-account flag.
+ACTIVE_LOAN_STATUSES = {"released", "paid", "partially paid"}
+RENEWAL_MIN_PAYMENTS = 6
+ELIGIBILITY_LOAN_TYPES = ("consolidated", "bonus", "emergency")
+
+def _clean_bucket(loan_type: str, simulated: bool = False) -> dict:
+    return {
+        "loan_type": loan_type,
+        "can_apply_new": True,
+        "can_renew": False,
+        "reason": ("SIMULATION: " if simulated else "") + f"No active {loan_type} loan on record.",
+        "active_loan_id": None,
+        "payments_made": 0,
+        "simulation_active": simulated,
+    }
+
+def _blocked_bucket(loan_type: str, payments_made: int, active_id: str | None, simulated: bool = False) -> dict:
+    can_renew = payments_made >= RENEWAL_MIN_PAYMENTS
+    return {
+        "loan_type": loan_type,
+        "can_apply_new": False,
+        "can_renew": can_renew,
+        "reason": (
+            ("SIMULATION: " if simulated else "")
+            + f"Active {loan_type} loan {active_id or ''} in repayment. "
+            + ("Eligible for renewal." if can_renew
+               else f"Needs {RENEWAL_MIN_PAYMENTS - payments_made} more monthly payment(s) before renewal.")
+        ).strip(),
+        "active_loan_id": active_id,
+        "payments_made": payments_made,
+        "simulation_active": simulated,
+    }
+
+def _fabricate_eligibility(sim_state: str, loan_type: str | None) -> dict | None:
+    """Return a per-type map (or a single bucket if loan_type is specified)."""
+    def build_for(lt: str) -> dict:
+        if sim_state == "clean":
+            return _clean_bucket(lt, simulated=True)
+        if sim_state == "active_recent":
+            return _blocked_bucket(lt, payments_made=2, active_id=f"SIM-{lt.upper()}-RECENT", simulated=True)
+        if sim_state == "active_renewable":
+            return _blocked_bucket(lt, payments_made=6, active_id=f"SIM-{lt.upper()}-RENEWABLE", simulated=True)
+        return None
+
+    if loan_type:
+        result = build_for(loan_type.lower())
+        return result
+    per_type = {}
+    for lt in ELIGIBILITY_LOAN_TYPES:
+        bucket = build_for(lt)
+        if bucket is None:
+            return None
+        per_type[lt] = bucket
+    return {"per_type": per_type, "simulation_active": True}
+
+def _resolve_loan_type_code(row: dict) -> str | None:
+    """Map a loans row (with joined loan_types) to one of consolidated|bonus|emergency."""
+    lt = row.get("loan_types") or {}
+    code = str(lt.get("code") or "").strip().lower()
+    name = str(lt.get("name") or "").strip().lower()
+    if "consolidated" in code or "consolidated" in name:
+        return "consolidated"
+    if "emergency" in code or "emergency" in name:
+        return "emergency"
+    if "bonus" in code or "bonus" in name:
+        return "bonus"
+    return None
+
+def _compute_bucket_for_type(member_id: str, loan_type: str) -> dict:
+    loans_response = (
+        supabase.table("loans")
+        .select("control_number,loan_status,application_date,disbursal_date,loan_type_id,loan_types:loan_type_id(code,name)")
+        .eq("member_id", member_id)
+        .execute()
+    )
+    loan_rows = loans_response.data or []
+
+    active_loan = None
+    for row in loan_rows:
+        if _resolve_loan_type_code(row) != loan_type:
+            continue
+        status = str(row.get("loan_status") or "").strip().lower()
+        if status not in ACTIVE_LOAN_STATUSES:
+            continue
+        candidate_ts = row.get("disbursal_date") or row.get("application_date") or ""
+        current_ts = (
+            (active_loan or {}).get("disbursal_date")
+            or (active_loan or {}).get("application_date")
+            or ""
+        )
+        if not active_loan or str(candidate_ts) > str(current_ts):
+            active_loan = row
+
+    if active_loan is None:
+        return _clean_bucket(loan_type)
+
+    active_id = active_loan.get("control_number")
+    payments_response = (
+        supabase.table("loan_payments")
+        .select("id")
+        .eq("loan_id", active_id)
+        .execute()
+    )
+    payments_made = len(payments_response.data or [])
+    return _blocked_bucket(loan_type, payments_made, active_id)
+
+@app.get("/api/loans/eligibility/{member_id}")
+async def get_loan_eligibility(
+    member_id: str,
+    sim: str | None = None,
+    loan_type: str | None = None,
+):
+    """Return per-loan-type eligibility for the member.
+
+    - Without ?loan_type=: returns { per_type: { consolidated: {...}, bonus: {...}, emergency: {...} } }.
+    - With ?loan_type=consolidated|bonus|emergency: returns just that bucket at top level.
+
+    Rules apply within each loan type independently. Having an active Consolidated
+    loan does NOT block Emergency or Bonus, and vice versa.
+    """
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+
+    normalized_type = (loan_type or "").strip().lower() or None
+    if normalized_type and normalized_type not in ELIGIBILITY_LOAN_TYPES:
+        raise HTTPException(status_code=400, detail=f"loan_type must be one of {ELIGIBILITY_LOAN_TYPES}.")
+
+    if sim:
+        fabricated = _fabricate_eligibility(sim.strip().lower(), normalized_type)
+        if fabricated is not None:
+            return fabricated
+
+    try:
+        if normalized_type:
+            return _compute_bucket_for_type(member_id, normalized_type)
+        per_type = {lt: _compute_bucket_for_type(member_id, lt) for lt in ELIGIBILITY_LOAN_TYPES}
+        return {"per_type": per_type, "simulation_active": False}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Eligibility lookup failed: {exc}") from exc
+
+
 @app.get("/api/bookkeeper/manage-loans")
 async def get_bookkeeper_manage_loans():
     if not supabase:

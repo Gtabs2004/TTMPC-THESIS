@@ -6,6 +6,7 @@ import { formatTinNumber, TIN_FORMATTED_MAX_LENGTH } from './tinFormat';
 import { supabase } from '../supabaseClient';
 import { resolveAccountFromSessionUser } from '../utils/sessionIdentity';
 import { useMigsLabel } from '../hooks/useMigsLabel';
+import { useLoanEligibility } from '../hooks/useLoanEligibility';
 
 // Function to generate control number: CL-YYYYMMDD-XXXX
 const generateControlNumber = () => {
@@ -143,6 +144,38 @@ function Consolidated_Loan() {
     member_class: '',  // Empty until live MIGS label loads — prevents wrong 3x default capping a MIGS member.
   });
 
+  // Collateral rows the applicant declares against this loan. Persisted post-submit
+  // into loan_collateral, one row per item, linked by loan control_number.
+  const [collaterals, setCollaterals] = useState([]);
+
+  const COLLATERAL_TYPES = [
+    { value: 'co_maker',    label: 'Co-Maker Guarantee' },
+    { value: 'cbu_shares',  label: 'CBU / Share Capital' },
+    { value: 'chattel',     label: 'Chattel (vehicle, equipment)' },
+    { value: 'real_estate', label: 'Real Estate' },
+    { value: 'atm_hold',    label: 'ATM Hold' },
+    { value: 'other',       label: 'Other' },
+  ];
+
+  const addCollateral = () => {
+    setCollaterals((rows) => [...rows, { type: '', description: '', declared_value: '' }]);
+  };
+
+  const removeCollateral = (index) => {
+    setCollaterals((rows) => rows.filter((_, i) => i !== index));
+  };
+
+  const updateCollateral = (index, field, value) => {
+    setCollaterals((rows) => rows.map((row, i) => (i === index ? { ...row, [field]: value } : row)));
+  };
+
+  const totalDeclaredCollateral = collaterals.reduce(
+    (sum, row) => sum + (parseFloat(row.declared_value) || 0),
+    0,
+  );
+  const requestedPrincipal = parseFloat(formData.loan_amount_numeric) || 0;
+  const collateralShort = requestedPrincipal > 0 && totalDeclaredCollateral < requestedPrincipal;
+
   /*
     ============================================================
     LOAN CALCULATOR — Constants & State
@@ -163,10 +196,31 @@ function Consolidated_Loan() {
   const [existingLoan, setExistingLoan] = useState(null);
   const [borrowerMemberId, setBorrowerMemberId] = useState(null);
   const { data: migsLabel, status: migsLabelStatus } = useMigsLabel(borrowerMemberId);
+  // Loan eligibility (single source of truth). Server decides can_apply_new / can_renew;
+  // this UI only greyscales accordingly. Simulation is gated via ?sim=<state> URL flag
+  // and only honored outside production or for explicitly-flagged demo accounts.
+  const { data: eligibility, status: eligibilityStatus } = useLoanEligibility(borrowerMemberId, {
+    allowSimulation: false,
+    loanType: 'consolidated',
+  });
+  const canApplyNew = eligibility ? Boolean(eligibility.can_apply_new) : true;
+  const canRenew = eligibility ? Boolean(eligibility.can_renew) : true;
+  const eligibilityReady = eligibilityStatus === 'ready';
   const [renewalError, setRenewalError] = useState('');
   const [sixMonthOverride, setSixMonthOverride] = useState(false);
 
   const isRenewal = String(formData.application_type || '').toLowerCase() === 'renewal';
+
+  // Snap the selected application_type to whichever option is actually allowed
+  // once eligibility lands. Prevents a user from staying on a disabled radio.
+  useEffect(() => {
+    if (!eligibilityReady) return;
+    if (formData.application_type === 'New' && !canApplyNew && canRenew) {
+      setFormData((prev) => ({ ...prev, application_type: 'Renewal' }));
+    } else if (formData.application_type === 'Renewal' && !canRenew && canApplyNew) {
+      setFormData((prev) => ({ ...prev, application_type: 'New' }));
+    }
+  }, [eligibilityReady, canApplyNew, canRenew, formData.application_type]);
 
   useEffect(() => {
     if (!isRenewal) {
@@ -804,7 +858,7 @@ function Consolidated_Loan() {
     setLoading(true);
 
     try {
-      await submitUnifiedLoan({
+      const submitResult = await submitUnifiedLoan({
         loanTypeCode: 'CONSOLIDATED',
         controlNumber: formData.control_no,
         applicationStatus: 'pending',
@@ -829,6 +883,29 @@ function Consolidated_Loan() {
         },
       });
 
+      // Insert declared collateral rows against the freshly created loan.
+      // Non-blocking for the applicant: a collateral write failure logs a warning
+      // but does not roll back the loan (Bookkeeper can add collateral during review).
+      const controlNumber = submitResult?.controlNumber || formData.control_no;
+      if (collaterals.length > 0 && controlNumber) {
+        const rows = collaterals
+          .filter((c) => c.type && c.description && c.declared_value !== '')
+          .map((c) => ({
+            collateral_id: `col_${controlNumber}_${Math.random().toString(36).slice(2, 8)}_${Date.now()}`,
+            loan_control_number: controlNumber,
+            collateral_type: c.type,
+            description: c.description,
+            declared_value: parseFloat(c.declared_value) || 0,
+          }));
+
+        if (rows.length > 0) {
+          const { error: collateralError } = await supabase.from('loan_collateral').insert(rows);
+          if (collateralError) {
+            console.warn('Loan created, but collateral insert failed:', collateralError);
+          }
+        }
+      }
+
       alert("Loan Application Submitted Successfully!");
       window.location.reload();
     } catch (err) {
@@ -840,7 +917,14 @@ function Consolidated_Loan() {
 
   const handleFormSubmit = (e) => {
     e.preventDefault();
-    if (loading || printing || exceedsCeiling || renewalBlocked || eligibilityFailed || stressIndexExceeded) return;
+    if (loading || printing || exceedsCeiling || renewalBlocked || eligibilityFailed || stressIndexExceeded || collateralShort) return;
+    // Server eligibility must allow at least one path forward.
+    if (eligibilityReady && !canApplyNew && !canRenew) {
+      alert(eligibility?.reason || 'You are not currently eligible to apply for a loan.');
+      return;
+    }
+    if (eligibilityReady && formData.application_type === 'New' && !canApplyNew) return;
+    if (eligibilityReady && formData.application_type === 'Renewal' && !canRenew) return;
     setShowSummary(true);
   };
 
@@ -878,12 +962,34 @@ function Consolidated_Loan() {
           <div className="max-w-6xl mx-auto w-full">
             <div className="bg-[#EEF6F1] rounded-xl p-6 border-2 border-[#66B538] flex flex-wrap items-center justify-between gap-6">
               <div className="flex gap-8">
-                <label className="flex items-center space-x-2 cursor-pointer">
-                  <input type="radio" name="application_type" value="New" checked={formData.application_type === 'New'} onChange={handleChange} className="h-4 w-4 accent-[#66B538]" />
+                <label
+                  className={`flex items-center space-x-2 ${canApplyNew ? 'cursor-pointer' : 'cursor-not-allowed opacity-50 grayscale'}`}
+                  title={canApplyNew ? '' : (eligibility?.reason || 'Active loan on record — new applications are disabled.')}
+                >
+                  <input
+                    type="radio"
+                    name="application_type"
+                    value="New"
+                    checked={formData.application_type === 'New'}
+                    onChange={handleChange}
+                    disabled={!canApplyNew}
+                    className="h-4 w-4 accent-[#66B538] disabled:cursor-not-allowed"
+                  />
                   <span className="font-semibold text-gray-700">New</span>
                 </label>
-                <label className="flex items-center space-x-2 cursor-pointer">
-                  <input type="radio" name="application_type" value="Renewal" checked={formData.application_type === 'Renewal'} onChange={handleChange} className="h-4 w-4 accent-[#66B538]" />
+                <label
+                  className={`flex items-center space-x-2 ${canRenew ? 'cursor-pointer' : 'cursor-not-allowed opacity-50 grayscale'}`}
+                  title={canRenew ? '' : (eligibility?.reason || 'Renewal requires 6 recorded monthly payments on the active loan.')}
+                >
+                  <input
+                    type="radio"
+                    name="application_type"
+                    value="Renewal"
+                    checked={formData.application_type === 'Renewal'}
+                    onChange={handleChange}
+                    disabled={!canRenew}
+                    className="h-4 w-4 accent-[#66B538] disabled:cursor-not-allowed"
+                  />
                   <span className="font-semibold text-gray-700">Renewal</span>
                   {isRenewal && existingLoan && (
                     <span className={`ml-1 inline-flex items-center text-[10px] font-semibold px-1.5 py-0.5 rounded ${sixMonthsPaid ? 'bg-[#E9F7DE] text-[#2E7D32]' : 'bg-red-50 text-red-600'}`}>
@@ -891,6 +997,11 @@ function Consolidated_Loan() {
                     </span>
                   )}
                 </label>
+                {eligibility?.simulation_active && (
+                  <span className="inline-flex items-center px-2 py-0.5 text-[10px] font-bold rounded bg-amber-100 text-amber-800 border border-amber-300">
+                    SIMULATION MODE
+                  </span>
+                )}
               </div>
               <div className="flex flex-wrap gap-4">
                 <div>
@@ -1111,6 +1222,108 @@ function Consolidated_Loan() {
 
           </div>
         </div>
+        {/* Section 2.5: COLLATERAL */}
+        <div className="mt-8 bg-white rounded-lg shadow-md overflow-hidden max-w-6xl mx-auto w-full">
+          <div className={sectionHeader}>
+            <span className="bg-white text-[#66B538] rounded-full w-6 h-6 flex items-center justify-center text-sm">C</span>
+            LOAN COLLATERAL
+          </div>
+          <div className="p-6 text-sm text-gray-800">
+            <p className="text-xs text-gray-600 mb-4">
+              Declare the assets, guarantees, or holdings securing this loan. The Bookkeeper will
+              appraise each item during evaluation. Total declared value should meet or exceed
+              the requested loan amount.
+            </p>
+
+            {collaterals.length === 0 && (
+              <div className="border border-dashed border-gray-300 rounded-md p-4 text-center text-xs text-gray-500 mb-4">
+                No collateral declared yet.
+              </div>
+            )}
+
+            <div className="space-y-3">
+              {collaterals.map((row, index) => (
+                <div key={index} className="grid grid-cols-1 md:grid-cols-12 gap-2 items-end border border-gray-200 rounded-md p-3 bg-gray-50">
+                  <div className="md:col-span-3">
+                    <label className={labelStyles}>Type</label>
+                    <select
+                      value={row.type}
+                      onChange={(e) => updateCollateral(index, 'type', e.target.value)}
+                      className={inputStyles}
+                      required
+                    >
+                      <option value="">Select type</option>
+                      {COLLATERAL_TYPES.map((t) => (
+                        <option key={t.value} value={t.value}>{t.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="md:col-span-6">
+                    <label className={labelStyles}>Description</label>
+                    <input
+                      type="text"
+                      value={row.description}
+                      onChange={(e) => updateCollateral(index, 'description', e.target.value)}
+                      placeholder="e.g., 2019 Honda Click, plate ABC-123"
+                      className={inputStyles}
+                      required
+                    />
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className={labelStyles}>Declared Value (₱)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={row.declared_value}
+                      onChange={(e) => updateCollateral(index, 'declared_value', e.target.value)}
+                      className={inputStyles}
+                      required
+                    />
+                  </div>
+                  <div className="md:col-span-1 flex justify-end">
+                    <button
+                      type="button"
+                      onClick={() => removeCollateral(index)}
+                      className="px-3 py-2 text-xs font-bold text-red-600 border border-red-200 rounded-md hover:bg-red-50"
+                      aria-label="Remove collateral"
+                    >
+                      ×
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+              <button
+                type="button"
+                onClick={addCollateral}
+                className="px-4 py-2 text-xs font-bold text-[#1D6021] border border-[#66B538] rounded-md hover:bg-[#E9F7DE]"
+              >
+                + Add Collateral
+              </button>
+              <div className="text-xs">
+                <span className="font-semibold text-gray-600">Total Declared: </span>
+                <span className={`font-bold ${collateralShort ? 'text-red-600' : 'text-[#1D6021]'}`}>
+                  ₱{totalDeclaredCollateral.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </span>
+                {requestedPrincipal > 0 && (
+                  <span className="ml-2 text-gray-500">
+                    / ₱{requestedPrincipal.toLocaleString('en-PH')} requested
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {collateralShort && (
+              <p className="mt-3 text-xs text-red-600 font-semibold">
+                Declared collateral is less than the requested loan amount. Add more items or reduce the loan amount.
+              </p>
+            )}
+          </div>
+        </div>
+
         {/* Section 3: LOAN CONTRACT */}
         <div className="mt-8 bg-white rounded-lg shadow-md overflow-hidden max-w-6xl mx-auto w-full">
           <div className={sectionHeader}>
