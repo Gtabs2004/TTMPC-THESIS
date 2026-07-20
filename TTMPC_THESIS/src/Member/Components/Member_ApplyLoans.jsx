@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import LoanCalculatorModal from "./LoanCalculatorModal";
 import SettingsDrawer from './SettingsDrawer';
+import { useLoanEligibility } from "../../hooks/useLoanEligibility";
 
 const selectorOptions = [
   {
@@ -112,6 +113,24 @@ const Member_ApplyLoans = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isCalculatorOpen, setIsCalculatorOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [memberId, setMemberId] = useState(null);
+  const { data: eligibility, status: eligibilityStatus } = useLoanEligibility(memberId);
+  const eligibilityReady = eligibilityStatus === "ready";
+  const perType = eligibility?.per_type || {};
+
+  // Per-type helpers. An active loan of one type does not block other types.
+  const bucketFor = (key) => perType[key] || null;
+  const isLocked = (key) => {
+    const b = bucketFor(key);
+    if (!b || !eligibilityReady) return false;
+    return !b.can_apply_new && !b.can_renew;
+  };
+  const anyRestriction = eligibilityReady && Object.values(perType).some(
+    (b) => !b?.can_apply_new || !b?.can_renew,
+  );
+  const anyFullyBlocked = eligibilityReady && Object.values(perType).some(
+    (b) => !b?.can_apply_new && !b?.can_renew,
+  );
 
   useEffect(() => {
     let isMounted = true;
@@ -135,6 +154,7 @@ const Member_ApplyLoans = () => {
         if (isMounted) {
           setMemberLabel(fullName || "Member");
           setAvatarUrl(signedAvatarUrl || "");
+          setMemberId(memberRow?.id || sessionUser.id || null);
         }
       } catch (_error) {
         if (isMounted) {
@@ -316,20 +336,72 @@ const Member_ApplyLoans = () => {
               </div>
             </div>
 
+            {anyRestriction && (
+              <div
+                className={`mb-4 rounded-xl border p-4 flex items-start gap-3 ${
+                  anyFullyBlocked
+                    ? "border-red-200 bg-red-50 text-red-800"
+                    : "border-amber-200 bg-amber-50 text-amber-800"
+                }`}
+                role="alert"
+              >
+                <AlertCircle className="w-5 h-5 mt-0.5 flex-shrink-0" />
+                <div className="text-sm">
+                  <p className="font-bold">
+                    {anyFullyBlocked
+                      ? "Some loan types are locked because you have an active loan of that type."
+                      : "Some loan types only allow Renewal right now."}
+                  </p>
+                  <ul className="mt-2 space-y-1 text-xs">
+                    {Object.entries(perType).map(([key, bucket]) => {
+                      if (!bucket) return null;
+                      const locked = !bucket.can_apply_new && !bucket.can_renew;
+                      const partial = !bucket.can_apply_new && bucket.can_renew;
+                      if (!locked && !partial) return null;
+                      return (
+                        <li key={key}>
+                          <span className="font-bold capitalize">{key}:</span>{" "}
+                          <span>{bucket.reason}</span>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                  {eligibility?.simulation_active && (
+                    <p className="mt-2 text-[10px] font-bold uppercase tracking-wider">Simulation Mode</p>
+                  )}
+                </div>
+              </div>
+            )}
+
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               {selectorOptions.map((item) => {
                 const Icon = item.icon;
+                const disabled = isLocked(item.key);
+                const bucket = bucketFor(item.key);
                 return (
                   <button
                     key={item.key}
                     type="button"
-                    onClick={() => navigate(item.path)}
-                    className="bg-white rounded-2xl flex flex-col items-center justify-center cursor-pointer shadow-sm border border-slate-100 hover:shadow-lg hover:border-[#A0D284] transition-all group p-6 dark:bg-gray-800 dark:border-gray-700"
+                    onClick={() => {
+                      if (disabled) return;
+                      navigate(item.path);
+                    }}
+                    disabled={disabled}
+                    aria-disabled={disabled}
+                    title={disabled ? (bucket?.reason || "This loan type is locked while you have an active one.") : ""}
+                    className={`bg-white rounded-2xl flex flex-col items-center justify-center shadow-sm border border-slate-100 transition-all group p-6 dark:bg-gray-800 dark:border-gray-700 ${
+                      disabled
+                        ? "opacity-50 grayscale cursor-not-allowed"
+                        : "cursor-pointer hover:shadow-lg hover:border-[#A0D284]"
+                    }`}
                   >
-                    <div className={`${item.tone} p-4 rounded-full mb-3 group-hover:scale-110 transition-transform duration-300`}>
+                    <div className={`${item.tone} p-4 rounded-full mb-3 ${disabled ? "" : "group-hover:scale-110"} transition-transform duration-300`}>
                       <Icon size={32} strokeWidth={2} />
                     </div>
                     <h1 className="font-bold text-slate-800 text-sm text-center dark:text-gray-200">{item.label}</h1>
+                    {disabled && (
+                      <span className="mt-2 text-[10px] font-bold uppercase tracking-wider text-red-600">Locked</span>
+                    )}
                   </button>
                 );
               })}

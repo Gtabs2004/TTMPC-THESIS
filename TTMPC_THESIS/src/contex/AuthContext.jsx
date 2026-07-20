@@ -298,7 +298,28 @@ export const AuthContextProvider = ({ children }) => {
       setSession(session);
     });
 
-    return () => subscription.unsubscribe();
+    // Revalidate session against the Auth server when the tab regains focus.
+    // Why: sessionStorage is cloned into target="_blank" tabs, so a revoked or
+    // swapped-out token still looks valid locally via getSession(). getUser()
+    // is the only call that actually round-trips to verify the token.
+    const revalidate = async () => {
+      if (document.visibilityState !== "visible") return;
+      const { data, error } = await supabase.auth.getUser();
+      const localSession = (await supabase.auth.getSession()).data.session;
+      const localUserId = localSession?.user?.id ?? null;
+      const serverUserId = data?.user?.id ?? null;
+      if (error || !serverUserId || serverUserId !== localUserId) {
+        clearMemberDataCache();
+        await supabase.auth.signOut();
+        setSession(null);
+      }
+    };
+    document.addEventListener("visibilitychange", revalidate);
+
+    return () => {
+      subscription.unsubscribe();
+      document.removeEventListener("visibilitychange", revalidate);
+    };
   }, []);
 
   return (

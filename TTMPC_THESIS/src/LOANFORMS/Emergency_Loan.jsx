@@ -6,6 +6,7 @@ import { formatTinNumber, TIN_FORMATTED_MAX_LENGTH } from './tinFormat';
 import { supabase } from '../supabaseClient';
 import { resolveAccountFromSessionUser } from '../utils/sessionIdentity';
 import { useMigsLabel } from '../hooks/useMigsLabel';
+import { useLoanEligibility } from '../hooks/useLoanEligibility';
 
 const generateControlNumber = () => {
   const now = new Date();
@@ -112,6 +113,10 @@ function Emergency_Loan() {
   const [existingLoan, setExistingLoan] = useState(null);
   const [borrowerMemberId, setBorrowerMemberId] = useState(null);
   const { data: migsLabel, status: migsLabelStatus } = useMigsLabel(borrowerMemberId);
+  const { data: eligibility, status: eligibilityStatus } = useLoanEligibility(borrowerMemberId, { loanType: 'emergency' });
+  const canApplyNew = eligibility ? Boolean(eligibility.can_apply_new) : true;
+  const canRenew = eligibility ? Boolean(eligibility.can_renew) : true;
+  const eligibilityReady = eligibilityStatus === 'ready';
   const [amortizationSchedule, setAmortizationSchedule] = useState([]);
   const [breakdownDetails, setBreakdownDetails] = useState(null);
   const [renewalError, setRenewalError] = useState('');
@@ -671,14 +676,23 @@ function Emergency_Loan() {
           <div className="max-w-6xl mx-auto w-full">
             <div className="bg-[#EEF6F1] rounded-xl p-6 border-2 border-[#66B538] flex flex-wrap items-center justify-between gap-6">
               <div className="flex gap-8">
-                <label className="flex items-center space-x-2 cursor-pointer">
-                  <input type="radio" name="application_type" value="New" checked={formData.application_type === 'New'} onChange={handleChange} className="h-4 w-4 accent-[#66B538]" />
+                <label
+                  className={`flex items-center space-x-2 ${canApplyNew ? 'cursor-pointer' : 'cursor-not-allowed opacity-50 grayscale'}`}
+                  title={canApplyNew ? '' : (eligibility?.reason || 'Active loan on record — new applications are disabled.')}
+                >
+                  <input type="radio" name="application_type" value="New" checked={formData.application_type === 'New'} onChange={handleChange} disabled={!canApplyNew} className="h-4 w-4 accent-[#66B538] disabled:cursor-not-allowed" />
                   <span className="font-semibold text-gray-700">New</span>
                 </label>
-                <label className="flex items-center space-x-2 cursor-pointer">
-                  <input type="radio" name="application_type" value="Renewal" checked={formData.application_type === 'Renewal'} onChange={handleChange} className="h-4 w-4 accent-[#66B538]" />
+                <label
+                  className={`flex items-center space-x-2 ${canRenew ? 'cursor-pointer' : 'cursor-not-allowed opacity-50 grayscale'}`}
+                  title={canRenew ? '' : (eligibility?.reason || 'Renewal requires 6 recorded monthly payments.')}
+                >
+                  <input type="radio" name="application_type" value="Renewal" checked={formData.application_type === 'Renewal'} onChange={handleChange} disabled={!canRenew} className="h-4 w-4 accent-[#66B538] disabled:cursor-not-allowed" />
                   <span className="font-semibold text-gray-700">Renewal</span>
                 </label>
+                {eligibility?.simulation_active && (
+                  <span className="inline-flex items-center px-2 py-0.5 text-[10px] font-bold rounded bg-amber-100 text-amber-800 border border-amber-300">SIMULATION MODE</span>
+                )}
               </div>
               <div className="flex flex-wrap gap-4">
                 <div>

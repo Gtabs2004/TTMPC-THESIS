@@ -9,6 +9,7 @@ import {
   Bell,
   Banknote,
   ChevronDown,
+  ChevronLeft,
   ChevronRight,
   ArrowUpDown,
   AlertCircle,
@@ -45,6 +46,8 @@ const toTitleCase = (value) => {
   const text = String(value);
   return text.charAt(0).toUpperCase() + text.slice(1);
 };
+
+const PAGE_SIZE = 5;
 
 const Cashier_Disbursement = () => {
   const { session, signOut } = UserAuth();
@@ -292,6 +295,14 @@ const Cashier_Disbursement = () => {
     }));
   };
 
+  const [page, setPage] = useState(1);
+  const totalPages = Math.max(1, Math.ceil(filteredAndSortedLoans.length / PAGE_SIZE));
+  const paginatedLoans = useMemo(() => {
+    const start = (page - 1) * PAGE_SIZE;
+    return filteredAndSortedLoans.slice(start, start + PAGE_SIZE);
+  }, [filteredAndSortedLoans, page]);
+  useEffect(() => setPage(1), [searchTerm, typeFilter, sortConfig]);
+
   return (
     <div className="flex min-h-screen bg-gray-50">
           <aside className="fixed left-0 top-0 h-screen bg-white w-64 p-4 flex flex-col border-r border-gray-200 overflow-y-auto z-50">
@@ -518,9 +529,6 @@ const Cashier_Disbursement = () => {
                 <thead>
                   <tr className="bg-green-700 text-[10px] uppercase tracking-wider text-white font-extrabold">
                     <th className="p-5 font-bold">
-                      Loan ID
-                    </th>
-                    <th className="p-5 font-bold">
                       <button
                         onClick={() => handleSort("member_name")}
                         className="flex items-center gap-2 font-semibold hover:text-green-100 transition group"
@@ -585,13 +593,8 @@ const Cashier_Disbursement = () => {
                       </td>
                     </tr>
                   ) : (
-                    filteredAndSortedLoans.map((loan) => (
+                    paginatedLoans.map((loan) => (
                       <tr key={loan.loan_id} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
-                        <td className="p-5 text-xs font-mono text-gray-700">
-                          <span className="inline-flex rounded bg-gray-100 px-2 py-1">
-                            {String(loan.loan_id).slice(0, 8)}...
-                          </span>
-                        </td>
                         <td className="p-5 text-sm font-medium text-gray-900">
                           {loan.member_name}
                         </td>
@@ -629,8 +632,48 @@ const Cashier_Disbursement = () => {
                       </tr>
                     ))
                   )}
+                  {/* Pad last page to keep table height constant. */}
+                  {paginatedLoans.length > 0 && paginatedLoans.length < PAGE_SIZE &&
+                    Array.from({ length: PAGE_SIZE - paginatedLoans.length }).map((_, idx) => (
+                      <tr key={`spacer-${idx}`} className="border-b border-gray-100">
+                        <td colSpan={8} className="p-5">&nbsp;</td>
+                      </tr>
+                    ))}
                 </tbody>
               </table>
+              <div className="flex items-center justify-center p-4 gap-2 border-t border-gray-100">
+                <button
+                  className="w-8 h-8 flex items-center justify-center rounded-full border border-gray-300 bg-white text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={page <= 1}
+                  onClick={() => setPage(Math.max(page - 1, 1))}
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                {(() => {
+                  const groupStart = Math.floor((page - 1) / 5) * 5 + 1;
+                  const groupEnd = Math.min(groupStart + 4, totalPages);
+                  return Array.from({ length: groupEnd - groupStart + 1 }, (_, i) => groupStart + i).map((p) => (
+                    <button
+                      key={p}
+                      onClick={() => setPage(p)}
+                      className={`w-8 h-8 flex items-center justify-center rounded-full border text-xs font-semibold ${
+                        p === page
+                          ? "bg-[#16A34A] text-white border-[#16A34A]"
+                          : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"
+                      }`}
+                    >
+                      {p}
+                    </button>
+                  ));
+                })()}
+                <button
+                  className="w-8 h-8 flex items-center justify-center rounded-full border border-gray-300 bg-white text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={page >= totalPages}
+                  onClick={() => setPage(Math.min(page + 1, totalPages))}
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
             </div>
           </div>
         </main>

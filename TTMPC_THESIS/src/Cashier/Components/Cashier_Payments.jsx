@@ -27,7 +27,7 @@ import {
 import logo from "../../assets/img/ttmpc logo.png"; // Adjust path to logo if needed
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
-const PAGE_SIZE = 10;
+const PAGE_SIZE = 5;
 
 const MOCK_LOANS = [
   {
@@ -270,7 +270,9 @@ const Cashier_Payments = () => {
   // Filtering and sorting
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [sortConfig, setSortConfig] = useState({ key: "due_date", direction: "asc" });
+  // Default LIFO: newest disbursed loan first. Panelists expect the most recent
+  // activity at the top; sorting by due_date buried fresh loans below overdue ones.
+  const [sortConfig, setSortConfig] = useState({ key: "disbursal_date", direction: "desc" });
   const [showFilters, setShowFilters] = useState(false);
   const [page, setPage] = useState(1);
   const scrollContainerRef = useRef(null);
@@ -307,9 +309,9 @@ const Cashier_Payments = () => {
         }
 
         // Handle date comparisons
-        if (sortConfig.key === "due_date") {
-          aValue = new Date(aValue);
-          bValue = new Date(bValue);
+        if (sortConfig.key === "due_date" || sortConfig.key === "disbursal_date") {
+          aValue = new Date(aValue || 0);
+          bValue = new Date(bValue || 0);
           return sortConfig.direction === "asc" ? aValue - bValue : bValue - aValue;
         }
 
@@ -407,14 +409,65 @@ const Cashier_Payments = () => {
         };
       });
 
-      setLoans(mappedLoans);
-      setPaymentRecords(result?.data?.payment_records || []);
+      const rawPaymentRecords = result?.data?.payment_records || [];
+
+      // Waterfall split of cumulative payments into interest-first, then principal.
+      // Live calc against loan_payments — no schema change, always in sync with what
+      // the Cashier has actually recorded. Assumes payments cover interest first
+      // (standard cooperative practice), which matches how amortization is built.
+      const paidByLoan = rawPaymentRecords.reduce((acc, p) => {
+        const key = String(p.loan_id || "");
+        if (!key) return acc;
+        acc[key] = (acc[key] || 0) + Number(p.amount_paid || 0);
+        return acc;
+      }, {});
+
+      const enrichedLoans = mappedLoans.map((loan) => {
+        const totalPaid = paidByLoan[String(loan.loan_id || "")] || 0;
+        // Prefer the backend-provided total_interest, but fall back to
+        // (amortization × term − principal) when the field is 0/missing.
+        // Old loans and mock data both hit this fallback.
+        let totalInterest = Number(loan.total_interest || 0);
+        if (totalInterest <= 0) {
+          const derived =
+            Number(loan.amortization || 0) * Number(loan.term_months || 0) -
+            Number(loan.loan_amount || 0);
+          if (derived > 0) totalInterest = derived;
+        }
+        const interestPaid = Math.min(totalPaid, totalInterest);
+        const outstandingInterest = Math.max(totalInterest - interestPaid, 0);
+        const outstandingPrincipal = Math.max(
+          Number(loan.remaining_balance || 0) - outstandingInterest,
+          0,
+        );
+        return {
+          ...loan,
+          total_interest: totalInterest,
+          interest_paid: interestPaid,
+          outstanding_interest: outstandingInterest,
+          outstanding_principal: outstandingPrincipal,
+        };
+      });
+
+      setLoans(enrichedLoans);
+      setPaymentRecords(rawPaymentRecords);
     } catch (error) {
       console.error("Failed to fetch cashier loan data:", error);
-      const fallbackLoans = MOCK_LOANS.map((loan) => ({
-        ...loan,
-        amortization: calculateAmortization(loan),
-      }));
+      const fallbackLoans = MOCK_LOANS.map((loan) => {
+        const amortization = calculateAmortization(loan);
+        const totalInterest = Math.max(
+          amortization * Number(loan.term_months || 0) - Number(loan.loan_amount || 0),
+          0,
+        );
+        return {
+          ...loan,
+          amortization,
+          total_interest: totalInterest,
+          interest_paid: 0,
+          outstanding_interest: totalInterest,
+          outstanding_principal: Math.max(Number(loan.remaining_balance || 0) - totalInterest, 0),
+        };
+      });
       setLoans(fallbackLoans);
       setPaymentRecords([]);
       setFeedbackMessage("Backend unavailable. Showing mock loan data.");
@@ -746,7 +799,7 @@ const Cashier_Payments = () => {
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="bg-green-700 text-[10px] uppercase tracking-wider text-white font-extrabold">
-                    <th className="p-5 font-bold">
+                    <th className="px-3 py-3 font-bold whitespace-nowrap">
                       <button
                         onClick={() => handleSort("member_name")}
                         className="flex items-center gap-2 font-semibold hover:text-green-100 transition group"
@@ -755,7 +808,7 @@ const Cashier_Payments = () => {
                         <ArrowUpDown size={14} className="opacity-0 group-hover:opacity-100 transition" />
                       </button>
                     </th>
-                    <th className="p-5 font-bold">
+                    <th className="px-3 py-3 font-bold whitespace-nowrap">
                       <button
                         onClick={() => handleSort("loan_amount")}
                         className="flex items-center gap-2 font-semibold hover:text-green-100 transition group"
@@ -764,10 +817,10 @@ const Cashier_Payments = () => {
                         <ArrowUpDown size={14} className="opacity-0 group-hover:opacity-100 transition" />
                       </button>
                     </th>
-                    <th className="p-5 font-bold">
+                    <th className="px-3 py-3 font-bold whitespace-nowrap">
                       Interest Rate
                     </th>
-                    <th className="p-5 font-bold">
+                    <th className="px-3 py-3 font-bold whitespace-nowrap">
                       <button
                         onClick={() => handleSort("term_months")}
                         className="flex items-center gap-2 font-semibold hover:text-green-100 transition group"
@@ -776,13 +829,13 @@ const Cashier_Payments = () => {
                         <ArrowUpDown size={14} className="opacity-0 group-hover:opacity-100 transition" />
                       </button>
                     </th>
-                    <th className="p-5 font-bold">
+                    <th className="px-3 py-3 font-bold whitespace-nowrap">
                       Amortization
                     </th>
-                    <th className="p-5 font-bold">
+                    <th className="px-3 py-3 font-bold whitespace-nowrap">
                       Disbursal Date
                     </th>
-                    <th className="p-5 font-bold">
+                    <th className="px-3 py-3 font-bold whitespace-nowrap">
                       <button
                         onClick={() => handleSort("due_date")}
                         className="flex items-center gap-2 font-semibold hover:text-green-100 transition group"
@@ -791,19 +844,21 @@ const Cashier_Payments = () => {
                         <ArrowUpDown size={14} className="opacity-0 group-hover:opacity-100 transition" />
                       </button>
                     </th>
-                    <th className="p-5 font-bold">
+                    <th className="px-3 py-3 font-bold whitespace-nowrap">
                       Delay Status
                     </th>
-                    <th className="p-5 font-bold">
+                    <th className="px-3 py-3 font-bold whitespace-nowrap">Principal Bal.</th>
+                    <th className="px-3 py-3 font-bold whitespace-nowrap">Interest Bal.</th>
+                    <th className="px-3 py-3 font-bold whitespace-nowrap">
                       <button
                         onClick={() => handleSort("remaining_balance")}
                         className="flex items-center gap-2 font-semibold hover:text-green-100 transition group"
                       >
-                        Balance
+                        Total Balance
                         <ArrowUpDown size={14} className="opacity-0 group-hover:opacity-100 transition" />
                       </button>
                     </th>
-                    <th className="p-5 font-bold">
+                    <th className="px-3 py-3 font-bold whitespace-nowrap">
                       <button
                         onClick={() => handleSort("loan_status")}
                         className="flex items-center gap-2 font-semibold hover:text-green-100 transition group"
@@ -812,7 +867,7 @@ const Cashier_Payments = () => {
                         <ArrowUpDown size={14} className="opacity-0 group-hover:opacity-100 transition" />
                       </button>
                     </th>
-                    <th className="p-5 font-bold">
+                    <th className="px-3 py-3 font-bold whitespace-nowrap">
                       Action
                     </th>
                   </tr>
@@ -820,7 +875,7 @@ const Cashier_Payments = () => {
                 <tbody>
                   {paginatedLoans.length === 0 ? (
                     <tr>
-                      <td colSpan={10} className="p-5 text-center">
+                      <td colSpan={13} className="px-3 py-6 text-center">
                         <div className="flex flex-col items-center gap-2">
                           <AlertCircle size={32} className="text-gray-300" />
                           <p className="text-sm text-gray-500">
@@ -832,28 +887,28 @@ const Cashier_Payments = () => {
                   ) : (
                     paginatedLoans.map((loan) => (
                       <tr key={loan.loan_id} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
-                        <td className="p-5 text-sm font-medium text-gray-900">
+                        <td className="px-3 py-3 text-xs font-medium text-gray-900 whitespace-nowrap">
                           {loan.member_name}
                         </td>
-                        <td className="p-5 text-sm text-gray-700 font-semibold">
+                        <td className="px-3 py-3 text-xs text-gray-700 font-semibold whitespace-nowrap">
                           {formatCurrency(loan.loan_amount)}
                         </td>
-                        <td className="p-5 text-sm text-gray-700">
+                        <td className="px-3 py-3 text-xs text-gray-700 whitespace-nowrap">
                           {getDisplayedInterestRate(loan)}
                         </td>
-                        <td className="p-5 text-sm text-gray-700">
+                        <td className="px-3 py-3 text-xs text-gray-700 whitespace-nowrap">
                           {loan.term_months} mo
                         </td>
-                        <td className="p-5 text-sm text-gray-700">
+                        <td className="px-3 py-3 text-xs text-gray-700 whitespace-nowrap">
                           {formatCurrency(loan.amortization)}
                         </td>
-                        <td className="p-5 text-sm text-gray-700">
+                        <td className="px-3 py-3 text-xs text-gray-700 whitespace-nowrap">
                           {loan.disbursal_date ? new Date(loan.disbursal_date).toLocaleDateString() : "—"}
                         </td>
-                        <td className="p-5 text-sm text-gray-700">
+                        <td className="px-3 py-3 text-xs text-gray-700 whitespace-nowrap">
                           {new Date(loan.due_date).toLocaleDateString()}
                         </td>
-                        <td className="p-5">
+                        <td className="px-3 py-3 whitespace-nowrap">
                           {(() => {
                             const key = resolveDelayStatus(loan);
                             const meta = DELAY_STATUS_META[key];
@@ -866,12 +921,18 @@ const Cashier_Payments = () => {
                             );
                           })()}
                         </td>
-                        <td className="p-5 text-sm font-semibold text-gray-900">
+                        <td className="px-3 py-3 text-xs text-gray-700 whitespace-nowrap">
+                          {formatCurrency(loan.outstanding_principal)}
+                        </td>
+                        <td className="px-3 py-3 text-xs text-amber-700 font-medium whitespace-nowrap" title={`Interest paid so far: ${formatCurrency(loan.interest_paid || 0)}`}>
+                          {formatCurrency(loan.outstanding_interest)}
+                        </td>
+                        <td className="px-3 py-3 text-xs font-semibold text-gray-900 whitespace-nowrap">
                           {formatCurrency(loan.remaining_balance)}
                         </td>
-                        <td className="p-5">
+                        <td className="px-3 py-3 whitespace-nowrap">
                           <span
-                            className={`badge-animated inline-flex rounded-full px-3 py-1 text-xs font-semibold ${
+                            className={`badge-animated inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ${
                               loan.loan_status === "Fully Paid"
                                 ? "bg-green-100 text-green-700"
                                 : loan.loan_status === "Partially Paid"
@@ -882,12 +943,12 @@ const Cashier_Payments = () => {
                             {loan.loan_status}
                           </span>
                         </td>
-                        <td className="p-5">
+                        <td className="px-3 py-3 whitespace-nowrap">
                           <button
                             type="button"
                             onClick={() => openPaymentModal(loan)}
                             disabled={loan.loan_status === "Fully Paid"}
-                            className="btn-enhanced rounded-lg bg-green-600 px-4 py-2 text-xs font-semibold text-white hover:bg-green-700 transition disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500"
+                            className="btn-enhanced rounded-lg bg-green-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-green-700 transition disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500"
                           >
                             Pay
                           </button>
@@ -895,6 +956,15 @@ const Cashier_Payments = () => {
                       </tr>
                     ))
                   )}
+                  {/* Pad last page with blank rows so the table height stays constant
+                      across pagination clicks — prevents the layout from "collapsing"
+                      when the final page has fewer than PAGE_SIZE loans. */}
+                  {paginatedLoans.length > 0 && paginatedLoans.length < PAGE_SIZE &&
+                    Array.from({ length: PAGE_SIZE - paginatedLoans.length }).map((_, idx) => (
+                      <tr key={`spacer-${idx}`} className="border-b border-gray-100">
+                        <td colSpan={13} className="px-3 py-3">&nbsp;</td>
+                      </tr>
+                    ))}
                 </tbody>
               </table>
 

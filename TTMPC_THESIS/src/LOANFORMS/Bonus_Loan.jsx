@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { createUniqueControlNumber, fetchLoanPrefill, submitUnifiedLoan } from './loanSubmission';
 import { buildBonusPayload, computeLoan } from './loanComputeApi';
 import { formatTinNumber, TIN_FORMATTED_MAX_LENGTH } from './tinFormat';
+import { useLoanEligibility } from '../hooks/useLoanEligibility';
 
 const numberToWords = (num) => {
   if (num === '' || num === undefined || num === null) return '';
@@ -67,6 +68,11 @@ function Bonus_Loan() {
   const sectionHeader = 'bg-[#66B538] text-white px-4 py-2 rounded-t-lg flex items-center gap-2 font-bold uppercase tracking-wide';
 
   const [loading, setLoading] = useState(false);
+  const [borrowerMemberId, setBorrowerMemberId] = useState(null);
+  const { data: eligibility, status: eligibilityStatus } = useLoanEligibility(borrowerMemberId, { loanType: 'bonus' });
+  const canApplyNew = eligibility ? Boolean(eligibility.can_apply_new) : true;
+  const canRenew = eligibility ? Boolean(eligibility.can_renew) : true;
+  const eligibilityReady = eligibilityStatus === 'ready';
   const [printing, setPrinting] = useState(false);
   const [formData, setFormData] = useState({
     application_type: 'New',
@@ -207,6 +213,10 @@ function Bonus_Loan() {
           share_capital: profile.share_capital?.toString() ?? prev.share_capital,
           };
         });
+
+        if (profile.member_id) {
+          setBorrowerMemberId(profile.member_id);
+        }
 
         if (userEmail) {
           setFormData((prev) => ({ ...prev, user_email: userEmail }));
@@ -354,14 +364,23 @@ function Bonus_Loan() {
           <div className="max-w-6xl mx-auto w-full">
             <div className="bg-[#EEF6F1] rounded-xl p-6 border-2 border-[#66B538] flex flex-wrap items-center justify-between gap-6">
               <div className="flex gap-8">
-                <label className="flex items-center space-x-2 cursor-pointer">
-                  <input type="radio" name="application_type" value="New" checked={formData.application_type === 'New'} onChange={handleChange} className="h-4 w-4 accent-[#66B538]" />
+                <label
+                  className={`flex items-center space-x-2 ${canApplyNew ? 'cursor-pointer' : 'cursor-not-allowed opacity-50 grayscale'}`}
+                  title={canApplyNew ? '' : (eligibility?.reason || 'Active loan on record — new applications are disabled.')}
+                >
+                  <input type="radio" name="application_type" value="New" checked={formData.application_type === 'New'} onChange={handleChange} disabled={!canApplyNew} className="h-4 w-4 accent-[#66B538] disabled:cursor-not-allowed" />
                   <span className="font-semibold text-gray-700">New</span>
                 </label>
-                <label className="flex items-center space-x-2 cursor-pointer">
-                  <input type="radio" name="application_type" value="Renewal" checked={formData.application_type === 'Renewal'} onChange={handleChange} className="h-4 w-4 accent-[#66B538]" />
+                <label
+                  className={`flex items-center space-x-2 ${canRenew ? 'cursor-pointer' : 'cursor-not-allowed opacity-50 grayscale'}`}
+                  title={canRenew ? '' : (eligibility?.reason || 'Renewal requires 6 recorded monthly payments.')}
+                >
+                  <input type="radio" name="application_type" value="Renewal" checked={formData.application_type === 'Renewal'} onChange={handleChange} disabled={!canRenew} className="h-4 w-4 accent-[#66B538] disabled:cursor-not-allowed" />
                   <span className="font-semibold text-gray-700">Renewal</span>
                 </label>
+                {eligibility?.simulation_active && (
+                  <span className="inline-flex items-center px-2 py-0.5 text-[10px] font-bold rounded bg-amber-100 text-amber-800 border border-amber-300">SIMULATION MODE</span>
+                )}
               </div>
               <div className="flex flex-wrap gap-4">
                 <div>
