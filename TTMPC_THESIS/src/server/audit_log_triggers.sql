@@ -230,22 +230,25 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 BEGIN
+  -- Column is named application_status in this schema, not status. Reading
+  -- NEW.status here raised Postgres 42703 and rolled back the "Proceed to
+  -- Training" update from the BOD Member Approvals flow.
   IF TG_OP = 'UPDATE'
-     AND NEW.status IS DISTINCT FROM OLD.status THEN
+     AND NEW.application_status IS DISTINCT FROM OLD.application_status THEN
     PERFORM public.audit_write(
       'application',
-      coalesce(NEW.membership_id, NEW.id::text),
-      CASE lower(coalesce(NEW.status, ''))
+      coalesce(NEW.membership_id, NEW.application_id::text),
+      CASE lower(coalesce(NEW.application_status, ''))
         WHEN 'approved' THEN 'approve'
         WHEN 'rejected' THEN 'reject'
         ELSE 'update'
       END,
-      jsonb_build_object('status', OLD.status),
-      jsonb_build_object('status', NEW.status),
+      jsonb_build_object('status', OLD.application_status),
+      jsonb_build_object('status', NEW.application_status),
       jsonb_build_object(
         'membership_id', NEW.membership_id,
         'first_name', NEW.first_name,
-        'last_name', coalesce(NEW.surname, NEW.last_name)
+        'last_name', NEW.surname
       )
     );
   END IF;

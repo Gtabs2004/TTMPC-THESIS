@@ -283,6 +283,10 @@ END $$;
 -- =============================================================================
 -- 7. membership_payments — cashier records a membership fee payment
 -- =============================================================================
+-- Column names in this schema:
+--   PK             = payment_id (text, e.g., MP-xxxx)
+--   member ref     = membership_number_id (NOT membership_id)
+--   status column  = payment_status         (NOT status)
 CREATE OR REPLACE FUNCTION public.audit_trg_membership_payments()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -293,12 +297,12 @@ BEGIN
   IF TG_OP = 'INSERT' THEN
     PERFORM public.audit_write(
       'membership_payment',
-      NEW.id::text,
+      NEW.payment_id::text,
       'record',
       NULL,
-      to_jsonb(NEW) - 'id',
+      to_jsonb(NEW) - 'payment_id',
       jsonb_build_object(
-        'membership_id', NEW.membership_id,
+        'membership_id', NEW.membership_number_id,
         'amount',        NEW.amount
       )
     );
@@ -306,19 +310,19 @@ BEGIN
   END IF;
 
   IF TG_OP = 'UPDATE'
-     AND NEW.status IS DISTINCT FROM OLD.status THEN
+     AND NEW.payment_status IS DISTINCT FROM OLD.payment_status THEN
     PERFORM public.audit_write(
       'membership_payment',
-      NEW.id::text,
-      CASE lower(coalesce(NEW.status, ''))
+      NEW.payment_id::text,
+      CASE lower(coalesce(NEW.payment_status, ''))
         WHEN 'paid'     THEN 'approve'
         WHEN 'rejected' THEN 'reject'
         ELSE 'update'
       END,
-      jsonb_build_object('status', OLD.status),
-      jsonb_build_object('status', NEW.status),
+      jsonb_build_object('status', OLD.payment_status),
+      jsonb_build_object('status', NEW.payment_status),
       jsonb_build_object(
-        'membership_id', NEW.membership_id,
+        'membership_id', NEW.membership_number_id,
         'amount',        NEW.amount
       )
     );

@@ -237,7 +237,10 @@ const Secretary_Attendance = () => {
           : formatDisplayDate(scheduleDate.toISOString()),
         meetingDate: attendanceLog?.meeting_date || "",
         recordedAt: attendanceLog?.recorded_at || "",
-        status: row.attendance_status || "Pending",
+        // Prefer the per-training-stage log status (authoritative for the
+        // current tab). member_applications.attendance_status is a single
+        // column and can hold a stale/legacy value from a prior stage.
+        status: attendanceLog?.attendance_status || row.attendance_status || "Pending",
         remarks: attendanceLog?.remarks || row.remarks || "",
       });
     }
