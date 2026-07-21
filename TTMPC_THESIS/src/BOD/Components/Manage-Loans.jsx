@@ -19,7 +19,9 @@ import {
   FileText,
   ShieldCheck,
   AlertTriangle,
-  History
+  History,
+  CheckCircle2,
+  Clock
 } from "lucide-react";
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 const MEMBER_TONE_POOL = [
@@ -259,12 +261,12 @@ const BOD_Manage_Loans = () => {
       const response = await fetch(`${API_BASE_URL}/api/bookkeeper/manage-loans`);
       const payload = await response.json().catch(() => ({}));
       if (!response.ok || !payload?.success) {
-        throw new Error(payload?.detail || payload?.message || "Failed to load manage loans data.");
+        throw new Error(payload?.detail || payload?.message || "Failed to load loan ledger data.");
       }
       const rows = Array.isArray(payload?.data?.rows) ? payload.data.rows : [];
       setLoans(rows);
     } catch (err) {
-      setLoadError(err?.message || "Unable to load manage loans data.");
+      setLoadError(err?.message || "Unable to load loan ledger data.");
       setLoans([]);
     } finally {
       setLoading(false);
@@ -282,7 +284,7 @@ const BOD_Manage_Loans = () => {
           { name: "Dashboard", icon: LayoutDashboard },
           { name: "Member Approvals", icon: Users },
           { name: "Loan Approvals", icon: ShieldCheck },
-          { name: "Manage Loans", icon: CreditCard },
+          { name: "Loan Ledger", icon: CreditCard },
           { name: "Manage Member", icon: Users },
           { name: "Audit Log", icon: History },
           { name: "Loan Policies", icon: FileText },
@@ -302,7 +304,7 @@ const BOD_Manage_Loans = () => {
     "Dashboard": "/BOD-dashboard",
     "Member Approvals": "/member-approvals",
     "Loan Approvals": "/bod-loan-approvals",
-    "Manage Loans": "/bod-manage-loans",
+    "Loan Ledger": "/bod-manage-loans",
     "Manage Member": "/bod-manage-member",
     "Audit Log": "/bod-audit-log",
     "Loan Policies": "/bod-loan-policies",
@@ -404,213 +406,251 @@ const BOD_Manage_Loans = () => {
           </div>
         </header>
 
-        <main className="p-8 max-w-[1200px] w-full mx-auto">
-          <div className="flex items-center justify-between mb-8">
-            <div>
-              <div className="flex items-center gap-3">
-                
-                <h1 className="font-bold text-2xl text-[#1a3b47]">Loan Ledger</h1>
+        <main className="flex-1 overflow-auto">
+          <div className="p-6 sm:p-8">
+            {/* Page Header */}
+            <div className="mb-8">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-2">
+                <h1 className="text-3xl font-bold text-gray-900">Loan Ledger</h1>
+                <button
+                  onClick={fetchManageLoans}
+                  className="flex items-center justify-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 shadow-sm transition-colors"
+                  disabled={loading}
+                >
+                  <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
+                  {loading ? "Refreshing..." : "Refresh"}
+                </button>
               </div>
-              <p className="text-sm text-gray-500 mt-1 ml-9">BOD view of approved, disbursed, paid, and pending loans</p>
+              <p className="text-sm text-gray-600">Overview of approved, disbursed, paid, and pending loans</p>
             </div>
-            <button
-              onClick={fetchManageLoans}
-              className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 shadow-sm transition-colors"
-              disabled={loading}
-            >
-              <RefreshCw className="w-4 h-4" />
-              {loading ? "Refreshing..." : "Refresh"}
-            </button>
-          </div>
 
-          {loadError ? (
-            <div className="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-              {loadError}
-            </div>
-          ) : null}
-
-          {loading ? (
-            <div className="mb-6 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700">
-              Syncing loan ledger data...
-            </div>
-          ) : null}
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-            <div className="bg-white rounded-xl p-5 border border-gray-200 shadow-sm">
-              <p className="text-xs font-bold text-gray-500 tracking-wider uppercase mb-2">Total Approved</p>
-              <h2 className="text-2xl font-bold text-gray-900">{formatCurrency(summaryTotals.total)}</h2>
-              <p className="text-xs text-gray-400">Based on current records</p>
-            </div>
-            <div className="bg-blue-50 rounded-xl p-5 border border-blue-100 shadow-sm">
-              <p className="text-xs font-bold text-blue-700 tracking-wider uppercase mb-2">Disbursed</p>
-              <h2 className="text-2xl font-bold text-blue-800">{formatCurrency(summaryTotals.disbursed + summaryTotals.paid)}</h2>
-              <p className="text-xs text-blue-600">Released and active loans</p>
-            </div>
-            <div className="bg-emerald-50 rounded-xl p-5 border border-emerald-100 shadow-sm">
-              <p className="text-xs font-bold text-emerald-700 tracking-wider uppercase mb-2">Paid</p>
-              <h2 className="text-2xl font-bold text-emerald-800">{formatCurrency(summaryTotals.paid)}</h2>
-              <p className="text-xs text-emerald-600">Fully settled loans</p>
-            </div>
-            <div className="bg-orange-50 rounded-xl p-5 border border-orange-100 shadow-sm">
-              <p className="text-xs font-bold text-orange-700 tracking-wider uppercase mb-2">Pending</p>
-              <h2 className="text-2xl font-bold text-orange-800">{formatCurrency(summaryTotals.pending)}</h2>
-              <p className="text-xs text-orange-600">Awaiting release</p>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
-            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-6">
-              <div>
-                <h2 className="text-lg font-bold text-[#1a3b47]">Loan Ledger</h2>
-                <p className="text-sm text-gray-500">Grouped by {activeFilter.toLowerCase()} — expand a member to view loan lines</p>
+            {/* Alert Messages */}
+            {loadError ? (
+              <div className="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 flex items-start gap-3">
+                <AlertTriangle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+                <div>{loadError}</div>
               </div>
-              <div className="flex bg-gray-50 border border-gray-200 rounded-full p-1 w-fit">
-                {["Weekly", "Monthly", "Yearly"].map((filter) => (
-                  <button
-                    key={filter}
-                    onClick={() => setActiveFilter(filter)}
-                    className={`px-4 py-1.5 text-xs font-medium rounded-full transition-colors ${
-                      activeFilter === filter ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
-                    }`}
-                  >
-                    {filter}
-                  </button>
-                ))}
+            ) : null}
+
+            {loading && !loadError ? (
+              <div className="mb-6 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700 flex items-start gap-3">
+                <RefreshCw className="w-5 h-5 flex-shrink-0 mt-0.5 animate-spin" />
+                <div>Syncing loan ledger data...</div>
               </div>
-            </div>
+            ) : null}
 
-            <div className="space-y-6">
-              {currentLedgerData.length === 0 ? (
-                <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-6 text-center text-sm text-gray-500">
-                  No loan ledger data available for the selected period.
-                </div>
-              ) : null}
-              {currentLedgerData.map((group) => {
-                const isExpanded = expandedPeriods.includes(group.period);
-                return (
-                  <div key={group.period} className="flex flex-col">
-                    <div
-                      className="flex flex-col lg:flex-row lg:items-center lg:justify-between py-2 cursor-pointer group gap-2"
-                      onClick={() => togglePeriod(group.period)}
-                    >
-                      <div className="flex items-center gap-2">
-                        {isExpanded ? (
-                          <ChevronDown className="w-5 h-5 text-green-600" />
-                        ) : (
-                          <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-gray-600" />
-                        )}
-                        <h3 className="font-bold text-gray-900">{group.period}</h3>
-                        <span className="text-sm text-gray-400">({group.memberCount} members)</span>
-                      </div>
-                      <div className="flex flex-wrap items-center gap-4 text-sm">
-                        <div className="flex items-center gap-1">
-                          <span className="text-gray-500">Approved</span>
-                          <span className="font-semibold text-green-700">{group.totalApproved}</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <span className="text-gray-500">Disbursed</span>
-                          <span className="font-semibold text-blue-700">{group.totalDisbursed}</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <span className="text-gray-500">Paid</span>
-                          <span className="font-semibold text-emerald-700">{group.totalPaid}</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <span className="text-gray-500">Pending</span>
-                          <span className="font-semibold text-orange-600">{group.totalPending}</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {isExpanded && (
-                      <div className="mt-4 space-y-3">
-                        {group.members.map((member) => {
-                          const isMemberExpanded = expandedMembers.includes(member.id);
-                          return (
-                            <div
-                              key={member.id}
-                              className={`border rounded-xl transition-all ${
-                                isMemberExpanded ? "border-gray-200 shadow-sm" : "border-gray-100 hover:border-gray-200"
-                              }`}
-                            >
-                              <div
-                                className="flex flex-col lg:flex-row lg:items-center lg:justify-between p-4 cursor-pointer gap-4"
-                                onClick={() => toggleMember(member.id)}
-                              >
-                                <div className="flex items-center gap-4">
-                                  <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm ${member.initialColor}`}>
-                                    {member.initial}
-                                  </div>
-                                  <div>
-                                    <p className="font-bold text-sm text-gray-900">{member.name}</p>
-                                    <p className="text-xs text-gray-400">{member.memberId} - {member.loanText}</p>
-                                  </div>
-                                </div>
-
-                                <div className="flex flex-wrap items-center gap-6">
-                                  <div className="text-right">
-                                    <p className="text-[10px] uppercase font-bold text-gray-400 tracking-wider mb-0.5">Approved</p>
-                                    <p className="text-sm font-semibold text-green-700">{member.approvedAmount}</p>
-                                  </div>
-                                  <div className="text-right">
-                                    <p className="text-[10px] uppercase font-bold text-gray-400 tracking-wider mb-0.5">Disbursed</p>
-                                    <p className="text-sm font-semibold text-blue-700">{member.disbursedAmount}</p>
-                                  </div>
-                                  <div className="text-right">
-                                    <p className="text-[10px] uppercase font-bold text-gray-400 tracking-wider mb-0.5">Paid</p>
-                                    <p className="text-sm font-semibold text-emerald-700">{member.paidAmount}</p>
-                                  </div>
-                                  <div className="text-right">
-                                    <p className="text-[10px] uppercase font-bold text-gray-400 tracking-wider mb-0.5">Pending</p>
-                                    <p className="text-sm font-semibold text-orange-600">{member.pendingAmount}</p>
-                                  </div>
-                                  <div className="flex items-center gap-3">
-                                    <span className="font-bold text-gray-900">{member.totalAmount}</span>
-                                    {isMemberExpanded ? (
-                                      <ChevronUp className="w-5 h-5 text-gray-400" />
-                                    ) : (
-                                      <ChevronRight className="w-5 h-5 text-gray-400" />
-                                    )}
-                                  </div>
-                                </div>
-                              </div>
-
-                              {isMemberExpanded && member.loans?.length > 0 && (
-                                <div className="border-t border-gray-100 bg-gray-50/70 p-4 rounded-b-xl">
-                                  <div className="grid gap-3">
-                                    {member.loans.map((loan) => (
-                                      <div key={loan.loanId} className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 bg-white border border-gray-100 rounded-lg px-4 py-3">
-                                        <div>
-                                          <p className="text-xs text-gray-400 font-mono">{loan.loanId}</p>
-                                          <p className="text-sm font-semibold text-gray-800">{loan.loanType}</p>
-                                          <p className="text-xs text-gray-500">Disbursement: {loan.disbursedDate}</p>
-                                        </div>
-                                        <div className="flex items-center gap-3">
-                                          <span className={`inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs font-semibold ${formatStatusTone(loan.status)}`}>
-                                            {loan.status}
-                                          </span>
-                                          <div className="text-right">
-                                            <p className="text-xs text-gray-400">Amount</p>
-                                            <p className="text-sm font-semibold text-gray-900">{loan.amount}</p>
-                                          </div>
-                                          <div className="text-right">
-                                            <p className="text-xs text-gray-400">Balance</p>
-                                            <p className="text-sm font-semibold text-gray-900">{loan.balance}</p>
-                                          </div>
-                                        </div>
-                                      </div>
-                                    ))}
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
+            {/* Summary Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
+              <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm hover:shadow-md transition-shadow">
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-xs font-semibold text-gray-600 uppercase tracking-wider">Total Loans</p>
+                  <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center">
+                    <CreditCard className="w-4 h-4 text-gray-700" />
                   </div>
-                );
-              })}
+                </div>
+                <h2 className="text-2xl font-bold text-gray-900">{formatCurrency(summaryTotals.total)}</h2>
+                <p className="text-xs text-gray-500 mt-2">All recorded loans</p>
+              </div>
+
+              <div className="bg-blue-50 rounded-lg border border-blue-200 p-6 shadow-sm hover:shadow-md transition-shadow">
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-xs font-semibold text-blue-700 uppercase tracking-wider">Disbursed</p>
+                  <div className="w-8 h-8 rounded-full bg-blue-200 flex items-center justify-center">
+                    <BookOpen className="w-4 h-4 text-blue-700" />
+                  </div>
+                </div>
+                <h2 className="text-2xl font-bold text-blue-900">{formatCurrency(summaryTotals.disbursed + summaryTotals.paid)}</h2>
+                <p className="text-xs text-blue-600 mt-2">Released to members</p>
+              </div>
+
+              <div className="bg-emerald-50 rounded-lg border border-emerald-200 p-6 shadow-sm hover:shadow-md transition-shadow">
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-xs font-semibold text-emerald-700 uppercase tracking-wider">Fully Paid</p>
+                  <div className="w-8 h-8 rounded-full bg-emerald-200 flex items-center justify-center">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-700" />
+                  </div>
+                </div>
+                <h2 className="text-2xl font-bold text-emerald-900">{formatCurrency(summaryTotals.paid)}</h2>
+                <p className="text-xs text-emerald-600 mt-2">Loans settled</p>
+              </div>
+
+              <div className="bg-amber-50 rounded-lg border border-amber-200 p-6 shadow-sm hover:shadow-md transition-shadow">
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-xs font-semibold text-amber-700 uppercase tracking-wider">Pending</p>
+                  <div className="w-8 h-8 rounded-full bg-amber-200 flex items-center justify-center">
+                    <Clock className="w-4 h-4 text-amber-700" />
+                  </div>
+                </div>
+                <h2 className="text-2xl font-bold text-amber-900">{formatCurrency(summaryTotals.pending)}</h2>
+                <p className="text-xs text-amber-600 mt-2">Awaiting release</p>
+              </div>
+            </div>
+
+            {/* Ledger Section */}
+            <div className="bg-white rounded-lg border border-gray-200 shadow-sm">
+              {/* Ledger Header */}
+              <div className="border-b border-gray-200 px-6 py-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div>
+                  <h2 className="text-lg font-bold text-gray-900">Loans by Period</h2>
+                  <p className="text-sm text-gray-600 mt-1">Grouped by {activeFilter.toLowerCase()} — expand to see details</p>
+                </div>
+                <div className="flex items-center gap-2 bg-gray-100 rounded-lg p-1 w-fit">
+                  {["Weekly", "Monthly", "Yearly"].map((filter) => (
+                    <button
+                      key={filter}
+                      onClick={() => setActiveFilter(filter)}
+                      className={`px-3 py-1.5 text-xs font-medium rounded transition-colors ${
+                        activeFilter === filter
+                          ? "bg-white text-gray-900 shadow-sm border border-gray-200"
+                          : "text-gray-600 hover:text-gray-900"
+                      }`}
+                    >
+                      {filter}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Ledger Content */}
+              <div className="divide-y divide-gray-100">
+                {currentLedgerData.length === 0 ? (
+                  <div className="px-6 py-12 text-center">
+                    <BookOpen className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                    <p className="text-sm text-gray-500">No loan ledger data available for the selected period</p>
+                  </div>
+                ) : null}
+
+                {currentLedgerData.map((group) => {
+                  const isExpanded = expandedPeriods.includes(group.period);
+                  return (
+                    <div key={group.period}>
+                      {/* Period Group Header */}
+                      <div
+                        className="px-6 py-4 cursor-pointer hover:bg-gray-50 transition-colors flex items-center justify-between"
+                        onClick={() => togglePeriod(group.period)}
+                      >
+                        <div className="flex items-center gap-3 flex-1 min-w-0">
+                          <div className="flex-shrink-0">
+                            {isExpanded ? (
+                              <ChevronDown className="w-5 h-5 text-[#2C7A3F]" />
+                            ) : (
+                              <ChevronRight className="w-5 h-5 text-gray-400" />
+                            )}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="font-semibold text-gray-900">{group.period}</p>
+                            <p className="text-xs text-gray-500">{group.memberCount} member{group.memberCount !== 1 ? "s" : ""}</p>
+                          </div>
+                        </div>
+                        <div className="flex flex-wrap items-center justify-end gap-6 text-sm ml-4">
+                          <div className="text-right">
+                            <p className="text-xs text-gray-500">Approved</p>
+                            <p className="font-semibold text-gray-900">{group.totalApproved}</p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-xs text-gray-500">Disbursed</p>
+                            <p className="font-semibold text-gray-900">{group.totalDisbursed}</p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-xs text-gray-500">Paid</p>
+                            <p className="font-semibold text-gray-900">{group.totalPaid}</p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-xs text-gray-500">Pending</p>
+                            <p className="font-semibold text-gray-900">{group.totalPending}</p>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Period Members List */}
+                      {isExpanded && (
+                        <div className="bg-gray-50 px-6 py-4 space-y-3">
+                          {group.members.map((member) => {
+                            const isMemberExpanded = expandedMembers.includes(member.id);
+                            return (
+                              <div key={member.id} className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+                                {/* Member Header */}
+                                <div
+                                  className="px-4 py-3 cursor-pointer hover:bg-gray-50 transition-colors flex items-center justify-between"
+                                  onClick={() => toggleMember(member.id)}
+                                >
+                                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                                    <div className={`flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center font-semibold text-xs ${member.initialColor}`}>
+                                      {member.initial}
+                                    </div>
+                                    <div className="min-w-0 flex-1">
+                                      <p className="text-sm font-semibold text-gray-900 truncate">{member.name}</p>
+                                      <p className="text-xs text-gray-500">{member.memberId} • {member.loanText}</p>
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center justify-end gap-4 ml-4 flex-wrap">
+                                    <div className="text-right">
+                                      <p className="text-xs text-gray-500">Approved</p>
+                                      <p className="text-sm font-semibold text-gray-900">{member.approvedAmount}</p>
+                                    </div>
+                                    <div className="text-right">
+                                      <p className="text-xs text-gray-500">Disbursed</p>
+                                      <p className="text-sm font-semibold text-gray-900">{member.disbursedAmount}</p>
+                                    </div>
+                                    <div className="text-right">
+                                      <p className="text-xs text-gray-500">Paid</p>
+                                      <p className="text-sm font-semibold text-gray-900">{member.paidAmount}</p>
+                                    </div>
+                                    <div className="text-right">
+                                      <p className="text-xs text-gray-500">Pending</p>
+                                      <p className="text-sm font-semibold text-gray-900">{member.pendingAmount}</p>
+                                    </div>
+                                    <div className="flex items-center gap-2 flex-shrink-0">
+                                      <p className="text-sm font-bold text-gray-900">{member.totalAmount}</p>
+                                      {isMemberExpanded ? (
+                                        <ChevronUp className="w-4 h-4 text-gray-400" />
+                                      ) : (
+                                        <ChevronRight className="w-4 h-4 text-gray-400" />
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {/* Member Loans */}
+                                {isMemberExpanded && member.loans?.length > 0 && (
+                                  <div className="border-t border-gray-200 bg-gray-50 px-4 py-4">
+                                    <div className="space-y-2">
+                                      {member.loans.map((loan) => (
+                                        <div key={loan.loanId} className="bg-white border border-gray-200 rounded p-3 text-sm">
+                                          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                                            <div className="flex-1 min-w-0">
+                                              <p className="text-xs font-mono text-gray-500 truncate">{loan.loanId}</p>
+                                              <p className="font-semibold text-gray-900">{loan.loanType}</p>
+                                              <p className="text-xs text-gray-600 mt-1">Disbursed: {loan.disbursedDate}</p>
+                                            </div>
+                                            <div className="flex flex-wrap items-center justify-between gap-3 sm:justify-end">
+                                              <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-medium whitespace-nowrap ${formatStatusTone(loan.status)}`}>
+                                                {loan.status}
+                                              </span>
+                                              <div className="text-right">
+                                                <p className="text-xs text-gray-500">Amount</p>
+                                                <p className="font-semibold text-gray-900">{loan.amount}</p>
+                                              </div>
+                                              <div className="text-right">
+                                                <p className="text-xs text-gray-500">Balance</p>
+                                                <p className="font-semibold text-gray-900">{loan.balance}</p>
+                                              </div>
+                                            </div>
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           </div>
         </main>

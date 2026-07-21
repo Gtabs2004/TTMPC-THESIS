@@ -18,7 +18,9 @@ import {
   Users,
   ShieldCheck,
   AlertTriangle,
-  History
+  History,
+  Check,
+  X
 } from "lucide-react";
 
 import { UserAuth } from "../../contex/AuthContext";
@@ -47,6 +49,11 @@ const Secretary_General_Assembly = () => {
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  
+  // New state for bulk selection
+  const [selectedMembers, setSelectedMembers] = useState(new Set());
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [confirmationMode, setConfirmationMode] = useState(null); // 'bulk' or null
 
   const menuItems = [
       {
@@ -55,7 +62,7 @@ const Secretary_General_Assembly = () => {
           { name: "Dashboard", icon: LayoutDashboard },
           { name: "Member Approvals", icon: Users },
           { name: "Loan Approvals", icon: ShieldCheck },
-          { name: "Manage Loans", icon: CreditCard },
+          { name: "Loan Ledger", icon: CreditCard },
           { name: "Manage Member", icon: Users },
           { name: "Audit Log", icon: History },
           { name: "Loan Policies", icon: FileText },
@@ -75,7 +82,7 @@ const Secretary_General_Assembly = () => {
     "Dashboard": "/BOD-dashboard",
     "Member Approvals": "/member-approvals",
     "Loan Approvals": "/bod-loan-approvals",
-    "Manage Loans": "/bod-manage-loans",
+    "Loan Ledger": "/bod-manage-loans",
     "Manage Member": "/bod-manage-member",
     "Audit Log": "/bod-audit-log",
     "Loan Policies": "/bod-loan-policies",
@@ -211,6 +218,92 @@ const Secretary_General_Assembly = () => {
     }
   };
 
+  // Bulk selection handlers
+  const handleSelectMember = (memberId) => {
+    setSelectedMembers((prev) => {
+      const updated = new Set(prev);
+      if (updated.has(memberId)) {
+        updated.delete(memberId);
+      } else {
+        updated.add(memberId);
+      }
+      return updated;
+    });
+  };
+
+  const handleSelectAll = () => {
+    if (selectedMembers.size === paginated.length) {
+      setSelectedMembers(new Set());
+    } else {
+      const allPagedIds = new Set(paginated.map((r) => r.id));
+      setSelectedMembers(allPagedIds);
+    }
+  };
+
+  const handleMarkSelectedAsPresent = () => {
+    if (selectedMembers.size === 0) {
+      addNotification("Please select at least one member.", "info");
+      return;
+    }
+    if (!meetingDate) {
+      addNotification("Pick a meeting date first.", "error");
+      return;
+    }
+    setConfirmationMode("bulk");
+    setShowConfirmModal(true);
+  };
+
+  const handleConfirmBulkMark = async () => {
+    if (selectedMembers.size === 0) {
+      addNotification("No members selected.", "info");
+      return;
+    }
+
+    const entries = Array.from(selectedMembers).map((memberId) => {
+      const row = rows.find((r) => r.id === memberId) || {};
+      return {
+        membership_number_id: memberId,
+        status: "Present",
+        remarks: row.remarks ?? "",
+      };
+    });
+
+    setSaving(true);
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/secretary/general-assembly/save`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            meeting_date: meetingDate,
+            recorded_by: session?.user?.id || null,
+            entries,
+          }),
+        }
+      );
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(result?.detail || "Save failed.");
+      }
+      const ok = result?.inserted + result?.updated;
+      addNotification(
+        `${ok} member${ok === 1 ? "" : "s"} successfully marked as Present.`,
+        result?.errors?.length ? "warning" : "success"
+      );
+      if (result?.errors?.length) {
+        console.warn("GA bulk mark partial errors", result.errors);
+      }
+      setSelectedMembers(new Set());
+      setShowConfirmModal(false);
+      await fetchRoster();
+    } catch (err) {
+      addNotification(err?.message || "Failed to mark attendance.", "error");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const handleSignOut = async (event) => {
     event.preventDefault();
     try {
@@ -225,61 +318,38 @@ const Secretary_General_Assembly = () => {
 
   return (
     <div className="flex min-h-screen bg-gray-50">
-      <aside className="bg-white w-64 p-4 flex flex-col border-r border-gray-200">
-        <div className="flex flex-row items-start gap-2 mb-6">
-          <img src={logo} alt="Logo" className="h-12 w-auto" />
-          <div className="flex flex-col">
-            <h1 className="text-xl font-bold text-[#389734]">TTMPC</h1>
-            <PortalSidebarIdentity
-              className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold"
-              fallbackPortal="Secretary Portal"
-              fallbackRole="Secretary"
-            />
-          </div>
-        </div>
-
-        <hr className="w-full border-gray-200 mb-6" />
-
-        <nav className="flex flex-col gap-2 text-sm flex-grow">
-          {menuItems.map((sectionGroup) => (
-            <div key={sectionGroup.section} className="mb-4 flex flex-col gap-2">
-              <p className="text-xs font-bold text-gray-400 px-2 uppercase tracking-wider">
-                {sectionGroup.section}
-              </p>
-              {sectionGroup.items.map((item) => {
-                const Icon = item.icon;
-                const to =
-                  routeMap[item.name] || `/${item.name.toLowerCase().replace(/\s+/g, "-")}`;
-                return (
-                  <NavLink
-                    key={item.name}
-                    to={to}
-                    className={({ isActive }) =>
-                      `flex items-center gap-3 p-2 rounded-md transition-colors ${
-                        isActive
-                          ? "bg-green-50 text-green-700 font-semibold"
-                          : "text-gray-700 hover:bg-green-50 hover:text-green-700"
-                      }`
-                    }
-                  >
-                    <Icon size={20} />
-                    <span>{item.name}</span>
-                  </NavLink>
-                );
-              })}
-            </div>
-          ))}
-        </nav>
-
-        <button
-          onClick={handleSignOut}
-          className="mt-auto w-full rounded p-2 text-xs bg-green-600 hover:bg-green-700 text-white font-bold transition-colors"
-        >
-          Sign out
-        </button>
-      </aside>
-
-      <div className="flex-1 flex flex-col">
+         {/* SIDEBAR */}
+         <aside className="bg-white w-64 p-4 flex flex-col border-r border-gray-200">
+           <div className="flex flex-row items-start gap-2 mb-6">
+             <img src="/img/ttmpc logo.png" alt="Logo" className="h-12 w-auto" />
+             <div className="flex flex-col">
+               <h1 className="text-xl font-bold text-[#389734]">TTMPC</h1>
+               <PortalSidebarIdentity className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold" fallbackPortal="BOD Portal" fallbackRole="BOD" />
+             </div>
+           </div>
+           <hr className="w-full border-gray-200 mb-6" />
+           
+           <nav className="flex flex-col gap-2 text-sm flex-grow">
+             {menuItems.map((sectionGroup) => (
+               <div key={sectionGroup.section} className="mb-4 flex flex-col gap-2">
+                 <p className="text-xs font-bold text-gray-400 px-2 uppercase tracking-wider">{sectionGroup.section}</p>
+                 {sectionGroup.items.map((item) => {
+                   const Icon = item.icon;
+                   const to = routeMap[item.name];
+                   return (
+                     <NavLink key={item.name} to={to} className={({ isActive }) => `flex items-center gap-3 p-2 rounded-md transition-colors ${isActive ? 'bg-green-50 text-green-700 font-semibold' : 'text-gray-700 hover:bg-green-50 hover:text-green-700'}`}>
+                       <Icon size={20} /><span>{item.name}</span>
+                     </NavLink>
+                   );
+                 })}
+               </div>
+             ))}
+           </nav>
+           <button onClick={handleSignOut} className="mt-auto w-full rounded p-2 text-xs bg-green-600 hover:bg-green-700 text-white font-bold transition-colors">Sign out</button>
+         </aside>
+   
+         {/* MAIN CONTENT AREA */}
+         <div className="flex-1 min-w-0 flex flex-col h-screen overflow-hidden">
         <header className="bg-white h-16 shadow-sm flex items-center justify-end px-8 z-10">
           <div className="relative">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400" />
@@ -379,6 +449,17 @@ const Secretary_General_Assembly = () => {
               />
             </label>
 
+            {selectedMembers.size > 0 && (
+              <button
+                onClick={handleMarkSelectedAsPresent}
+                disabled={saving}
+                className="px-3 py-1.5 rounded-md bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold inline-flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Check size={13} />
+                {saving ? "Processing..." : `Mark Selected as Present (${selectedMembers.size})`}
+              </button>
+            )}
+
             <button
               onClick={handleSave}
               disabled={saving || dirtyCount === 0}
@@ -395,6 +476,15 @@ const Secretary_General_Assembly = () => {
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="bg-green-700 text-[10px] uppercase tracking-wider text-white font-extrabold">
+                    <th className="p-5 font-bold w-10">
+                      <input
+                        type="checkbox"
+                        checked={selectedMembers.size > 0 && selectedMembers.size === paginated.filter((r) => r.status !== "Present").length}
+                        onChange={handleSelectAll}
+                        className="w-4 h-4 cursor-pointer"
+                        title="Select all members on this page"
+                      />
+                    </th>
                     <th className="p-5 font-bold">Member ID</th>
                     <th className="p-5 font-bold">Member Name</th>
                     <th className="p-5 font-bold">Attendance</th>
@@ -405,14 +495,14 @@ const Secretary_General_Assembly = () => {
                 <tbody>
                   {loading ? (
                     <tr>
-                      <td colSpan={5} className="px-3 py-6 text-center text-gray-500">
+                      <td colSpan={6} className="px-3 py-6 text-center text-gray-500">
                         <Clock className="inline w-4 h-4 mr-1" />
                         Loading members...
                       </td>
                     </tr>
                   ) : paginated.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="px-3 py-8 text-center">
+                      <td colSpan={6} className="px-3 py-8 text-center">
                         <div className="flex flex-col items-center gap-1.5">
                           <AlertCircle size={24} className="text-gray-300" />
                           <p className="text-xs text-gray-500">No members match your filters.</p>
@@ -423,11 +513,23 @@ const Secretary_General_Assembly = () => {
                     paginated.map((row) => {
                       const status = effectiveStatus(row);
                       const isDirty = edits[row.id] !== undefined;
+                      const isAlreadyPresent = row.status === "Present";
+                      const isSelected = selectedMembers.has(row.id);
                       return (
                         <tr
                           key={row.id}
-                          className={`border-b border-gray-100 hover:bg-gray-50/50 transition-colors ${isDirty ? "bg-amber-50/40" : ""}`}
+                          className={`border-b border-gray-100 hover:bg-gray-50/50 transition-colors ${isDirty ? "bg-amber-50/40" : ""} ${isSelected ? "bg-blue-50" : ""}`}
                         >
+                          <td className="p-5 text-center">
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() => handleSelectMember(row.id)}
+                              disabled={isAlreadyPresent}
+                              className="w-4 h-4 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                              title={isAlreadyPresent ? "Already marked as Present" : "Select member"}
+                            />
+                          </td>
                           <td className="p-5 text-sm font-mono text-gray-700">
                             {row.membership_id || "—"}
                           </td>
@@ -480,6 +582,86 @@ const Secretary_General_Assembly = () => {
               <Pagination page={page} totalPages={totalPages} onChange={setPage} />
             )}
           </div>
+
+          {/* Confirmation Modal */}
+          {showConfirmModal && confirmationMode === "bulk" && (
+            <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50">
+              <div className="bg-white rounded-lg shadow-xl w-[500px] max-h-[80vh] overflow-y-auto animate-in fade-in zoom-in duration-200">
+                {/* Modal Header */}
+                <div className="bg-[#65B741] p-4 sticky top-0">
+                  <h2 className="text-white font-bold text-lg">Confirm Attendance</h2>
+                </div>
+                
+                {/* Modal Body */}
+                <div className="p-6">
+                  <div className="mb-6">
+                    <p className="text-sm text-gray-700 mb-4">
+                      Are you sure you want to mark <strong className="text-green-700">{selectedMembers.size} member{selectedMembers.size === 1 ? "" : "s"}</strong> as Present?
+                    </p>
+                  </div>
+
+                  {/* Selected Members List */}
+                  <div className="mb-6 rounded-lg border border-gray-200 bg-gray-50 p-4">
+                    <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Selected Members:</p>
+                    <div className="space-y-2">
+                      {(() => {
+                        const memberIds = Array.from(selectedMembers);
+                        const memberRows = memberIds
+                          .map((id) => rows.find((r) => r.id === id))
+                          .filter(Boolean);
+                        
+                        const previewCount = 3;
+                        const displayMembers = memberRows.slice(0, previewCount);
+                        const remainingCount = memberRows.length - previewCount;
+
+                        return (
+                          <>
+                            {displayMembers.map((member) => (
+                              <div key={member.id} className="flex items-start gap-2 text-sm text-gray-700">
+                                <Check size={16} className="text-green-600 mt-0.5 flex-shrink-0" />
+                                <div>
+                                  <div className="font-medium">{member.full_name}</div>
+                                  <div className="text-xs text-gray-500">ID: {member.membership_id}</div>
+                                </div>
+                              </div>
+                            ))}
+                            {remainingCount > 0 && (
+                              <div className="flex items-center gap-2 text-sm text-gray-600 font-medium pt-2 border-t border-gray-200">
+                                <span>+ {remainingCount} more member{remainingCount === 1 ? "" : "s"}</span>
+                              </div>
+                            )}
+                          </>
+                        );
+                      })()}
+                    </div>
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
+                    <button 
+                      onClick={() => {
+                        setShowConfirmModal(false);
+                        setConfirmationMode(null);
+                      }}
+                      disabled={saving}
+                      className="px-6 py-2 border border-gray-300 rounded-lg text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50"
+                    >
+                      <X size={14} className="inline mr-1" />
+                      Cancel
+                    </button>
+                    <button 
+                      onClick={handleConfirmBulkMark}
+                      disabled={saving}
+                      className="px-6 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-semibold transition-colors disabled:opacity-50 inline-flex items-center gap-1"
+                    >
+                      <Check size={14} />
+                      {saving ? "Confirming..." : "Confirm"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </main>
       </div>
     </div>
