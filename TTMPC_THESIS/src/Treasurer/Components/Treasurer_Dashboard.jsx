@@ -68,7 +68,7 @@ const Treasurer_Dashboard = () => {
     { name: "Disbursement", icon: CreditCard },
     { name: "Schedule", icon: Calculator },
     { name: "Payments", icon: Users },
-    { name: "Loan-Approval", icon: CreditCard },
+    { name: "Loan Approval", icon: CreditCard },
     { name: "Accounting", icon: BarChart3 },
     { name: "Audit Log", icon: BarChart3 },
   ];
@@ -104,7 +104,7 @@ const Treasurer_Dashboard = () => {
               "Disbursement": "/disbursement",
               "Schedule": "/schedule",
               "Payments": "/treasurer-payments",
-              "Loan-Approval": "/treasurer-approval",
+              "Loan Approval": "/treasurer-approval",
               "Accounting": "/treasurer-accounting",
               "Audit Log": "/treasurer-audit-log",
             };

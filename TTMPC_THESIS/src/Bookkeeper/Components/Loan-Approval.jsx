@@ -33,6 +33,24 @@ const BookkeeperLoanApproval = () => {
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState(null);
   const [activeTab, setActiveTab] = useState("all");
+  const [memberTypeFilter, setMemberTypeFilter] = useState("all");
+
+  const formatSubmissionDate = (value) => {
+    if (!value) return "N/A";
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return "N/A";
+    return parsed.toLocaleDateString("en-US", {
+      month: "2-digit",
+      day: "2-digit",
+      year: "numeric",
+    });
+  };
+
+  const getSubmissionTimeValue = (value) => {
+    if (!value) return 0;
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? 0 : parsed.getTime();
+  };
 
   const menuItems = [
       { name: "Dashboard", icon: LayoutDashboard },
@@ -77,7 +95,7 @@ const BookkeeperLoanApproval = () => {
           )
         `
         )
-        .order("application_date", { ascending: false });
+        .order("application_date", { ascending: true });
 
       if (loansError) throw loansError;
 
@@ -92,7 +110,7 @@ const BookkeeperLoanApproval = () => {
           full_name,
           loan_type_code
         `)
-        .order("application_date", { ascending: false });
+        .order("application_date", { ascending: true });
 
       if (koicaError) throw koicaError;
 
@@ -111,7 +129,13 @@ const BookkeeperLoanApproval = () => {
           const status = String(loan.loan_status || "").trim().toLowerCase();
           return status === "pending" || status === "draft" || status === "revision_requested";
         })
-        .sort((a, b) => new Date(b.application_date || 0) - new Date(a.application_date || 0));
+        // FIFO: earliest submitted application appears first.
+        .sort((a, b) => {
+          const aTime = getSubmissionTimeValue(a.application_date);
+          const bTime = getSubmissionTimeValue(b.application_date);
+          if (aTime !== bTime) return aTime - bTime;
+          return String(a.control_number || "").localeCompare(String(b.control_number || ""));
+        });
 
       setLoans(combinedQueue);
       addNotification("Loan applications loaded successfully", "success");
@@ -181,13 +205,8 @@ const BookkeeperLoanApproval = () => {
       term: `${loan.term || 0} Months`,
       status: migsStatus,
        loanStatus: loanStatus,
-      date: loan.application_date
-        ? new Date(loan.application_date).toLocaleDateString("en-US", {
-            month: "short",
-            day: "numeric",
-            year: "numeric",
-          })
-        : "N/A",
+      date: formatSubmissionDate(loan.application_date),
+      submittedAt: loan.application_date || null,
       actions: "Review",
     };
   });
@@ -199,6 +218,13 @@ const BookkeeperLoanApproval = () => {
   };
   
   const filteredLoans = displayLoans.filter((loan) => {
+    if (memberTypeFilter === "migs" && loan.status !== "MIGS") {
+      return false;
+    }
+    if (memberTypeFilter === "non-migs" && loan.status !== "NON-MIGS") {
+      return false;
+    }
+
     if (activeTab === "pending") {
       return loan.loanStatus === "pending" || loan.loanStatus === "draft";
     }
@@ -326,40 +352,57 @@ const BookkeeperLoanApproval = () => {
           </div>
 
           <div className="bg-white border border-gray-200 rounded-xl shadow-sm">
-            <div className="px-6 pt-5 pb-2 flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setActiveTab("all")}
-                className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-colors ${
-                  activeTab === "all"
-                    ? "bg-[#1D6021] text-white border-[#1D6021]"
-                    : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
-                }`}
-              >
-                All ({tabCounts.all})
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveTab("pending")}
-                className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-colors ${
-                  activeTab === "pending"
-                    ? "bg-[#1D6021] text-white border-[#1D6021]"
-                    : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
-                }`}
-              >
-                Pending ({tabCounts.pending})
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveTab("revision")}
-                className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-colors ${
-                  activeTab === "revision"
-                    ? "bg-amber-600 text-white border-amber-600"
-                    : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
-                }`}
-              >
-                Revision Requested ({tabCounts.revision})
-              </button>
+            <div className="px-6 pt-5 pb-4 flex flex-wrap items-center justify-between gap-3 border-b border-gray-100">
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("all")}
+                  className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-colors ${
+                    activeTab === "all"
+                      ? "bg-[#1D6021] text-white border-[#1D6021]"
+                      : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
+                  }`}
+                >
+                  All ({tabCounts.all})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("pending")}
+                  className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-colors ${
+                    activeTab === "pending"
+                      ? "bg-[#1D6021] text-white border-[#1D6021]"
+                      : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
+                  }`}
+                >
+                  Pending ({tabCounts.pending})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("revision")}
+                  className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-colors ${
+                    activeTab === "revision"
+                      ? "bg-amber-600 text-white border-amber-600"
+                      : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
+                  }`}
+                >
+                  Revision Requested ({tabCounts.revision})
+                </button>
+              </div>
+
+              <div className="flex items-center gap-3 ml-auto">
+                <label className="text-xs uppercase tracking-wider text-gray-500 font-bold whitespace-nowrap">
+                  Member Type:
+                </label>
+                <select
+                  value={memberTypeFilter}
+                  onChange={(event) => setMemberTypeFilter(event.target.value)}
+                  className="h-10 rounded-lg border border-gray-200 bg-white px-3 pr-8 text-sm text-gray-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-[#2C7A3F]/50 focus:border-[#2C7A3F]"
+                >
+                  <option value="all">All</option>
+                  <option value="migs">MIGS</option>
+                  <option value="non-migs">Non-MIGS</option>
+                </select>
+              </div>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
@@ -396,28 +439,40 @@ const BookkeeperLoanApproval = () => {
                       </td>
                     </tr>
                   ) : (
-                    filteredLoans.map((loan, idx) => (
-                      <tr key={idx} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
-                        <td className="p-5 text-sm text-gray-500 font-medium">{loan.id}</td>
-                        <td className="p-5 text-sm font-bold text-gray-800">{loan.name}</td>
+                    filteredLoans.map((loan) => (
+                      <tr key={`${loan.source}-${loan.id}`} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
+                        <td className="p-5 text-sm text-gray-500 font-medium max-w-[10rem]">
+                          <p className="truncate" title={loan.id || "N/A"}>{loan.id}</p>
+                        </td>
+                        <td className="p-5 text-sm font-bold text-gray-800 max-w-[14rem]">
+                          <p className="truncate" title={loan.name || "N/A"}>{loan.name}</p>
+                        </td>
                         <td className="p-5 text-sm">
-                          <span className={`px-3 py-1.5 rounded-full text-xs font-bold ${getLoanTypeStyle(loan.type)}`}>
-                            {loan.type}
+                          <span
+                            className={`inline-block max-w-[12rem] truncate px-3 py-1.5 rounded-full text-xs font-bold ${getLoanTypeStyle(loan.type)}`}
+                            title={loan.type || "N/A"}
+                          >
+                            {loan.type || "N/A"}
                           </span>
                         </td>
                         <td className="p-5 text-sm font-bold text-gray-900">{loan.amount}</td>
-                        <td className="p-5 text-sm text-gray-500">{loan.term}</td>
+                        <td className="p-5 text-sm text-gray-500 max-w-[8rem]">
+                          <p className="truncate" title={loan.term || "N/A"}>{loan.term || "N/A"}</p>
+                        </td>
                         <td className="p-5 text-sm">
                           <span className={`px-3 py-1.5 rounded-full text-[11px] font-bold tracking-wider ${getMigsStyle(loan.status)}`}>
                             {loan.status}
                           </span>
                         </td>
                         <td className="p-5 text-sm">
-                          <span className={`px-3 py-1.5 rounded-full text-[11px] font-bold tracking-wider ${getLoanStatusBadge(loan.loanStatus)}`}>
+                          <span
+                            className={`inline-block max-w-[11rem] truncate px-3 py-1.5 rounded-full text-[11px] font-bold tracking-wider ${getLoanStatusBadge(loan.loanStatus)}`}
+                            title={loan.loanStatus ? loan.loanStatus.replace(/_/g, " ") : "pending"}
+                          >
                             {loan.loanStatus ? loan.loanStatus.replace(/_/g, " ") : "pending"}
                           </span>
                         </td>
-                        <td className="p-5 text-sm text-gray-500">{loan.date}</td>
+                        <td className="p-5 text-sm text-gray-500 whitespace-nowrap" title={loan.submittedAt || loan.date}>{loan.date}</td>
                         <td className="p-5 text-sm text-right pr-8">
                           <button
                             onClick={() => navigate(`/bookkeeper-loan-approval/${loan.id}?source=${loan.source}`)}
