@@ -23,7 +23,7 @@ const Treasurer_Audit_Log = () => {
     { name: "Disbursement", icon: CreditCard },
     { name: "Schedule", icon: Calculator },
     { name: "Payments", icon: Users },
-    { name: "Loan-Approval", icon: CreditCard },
+    { name: "Loan Approval", icon: CreditCard },
     { name: "Accounting", icon: BarChart3 },
     { name: "Audit Log", icon: History },
   ];
@@ -33,7 +33,7 @@ const Treasurer_Audit_Log = () => {
     "Disbursement": "/disbursement",
     "Schedule": "/schedule",
     "Payments": "/treasurer-payments",
-    "Loan-Approval": "/treasurer-approval",
+    "Loan Approval": "/treasurer-approval",
     "Accounting": "/treasurer-accounting",
     "Audit Log": "/treasurer-audit-log",
   };

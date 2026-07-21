@@ -133,7 +133,7 @@ const Disbursements = () => {
     { name: "Disbursement", icon: CreditCard },
     { name: "Schedule", icon: Calculator },
     { name: "Payments", icon: Users },
-    { name: "Loan-Approval", icon: CreditCard },
+    { name: "Loan Approval", icon: CreditCard },
     { name: "Accounting", icon: BarChart3 },
   ];
 
@@ -211,7 +211,7 @@ const Disbursements = () => {
               "Disbursement": "/disbursement",
               "Schedule": "/schedule",
               "Payments": "/treasurer-payments",
-              "Loan-Approval": "/treasurer-approval",
+              "Loan Approval": "/treasurer-approval",
               "Accounting": "/treasurer-accounting",
             };
 
@@ -414,16 +414,17 @@ const Disbursements = () => {
                             #{row.rank}
                           </span>
                         </td>
-                        <td className="p-5">
-                          <div className="font-bold text-gray-900 mb-0.5">{row.name}</div>
-                          <div className="text-xs font-medium text-gray-500 flex items-center gap-1.5">
-                            <Users className="w-3 h-3" /> {row.code}
-                            <span className="text-gray-300">•</span>
-                            <span className="font-mono text-gray-400">ID: {row.id}</span>
+                        <td className="p-5 max-w-[18rem]">
+                          <div className="font-bold text-gray-900 mb-0.5 truncate" title={row.name}>{row.name}</div>
+                          <div className="text-xs font-medium text-gray-500 flex items-center gap-1.5 min-w-0">
+                            <Users className="w-3 h-3 shrink-0" />
+                            <span className="truncate" title={row.code}>{row.code}</span>
+                            <span className="text-gray-300 shrink-0">•</span>
+                            <span className="font-mono text-gray-400 truncate" title={`ID: ${row.id}`}>ID: {row.id}</span>
                           </div>
                         </td>
-                        <td className="p-5">
-                          <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-bold bg-gray-100 text-gray-800 border border-gray-200">
+                        <td className="p-5 max-w-[12rem]">
+                          <span className="inline-flex items-center max-w-full truncate px-2.5 py-1 rounded-md text-xs font-bold bg-gray-100 text-gray-800 border border-gray-200" title={row.type}>
                             {row.type}
                           </span>
                           <div className="text-xs font-medium text-gray-500 mt-1.5 ml-1">{row.migs}</div>
@@ -442,9 +443,9 @@ const Disbursements = () => {
                             {row.hasDocuments ? `Docs (${row.documentCount})` : "No Docs"}
                           </span>
                         </td>
-                        <td className="p-5 text-xs font-medium text-gray-500">
-                          <div className="mb-1 text-gray-900">{formatDate(row.releasedDate)}</div>
-                          <div>By: {row.releasedBy}</div>
+                        <td className="p-5 text-xs font-medium text-gray-500 max-w-[14rem]">
+                          <div className="mb-1 text-gray-900 whitespace-nowrap" title={row.releasedDate}>{formatDate(row.releasedDate)}</div>
+                          <div className="truncate" title={`By: ${row.releasedBy}`}>By: {row.releasedBy}</div>
                         </td>
                         <td className="p-5 align-top pt-4">
                           <div className="flex items-center justify-end gap-2 relative" ref={openMenuId === row.id ? menuRef : null}>
@@ -467,9 +468,6 @@ const Disbursements = () => {
                                 <div className="px-3 py-2 text-xs font-bold text-gray-400 uppercase tracking-wider border-b border-gray-100 mb-1">
                                   Actions
                                 </div>
-                                <button className="w-full flex items-center gap-2.5 px-4 py-2 text-gray-700 font-medium hover:bg-green-50 hover:text-green-700 transition-colors">
-                                  <Printer className="w-4 h-4" /> Print Voucher
-                                </button>
                                 <button className="w-full flex items-center gap-2.5 px-4 py-2 text-gray-700 font-medium hover:bg-green-50 hover:text-green-700 transition-colors">
                                   <Receipt className="w-4 h-4" /> Issue Receipt
                                 </button>
