@@ -22,7 +22,8 @@ import {
   FileText,
   ShieldCheck,
   AlertTriangle,
-  History
+  History,
+  ArrowRight
 } from 'lucide-react';
 import { supabase } from "../../supabaseClient";
 import { resolveAccountFromSessionUser } from "../../utils/sessionIdentity";
@@ -183,7 +184,7 @@ const Member_Approvals = () => {
            { name: "Dashboard", icon: LayoutDashboard },
            { name: "Member Approvals", icon: Users },
            { name: "Loan Approvals", icon: ShieldCheck },
-           { name: "Manage Loans", icon: CreditCard },
+           { name: "Loan Ledger", icon: CreditCard },
            { name: "Manage Member", icon: Users },
            { name: "Audit Log", icon: History },
            { name: "Loan Policies", icon: FileText },
@@ -233,7 +234,7 @@ const Member_Approvals = () => {
   };
 
   const formattedRows = useMemo(() => {
-    return applications.map((app) => {
+    const rows = applications.map((app) => {
       const fullName = [app.first_name, app.middle_name, app.surname]
         .map((item) => (item || "").trim())
         .filter(Boolean)
@@ -241,6 +242,7 @@ const Member_Approvals = () => {
 
       const trainingSchedule = getRuleSchedule(app.created_at);
       const normalizedStatusValue = normalizeStatus(app.application_status);
+      const cleanAttendance = (app.attendance_status || "Pending").replace(/^[•\s]+/, "").trim();
 
       return {
         id: app.application_id,
@@ -250,11 +252,18 @@ const Member_Approvals = () => {
         date: app.created_at ? new Date(app.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "-",
         reason: app.remarks || "No reason provided",
         trainingDate: normalizedStatusValue === "Training" ? trainingSchedule.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) : "Not scheduled",
-        attendance: app.attendance_status || "Pending",
+        attendance: cleanAttendance,
         result: app.evaluation_result || "Pending",
         secretaryRemarks: app.remarks || "No secretary remarks yet.",
         status: normalizedStatusValue,
       };
+    });
+    
+    // Sort so Pending status appears at the top
+    return rows.sort((a, b) => {
+      if (a.status === "Pending" && b.status !== "Pending") return -1;
+      if (a.status !== "Pending" && b.status === "Pending") return 1;
+      return 0;
     });
   }, [applications]);
 
@@ -295,7 +304,7 @@ const Member_Approvals = () => {
     "Dashboard": "/BOD-dashboard",
     "Member Approvals": "/member-approvals",
     "Loan Approvals": "/bod-loan-approvals",
-    "Manage Loans": "/bod-manage-loans",
+    "Loan Ledger": "/bod-manage-loans",
     "Manage Member": "/bod-manage-member",
     "Audit Log": "/bod-audit-log",
     "Loan Policies": "/bod-loan-policies",
@@ -404,13 +413,14 @@ const Member_Approvals = () => {
                         <th className="p-5 font-bold">Annual Income</th>
                         <th className="p-5 font-bold">Submitted Date</th>
                         {activeTab === "For Revision" && <th className="p-5 font-bold">Revision Notes</th>}
+                        {activeTab === "Pending" && <th className="p-5 font-bold">Action</th>}
                       </>
                     )}
                   </tr>
                 </thead>
                 <tbody>
                   {rowsForActiveTab.length === 0 ? (
-                    <tr><td colSpan="5" className="p-5 text-sm text-center text-gray-500">No {activeTab.toLowerCase()} records found.</td></tr>
+                    <tr><td colSpan={isTrainingTab ? "4" : activeTab === "For Revision" ? "5" : "5"} className="p-5 text-sm text-center text-gray-500">No {activeTab.toLowerCase()} records found.</td></tr>
                   ) : (
                     rowsForActiveTab.map((row, index) => (
                       <tr key={index} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
@@ -422,8 +432,8 @@ const Member_Approvals = () => {
                             </td>
                             <td className="p-5 text-sm text-gray-600">{row.trainingDate}</td>
                             <td className="p-5 text-sm">
-                              <span className={`badge-animated inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border ${row.attendance === "Present" ? "border-green-300 bg-green-50 text-green-700" : "border-red-300 bg-red-50 text-red-600"}`}>
-                                <span className={`w-1.5 h-1.5 rounded-full ${row.attendance === "Present" ? "bg-green-500" : "bg-red-500"}`} />
+                              <span className={`badge-animated inline-flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-semibold border ${row.attendance === "Present" ? "border-green-300 bg-green-50 text-green-700" : "border-red-300 bg-red-50 text-red-600"}`}>
+                                <span className={` ${row.attendance === "Present" ? "bg-green-500" : "bg-red-500"}`} />
                                 {row.attendance}
                               </span>
                             </td>
@@ -443,6 +453,13 @@ const Member_Approvals = () => {
                             <td className="p-5 text-sm text-gray-600 font-medium">{row.annualIncome}</td>
                             <td className="p-5 text-sm text-gray-500">{row.date}</td>
                             {activeTab === "For Revision" && <td className="p-5 text-sm"><span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-700">{row.reason}</span></td>}
+                            {activeTab === "Pending" && (
+                              <td className="p-5 text-sm">
+                                <button onClick={() => canUseBodActions && navigate(`/member-approvals/${row.id}`)} className="inline-flex items-center gap-2 px-6 py-2 bg-[#2C7A3F] hover:bg-[#1e5a2a] text-white rounded-lg font-semibold text-xs transition-colors" disabled={!canUseBodActions}>
+                                  View Details
+                                </button>
+                              </td>
+                            )}
                           </>
                         )}
                       </tr>

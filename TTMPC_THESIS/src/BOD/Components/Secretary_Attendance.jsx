@@ -36,7 +36,9 @@ const Secretary_Attendance = () => {
   // --- STATE ---
   const [activeTab, setActiveTab] = useState("Training");
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isConfirmationModalOpen, setIsConfirmationModalOpen] = useState(false);
   const [selectedMember, setSelectedMember] = useState(null);
+  const [pendingAttendanceChange, setPendingAttendanceChange] = useState(null);
   const [editedRemark, setEditedRemark] = useState("");
   const [editedMeetingDate, setEditedMeetingDate] = useState("");
   const [editedMeetingTime, setEditedMeetingTime] = useState("");
@@ -55,7 +57,7 @@ const Secretary_Attendance = () => {
          { name: "Dashboard", icon: LayoutDashboard },
          { name: "Member Approvals", icon: Users },
          { name: "Loan Approvals", icon: ShieldCheck },
-         { name: "Manage Loans", icon: CreditCard },
+         { name: "Loan Ledger", icon: CreditCard },
          { name: "Manage Member", icon: Users },
          { name: "Loan Policies", icon: FileText },
        ],
@@ -386,6 +388,31 @@ const Secretary_Attendance = () => {
   };
 
   const handleAttendanceStatusChange = async (member, nextStatus) => {
+    // If changing to Present or Absent, show confirmation modal
+    if (nextStatus === "Present" || nextStatus === "Absent") {
+      setPendingAttendanceChange({ member, nextStatus });
+      setIsConfirmationModalOpen(true);
+      return;
+    }
+
+    // For Pending status, proceed directly without confirmation
+    await saveAttendanceStatusChange(member, nextStatus);
+  };
+
+  const confirmAttendanceChange = async () => {
+    if (!pendingAttendanceChange) return;
+    const { member, nextStatus } = pendingAttendanceChange;
+    setIsConfirmationModalOpen(false);
+    await saveAttendanceStatusChange(member, nextStatus);
+    setPendingAttendanceChange(null);
+  };
+
+  const cancelAttendanceChange = () => {
+    setIsConfirmationModalOpen(false);
+    setPendingAttendanceChange(null);
+  };
+
+  const saveAttendanceStatusChange = async (member, nextStatus) => {
     setSavingAttendance(true);
     const updatedMember = { ...member, status: nextStatus };
 
@@ -433,7 +460,7 @@ const Secretary_Attendance = () => {
     "Dashboard": "/BOD-dashboard",
     "Member Approvals": "/member-approvals",
     "Loan Approvals": "/bod-loan-approvals",
-    "Manage Loans": "/bod-manage-loans",
+    "Loan Ledger": "/bod-manage-loans",
     "Manage Member": "/bod-manage-member",
     "Loan Policies": "/bod-loan-policies",
     "Training Attendance": "/Secretary_Attendance",
@@ -589,14 +616,15 @@ const Secretary_Attendance = () => {
                         {row.schedule}
                       </td>
                       <td className="p-5">
-                        {/* Note: I left this as a native select as before, but if you want this to ALSO be controlled by the modal, you can change it */}
+                        {/* Attendance status select - disabled if already Present */}
                         <select 
-                          className={`text-sm font-bold bg-transparent border border-gray-200 rounded-md py-1.5 px-3 pr-8 appearance-none focus:outline-none focus:ring-2 focus:ring-green-500 cursor-pointer
-                            ${row.status === 'Present' ? 'text-green-600' : row.status === 'Absent' ? 'text-red-500' : 'text-gray-600'}
+                          className={`text-sm font-bold bg-transparent border border-gray-200 rounded-md py-1.5 px-3 pr-8 appearance-none focus:outline-none focus:ring-2 focus:ring-green-500 cursor-pointer transition-all
+                            ${row.status === 'Present' || row.status === 'Absent' ? 'text-green-600 cursor-not-allowed opacity-75' : 'text-gray-600'}
                           `}
                           value={row.status}
-                          disabled={activeTab !== 'Training'}
+                          disabled={row.status === 'Present' || row.status === 'Absent'}
                           onChange={(e) => handleAttendanceStatusChange(row, e.target.value)}
+                          title={row.status === 'Present' || row.status === 'Absent' ? 'This attendance is locked and cannot be changed' : ''}
                           style={{
                             backgroundImage: `url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%239CA3AF%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E")`,
                             backgroundRepeat: "no-repeat",
@@ -608,6 +636,12 @@ const Secretary_Attendance = () => {
                           <option value="Absent" className="text-red-500">Absent</option>
                           <option value="Pending" className="text-gray-600">Pending</option>
                         </select>
+                        {(row.status === 'Present' || row.status === 'Absent') && (
+                          <p className="text-xs text-gray-500 mt-1 flex items-center gap-1">
+                            <span className="inline-block w-1 h-1 bg-gray-400 rounded-full"></span>
+                            Status locked
+                          </p>
+                        )}
                       </td>
                       <td className="p-5">
                          {/* Trigger button for Modal instead of select */}
@@ -635,6 +669,67 @@ const Secretary_Attendance = () => {
       </div>
 
       {/* --- MODAL OVERLAY --- */}
+      {/* Confirmation Modal for Present/Absent Status */}
+      {isConfirmationModalOpen && pendingAttendanceChange && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl w-[450px] overflow-hidden animate-in fade-in zoom-in duration-200">
+            {/* Modal Header */}
+            <div className="bg-[#65B741] p-4">
+              <h2 className="text-white font-bold text-lg">Confirm Attendance Status</h2>
+            </div>
+            
+            {/* Modal Body */}
+            <div className="p-6">
+              <div className="mb-6 rounded-xl border border-amber-100 bg-amber-50/70 p-4">
+                <div className="flex items-start gap-3">
+                  <div className="rounded-lg bg-white p-2 text-amber-600 shadow-sm flex-shrink-0">
+                    <AlertTriangle size={20} />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold text-amber-900 mb-1">Important Notice</p>
+                    <p className="text-xs text-amber-800">
+                      Once you confirm, their attendance status will be <strong>locked</strong> and cannot be changed in the future.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mb-6">
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3">Member</p>
+                <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+                  <p className="font-bold text-gray-900">{pendingAttendanceChange.member.name}</p>
+                  <p className="text-sm text-gray-600 mt-1">{pendingAttendanceChange.member.email}</p>
+                </div>
+              </div>
+
+              <div className="mb-6">
+                <p className="text-sm text-gray-700 mb-3">
+                  Are you sure you want to mark this member as <strong className={pendingAttendanceChange.nextStatus === 'Present' ? 'text-green-700' : 'text-red-700'}>{pendingAttendanceChange.nextStatus}</strong>?
+                </p>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
+                <button 
+                  onClick={cancelAttendanceChange}
+                  className="px-6 py-2 border border-gray-300 rounded-lg text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button 
+                  onClick={confirmAttendanceChange}
+                  disabled={savingAttendance}
+                  className="px-6 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-semibold transition-colors disabled:opacity-60"
+                >
+                  {savingAttendance ? 'Confirming...' : 'Confirm'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* --- TRAINING EVALUATION MODAL --- */}
       {isModalOpen && selectedMember && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50">
           <div className="bg-white rounded-lg shadow-xl w-[500px] overflow-hidden animate-in fade-in zoom-in duration-200">
@@ -683,24 +778,31 @@ const Secretary_Attendance = () => {
                     className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#65B741]"
                     value={editedMeetingDate}
                     onChange={(e) => setEditedMeetingDate(e.target.value)}
+                    disabled={selectedMember?.status === 'Present'}
                   />
                 </div>
-                <div>
-                  <label className="mb-2 flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-gray-400">
-                    <Clock3 size={14} />
-                    Optional Training Time
-                  </label>
-                  <input
-                    type="time"
-                    className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#65B741]"
-                    value={editedMeetingTime}
-                    onChange={(e) => setEditedMeetingTime(e.target.value)}
-                  />
-                </div>
+                {/* Training Time field - only shown if status is Absent */}
+                {selectedMember?.status === 'Absent' && (
+                  <div>
+                    <label className="mb-2 flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-gray-400">
+                      <Clock3 size={14} />
+                      Optional Training Time
+                    </label>
+                    <input
+                      type="time"
+                      className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#65B741]"
+                      value={editedMeetingTime}
+                      onChange={(e) => setEditedMeetingTime(e.target.value)}
+                    />
+                  </div>
+                )}
               </div>
 
               <p className="mb-6 text-xs text-gray-500">
-                Leave both fields blank to keep the existing default schedule behavior.
+                {selectedMember?.status === 'Present' 
+                  ? 'Training date field is hidden when attendance is marked as Present.'
+                  : 'Leave date and time fields blank to keep the existing default schedule behavior.'
+                }
               </p>
 
               {/* Status Row */}
@@ -717,6 +819,9 @@ const Secretary_Attendance = () => {
                       'bg-gray-500'}
                   `}></div>
                   {selectedMember.status}
+                  {(selectedMember.status === 'Present' || selectedMember.status === 'Absent') && (
+                    <span className="ml-1.5 text-xs font-semibold">🔒 Locked</span>
+                  )}
                 </div>
               </div>
 
