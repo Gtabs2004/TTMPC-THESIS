@@ -21,7 +21,6 @@ import {
   Contact2,
   ShieldCheck,
   Lock,
-  ChevronRight,
   History,
   Receipt,
   MapPin,
@@ -32,6 +31,7 @@ import {
   Wallet,
   Phone,
   Settings,
+  ChevronDown 
 } from 'lucide-react';
 import SettingsDrawer from './SettingsDrawer';
 
@@ -161,6 +161,13 @@ const dateInputValue = (raw) => {
   return d.toISOString().slice(0, 10);
 };
 
+const displayDate = (value) => {
+  if (!value) return '';
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return String(value);
+  return d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+};
+
 const isFieldFilled = (value) => {
   if (value === null || value === undefined) return false;
   const str = String(value).trim();
@@ -185,72 +192,28 @@ const validateField = (field, value) => {
 
 const styles = `
   @keyframes fadeInUp {
-    from {
-      opacity: 0;
-      transform: translateY(20px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
   }
-
   @keyframes fadeIn {
-    from {
-      opacity: 0;
-    }
-    to {
-      opacity: 1;
-    }
+    from { opacity: 0; }
+    to { opacity: 1; }
   }
-
   @keyframes slideInLeft {
-    from {
-      opacity: 0;
-      transform: translateX(-20px);
-    }
-    to {
-      opacity: 1;
-      transform: translateX(0);
-    }
+    from { opacity: 0; transform: translateX(-20px); }
+    to { opacity: 1; transform: translateX(0); }
   }
-
   @keyframes spin-slow {
-    from {
-      transform: rotate(0deg);
-    }
-    to {
-      transform: rotate(360deg);
-    }
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
   }
-
-  .animate-fade-in-up {
-    animation: fadeInUp 0.6s ease-out;
-  }
-
-  .animate-fade-in {
-    animation: fadeIn 0.4s ease-out;
-  }
-
-  .animate-slide-in-left {
-    animation: slideInLeft 0.5s ease-out;
-  }
-
-  .animate-spin-slow {
-    animation: spin-slow 1.5s linear;
-  }
-
-  .transition-all-smooth {
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  }
-
-  tbody tr {
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  }
-
-  tbody tr:hover {
-    transform: translateX(2px);
-  }
+  .animate-fade-in-up { animation: fadeInUp 0.6s ease-out; }
+  .animate-fade-in { animation: fadeIn 0.4s ease-out; }
+  .animate-slide-in-left { animation: slideInLeft 0.5s ease-out; }
+  .animate-spin-slow { animation: spin-slow 1.5s linear; }
+  .transition-all-smooth { transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+  tbody tr { transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+  tbody tr:hover { transform: translateX(2px); }
 `;
 
 const MEMBER_NOTIF_SETTINGS_KEY = 'member_profile_notification_settings';
@@ -277,7 +240,7 @@ const Members_Profile = () => {
   const [passwordError, setPasswordError] = useState('');
   const [passwordSuccess, setPasswordSuccess] = useState('');
   const [updatingPassword, setUpdatingPassword] = useState(false);
-  const [passwordStep, setPasswordStep] = useState(1); // 1: enter passwords  2: enter OTP (recovery only)
+  const [passwordStep, setPasswordStep] = useState(1); 
   const [currentPasswordInput, setCurrentPasswordInput] = useState('');
   const [passwordOtp, setPasswordOtp] = useState('');
   const [passwordOtpCooldown, setPasswordOtpCooldown] = useState(0);
@@ -287,6 +250,7 @@ const Members_Profile = () => {
 
   // PDS form state
   const [activeTab, setActiveTab] = useState(PROFILE_SECTIONS[0].id);
+  const [editingSection, setEditingSection] = useState(null); // Tracks inline editing mode
   const [formData, setFormData] = useState({});
   const [originalData, setOriginalData] = useState({});
   const [pdsRowId, setPdsRowId] = useState(null);
@@ -363,9 +327,7 @@ const Members_Profile = () => {
       const parsed = JSON.parse(raw);
       if (typeof parsed?.smsNotif === 'boolean') setSmsNotif(parsed.smsNotif);
       if (typeof parsed?.emailNotif === 'boolean') setEmailNotif(parsed.emailNotif);
-    } catch (_error) {
-      // Ignore malformed local preference data.
-    }
+    } catch (_error) {}
   }, []);
 
   useEffect(() => {
@@ -374,9 +336,7 @@ const Members_Profile = () => {
         MEMBER_NOTIF_SETTINGS_KEY,
         JSON.stringify({ smsNotif, emailNotif })
       );
-    } catch (_error) {
-      // Ignore persistence failures.
-    }
+    } catch (_error) {}
   }, [smsNotif, emailNotif]);
 
   useEffect(() => {
@@ -444,7 +404,6 @@ const Members_Profile = () => {
           if (!error && data) pdsRow = data;
         }
 
-        // Merge PDS (canonical) over application row as fallback.
         const fieldSource = (key) => {
           if (pdsRow && pdsRow[key] !== null && pdsRow[key] !== undefined && String(pdsRow[key]) !== '') {
             return pdsRow[key];
@@ -459,7 +418,6 @@ const Members_Profile = () => {
           let value = fieldSource(key);
           if (key === 'email' && !value) value = authEmail;
           if ((key === 'first_name' || key === 'surname' || key === 'middle_name') && !value) {
-            // member_applications uses last_name for surname
             if (key === 'surname') value = appRow?.surname || appRow?.last_name || '';
           }
           if (PROFILE_SECTIONS.flatMap((s) => s.fields).find((f) => f.key === key)?.type === 'date') {
@@ -508,15 +466,12 @@ const Members_Profile = () => {
     };
   }, []);
 
-  // OTP resend cooldown timer (password modal).
   useEffect(() => {
     if (passwordOtpCooldown <= 0) return;
     const t = setTimeout(() => setPasswordOtpCooldown((c) => c - 1), 1000);
     return () => clearTimeout(t);
   }, [passwordOtpCooldown]);
 
-  // Auto-open the password modal when the route guard redirects here with
-  // ?forcePassword=1 (i.e., the user still has is_temporary=true).
   useEffect(() => {
     if (searchParams.get('forcePassword') === '1') {
       handleOpenChangePassword();
@@ -554,7 +509,6 @@ const Members_Profile = () => {
     };
   };
 
-  // Step 1 — default path: user knows their current password. One-shot update.
   const handleDirectPasswordChange = async (e) => {
     e.preventDefault();
     setPasswordError('');
@@ -606,8 +560,6 @@ const Members_Profile = () => {
     }
   };
 
-  // Step 1 — recovery path: user forgot current password. Email an OTP first,
-  // then collect the new password only after the code is verified.
   const handleRequestPasswordOtp = async (e) => {
     e?.preventDefault?.();
     setPasswordError('');
@@ -633,8 +585,6 @@ const Members_Profile = () => {
     }
   };
 
-  // Step 2: user enters the code + the new password; backend verifies both
-  // atomically and updates the password.
   const handleConfirmPasswordOtp = async (e) => {
     e.preventDefault();
     setPasswordError('');
@@ -681,7 +631,6 @@ const Members_Profile = () => {
     }
   };
 
-  // ---------- PDS form handlers ----------
   const allFieldsByKey = useMemo(() => {
     const map = {};
     PROFILE_SECTIONS.forEach((section) => {
@@ -768,7 +717,6 @@ const Members_Profile = () => {
           updatePayload[key] = String(raw).trim();
         }
       });
-      // Clear spouse fields when civil status is Single so stale data doesn't linger.
       if (single) {
         ['spouse_name', 'spouse_occupation', 'spouse_date_of_birth'].forEach((key) => {
           updatePayload[key] = null;
@@ -783,7 +731,8 @@ const Members_Profile = () => {
       if (updateError) throw updateError;
 
       setOriginalData((prev) => ({ ...prev, ...formData }));
-      setSaveSuccess('Profile updated successfully.');
+      setSaveSuccess('Profile information updated successfully.');
+      setEditingSection(null); // Return to View Mode
       setShowConfirmSave(false);
       if (typeof addNotification === 'function') {
         addNotification('Your personal data sheet has been saved.', 'success');
@@ -802,34 +751,44 @@ const Members_Profile = () => {
     setFieldErrors({});
     setSaveError('');
     setSaveSuccess('');
+    setEditingSection(null); // Cancel Inline Edit Mode
   };
 
   const handleTabClick = (tabId) => {
-    if (tabId === activeTab) return;
+    if (tabId === activeTab) {
+      // Trying to collapse the current accordion
+      if (isDirty) {
+        setPendingTabChange('COLLAPSE');
+        return;
+      }
+      setActiveTab(null);
+      setEditingSection(null);
+      return;
+    }
+    
     if (isDirty) {
       setPendingTabChange(tabId);
       return;
     }
+    
+    setEditingSection(null); // Close edit mode when switching smoothly
     setActiveTab(tabId);
   };
 
   const confirmTabChange = (discard) => {
     if (discard) {
-      handleDiscardChanges();
-      setActiveTab(pendingTabChange);
+      handleDiscardChanges(); // Resets formData and closes editing section
+      setActiveTab(pendingTabChange === 'COLLAPSE' ? null : pendingTabChange);
     }
     setPendingTabChange(null);
   };
 
-  // If the active tab gets hidden (e.g., user changed civil status to Single
-  // while on the Spouse tab), bounce them to the first available section.
   useEffect(() => {
-    if (!visibleSections.some((s) => s.id === activeTab)) {
+    if (activeTab && !visibleSections.some((s) => s.id === activeTab)) {
       setActiveTab(visibleSections[0]?.id || 'personal');
     }
   }, [visibleSections, activeTab]);
 
-  // Warn on browser navigation away while dirty.
   useEffect(() => {
     const handler = (e) => {
       if (!isDirty) return;
@@ -855,6 +814,7 @@ const Members_Profile = () => {
           className="fixed inset-0 z-20 bg-black/30 lg:hidden"
         />
       ) : null}
+      
       {/* Sidebar */}
       <aside
         className={`fixed inset-y-0 left-0 z-30 w-64 transform bg-white dark:bg-gray-900 p-4 flex flex-col border-r border-gray-200 dark:border-gray-800 transition-transform duration-200 ease-out lg:fixed lg:translate-x-0 ${
@@ -877,7 +837,7 @@ const Members_Profile = () => {
             </p>
           </div>
         </div>
-   
+    
         <hr className="w-full border-gray-100 dark:border-gray-800 mb-6" />
    
         <nav className="flex grow flex-col gap-2 text-sm">
@@ -976,11 +936,10 @@ const Members_Profile = () => {
           </div>
         </header>
    
-        {/* Scrollable Page Content */}
         <main className="p-4 sm:p-6 lg:p-8 overflow-y-auto pb-28 lg:pb-0">
           
-          {/* Top Profile Header Card */}
-          <div className="bg-white dark:bg-gray-900 p-4 sm:p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col sm:flex-row items-center justify-between mb-8 gap-4">
+          {/* Profile Header Card */}
+          <div className="w-full bg-white dark:bg-gray-900 p-4 sm:p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col sm:flex-row items-center justify-between mb-8 gap-4">
             <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-6 text-center sm:text-left">
               <div className="w-20 h-20 rounded-full bg-[#EAF1EB] dark:bg-green-900/30 overflow-hidden border border-gray-200 dark:border-gray-700">
                 {avatarUrl ? (
@@ -1008,14 +967,11 @@ const Members_Profile = () => {
               >
                 <Pencil className="w-4 h-4" /> Change Email
               </button>
-              <button onClick={handleOpenChangePassword} className="flex items-center justify-center gap-2 bg-[#1D6021] text-white hover:bg-[#154718] transition-colors font-bold rounded-lg px-6 py-2.5 text-sm">
-                <Pencil className="w-4 h-4" /> {isTemporaryAccount ? 'Update Password' : 'Account Security'}
-              </button>
             </div>
           </div>
 
           {isTemporaryAccount ? (
-            <div className="mb-6 p-4 rounded-xl border border-amber-200 bg-amber-50 text-sm text-amber-800 font-semibold flex items-center justify-between gap-3">
+            <div className="w-full mb-6 p-4 rounded-xl border border-amber-200 bg-amber-50 text-sm text-amber-800 font-semibold flex items-center justify-between gap-3">
               <span>Your account is still using a temporary password. Update it now for security.</span>
               <button
                 onClick={handleOpenChangePassword}
@@ -1027,25 +983,25 @@ const Members_Profile = () => {
           ) : null}
 
           {profileError ? (
-            <div className="mb-6 p-4 rounded-xl border border-red-200 bg-red-50 text-sm text-red-700">
+            <div className="w-full mb-6 p-4 rounded-xl border border-red-200 bg-red-50 text-sm text-red-700">
               {profileError}
             </div>
           ) : null}
 
           {passwordSuccess ? (
-            <div className="mb-6 p-4 rounded-xl border border-green-200 bg-green-50 text-sm text-green-700">
+            <div className="w-full mb-6 p-4 rounded-xl border border-green-200 bg-green-50 text-sm text-green-700">
               {passwordSuccess}
             </div>
           ) : null}
 
           {loadingProfile ? (
-            <div className="mb-6 p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm text-gray-600 dark:text-gray-400">
+            <div className="w-full mb-6 p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm text-gray-600 dark:text-gray-400">
               Loading profile data...
             </div>
           ) : null}
 
-          {/* Completion + status banner */}
-          <div className="mb-6 bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 p-5 flex flex-col sm:flex-row sm:items-center gap-4">
+          {/* Profile Completion Bar */}
+          <div className="w-full mb-6 bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 p-5 flex flex-col sm:flex-row sm:items-center gap-4">
             <div className="flex-1">
               <div className="flex items-center justify-between mb-2">
                 <p className="text-sm font-bold text-gray-900 dark:text-white">Profile Completion</p>
@@ -1071,176 +1027,189 @@ const Members_Profile = () => {
           </div>
 
           {saveSuccess ? (
-            <div className="mb-4 p-3 rounded-xl border border-green-200 bg-green-50 text-sm text-green-700 flex items-center gap-2 font-semibold">
+            <div className="w-full mb-4 p-3 rounded-xl border border-green-200 bg-green-50 text-sm text-green-700 flex items-center gap-2 font-semibold animate-fade-in">
               <CheckCircle2 className="w-4 h-4" /> {saveSuccess}
             </div>
           ) : null}
           {saveError ? (
-            <div className="mb-4 p-3 rounded-xl border border-red-200 bg-red-50 text-sm text-red-700 flex items-center gap-2 font-semibold">
+            <div className="w-full mb-4 p-3 rounded-xl border border-red-200 bg-red-50 text-sm text-red-700 flex items-center gap-2 font-semibold animate-fade-in">
               <AlertCircle className="w-4 h-4" /> {saveError}
             </div>
           ) : null}
 
-          {/* Tabbed editor */}
-          <div className="grid grid-cols-1 lg:grid-cols-[260px,1fr] gap-6">
-            {/* Tab nav */}
-            <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 p-3 h-fit overflow-x-auto">
-              <div className="flex lg:flex-col gap-1 min-w-max lg:min-w-0">
-                {visibleSections.map((section) => {
-                  const Icon = section.icon;
-                  const isActive = activeTab === section.id;
-                  const sectionFilled = section.fields.filter((f) => isFieldFilled(formData[f.key])).length;
-                  return (
-                    <button
-                      key={section.id}
-                      type="button"
-                      onClick={() => handleTabClick(section.id)}
-                      className={`flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg text-left transition-colors ${
-                        isActive
-                          ? 'bg-[#EAF1EB] text-[#1D6021] dark:bg-green-900/30 dark:text-green-400'
-                          : 'text-gray-600 hover:bg-gray-50 dark:text-gray-400 dark:hover:bg-gray-800'
-                      }`}
-                    >
-                      <span className="flex items-center gap-3">
-                        <Icon size={16} strokeWidth={isActive ? 2.5 : 2} />
-                        <span className="text-sm font-bold whitespace-nowrap">{section.label}</span>
-                      </span>
-                      <span className={`text-[10px] font-bold rounded-full px-2 py-0.5 ${
-                        isActive ? 'bg-white dark:bg-gray-800 text-[#1D6021]' : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400'
-                      }`}>
-                        {sectionFilled}/{section.fields.length}
-                      </span>
-                    </button>
-                  );
-                })}
-
-                <div className="hidden lg:block border-t border-gray-100 dark:border-gray-800 my-3" />
-
-                <button
-                  type="button"
-                  onClick={handleOpenChangePassword}
-                  className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-left text-gray-600 hover:bg-gray-50 dark:text-gray-400 dark:hover:bg-gray-800"
-                >
-                  <Lock size={16} />
-                  <span className="text-sm font-bold whitespace-nowrap">Account Security</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Active section panel */}
-            <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 overflow-hidden flex flex-col">
-              {visibleSections.filter((s) => s.id === activeTab).map((section) => {
+          {/* ACCORDION EDITOR LAYOUT */}
+          <div className="w-full">
+            <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 overflow-hidden flex flex-col divide-y divide-gray-100 dark:divide-gray-800">
+              
+              {visibleSections.map((section) => {
                 const Icon = section.icon;
+                const isActive = activeTab === section.id;
+                const isEditing = editingSection === section.id;
+                const sectionFilled = section.fields.filter((f) => isFieldFilled(formData[f.key])).length;
+                
                 return (
                   <div key={section.id} className="flex flex-col">
-                    <div className="px-6 py-5 border-b border-gray-100 dark:border-gray-800 bg-[#FAF9FB] dark:bg-gray-800 flex items-start justify-between gap-3">
-                      <div className="flex items-start gap-3">
-                        <div className="rounded-lg bg-[#EAF1EB] dark:bg-green-900/30 text-[#1D6021] dark:text-green-400 p-2">
-                          <Icon className="w-5 h-5" />
-                        </div>
-                        <div>
-                          <h2 className="font-extrabold text-gray-900 dark:text-white text-base">{section.label}</h2>
-                          {section.description ? (
-                            <p className="text-xs text-gray-500 dark:text-gray-400 font-medium mt-0.5">{section.description}</p>
-                          ) : null}
-                        </div>
-                      </div>
-                      {section.readOnly ? (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider">
-                          <ShieldCheck className="w-3 h-3" /> Read-only
+                    
+                    {/* Accordion Header */}
+                    <button
+                      onClick={() => handleTabClick(section.id)}
+                      className={`w-full flex items-center justify-between p-4 sm:p-5 transition-colors ${
+                        isActive 
+                          ? 'bg-[#EAF1EB]/50 dark:bg-green-900/10' 
+                          : 'hover:bg-gray-50 dark:hover:bg-gray-800'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <Icon className={`w-5 h-5 ${isActive ? "text-[#1D6021] dark:text-green-400" : "text-gray-500"}`} />
+                        <span className={`text-sm font-bold ${isActive ? "text-[#1D6021] dark:text-green-400" : "text-gray-700 dark:text-gray-300"}`}>
+                          {section.label}
                         </span>
-                      ) : null}
-                    </div>
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <span className={`text-[10px] font-bold rounded-full px-2 py-0.5 ${
+                          isActive ? 'bg-white dark:bg-gray-800 text-[#1D6021]' : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400'
+                        }`}>
+                          {sectionFilled}/{section.fields.length}
+                        </span>
+                        <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform duration-300 ${isActive ? 'rotate-180' : ''}`} />
+                      </div>
+                    </button>
 
-                    <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-5">
-                      {section.fields.map((field) => {
-                        const error = fieldErrors[field.key];
-                        const value = formData[field.key] ?? '';
-                        const inputClass = `w-full rounded-lg border ${
-                          error ? 'border-red-300 focus:ring-red-200' : 'border-gray-200 dark:border-gray-700 focus:ring-[#1D6021]/30 focus:border-[#1D6021]'
-                        } bg-white dark:bg-gray-800 px-3 py-2.5 text-sm text-gray-900 dark:text-gray-100 outline-none focus:ring-2 transition disabled:bg-gray-50 dark:disabled:bg-gray-700 disabled:text-gray-500 dark:disabled:text-gray-500 disabled:cursor-not-allowed`;
-                        const disabled = section.readOnly || loadingProfile;
-                        const isFull = field.fullWidth;
-                        return (
-                          <div key={field.key} className={isFull ? 'md:col-span-2' : ''}>
-                            <label className="block text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1.5">
-                              {field.label}{field.required ? <span className="text-red-500 ml-0.5">*</span> : null}
-                            </label>
-                            {field.type === 'textarea' ? (
-                              <textarea
-                                value={value}
-                                onChange={(e) => handleFieldChange(field.key, e.target.value)}
-                                onBlur={() => handleFieldBlur(field.key)}
-                                disabled={disabled}
-                                rows={3}
-                                placeholder={field.placeholder || ''}
-                                className={inputClass}
-                              />
-                            ) : field.type === 'select' ? (
-                              <select
-                                value={value}
-                                onChange={(e) => handleFieldChange(field.key, e.target.value)}
-                                onBlur={() => handleFieldBlur(field.key)}
-                                disabled={disabled}
-                                className={inputClass}
+                    {/* Expanded Content (View/Edit) */}
+                    {isActive && (
+                      <div className="p-5 sm:p-7 border-t border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900 animate-fade-in-up">
+                        <div className="flex items-center justify-between mb-6">
+                          <p className="text-sm text-gray-500 dark:text-gray-400 font-medium">{section.description}</p>
+                          
+                          <div className="flex items-center gap-2">
+                            {section.readOnly ? (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider">
+                                <ShieldCheck className="w-3 h-3" /> Read-only
+                              </span>
+                            ) : !isEditing ? (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); setEditingSection(section.id); }}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#1D6021] text-[#1D6021] hover:bg-[#EAF1EB] dark:border-green-500 dark:text-green-400 dark:hover:bg-green-900/30 transition-colors text-xs font-bold"
                               >
-                                <option value="">Select…</option>
-                                {field.options.map((opt) => (
-                                  <option key={opt} value={opt}>{opt}</option>
-                                ))}
-                              </select>
-                            ) : (
-                              <input
-                                type={field.type || 'text'}
-                                value={value}
-                                onChange={(e) => handleFieldChange(field.key, e.target.value)}
-                                onBlur={() => handleFieldBlur(field.key)}
-                                disabled={disabled}
-                                placeholder={field.placeholder || ''}
-                                className={inputClass}
-                              />
-                            )}
-                            {error ? (
-                              <p className="mt-1 text-xs text-red-600 font-semibold flex items-center gap-1">
-                                <AlertCircle className="w-3 h-3" /> {error}
-                              </p>
+                                <Pencil className="w-3.5 h-3.5" /> Edit Section
+                              </button>
                             ) : null}
                           </div>
-                        );
-                      })}
-                    </div>
-
-                    {!section.readOnly ? (
-                      <div className="px-6 py-4 border-t border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-800 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                        <div className="flex items-center gap-2 self-end sm:self-auto">
-                          <button
-                            type="button"
-                            onClick={handleDiscardChanges}
-                            disabled={!isDirty || savingProfile}
-                            className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 text-sm font-semibold hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed"
-                          >
-                            Discard
-                          </button>
-                          <button
-                            type="button"
-                            onClick={handleRequestSave}
-                            disabled={!isDirty || savingProfile}
-                            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[#1D6021] text-white text-sm font-semibold hover:bg-[#154718] disabled:opacity-40 disabled:cursor-not-allowed"
-                          >
-                            <Save className="w-4 h-4" /> Save Changes
-                          </button>
                         </div>
-                      </div>
-                    ) : (
-                      <div className="px-6 py-4 border-t border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-800">
-                        <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">
-                          These figures are maintained by the cooperative office. Contact the BOD/Manager for adjustments.
-                        </p>
+
+                        {/* Form Fields: View Mode vs Edit Mode */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                          {section.fields.map((field) => {
+                            const error = fieldErrors[field.key];
+                            const value = formData[field.key] ?? '';
+                            const inputClass = `w-full rounded-lg border ${
+                              error ? 'border-red-300 focus:ring-red-200' : 'border-gray-200 dark:border-gray-700 focus:ring-[#1D6021]/30 focus:border-[#1D6021]'
+                            } bg-white dark:bg-gray-800 px-3 py-2.5 text-sm text-gray-900 dark:text-gray-100 outline-none focus:ring-2 transition disabled:bg-gray-50 dark:disabled:bg-gray-700 disabled:text-gray-500 dark:disabled:text-gray-500 disabled:cursor-not-allowed`;
+                            const disabled = section.readOnly || loadingProfile;
+                            const isFull = field.fullWidth;
+                            
+                            return isEditing ? (
+                              // EDIT MODE
+                              <div key={field.key} className={isFull ? 'md:col-span-2' : ''}>
+                                <label className="block text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1.5">
+                                  {field.label}{field.required ? <span className="text-red-500 ml-0.5">*</span> : null}
+                                </label>
+                                {field.type === 'textarea' ? (
+                                  <textarea
+                                    value={value}
+                                    onChange={(e) => handleFieldChange(field.key, e.target.value)}
+                                    onBlur={() => handleFieldBlur(field.key)}
+                                    disabled={disabled}
+                                    rows={3}
+                                    placeholder={field.placeholder || ''}
+                                    className={inputClass}
+                                  />
+                                ) : field.type === 'select' ? (
+                                  <select
+                                    value={value}
+                                    onChange={(e) => handleFieldChange(field.key, e.target.value)}
+                                    onBlur={() => handleFieldBlur(field.key)}
+                                    disabled={disabled}
+                                    className={inputClass}
+                                  >
+                                    <option value="">Select…</option>
+                                    {field.options.map((opt) => (
+                                      <option key={opt} value={opt}>{opt}</option>
+                                    ))}
+                                  </select>
+                                ) : (
+                                  <input
+                                    type={field.type || 'text'}
+                                    value={value}
+                                    onChange={(e) => handleFieldChange(field.key, e.target.value)}
+                                    onBlur={() => handleFieldBlur(field.key)}
+                                    disabled={disabled}
+                                    placeholder={field.placeholder || ''}
+                                    className={inputClass}
+                                  />
+                                )}
+                                {error ? (
+                                  <p className="mt-1 text-xs text-red-600 font-semibold flex items-center gap-1">
+                                    <AlertCircle className="w-3 h-3" /> {error}
+                                  </p>
+                                ) : null}
+                              </div>
+                            ) : (
+                              // VIEW MODE
+                              <div key={field.key} className={`border-b border-gray-50 dark:border-gray-800 pb-3 ${isFull ? 'md:col-span-2' : ''}`}>
+                                <label className="block text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1">
+                                  {field.label}
+                                </label>
+                                <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                                  {isFieldFilled(value) ? (
+                                    field.type === 'date' ? displayDate(value) : value
+                                  ) : (
+                                    <span className="italic text-gray-400 dark:text-gray-500 font-medium">Not provided</span>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+
+                        {/* Footer Actions Contextually rendered for editing state */}
+                        {isEditing && (
+                          <div className="mt-6 pt-5 border-t border-gray-100 dark:border-gray-800 flex flex-col sm:flex-row sm:items-center justify-end gap-3">
+                            <button
+                              type="button"
+                              onClick={handleDiscardChanges}
+                              disabled={savingProfile}
+                              className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 text-sm font-semibold hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              type="button"
+                              onClick={handleRequestSave}
+                              disabled={!isDirty || savingProfile}
+                              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[#1D6021] text-white text-sm font-semibold hover:bg-[#154718] disabled:opacity-40 disabled:cursor-not-allowed"
+                            >
+                              <Save className="w-4 h-4" /> Save Changes
+                            </button>
+                          </div>
+                        )}
+                        
                       </div>
                     )}
                   </div>
                 );
               })}
+
+              {/* Security Button Appended to Bottom of Accordion */}
+              <button
+                type="button"
+                onClick={handleOpenChangePassword}
+                className="w-full flex items-center gap-3 p-4 sm:p-5 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+              >
+                <Lock className="w-5 h-5 text-gray-500" />
+                <span className="text-sm font-bold text-gray-700 dark:text-gray-300">Account Security</span>
+              </button>
+              
             </div>
           </div>
 
@@ -1302,8 +1271,8 @@ const Members_Profile = () => {
             </div>
           ) : null}
 
-          {/* Notification preferences (kept) */}
-          <div className="mt-6 bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 overflow-hidden">
+          {/* Notification preferences */}
+          <div className="mt-6 w-full bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 overflow-hidden">
             <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-800 bg-[#FAF9FB] dark:bg-gray-800 flex items-center gap-2 text-[#1D6021]">
               <ShieldCheck className="w-5 h-5" />
               <h2 className="font-extrabold text-gray-900 dark:text-white text-base">Notification Preferences</h2>
