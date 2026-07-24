@@ -22,6 +22,7 @@ import {
   Gift,
   Calculator,
   Settings,
+  Scroll
 } from "lucide-react";
 import LoanCalculatorModal from "./LoanCalculatorModal";
 import SettingsDrawer from './SettingsDrawer';
@@ -98,11 +99,12 @@ const styles = `
 
 const menuItems = [
   { name: "Dashboard", icon: LayoutDashboard },
+  { name: "Apply for Loan", icon: Scroll },
   { name: "Member Loans", icon: Activity },
   { name: "Statement of Account", icon: Receipt },
   { name: "Loan Lifecycle", icon: History },
-  { name: "Member Profile", icon: Users },
   { name: "Member Savings", icon: CreditCard },
+  { name: "Member Profile", icon: Users }
 ];
 
 const Member_ApplyLoans = () => {
@@ -219,13 +221,14 @@ const Member_ApplyLoans = () => {
    
         <nav className="flex grow flex-col gap-2 text-sm">
           {(() => {
-            const routeMap = {
+             const routeMap = {
               "Dashboard": "/member-dashboard",
+              "Apply for Loan": "/member-apply-loans",
               "Member Loans": "/member-loans",
               "Statement of Account": "/member-statement-of-account",
               "Loan Lifecycle": "/member-lifecycle",
-              "Member Profile": "/members-profile",
-              "Member Savings": "/member-savings"
+              "Member Savings": "/member-savings",
+              "Member Profile": "/members-profile", 
             };
        
             return menuItems.map((item) => {
@@ -300,16 +303,7 @@ const Member_ApplyLoans = () => {
             </button>
 
             <div className="flex items-center gap-2 sm:gap-3 border-l border-gray-200 dark:border-gray-700 pl-2 sm:pl-4 cursor-pointer">
-              <div className="w-8 h-8 rounded-full bg-gray-200 overflow-hidden border border-gray-300 dark:bg-gray-700 dark:border-gray-600">
-                {avatarUrl ? (
-                  <img src={avatarUrl} alt="Member Profile" className="w-full h-full object-cover" />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400">
-                    <User className="w-4 h-4" />
-                  </div>
-                )}
-              </div>
-              <p className="hidden sm:block text-sm font-bold text-gray-700 dark:text-gray-200">{memberLabel}</p>
+            
             </div>
           </div>
         </header>
@@ -414,14 +408,15 @@ const Member_ApplyLoans = () => {
           <div className="max-w-lg mx-auto">
             <div className="flex items-center justify-around gap-1">
               {(() => {
-                const routeMap = {
-                  "Dashboard": "/member-dashboard",
-                  "Member Loans": "/member-loans",
-                  "Statement of Account": "/member-statement-of-account",
-                  "Loan Lifecycle": "/member-lifecycle",
-                  "Member Profile": "/members-profile",
-                  "Member Savings": "/member-savings"
-                };
+                 const routeMap = {
+              "Dashboard": "/member-dashboard",
+              "Apply for Loan": "/member-apply-loans",
+              "Member Loans": "/member-loans",
+              "Statement of Account": "/member-statement-of-account",
+              "Loan Lifecycle": "/member-lifecycle",
+              "Member Savings": "/member-savings",
+              "Member Profile": "/members-profile"
+            };
 
                 return menuItems.map((item) => {
                   const Icon = item.icon;

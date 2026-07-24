@@ -27,6 +27,7 @@ import {
   User,
   Receipt,
   Settings,
+  Scroll
 } from 'lucide-react';
 import SettingsDrawer from './SettingsDrawer';
 
@@ -123,13 +124,14 @@ const Member_Savings = () => {
   const [avatarUrl, setAvatarUrl] = useState('');
 
   const menuItems = [
-    { name: "Dashboard", icon: LayoutDashboard },
-    { name: "Member Loans", icon: Activity },
-    { name: "Statement of Account", icon: Receipt },
-    { name: "Loan Lifecycle", icon: History },
-    { name: "Member Savings", icon: CreditCard },
-    { name: "Member Profile", icon: Users },
-  ];
+      { name: "Dashboard", icon: LayoutDashboard },
+      { name: "Apply for Loan", icon: Scroll },
+      { name: "Member Loans", icon: Activity },
+      { name: "Statement of Account", icon: Receipt },
+      { name: "Loan Lifecycle", icon: History },
+      { name: "Member Savings", icon: CreditCard },
+       { name: "Member Profile", icon: Users },
+    ];
 
   const handleSignOut = async (e) => {
     e.preventDefault();
@@ -363,10 +365,11 @@ const Member_Savings = () => {
           {(() => {
             const routeMap = {
               "Dashboard": "/member-dashboard",
+              "Apply for Loan": "/member-apply-loans",
               "Member Loans": "/member-loans",
               "Statement of Account": "/member-statement-of-account",
               "Loan Lifecycle": "/member-lifecycle",
-              "Member Profile": "/members-profile",
+              "Member Profile": "/members-profile", 
               "Member Savings": "/member-savings"
             };
        
@@ -441,16 +444,7 @@ const Member_Savings = () => {
           </button>
 
           <div className="flex items-center gap-2 sm:gap-3 border-l border-gray-200 dark:border-gray-700 pl-2 sm:pl-4 cursor-pointer">
-            <div className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 overflow-hidden border border-gray-300 dark:border-gray-600">
-              {avatarUrl ? (
-                <img src={avatarUrl} alt="Profile" className="w-full h-full object-cover" />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400">
-                  <User className="w-4 h-4" />
-                </div>
-              )}
-            </div>
-            <p className="hidden sm:block text-sm font-bold text-gray-700 dark:text-gray-200">{memberLabel}</p>
+            
           </div>
           </div>
         </header>
