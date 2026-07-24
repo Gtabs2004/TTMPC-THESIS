@@ -24,7 +24,7 @@ import {
 import logo from "../../assets/img/ttmpc logo.png";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
-const ITEMS_PER_PAGE = 25;
+const ITEMS_PER_PAGE = 5;
 
 const formatCurrency = (value) =>
   new Intl.NumberFormat("en-PH", {
