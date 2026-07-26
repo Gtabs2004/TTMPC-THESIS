@@ -1,7 +1,6 @@
 {
   "version": "2.0.0",
   "tasks": [
-
     {
       "label": "Frontend: Vite Dev",
       "type": "npm",
@@ -16,7 +15,6 @@
       },
       "problemMatcher": []
     },
-
     {
       "label": "Backend: FastAPI (venv)",
       "type": "shell",
@@ -25,9 +23,7 @@
         "-m",
         "uvicorn",
         "main:app",
-        "--reload",
-        "--app-dir",
-        "${workspaceFolder}/TTMPC_THESIS/src/server"
+        "--reload"
       ],
       "options": {
         "cwd": "${workspaceFolder}/TTMPC_THESIS/src/server"
@@ -41,7 +37,6 @@
       },
       "problemMatcher": []
     },
-
     {
       "label": "Start Full Stack",
       "dependsOn": [
@@ -59,6 +54,5 @@
       },
       "problemMatcher": []
     }
-
   ]
 }
