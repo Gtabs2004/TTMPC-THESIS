@@ -3,7 +3,7 @@ import json
 import io
 import calendar
 from datetime import date, datetime, timedelta
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from typing import Annotated, Any, Literal, Union
 from fastapi import BackgroundTasks, Body, FastAPI, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
@@ -73,6 +73,12 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ============================================================================
+# SECTION: Pydantic Request/Response Models
+# All API payload schemas grouped together. Loan, Membership, Cashier, Savings,
+# Bookkeeper, and Secretary request models live here.
+# ============================================================================
 
 class LoginRequest(BaseModel):
     username: str
@@ -344,6 +350,12 @@ TWOPLACES = Decimal("0.01")
 CBU_STARTING_CAPITAL = Decimal("0")
 CBU_SHARE_VALUE = Decimal("1000")
 
+
+# ============================================================================
+# SECTION: Utility Helpers (Money, Dates, ID Generation, Loan Type Resolution)
+# Pure helper functions for currency rounding, date math, sequence-ID builders
+# (savings, CBU, BOD resolution), and loan-type/interest-rate lookups.
+# ============================================================================
 
 def money(value: Decimal) -> Decimal:
     return value.quantize(TWOPLACES, rounding=ROUND_HALF_UP)
@@ -926,6 +938,12 @@ def compute_service_fee(policy: dict, principal: Decimal) -> Decimal:
     return money(Decimal(brackets) * per)
 
 
+# ============================================================================
+# SECTION: Loan Computation
+# Endpoint that returns amortization schedules, fees, insurance, service fees,
+# and monthly breakdowns for Consolidated / Bonus / Emergency loan payloads.
+# ============================================================================
+
 @app.post("/api/loans/compute")
 async def compute_loan(payload: LoanComputeRequest):
     principal = Decimal(str(payload.principal))
@@ -1079,6 +1097,12 @@ async def compute_loan(payload: LoanComputeRequest):
         ).model_dump(mode="json"),
     }
 
+
+# ============================================================================
+# SECTION: Cashier — Loan Payments & Disbursements
+# Cashier portal endpoints for listing payable/disbursable loans, creating loan
+# payments, and disbursing approved loans.
+# ============================================================================
 
 @app.get("/api/cashier/loan-payments/loans")
 async def get_cashier_loans_for_payments():
@@ -1402,6 +1426,12 @@ def _normalize_disbursement_loan_type(raw: str) -> str:
     return (raw or "Other").title()
 
 
+# ============================================================================
+# SECTION: Treasurer — Disbursements
+# Endpoints that surface loans already released by the cashier for treasurer
+# accounting and reconciliation.
+# ============================================================================
+
 @app.get("/api/treasurer/disbursements/released-loans")
 async def get_treasurer_released_loans():
     """Read-only audit feed of loans already released by the Cashier."""
@@ -1509,6 +1539,12 @@ async def get_treasurer_released_loans():
 
     return {"success": True, "data": mapped, "summary": summary}
 
+
+# ============================================================================
+# SECTION: Cashier — CBU (Capital Build-Up)
+# Endpoints for listing CBU members, viewing balances, listing deposit
+# transactions, and recording CBU deposits.
+# ============================================================================
 
 @app.get("/api/cashier/cbu/members")
 async def get_cashier_cbu_members():
@@ -2303,6 +2339,12 @@ def _compute_bucket_for_type(member_id: str, loan_type: str) -> dict:
     payments_made = len(payments_response.data or [])
     return _blocked_bucket(loan_type, payments_made, active_id)
 
+# ============================================================================
+# SECTION: Loan Eligibility
+# Computes per-loan-type eligibility buckets (clean/blocked) for a member,
+# including simulation helpers for QA scenarios.
+# ============================================================================
+
 @app.get("/api/loans/eligibility/{member_id}")
 async def get_loan_eligibility(
     member_id: str,
@@ -2339,6 +2381,11 @@ async def get_loan_eligibility(
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Eligibility lookup failed: {exc}") from exc
 
+
+# ============================================================================
+# SECTION: Bookkeeper — Loan Management & Ledger
+# Endpoints for the bookkeeper's manage-loans queue and per-loan ledger view.
+# ============================================================================
 
 @app.get("/api/bookkeeper/manage-loans")
 async def get_bookkeeper_manage_loans():
@@ -2542,6 +2589,12 @@ async def get_bookkeeper_loan_ledger(loan_id: str):
 
     return {"success": True, "data": target}
 
+
+# ============================================================================
+# SECTION: Member Lifecycle
+# Aggregated view of a member's full lifecycle (membership, loans, savings,
+# CBU history) for member profile pages.
+# ============================================================================
 
 @app.get("/api/member/lifecycle/{member_id}")
 async def get_member_lifecycle(member_id: str):
@@ -2781,6 +2834,12 @@ async def get_member_lifecycle(member_id: str):
     except Exception as err:
         raise HTTPException(status_code=500, detail=f"Failed to fetch member lifecycle: {err}")
 
+
+# ============================================================================
+# SECTION: Secretary — Membership Records & Personal Data Sheets
+# Endpoints for listing/updating membership records and PDS entries used by the
+# secretary/BOD portal.
+# ============================================================================
 
 @app.get("/api/secretary/membership-records")
 async def get_secretary_membership_records():
@@ -3040,6 +3099,12 @@ async def get_personal_datasheet_record_by_membership(membership_number_id: str)
     except Exception as err:
         raise HTTPException(status_code=500, detail=f"Failed to load personal data sheet details: {err}")
 
+
+# ============================================================================
+# SECTION: Savings — Transactions, Accounts, Deposits & Withdrawals
+# General savings endpoints plus cashier-specific savings deposit/withdraw
+# operations, account listing, and ledger retrieval.
+# ============================================================================
 
 @app.post("/api/savings/transactions")
 async def create_savings_transaction(payload: SavingsTransactionCreateRequest):
@@ -3899,6 +3964,12 @@ async def post_savings_account_withdraw(account_number: str, payload: CashierSav
 # ---------------------------------------------------------------------------
 from migs_engine import compute_migs_score, result_to_dict  # noqa: E402
 
+# ============================================================================
+# SECTION: MIGS Scoring (Member In Good Standing)
+# Endpoints wrapping migs_engine.py: list members with MIGS scores, recompute
+# all scores for a year, and fetch individual member score details/labels.
+# ============================================================================
+
 @app.get("/api/migs/members")
 async def list_migs_members(year: int | None = None):
     """List all members with the raw inputs needed for MIGS scoring.
@@ -3935,7 +4006,7 @@ async def list_migs_members(year: int | None = None):
             try:
                 pds_response = (
                     supabase.table("personal_data_sheet")
-                    .select("membership_number_id,first_name,middle_name,surname,last_name,created_at")
+                    .select("membership_number_id,first_name,middle_name,surname,created_at")
                     .in_("membership_number_id", membership_keys)
                     .order("created_at", desc=True)
                     .execute()
@@ -4640,6 +4711,11 @@ async def get_migs_member_detail(member_key: str, year: int | None = None):
 # The MIGS scoring engine reads from this table to award the 5pt attendance criterion.
 # ---------------------------------------------------------------------------
 
+# ============================================================================
+# SECTION: Secretary — General Assembly Attendance
+# Endpoints for GA roster retrieval and saving attendance records per year.
+# ============================================================================
+
 @app.get("/api/secretary/general-assembly/{year}")
 async def get_ga_attendance_roster(year: int):
     """Return every coop member with their GA attendance status for the year.
@@ -4668,7 +4744,7 @@ async def get_ga_attendance_roster(year: int):
             try:
                 pds_response = (
                     supabase.table("personal_data_sheet")
-                    .select("membership_number_id,first_name,middle_name,surname,last_name,created_at")
+                    .select("membership_number_id,first_name,middle_name,surname,created_at")
                     .in_("membership_number_id", membership_keys)
                     .order("created_at", desc=True)
                     .execute()
@@ -4835,6 +4911,12 @@ async def save_ga_attendance(payload: dict = Body(...)):
         "meeting_date": meeting_date,
     }
 
+
+# ============================================================================
+# SECTION: Bookkeeper — Savings Transaction Approval
+# Endpoints for listing pending savings transactions and confirming/rejecting
+# them, plus cashier withdrawal transaction listing.
+# ============================================================================
 
 @app.get("/api/bookkeeper/savings-transactions")
 async def get_bookkeeper_savings_transactions():
@@ -5234,23 +5316,31 @@ async def get_secretary_membership_record_details(member_ref: str):
             )
             latest_cbu = (latest_cbu_response.data or [None])[0]
 
+        def _is_empty(v):
+            if v is None:
+                return True
+            try:
+                return Decimal(str(v)) == 0
+            except (InvalidOperation, ValueError):
+                return False
+
         amount_value = (member_row or {}).get("share_capital_amount")
-        if amount_value is None:
+        if _is_empty(amount_value):
             amount_value = (pds_row or {}).get("amount")
-        if amount_value is None:
+        if _is_empty(amount_value):
             amount_value = (latest_cbu or {}).get("ending_share_capital") or 0
 
         shares_value = (member_row or {}).get("number_of_shares")
-        if shares_value is None:
+        if _is_empty(shares_value):
             shares_value = (pds_row or {}).get("number_of_shares")
-        if shares_value is None:
+        if _is_empty(shares_value):
             amount_decimal = Decimal(str(amount_value or 0))
             shares_value = amount_decimal / CBU_SHARE_VALUE if amount_decimal > 0 else Decimal("0")
 
         paid_up_value = (member_row or {}).get("initial_paid_up_capital")
-        if paid_up_value is None:
+        if _is_empty(paid_up_value):
             paid_up_value = (pds_row or {}).get("initial_paid_up_capital")
-        if paid_up_value is None:
+        if _is_empty(paid_up_value):
             paid_up_value = amount_value or 0
 
         full_name = resolve_member_full_name(member_row) if member_row else " ".join(
@@ -5379,6 +5469,12 @@ async def update_secretary_membership_record(member_ref: str, payload: Secretary
     except Exception as err:
         raise HTTPException(status_code=500, detail=f"Failed to update membership record: {err}")
 
+
+# ============================================================================
+# SECTION: Bookkeeper — Loan Payment Approval
+# Endpoints for the bookkeeper's pending-payments queue with approve/reject
+# decision endpoints.
+# ============================================================================
 
 @app.get("/api/bookkeeper/payments/pending")
 async def get_bookkeeper_pending_payments():
@@ -5740,6 +5836,12 @@ async def reject_bookkeeper_payment(payment_id: str, payload: BookkeeperPaymentD
     except Exception as err:
         raise HTTPException(status_code=500, detail=f"Failed to reject payment: {err}")
 
+# ============================================================================
+# SECTION: Email & In-App Notifications
+# Resend-backed email dispatch and in-app notification fan-out endpoints for
+# loan status updates and member communications.
+# ============================================================================
+
 @app.post("/api/send-status-email")
 async def send_status_email(payload: StatusEmailRequest):
     # Reload env values at request time so key updates are picked up without restart.
@@ -6060,6 +6162,11 @@ async def dispatch_loan_email(payload: LoanStatusEmailRequest, background_tasks:
     return {"success": True, "queued": True}
 
 
+# ============================================================================
+# SECTION: Auth — Login
+# Supabase auth login endpoint returning session tokens and role info.
+# ============================================================================
+
 @app.post("/api/login")
 async def login(user_data: LoginRequest):
     print(f"Login attempt for: {user_data.username}")
@@ -6102,6 +6209,12 @@ async def login(user_data: LoginRequest):
         print(f" Server Error: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
+
+# ============================================================================
+# SECTION: Membership Confirmation & Provisioning
+# BOD-triggered membership confirmation (single + batch), initial CBU seeding,
+# and next-membership-ID lookup.
+# ============================================================================
 
 @app.post("/api/confirm-membership")
 async def confirm_membership_endpoint(payload: MembershipConfirmationRequest):
@@ -6257,6 +6370,12 @@ async def next_membership_id_endpoint():
     except Exception as err:
         raise HTTPException(status_code=500, detail=f"Unable to generate membership ID: {err}")
 
+
+# ============================================================================
+# SECTION: PDF Generation (Membership Forms & Loan Forms)
+# Fills existing PDF templates with member/loan data via pdf-lib and returns
+# printable Consolidated / Bonus / Emergency loan documents.
+# ============================================================================
 
 @app.post("/api/membership-form/print-pdf")
 async def print_membership_form_pdf(payload: MembershipFormPdfRequest):
@@ -6669,6 +6788,12 @@ async def print_emergency_loan_pdf(payload: EmergencyLoanPdfRequest):
     return build_loan_pdf_response(payload, "EMERGENCY LOAN A4.pdf", "EMERGENCY_LOAN_FILLED.pdf", "emergency")
 
 
+# ============================================================================
+# SECTION: ML — Credit Risk Prediction
+# Wraps risk_model.py (Logistic Regression PKL) to score a loan's default
+# probability using LoanAmount, Stability_Score, Advance_Payment_Count, etc.
+# ============================================================================
+
 class RiskPredictRequest(BaseModel):
     loan_control_number: str
     source: Literal["loans", "koica_loans"] = "loans"
@@ -6867,6 +6992,12 @@ async def predict_loan_risk(payload: RiskPredictRequest):
 MEMBERSHIP_FEE_AMOUNT = Decimal("100")
 INITIAL_PAID_UP_CAPITAL_REQUIRED = Decimal("10000")
 
+
+# ============================================================================
+# SECTION: Cashier — Membership Payments & BOD Payment Status
+# Endpoints for listing applicants, creating membership payment records, and
+# BOD lookup of payment status per application.
+# ============================================================================
 
 class MembershipPaymentCreateRequest(BaseModel):
     application_id: str
@@ -7211,6 +7342,12 @@ async def bod_get_payment_status(application_id: str):
 # Loan Demand Forecasting
 # =============================================================================
 
+# ============================================================================
+# SECTION: ML — Loan Demand Forecasting Analytics
+# Wraps demand_model.py (SARIMAX PKLs) to return 12-month forecasts with 80%
+# confidence intervals plus historical actuals for the analytics dashboard.
+# ============================================================================
+
 @app.get("/api/analytics/demand/forecast")
 async def get_loan_demand_forecast(
     loan_type: str = "consolidated",
@@ -7419,6 +7556,12 @@ def _resolve_member_last_name(member_row: dict | None, account_row: dict, supaba
 
     return ""
 
+
+# ============================================================================
+# SECTION: Admin — Member Auth Backfill & Legacy Linking
+# One-off admin utilities: backfill auth.users for imported members, list
+# unlinked legacy members, and suggest/confirm legacy→master member links.
+# ============================================================================
 
 @app.post("/api/admin/backfill-member-auth")
 async def backfill_member_auth(dry_run: bool = False, limit: int | None = None):
@@ -7908,6 +8051,12 @@ ALLOWED_ROLES = {
     "bod",
 }
 
+
+# ============================================================================
+# SECTION: Admin — Staff Management & Member Termination
+# Endpoints for role changes, deactivation, staff termination request/decision
+# workflow, and BOD-initiated member termination.
+# ============================================================================
 
 class StaffRoleChangeRequest(BaseModel):
     member_id: str
@@ -8408,6 +8557,12 @@ def _send_otp_or_500(*, to_email: str, code: str, purpose: str) -> None:
 
 # ----- Request / Response models --------------------------------------------
 
+# ============================================================================
+# SECTION: Account Settings — Email & Password Change (with OTP)
+# Self-service endpoints for changing email/password, including OTP request,
+# verification, and direct password change flows.
+# ============================================================================
+
 class EmailChangeRequestOtp(BaseModel):
     new_email: str = Field(..., min_length=5, max_length=254)
 
@@ -8762,6 +8917,12 @@ import hashlib as _hashlib
 import uuid as _uuid
 from datetime import datetime as _dt, timezone as _tz
 
+
+# ============================================================================
+# SECTION: POS Integration & Dev Simulator
+# POS webhook configuration and dev-only endpoints to simulate POS events for
+# testing grocery transaction flows. See POS_WEBHOOK_INTEGRATION_NOTES.md.
+# ============================================================================
 
 def _pos_webhook_config():
     url = os.environ.get("POS_WEBHOOK_URL") or (

@@ -1,0 +1,472 @@
+// ============================================================
+// TTMPC REGANT - Entity Relationship Diagram (DBML)
+// Paste into https://dbdiagram.io/d  (File > Import > From DBML)
+// Then arrange, and Export as PDF / PNG / SVG for your thesis
+// ============================================================
+
+// ---------- MEMBERSHIP ----------
+Table member {
+  id uuid [pk]
+  membership_id text [unique]
+  full_name text
+  status text
+  created_at timestamptz
+}
+
+Table member_account {
+  user_id uuid [pk]
+  membership_id text
+  auth_user_id uuid
+  email text
+  role text
+  created_at timestamptz
+}
+
+Table member_profile {
+  membership_number_id uuid [pk]
+  member_classification_id uuid
+  stress_index_category_id uuid
+  member_account uuid
+  monthly_income numeric
+  dependents integer
+  created_at timestamptz
+}
+
+Table member_classification {
+  classification_id uuid [pk]
+  code text
+  label text
+}
+
+Table classification_level {
+  classification_level_id uuid [pk]
+  code text
+  label text
+  min_score integer
+  max_score integer
+  created_at timestamptz
+}
+
+Table member_classification_temporal {
+  id uuid [pk]
+  membership_number_id uuid
+  classification_level_id uuid
+  effective_from timestamptz
+  effective_to timestamptz
+}
+
+Table stress_index_category {
+  stress_index_category_id uuid [pk]
+  label text
+  min_value numeric
+  max_value numeric
+}
+
+Table member_applications {
+  application_id text [pk]
+  full_name text
+  email text
+  status text
+  submitted_at timestamptz
+}
+
+Table personal_data_sheet {
+  membership_number_id uuid [pk]
+  full_name text
+  address text
+  civil_status text
+  updated_at timestamptz
+}
+
+Table secretary_membership_records {
+  id uuid [pk]
+  member_id uuid
+  record_type text
+  details jsonb
+  created_at timestamptz
+}
+
+Table legacy_member_link {
+  id bigint [pk]
+  member_id uuid
+  legacy_ref text
+}
+
+// ---------- LOANS ----------
+Table loan_types {
+  id uuid [pk]
+  code text
+  name text
+  interest_rate numeric
+  max_term_months integer
+}
+
+Table loans {
+  control_number varchar [pk]
+  member_id uuid
+  loan_type_id uuid
+  principal numeric
+  status text
+  applied_at timestamptz
+  approved_at timestamptz
+  disbursed_at timestamptz
+}
+
+Table loan_schedules {
+  id bigint [pk]
+  loan_id varchar
+  due_date date
+  expected_amount numeric
+  status text
+}
+
+Table loan_payments {
+  id bigint [pk]
+  loan_id varchar
+  schedule_id bigint
+  amount numeric
+  paid_at timestamptz
+  status text
+}
+
+Table loan_payment_ledger {
+  id bigint [pk]
+  payment_id bigint
+  loan_id varchar
+  schedule_id bigint
+  principal_portion numeric
+  interest_portion numeric
+  created_at timestamptz
+}
+
+Table loan_payments_legacy {
+  id bigint [pk]
+  loan_id varchar
+  member_id uuid
+  amount numeric
+  paid_at timestamptz
+}
+
+Table loan_calculator {
+  id uuid [pk]
+  member_id uuid
+  loan_id varchar
+  projected_amount numeric
+  computed_at timestamptz
+}
+
+Table loan_collateral {
+  id bigint [pk]
+  loan_control_number varchar
+  collateral_type text
+  description text
+  value numeric
+}
+
+Table co_makers {
+  id bigint [pk]
+  loan_id varchar
+  member_id uuid
+  is_member boolean
+  liability_status text
+  co_maker_name text
+  co_maker_email text
+  co_maker_mobile text
+  date_signed timestamptz
+}
+
+Table disbursement_confirmations {
+  id uuid [pk]
+  reference_number text
+  loan_id text
+  member_id text
+  loan_amount numeric
+  disbursed_at timestamptz
+  cashier_id text
+  cashier_name text
+}
+
+// ---------- SAVINGS / CBU ----------
+Table savings_accounts {
+  account_number text [pk]
+  member_id uuid
+  account_name text
+  balance numeric
+  opened_at timestamptz
+}
+
+Table savings_ledger {
+  id bigint [pk]
+  account_number text
+  entry_type text
+  amount numeric
+  balance_after numeric
+  created_at timestamptz
+}
+
+Table Savings_Transactions {
+  Savings_ID varchar [pk]
+  membership_number_id varchar
+  Account_Number text
+  Amount bigint
+  Balance bigint
+  Savings_Amount bigint
+  withdrawal_amount bigint
+  created_at timestamptz
+}
+
+Table capital_build_up {
+  id uuid [pk]
+  member_id uuid
+  transaction_date timestamptz
+  starting_share_capital numeric
+  capital_added numeric
+  ending_share_capital numeric
+  source_loan_id varchar
+  source_payment_id text
+}
+
+// ---------- POS / GROCERY ----------
+Table GROCERY_TRANSACTIONS {
+  GroceryID text [pk]
+  event_id text
+  membership_number_id uuid
+  pos_member_ref text
+  TransactionDate timestamptz
+  GroceryAmount numeric
+  Status text
+  balance_due numeric
+  created_at timestamptz
+}
+
+// ---------- ATTENDANCE / GOVERNANCE ----------
+Table attendance_logs {
+  id bigint [pk]
+  application_id text
+  membership_number_id uuid
+  training_stage text
+  attendance_status text
+  meeting_date date
+  meeting_type text
+  recorded_by uuid
+  recorded_at timestamptz
+}
+
+Table general_assembly_attendance {
+  id bigint [pk]
+  member_id uuid
+  meeting_date date
+  status text
+}
+
+// ---------- RISK / ANALYTICS ----------
+Table risk_assessments {
+  id uuid [pk]
+  member_id uuid
+  default_probability numeric
+  stability_score numeric
+  repayment_stress_index numeric
+  assessed_at timestamptz
+}
+
+// ---------- AUDIT / SECURITY ----------
+Table audit_log {
+  id bigint [pk]
+  occurred_at timestamptz
+  actor_user_id uuid
+  actor_role text
+  actor_email text
+  entity_type text
+  entity_id text
+  action text
+  before jsonb
+  after jsonb
+  context jsonb
+}
+
+Table account_change_otp {
+  id uuid [pk]
+  auth_user_id uuid
+  purpose text
+  code_hash text
+  expires_at timestamptz
+  consumed boolean
+  attempts integer
+  created_at timestamptz
+}
+
+// ============================================================
+// RELATIONSHIPS
+// ============================================================
+Ref: member_account.user_id > member.id
+Ref: member_account.membership_id > member.membership_id
+
+Ref: member_profile.membership_number_id > member.id
+Ref: member_profile.member_classification_id > member_classification.classification_id
+Ref: member_profile.stress_index_category_id > stress_index_category.stress_index_category_id
+Ref: member_profile.member_account > member_account.user_id
+
+Ref: member_classification_temporal.membership_number_id > member.id
+Ref: member_classification_temporal.classification_level_id > classification_level.classification_level_id
+
+Ref: secretary_membership_records.member_id > member.id
+Ref: legacy_member_link.member_id > member.id
+Ref: capital_build_up.member_id > member.id
+
+Ref: attendance_logs.membership_number_id > member.id
+Ref: attendance_logs.application_id > member_applications.application_id
+Ref: general_assembly_attendance.member_id > member.id
+Ref: risk_assessments.member_id > member.id
+
+Ref: loans.member_id > member.id
+Ref: loans.loan_type_id > loan_types.id
+
+Ref: loan_schedules.loan_id > loans.control_number
+Ref: loan_payments.loan_id > loans.control_number
+Ref: loan_payments.schedule_id > loan_schedules.id
+Ref: loan_payment_ledger.loan_id > loans.control_number
+Ref: loan_payment_ledger.payment_id > loan_payments.id
+Ref: loan_payment_ledger.schedule_id > loan_schedules.id
+Ref: loan_payments_legacy.loan_id > loans.control_number
+Ref: loan_payments_legacy.member_id > member.id
+
+Ref: loan_calculator.member_id > member.id
+Ref: loan_calculator.loan_id > loans.control_number
+Ref: loan_collateral.loan_control_number > loans.control_number
+
+Ref: co_makers.loan_id > loans.control_number
+Ref: co_makers.member_id > member.id
+
+Ref: savings_accounts.member_id > member.id
+Ref: savings_ledger.account_number > savings_accounts.account_number
+Ref: Savings_Transactions.membership_number_id > personal_data_sheet.membership_number_id
+
+Ref: GROCERY_TRANSACTIONS.membership_number_id > member.id
+
+// ============================================================
+// ADDITIONAL TABLES (no declared FKs — related by convention)
+// ============================================================
+
+// ---------- LOANS (extended) ----------
+Table koica_loans {
+  control_number varchar [pk]
+  member_id uuid
+  loan_type_id uuid
+  principal numeric
+  loan_status text
+  bookkeeper_internal_remarks text
+  bookkeeper_reviewed_at timestamptz
+  manager_review_requested_at timestamptz
+  last_emailed_status text
+  applied_at timestamptz
+}
+
+Table loan_fee_policies {
+  id uuid [pk]
+  loan_type_id uuid
+  fee_code text
+  amount numeric
+  is_percentage boolean
+  effective_from date
+  effective_to date
+}
+
+// ---------- NOTIFICATIONS ----------
+Table loan_notifications {
+  id bigint [pk]
+  recipient_role text
+  recipient_user_id uuid
+  recipient_member_id text
+  title text
+  message text
+  notification_type text
+  severity text
+  loan_id text
+  redirect_url text
+  dedup_key text
+  is_read boolean
+  read_at timestamptz
+  read_by uuid
+  created_at timestamptz
+  created_by uuid
+}
+
+Table loan_email_log {
+  id bigint [pk]
+  loan_id text
+  stage text
+  action text
+  status_label text
+  recipient_email text
+  recipient_role text
+  dedup_key text
+  success boolean
+  provider_message_id text
+  error_message text
+  attempt_count integer
+  sent_at timestamptz
+  created_by uuid
+}
+
+// ---------- STAFF / GOVERNANCE ----------
+Table staff_termination_requests {
+  id bigint [pk]
+  member_id text
+  member_account_id uuid
+  previous_role text
+  resolution_no text
+  resolution_date date
+  effective_date date
+  reason text
+  status text
+  requested_by uuid
+  requested_by_role text
+  requested_at timestamptz
+  decided_by uuid
+  decided_at timestamptz
+  decision_notes text
+}
+
+Table profiles {
+  id uuid [pk]
+  full_name text
+  email text
+  role text
+  avatar_url text
+  updated_at timestamptz
+}
+
+// ---------- SAVINGS (extended) ----------
+Table savings_transaction_queue {
+  id uuid [pk]
+  account_number text
+  membership_number_id uuid
+  transaction_type text
+  amount numeric
+  status text
+  created_at timestamptz
+  processed_at timestamptz
+}
+
+Table ledger_transactions {
+  id bigint [pk]
+  account_number text
+  entry_type text
+  amount numeric
+  balance_after numeric
+  reference_id text
+  created_at timestamptz
+}
+
+// ---------- RELATIONSHIPS (by convention — no DB-level FK) ----------
+Ref: koica_loans.member_id > member.id
+Ref: koica_loans.loan_type_id > loan_types.id
+Ref: loan_fee_policies.loan_type_id > loan_types.id
+Ref: loan_notifications.loan_id > loans.control_number
+Ref: loan_notifications.recipient_member_id > member.membership_id
+Ref: loan_email_log.loan_id > loans.control_number
+Ref: staff_termination_requests.member_id > member.membership_id
+Ref: staff_termination_requests.member_account_id > member_account.user_id
+Ref: savings_transaction_queue.account_number > savings_accounts.account_number
+Ref: savings_transaction_queue.membership_number_id > member.id
+Ref: ledger_transactions.account_number > savings_accounts.account_number
