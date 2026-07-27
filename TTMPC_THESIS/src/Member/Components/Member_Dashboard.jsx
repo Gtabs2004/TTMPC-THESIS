@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useMemo, useRef, useState } from "react";
+﻿import React, { useEffect, useMemo, useState } from "react";
 import { Link } from 'react-router-dom';
 import { useNavigate, NavLink } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
@@ -8,7 +8,7 @@ import { resolveMemberContextFromSessionUser } from "../../utils/sessionIdentity
 import { useMigsLabel, getMigsBadgeClasses } from "../../hooks/useMigsLabel";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
 import LoanCalculatorModal from "./LoanCalculatorModal";
-import { getOrFetch, peek, invalidate } from "../memberDataCache";
+import { getOrFetch, peek } from "../memberDataCache";
 import {
   LayoutDashboard,
   Users,
@@ -119,12 +119,9 @@ const MemberDashboard = () => {
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [profileError, setProfileError] = useState("");
   const [avatarUrl, setAvatarUrl] = useState("");
-  const [uploadingAvatar, setUploadingAvatar] = useState(false);
-  const [avatarUploadError, setAvatarUploadError] = useState("");
   const [isTemporaryAccount, setIsTemporaryAccount] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const fileInputRef = useRef(null);
   const [memberLabel, setMemberLabel] = useState('Member');
 
   const menuItems = [
@@ -462,61 +459,6 @@ const MemberDashboard = () => {
 
   const nextPaymentDate = nextDueDate ? formatDate(nextDueDate) : (activeLoans[0]?.application_date ? formatDate(activeLoans[0].application_date) : 'N/A');
 
-  const handleOpenFilePicker = () => {
-    if (uploadingAvatar) return;
-    fileInputRef.current?.click();
-  };
-
-  const handleAvatarFileChange = async (event) => {
-    const file = event.target.files?.[0];
-    event.target.value = '';
-
-    if (!file) return;
-
-    const { data: authData, error: authError } = await supabase.auth.getUser();
-    if (authError || !authData?.user?.id) {
-      setAvatarUploadError('Please sign in again before uploading your photo.');
-      return;
-    }
-
-    const userId = authData.user.id;
-    setAvatarUploadError('');
-    setUploadingAvatar(true);
-
-    try {
-      const extension = (file.name.split('.').pop() || 'jpg').toLowerCase();
-      const storagePath = `profiles/${userId}/avatar.${extension}`;
-      const { error: uploadError } = await supabase.storage
-        .from('Supporting_Documents')
-        .upload(storagePath, file, {
-          cacheControl: '3600',
-          upsert: true,
-        });
-
-      if (uploadError) throw uploadError;
-
-      const { error: updateError } = await supabase
-        .from('profiles')
-        .upsert({ id: userId, avatar_url: storagePath }, { onConflict: 'id' });
-
-      if (updateError) throw updateError;
-
-      const { data: signedData, error: signedError } = await supabase.storage
-        .from('Supporting_Documents')
-        .createSignedUrl(storagePath, 60 * 60 * 24 * 7);
-
-      if (signedError) throw signedError;
-
-      setAvatarUrl(signedData?.signedUrl || '');
-      // Drop cached snapshot so the fresh avatar URL persists across tab switches.
-      invalidate(`member-dashboard:${userId}`);
-    } catch (err) {
-      setAvatarUploadError(err?.message || 'Unable to upload profile photo.');
-    } finally {
-      setUploadingAvatar(false);
-    }
-  };
-
   const daysUntilNextDue = useMemo(() => {
     if (!nextDueDate) return null;
     const due = new Date(nextDueDate);
@@ -738,34 +680,10 @@ const MemberDashboard = () => {
                 ) : null}
 
                 <div className="flex flex-wrap items-center gap-2">
-                  <button
-                    onClick={handleOpenFilePicker}
-                    disabled={uploadingAvatar}
-                    className="flex items-center justify-center gap-2 border border-[#1D6021] text-[#1D6021] hover:bg-[#EAF1EB] dark:hover:bg-green-900/30 transition-colors font-bold rounded-lg px-4 py-2 text-sm disabled:opacity-60 disabled:cursor-not-allowed"
-                  >
-                    {uploadingAvatar ? (
-                      <>
-                        <span className="inline-block h-4 w-4 rounded-full border-2 border-[#1D6021] border-t-transparent animate-spin" />
-                        Uploading...
-                      </>
-                    ) : (
-                      'Change Photo'
-                    )}
-                  </button>
                   <button onClick={() => navigate('/members-profile')} className="flex items-center justify-center gap-2 border border-[#1D6021] text-[#1D6021] hover:bg-[#EAF1EB] dark:hover:bg-green-900/30 transition-colors font-bold rounded-lg px-4 py-2 text-sm">
                   <Pencil className="w-4 h-4" /> Edit Profile
                   </button>
                 </div>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={handleAvatarFileChange}
-                />
-                {avatarUploadError ? (
-                  <p className="text-xs text-red-600 font-semibold mt-3">{avatarUploadError}</p>
-                ) : null}
               </div>
             </div>
 
@@ -811,7 +729,7 @@ const MemberDashboard = () => {
                     <div className="flex justify-between items-start mb-5">
                       <div>
                         <h3 className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">
-                          MIGS Standing
+                          MIGS Classification
                         </h3>
                         <div className="flex items-baseline gap-1.5">
                           <span className="text-3xl font-extrabold text-gray-900 dark:text-white leading-none">

@@ -227,11 +227,6 @@ const Cashier_MembershipPayments = () => {
     setSelectedApplicant(null);
   };
 
-  const handlePaymentTypeChange = (nextType) => {
-    setSelectedPaymentType(nextType);
-    setAmountInput(String(PAYMENT_TYPE_META[nextType].defaultAmount));
-  };
-
   const handleSubmitPayment = async () => {
     if (!selectedApplicant) return;
     const meta = PAYMENT_TYPE_META[selectedPaymentType];
@@ -715,19 +710,12 @@ const Cashier_MembershipPayments = () => {
             <div className="space-y-4 mb-5">
               <div>
                 <label className="block text-xs font-bold text-gray-700 mb-1 uppercase tracking-wider">
-                  Payment Type <span className="text-red-500">*</span>
+                  Payment Type
                 </label>
-                <select
-                  value={selectedPaymentType}
-                  onChange={(e) => handlePaymentTypeChange(e.target.value)}
-                  disabled={submitting}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#389734]"
-                >
-                  <option value="MEMBERSHIP_FEE">Membership Fee (₱{MEMBERSHIP_FEE})</option>
-                  <option value="INITIAL_PAID_UP_CAPITAL">
-                    Initial Paid-Up Capital (₱{PAID_UP_REQUIRED.toLocaleString()})
-                  </option>
-                </select>
+                <div className="w-full rounded-lg border border-gray-300 bg-gray-100 px-3 py-2 text-sm font-semibold text-gray-600">
+                  {PAYMENT_TYPE_META[selectedPaymentType].label} (₱
+                  {PAYMENT_TYPE_META[selectedPaymentType].defaultAmount.toLocaleString()})
+                </div>
               </div>
 
               <div>
@@ -770,7 +758,7 @@ const Cashier_MembershipPayments = () => {
               <div>
                 <label className="block text-xs font-bold text-gray-700 mb-1 uppercase tracking-wider">
                   Reference Number{" "}
-                  <span className="text-gray-400 font-normal lowercase">(optional)</span>
+                  
                 </label>
                 <input
                   type="text"

@@ -25,7 +25,9 @@ import {
   ChevronRight,
   Banknote,
   Settings,
-  Scroll
+  Scroll,
+  Wallet,
+  PiggyBank
 } from "lucide-react";
 import SettingsDrawer from './SettingsDrawer';
 
@@ -59,6 +61,22 @@ const classifyType = (name) => {
   return null;
 };
 
+const humanizeSource = (value) => {
+  const raw = String(value || "").trim();
+  if (!raw) return "Capital Contribution";
+  return raw
+    .toLowerCase()
+    .split("_")
+    .map((word) => (word === "cbu" ? "CBU" : word.charAt(0).toUpperCase() + word.slice(1)))
+    .join(" ");
+};
+
+const STATEMENT_TABS = [
+  { key: "loan", label: "Loan" },
+  { key: "savings", label: "Savings" },
+  { key: "cbu", label: "Capital Build-Up" },
+];
+
 const Member_StatementOfAccount = () => {
   const { signOut } = UserAuth();
   const navigate = useNavigate();
@@ -79,6 +97,19 @@ const Member_StatementOfAccount = () => {
   const [memberId, setMemberId] = useState(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+
+  const [activeTab, setActiveTab] = useState("loan");
+
+  const [savingsLoaded, setSavingsLoaded] = useState(false);
+  const [loadingSavings, setLoadingSavings] = useState(false);
+  const [savingsError, setSavingsError] = useState("");
+  const [regularSavings, setRegularSavings] = useState(0);
+  const [savingsRows, setSavingsRows] = useState([]);
+
+  const [cbuLoaded, setCbuLoaded] = useState(false);
+  const [loadingCbu, setLoadingCbu] = useState(false);
+  const [cbuError, setCbuError] = useState("");
+  const [cbuRows, setCbuRows] = useState([]);
 
   const menuItems = [
       { name: "Dashboard", icon: LayoutDashboard },
@@ -227,6 +258,89 @@ const Member_StatementOfAccount = () => {
     };
   }, [selectedLoan, memberId]);
 
+  useEffect(() => {
+    if (activeTab !== "savings" || savingsLoaded || !memberId) return;
+    let isMounted = true;
+
+    const fetchSavings = async () => {
+      try {
+        setLoadingSavings(true);
+        setSavingsError("");
+
+        const { data: accountRows, error: accountError } = await supabase
+          .from("savings_accounts")
+          .select("account_number, balance")
+          .eq("member_id", memberId);
+
+        if (accountError) throw accountError;
+
+        const accountNumbers = (accountRows || []).map((r) => r.account_number);
+        const total = (accountRows || []).reduce((sum, r) => sum + Number(r?.balance || 0), 0);
+
+        let ledger = [];
+        if (accountNumbers.length > 0) {
+          const { data: ledgerRows, error: ledgerError } = await supabase
+            .from("savings_ledger")
+            .select("id, entry_type, amount, running_balance, reference, remarks, posted_at")
+            .in("account_number", accountNumbers)
+            .order("posted_at", { ascending: true });
+
+          if (ledgerError) throw ledgerError;
+          ledger = ledgerRows || [];
+        }
+
+        if (isMounted) {
+          setRegularSavings(total);
+          setSavingsRows(ledger);
+          setSavingsLoaded(true);
+        }
+      } catch (err) {
+        if (isMounted) setSavingsError(err.message || "Unable to load savings statement.");
+      } finally {
+        if (isMounted) setLoadingSavings(false);
+      }
+    };
+
+    fetchSavings();
+    return () => {
+      isMounted = false;
+    };
+  }, [activeTab, memberId, savingsLoaded]);
+
+  useEffect(() => {
+    if (activeTab !== "cbu" || cbuLoaded || !memberId) return;
+    let isMounted = true;
+
+    const fetchCbu = async () => {
+      try {
+        setLoadingCbu(true);
+        setCbuError("");
+
+        const { data, error } = await supabase
+          .from("capital_build_up")
+          .select("id, transaction_date, starting_share_capital, capital_added, ending_share_capital, deposit_account")
+          .eq("member_id", memberId)
+          .order("transaction_date", { ascending: true });
+
+        if (error) throw error;
+
+        if (isMounted) {
+          setCbuRows(data || []);
+          setCbuLoaded(true);
+        }
+      } catch (err) {
+        if (isMounted) setCbuError(err.message || "Unable to load capital build-up statement.");
+      } finally {
+        if (isMounted) setLoadingCbu(false);
+      }
+    };
+
+    fetchCbu();
+    return () => {
+      isMounted = false;
+    };
+  }, [activeTab, memberId, cbuLoaded]);
+
   const totals = useMemo(() => {
     return rows.reduce(
       (acc, r) => ({
@@ -239,6 +353,27 @@ const Member_StatementOfAccount = () => {
       { principal: 0, interest: 0, deficiency: 0, penalty: 0, paid: 0 }
     );
   }, [rows]);
+
+  const savingsTotals = useMemo(() => {
+    return savingsRows.reduce(
+      (acc, r) => {
+        const isCredit = String(r?.entry_type || "").toLowerCase() === "credit";
+        const amount = Number(r?.amount || 0);
+        return {
+          credits: acc.credits + (isCredit ? amount : 0),
+          debits: acc.debits + (isCredit ? 0 : amount),
+        };
+      },
+      { credits: 0, debits: 0 }
+    );
+  }, [savingsRows]);
+
+  const cbuTotals = useMemo(() => {
+    return cbuRows.reduce(
+      (acc, r) => ({ added: acc.added + Number(r?.capital_added || 0) }),
+      { added: 0 }
+    );
+  }, [cbuRows]);
 
   const handleDownloadPdf = () => {
     if (!selectedLoan) return;
@@ -359,6 +494,129 @@ const Member_StatementOfAccount = () => {
     doc.save(`SOA_${safeName}_${safeLoan}_${new Date().toISOString().slice(0, 10)}.pdf`);
   };
 
+  const handleDownloadSavingsPdf = () => {
+    const doc = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const generatedOn = new Date().toLocaleString("en-US", {
+      year: "numeric", month: "long", day: "2-digit", hour: "2-digit", minute: "2-digit",
+    });
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(16);
+    doc.setTextColor(29, 96, 33);
+    doc.text("TTMPC - Savings Statement", 40, 50);
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    doc.setTextColor(80, 80, 80);
+    doc.text(`Member Name: ${memberLabel}`, 40, 72);
+    doc.text(`Account Number: ${accountNumber}`, 40, 88);
+    doc.text(`Generated On: ${generatedOn}`, pageWidth - 40, 72, { align: "right" });
+
+    doc.setDrawColor(220, 220, 220);
+    doc.line(40, 100, pageWidth - 40, 100);
+
+    autoTable(doc, {
+      startY: 113,
+      head: [["Date", "Transaction Type", "Reference", "Amount", "Balance"]],
+      body: savingsRows.map((r) => {
+        const isCredit = String(r?.entry_type || "").toLowerCase() === "credit";
+        const amount = Number(r?.amount || 0);
+        return [
+          formatDate(r.posted_at),
+          r.remarks || (isCredit ? "Savings Deposit" : "Savings Withdrawal"),
+          r.reference || "-",
+          `${isCredit ? "+" : "-"}${formatCurrencyPdf(amount)}`,
+          formatCurrencyPdf(r.running_balance),
+        ];
+      }),
+      styles: { fontSize: 9, cellPadding: 6, overflow: "linebreak", valign: "middle" },
+      headStyles: { fillColor: [29, 96, 33], textColor: 255, fontStyle: "bold" },
+      alternateRowStyles: { fillColor: [250, 249, 251] },
+      columnStyles: { 3: { halign: "right" }, 4: { halign: "right" } },
+      margin: { left: 40, right: 40 },
+    });
+
+    const finalY = doc.lastAutoTable.finalY + 22;
+    doc.setDrawColor(180, 180, 180);
+    doc.setLineWidth(0.75);
+    doc.line(40, finalY, pageWidth - 40, finalY);
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(11);
+    doc.setTextColor(29, 96, 33);
+    doc.text("TOTALS", 50, finalY + 18);
+    [
+      `Total Deposits: ${formatCurrencyPdf(savingsTotals.credits)}`,
+      `Total Withdrawals: ${formatCurrencyPdf(savingsTotals.debits)}`,
+      `Current Balance: ${formatCurrencyPdf(regularSavings)}`,
+    ].forEach((line, i) => {
+      doc.text(line, pageWidth - 50, finalY + 18 + i * 16, { align: "right" });
+    });
+
+    const safeName = (memberLabel || "member").replace(/[^a-z0-9]+/gi, "_");
+    doc.save(`Savings_Statement_${safeName}_${new Date().toISOString().slice(0, 10)}.pdf`);
+  };
+
+  const handleDownloadCbuPdf = () => {
+    const doc = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const generatedOn = new Date().toLocaleString("en-US", {
+      year: "numeric", month: "long", day: "2-digit", hour: "2-digit", minute: "2-digit",
+    });
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(16);
+    doc.setTextColor(29, 96, 33);
+    doc.text("TTMPC - Capital Build-Up Statement", 40, 50);
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    doc.setTextColor(80, 80, 80);
+    doc.text(`Member Name: ${memberLabel}`, 40, 72);
+    doc.text(`Account Number: ${accountNumber}`, 40, 88);
+    doc.text(`Generated On: ${generatedOn}`, pageWidth - 40, 72, { align: "right" });
+
+    doc.setDrawColor(220, 220, 220);
+    doc.line(40, 100, pageWidth - 40, 100);
+
+    autoTable(doc, {
+      startY: 113,
+      head: [["Date", "Source", "Starting Share Capital", "Capital Added", "Ending Share Capital"]],
+      body: cbuRows.map((r) => [
+        formatDate(r.transaction_date),
+        humanizeSource(r.deposit_account),
+        formatCurrencyPdf(r.starting_share_capital),
+        formatCurrencyPdf(r.capital_added),
+        formatCurrencyPdf(r.ending_share_capital),
+      ]),
+      styles: { fontSize: 9, cellPadding: 6, overflow: "linebreak", valign: "middle" },
+      headStyles: { fillColor: [29, 96, 33], textColor: 255, fontStyle: "bold" },
+      alternateRowStyles: { fillColor: [250, 249, 251] },
+      columnStyles: { 2: { halign: "right" }, 3: { halign: "right" }, 4: { halign: "right" } },
+      margin: { left: 40, right: 40 },
+    });
+
+    const finalY = doc.lastAutoTable.finalY + 22;
+    doc.setDrawColor(180, 180, 180);
+    doc.setLineWidth(0.75);
+    doc.line(40, finalY, pageWidth - 40, finalY);
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(11);
+    doc.setTextColor(29, 96, 33);
+    doc.text("TOTALS", 50, finalY + 18);
+    [
+      `Total Capital Added: ${formatCurrencyPdf(cbuTotals.added)}`,
+      `Ending Share Capital: ${formatCurrencyPdf(cbuRows[cbuRows.length - 1]?.ending_share_capital || 0)}`,
+    ].forEach((line, i) => {
+      doc.text(line, pageWidth - 50, finalY + 18 + i * 16, { align: "right" });
+    });
+
+    const safeName = (memberLabel || "member").replace(/[^a-z0-9]+/gi, "_");
+    doc.save(`CBU_Statement_${safeName}_${new Date().toISOString().slice(0, 10)}.pdf`);
+  };
+
   const kindStyles = {
     consolidated: { ring: "border-green-200", bg: "bg-green-50", text: "text-green-700", chip: "bg-green-100 text-green-700" },
     emergency: { ring: "border-red-200", bg: "bg-red-50", text: "text-red-700", chip: "bg-red-100 text-red-700" },
@@ -473,9 +731,32 @@ const Member_StatementOfAccount = () => {
         </header>
 
         <main className="p-4 sm:p-6 lg:p-8 overflow-y-auto pb-28 lg:pb-0 animate-fade-in-up">
-          {!selectedLoan ? (
+          <h1 className="hidden lg:block font-extrabold text-[#1a4a2f] dark:text-green-400 text-2xl mb-2">Statement of Account</h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400 font-medium mb-6">
+            Review your loan, savings, and capital build-up statements.
+          </p>
+
+          {/* Statement Tabs */}
+          <div className="flex items-center gap-8 border-b border-gray-200 dark:border-gray-800 mb-8">
+            {STATEMENT_TABS.map((tab) => (
+              <button
+                key={tab.key}
+                type="button"
+                onClick={() => setActiveTab(tab.key)}
+                className={`pb-3 -mb-px text-sm font-bold border-b-2 transition-colors ${
+                  activeTab === tab.key
+                    ? "border-[#1D6021] text-[#1D6021] dark:text-green-400"
+                    : "border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
+          {activeTab === "loan" && (
+          !selectedLoan ? (
             <>
-              <h1 className="hidden lg:block font-extrabold text-[#1a4a2f] dark:text-green-400 text-2xl mb-2">Statement of Account</h1>
               <p className="text-sm text-gray-500 dark:text-gray-400 font-medium mb-8">
                 Select a loan to view its payment history and download the statement.
               </p>
@@ -654,6 +935,184 @@ const Member_StatementOfAccount = () => {
                                 String(a.payment_date).localeCompare(String(b.payment_date))
                               )[rows.length - 1]?.outstanding_balance || 0
                             )}
+                          </td>
+                        </tr>
+                      </tfoot>
+                    ) : null}
+                  </table>
+                </div>
+              </div>
+            </>
+          ))}
+
+          {activeTab === "savings" && (
+            <>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 mb-8">
+                <div className="bg-white dark:bg-gray-900 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col">
+                  <div className="w-10 h-10 rounded-lg bg-[#EAF1EB] dark:bg-green-900/30 flex items-center justify-center mb-6">
+                    <Wallet className="w-5 h-5 text-[#1D6021] dark:text-green-400" />
+                  </div>
+                  <p className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-1">Current Balance</p>
+                  <h3 className="text-2xl sm:text-3xl font-black text-gray-900 dark:text-white">{formatCurrency(regularSavings)}</h3>
+                </div>
+                <div className="bg-white dark:bg-gray-900 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col">
+                  <div className="w-10 h-10 rounded-lg bg-[#1D6021] flex items-center justify-center mb-6">
+                    <Banknote className="w-5 h-5 text-white" />
+                  </div>
+                  <p className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-1">Entries</p>
+                  <h3 className="text-2xl sm:text-3xl font-black text-gray-900 dark:text-white">{savingsRows.length}</h3>
+                </div>
+              </div>
+
+              <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 overflow-hidden mb-8 flex flex-col">
+                <div className="p-6 flex items-center justify-between border-b border-gray-100 dark:border-gray-800">
+                  <h3 className="text-lg font-bold text-gray-900 dark:text-white">Savings Statement</h3>
+                  <button
+                    type="button"
+                    onClick={handleDownloadSavingsPdf}
+                    disabled={loadingSavings || savingsRows.length === 0}
+                    className="inline-flex items-center gap-2 rounded-lg bg-[#1D6021] px-4 py-2.5 text-xs font-bold text-white hover:bg-[#154718] disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+                  >
+                    <Download className="w-4 h-4" /> Download as PDF
+                  </button>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[720px] text-left border-collapse">
+                    <thead>
+                      <tr className="bg-green-700 text-[10px] uppercase tracking-wider text-white font-extrabold">
+                        <th className="p-5 font-bold">Date</th>
+                        <th className="p-5 font-bold">Transaction Type</th>
+                        <th className="p-5 font-bold">Reference</th>
+                        <th className="p-5 font-bold text-right">Amount</th>
+                        <th className="p-5 font-bold text-right">Balance</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {loadingSavings ? (
+                        <tr>
+                          <td colSpan="5" className="p-5 text-sm text-gray-500 dark:text-gray-400">Loading savings statement…</td>
+                        </tr>
+                      ) : savingsError ? (
+                        <tr>
+                          <td colSpan="5" className="p-5 text-sm text-red-600">{savingsError}</td>
+                        </tr>
+                      ) : savingsRows.length === 0 ? (
+                        <tr>
+                          <td colSpan="5" className="p-5 text-sm text-gray-500 dark:text-gray-400">No savings transactions found.</td>
+                        </tr>
+                      ) : (
+                        savingsRows.map((r) => {
+                          const isCredit = String(r?.entry_type || "").toLowerCase() === "credit";
+                          const amount = Number(r?.amount || 0);
+                          return (
+                            <tr key={r.id} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
+                              <td className="p-5 text-sm font-medium text-gray-700 dark:text-gray-200">{formatDate(r.posted_at)}</td>
+                              <td className="p-5 text-sm font-bold text-gray-700 dark:text-gray-200">{r.remarks || (isCredit ? "Savings Deposit" : "Savings Withdrawal")}</td>
+                              <td className="p-5 text-xs font-mono text-gray-600 dark:text-gray-400 break-all">{r.reference || "—"}</td>
+                              <td className={`p-5 text-sm font-bold text-right ${isCredit ? "text-green-600" : "text-red-500"}`}>
+                                {isCredit ? "+" : "-"}{formatCurrency(amount)}
+                              </td>
+                              <td className="p-5 text-sm font-black text-gray-900 dark:text-white text-right">{formatCurrency(r.running_balance)}</td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                    {!loadingSavings && !savingsError && savingsRows.length > 0 ? (
+                      <tfoot>
+                        <tr className="bg-[#EAF1EB] text-[#1D6021] dark:bg-green-900/30 dark:text-green-400">
+                          <td className="p-5 text-xs font-extrabold uppercase tracking-wider" colSpan="3">Totals</td>
+                          <td className="p-5 text-sm font-black text-right">
+                            +{formatCurrency(savingsTotals.credits)} / -{formatCurrency(savingsTotals.debits)}
+                          </td>
+                          <td className="p-5 text-sm font-black text-right">{formatCurrency(regularSavings)}</td>
+                        </tr>
+                      </tfoot>
+                    ) : null}
+                  </table>
+                </div>
+              </div>
+            </>
+          )}
+
+          {activeTab === "cbu" && (
+            <>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 mb-8">
+                <div className="bg-white dark:bg-gray-900 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col">
+                  <div className="w-10 h-10 rounded-lg bg-[#EAF1EB] dark:bg-green-900/30 flex items-center justify-center mb-6">
+                    <PiggyBank className="w-5 h-5 text-[#1D6021] dark:text-green-400" />
+                  </div>
+                  <p className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-1">Ending Share Capital</p>
+                  <h3 className="text-2xl sm:text-3xl font-black text-gray-900 dark:text-white">
+                    {formatCurrency(cbuRows[cbuRows.length - 1]?.ending_share_capital || 0)}
+                  </h3>
+                </div>
+                <div className="bg-white dark:bg-gray-900 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col">
+                  <div className="w-10 h-10 rounded-lg bg-[#1D6021] flex items-center justify-center mb-6">
+                    <Banknote className="w-5 h-5 text-white" />
+                  </div>
+                  <p className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-1">Total Capital Added</p>
+                  <h3 className="text-2xl sm:text-3xl font-black text-gray-900 dark:text-white">{formatCurrency(cbuTotals.added)}</h3>
+                </div>
+              </div>
+
+              <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 overflow-hidden mb-8 flex flex-col">
+                <div className="p-6 flex items-center justify-between border-b border-gray-100 dark:border-gray-800">
+                  <h3 className="text-lg font-bold text-gray-900 dark:text-white">Capital Build-Up Statement</h3>
+                  <button
+                    type="button"
+                    onClick={handleDownloadCbuPdf}
+                    disabled={loadingCbu || cbuRows.length === 0}
+                    className="inline-flex items-center gap-2 rounded-lg bg-[#1D6021] px-4 py-2.5 text-xs font-bold text-white hover:bg-[#154718] disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+                  >
+                    <Download className="w-4 h-4" /> Download as PDF
+                  </button>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[760px] text-left border-collapse">
+                    <thead>
+                      <tr className="bg-green-700 text-[10px] uppercase tracking-wider text-white font-extrabold">
+                        <th className="p-5 font-bold">Date</th>
+                        <th className="p-5 font-bold">Source</th>
+                        <th className="p-5 font-bold text-right">Starting Share Capital</th>
+                        <th className="p-5 font-bold text-right">Capital Added</th>
+                        <th className="p-5 font-bold text-right">Ending Share Capital</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {loadingCbu ? (
+                        <tr>
+                          <td colSpan="5" className="p-5 text-sm text-gray-500 dark:text-gray-400">Loading capital build-up statement…</td>
+                        </tr>
+                      ) : cbuError ? (
+                        <tr>
+                          <td colSpan="5" className="p-5 text-sm text-red-600">{cbuError}</td>
+                        </tr>
+                      ) : cbuRows.length === 0 ? (
+                        <tr>
+                          <td colSpan="5" className="p-5 text-sm text-gray-500 dark:text-gray-400">No capital build-up transactions found.</td>
+                        </tr>
+                      ) : (
+                        cbuRows.map((r) => (
+                          <tr key={r.id} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
+                            <td className="p-5 text-sm font-medium text-gray-700 dark:text-gray-200">{formatDate(r.transaction_date)}</td>
+                            <td className="p-5 text-sm font-bold text-gray-700 dark:text-gray-200">{humanizeSource(r.deposit_account)}</td>
+                            <td className="p-5 text-sm font-medium text-gray-600 dark:text-gray-400 text-right">{formatCurrency(r.starting_share_capital)}</td>
+                            <td className="p-5 text-sm font-bold text-green-600 text-right">+{formatCurrency(r.capital_added)}</td>
+                            <td className="p-5 text-sm font-black text-gray-900 dark:text-white text-right">{formatCurrency(r.ending_share_capital)}</td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                    {!loadingCbu && !cbuError && cbuRows.length > 0 ? (
+                      <tfoot>
+                        <tr className="bg-[#EAF1EB] text-[#1D6021] dark:bg-green-900/30 dark:text-green-400">
+                          <td className="p-5 text-xs font-extrabold uppercase tracking-wider" colSpan="3">Totals</td>
+                          <td className="p-5 text-sm font-black text-right">+{formatCurrency(cbuTotals.added)}</td>
+                          <td className="p-5 text-sm font-black text-right">
+                            {formatCurrency(cbuRows[cbuRows.length - 1]?.ending_share_capital || 0)}
                           </td>
                         </tr>
                       </tfoot>

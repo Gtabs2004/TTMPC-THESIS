@@ -474,8 +474,8 @@ const Member_Savings = () => {
 
             {/* Total Savings Card */}
             <div className="bg-white dark:bg-gray-900 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col">
-              <div className="w-10 h-10 rounded-lg bg-[#1D6021] flex items-center justify-center mb-6">
-                <Banknote className="w-5 h-5 text-white" />
+              <div className="w-10 h-10 rounded-lg bg-[#EAF1EB] flex items-center justify-center mb-6">
+                <Banknote className="w-5 h-5 text-[#1D6021] dark:text-green-400" />
               </div>
               <p className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-1">Total Savings</p>
               <h3 className="text-2xl sm:text-3xl font-black text-gray-900 dark:text-white">{formatCurrency(totalSavings)}</h3>

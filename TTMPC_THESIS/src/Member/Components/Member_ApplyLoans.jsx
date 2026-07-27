@@ -324,9 +324,9 @@ const Member_ApplyLoans = () => {
                   onClick={() => setIsCalculatorOpen(true)}
                   className="inline-flex items-center gap-1.5 rounded-full border border-[#1D6021] px-3 py-1 text-[11px] font-bold text-[#1D6021] hover:bg-[#EAF1EB] dark:hover:bg-green-900/30"
                 >
-                  <Calculator className="w-3.5 h-3.5" /> Simulate before applying
+                  <Calculator className="w-3.5 h-3.5" /> Simulate Before Applying
                 </button>
-                <span className="rounded-full bg-[#EAF1EB] px-3 py-1 text-[10px] font-extrabold uppercase tracking-wide text-[#1D6021] dark:bg-green-900/30">Standard Flow</span>
+               
               </div>
             </div>
 

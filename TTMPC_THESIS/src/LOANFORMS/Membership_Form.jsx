@@ -1,7 +1,10 @@
 ﻿import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
-import { formatTinNumber, TIN_FORMATTED_MAX_LENGTH } from './tinFormat';
+import { formatTinNumber, TIN_FORMATTED_MAX_LENGTH, TIN_MIN_DIGITS, TIN_MAX_DIGITS, getTinDigitCount } from './tinFormat';
+
+const GSIS_DIGIT_LENGTH = 10;
+const formatGsisNumber = (value) => String(value ?? '').replace(/\D/g, '').slice(0, GSIS_DIGIT_LENGTH);
 import SmartDateInput from '../components/SmartDateInput';
 import { AlertCircle } from 'lucide-react';
 
@@ -29,7 +32,7 @@ function Membership_Form() {
     civil_status: '',
     date_of_birth: '',
     place_of_birth: '',
-    citizenship: '',
+    citizenship: 'Filipino',
     religion: '',
 
     height: '',
@@ -65,11 +68,19 @@ function Membership_Form() {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    const normalizedValue = name === 'tin_number' ? formatTinNumber(value) : value;
+    const normalizedValue = name === 'tin_number'
+      ? formatTinNumber(value)
+      : name === 'gsis_number'
+        ? formatGsisNumber(value)
+        : value;
     
     // Clear specific field error when user starts typing
     setErrors(prev => ({ ...prev, [name]: undefined }));
     setGlobalError('');
+
+    if (name === 'annual_income' && value.includes(',')) {
+      setErrors(prev => ({ ...prev, annual_income: 'Commas are not allowed. Enter numbers only (e.g., 500000 not 500,000).' }));
+    }
 
     // Clear family information fields when "Single" is selected
     if (name === 'civil_status' && value === 'Single') {
@@ -111,6 +122,24 @@ function Membership_Form() {
         newErrors[field] = 'This information is required to complete your application.';
       }
     });
+
+    // TIN must be between 9 and 12 digits
+    if (formdata.tin_number) {
+      const tinDigitCount = getTinDigitCount(formdata.tin_number);
+      if (tinDigitCount < TIN_MIN_DIGITS || tinDigitCount > TIN_MAX_DIGITS) {
+        newErrors.tin_number = `TIN must be between ${TIN_MIN_DIGITS} and ${TIN_MAX_DIGITS} digits.`;
+      }
+    }
+
+    // Annual income must not contain commas
+    if (formdata.annual_income && formdata.annual_income.includes(',')) {
+      newErrors.annual_income = 'Commas are not allowed. Enter numbers only (e.g., 500000 not 500,000).';
+    }
+
+    // GSIS Number must be exactly 10 digits
+    if (formdata.gsis_number && formdata.gsis_number.length !== GSIS_DIGIT_LENGTH) {
+      newErrors.gsis_number = `GSIS Number must be exactly ${GSIS_DIGIT_LENGTH} digits.`;
+    }
 
     // Conditional Fields based on Civil Status and Gender
     if (formdata.civil_status && formdata.civil_status !== 'Single') {
@@ -329,7 +358,7 @@ function Membership_Form() {
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-gray-600 mb-1">Citizenship <span className="text-red-500">*</span></label>
-                  <input type="text" name="citizenship" value={formdata.citizenship} onChange={handleChange} placeholder="Citizenship" className={getInputClass('citizenship')} />
+                  <input type="text" name="citizenship" value={formdata.citizenship} readOnly className="w-full border border-gray-300 rounded-md p-2.5 text-sm bg-gray-100 outline-none text-gray-500 cursor-not-allowed" />
                   {renderError('citizenship')}
                 </div>
                 <div>
@@ -348,12 +377,12 @@ function Membership_Form() {
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-4">
                 <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1">Height <span className="text-red-500">*</span></label>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1">Height(cm) <span className="text-red-500">*</span></label>
                   <input type="text" name="height" value={formdata.height} onChange={handleChange} placeholder="Height (cm)" className={getInputClass('height')} />
                   {renderError('height')}
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1">Weight <span className="text-red-500">*</span></label>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1">Weight(kg) <span className="text-red-500">*</span></label>
                   <input type="text" name="weight" value={formdata.weight} onChange={handleChange} placeholder="Weight (kg)" className={getInputClass('weight')} />
                   {renderError('weight')}
                 </div>
@@ -377,13 +406,13 @@ function Membership_Form() {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-4">
                 <div>
                   <label className="block text-xs font-semibold text-gray-600 mb-1">Taxpayer's Identification Number (TIN) <span className="text-red-500">*</span></label>
-                  <input type="text" name="tin_number" value={formdata.tin_number} onChange={handleChange} inputMode="numeric" maxLength={TIN_FORMATTED_MAX_LENGTH} placeholder="123-456-789-000" className={getInputClass('tin_number')} />
+                  <input type="text" name="tin_number" value={formdata.tin_number} onChange={handleChange} inputMode="numeric" maxLength={TIN_FORMATTED_MAX_LENGTH} placeholder="123-456-789 (9-12 digits)" className={getInputClass('tin_number')} />
                   {renderError('tin_number')}
                 </div>
 
                  <div>
                   <label className="block text-xs font-semibold text-gray-600 mb-1">GSIS Number <span className="text-red-500">*</span></label>
-                  <input type="text" name="gsis_number" value={formdata.gsis_number} onChange={handleChange} className={getInputClass('gsis_number')} />
+                  <input type="text" name="gsis_number" value={formdata.gsis_number} onChange={handleChange} inputMode="numeric" placeholder="10-digit GSIS Number" className={getInputClass('gsis_number')} />
                   {renderError('gsis_number')}
                 </div>
 
@@ -511,7 +540,7 @@ function Membership_Form() {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div>
                   <label className="block text-xs font-semibold text-gray-600 mb-1">Annual Income <span className="text-red-500">*</span></label>
-                  <input type="text" name="annual_income" value={formdata.annual_income} onChange={handleChange} className={getInputClass('annual_income')} />
+                  <input type="text" name="annual_income" value={formdata.annual_income} onChange={handleChange} placeholder="e.g. 500000 (no commas)" inputMode="numeric" className={getInputClass('annual_income')} />
                   {renderError('annual_income')}
                 </div>
 
@@ -522,7 +551,7 @@ function Membership_Form() {
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-gray-600 mb-1">Other Source of Income <span className="text-red-500">*</span></label>
-                  <input type="text" name="other_income" value={formdata.other_income} onChange={handleChange} className={getInputClass('other_income')} />
+                  <input type="text" name="other_income" value={formdata.other_income} onChange={handleChange} placeholder="Write N/A if none" className={getInputClass('other_income')} />
                   {renderError('other_income')}
                 </div>
               </div>

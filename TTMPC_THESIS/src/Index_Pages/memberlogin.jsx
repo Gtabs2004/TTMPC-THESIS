@@ -2,6 +2,7 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { UserAuth } from '../contex/AuthContext';
 import { Mail, Lock } from 'lucide-react';
+import PasswordInput from '../components/PasswordInput';
 
 function MemberLogin() {
   const [email, setEmail] = useState('');
@@ -85,22 +86,18 @@ function MemberLogin() {
                   Forgot password?
                 </Link>
               </div>
-              <div className="mt-2 relative rounded-md shadow-sm">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Lock className="h-5 w-5 text-gray-400" />
-                </div>
-                <input
-                  id="password"
-                  name="password"
-                  type="password"
-                  placeholder="••••••••"
-                  autoComplete="current-password"
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="block w-full pl-10 pr-3 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#66B538] focus:border-[#66B538] sm:text-sm transition-colors bg-gray-50 focus:bg-white text-gray-900 placeholder-gray-400"
-                />
-              </div>
+              <PasswordInput
+                id="password"
+                name="password"
+                placeholder="••••••••"
+                autoComplete="current-password"
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                leftIcon={Lock}
+                wrapperClassName="mt-2"
+                className="block w-full pl-10 pr-10 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#66B538] focus:border-[#66B538] sm:text-sm transition-colors bg-gray-50 focus:bg-white text-gray-900 placeholder-gray-400"
+              />
             </div>
 
             {/* ERROR MESSAGE */}
