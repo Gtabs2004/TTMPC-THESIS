@@ -631,9 +631,11 @@ const Secretary_Attendance = () => {
                       </td>
                       <td className="p-5">
                         {/* Attendance status select - disabled if already Present */}
-                        <select 
+                        <select
                           className={`text-sm font-bold bg-transparent border border-gray-200 rounded-md py-1.5 px-3 pr-8 appearance-none focus:outline-none focus:ring-2 focus:ring-green-500 cursor-pointer transition-all
-                            ${row.status === 'Present' || row.status === 'Absent' ? 'text-green-600 cursor-not-allowed opacity-75' : 'text-gray-600'}
+                            ${row.status === 'Present' ? 'text-green-600 cursor-not-allowed opacity-75' :
+                              row.status === 'Absent' ? 'text-red-600 cursor-not-allowed opacity-75' :
+                              'text-yellow-600'}
                           `}
                           value={row.status}
                           disabled={row.status === 'Present' || row.status === 'Absent'}
@@ -647,8 +649,8 @@ const Secretary_Attendance = () => {
                           }}
                         >
                           <option value="Present" className="text-green-600">Present</option>
-                          <option value="Absent" className="text-red-500">Absent</option>
-                          <option value="Pending" className="text-gray-600">Pending</option>
+                          <option value="Absent" className="text-red-600">Absent</option>
+                          <option value="Pending" className="text-yellow-600">Pending</option>
                         </select>
                         {(row.status === 'Present' || row.status === 'Absent') && (
                           <p className="text-xs text-gray-500 mt-1 flex items-center gap-1">
@@ -770,18 +772,18 @@ const Secretary_Attendance = () => {
 
               {/* Info Row */}
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2 mb-6">
-                <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+                <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 min-w-0">
                   <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Member Name</p>
-                  <p className="font-bold text-gray-800">{selectedMember.name}</p>
-                  <p className="text-sm text-gray-500 mt-1">{selectedMember.email}</p>
+                  <p className="font-bold text-gray-800 font-sm break-words">{selectedMember.name}</p>
+                  <p className="text-sm text-gray-500 mt-1 break-all">{selectedMember.email}</p>
                 </div>
                 <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
                   <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Current Schedule</p>
-                  <p className="font-medium text-gray-800 text-sm">{selectedMember.schedule}</p>
+                  <p className="font-bold text-gray-800 text-base">{selectedMember.schedule}</p>
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+              <div className="grid grid-cols-1 m8d:grid-cols-2 gap-4 mb-6">
                 <div>
                   <label className="mb-2 flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-gray-400">
                     <CalendarDays size={14} />
@@ -822,19 +824,19 @@ const Secretary_Attendance = () => {
               {/* Status Row */}
               <div className="mb-6">
                 <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Attendance Status</p>
-                <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold 
-                  ${selectedMember.status === 'Present' ? 'bg-green-100 text-green-700' : 
-                    selectedMember.status === 'Absent' ? 'bg-red-100 text-red-700' : 
-                    'bg-gray-100 text-gray-700'}
+                <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold
+                  ${selectedMember.status === 'Present' ? 'bg-green-100 text-green-700' :
+                    selectedMember.status === 'Absent' ? 'bg-red-100 text-red-700' :
+                    'bg-yellow-100 text-yellow-700'}
                 `}>
-                  <div className={`w-1.5 h-1.5 rounded-full 
-                    ${selectedMember.status === 'Present' ? 'bg-green-500' : 
-                      selectedMember.status === 'Absent' ? 'bg-red-500' : 
-                      'bg-gray-500'}
+                  <div className={`w-1.5 h-1.5 rounded-full
+                    ${selectedMember.status === 'Present' ? 'bg-green-500' :
+                      selectedMember.status === 'Absent' ? 'bg-red-500' :
+                      'bg-yellow-500'}
                   `}></div>
                   {selectedMember.status}
                   {(selectedMember.status === 'Present' || selectedMember.status === 'Absent') && (
-                    <span className="ml-1.5 text-xs font-semibold">🔒 Locked</span>
+                    <span className="ml-1.5 text-xs font-semibold"></span>
                   )}
                 </div>
               </div>

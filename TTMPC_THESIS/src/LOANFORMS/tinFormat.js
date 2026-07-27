@@ -1,5 +1,9 @@
 export const TIN_DIGIT_LIMIT = 12;
+export const TIN_MIN_DIGITS = 9;
+export const TIN_MAX_DIGITS = 12;
 export const TIN_FORMATTED_MAX_LENGTH = 15;
+
+export const getTinDigitCount = (value) => String(value ?? '').replace(/\D/g, '').length;
 
 export const formatTinNumber = (value) => {
   const digits = String(value ?? '')

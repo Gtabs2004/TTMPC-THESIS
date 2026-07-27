@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Bash(python TTMPC_THESIS/src/server/migration/_check_savings.py TTMPC-212)"
+      "Bash(python TTMPC_THESIS/src/server/migration/_check_savings.py TTMPC-212)",
+      "Bash(node verify_members_profile.mjs)"
     ]
   }
 }

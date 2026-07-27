@@ -1,6 +1,9 @@
 ﻿import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { UserAuth } from '../contex/AuthContext';
+import PasswordInput from '../components/PasswordInput';
+import PasswordRequirements from '../components/PasswordRequirements';
+import { getPasswordRequirementError } from '../utils/passwordValidation';
 
 const Sign_Up = () => {
   // 1. Logic from your reference
@@ -14,6 +17,14 @@ const Sign_Up = () => {
 
     const handleSignUp = async (e) => {
     e.preventDefault();
+    setError("");
+
+    const requirementError = getPasswordRequirementError(password);
+    if (requirementError) {
+      setError(requirementError);
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -72,13 +83,16 @@ const Sign_Up = () => {
               </label>
             </div>
             <div className="mt-2">
-              <input
+              <PasswordInput
                 placeholder="Password"
-                type="password"
+                value={password}
+                autoComplete="new-password"
                 onChange={(e) => setPassword(e.target.value)}
-                className="block w-full rounded-md bg-gray-400 px-3 py-1.5 text-base text-white outline-1 -outline-offset-1 outline-white/10 placeholder:text-gray-500 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-500 sm:text-sm/6"
+                toggleClassName="text-gray-300 hover:text-white"
+                className="block w-full rounded-md bg-gray-400 pl-3 pr-10 py-1.5 text-base text-white outline-1 -outline-offset-1 outline-white/10 placeholder:text-gray-500 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-500 sm:text-sm/6"
               />
             </div>
+            <PasswordRequirements password={password} />
           </div>
 
           {/* ERROR MESSAGE */}

@@ -5,7 +5,11 @@ import { useNotification } from "../../contex/NotificationContext";
 import { supabase } from "../../supabaseClient";
 import { resolveMemberContextFromSessionUser } from "../../utils/sessionIdentity";
 import { loadMemberAvatarSignedUrl } from "../../utils/memberAvatar";
+import { invalidate } from "../memberDataCache";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
+import PasswordInput from "../../components/PasswordInput";
+import PasswordRequirements from "../../components/PasswordRequirements";
+import { getPasswordRequirementError } from "../../utils/passwordValidation";
 import {
   LayoutDashboard,
   Users,
@@ -32,7 +36,8 @@ import {
   Phone,
   Settings,
   ChevronDown ,
-  Scroll
+  Scroll,
+  Camera
 } from 'lucide-react';
 import SettingsDrawer from './SettingsDrawer';
 
@@ -232,6 +237,9 @@ const Members_Profile = () => {
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [profileError, setProfileError] = useState('');
   const [avatarUrl, setAvatarUrl] = useState('');
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [avatarUploadError, setAvatarUploadError] = useState('');
+  const fileInputRef = useRef(null);
   const [isTemporaryAccount, setIsTemporaryAccount] = useState(false);
   const [accountTableName, setAccountTableName] = useState('member_account');
   const [resolvedMemberId, setResolvedMemberId] = useState('');
@@ -502,6 +510,61 @@ const Members_Profile = () => {
     navigate('/members-profile/change-email');
   };
 
+  const handleOpenFilePicker = () => {
+    if (uploadingAvatar) return;
+    fileInputRef.current?.click();
+  };
+
+  const handleAvatarFileChange = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+
+    if (!file) return;
+
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    if (authError || !authData?.user?.id) {
+      setAvatarUploadError('Please sign in again before uploading your photo.');
+      return;
+    }
+
+    const userId = authData.user.id;
+    setAvatarUploadError('');
+    setUploadingAvatar(true);
+
+    try {
+      const extension = (file.name.split('.').pop() || 'jpg').toLowerCase();
+      const storagePath = `profiles/${userId}/avatar.${extension}`;
+      const { error: uploadError } = await supabase.storage
+        .from('Supporting_Documents')
+        .upload(storagePath, file, {
+          cacheControl: '3600',
+          upsert: true,
+        });
+
+      if (uploadError) throw uploadError;
+
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .upsert({ id: userId, avatar_url: storagePath }, { onConflict: 'id' });
+
+      if (updateError) throw updateError;
+
+      const { data: signedData, error: signedError } = await supabase.storage
+        .from('Supporting_Documents')
+        .createSignedUrl(storagePath, 60 * 60 * 24 * 7);
+
+      if (signedError) throw signedError;
+
+      setAvatarUrl(signedData?.signedUrl || '');
+      // Drop the dashboard's cached snapshot so the fresh avatar shows up there too.
+      invalidate(`member-dashboard:${userId}`);
+    } catch (err) {
+      setAvatarUploadError(err?.message || 'Unable to upload profile photo.');
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
+
   const _passwordAuthHeaders = async () => {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session?.access_token) throw new Error('Your session has expired. Please sign in again.');
@@ -523,8 +586,9 @@ const Members_Profile = () => {
       setPasswordError('Please fill in all password fields.');
       return;
     }
-    if (newPassword.length < 8) {
-      setPasswordError('Password must be at least 8 characters.');
+    const requirementError = getPasswordRequirementError(newPassword);
+    if (requirementError) {
+      setPasswordError(requirementError);
       return;
     }
     if (newPassword !== confirmPassword) {
@@ -599,8 +663,9 @@ const Members_Profile = () => {
       setPasswordError('Please fill in your new password.');
       return;
     }
-    if (newPassword.length < 8) {
-      setPasswordError('Password must be at least 8 characters.');
+    const requirementError = getPasswordRequirementError(newPassword);
+    if (requirementError) {
+      setPasswordError(requirementError);
       return;
     }
     if (newPassword !== confirmPassword) {
@@ -956,13 +1021,41 @@ const Members_Profile = () => {
             </div>
             <div className="mt-4 sm:mt-0 flex flex-col sm:flex-row gap-2">
               <button
+                onClick={handleOpenFilePicker}
+                disabled={uploadingAvatar}
+                className="flex items-center justify-center gap-2 border border-[#1D6021] text-[#1D6021] hover:bg-[#1D6021]/10 transition-colors font-bold rounded-lg px-5 py-2.5 text-sm disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {uploadingAvatar ? (
+                  <>
+                    <span className="inline-block h-4 w-4 rounded-full border-2 border-[#1D6021] border-t-transparent animate-spin" />
+                    Uploading...
+                  </>
+                ) : (
+                  <>
+                    <Camera className="w-4 h-4" /> Change Photo
+                  </>
+                )}
+              </button>
+              <button
                 onClick={handleOpenChangeEmail}
                 className="flex items-center justify-center gap-2 border border-[#1D6021] text-[#1D6021] hover:bg-[#1D6021]/10 transition-colors font-bold rounded-lg px-5 py-2.5 text-sm"
               >
                 <Pencil className="w-4 h-4" /> Change Email
               </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleAvatarFileChange}
+              />
             </div>
           </div>
+          {avatarUploadError ? (
+            <div className="w-full mb-6 p-4 rounded-xl border border-red-200 bg-red-50 text-sm text-red-700">
+              {avatarUploadError}
+            </div>
+          ) : null}
 
           {isTemporaryAccount ? (
             <div className="w-full mb-6 p-4 rounded-xl border border-amber-200 bg-amber-50 text-sm text-amber-800 font-semibold flex items-center justify-between gap-3">
@@ -1320,12 +1413,12 @@ const Members_Profile = () => {
                     <>
                       <div className="mb-4">
                         <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Current Password</label>
-                        <input
-                          type="password"
+                        <PasswordInput
                           value={currentPasswordInput}
                           onChange={(e) => setCurrentPasswordInput(e.target.value)}
                           autoComplete="current-password"
-                          className="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-[#1D6021] outline-none"
+                          toggleClassName="text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
+                          className="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 rounded-lg pl-3 pr-10 py-2 text-sm focus:ring-2 focus:ring-[#1D6021] outline-none"
                           placeholder="Enter your current password"
                         />
                         <button
@@ -1339,24 +1432,25 @@ const Members_Profile = () => {
 
                       <div className="mb-4">
                         <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">New Password</label>
-                        <input
-                          type="password"
+                        <PasswordInput
                           value={newPassword}
                           onChange={(e) => setNewPassword(e.target.value)}
                           autoComplete="new-password"
-                          className="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-[#1D6021] outline-none"
+                          toggleClassName="text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
+                          className="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 rounded-lg pl-3 pr-10 py-2 text-sm focus:ring-2 focus:ring-[#1D6021] outline-none"
                           placeholder="At least 8 characters"
                         />
+                        <PasswordRequirements password={newPassword} />
                       </div>
 
                       <div className="mb-4">
                         <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Confirm New Password</label>
-                        <input
-                          type="password"
+                        <PasswordInput
                           value={confirmPassword}
                           onChange={(e) => setConfirmPassword(e.target.value)}
                           autoComplete="new-password"
-                          className="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-[#1D6021] outline-none"
+                          toggleClassName="text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
+                          className="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 rounded-lg pl-3 pr-10 py-2 text-sm focus:ring-2 focus:ring-[#1D6021] outline-none"
                           placeholder="Repeat new password"
                         />
                       </div>
@@ -1402,24 +1496,25 @@ const Members_Profile = () => {
 
                   <div className="mb-4">
                     <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">New Password</label>
-                    <input
-                      type="password"
+                    <PasswordInput
                       value={newPassword}
                       onChange={(e) => setNewPassword(e.target.value)}
                       autoComplete="new-password"
-                      className="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-[#1D6021] outline-none"
+                      toggleClassName="text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
+                      className="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 rounded-lg pl-3 pr-10 py-2 text-sm focus:ring-2 focus:ring-[#1D6021] outline-none"
                       placeholder="At least 8 characters"
                     />
+                    <PasswordRequirements password={newPassword} />
                   </div>
 
                   <div className="mb-4">
                     <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Confirm New Password</label>
-                    <input
-                      type="password"
+                    <PasswordInput
                       value={confirmPassword}
                       onChange={(e) => setConfirmPassword(e.target.value)}
                       autoComplete="new-password"
-                      className="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-[#1D6021] outline-none"
+                      toggleClassName="text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
+                      className="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 rounded-lg pl-3 pr-10 py-2 text-sm focus:ring-2 focus:ring-[#1D6021] outline-none"
                       placeholder="Repeat new password"
                     />
                   </div>
