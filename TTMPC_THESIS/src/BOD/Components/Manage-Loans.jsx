@@ -23,6 +23,7 @@ import {
   CheckCircle2,
   Clock
 } from "lucide-react";
+import { usePortalRole } from "../../utils/usePortalRole";
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 const MEMBER_TONE_POOL = [
   "text-blue-600 bg-blue-50",
@@ -208,6 +209,7 @@ const formatStatusTone = (status) => {
 const BOD_Manage_Loans = () => {
   const { signOut } = UserAuth();
   const navigate = useNavigate();
+  const portalRole = usePortalRole();
   const [activeFilter, setActiveFilter] = useState("Monthly");
   const [expandedPeriods, setExpandedPeriods] = useState([]);
   const [expandedMembers, setExpandedMembers] = useState([]);
@@ -350,11 +352,25 @@ const BOD_Manage_Loans = () => {
         <hr className="w-full border-gray-200 mb-6" />
 
         <nav className="flex flex-col gap-2 text-sm flex-grow">
-          {menuItems.map((section) => (
+          {menuItems.map((section) => {
+            const sectionRole = section.section.toLowerCase();
+            const isAccessible = !portalRole || sectionRole === portalRole;
+            return (
             <div key={section.section} className="mb-4 flex flex-col gap-2">
               <p className="text-xs font-bold text-gray-400 px-2 uppercase tracking-wider">{section.section}</p>
               {section.items.map((item) => {
                 const Icon = item.icon;
+                if (!isAccessible) {
+                  return (
+                    <div
+                      key={item.name}
+                      title={`Only ${section.section} accounts can access this`}
+                      className="flex items-center gap-3 p-2 rounded-md text-gray-400 cursor-not-allowed select-none opacity-60"
+                    >
+                      <Icon size={20} /><span>{item.name}</span>
+                    </div>
+                  );
+                }
                 return (
                   <NavLink
                     key={item.name}
@@ -373,7 +389,8 @@ const BOD_Manage_Loans = () => {
                 );
               })}
             </div>
-          ))}
+            );
+          })}
         </nav>
 
         <button

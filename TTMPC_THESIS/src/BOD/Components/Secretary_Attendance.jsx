@@ -469,7 +469,10 @@ const Secretary_Attendance = () => {
   };
   
 
-            return menuItems.map((sectionGroup) => (
+            return menuItems.map((sectionGroup) => {
+              const sectionRole = sectionGroup.section.toLowerCase();
+              const isAccessible = !portalRole || sectionRole === portalRole;
+              return (
               <div key={sectionGroup.section} className="mb-4 flex flex-col gap-2">
                 <p className="text-xs font-bold text-gray-400 px-2 uppercase tracking-wider">
                   {sectionGroup.section}
@@ -477,7 +480,17 @@ const Secretary_Attendance = () => {
                 {sectionGroup.items.map((item) => {
                   const Icon = item.icon;
                   const to = routeMap[item.name] || `/${item.name.toLowerCase().replace(/\s+/g, '-')}`;
-
+                  if (!isAccessible) {
+                    return (
+                      <div
+                        key={item.name}
+                        title={`Only ${sectionGroup.section} accounts can access this`}
+                        className="flex items-center gap-3 p-2 rounded-md text-gray-400 cursor-not-allowed select-none opacity-60"
+                      >
+                        <Icon size={20} /><span>{item.name}</span>
+                      </div>
+                    );
+                  }
                   return (
                     <NavLink
                       key={item.name}
@@ -496,7 +509,8 @@ const Secretary_Attendance = () => {
                   );
                 })}
               </div>
-            ));
+              );
+            });
           })()}
         </nav>
 

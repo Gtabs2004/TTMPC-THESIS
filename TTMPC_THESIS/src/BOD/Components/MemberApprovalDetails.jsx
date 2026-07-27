@@ -484,8 +484,8 @@ const MemberApprovalDetails = () => {
         </div>
       </SectionCard>
 
-      {/* --- PAYMENT VERIFICATION (gate for final approval) --- */}
-      {(() => {
+      {/* --- PAYMENT VERIFICATION (only shown during Training step) --- */}
+      {member.status === 'Training' && (() => {
         const isFinalApprovalStep = proceedConfig?.nextStatus === 'Official Member';
         const feePaid = !!paymentStatus?.membership_fee_paid;
         const paidUpOk = !!paymentStatus?.paid_up_capital_satisfied;

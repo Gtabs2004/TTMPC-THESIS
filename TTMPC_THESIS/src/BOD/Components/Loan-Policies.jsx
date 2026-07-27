@@ -11,6 +11,7 @@ import {
   History
 } from "lucide-react";
 import NotificationBell from "./NotificationBell";
+import { usePortalRole } from "../../utils/usePortalRole";
 
 const SERVICE_FEE_MODES = [
   { value: "bracket", label: "Per bracket" },
@@ -40,6 +41,7 @@ const formatNumber = (value, opts = {}) => {
 const Loan_Policies = () => {
   const { signOut } = UserAuth();
   const navigate = useNavigate();
+  const portalRole = usePortalRole();
 
   const [activeCode, setActiveCode] = useState("CONSOLIDATED");
   const [feePolicies, setFeePolicies] = useState({});      // keyed by loan_type_code
@@ -235,7 +237,10 @@ const Loan_Policies = () => {
         <hr className="w-full border-gray-200 mb-6" />
 
         <nav className="flex flex-col gap-2 text-sm flex-grow">
-          {menuItems.map((group) => (
+          {menuItems.map((group) => {
+            const sectionRole = group.section.toLowerCase();
+            const isAccessible = !portalRole || sectionRole === portalRole;
+            return (
             <div key={group.section} className="mb-4 flex flex-col gap-2">
               <p className="text-xs font-bold text-gray-400 px-2 uppercase tracking-wider">{group.section}</p>
               {group.items.map((item) => {
@@ -253,7 +258,17 @@ const Loan_Policies = () => {
                   "Membership Records": "/Secretary_Records",
                 };
                 const to = routeMap[item.name] || `/${item.name.toLowerCase().replace(/\s+/g, '-')}`;
-                
+                if (!isAccessible) {
+                  return (
+                    <div
+                      key={item.name}
+                      title={`Only ${group.section} accounts can access this`}
+                      className="flex items-center gap-3 p-2 rounded-md text-gray-400 cursor-not-allowed select-none opacity-60"
+                    >
+                      <Icon size={20} /><span>{item.name}</span>
+                    </div>
+                  );
+                }
                 return (
                   <NavLink
                     key={item.name}
@@ -271,7 +286,8 @@ const Loan_Policies = () => {
                 );
               })}
             </div>
-          ))}
+            );
+          })}
         </nav>
 
         <button

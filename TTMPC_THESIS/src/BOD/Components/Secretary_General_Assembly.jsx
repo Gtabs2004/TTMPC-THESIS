@@ -31,6 +31,7 @@ import {
 } from "../../components/PortalIdentity";
 import logo from "../../assets/img/ttmpc logo.png";
 import NotificationBell from "./NotificationBell";
+import { usePortalRole } from "../../utils/usePortalRole";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 const PAGE_SIZE = 10;
@@ -39,6 +40,7 @@ const SCORING_YEAR = 2026;
 const Secretary_General_Assembly = () => {
   const { session, signOut } = UserAuth();
   const navigate = useNavigate();
+  const portalRole = usePortalRole();
   const { addNotification } = useNotification();
 
   const [rows, setRows] = useState([]);
@@ -54,6 +56,7 @@ const Secretary_General_Assembly = () => {
   const [selectedMembers, setSelectedMembers] = useState(new Set());
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [confirmationMode, setConfirmationMode] = useState(null); // 'bulk' or null
+  const [bulkStatus, setBulkStatus] = useState("Present"); // status to apply on bulk action
 
   const menuItems = [
       {
@@ -232,11 +235,14 @@ const Secretary_General_Assembly = () => {
   };
 
   const handleSelectAll = () => {
-    if (selectedMembers.size === paginated.length) {
+    const selectableIds = filtered.map((r) => r.id);
+    const allSelected =
+      selectableIds.length > 0 &&
+      selectableIds.every((id) => selectedMembers.has(id));
+    if (allSelected) {
       setSelectedMembers(new Set());
     } else {
-      const allPagedIds = new Set(paginated.map((r) => r.id));
-      setSelectedMembers(allPagedIds);
+      setSelectedMembers(new Set(selectableIds));
     }
   };
 
@@ -263,7 +269,7 @@ const Secretary_General_Assembly = () => {
       const row = rows.find((r) => r.id === memberId) || {};
       return {
         membership_number_id: memberId,
-        status: "Present",
+        status: bulkStatus,
         remarks: row.remarks ?? "",
       };
     });
@@ -288,7 +294,7 @@ const Secretary_General_Assembly = () => {
       }
       const ok = result?.inserted + result?.updated;
       addNotification(
-        `${ok} member${ok === 1 ? "" : "s"} successfully marked as Present.`,
+        `${ok} member${ok === 1 ? "" : "s"} successfully marked as ${bulkStatus}.`,
         result?.errors?.length ? "warning" : "success"
       );
       if (result?.errors?.length) {
@@ -330,12 +336,26 @@ const Secretary_General_Assembly = () => {
            <hr className="w-full border-gray-200 mb-6" />
            
            <nav className="flex flex-col gap-2 text-sm flex-grow">
-             {menuItems.map((sectionGroup) => (
+             {menuItems.map((sectionGroup) => {
+               const sectionRole = sectionGroup.section.toLowerCase();
+               const isAccessible = !portalRole || sectionRole === portalRole;
+               return (
                <div key={sectionGroup.section} className="mb-4 flex flex-col gap-2">
                  <p className="text-xs font-bold text-gray-400 px-2 uppercase tracking-wider">{sectionGroup.section}</p>
                  {sectionGroup.items.map((item) => {
                    const Icon = item.icon;
                    const to = routeMap[item.name];
+                   if (!isAccessible) {
+                     return (
+                       <div
+                         key={item.name}
+                         title={`Only ${sectionGroup.section} accounts can access this`}
+                         className="flex items-center gap-3 p-2 rounded-md text-gray-400 cursor-not-allowed select-none opacity-60"
+                       >
+                         <Icon size={20} /><span>{item.name}</span>
+                       </div>
+                     );
+                   }
                    return (
                      <NavLink key={item.name} to={to} className={({ isActive }) => `flex items-center gap-3 p-2 rounded-md transition-colors ${isActive ? 'bg-green-50 text-green-700 font-semibold' : 'text-gray-700 hover:bg-green-50 hover:text-green-700'}`}>
                        <Icon size={20} /><span>{item.name}</span>
@@ -343,7 +363,8 @@ const Secretary_General_Assembly = () => {
                    );
                  })}
                </div>
-             ))}
+               );
+             })}
            </nav>
            <button onClick={handleSignOut} className="mt-auto w-full rounded p-2 text-xs bg-green-600 hover:bg-green-700 text-white font-bold transition-colors">Sign out</button>
          </aside>
@@ -442,7 +463,13 @@ const Secretary_General_Assembly = () => {
               <input
                 type="date"
                 value={meetingDate}
-                onChange={(event) => setMeetingDate(event.target.value)}
+                onChange={(event) => {
+                  setMeetingDate(event.target.value);
+                  // Reset all edits and selections — GA is once per fiscal year,
+                  // so a new date starts a fresh session.
+                  setEdits({});
+                  setSelectedMembers(new Set());
+                }}
                 min={`${SCORING_YEAR}-01-01`}
                 max={`${SCORING_YEAR}-12-31`}
                 className="bg-gray-50 border border-gray-300 rounded-md px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-green-500"
@@ -450,14 +477,30 @@ const Secretary_General_Assembly = () => {
             </label>
 
             {selectedMembers.size > 0 && (
-              <button
-                onClick={handleMarkSelectedAsPresent}
-                disabled={saving}
-                className="px-3 py-1.5 rounded-md bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold inline-flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <Check size={13} />
-                {saving ? "Processing..." : `Mark Selected as Present (${selectedMembers.size})`}
-              </button>
+              <div className="inline-flex items-center gap-1.5">
+                <select
+                  value={bulkStatus}
+                  onChange={(event) => setBulkStatus(event.target.value)}
+                  className="bg-gray-50 border border-gray-300 rounded-md px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-green-500"
+                >
+                  <option value="Present">Present</option>
+                  <option value="Absent">Absent</option>
+                </select>
+                <button
+                  onClick={handleMarkSelectedAsPresent}
+                  disabled={saving}
+                  className={`px-3 py-1.5 rounded-md text-white text-xs font-semibold inline-flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed ${
+                    bulkStatus === "Present"
+                      ? "bg-green-600 hover:bg-green-700"
+                      : "bg-amber-600 hover:bg-amber-700"
+                  }`}
+                >
+                  <Check size={13} />
+                  {saving
+                    ? "Processing..."
+                    : `Mark Selected as ${bulkStatus} (${selectedMembers.size})`}
+                </button>
+              </div>
             )}
 
             <button
@@ -477,13 +520,21 @@ const Secretary_General_Assembly = () => {
                 <thead>
                   <tr className="bg-green-700 text-[10px] uppercase tracking-wider text-white font-extrabold">
                     <th className="p-5 font-bold w-10">
-                      <input
-                        type="checkbox"
-                        checked={selectedMembers.size > 0 && selectedMembers.size === paginated.filter((r) => r.status !== "Present").length}
-                        onChange={handleSelectAll}
-                        className="w-4 h-4 cursor-pointer"
-                        title="Select all members on this page"
-                      />
+                      {(() => {
+                        const selectableIds = filtered.map((r) => r.id);
+                        const allSelected =
+                          selectableIds.length > 0 &&
+                          selectableIds.every((id) => selectedMembers.has(id));
+                        return (
+                          <input
+                            type="checkbox"
+                            checked={allSelected}
+                            onChange={handleSelectAll}
+                            className="w-4 h-4 cursor-pointer"
+                            title="Select all filtered members (across all pages)"
+                          />
+                        );
+                      })()}
                     </th>
                     <th className="p-5 font-bold">Member ID</th>
                     <th className="p-5 font-bold">Member Name</th>
@@ -525,9 +576,8 @@ const Secretary_General_Assembly = () => {
                               type="checkbox"
                               checked={isSelected}
                               onChange={() => handleSelectMember(row.id)}
-                              disabled={isAlreadyPresent}
-                              className="w-4 h-4 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                              title={isAlreadyPresent ? "Already marked as Present" : "Select member"}
+                              className="w-4 h-4 cursor-pointer"
+                              title="Select member"
                             />
                           </td>
                           <td className="p-5 text-sm font-mono text-gray-700">
@@ -596,7 +646,11 @@ const Secretary_General_Assembly = () => {
                 <div className="p-6">
                   <div className="mb-6">
                     <p className="text-sm text-gray-700 mb-4">
-                      Are you sure you want to mark <strong className="text-green-700">{selectedMembers.size} member{selectedMembers.size === 1 ? "" : "s"}</strong> as Present?
+                      Are you sure you want to mark{" "}
+                      <strong className={bulkStatus === "Present" ? "text-green-700" : "text-amber-700"}>
+                        {selectedMembers.size} member{selectedMembers.size === 1 ? "" : "s"}
+                      </strong>{" "}
+                      as {bulkStatus}?
                     </p>
                   </div>
 
