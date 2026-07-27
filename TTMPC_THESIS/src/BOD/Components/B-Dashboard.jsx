@@ -27,6 +27,7 @@ import {
   History
 } from 'lucide-react';
 import NotificationBell from "./NotificationBell";
+import { usePortalRole } from "../../utils/usePortalRole";
 import {
   BarChart,
   Bar,
@@ -63,6 +64,7 @@ const monthKey = (d) => d.toLocaleDateString('en-US', { month: 'short' });
 const Dashboard_BOD = () => {
   const { session, signOut } = UserAuth();
   const navigate = useNavigate();
+  const portalRole = usePortalRole();
   const { addNotification } = useNotification();
   const [chartsReady, setChartsReady] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -344,12 +346,26 @@ const Dashboard_BOD = () => {
         <hr className="w-full border-gray-200 mb-6" />
         
         <nav className="flex flex-col gap-2 text-sm flex-grow">
-          {menuItems.map((sectionGroup) => (
+          {menuItems.map((sectionGroup) => {
+            const sectionRole = sectionGroup.section.toLowerCase();
+            const isAccessible = !portalRole || sectionRole === portalRole;
+            return (
             <div key={sectionGroup.section} className="mb-4 flex flex-col gap-2">
               <p className="text-xs font-bold text-gray-400 px-2 uppercase tracking-wider">{sectionGroup.section}</p>
               {sectionGroup.items.map((item) => {
                 const Icon = item.icon;
                 const to = routeMap[item.name];
+                if (!isAccessible) {
+                  return (
+                    <div
+                      key={item.name}
+                      title={`Only ${sectionGroup.section} accounts can access this`}
+                      className="flex items-center gap-3 p-2 rounded-md text-gray-400 cursor-not-allowed select-none opacity-60"
+                    >
+                      <Icon size={20} /><span>{item.name}</span>
+                    </div>
+                  );
+                }
                 return (
                   <NavLink key={item.name} to={to} className={({ isActive }) => `flex items-center gap-3 p-2 rounded-md transition-colors ${isActive ? 'bg-green-50 text-green-700 font-semibold' : 'text-gray-700 hover:bg-green-50 hover:text-green-700'}`}>
                     <Icon size={20} /><span>{item.name}</span>
@@ -357,7 +373,8 @@ const Dashboard_BOD = () => {
                 );
               })}
             </div>
-          ))}
+            );
+          })}
         </nav>
         <button onClick={handleSignOut} className="mt-auto w-full rounded p-2 text-xs bg-green-600 hover:bg-green-700 text-white font-bold transition-colors">Sign out</button>
       </aside>

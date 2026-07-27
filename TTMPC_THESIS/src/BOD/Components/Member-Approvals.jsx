@@ -46,10 +46,16 @@ const Member_Approvals = () => {
   const [tabCounts, setTabCounts] = useState({
     Pending: 0,
     Training: 0,
+    Approved: 0,
     "For Revision": 0,
     "Official Member": 0,
   });
-  const LIMIT = 10;
+  const [stats, setStats] = useState({
+    newThisMonth: null,
+    avgPendingDays: null,
+    approvalRate: null,
+  });
+  const LIMIT = 5;
 
   // LOGIC FIX: Added 'Training' to match your SQL Insert exactly
   const getStatusOrClause = (statusTab, roleOverride) => {
@@ -75,7 +81,7 @@ const Member_Approvals = () => {
     if (tab === "For Revision") {
       return buildStatusClause(["for revision", "For Revision", "revision", "Revision"]);
     }
-    if (tab === "Official Member") {
+    if (tab === "Official Member" || tab === "Approved") {
       return buildStatusClause(["official member", "Official Member", "member", "Member"]);
     }
     return "";
@@ -122,7 +128,7 @@ const Member_Approvals = () => {
 
   const fetchTabCounts = async (roleOverride = portalRole) => {
     const requestId = fetchRequestIdRef.current;
-    const tabsForCounts = ["Pending", "Training", "For Revision", "Official Member"];
+    const tabsForCounts = ["Pending", "Training", "Approved", "For Revision", "Official Member"];
 
     const countResults = await Promise.all(
       tabsForCounts.map(async (tab) => {
@@ -149,6 +155,60 @@ const Member_Approvals = () => {
     setTabCounts((prev) => ({ ...prev, ...nextCounts }));
   };
 
+  const fetchStats = async () => {
+    // Pull only the columns needed to compute stats. All rows are needed so
+    // approval rate is calculated across the whole applicant history.
+    const { data, error } = await supabase
+      .from("member_applications")
+      .select("created_at,application_status");
+    if (error) {
+      console.error("Stats fetch error:", error);
+      return;
+    }
+
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const isPending = (s) => /^pending$/i.test(String(s || "").trim());
+    const isApproved = (s) => {
+      const v = String(s || "").trim().toLowerCase();
+      return v === "official member" || v === "member";
+    };
+    const isRejected = (s) => {
+      const v = String(s || "").trim().toLowerCase();
+      return v === "rejected" || v === "denied" || v === "for revision" || v === "revision";
+    };
+
+    let newThisMonth = 0;
+    let pendingDaysSum = 0;
+    let pendingCount = 0;
+    let approved = 0;
+    let decided = 0;
+
+    (data || []).forEach((row) => {
+      const created = row.created_at ? new Date(row.created_at) : null;
+      if (created && created >= monthStart) newThisMonth += 1;
+      if (isPending(row.application_status) && created) {
+        const days = (now - created) / (1000 * 60 * 60 * 24);
+        if (Number.isFinite(days) && days >= 0) {
+          pendingDaysSum += days;
+          pendingCount += 1;
+        }
+      }
+      if (isApproved(row.application_status)) {
+        approved += 1;
+        decided += 1;
+      } else if (isRejected(row.application_status)) {
+        decided += 1;
+      }
+    });
+
+    setStats({
+      newThisMonth,
+      avgPendingDays: pendingCount ? pendingDaysSum / pendingCount : 0,
+      approvalRate: decided ? (approved / decided) * 100 : null,
+    });
+  };
+
   useEffect(() => {
     const checkSessionAndFetch = async () => {
       const { data: { session } } = await supabase.auth.getSession();
@@ -157,6 +217,7 @@ const Member_Approvals = () => {
         setPortalRole(role);
         fetchData(1, role);
         fetchTabCounts(role);
+        fetchStats();
       }
       setAuthReady(true);
     };
@@ -171,6 +232,7 @@ const Member_Approvals = () => {
   useEffect(() => {
     if (!authReady) return;
     fetchTabCounts(portalRole);
+    fetchStats();
   }, [authReady, portalRole]);
 
   useEffect(() => {
@@ -271,7 +333,9 @@ const Member_Approvals = () => {
   const isTrainingTab = activeTab === "Training";
   const isSecretary = portalRole === "secretary";
   const canUseBodActions = !isSecretary;
-  const visibleTabs = isSecretary ? ["Pending"] : ["Pending", "Training", "For Revision"];
+  const visibleTabs = isSecretary
+    ? ["Pending"]
+    : ["Pending", "Training", "Approved", "For Revision"];
 
   const visiblePageNumbers = useMemo(() => {
     const safeTotal = Math.max(1, totalPages);
@@ -295,7 +359,10 @@ const Member_Approvals = () => {
         <hr className="w-full border-gray-200 mb-6" />
 
         <nav className="flex flex-col gap-2 text-sm flex-grow">
-          {menuItems.map((sectionGroup) => (
+          {menuItems.map((sectionGroup) => {
+            const sectionRole = sectionGroup.section.toLowerCase();
+            const isAccessible = !portalRole || sectionRole === portalRole;
+            return (
             <div key={sectionGroup.section} className="mb-4 flex flex-col gap-2">
               <p className="text-xs font-bold text-gray-400 px-2 uppercase tracking-wider">{sectionGroup.section}</p>
               {sectionGroup.items.map((item) => {
@@ -314,6 +381,17 @@ const Member_Approvals = () => {
   };
 
                 const to = routeMap[item.name] || `/${item.name.toLowerCase().replace(/\s+/g, '-')}`;
+                if (!isAccessible) {
+                  return (
+                    <div
+                      key={item.name}
+                      title={`Only ${sectionGroup.section} accounts can access this`}
+                      className="flex items-center gap-3 p-2 rounded-md text-gray-400 cursor-not-allowed select-none opacity-60"
+                    >
+                      <Icon size={20} /><span>{item.name}</span>
+                    </div>
+                  );
+                }
                 return (
                   <NavLink key={item.name} to={to} className={({ isActive }) => `flex items-center gap-3 p-2 rounded-md transition-colors ${isActive ? 'bg-green-50 text-green-700 font-semibold' : 'text-gray-700 hover:bg-green-50 hover:text-green-700'}`}>
                     <Icon size={20} />
@@ -322,8 +400,9 @@ const Member_Approvals = () => {
                 );
               })}
             </div>
-            
-          ))}
+
+            );
+          })}
         </nav>
         
         <button onClick={handleSignOut} className="mt-auto w-full rounded p-2 text-xs bg-[#2C7A3F] hover:bg-green-800 text-white font-bold transition-colors">Sign out</button>
@@ -351,7 +430,9 @@ const Member_Approvals = () => {
               </div>
               <div className="flex flex-col">
                 <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">New This Month</h3>
-                <p className="text-2xl font-extrabold text-slate-800 mt-0.5">45</p>
+                <p className="text-2xl font-extrabold text-slate-800 mt-0.5">
+                  {stats.newThisMonth ?? "—"}
+                </p>
               </div>
             </div>
             <div className="bg-white border border-gray-100 rounded-xl p-5 flex items-center gap-4 shadow-sm">
@@ -359,8 +440,14 @@ const Member_Approvals = () => {
                 <ClipboardList className="text-[#D97706] w-6 h-6" />
               </div>
               <div className="flex flex-col">
-                <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Avg Process Time</h3>
-                <p className="text-2xl font-extrabold text-slate-800 mt-0.5">2.4 Days</p>
+                <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Avg Days in Pending</h3>
+                <p className="text-2xl font-extrabold text-slate-800 mt-0.5">
+                  {stats.avgPendingDays === null
+                    ? "—"
+                    : `${stats.avgPendingDays.toFixed(1)} ${
+                        stats.avgPendingDays === 1 ? "Day" : "Days"
+                      }`}
+                </p>
               </div>
             </div>
             <div className="bg-white border border-gray-100 rounded-xl p-5 flex items-center gap-4 shadow-sm">
@@ -369,7 +456,11 @@ const Member_Approvals = () => {
               </div>
               <div className="flex flex-col">
                 <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Approval Rate</h3>
-                <p className="text-2xl font-extrabold text-slate-800 mt-0.5">94.2%</p>
+                <p className="text-2xl font-extrabold text-slate-800 mt-0.5">
+                  {stats.approvalRate === null
+                    ? "—"
+                    : `${stats.approvalRate.toFixed(1)}%`}
+                </p>
               </div>
             </div>
           </div>
@@ -389,7 +480,7 @@ const Member_Approvals = () => {
             </div>
 
             <div className="flex justify-between items-center p-5 text-sm">
-               <h2 className="text-lg font-bold text-gray-800">{isTrainingTab ? `${activeTab} Attendance & Evaluation` : `${activeTab} Applications`}</h2>
+               <h2 className="text-lg font-bold text-gray-800">{isTrainingTab ? `${activeTab} Attendance & Membership Approval` : `${activeTab} Applications`}</h2>
                <div className="text-xs text-gray-400">
                   Showing {totalCount === 0 ? 0 : (page - 1) * LIMIT + 1}-{Math.min(page * LIMIT, totalCount)} of {totalCount} applications
                </div>
@@ -405,6 +496,7 @@ const Member_Approvals = () => {
                         <th className="p-5 font-bold">Training Schedule</th>
                         <th className="p-5 font-bold">Attendance Status</th>
                         <th className="p-5 font-bold">Evaluation Result</th>
+                        <th className="p-5 font-bold">Action</th>
                       </>
                     ) : (
                       <>
@@ -413,14 +505,14 @@ const Member_Approvals = () => {
                         <th className="p-5 font-bold">Annual Income</th>
                         <th className="p-5 font-bold">Submitted Date</th>
                         {activeTab === "For Revision" && <th className="p-5 font-bold">Revision Notes</th>}
-                        {activeTab === "Pending" && <th className="p-5 font-bold">Action</th>}
+                        {(activeTab === "Pending" || activeTab === "Training" || activeTab === "Approved") && <th className="p-5 font-bold">Action</th>}
                       </>
                     )}
                   </tr>
                 </thead>
                 <tbody>
                   {rowsForActiveTab.length === 0 ? (
-                    <tr><td colSpan={isTrainingTab ? "4" : activeTab === "For Revision" ? "5" : "5"} className="p-5 text-sm text-center text-gray-500">No {activeTab.toLowerCase()} records found.</td></tr>
+                    <tr><td colSpan={isTrainingTab ? "5" : activeTab === "For Revision" ? "5" : "5"} className="p-5 text-sm text-center text-gray-500">No {activeTab.toLowerCase()} records found.</td></tr>
                   ) : (
                     rowsForActiveTab.map((row, index) => (
                       <tr key={index} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
@@ -442,6 +534,15 @@ const Member_Approvals = () => {
                                 {row.result === "Pending" ? "View Remarks" : row.result}
                               </button>
                             </td>
+                            <td className="p-5 text-sm">
+                              <button
+                                onClick={() => canUseBodActions && navigate(`/member-approvals/${row.id}`)}
+                                disabled={!canUseBodActions}
+                                className="inline-flex items-center gap-2 px-6 py-2 bg-[#2C7A3F] hover:bg-[#1e5a2a] text-white rounded-lg font-semibold text-xs transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                View Details
+                              </button>
+                            </td>
                           </>
                         ) : (
                           <>
@@ -453,7 +554,7 @@ const Member_Approvals = () => {
                             <td className="p-5 text-sm text-gray-600 font-medium">{row.annualIncome}</td>
                             <td className="p-5 text-sm text-gray-500">{row.date}</td>
                             {activeTab === "For Revision" && <td className="p-5 text-sm"><span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-700">{row.reason}</span></td>}
-                            {activeTab === "Pending" && (
+                            {(activeTab === "Pending" || activeTab === "Training" || activeTab === "Approved") && (
                               <td className="p-5 text-sm">
                                 <button onClick={() => canUseBodActions && navigate(`/member-approvals/${row.id}`)} className="inline-flex items-center gap-2 px-6 py-2 bg-[#2C7A3F] hover:bg-[#1e5a2a] text-white rounded-lg font-semibold text-xs transition-colors" disabled={!canUseBodActions}>
                                   View Details

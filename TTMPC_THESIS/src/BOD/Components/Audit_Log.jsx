@@ -16,11 +16,13 @@ import {
   History,
 } from "lucide-react";
 import NotificationBell from "./NotificationBell";
+import { usePortalRole } from "../../utils/usePortalRole";
 
 const Audit_Log = () => {
   const { signOut } = UserAuth();
   const navigate = useNavigate();
   const { addNotification } = useNotification();
+  const portalRole = usePortalRole();
 
   const menuItems = [
     { section: "BOD", items: [
@@ -34,7 +36,9 @@ const Audit_Log = () => {
     ]},
     { section: "SECRETARY", items: [
       { name: "Training Attendance", icon: CalendarCheck },
+      { name: "General Assembly", icon: CalendarDays },
       { name: "Membership Records", icon: Archive },
+      
     ]},
   ];
 
@@ -48,6 +52,7 @@ const Audit_Log = () => {
     "Loan Policies": "/bod-loan-policies",
     "Training Attendance": "/Secretary_Attendance",
     "Membership Records": "/Secretary_Records",
+    "General Assembly": "/Secretary_General_Assembly",
   };
 
   const handleSignOut = async (e) => {
@@ -67,11 +72,25 @@ const Audit_Log = () => {
         </div>
         <hr className="w-full border-gray-200 mb-6" />
         <nav className="flex flex-col gap-2 text-sm flex-grow">
-          {menuItems.map((section) => (
+          {menuItems.map((section) => {
+            const sectionRole = section.section.toLowerCase();
+            const isAccessible = !portalRole || sectionRole === portalRole;
+            return (
             <div key={section.section} className="mb-4 flex flex-col gap-2">
               <p className="text-xs font-bold text-gray-400 px-2 uppercase tracking-wider">{section.section}</p>
               {section.items.map((item) => {
                 const Icon = item.icon;
+                if (!isAccessible) {
+                  return (
+                    <div
+                      key={item.name}
+                      title={`Only ${section.section} accounts can access this`}
+                      className="flex items-center gap-3 p-2 rounded-md text-gray-400 cursor-not-allowed select-none opacity-60"
+                    >
+                      <Icon size={20} /><span>{item.name}</span>
+                    </div>
+                  );
+                }
                 return (
                   <NavLink key={item.name} to={routeMap[item.name]} className={({ isActive }) => `flex items-center gap-3 p-2 rounded-md transition-colors ${isActive ? "bg-green-50 text-green-700 font-semibold" : "text-gray-700 hover:bg-green-50 hover:text-green-700"}`}>
                     <Icon size={20} /><span>{item.name}</span>
@@ -79,7 +98,8 @@ const Audit_Log = () => {
                 );
               })}
             </div>
-          ))}
+            );
+          })}
         </nav>
         <button onClick={handleSignOut} className="mt-auto w-full rounded p-2 text-xs bg-green-600 hover:bg-green-700 text-white font-bold transition-colors">Sign out</button>
       </aside>

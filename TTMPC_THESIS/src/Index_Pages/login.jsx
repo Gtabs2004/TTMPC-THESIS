@@ -18,7 +18,7 @@ function Login() {
 
     if (normalizedRole === 'manager') return '/manager-dashboard';
     if (normalizedRole === 'bod') return '/BOD-dashboard';
-    if (normalizedRole === 'secretary') return '/BOD-dashboard';
+    if (normalizedRole === 'secretary') return '/Secretary_Attendance';
     if (normalizedRole === 'cashier') return '/Cashier_Dashboard';
     if (normalizedRole === 'treasurer') return '/Treasurer_Dashboard';
     return '/dashboard';
