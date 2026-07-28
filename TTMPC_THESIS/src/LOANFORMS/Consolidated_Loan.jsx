@@ -911,7 +911,10 @@ function Consolidated_Loan() {
       addNotification("Loan application submitted successfully.", "success");
       setTimeout(() => window.location.reload(), 1500);
     } catch (err) {
-      addNotification("Submission error: " + err.message, "error");
+      // Supabase errors put the real cause on .details / .hint / .message.
+      const reason = err?.details || err?.hint || err?.message || String(err);
+      console.error('Consolidated loan submission failed:', err);
+      addNotification("Submission error: " + reason, "error");
     } finally {
       setLoading(false);
     }
@@ -919,14 +922,46 @@ function Consolidated_Loan() {
 
   const handleFormSubmit = (e) => {
     e.preventDefault();
-    if (loading || printing || exceedsCeiling || renewalBlocked || eligibilityFailed || stressIndexExceeded || collateralShort) return;
-    // Server eligibility must allow at least one path forward.
+
+    // Explicit reasons — silent returns make submission look "broken" when it
+    // is really blocked by a guard.
+    if (loading) return;
+    if (printing) {
+      addNotification('Please wait — the form is still generating a PDF.', 'warning');
+      return;
+    }
+    if (exceedsCeiling) {
+      addNotification('Loan amount exceeds your ceiling. Please lower the amount.', 'error');
+      return;
+    }
+    if (renewalBlocked) {
+      addNotification('Renewal is not available for this account yet.', 'error');
+      return;
+    }
+    if (eligibilityFailed) {
+      addNotification(eligibility?.reason || 'You are not currently eligible to apply for a loan.', 'error');
+      return;
+    }
+    if (stressIndexExceeded) {
+      addNotification('Your Repayment Stress Index exceeds the allowed threshold. Reduce the amount or extend the term.', 'error');
+      return;
+    }
+    if (collateralShort) {
+      addNotification('Declared collateral value is below the required amount.', 'error');
+      return;
+    }
     if (eligibilityReady && !canApplyNew && !canRenew) {
       addNotification(eligibility?.reason || 'You are not currently eligible to apply for a loan.', 'error');
       return;
     }
-    if (eligibilityReady && formData.application_type === 'New' && !canApplyNew) return;
-    if (eligibilityReady && formData.application_type === 'Renewal' && !canRenew) return;
+    if (eligibilityReady && formData.application_type === 'New' && !canApplyNew) {
+      addNotification('New applications are not permitted for your account at this time.', 'error');
+      return;
+    }
+    if (eligibilityReady && formData.application_type === 'Renewal' && !canRenew) {
+      addNotification('Renewals are not permitted for your account at this time.', 'error');
+      return;
+    }
     setShowSummary(true);
   };
 

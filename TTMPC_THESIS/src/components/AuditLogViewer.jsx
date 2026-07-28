@@ -12,7 +12,7 @@ import {
   UserPlus,
 } from "lucide-react";
 
-const PAGE_SIZE = 10;
+const PAGE_SIZE = 5;
 
 // Map our audit_log.entity_type onto the existing Audit Trail design's "Module"
 // column, with the same colors as the original mockup.
