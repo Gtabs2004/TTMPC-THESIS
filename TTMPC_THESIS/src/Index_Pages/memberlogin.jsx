@@ -39,7 +39,7 @@ function MemberLogin() {
           alt="TTMPC Logo"
           className="mx-auto h-24 w-auto drop-shadow-sm mb-6"
         />
-        <h2 className="text-center text-3xl font-extrabold text-gray-900 tracking-tight">
+        <h2 className="text-center text-2xl sm:text-3xl font-extrabold text-gray-900 tracking-tight">
           Welcome Back
         </h2>
         <p className="mt-2 text-center text-sm text-gray-500">

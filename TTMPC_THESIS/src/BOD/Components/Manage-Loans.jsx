@@ -13,9 +13,8 @@ import {
   Bell,
   BookOpen,
   RefreshCw,
-  ChevronDown,
   ChevronRight,
-  ChevronUp,
+  ChevronLeft,
   FileText,
   ShieldCheck,
   AlertTriangle,
@@ -25,14 +24,6 @@ import {
 } from "lucide-react";
 import { usePortalRole } from "../../utils/usePortalRole";
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
-const MEMBER_TONE_POOL = [
-  "text-blue-600 bg-blue-50",
-  "text-green-600 bg-green-50",
-  "text-amber-600 bg-amber-50",
-  "text-teal-600 bg-teal-50",
-  "text-purple-600 bg-purple-50",
-  "text-gray-600 bg-gray-100",
-];
 
 const formatCurrency = (value) => {
   const amount = Number(value || 0);
@@ -44,20 +35,6 @@ const formatDisplayDate = (value) => {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "Pending";
   return date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-};
-
-const getInitials = (name) => {
-  const parts = String(name || "").trim().split(/\s+/).filter(Boolean);
-  if (!parts.length) return "?";
-  return parts.slice(0, 2).map((part) => part[0]?.toUpperCase()).join("");
-};
-
-const getWeekNumber = (inputDate) => {
-  const date = new Date(Date.UTC(inputDate.getFullYear(), inputDate.getMonth(), inputDate.getDate()));
-  const dayNum = date.getUTCDay() || 7;
-  date.setUTCDate(date.getUTCDate() + 4 - dayNum);
-  const yearStart = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
-  return Math.ceil(((date - yearStart) / 86400000 + 1) / 7);
 };
 
 const resolveLoanStage = (loan) => {
@@ -73,130 +50,6 @@ const resolveLoanStage = (loan) => {
   return "Pending";
 };
 
-const buildLedgerGroups = (rows, filter) => {
-  const groups = new Map();
-
-  rows.forEach((loan, index) => {
-    const dateValue = loan.application_date || loan.due_date;
-    const parsedDate = dateValue ? new Date(dateValue) : null;
-    const isValidDate = parsedDate && !Number.isNaN(parsedDate.getTime());
-
-    let period = "Unknown Period";
-    let sortKey = 0;
-
-    if (isValidDate) {
-      if (filter === "Weekly") {
-        const week = getWeekNumber(parsedDate);
-        const year = parsedDate.getFullYear();
-        period = `Week ${week}, ${year}`;
-        sortKey = year * 100 + week;
-      } else if (filter === "Monthly") {
-        period = parsedDate.toLocaleDateString("en-US", { month: "long", year: "numeric" });
-        sortKey = parsedDate.getFullYear() * 100 + parsedDate.getMonth();
-      } else {
-        period = String(parsedDate.getFullYear());
-        sortKey = parsedDate.getFullYear();
-      }
-    }
-
-    if (!groups.has(period)) {
-      groups.set(period, {
-        period,
-        sortKey,
-        totalApproved: 0,
-        totalDisbursed: 0,
-        totalPaid: 0,
-        totalPending: 0,
-        members: new Map(),
-      });
-    }
-
-    const group = groups.get(period);
-    const stage = resolveLoanStage(loan);
-    const loanAmount = Number(loan.loan_amount || 0);
-    const remainingBalance = Number(loan.remaining_balance || 0);
-    const paidAmount = Math.max(loanAmount - remainingBalance, 0);
-    const memberKey = String(loan.membership_id || loan.member_name || index);
-
-    if (!group.members.has(memberKey)) {
-      const memberName = loan.member_name || "Unknown Member";
-      const initialIndex = group.members.size % MEMBER_TONE_POOL.length;
-      group.members.set(memberKey, {
-        id: `${memberKey}-${group.members.size}`,
-        name: memberName,
-        memberId: loan.membership_id || loan.member_type || "N/A",
-        initial: getInitials(memberName),
-        initialColor: MEMBER_TONE_POOL[initialIndex],
-        loanText: "",
-        approvedAmount: 0,
-        disbursedAmount: 0,
-        paidAmount: 0,
-        pendingAmount: 0,
-        totalAmount: 0,
-        loans: [],
-      });
-    }
-
-    const member = group.members.get(memberKey);
-    member.totalAmount += loanAmount;
-
-    if (paidAmount > 0) {
-      group.totalPaid += paidAmount;
-      member.paidAmount += paidAmount;
-    }
-
-    if (stage === "Paid") {
-      group.totalDisbursed += loanAmount;
-      member.disbursedAmount += loanAmount;
-    } else if (stage === "Disbursed") {
-      group.totalDisbursed += loanAmount;
-      member.disbursedAmount += loanAmount;
-    } else if (stage === "Approved") {
-      group.totalApproved += loanAmount;
-      member.approvedAmount += loanAmount;
-    } else {
-      group.totalPending += loanAmount;
-      member.pendingAmount += loanAmount;
-    }
-
-    member.loans.push({
-      loanId: loan.loan_id,
-      loanType: loan.loan_type || "Loan",
-      status: stage,
-      disbursedDate: stage === "Pending" ? "Pending" : formatDisplayDate(loan.application_date),
-      amount: formatCurrency(loanAmount),
-      balance: formatCurrency(remainingBalance),
-    });
-  });
-
-  return Array.from(groups.values())
-    .sort((a, b) => b.sortKey - a.sortKey)
-    .map((group) => {
-      const members = Array.from(group.members.values()).map((member) => {
-        const loanCount = member.loans.length;
-        return {
-          ...member,
-          loanText: `${loanCount} loan${loanCount === 1 ? "" : "s"}`,
-          approvedAmount: formatCurrency(member.approvedAmount),
-          disbursedAmount: formatCurrency(member.disbursedAmount),
-          paidAmount: formatCurrency(member.paidAmount),
-          pendingAmount: formatCurrency(member.pendingAmount),
-          totalAmount: formatCurrency(member.totalAmount),
-        };
-      });
-
-      return {
-        period: group.period,
-        memberCount: members.length,
-        totalApproved: formatCurrency(group.totalApproved),
-        totalDisbursed: formatCurrency(group.totalDisbursed),
-        totalPaid: formatCurrency(group.totalPaid),
-        totalPending: formatCurrency(group.totalPending),
-        members,
-      };
-    });
-};
-
 const formatStatusTone = (status) => {
   const value = String(status || "").toLowerCase();
   if (value.includes("paid")) return "bg-emerald-50 text-emerald-700 border-emerald-200";
@@ -210,26 +63,70 @@ const BOD_Manage_Loans = () => {
   const { signOut } = UserAuth();
   const navigate = useNavigate();
   const portalRole = usePortalRole();
-  const [activeFilter, setActiveFilter] = useState("Monthly");
-  const [expandedPeriods, setExpandedPeriods] = useState([]);
-  const [expandedMembers, setExpandedMembers] = useState([]);
+  const [activeFilter, setActiveFilter] = useState("All");
+  const [yearFilter, setYearFilter] = useState("All");
+  const [monthFilter, setMonthFilter] = useState("All");
   const [searchTerm, setSearchTerm] = useState("");
   const [loans, setLoans] = useState([]);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState("");
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 5;
+
+  const MONTH_NAMES = [
+    "January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December",
+  ];
+
+  const availableYears = useMemo(() => {
+    const set = new Set();
+    loans.forEach((l) => {
+      const d = new Date(l.application_date);
+      if (!Number.isNaN(d.getTime())) set.add(d.getFullYear());
+    });
+    return Array.from(set).sort((a, b) => b - a);
+  }, [loans]);
 
   const filteredLoans = useMemo(() => {
     const key = String(searchTerm || "").trim().toLowerCase();
-    if (!key) return loans;
-    return loans.filter((loan) =>
-      String(loan.member_name || "").toLowerCase().includes(key) ||
-      String(loan.loan_id || "").toLowerCase().includes(key) ||
-      String(loan.loan_type || "").toLowerCase().includes(key) ||
-      String(loan.source_loan_status || "").toLowerCase().includes(key)
-    );
-  }, [loans, searchTerm]);
+    return loans.filter((loan) => {
+      if (activeFilter !== "All" && resolveLoanStage(loan) !== activeFilter) return false;
 
-  const groupedLedger = useMemo(() => buildLedgerGroups(filteredLoans, activeFilter), [filteredLoans, activeFilter]);
+      if (yearFilter !== "All" || monthFilter !== "All") {
+        const d = new Date(loan.application_date);
+        if (Number.isNaN(d.getTime())) return false;
+        if (yearFilter !== "All" && d.getFullYear() !== Number(yearFilter)) return false;
+        if (monthFilter !== "All" && d.getMonth() !== Number(monthFilter)) return false;
+      }
+
+      if (!key) return true;
+      return (
+        String(loan.member_name || "").toLowerCase().includes(key) ||
+        String(loan.loan_id || "").toLowerCase().includes(key) ||
+        String(loan.loan_type || "").toLowerCase().includes(key) ||
+        String(loan.source_loan_status || "").toLowerCase().includes(key)
+      );
+    });
+  }, [loans, searchTerm, activeFilter, yearFilter, monthFilter]);
+
+  const sortedLoans = useMemo(() => {
+    return [...filteredLoans].sort((a, b) => {
+      const ta = new Date(a.application_date || 0).getTime();
+      const tb = new Date(b.application_date || 0).getTime();
+      return tb - ta;
+    });
+  }, [filteredLoans]);
+
+  const totalPages = Math.max(1, Math.ceil(sortedLoans.length / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const paginatedLoans = sortedLoans.slice(
+    (currentPage - 1) * PAGE_SIZE,
+    currentPage * PAGE_SIZE
+  );
+
+  useEffect(() => {
+    setPage(1);
+  }, [activeFilter, searchTerm, yearFilter, monthFilter, loans.length]);
 
   const summaryTotals = useMemo(() => {
     const totals = { approved: 0, disbursed: 0, paid: 0, pending: 0, total: 0 };
@@ -246,15 +143,6 @@ const BOD_Manage_Loans = () => {
     });
     return totals;
   }, [filteredLoans]);
-
-  useEffect(() => {
-    if (groupedLedger.length > 0) {
-      setExpandedPeriods([groupedLedger[0].period]);
-      if (groupedLedger[0].members.length > 0) {
-        setExpandedMembers([groupedLedger[0].members[0].id]);
-      }
-    }
-  }, [groupedLedger]);
 
   const fetchManageLoans = async () => {
     setLoading(true);
@@ -323,20 +211,6 @@ const BOD_Manage_Loans = () => {
       console.error("Failed to sign out:", err);
     }
   };
-
-  const togglePeriod = (period) => {
-    setExpandedPeriods((prev) =>
-      prev.includes(period) ? prev.filter((value) => value !== period) : [...prev, period]
-    );
-  };
-
-  const toggleMember = (memberId) => {
-    setExpandedMembers((prev) =>
-      prev.includes(memberId) ? prev.filter((value) => value !== memberId) : [...prev, memberId]
-    );
-  };
-
-  const currentLedgerData = groupedLedger;
 
   return (
     <div className="flex min-h-screen bg-gray-50">
@@ -503,170 +377,183 @@ const BOD_Manage_Loans = () => {
               </div>
             </div>
 
-            {/* Ledger Section */}
+            {/* Loan Ledger Table */}
             <div className="bg-white rounded-lg border border-gray-200 shadow-sm">
-              {/* Ledger Header */}
-              <div className="border-b border-gray-200 px-6 py-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              {/* Header + Filter Pills */}
+              <div className="border-b border-gray-100 px-6 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 <div>
-                  <h2 className="text-lg font-bold text-gray-900">Loans by Period</h2>
-                  <p className="text-sm text-gray-600 mt-1">Grouped by {activeFilter.toLowerCase()} — expand to see details</p>
+                  <h2 className="text-sm font-bold text-gray-900">Loan Records</h2>
+                  <p className="text-[11px] text-gray-500 mt-0.5">
+                    Showing {paginatedLoans.length} of {sortedLoans.length} loans
+                  </p>
                 </div>
-                <div className="flex items-center gap-2 bg-gray-100 rounded-lg p-1 w-fit">
-                  {["Weekly", "Monthly", "Yearly"].map((filter) => (
-                    <button
-                      key={filter}
-                      onClick={() => setActiveFilter(filter)}
-                      className={`px-3 py-1.5 text-xs font-medium rounded transition-colors ${
-                        activeFilter === filter
-                          ? "bg-white text-gray-900 shadow-sm border border-gray-200"
-                          : "text-gray-600 hover:text-gray-900"
-                      }`}
-                    >
-                      {filter}
-                    </button>
-                  ))}
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1 w-fit">
+                    {["All", "Pending", "Approved", "Disbursed", "Paid"].map((filter) => (
+                      <button
+                        key={filter}
+                        onClick={() => setActiveFilter(filter)}
+                        className={`px-2.5 py-1 text-[11px] font-semibold rounded transition-colors ${
+                          activeFilter === filter
+                            ? "bg-white text-gray-900 shadow-sm border border-gray-200"
+                            : "text-gray-600 hover:text-gray-900"
+                        }`}
+                      >
+                        {filter}
+                      </button>
+                    ))}
+                  </div>
+
+                  <select
+                    value={yearFilter}
+                    onChange={(e) => setYearFilter(e.target.value)}
+                    className="h-8 rounded-lg border border-gray-200 bg-white px-2 pr-6 text-[11px] font-semibold text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#2C7A3F]/40"
+                  >
+                    <option value="All">All Years</option>
+                    {availableYears.map((y) => (
+                      <option key={y} value={y}>{y}</option>
+                    ))}
+                  </select>
+
+                  <select
+                    value={monthFilter}
+                    onChange={(e) => setMonthFilter(e.target.value)}
+                    className="h-8 rounded-lg border border-gray-200 bg-white px-2 pr-6 text-[11px] font-semibold text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#2C7A3F]/40"
+                  >
+                    <option value="All">All Months</option>
+                    {MONTH_NAMES.map((name, i) => (
+                      <option key={name} value={i}>{name}</option>
+                    ))}
+                  </select>
                 </div>
               </div>
 
-              {/* Ledger Content */}
-              <div className="divide-y divide-gray-100">
-                {currentLedgerData.length === 0 ? (
-                  <div className="px-6 py-12 text-center">
-                    <BookOpen className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                    <p className="text-sm text-gray-500">No loan ledger data available for the selected period</p>
-                  </div>
-                ) : null}
-
-                {currentLedgerData.map((group) => {
-                  const isExpanded = expandedPeriods.includes(group.period);
-                  return (
-                    <div key={group.period}>
-                      {/* Period Group Header */}
-                      <div
-                        className="px-6 py-4 cursor-pointer hover:bg-gray-50 transition-colors flex items-center justify-between"
-                        onClick={() => togglePeriod(group.period)}
-                      >
-                        <div className="flex items-center gap-3 flex-1 min-w-0">
-                          <div className="flex-shrink-0">
-                            {isExpanded ? (
-                              <ChevronDown className="w-5 h-5 text-[#2C7A3F]" />
-                            ) : (
-                              <ChevronRight className="w-5 h-5 text-gray-400" />
-                            )}
-                          </div>
-                          <div className="min-w-0">
-                            <p className="font-semibold text-gray-900">{group.period}</p>
-                            <p className="text-xs text-gray-500">{group.memberCount} member{group.memberCount !== 1 ? "s" : ""}</p>
-                          </div>
-                        </div>
-                        <div className="flex flex-wrap items-center justify-end gap-6 text-sm ml-4">
-                          <div className="text-right">
-                            <p className="text-xs text-gray-500">Approved</p>
-                            <p className="font-semibold text-gray-900">{group.totalApproved}</p>
-                          </div>
-                          <div className="text-right">
-                            <p className="text-xs text-gray-500">Disbursed</p>
-                            <p className="font-semibold text-gray-900">{group.totalDisbursed}</p>
-                          </div>
-                          <div className="text-right">
-                            <p className="text-xs text-gray-500">Paid</p>
-                            <p className="font-semibold text-gray-900">{group.totalPaid}</p>
-                          </div>
-                          <div className="text-right">
-                            <p className="text-xs text-gray-500">Pending</p>
-                            <p className="font-semibold text-gray-900">{group.totalPending}</p>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Period Members List */}
-                      {isExpanded && (
-                        <div className="bg-gray-50 px-6 py-4 space-y-3">
-                          {group.members.map((member) => {
-                            const isMemberExpanded = expandedMembers.includes(member.id);
-                            return (
-                              <div key={member.id} className="bg-white border border-gray-200 rounded-lg overflow-hidden">
-                                {/* Member Header */}
-                                <div
-                                  className="px-4 py-3 cursor-pointer hover:bg-gray-50 transition-colors flex items-center justify-between"
-                                  onClick={() => toggleMember(member.id)}
+              {/* Table */}
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-green-700 text-[10px] uppercase tracking-wider text-white font-extrabold">
+                      <th className="p-3 font-bold">Loan ID</th>
+                      <th className="p-3 font-bold">Member</th>
+                      <th className="p-3 font-bold">Loan Type</th>
+                      <th className="p-3 font-bold text-right">Amount</th>
+                      <th className="p-3 font-bold text-right">Balance</th>
+                      <th className="p-3 font-bold text-right">Paid</th>
+                      <th className="p-3 font-bold">Status</th>
+                      <th className="p-3 font-bold">Application Date</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {loading && !loadError ? (
+                      <tr>
+                        <td colSpan={8} className="p-6 text-center text-xs text-gray-500">
+                          <RefreshCw className="inline w-4 h-4 mr-1 animate-spin" />
+                          Loading loan ledger...
+                        </td>
+                      </tr>
+                    ) : paginatedLoans.length === 0 ? (
+                      <tr>
+                        <td colSpan={8} className="p-8 text-center">
+                          <BookOpen className="w-10 h-10 text-gray-300 mx-auto mb-2" />
+                          <p className="text-xs text-gray-500">No loans match your filters.</p>
+                        </td>
+                      </tr>
+                    ) : (
+                      <>
+                        {paginatedLoans.map((loan) => {
+                          const stage = resolveLoanStage(loan);
+                          const amount = Number(loan.loan_amount || 0);
+                          const balance = Number(loan.remaining_balance || 0);
+                          const paid = Math.max(amount - balance, 0);
+                          return (
+                            <tr
+                              key={loan.loan_id}
+                              className="border-b border-gray-100 hover:bg-gray-50/60 transition-colors"
+                            >
+                              <td className="p-3 text-xs font-mono text-gray-600 max-w-[10rem]">
+                                <p className="truncate" title={loan.loan_id}>{loan.loan_id}</p>
+                              </td>
+                              <td className="p-3 text-xs">
+                                <p className="font-semibold text-gray-900 truncate max-w-[12rem]" title={loan.member_name}>
+                                  {loan.member_name || "Unknown Member"}
+                                </p>
+                                <p className="text-[10px] text-gray-500">{loan.membership_id || "—"}</p>
+                              </td>
+                              <td className="p-3 text-xs text-gray-700">{loan.loan_type || "Loan"}</td>
+                              <td className="p-3 text-xs font-semibold text-gray-900 text-right">
+                                {formatCurrency(amount)}
+                              </td>
+                              <td className="p-3 text-xs text-gray-700 text-right">
+                                {formatCurrency(balance)}
+                              </td>
+                              <td className="p-3 text-xs text-emerald-700 font-semibold text-right">
+                                {formatCurrency(paid)}
+                              </td>
+                              <td className="p-3 text-xs">
+                                <span
+                                  className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold ${formatStatusTone(stage)}`}
                                 >
-                                  <div className="flex items-center gap-3 flex-1 min-w-0">
-                                    <div className={`flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center font-semibold text-xs ${member.initialColor}`}>
-                                      {member.initial}
-                                    </div>
-                                    <div className="min-w-0 flex-1">
-                                      <p className="text-sm font-semibold text-gray-900 truncate">{member.name}</p>
-                                      <p className="text-xs text-gray-500">{member.memberId} • {member.loanText}</p>
-                                    </div>
-                                  </div>
-                                  <div className="flex items-center justify-end gap-4 ml-4 flex-wrap">
-                                    <div className="text-right">
-                                      <p className="text-xs text-gray-500">Approved</p>
-                                      <p className="text-sm font-semibold text-gray-900">{member.approvedAmount}</p>
-                                    </div>
-                                    <div className="text-right">
-                                      <p className="text-xs text-gray-500">Disbursed</p>
-                                      <p className="text-sm font-semibold text-gray-900">{member.disbursedAmount}</p>
-                                    </div>
-                                    <div className="text-right">
-                                      <p className="text-xs text-gray-500">Paid</p>
-                                      <p className="text-sm font-semibold text-gray-900">{member.paidAmount}</p>
-                                    </div>
-                                    <div className="text-right">
-                                      <p className="text-xs text-gray-500">Pending</p>
-                                      <p className="text-sm font-semibold text-gray-900">{member.pendingAmount}</p>
-                                    </div>
-                                    <div className="flex items-center gap-2 flex-shrink-0">
-                                      <p className="text-sm font-bold text-gray-900">{member.totalAmount}</p>
-                                      {isMemberExpanded ? (
-                                        <ChevronUp className="w-4 h-4 text-gray-400" />
-                                      ) : (
-                                        <ChevronRight className="w-4 h-4 text-gray-400" />
-                                      )}
-                                    </div>
-                                  </div>
-                                </div>
+                                  {stage}
+                                </span>
+                              </td>
+                              <td className="p-3 text-xs text-gray-500 whitespace-nowrap">
+                                {formatDisplayDate(loan.application_date)}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                        {Array.from({ length: PAGE_SIZE - paginatedLoans.length }).map((_, i) => (
+                          <tr key={`filler-${i}`} className="border-b border-gray-100" aria-hidden="true">
+                            <td className="p-3 text-xs">&nbsp;</td>
+                            <td className="p-3 text-xs"></td>
+                            <td className="p-3 text-xs"></td>
+                            <td className="p-3 text-xs"></td>
+                            <td className="p-3 text-xs"></td>
+                            <td className="p-3 text-xs"></td>
+                            <td className="p-3 text-xs"></td>
+                            <td className="p-3 text-xs"></td>
+                          </tr>
+                        ))}
+                      </>
+                    )}
+                  </tbody>
+                </table>
+              </div>
 
-                                {/* Member Loans */}
-                                {isMemberExpanded && member.loans?.length > 0 && (
-                                  <div className="border-t border-gray-200 bg-gray-50 px-4 py-4">
-                                    <div className="space-y-2">
-                                      {member.loans.map((loan) => (
-                                        <div key={loan.loanId} className="bg-white border border-gray-200 rounded p-3 text-sm">
-                                          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                                            <div className="flex-1 min-w-0">
-                                              <p className="text-xs font-mono text-gray-500 truncate">{loan.loanId}</p>
-                                              <p className="font-semibold text-gray-900">{loan.loanType}</p>
-                                              <p className="text-xs text-gray-600 mt-1">Disbursed: {loan.disbursedDate}</p>
-                                            </div>
-                                            <div className="flex flex-wrap items-center justify-between gap-3 sm:justify-end">
-                                              <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-medium whitespace-nowrap ${formatStatusTone(loan.status)}`}>
-                                                {loan.status}
-                                              </span>
-                                              <div className="text-right">
-                                                <p className="text-xs text-gray-500">Amount</p>
-                                                <p className="font-semibold text-gray-900">{loan.amount}</p>
-                                              </div>
-                                              <div className="text-right">
-                                                <p className="text-xs text-gray-500">Balance</p>
-                                                <p className="font-semibold text-gray-900">{loan.balance}</p>
-                                              </div>
-                                            </div>
-                                          </div>
-                                        </div>
-                                      ))}
-                                    </div>
-                                  </div>
-                                )}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
+              {/* Pagination */}
+              <div className="flex items-center justify-center p-3 gap-2 border-t border-gray-100">
+                <button
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  disabled={currentPage <= 1}
+                  className="w-8 h-8 flex items-center justify-center rounded-full border border-gray-300 bg-white text-gray-500 transition-colors hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                {(() => {
+                  const windowSize = 5;
+                  const groupStart = Math.floor((currentPage - 1) / windowSize) * windowSize + 1;
+                  const groupEnd = Math.min(groupStart + windowSize - 1, totalPages);
+                  return Array.from({ length: groupEnd - groupStart + 1 }, (_, i) => groupStart + i).map((n) => (
+                    <button
+                      key={n}
+                      onClick={() => setPage(n)}
+                      className={`w-8 h-8 flex items-center justify-center rounded-full border text-xs font-semibold transition-colors ${
+                        n === currentPage
+                          ? "bg-[#16A34A] text-white border-[#16A34A]"
+                          : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"
+                      }`}
+                    >
+                      {n}
+                    </button>
+                  ));
+                })()}
+                <button
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={currentPage >= totalPages}
+                  className="w-8 h-8 flex items-center justify-center rounded-full border border-gray-300 bg-white text-gray-500 transition-colors hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
               </div>
             </div>
           </div>

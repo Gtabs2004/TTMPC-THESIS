@@ -1006,11 +1006,11 @@ function Consolidated_Loan() {
               <div className="flex flex-wrap gap-4">
                 <div>
                   <label className="block text-[10px] uppercase font-bold text-gray-500">Control No.</label>
-                  <input type="text" name="control_no" value={formData.control_no} readOnly tabIndex={-1} aria-readonly title="System-generated control number." className="border border-gray-200 rounded px-3 py-1.5 w-48 bg-gray-100 text-gray-600 cursor-not-allowed select-text" />
+                  <input type="text" name="control_no" value={formData.control_no} readOnly tabIndex={-1} aria-readonly title="System-generated control number." className="border border-gray-200 rounded px-3 py-1.5 w-full sm:w-48 bg-gray-100 text-gray-600 cursor-not-allowed select-text" />
                 </div>
                 <div>
                   <label className="block text-[10px] uppercase font-bold text-gray-500">Date Applied</label>
-                  <input type="date" name="date_applied" value={formData.date_applied} onChange={handleChange} className="border border-gray-300 rounded px-3 py-1.5 w-48" />
+                  <input type="date" name="date_applied" value={formData.date_applied} onChange={handleChange} className="border border-gray-300 rounded px-3 py-1.5 w-full sm:w-48" />
                 </div>
               </div>
             </div>
@@ -1042,7 +1042,7 @@ function Consolidated_Loan() {
           </div>
 
 
-          <div className="p-8 grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="p-4 sm:p-6 lg:p-8 grid grid-cols-1 md:grid-cols-3 gap-6">
             <div><label className={labelStyles}>Surname <span className="text-red-500">*</span></label><input type="text" name="surname" value={formData.surname} onChange={handleChange} className={inputClassFor('surname')} required {...lockedInputProps('surname')} /></div>
             <div><label className={labelStyles}>First Name <span className="text-red-500">*</span></label><input type="text" name="first_name" value={formData.first_name} onChange={handleChange} className={inputClassFor('first_name')} required {...lockedInputProps('first_name')} /></div>
             <div><label className={labelStyles}>Middle Name</label><input type="text" name="middle_name" value={formData.middle_name} onChange={handleChange} className={inputClassFor('middle_name')} {...lockedInputProps('middle_name')} /></div>
@@ -1085,7 +1085,7 @@ function Consolidated_Loan() {
             <span className="bg-white text-[#66B538] rounded-full w-6 h-6 flex items-center justify-center text-sm">2</span>
             LOAN AGREEMENT
           </div>
-          <div className="p-8 text-sm text-gray-800">
+          <div className="p-4 sm:p-6 lg:p-8 text-sm text-gray-800">
             {calcResult && !calcResult.error && (
               <div className="mb-5 grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
                 <div className="rounded-lg border border-[#D8EBD3] bg-[#F3F9F1] px-4 py-3">
@@ -1118,14 +1118,14 @@ function Consolidated_Loan() {
                 tabIndex={-1}
                 aria-readonly
                 title="Auto-generated from the selected loan amount."
-                className="border border-gray-200 rounded-md px-3 py-1.5 outline-none bg-gray-100 text-gray-600 text-sm mx-2 w-[22rem] inline-block align-middle cursor-not-allowed select-text"
+                className="border border-gray-200 rounded-md px-3 py-1.5 outline-none bg-gray-100 text-gray-600 text-sm mx-2 w-full sm:w-[22rem] inline-block align-middle cursor-not-allowed select-text"
               />
               <div className="inline-flex items-center relative mr-2 align-middle leading-none">
                 <select
                   name="loan_amount_numeric"
                   value={formData.loan_amount_numeric}
                   onChange={handleChange}
-                  className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-[#66B538] outline-none bg-white text-sm transition-all w-48"
+                  className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-[#66B538] outline-none bg-white text-sm transition-all w-full sm:w-48"
                   required
                 >
                   <option value="">Select Amount</option>
@@ -1149,7 +1149,7 @@ function Consolidated_Loan() {
                 name="loan_purpose" 
                 value={formData.loan_purpose} 
                 onChange={handleChange} 
-                className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-[#66B538] outline-none bg-white text-sm transition-all mx-2 w-64 inline-block align-middle" 
+                className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-[#66B538] outline-none bg-white text-sm transition-all mx-2 w-full sm:w-64 inline-block align-middle" 
               >
                 <option value="">Select Purpose</option>
                 <option value="Emergency Needs">Emergency Needs</option>
@@ -1168,26 +1168,24 @@ function Consolidated_Loan() {
                   value={formData.loan_purpose_other} 
                   onChange={handleChange} 
                   placeholder="Please specify..."
-                  className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-[#66B538] outline-none bg-white text-sm transition-all mx-2 w-56 inline-block align-middle" 
+                  className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-[#66B538] outline-none bg-white text-sm transition-all mx-2 w-full sm:w-56 inline-block align-middle" 
                 />
               )}
               <br className="hidden md:block" />
               
               for a term of
               <span className="relative inline-block mx-2 align-middle leading-none">
-                <select
+                <input
+                  type="number"
                   name="loan_term_months"
                   value={formData.loan_term_months}
                   onChange={handleChange}
-                  className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-[#66B538] outline-none bg-white text-sm transition-all w-32 text-gray-600"
-                >
-                  <option value="">Select Term</option>
-                  <option>12</option>
-                  <option>24</option>
-                  <option>36</option>
-                  <option>48</option>
-                  <option>60</option>
-                </select>
+                  min={1}
+                  max={60}
+                  step={1}
+                  placeholder="e.g. 15"
+                  className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-[#66B538] outline-none bg-white text-sm transition-all w-full sm:w-32 text-gray-600"
+                />
               </span>
               months with a monthly amortization of
               <input
@@ -1330,7 +1328,7 @@ function Consolidated_Loan() {
             <span className="bg-white text-[#66B538] rounded-full w-6 h-6 flex items-center justify-center text-sm">3</span>
             LOAN CONTRACT
           </div>
-          <div className="p-8 text-sm text-gray-800">
+          <div className="p-4 sm:p-6 lg:p-8 text-sm text-gray-800">
             
             {/* Form paragraph with inline inputs */}
             <div className="leading-[3.5rem]">
@@ -1343,7 +1341,7 @@ function Consolidated_Loan() {
                 tabIndex={-1}
                 aria-readonly
                 title="Auto-filled from your name fields."
-                className="border border-gray-200 rounded-md px-3 py-1.5 outline-none bg-gray-100 text-gray-600 text-sm mx-2 w-72 inline-block align-middle cursor-not-allowed select-text"
+                className="border border-gray-200 rounded-md px-3 py-1.5 outline-none bg-gray-100 text-gray-600 text-sm mx-2 w-full sm:w-72 inline-block align-middle cursor-not-allowed select-text"
               />
               bind myself to pay <strong>Tubungan Teachers' Multi Purpose Cooperative (TTMPC)</strong> the amount of 
               <input
@@ -1354,7 +1352,7 @@ function Consolidated_Loan() {
                 tabIndex={-1}
                 aria-readonly
                 title="Auto-generated from the selected loan amount."
-                className="border border-gray-200 rounded-md px-3 py-1.5 outline-none bg-gray-100 text-gray-600 text-sm mx-2 w-56 inline-block align-middle cursor-not-allowed select-text"
+                className="border border-gray-200 rounded-md px-3 py-1.5 outline-none bg-gray-100 text-gray-600 text-sm mx-2 w-full sm:w-56 inline-block align-middle cursor-not-allowed select-text"
               />
               
               <br className="hidden md:block" />
@@ -1364,7 +1362,7 @@ function Consolidated_Loan() {
                   name="loan_amount_numeric"
                   value={formData.loan_amount_numeric}
                   onChange={handleChange}
-                  className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-[#66B538] outline-none bg-white text-sm transition-all w-48"
+                  className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-[#66B538] outline-none bg-white text-sm transition-all w-full sm:w-48"
                   required
                 >
                   <option value="">Select Amount</option>
@@ -1395,7 +1393,7 @@ function Consolidated_Loan() {
                   name="employer_name" 
                   value={formData.employer_name} 
                   onChange={handleChange} 
-                  className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-[#66B538] outline-none bg-white text-sm transition-all mx-2 w-[22rem] inline-block align-middle" 
+                  className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-[#66B538] outline-none bg-white text-sm transition-all mx-2 w-full sm:w-[22rem] inline-block align-middle" 
                 />
                 the outstanding balance of my loan shall be paid
               </span>
@@ -1409,11 +1407,11 @@ function Consolidated_Loan() {
 
             {/* IDs section */}
             <div className="flex flex-wrap gap-6 mt-8">
-              <div className="w-64">
+              <div className="w-full sm:w-64">
                 <label className={labelStyles}>Valid ID/Gov't. Issued ID <span className="text-red-500">*</span></label>
                 <input type="text" name="borrower_id_type" value={formData.borrower_id_type} readOnly tabIndex={-1} aria-readonly title="Auto-filled from your member profile and cannot be edited here." className={lockedInputStyles} />
               </div>
-              <div className="w-64">
+              <div className="w-full sm:w-64">
                 <label className={labelStyles}>ID Number <span className="text-red-500">*</span></label>
                 <input type="text" name="borrower_id_number" value={formData.borrower_id_number} readOnly tabIndex={-1} aria-readonly title="Auto-filled from your member profile and cannot be edited here." className={lockedInputStyles} />
               </div>
@@ -1427,7 +1425,7 @@ function Consolidated_Loan() {
             <span className="bg-white text-[#66B538] rounded-full w-6 h-6 flex items-center justify-center text-sm">4</span>
             BORROWER'S ADDITIONAL INFORMATION
           </div>
-          <div className="p-8 grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="p-4 sm:p-6 lg:p-8 grid grid-cols-1 md:grid-cols-2 gap-6">
             <div><label className={labelStyles}>Email Address <span className="text-red-500">*</span></label><input type="email" name="user_email" value={formData.user_email} onChange={handleChange} className={inputStyles} required /></div>
             <div><label className={labelStyles}>Mobile / Tel No. <span className="text-red-500">*</span></label><input type="text" name="mobile_tel_no" value={formData.contact_no} onChange={handleChange} className={inputStyles} /></div>
           </div>

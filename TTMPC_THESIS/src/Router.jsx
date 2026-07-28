@@ -1,4 +1,4 @@
-import { createBrowserRouter } from "react-router-dom";
+import { createBrowserRouter, Navigate } from "react-router-dom";
 import App from "./App";
 import Bonus_Loan from "./LOANFORMS/Bonus_Loan";
 import Consolidated_Loan from "./LOANFORMS/Consolidated_Loan";
@@ -208,5 +208,8 @@ export const router = createBrowserRouter([
     {path: "/Cashier_Grocery", element:<Cashier_Grocery/>},
     {path:"/conso_choice", element:<Conso_Choice/>},
     {path:"/Consolidated_Up", element:<Consolidated_Up/>},
-    
+
+    // Catch-all: any unknown path redirects to landing so unauthenticated
+    // users never see React Router's default 404 boundary.
+    {path: "*", element: <Navigate to="/" replace/>},
 ]);

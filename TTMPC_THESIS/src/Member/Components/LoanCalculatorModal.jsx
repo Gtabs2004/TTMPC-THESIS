@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useState } from "react";
-import { X, Calculator, RefreshCw, AlertTriangle, Sparkles } from "lucide-react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { X, Calculator, RefreshCw, AlertTriangle, Sparkles, ChevronDown, Search } from "lucide-react";
 import { supabase } from "../../supabaseClient";
 import { resolveAccountFromSessionUser } from "../../utils/sessionIdentity";
 
@@ -22,7 +22,9 @@ import { resolveAccountFromSessionUser } from "../../utils/sessionIdentity";
 */
 
 const MONTHLY_INTEREST_FACTOR = 0.0083; // 1% add-on / ~12% annual, matches Consolidated_Loan.jsx
-const TERM_OPTIONS = [12, 24, 36, 48, 60];
+const TERM_MIN = 1;
+const TERM_MAX = 60;
+const TERM_QUICK_PICKS = [12, 24, 36, 48, 60];
 const AMOUNT_MIN = 10000;
 const AMOUNT_MAX = 470000;
 const AMOUNT_STEP = 5000;
@@ -263,20 +265,12 @@ export default function LoanCalculatorModal({ open, onClose }) {
                 )}
               </label>
               {selectedType.available ? (
-                <select
+                <AmountCombobox
                   value={loanAmount}
-                  onChange={(e) => setLoanAmount(e.target.value)}
-                  className={`w-full border rounded-md px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-[#66B538] outline-none ${
-                    amountInvalid ? "border-red-300" : "border-gray-300"
-                  }`}
-                >
-                  <option value="">Select Amount</option>
-                  {amountOptions.map((v) => (
-                    <option key={v} value={v}>
-                      {Number(v).toLocaleString("en-PH")}
-                    </option>
-                  ))}
-                </select>
+                  onChange={setLoanAmount}
+                  options={amountOptions}
+                  invalid={amountInvalid}
+                />
               ) : (
                 <p className="text-xs text-gray-500 italic px-3 py-2 bg-gray-50 rounded-md border border-gray-200">
                   This loan type is not yet available for simulation.
@@ -287,14 +281,45 @@ export default function LoanCalculatorModal({ open, onClose }) {
             <div>
               <label className="block text-[11px] font-bold text-gray-600 uppercase tracking-wider mb-1">
                 Term (months)
+                <span className="ml-2 font-medium text-gray-400 normal-case tracking-normal">
+                  ({TERM_MIN}–{TERM_MAX})
+                </span>
               </label>
-              <div className="grid grid-cols-5 gap-1.5">
-                {TERM_OPTIONS.map((t) => (
+              <input
+                type="number"
+                min={TERM_MIN}
+                max={TERM_MAX}
+                step={1}
+                value={term}
+                onChange={(e) => {
+                  const raw = e.target.value;
+                  if (raw === "") {
+                    setTerm("");
+                    return;
+                  }
+                  const n = Math.floor(Number(raw));
+                  if (!Number.isFinite(n)) return;
+                  setTerm(n);
+                }}
+                onBlur={() => {
+                  if (term === "" || term == null) return;
+                  const clamped = Math.min(Math.max(Number(term), TERM_MIN), TERM_MAX);
+                  setTerm(clamped);
+                }}
+                placeholder="e.g. 15"
+                className={`w-full border rounded-md px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-[#66B538] outline-none ${
+                  term !== "" && (Number(term) < TERM_MIN || Number(term) > TERM_MAX)
+                    ? "border-red-300"
+                    : "border-gray-300"
+                }`}
+              />
+              <div className="grid grid-cols-5 gap-1.5 mt-2">
+                {TERM_QUICK_PICKS.map((t) => (
                   <button
                     key={t}
                     type="button"
                     onClick={() => setTerm(t)}
-                    className={`text-xs font-bold py-2 rounded-md border transition-colors ${
+                    className={`text-xs font-bold py-1.5 rounded-md border transition-colors ${
                       Number(term) === t
                         ? "bg-[#1D6021] text-white border-[#1D6021]"
                         : "bg-white text-gray-700 border-gray-200 hover:border-[#66B538] hover:text-[#1D6021]"
@@ -448,4 +473,163 @@ function Row({ label, value, emphasis = false, small = false }) {
 
 function Divider() {
   return <div className="border-t border-dashed border-gray-200 my-1" />;
+}
+
+function AmountCombobox({ value, onChange, options, invalid }) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const [highlight, setHighlight] = useState(0);
+  const wrapperRef = useRef(null);
+  const listRef = useRef(null);
+
+  // Keep the input display in sync when `value` changes from outside (e.g. reset).
+  useEffect(() => {
+    if (value === "" || value === null || value === undefined) {
+      setQuery("");
+    } else {
+      setQuery(Number(value).toLocaleString("en-PH"));
+    }
+  }, [value]);
+
+  // Close on outside click.
+  useEffect(() => {
+    const handler = (e) => {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  // Filter: strip non-digits from the query, then match option prefix.
+  // "35" -> matches 35000, 35000... "3" -> 30000, 35000, 300000, etc.
+  const digits = query.replace(/\D/g, "");
+  const filtered = useMemo(() => {
+    if (!digits) return options;
+    const match = options.filter((v) => String(v).startsWith(digits));
+    return match.length > 0 ? match : options;
+  }, [digits, options]);
+
+  // Keep highlight in range whenever the filtered list changes.
+  useEffect(() => {
+    setHighlight(0);
+  }, [digits]);
+
+  // Scroll highlighted item into view.
+  useEffect(() => {
+    if (!open || !listRef.current) return;
+    const node = listRef.current.children[highlight];
+    if (node) node.scrollIntoView({ block: "nearest" });
+  }, [highlight, open]);
+
+  const commit = (v) => {
+    onChange(String(v));
+    setQuery(Number(v).toLocaleString("en-PH"));
+    setOpen(false);
+  };
+
+  const handleKeyDown = (e) => {
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setOpen(true);
+      setHighlight((h) => Math.min(h + 1, filtered.length - 1));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setHighlight((h) => Math.max(h - 1, 0));
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      if (open && filtered[highlight] != null) {
+        commit(filtered[highlight]);
+      }
+    } else if (e.key === "Escape") {
+      setOpen(false);
+    }
+  };
+
+  const handleBlurCommit = () => {
+    // If user typed digits that exactly match an option, keep it. Otherwise
+    // revert display to the current committed value (or clear).
+    if (!digits) {
+      onChange("");
+      setQuery("");
+      return;
+    }
+    const numeric = Number(digits);
+    if (options.includes(numeric)) {
+      onChange(String(numeric));
+      setQuery(Number(numeric).toLocaleString("en-PH"));
+    } else if (value) {
+      setQuery(Number(value).toLocaleString("en-PH"));
+    } else {
+      setQuery("");
+    }
+  };
+
+  return (
+    <div className="relative" ref={wrapperRef}>
+      <div
+        className={`flex items-center w-full border rounded-md bg-white focus-within:ring-2 focus-within:ring-[#66B538] ${
+          invalid ? "border-red-300" : "border-gray-300"
+        }`}
+      >
+        <Search className="w-4 h-4 text-gray-400 ml-2 shrink-0" />
+        <input
+          type="text"
+          inputMode="numeric"
+          value={query}
+          placeholder="Type or select amount (e.g. 35 → 35,000)"
+          onFocus={() => setOpen(true)}
+          onChange={(e) => {
+            setQuery(e.target.value);
+            setOpen(true);
+          }}
+          onKeyDown={handleKeyDown}
+          onBlur={() => {
+            // Delay so option click can register before blur commit.
+            setTimeout(handleBlurCommit, 120);
+          }}
+          className="flex-1 px-2 py-2 text-sm bg-transparent outline-none"
+        />
+        <button
+          type="button"
+          onClick={() => setOpen((o) => !o)}
+          className="px-2 py-2 text-gray-400 hover:text-gray-600"
+          aria-label="Toggle amount list"
+        >
+          <ChevronDown className={`w-4 h-4 transition-transform ${open ? "rotate-180" : ""}`} />
+        </button>
+      </div>
+
+      {open && (
+        <ul
+          ref={listRef}
+          className="absolute z-10 mt-1 w-full max-h-56 overflow-y-auto rounded-md border border-gray-200 bg-white shadow-lg text-sm"
+        >
+          {filtered.length === 0 ? (
+            <li className="px-3 py-2 text-xs text-gray-500 italic">No matching amount</li>
+          ) : (
+            filtered.map((v, idx) => (
+              <li
+                key={v}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  commit(v);
+                }}
+                onMouseEnter={() => setHighlight(idx)}
+                className={`px-3 py-2 cursor-pointer flex items-center justify-between ${
+                  idx === highlight ? "bg-[#F3F9F1] text-[#1D6021]" : "text-gray-700"
+                } ${String(v) === String(value) ? "font-bold" : ""}`}
+              >
+                <span>{Number(v).toLocaleString("en-PH")}</span>
+                {String(v) === String(value) && (
+                  <span className="text-[10px] uppercase tracking-wider">Selected</span>
+                )}
+              </li>
+            ))
+          )}
+        </ul>
+      )}
+    </div>
+  );
 }

@@ -34,6 +34,8 @@ const BookkeeperLoanApproval = () => {
   const [fetchError, setFetchError] = useState(null);
   const [activeTab, setActiveTab] = useState("all");
   const [memberTypeFilter, setMemberTypeFilter] = useState("all");
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 5;
 
   const formatSubmissionDate = (value) => {
     if (!value) return "N/A";
@@ -234,6 +236,32 @@ const BookkeeperLoanApproval = () => {
     return true;
   });
 
+  const queueStats = (() => {
+    const now = Date.now();
+    const ageDays = loans
+      .map((l) => {
+        const t = new Date(l.application_date || l.submittedAt).getTime();
+        return Number.isFinite(t) ? (now - t) / (1000 * 60 * 60 * 24) : null;
+      })
+      .filter((d) => d !== null && d >= 0);
+    return {
+      pendingCount: loans.length,
+      avgDaysWaiting: ageDays.length ? ageDays.reduce((a, b) => a + b, 0) / ageDays.length : 0,
+      oldestDays: ageDays.length ? Math.max(...ageDays) : 0,
+    };
+  })();
+
+  const totalPages = Math.max(1, Math.ceil(filteredLoans.length / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const paginatedLoans = filteredLoans.slice(
+    (currentPage - 1) * PAGE_SIZE,
+    currentPage * PAGE_SIZE
+  );
+
+  useEffect(() => {
+    setPage(1);
+  }, [activeTab, memberTypeFilter, loans.length]);
+
   return (
     <div className="flex min-h-screen bg-gray-50">
       <aside className="fixed inset-y-0 left-0 bg-white w-64 p-4 flex flex-col border-r border-gray-200 z-30">
@@ -325,8 +353,8 @@ const BookkeeperLoanApproval = () => {
                 <UserPlus className="text-[#2C7A3F] w-6 h-6" />
               </div>
               <div className="flex flex-col">
-                <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">New This Month</h3>
-                <p className="text-2xl font-extrabold text-slate-800 mt-0.5">45</p>
+                <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Pending Review</h3>
+                <p className="text-2xl font-extrabold text-slate-800 mt-0.5">{queueStats.pendingCount}</p>
               </div>
             </div>
 
@@ -335,8 +363,10 @@ const BookkeeperLoanApproval = () => {
                 <ClipboardList className="text-[#D97706] w-6 h-6" />
               </div>
               <div className="flex flex-col">
-                <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Avg Process Time</h3>
-                <p className="text-2xl font-extrabold text-slate-800 mt-0.5">2.4 Days</p>
+                <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Avg Days Waiting</h3>
+                <p className="text-2xl font-extrabold text-slate-800 mt-0.5">
+                  {queueStats.avgDaysWaiting.toFixed(1)} {queueStats.avgDaysWaiting === 1 ? "Day" : "Days"}
+                </p>
               </div>
             </div>
 
@@ -345,8 +375,10 @@ const BookkeeperLoanApproval = () => {
                 <BadgeCheck className="text-[#2C7A3F] w-6 h-6" />
               </div>
               <div className="flex flex-col">
-                <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Approval Rate</h3>
-                <p className="text-2xl font-extrabold text-slate-800 mt-0.5">94.2%</p>
+                <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Oldest In Queue</h3>
+                <p className="text-2xl font-extrabold text-slate-800 mt-0.5">
+                  {queueStats.oldestDays.toFixed(0)} {queueStats.oldestDays === 1 ? "Day" : "Days"}
+                </p>
               </div>
             </div>
           </div>
@@ -408,46 +440,46 @@ const BookkeeperLoanApproval = () => {
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="bg-green-700 border-8px border-gray-200 text-[10px] uppercase tracking-wider text-white font-extrabold">
-                    <th className="p-5 font-bold">Loan ID</th>
-                    <th className="p-5 font-bold">Member Name</th>
-                    <th className="p-5 font-bold">Loan Type</th>
-                    <th className="p-5 font-bold">Amount</th>
-                    <th className="p-5 font-bold">Term</th>
-                    <th className="p-5 font-bold">MIGS Status</th>
-                    <th className="p-5 font-bold">Loan Status</th>
-                    <th className="p-5 font-bold">Submission</th>
-                    <th className="p-5 font-bold text-right pr-8">Actions</th>
+                    <th className="p-3 font-bold">Loan ID</th>
+                    <th className="p-3 font-bold">Member Name</th>
+                    <th className="p-3 font-bold">Loan Type</th>
+                    <th className="p-3 font-bold">Amount</th>
+                    <th className="p-3 font-bold">Term</th>
+                    <th className="p-3 font-bold">MIGS Status</th>
+                    <th className="p-3 font-bold">Loan Status</th>
+                    <th className="p-3 font-bold">Submission</th>
+                    <th className="p-3 font-bold text-right pr-8">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {loading ? (
                     <tr>
-                      <td colSpan="9" className="p-5 text-center text-gray-500">
+                      <td colSpan="9" className="p-3 text-center text-gray-500">
                         Loading applications...
                       </td>
                     </tr>
                   ) : fetchError ? (
                     <tr>
-                      <td colSpan="9" className="p-5 text-center text-red-600">
+                      <td colSpan="9" className="p-3 text-center text-red-600">
                         Failed to load loans: {fetchError}
                       </td>
                     </tr>
                   ) : filteredLoans.length === 0 ? (
                     <tr>
-                      <td colSpan="9" className="p-5 text-center text-gray-500">
+                      <td colSpan="9" className="p-3 text-center text-gray-500">
                         No loans found.
                       </td>
                     </tr>
                   ) : (
-                    filteredLoans.map((loan) => (
+                    paginatedLoans.map((loan) => (
                       <tr key={`${loan.source}-${loan.id}`} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
-                        <td className="p-5 text-sm text-gray-500 font-medium max-w-[10rem]">
+                        <td className="p-3 text-sm text-gray-500 font-medium max-w-[10rem]">
                           <p className="truncate" title={loan.id || "N/A"}>{loan.id}</p>
                         </td>
-                        <td className="p-5 text-sm font-bold text-gray-800 max-w-[14rem]">
+                        <td className="p-3 text-sm font-bold text-gray-800 max-w-[14rem]">
                           <p className="truncate" title={loan.name || "N/A"}>{loan.name}</p>
                         </td>
-                        <td className="p-5 text-sm">
+                        <td className="p-3 text-sm">
                           <span
                             className={`inline-block max-w-[12rem] truncate px-3 py-1.5 rounded-full text-xs font-bold ${getLoanTypeStyle(loan.type)}`}
                             title={loan.type || "N/A"}
@@ -455,16 +487,16 @@ const BookkeeperLoanApproval = () => {
                             {loan.type || "N/A"}
                           </span>
                         </td>
-                        <td className="p-5 text-sm font-bold text-gray-900">{loan.amount}</td>
-                        <td className="p-5 text-sm text-gray-500 max-w-[8rem]">
+                        <td className="p-3 text-sm font-bold text-gray-900">{loan.amount}</td>
+                        <td className="p-3 text-sm text-gray-500 max-w-[8rem]">
                           <p className="truncate" title={loan.term || "N/A"}>{loan.term || "N/A"}</p>
                         </td>
-                        <td className="p-5 text-sm">
+                        <td className="p-3 text-sm">
                           <span className={`px-3 py-1.5 rounded-full text-[11px] font-bold tracking-wider ${getMigsStyle(loan.status)}`}>
                             {loan.status}
                           </span>
                         </td>
-                        <td className="p-5 text-sm">
+                        <td className="p-3 text-sm">
                           <span
                             className={`inline-block max-w-[11rem] truncate px-3 py-1.5 rounded-full text-[11px] font-bold tracking-wider ${getLoanStatusBadge(loan.loanStatus)}`}
                             title={loan.loanStatus ? loan.loanStatus.replace(/_/g, " ") : "pending"}
@@ -472,8 +504,8 @@ const BookkeeperLoanApproval = () => {
                             {loan.loanStatus ? loan.loanStatus.replace(/_/g, " ") : "pending"}
                           </span>
                         </td>
-                        <td className="p-5 text-sm text-gray-500 whitespace-nowrap" title={loan.submittedAt || loan.date}>{loan.date}</td>
-                        <td className="p-5 text-sm text-right pr-8">
+                        <td className="p-3 text-sm text-gray-500 whitespace-nowrap" title={loan.submittedAt || loan.date}>{loan.date}</td>
+                        <td className="p-3 text-sm text-right pr-8">
                           <button
                             onClick={() => navigate(`/bookkeeper-loan-approval/${loan.id}?source=${loan.source}`)}
                             className="text-[#1D6021] font-bold hover:underline transition-all"
@@ -484,29 +516,61 @@ const BookkeeperLoanApproval = () => {
                       </tr>
                     ))
                   )}
+                  {!loading && !fetchError && paginatedLoans.length > 0 &&
+                    Array.from({ length: PAGE_SIZE - paginatedLoans.length }).map((_, i) => (
+                      <tr key={`filler-${i}`} className="border-b border-gray-100" aria-hidden="true">
+                        <td className="p-3 text-sm">&nbsp;</td>
+                        <td className="p-3 text-sm"></td>
+                        <td className="p-3 text-sm"></td>
+                        <td className="p-3 text-sm"></td>
+                        <td className="p-3 text-sm"></td>
+                        <td className="p-3 text-sm"></td>
+                        <td className="p-3 text-sm"></td>
+                        <td className="p-3 text-sm"></td>
+                        <td className="p-3 text-sm"></td>
+                      </tr>
+                    ))
+                  }
                 </tbody>
               </table>
             </div>
 
-            <div className="flex items-center justify-center p-6 gap-2 border-t border-gray-100">
-              <button className="w-8 h-8 flex items-center justify-center rounded-full border border-gray-300 bg-white text-gray-500 transition-colors hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+            <div className="flex items-center justify-center p-3 gap-2 border-t border-gray-100">
+              <button
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={currentPage <= 1}
+                className="w-8 h-8 flex items-center justify-center rounded-full border border-gray-300 bg-white text-gray-500 transition-colors hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
                 <ChevronLeft className="w-4 h-4" />
               </button>
 
-              {[1, 2, 3, 4, 5].map((page) => (
-                <button
-                  key={page}
-                  className={`w-8 h-8 flex items-center justify-center rounded-full border text-xs font-semibold transition-colors ${
-                    page === 1
-                      ? "bg-[#16A34A] text-white border-[#16A34A]"
-                      : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"
-                  }`}
-                >
-                  {page}
-                </button>
-              ))}
+              {(() => {
+                const windowSize = 5;
+                const groupStart = Math.floor((currentPage - 1) / windowSize) * windowSize + 1;
+                const groupEnd = Math.min(groupStart + windowSize - 1, totalPages);
+                return Array.from(
+                  { length: groupEnd - groupStart + 1 },
+                  (_, i) => groupStart + i
+                ).map((pageNumber) => (
+                  <button
+                    key={pageNumber}
+                    onClick={() => setPage(pageNumber)}
+                    className={`w-8 h-8 flex items-center justify-center rounded-full border text-xs font-semibold transition-colors ${
+                      pageNumber === currentPage
+                        ? "bg-[#16A34A] text-white border-[#16A34A]"
+                        : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"
+                    }`}
+                  >
+                    {pageNumber}
+                  </button>
+                ));
+              })()}
 
-              <button className="w-8 h-8 flex items-center justify-center rounded-full border border-gray-300 bg-white text-gray-500 transition-colors hover:bg-gray-50">
+              <button
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={currentPage >= totalPages}
+                className="w-8 h-8 flex items-center justify-center rounded-full border border-gray-300 bg-white text-gray-500 transition-colors hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
                 <ChevronRight className="w-4 h-4" />
               </button>
             </div>

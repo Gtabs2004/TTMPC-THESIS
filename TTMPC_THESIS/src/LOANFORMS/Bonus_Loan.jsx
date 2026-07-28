@@ -385,11 +385,11 @@ function Bonus_Loan() {
               <div className="flex flex-wrap gap-4">
                 <div>
                   <label className="block text-[10px] uppercase font-bold text-gray-500">Control No.</label>
-                  <input type="text" name="control_no" value={formData.control_no} readOnly className="border border-gray-300 rounded px-3 py-1.5 w-48 bg-gray-100 cursor-not-allowed" />
+                  <input type="text" name="control_no" value={formData.control_no} readOnly className="border border-gray-300 rounded px-3 py-1.5 w-full sm:w-48 bg-gray-100 cursor-not-allowed" />
                 </div>
                 <div>
                   <label className="block text-[10px] uppercase font-bold text-gray-500">Date Applied</label>
-                  <input type="date" name="date_applied" value={formData.date_applied} onChange={handleChange} className="border border-gray-300 rounded px-3 py-1.5 w-48" />
+                  <input type="date" name="date_applied" value={formData.date_applied} onChange={handleChange} className="border border-gray-300 rounded px-3 py-1.5 w-full sm:w-48" />
                 </div>
               </div>
             </div>
@@ -398,7 +398,7 @@ function Bonus_Loan() {
 
         <div className="mt-10 bg-white rounded-lg shadow-md overflow-hidden max-w-6xl mx-auto w-full">
           <div className={sectionHeader}><span className="bg-white text-[#66B538] rounded-full w-6 h-6 flex items-center justify-center text-sm">1</span> BORROWER'S INFORMATION</div>
-          <div className="p-8 grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="p-4 sm:p-6 lg:p-8 grid grid-cols-1 md:grid-cols-3 gap-6">
             <div><label className={labelStyles}>Surname *</label><input name="surname" value={formData.surname} onChange={handleChange} className={inputStyles} required /></div>
             <div><label className={labelStyles}>First Name *</label><input name="first_name" value={formData.first_name} onChange={handleChange} className={inputStyles} required /></div>
             <div><label className={labelStyles}>Middle Name</label><input name="middle_name" value={formData.middle_name} onChange={handleChange} className={inputStyles} /></div>
@@ -432,7 +432,7 @@ function Bonus_Loan() {
             <span className="bg-white text-[#66B538] rounded-full w-6 h-6 flex items-center justify-center text-sm">2</span>
             LOAN AGREEMENT
           </div>
-          <div className="p-8 text-sm text-gray-800">
+          <div className="p-4 sm:p-6 lg:p-8 text-sm text-gray-800">
             
             <div className="leading-[3.5rem]">
               I hereby apply for a loan in the amount of
@@ -441,7 +441,7 @@ function Bonus_Loan() {
                 name="loan_amount_words" 
                 value={formData.loan_amount_words} 
                 onChange={handleChange} 
-                className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-[#66B538] outline-none bg-white text-sm transition-all mx-2 w-[22rem] inline-block align-middle" 
+                className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-[#66B538] outline-none bg-white text-sm transition-all mx-2 w-full sm:w-[22rem] inline-block align-middle" 
               />
               <div className="inline-flex items-center relative mr-2 align-middle">
                 <span className="absolute left-3 text-gray-400 text-xs font-medium">Php</span>
@@ -450,7 +450,7 @@ function Bonus_Loan() {
                   name="loan_amount_numeric" 
                   value={formData.loan_amount_numeric} 
                   onChange={handleChange}
-                  className="border border-gray-300 rounded-md pl-10 pr-3 py-1.5 focus:ring-2 focus:ring-[#66B538] outline-none bg-white text-sm transition-all w-40" 
+                  className="border border-gray-300 rounded-md pl-10 pr-3 py-1.5 focus:ring-2 focus:ring-[#66B538] outline-none bg-white text-sm transition-all w-full sm:w-40" 
                 />
               </div>
               for the purpose of
@@ -458,7 +458,7 @@ function Bonus_Loan() {
                 name="loan_purpose" 
                 value={formData.loan_purpose} 
                 onChange={handleChange} 
-                className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-[#66B538] outline-none bg-white text-sm transition-all mx-2 w-64 inline-block align-middle" 
+                className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-[#66B538] outline-none bg-white text-sm transition-all mx-2 w-full sm:w-64 inline-block align-middle" 
               >
                 <option value="">Select Purpose</option>
                 <option value="Emergency Needs">Emergency Needs</option>
@@ -477,7 +477,7 @@ function Bonus_Loan() {
                   value={formData.loan_purpose_other} 
                   onChange={handleChange} 
                   placeholder="Please specify..."
-                  className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-[#66B538] outline-none bg-white text-sm transition-all mx-2 w-56 inline-block align-middle" 
+                  className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-[#66B538] outline-none bg-white text-sm transition-all mx-2 w-full sm:w-56 inline-block align-middle" 
                 />
               )}
               
@@ -488,7 +488,7 @@ function Bonus_Loan() {
                 name="loan_term_months" 
                 value={formData.loan_term_months} 
                 onChange={handleChange} 
-                className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-[#66B538] outline-none bg-white text-sm transition-all mx-2 w-72 inline-block align-middle text-gray-600 truncate"
+                className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-[#66B538] outline-none bg-white text-sm transition-all mx-2 w-full sm:w-72 inline-block align-middle text-gray-600 truncate"
               >
                 <option value="">Select Bonus Cycle</option>
                 <option value="5">May Midyear Bonus (5 months)</option>
@@ -500,7 +500,7 @@ function Bonus_Loan() {
                 name="monthly_amortization" 
                 value={formData.monthly_amortization} 
                 readOnly 
-                className="border border-gray-300 rounded-md px-3 py-1.5 outline-none bg-gray-50 text-sm transition-all mx-2 w-48 inline-block align-middle cursor-not-allowed" 
+                className="border border-gray-300 rounded-md px-3 py-1.5 outline-none bg-gray-50 text-sm transition-all mx-2 w-full sm:w-48 inline-block align-middle cursor-not-allowed" 
               />
               , which I promise to pay the amount to <strong>Tubungan Teachers' Multi Purpose Cooperative</strong>
               
@@ -519,7 +519,7 @@ function Bonus_Loan() {
             <span className="bg-white text-[#66B538] rounded-full w-6 h-6 flex items-center justify-center text-sm">3</span>
             APPLICANTS AUTHORIZATION FOR SALARY DEDUCTION
           </div>
-          <div className="p-8 text-sm text-gray-800">
+          <div className="p-4 sm:p-6 lg:p-8 text-sm text-gray-800">
             
             <p className="font-bold text-gray-900 mb-6">
               To the TTMPC Treasurer or his representative:
@@ -533,7 +533,7 @@ function Bonus_Loan() {
                 name="bonus_amount_words" 
                 value={formData.bonus_amount_words} 
                 onChange={handleChange} 
-                className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-[#66B538] outline-none bg-white text-sm transition-all mx-2 w-80 inline-block align-middle" 
+                className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-[#66B538] outline-none bg-white text-sm transition-all mx-2 w-full sm:w-80 inline-block align-middle" 
               />
               
               <div className="inline-flex items-center relative mr-2 align-middle">
@@ -543,7 +543,7 @@ function Bonus_Loan() {
                   name="bonus_amount_numeric" 
                   value={formData.bonus_amount_numeric} 
                   onChange={handleChange} 
-                  className="border border-gray-300 rounded-md pl-10 pr-3 py-1.5 focus:ring-2 focus:ring-[#66B538] outline-none bg-white text-sm transition-all w-48" 
+                  className="border border-gray-300 rounded-md pl-10 pr-3 py-1.5 focus:ring-2 focus:ring-[#66B538] outline-none bg-white text-sm transition-all w-full sm:w-48" 
                 />
               </div>
             </div>
@@ -560,7 +560,7 @@ function Bonus_Loan() {
             <span className="bg-white text-[#66B538] rounded-full w-6 h-6 flex items-center justify-center text-sm">4</span>
             DEED OF ASSIGNMENT
           </div>
-          <div className="p-8 text-sm text-gray-800">
+          <div className="p-4 sm:p-6 lg:p-8 text-sm text-gray-800">
             
             <p className="font-bold mb-6 text-gray-900 uppercase tracking-wide">
               KNOW ALL MEN OF THESE PRESENTS:
@@ -573,7 +573,7 @@ function Bonus_Loan() {
                 name="borrower_name" 
                 value={`${formData.first_name || ''} ${formData.middle_name || ''} ${formData.surname || ''}`.trim()} 
                 readOnly 
-                className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-[#66B538] outline-none bg-gray-50 text-sm transition-all mx-2 w-[22rem] inline-block align-middle" 
+                className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-[#66B538] outline-none bg-gray-50 text-sm transition-all mx-2 w-full sm:w-[22rem] inline-block align-middle" 
               />
               of legal age, and an employee of
               <input 
@@ -581,7 +581,7 @@ function Bonus_Loan() {
                 name="employer_name" 
                 value={formData.employer_name} 
                 onChange={handleChange} 
-                className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-[#66B538] outline-none bg-white text-sm transition-all mx-2 w-96 inline-block align-middle" 
+                className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-[#66B538] outline-none bg-white text-sm transition-all mx-2 w-full sm:w-96 inline-block align-middle" 
               />
               Tubungan, Iloilo.
               
@@ -596,7 +596,7 @@ function Bonus_Loan() {
                   name="loan_amount_words" 
                   value={formData.loan_amount_words} 
                   onChange={handleChange} 
-                  className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-[#66B538] outline-none bg-white text-sm transition-all mx-2 w-64 inline-block align-middle" 
+                  className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-[#66B538] outline-none bg-white text-sm transition-all mx-2 w-full sm:w-64 inline-block align-middle" 
                 />
                 
                 <div className="inline-flex items-center relative mr-2 align-middle">
@@ -606,7 +606,7 @@ function Bonus_Loan() {
                     name="loan_amount_numeric" 
                     value={formData.loan_amount_numeric} 
                     onChange={handleChange} 
-                    className="border border-gray-300 rounded-md pl-10 pr-3 py-1.5 focus:ring-2 focus:ring-[#66B538] outline-none bg-white text-sm transition-all w-40" 
+                    className="border border-gray-300 rounded-md pl-10 pr-3 py-1.5 focus:ring-2 focus:ring-[#66B538] outline-none bg-white text-sm transition-all w-full sm:w-40" 
                   />
                 </div>
                 
@@ -615,7 +615,7 @@ function Bonus_Loan() {
             </div>
 
           </div>
-          <div className="p-8 pt-0 flex flex-wrap gap-3 justify-end">
+          <div className="p-4 sm:p-6 lg:p-8 pt-0 flex flex-wrap gap-3 justify-end">
             <button type="button" onClick={handlePrintPdf} disabled={printing || loading} className="bg-white border border-[#66B538] text-[#66B538] px-5 py-2 rounded hover:bg-[#EEF6F1] transition-colors text-sm font-semibold disabled:opacity-50">
               {printing ? 'Printing...' : 'Print PDF'}
             </button>
