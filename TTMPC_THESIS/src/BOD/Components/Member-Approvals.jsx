@@ -46,10 +46,12 @@ const Member_Approvals = () => {
   const [tabCounts, setTabCounts] = useState({
     Pending: 0,
     Training: 0,
+    Reschedule: 0,
     Approved: 0,
     "For Revision": 0,
     "Official Member": 0,
   });
+  const [rescheduledAppIds, setRescheduledAppIds] = useState([]);
   const [stats, setStats] = useState({
     newThisMonth: null,
     avgPendingDays: null,
@@ -69,7 +71,10 @@ const Member_Approvals = () => {
     if (tab === "Pending") {
       return buildStatusClause(["pending", "Pending", "PENDING"]);
     }
-    if (tab === "Training") {
+    if (tab === "Training" || tab === "Reschedule") {
+      // Both tabs share the same application_status values. The split is done
+      // client-side by cross-referencing attendance_logs for members who have
+      // a "Rescheduled Training" log.
       return buildStatusClause([
         "Training", // Matches your INSERT
         "training",
@@ -96,21 +101,81 @@ const Member_Approvals = () => {
     return "";
   };
 
+  const fetchRescheduledAppIds = async () => {
+    // A member belongs to the Reschedule tab as soon as they are marked Absent
+    // at the Training stage (whether or not a new date has been picked yet).
+    // We union that with any explicit "Rescheduled Training" logs so both
+    // states move the row out of Training and into Reschedule consistently.
+    const [rescheduledRes, absentRes] = await Promise.all([
+      supabase
+        .from("attendance_logs")
+        .select("application_id")
+        .eq("training_stage", "Rescheduled Training"),
+      supabase
+        .from("attendance_logs")
+        .select("application_id")
+        .eq("training_stage", "Training")
+        .eq("attendance_status", "Absent"),
+    ]);
+    if (rescheduledRes.error) {
+      console.warn("Unable to load rescheduled logs:", rescheduledRes.error.message || rescheduledRes.error);
+    }
+    if (absentRes.error) {
+      console.warn("Unable to load absent training logs:", absentRes.error.message || absentRes.error);
+    }
+    const ids = [
+      ...(rescheduledRes.data || []),
+      ...(absentRes.data || []),
+    ].map((r) => r.application_id).filter(Boolean);
+    return [...new Set(ids)];
+  };
+
   const fetchData = async (pageNumber = 1, roleOverride = portalRole) => {
     const requestId = ++fetchRequestIdRef.current;
     const from = (pageNumber - 1) * LIMIT;
     const to = from + LIMIT - 1;
 
+    const effectiveTab = roleOverride === "secretary" ? "Pending" : activeTab;
+    const isTrainingSplitTab = effectiveTab === "Training" || effectiveTab === "Reschedule";
+
+    // For Training / Reschedule we need the rescheduled ID set to split rows
+    // between the two tabs. Pull it fresh so newly-rescheduled members move
+    // out of Training immediately.
+    let currentRescheduledIds = rescheduledAppIds;
+    if (isTrainingSplitTab) {
+      currentRescheduledIds = await fetchRescheduledAppIds();
+      if (requestId !== fetchRequestIdRef.current) return;
+      setRescheduledAppIds(currentRescheduledIds);
+    }
+
     let query = supabase
       .from("member_applications")
       .select("*", { count: "exact" })
-      .order("created_at", { ascending: false })
-      .range(from, to);
+      .order("created_at", { ascending: false });
 
     const statusClause = getStatusOrClause(activeTab, roleOverride);
     if (statusClause) {
       query = query.or(statusClause);
     }
+
+    if (isTrainingSplitTab && currentRescheduledIds.length > 0) {
+      if (effectiveTab === "Reschedule") {
+        query = query.in("application_id", currentRescheduledIds);
+      } else {
+        // Training: exclude anyone who has been rescheduled.
+        const notInList = `(${currentRescheduledIds.map((id) => `"${id}"`).join(",")})`;
+        query = query.not("application_id", "in", notInList);
+      }
+    } else if (isTrainingSplitTab && effectiveTab === "Reschedule") {
+      // No rescheduled logs at all → empty page.
+      if (requestId !== fetchRequestIdRef.current) return;
+      setApplications([]);
+      setTotalCount(0);
+      setTotalPages(1);
+      return;
+    }
+
+    query = query.range(from, to);
 
     const { data, count, error } = await query;
 
@@ -130,6 +195,10 @@ const Member_Approvals = () => {
     const requestId = fetchRequestIdRef.current;
     const tabsForCounts = ["Pending", "Training", "Approved", "For Revision", "Official Member"];
 
+    const rescheduledIds = await fetchRescheduledAppIds();
+    if (requestId !== fetchRequestIdRef.current) return;
+    setRescheduledAppIds(rescheduledIds);
+
     const countResults = await Promise.all(
       tabsForCounts.map(async (tab) => {
         let countQuery = supabase
@@ -139,6 +208,13 @@ const Member_Approvals = () => {
         const statusClause = getStatusOrClause(tab, roleOverride);
         if (statusClause) {
           countQuery = countQuery.or(statusClause);
+        }
+
+        // Training count must exclude rescheduled members so it matches the
+        // filtered fetch above.
+        if (tab === "Training" && rescheduledIds.length > 0) {
+          const notInList = `(${rescheduledIds.map((id) => `"${id}"`).join(",")})`;
+          countQuery = countQuery.not("application_id", "in", notInList);
         }
 
         const { count, error } = await countQuery;
@@ -151,6 +227,23 @@ const Member_Approvals = () => {
       acc[result.tab] = result.count;
       return acc;
     }, {});
+
+    // Reschedule count = training-status applications that also have a
+    // rescheduled log. Compute via a targeted count query.
+    if (rescheduledIds.length > 0) {
+      const trainingClause = getStatusOrClause("Training", roleOverride);
+      let rescheduleCountQuery = supabase
+        .from("member_applications")
+        .select("application_id", { count: "exact", head: true })
+        .in("application_id", rescheduledIds);
+      if (trainingClause) rescheduleCountQuery = rescheduleCountQuery.or(trainingClause);
+      const { count: rescheduleCount } = await rescheduleCountQuery;
+      if (requestId === fetchRequestIdRef.current) {
+        nextCounts.Reschedule = rescheduleCount || 0;
+      }
+    } else {
+      nextCounts.Reschedule = 0;
+    }
 
     setTabCounts((prev) => ({ ...prev, ...nextCounts }));
   };
@@ -330,12 +423,12 @@ const Member_Approvals = () => {
   }, [applications]);
 
   const rowsForActiveTab = formattedRows;
-  const isTrainingTab = activeTab === "Training";
+  const isTrainingTab = activeTab === "Training" || activeTab === "Reschedule";
   const isSecretary = portalRole === "secretary";
   const canUseBodActions = !isSecretary;
   const visibleTabs = isSecretary
     ? ["Pending"]
-    : ["Pending", "Training", "Approved", "For Revision"];
+    : ["Pending", "Training", "Reschedule", "Approved", "For Revision"];
 
   const visiblePageNumbers = useMemo(() => {
     const safeTotal = Math.max(1, totalPages);
