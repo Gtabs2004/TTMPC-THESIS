@@ -3,6 +3,8 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '../../supabaseClient';
 import { formatTinNumber } from '../../LOANFORMS/tinFormat';
 import { useMigsLabel, getMigsBadgeClasses } from '../../hooks/useMigsLabel';
+import ConfirmDialog from '../../components/ConfirmDialog';
+import { useNotification } from '../../contex/NotificationContext';
 import {
   ArrowLeft,
   User,
@@ -95,6 +97,7 @@ const LoanApprovalDetails = () => {
     : isBodFlow
     ? '/bod-loan-approvals'
     : '/loan-approval';
+  const { addNotification } = useNotification();
 
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
@@ -173,7 +176,7 @@ const LoanApprovalDetails = () => {
       .eq('collateral_id', row.collateral_id);
     setCollateralSavingId(null);
     if (error) {
-      alert('Failed to save appraisal: ' + error.message);
+      addNotification('Failed to save appraisal: ' + error.message, 'error');
     }
   };
 
@@ -998,6 +1001,11 @@ const LoanApprovalDetails = () => {
         );
       }
 
+      addNotification(
+        decision === 'approve' ? 'Loan approved by the BOD successfully.' : 'Loan rejected by the BOD.',
+        decision === 'approve' ? 'success' : 'warning'
+      );
+
       setActiveModal(null);
       setBodResolutionNo('');
       setBodResolutionDate('');
@@ -1005,7 +1013,9 @@ const LoanApprovalDetails = () => {
       setBodRemarks('');
       navigate('/bod-loan-approvals');
     } catch (err) {
-      setActionError(err?.message || 'Failed to submit BOD decision.');
+      const message = err?.message || 'Failed to submit BOD decision.';
+      setActionError(message);
+      addNotification(message, 'error');
     } finally {
       setSaving(false);
     }
@@ -1147,6 +1157,15 @@ const LoanApprovalDetails = () => {
           managerReviewRequestedAt: updatedRow.manager_review_requested_at || prev.summary.managerReviewRequestedAt,
         },
       } : prev);
+
+      const successMessages = {
+        reject: 'Loan application rejected.',
+        revise: 'Loan sent back for revision.',
+        proceed: 'Loan application approved successfully.',
+        recommend: isBookkeeperFlow ? 'Loan recommended and forwarded for approval.' : 'Loan forwarded successfully.',
+      };
+      addNotification(successMessages[modalType] || 'Loan status updated successfully.', modalType === 'reject' ? 'warning' : 'success');
+
       closeModal();
       navigate(backRoute);
 
@@ -1178,9 +1197,42 @@ const LoanApprovalDetails = () => {
         dispatchInAppNotification({ recipientRole: 'bookkeeper', notificationType: 'revise' });
       }
     } catch (err) {
-      setActionError(err.message || 'Unable to update loan application status.');
+      const message = err.message || 'Unable to update loan application status.';
+      setActionError(message);
+      addNotification(message, 'error');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const getModalMeta = () => {
+    switch (activeModal) {
+      case 'reject':
+        return { title: 'Reject Loan Application', confirmLabel: 'Confirm Rejection', loadingLabel: 'Saving...', tone: 'destructive', onConfirm: () => applyLoanStatusUpdate('reject') };
+      case 'revise':
+        return { title: 'Return for Revision', confirmLabel: 'Send for Revision', loadingLabel: 'Saving...', tone: 'warning', onConfirm: () => applyLoanStatusUpdate('revise') };
+      case 'proceed':
+        return { title: 'Approve Loan Application', confirmLabel: 'Confirm Approval', loadingLabel: 'Saving...', tone: 'default', onConfirm: () => applyLoanStatusUpdate('proceed') };
+      case 'bod_approve':
+        return { title: 'BOD Approve Loan', confirmLabel: 'Confirm BOD Approval', loadingLabel: 'Submitting…', tone: 'default', onConfirm: () => applyBodDecision('approve') };
+      case 'bod_reject':
+        return { title: 'BOD Reject Loan', confirmLabel: 'Confirm Rejection', loadingLabel: 'Submitting…', tone: 'destructive', onConfirm: () => applyBodDecision('reject') };
+      case 'recommend': {
+        const isConsolidatedHigh =
+          String(loanDetails?.summary?.loanType || '').toLowerCase().includes('consolidated')
+          && Number(loanDetails?.summary?.recommendedAmountRaw || 0) > 500000;
+        const nextStage = isConsolidatedHigh ? 'BOD' : 'Manager';
+        const isRevision = String(loanDetails?.status || '').toLowerCase().includes('revision');
+        return {
+          title: isRevision ? `Resubmit to ${nextStage}` : `Recommend for ${nextStage} Approval`,
+          confirmLabel: `Send to ${nextStage}`,
+          loadingLabel: 'Saving...',
+          tone: 'default',
+          onConfirm: () => applyLoanStatusUpdate('recommend'),
+        };
+      }
+      default:
+        return {};
     }
   };
 
@@ -2003,287 +2055,196 @@ const LoanApprovalDetails = () => {
       </div>
 
       {/* --- Modals Overlay --- */}
-      {activeModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg p-6 relative animate-in fade-in zoom-in-95 duration-200">
-            
-            {/* Close Button */}
-            <button 
-              onClick={closeModal} 
-              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors"
-            >
-              <X className="w-5 h-5" />
-            </button>
+      <ConfirmDialog
+        open={!!activeModal}
+        title={getModalMeta().title}
+        confirmLabel={getModalMeta().confirmLabel}
+        loadingLabel={getModalMeta().loadingLabel}
+        tone={getModalMeta().tone}
+        loading={saving}
+        errorMessage={actionError}
+        onCancel={closeModal}
+        onConfirm={getModalMeta().onConfirm}
+      >
+        {/* Reject Modal */}
+        {activeModal === 'reject' && (
+          <>
+            <p className="text-sm text-gray-600 mb-6">
+              Are you sure you want to reject the loan application of <span className="font-bold text-gray-900">{loanDetails.memberName}</span>? This action is permanent and cannot be undone.
+            </p>
 
-            {/* Reject Modal */}
-            {activeModal === 'reject' && (
-              <>
-                <h3 className="text-xl font-bold text-gray-900 mb-4">Reject Loan Application</h3>
-                <p className="text-sm text-gray-600 mb-6">
-                  Are you sure you want to reject the loan application of <span className="font-bold text-gray-900">{loanDetails.memberName}</span>? This action is permanent and cannot be undone.
-                </p>
-                
-                <div className="mb-6">
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Reason for Rejection <span className="text-red-500">*</span>
-                  </label>
-                  <textarea 
-                    rows="4"
-                    className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-[#1D6021] focus:border-[#1D6021] outline-none"
-                    placeholder="Provide a detailed reason for board's decision..."
-                    value={remarks}
-                    onChange={(e) => setRemarks(e.target.value)}
-                  ></textarea>
-                </div>
-              </>
-            )}
+            <div className="mb-2">
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                Reason for Rejection <span className="text-red-500">*</span>
+              </label>
+              <textarea
+                rows="4"
+                className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-[#1D6021] focus:border-[#1D6021] outline-none"
+                placeholder="Provide a detailed reason for board's decision..."
+                value={remarks}
+                onChange={(e) => setRemarks(e.target.value)}
+              ></textarea>
+            </div>
+          </>
+        )}
 
-            {/* Revise Modal */}
-            {activeModal === 'revise' && (
-              <>
-                <h3 className="text-xl font-bold text-gray-900 mb-4">Return for Revision</h3>
-                <p className="text-sm text-gray-600 mb-6">
-                  Please specify the corrections or additional information required from <span className="font-bold text-gray-900">{loanDetails.memberName}</span>.
-                </p>
-                
-                <div className="mb-6">
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Revision instructions <span className="text-red-500">*</span>
-                  </label>
-                  <textarea 
-                    rows="4"
-                    className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-[#1D6021] focus:border-[#1D6021] outline-none"
-                    placeholder="Enter the detailed reason for revision or specific instructions for the user..."
-                    value={remarks}
-                    onChange={(e) => setRemarks(e.target.value)}
-                  ></textarea>
-                </div>
-              </>
-            )}
+        {/* Revise Modal */}
+        {activeModal === 'revise' && (
+          <>
+            <p className="text-sm text-gray-600 mb-6">
+              Please specify the corrections or additional information required from <span className="font-bold text-gray-900">{loanDetails.memberName}</span>.
+            </p>
 
-            {/* Proceed Modal */}
-            {activeModal === 'proceed' && (
-              <>
-                <h3 className="text-xl font-bold text-gray-900 mb-4">Approve Loan Application</h3>
-                <p className="text-sm text-gray-600 mb-8">
-                  You are about to approve the loan application for <span className="font-bold text-gray-900">{loanDetails.memberName}</span>. Proceed?
-                </p>
-              </>
-            )}
+            <div className="mb-2">
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                Revision instructions <span className="text-red-500">*</span>
+              </label>
+              <textarea
+                rows="4"
+                className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-[#1D6021] focus:border-[#1D6021] outline-none"
+                placeholder="Enter the detailed reason for revision or specific instructions for the user..."
+                value={remarks}
+                onChange={(e) => setRemarks(e.target.value)}
+              ></textarea>
+            </div>
+          </>
+        )}
 
-            {/* BOD Approve Modal */}
-            {activeModal === 'bod_approve' && (
-              <>
-                <h3 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
-                  <ShieldCheck className="w-5 h-5 text-[#1D6021]" /> BOD Approve Loan
-                </h3>
-                <p className="text-sm text-gray-600 mb-4">
-                  Record the physical board resolution that authorized approval for <span className="font-bold text-gray-900">{loanDetails.memberName}</span>.
-                </p>
+        {/* Proceed Modal */}
+        {activeModal === 'proceed' && (
+          <p className="text-sm text-gray-600">
+            You are about to approve the loan application for <span className="font-bold text-gray-900">{loanDetails.memberName}</span>. Proceed?
+          </p>
+        )}
+
+        {/* BOD Approve Modal */}
+        {activeModal === 'bod_approve' && (
+          <>
+            <p className="text-sm text-gray-600 mb-4">
+              Record the physical board resolution that authorized approval for <span className="font-bold text-gray-900">{loanDetails.memberName}</span>.
+            </p>
+            <div className="rounded-md bg-blue-50 border border-blue-200 px-3 py-2 text-xs text-blue-800 mb-4">
+              Resolution number, date, and the signed BOD form are all required for the audit trail.
+            </div>
+            <div className="mb-3">
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Board Resolution No. <span className="text-red-500">*</span></label>
+              <input
+                type="text"
+                className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-[#1D6021] focus:border-[#1D6021] outline-none"
+                placeholder="e.g. BR-2026-014"
+                value={bodResolutionNo}
+                onChange={(e) => setBodResolutionNo(e.target.value)}
+              />
+            </div>
+            <div className="mb-3">
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Resolution Date <span className="text-red-500">*</span></label>
+              <input
+                type="date"
+                className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-[#1D6021] focus:border-[#1D6021] outline-none"
+                value={bodResolutionDate}
+                onChange={(e) => setBodResolutionDate(e.target.value)}
+              />
+            </div>
+            <div className="mb-3">
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Signed BOD Form <span className="text-red-500">*</span></label>
+              <label className="cursor-pointer border border-dashed border-gray-300 rounded-lg p-3 text-sm text-gray-600 hover:bg-gray-50 flex items-center gap-2">
+                <Paperclip className="w-4 h-4" />
+                <span>{bodSignedForm ? bodSignedForm.name : 'Choose file (PDF or image)'}</span>
+                <input
+                  type="file"
+                  accept="image/*,application/pdf"
+                  className="hidden"
+                  onChange={(e) => setBodSignedForm(e.target.files?.[0] || null)}
+                />
+              </label>
+            </div>
+            <div className="mb-2">
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Remarks</label>
+              <textarea
+                rows="3"
+                className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-[#1D6021] focus:border-[#1D6021] outline-none"
+                placeholder="Optional notes for the Manager…"
+                value={bodRemarks}
+                onChange={(e) => setBodRemarks(e.target.value)}
+              ></textarea>
+            </div>
+          </>
+        )}
+
+        {/* BOD Reject Modal */}
+        {activeModal === 'bod_reject' && (
+          <>
+            <p className="text-sm text-gray-600 mb-6">
+              Rejecting returns this loan to the Bookkeeper for revision or cancellation.
+            </p>
+            <div className="mb-2">
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Reason for Rejection <span className="text-red-500">*</span></label>
+              <textarea
+                rows="4"
+                className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none"
+                placeholder="State the reason…"
+                value={bodRemarks}
+                onChange={(e) => setBodRemarks(e.target.value)}
+              ></textarea>
+            </div>
+          </>
+        )}
+
+        {/* Recommend Modal */}
+        {activeModal === 'recommend' && (() => {
+          const isConsolidatedHigh =
+            String(loanDetails?.summary?.loanType || '').toLowerCase().includes('consolidated')
+            && Number(loanDetails?.summary?.recommendedAmountRaw || 0) > 500000;
+          const nextStage = isConsolidatedHigh ? 'BOD' : 'Manager';
+          return (
+            <>
+              <p className="text-sm text-gray-600 mb-4">
+                You are about to forward this loan of <span className="font-bold text-gray-900">{loanDetails.memberName}</span> to the {nextStage} queue.
+              </p>
+              {isConsolidatedHigh ? (
                 <div className="rounded-md bg-blue-50 border border-blue-200 px-3 py-2 text-xs text-blue-800 mb-4">
-                  Resolution number, date, and the signed BOD form are all required for the audit trail.
+                  This Consolidated loan is over ₱500,000 and requires <b>BOD approval first</b>. It will go to the Manager only after the BOD signs off.
                 </div>
-                <div className="mb-3">
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Board Resolution No. <span className="text-red-500">*</span></label>
-                  <input
-                    type="text"
-                    className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-[#1D6021] focus:border-[#1D6021] outline-none"
-                    placeholder="e.g. BR-2026-014"
-                    value={bodResolutionNo}
-                    onChange={(e) => setBodResolutionNo(e.target.value)}
-                  />
-                </div>
-                <div className="mb-3">
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Resolution Date <span className="text-red-500">*</span></label>
-                  <input
-                    type="date"
-                    className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-[#1D6021] focus:border-[#1D6021] outline-none"
-                    value={bodResolutionDate}
-                    onChange={(e) => setBodResolutionDate(e.target.value)}
-                  />
-                </div>
-                <div className="mb-3">
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Signed BOD Form <span className="text-red-500">*</span></label>
-                  <label className="cursor-pointer border border-dashed border-gray-300 rounded-lg p-3 text-sm text-gray-600 hover:bg-gray-50 flex items-center gap-2">
-                    <Paperclip className="w-4 h-4" />
-                    <span>{bodSignedForm ? bodSignedForm.name : 'Choose file (PDF or image)'}</span>
-                    <input
-                      type="file"
-                      accept="image/*,application/pdf"
-                      className="hidden"
-                      onChange={(e) => setBodSignedForm(e.target.files?.[0] || null)}
-                    />
-                  </label>
-                </div>
-                <div className="mb-6">
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Remarks</label>
-                  <textarea
-                    rows="3"
-                    className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-[#1D6021] focus:border-[#1D6021] outline-none"
-                    placeholder="Optional notes for the Manager…"
-                    value={bodRemarks}
-                    onChange={(e) => setBodRemarks(e.target.value)}
-                  ></textarea>
-                </div>
-              </>
-            )}
+              ) : null}
 
-            {/* BOD Reject Modal */}
-            {activeModal === 'bod_reject' && (
-              <>
-                <h3 className="text-xl font-bold text-gray-900 mb-4">BOD Reject Loan</h3>
-                <p className="text-sm text-gray-600 mb-6">
-                  Rejecting returns this loan to the Bookkeeper for revision or cancellation.
-                </p>
-                <div className="mb-6">
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Reason for Rejection <span className="text-red-500">*</span></label>
-                  <textarea
-                    rows="4"
-                    className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none"
-                    placeholder="State the reason…"
-                    value={bodRemarks}
-                    onChange={(e) => setBodRemarks(e.target.value)}
-                  ></textarea>
-                </div>
-              </>
-            )}
-
-            {/* Recommend Modal */}
-            {activeModal === 'recommend' && (() => {
-              const isConsolidatedHigh =
-                String(loanDetails?.summary?.loanType || '').toLowerCase().includes('consolidated')
-                && Number(loanDetails?.summary?.recommendedAmountRaw || 0) > 500000;
-              const nextStage = isConsolidatedHigh ? 'BOD' : 'Manager';
-              const isRevision = String(loanDetails?.status || '').toLowerCase().includes('revision');
-              return (
-                <>
-                  <h3 className="text-xl font-bold text-gray-900 mb-4">
-                    {isRevision ? `Resubmit to ${nextStage}` : `Recommend for ${nextStage} Approval`}
-                  </h3>
-                  <p className="text-sm text-gray-600 mb-4">
-                    You are about to forward this loan of <span className="font-bold text-gray-900">{loanDetails.memberName}</span> to the {nextStage} queue.
-                  </p>
-                  {isConsolidatedHigh ? (
-                    <div className="rounded-md bg-blue-50 border border-blue-200 px-3 py-2 text-xs text-blue-800 mb-4">
-                      This Consolidated loan is over ₱500,000 and requires <b>BOD approval first</b>. It will go to the Manager only after the BOD signs off.
-                    </div>
-                  ) : null}
-
-                  <div className="mb-6">
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      Internal Remarks (Bookkeeper) <span className="text-red-500">*</span>
-                    </label>
-                    <textarea
-                      rows="4"
-                      className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-[#1D6021] focus:border-[#1D6021] outline-none"
-                      placeholder={`Enter internal notes for the ${nextStage}...`}
-                      value={bookkeeperInternalRemarks}
-                      onChange={(e) => setBookkeeperInternalRemarks(e.target.value)}
-                    ></textarea>
-                  </div>
-                  <p className="text-xs text-gray-500 mb-4">
-                    Co-maker details are encoded under Bookkeeper Internal Review and will be forwarded with this recommendation.
-                  </p>
-                </>
-              );
-            })()}
-
-            {/* Shared Notification Options */}
-            <div className={`mb-8 ${activeModal === 'bod_approve' || activeModal === 'bod_reject' ? 'hidden' : ''}`}>
-              <h4 className="text-[10px] font-bold text-green-700 uppercase tracking-wider mb-3">Notification Options</h4>
-              <div className="flex flex-col gap-2">
-                <CustomCheckbox
-                  checked={sendEmail}
-                  onChange={() => setSendEmail((prev) => !prev)}
-                  label="Send email update"
-                />
-                <CustomCheckbox
-                  checked={false}
-                  onChange={() => {}}
-                  label="Send SMS update (unavailable)"
-                />
+              <div className="mb-2">
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Internal Remarks (Bookkeeper) <span className="text-red-500">*</span>
+                </label>
+                <textarea
+                  rows="4"
+                  className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-[#1D6021] focus:border-[#1D6021] outline-none"
+                  placeholder={`Enter internal notes for the ${nextStage}...`}
+                  value={bookkeeperInternalRemarks}
+                  onChange={(e) => setBookkeeperInternalRemarks(e.target.value)}
+                ></textarea>
               </div>
+              <p className="text-xs text-gray-500 mb-4">
+                Co-maker details are encoded under Bookkeeper Internal Review and will be forwarded with this recommendation.
+              </p>
+            </>
+          );
+        })()}
+
+        {/* Shared Notification Options */}
+        {activeModal !== 'bod_approve' && activeModal !== 'bod_reject' && (
+          <div className="mt-6">
+            <h4 className="text-[10px] font-bold text-green-700 uppercase tracking-wider mb-3">Notification Options</h4>
+            <div className="flex flex-col gap-2">
+              <CustomCheckbox
+                checked={sendEmail}
+                onChange={() => setSendEmail((prev) => !prev)}
+                label="Send email update"
+              />
+              <CustomCheckbox
+                checked={false}
+                onChange={() => {}}
+                label="Send SMS update (unavailable)"
+              />
             </div>
-
-            {actionError ? (
-              <div className="mb-4 text-sm text-red-600">{actionError}</div>
-            ) : null}
-
-            {/* Shared Footer Actions */}
-            <div className="flex justify-center gap-3 mt-4">
-              <button 
-                onClick={closeModal}
-                disabled={saving}
-                className="px-6 py-2.5 rounded-lg border border-gray-300 text-gray-700 font-medium text-sm hover:bg-gray-50 transition-colors w-1/2"
-              >
-                Cancel
-              </button>
-              
-              {activeModal === 'reject' && (
-                <button
-                  onClick={() => applyLoanStatusUpdate('reject')}
-                  disabled={saving}
-                  className="px-6 py-2.5 rounded-lg bg-[#DC2626] hover:bg-red-700 text-white font-medium text-sm transition-colors w-1/2 disabled:opacity-50"
-                >
-                  {saving ? 'Saving...' : 'Confirm Rejection'}
-                </button>
-              )}
-              {activeModal === 'revise' && (
-                <button
-                  onClick={() => applyLoanStatusUpdate('revise')}
-                  disabled={saving}
-                  className="px-6 py-2.5 rounded-lg bg-[#F59E0B] hover:bg-amber-600 text-white font-medium text-sm transition-colors w-1/2 disabled:opacity-50"
-                >
-                  {saving ? 'Saving...' : 'Send for Revision'}
-                </button>
-              )}
-              {activeModal === 'proceed' && (
-                <button
-                  onClick={() => applyLoanStatusUpdate('proceed')}
-                  disabled={saving}
-                  className="px-6 py-2.5 rounded-lg bg-[#1D6021] hover:bg-[#154718] text-white font-medium text-sm transition-colors w-1/2 disabled:opacity-50"
-                >
-                  {saving ? 'Saving...' : 'Confirm Approval'}
-                </button>
-              )}
-              {activeModal === 'recommend' && (() => {
-                const isConsolidatedHigh =
-                  String(loanDetails?.summary?.loanType || '').toLowerCase().includes('consolidated')
-                  && Number(loanDetails?.summary?.recommendedAmountRaw || 0) > 500000;
-                const nextStage = isConsolidatedHigh ? 'BOD' : 'Manager';
-                return (
-                  <button
-                    onClick={() => applyLoanStatusUpdate('recommend')}
-                    disabled={saving}
-                    className="px-6 py-2.5 rounded-lg bg-[#1D6021] hover:bg-[#154718] text-white font-medium text-sm transition-colors w-1/2 disabled:opacity-50"
-                  >
-                    {saving ? 'Saving...' : `Send to ${nextStage}`}
-                  </button>
-                );
-              })()}
-              {activeModal === 'bod_approve' && (
-                <button
-                  onClick={() => applyBodDecision('approve')}
-                  disabled={saving}
-                  className="px-6 py-2.5 rounded-lg bg-[#1D6021] hover:bg-[#154718] text-white font-medium text-sm transition-colors w-1/2 disabled:opacity-50"
-                >
-                  {saving ? 'Submitting…' : 'Confirm BOD Approval'}
-                </button>
-              )}
-              {activeModal === 'bod_reject' && (
-                <button
-                  onClick={() => applyBodDecision('reject')}
-                  disabled={saving}
-                  className="px-6 py-2.5 rounded-lg bg-[#DC2626] hover:bg-red-700 text-white font-medium text-sm transition-colors w-1/2 disabled:opacity-50"
-                >
-                  {saving ? 'Submitting…' : 'Confirm Rejection'}
-                </button>
-              )}
-            </div>
-
           </div>
-        </div>
-      )}
+        )}
+      </ConfirmDialog>
 
     </div>
   );

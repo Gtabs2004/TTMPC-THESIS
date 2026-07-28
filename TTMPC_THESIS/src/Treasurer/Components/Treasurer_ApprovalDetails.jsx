@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '../../supabaseClient';
 import { useMigsLabel, getMigsBadgeClasses } from '../../hooks/useMigsLabel';
+import ConfirmDialog from '../../components/ConfirmDialog';
+import { useNotification } from '../../contex/NotificationContext';
 import {
   ArrowLeft,
   User,
@@ -9,10 +11,8 @@ import {
   BarChart2,
   Paperclip,
   FileImage,
-  X,
   Check,
   FileEdit,
-  AlertCircle,
   ExternalLink,
   ClipboardCheck,
   Briefcase,
@@ -22,6 +22,15 @@ import {
 
 const SUPPORTING_DOCS_BUCKET = 'Supporting_Documents';
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000';
+
+const MODAL_CONFIG = {
+  reject: { title: 'Reject Loan Application', confirmLabel: 'Confirm Rejection', loadingLabel: 'Saving...', tone: 'destructive' },
+  revise: { title: 'Return for Revision', confirmLabel: 'Send for Revision', loadingLabel: 'Saving...', tone: 'warning' },
+  reschedule: { title: 'Reschedule Disbursement', confirmLabel: 'Confirm Reschedule', loadingLabel: 'Saving...', tone: 'warning' },
+  disburse: { title: 'Approve for Disbursement', confirmLabel: 'Confirm Disbursement', loadingLabel: 'Processing...', tone: 'default' },
+  proceed: { title: 'Approve Loan Application', confirmLabel: 'Confirm Approval', loadingLabel: 'Saving...', tone: 'default' },
+  recommend: { title: 'Recommend for Manager Approval', confirmLabel: 'Send to Manager', loadingLabel: 'Saving...', tone: 'default' },
+};
 
 // Fire-and-forget loan-status email dispatcher. Backend (FastAPI) queues the
 // Resend call in BackgroundTasks. Failures here MUST NEVER block the
@@ -93,6 +102,7 @@ const Treasurer_ApprovalDetails = () => {
   const isKoicaSource = sourceParam === 'koica';
   const isBookkeeperFlow = location.pathname.startsWith('/bookkeeper-loan-approval');
   const backRoute = isBookkeeperFlow ? '/bookkeeper-loan-approval' : '/treasurer-approval';
+  const { addNotification } = useNotification();
 
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');   
@@ -606,10 +616,22 @@ const Treasurer_ApprovalDetails = () => {
         }
       }
 
+      const successMessages = {
+        reject: 'Loan application rejected.',
+        revise: 'Loan sent back for revision.',
+        reschedule: 'Disbursement rescheduling recorded.',
+        disburse: 'Loan disbursement confirmed successfully.',
+        proceed: 'Loan application approved successfully.',
+        recommend: 'Loan recommended and forwarded to the Manager.',
+      };
+      addNotification(successMessages[modalType] || 'Loan status updated successfully.', modalType === 'reject' ? 'warning' : 'success');
+
       closeModal();
       navigate(backRoute);
     } catch (err) {
-      setActionError(err.message || 'Unable to update loan application status.');
+      const message = err.message || 'Unable to update loan application status.';
+      setActionError(message);
+      addNotification(message, 'error');
     } finally {
       setSaving(false);
     }
@@ -1073,259 +1095,171 @@ const Treasurer_ApprovalDetails = () => {
       </div>
 
       {/* --- Modals Overlay --- */}
-      {activeModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg p-6 relative animate-in fade-in zoom-in-95 duration-200">
-            
-            {/* Close Button */}
-            <button 
-              onClick={closeModal} 
-              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors"
-            >
-              <X className="w-5 h-5" />
-            </button>
+      <ConfirmDialog
+        open={!!activeModal}
+        title={MODAL_CONFIG[activeModal]?.title}
+        confirmLabel={MODAL_CONFIG[activeModal]?.confirmLabel}
+        loadingLabel={MODAL_CONFIG[activeModal]?.loadingLabel}
+        tone={MODAL_CONFIG[activeModal]?.tone}
+        loading={saving}
+        errorMessage={actionError}
+        onCancel={closeModal}
+        onConfirm={() => applyLoanStatusUpdate(activeModal)}
+      >
+        {/* Reject Modal */}
+        {activeModal === 'reject' && (
+          <>
+            <p className="text-sm text-gray-600 mb-6">
+              Are you sure you want to reject the loan application of <span className="font-bold text-gray-900">{loanDetails.memberName}</span>? This action is permanent and cannot be undone.
+            </p>
 
-            {/* Reject Modal */}
-            {activeModal === 'reject' && (
-              <>
-                <h3 className="text-xl font-bold text-gray-900 mb-4">Reject Loan Application</h3>
-                <p className="text-sm text-gray-600 mb-6">
-                  Are you sure you want to reject the loan application of <span className="font-bold text-gray-900">{loanDetails.memberName}</span>? This action is permanent and cannot be undone.
-                </p>
-                
-                <div className="mb-6">
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Reason for Rejection <span className="text-red-500">*</span>
-                  </label>
-                  <textarea 
-                    rows="4"
-                    className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-[#1D6021] focus:border-[#1D6021] outline-none"
-                    placeholder="Provide a detailed reason for board's decision..."
-                    value={remarks}
-                    onChange={(e) => setRemarks(e.target.value)}
-                  ></textarea>
-                </div>
-              </>
-            )}
+            <div className="mb-2">
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                Reason for Rejection <span className="text-red-500">*</span>
+              </label>
+              <textarea
+                rows="4"
+                className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-[#1D6021] focus:border-[#1D6021] outline-none"
+                placeholder="Provide a detailed reason for board's decision..."
+                value={remarks}
+                onChange={(e) => setRemarks(e.target.value)}
+              ></textarea>
+            </div>
+          </>
+        )}
 
-            {/* Revise Modal */}
-            {activeModal === 'revise' && (
-              <>
-                <h3 className="text-xl font-bold text-gray-900 mb-4">Return for Revision</h3>
-                <p className="text-sm text-gray-600 mb-6">
-                  Please specify the corrections or additional information required from <span className="font-bold text-gray-900">{loanDetails.memberName}</span>.
-                </p>
-                
-                <div className="mb-6">
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Revision instructions <span className="text-red-500">*</span>
-                  </label>
-                  <textarea 
-                    rows="4"
-                    className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-[#1D6021] focus:border-[#1D6021] outline-none"
-                    placeholder="Enter the detailed reason for revision or specific instructions for the user..."
-                    value={remarks}
-                    onChange={(e) => setRemarks(e.target.value)}
-                  ></textarea>
-                </div>
-              </>
-            )}
+        {/* Revise Modal */}
+        {activeModal === 'revise' && (
+          <>
+            <p className="text-sm text-gray-600 mb-6">
+              Please specify the corrections or additional information required from <span className="font-bold text-gray-900">{loanDetails.memberName}</span>.
+            </p>
 
-            {/* Reschedule Modal */}
-            {activeModal === 'reschedule' && (
-              <>
-                <h3 className="text-xl font-bold text-gray-900 mb-4 flex items-center">
-                  <AlertCircle className="w-5 h-5 mr-2 text-yellow-600" /> Reschedule Disbursement
-                </h3>
-                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
-                  <p className="text-sm text-yellow-800 font-semibold">
-                    ⚠️ Insufficient Funds
-                  </p>
-                  <p className="text-sm text-yellow-700 mt-2">
-                    The disbursement for <span className="font-bold">{loanDetails.memberName}</span> cannot proceed at this time due to insufficient funds in the treasury.
-                  </p>
-                </div>
-                
-                <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-6">
-                  <div className="space-y-3">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-600">Loan Amount:</span>
-                      <span className="font-bold text-gray-900">{formatCurrency(loanDetails.loanAmount)}</span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-600">Current Available Funds:</span>
-                      <span className="font-bold text-red-600">Pending Review</span>
-                    </div>
-                    <div className="border-t border-gray-300 pt-3 flex justify-between text-sm">
-                      <span className="text-gray-600 font-semibold">Status:</span>
-                      <span className="font-bold text-yellow-700">Pending Rescheduling</span>
-                    </div>
-                  </div>
-                </div>
+            <div className="mb-2">
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                Revision instructions <span className="text-red-500">*</span>
+              </label>
+              <textarea
+                rows="4"
+                className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-[#1D6021] focus:border-[#1D6021] outline-none"
+                placeholder="Enter the detailed reason for revision or specific instructions for the user..."
+                value={remarks}
+                onChange={(e) => setRemarks(e.target.value)}
+              ></textarea>
+            </div>
+          </>
+        )}
 
-                <div className="mb-6">
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Rescheduling Notes (Optional)
-                  </label>
-                  <textarea 
-                    rows="3"
-                    className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 outline-none"
-                    placeholder="Add any notes about when funds will be available or other relevant information..."
-                    value={remarks}
-                    onChange={(e) => setRemarks(e.target.value)}
-                  ></textarea>
-                </div>
-              </>
-            )}
-
-            {/* Disbursement Approval Modal */}
-            {activeModal === 'disburse' && (
-              <>
-                <h3 className="text-xl font-bold text-gray-900 mb-4 flex items-center">
-                  <Check className="w-5 h-5 mr-2 text-[#1D6021]" /> Approve for Disbursement
-                </h3>
-                <p className="text-sm text-gray-600 mb-6">
-                  Review and confirm the disbursement details for <span className="font-bold text-gray-900">{loanDetails.memberName}</span>:
-                </p>
-                
-                <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
-                  <div className="space-y-3">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-600">Loan Type:</span>
-                      <span className="font-bold text-gray-900">{loanDetails.loanType}</span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-600">Loan Amount:</span>
-                      <span className="font-bold text-green-700 text-lg">{formatCurrency(loanDetails.loanAmount)}</span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-600">Term:</span>
-                      <span className="font-bold text-gray-900">{loanDetails.term}</span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-600">Monthly Amortization:</span>
-                      <span className="font-bold text-gray-900">{loanDetails.computation?.monthlyAmortization || 'N/A'}</span>
-                    </div>
-                    <div className="border-t border-green-300 pt-3 flex justify-between text-sm">
-                      <span className="text-gray-700 font-semibold">Status:</span>
-                      <span className="font-bold text-green-700">Ready for Disbursement</span>
-                    </div>
-                    {loanDetails.disbursement_confirmation && (
-                      <div className="border-t border-green-300 pt-3 flex justify-between text-sm">
-                        <span className="text-gray-700 font-semibold">Disbursement Confirmed</span>
-                        <span className="font-bold text-green-700">{new Date(loanDetails.disbursement_confirmation).toLocaleString()}</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-6">
-                  <p className="text-xs text-blue-800">
-                    ℹ️ By approving this disbursement, the funds will be transferred to the member's account and the loan status will be updated to "Active".
-                  </p>
-                </div>
-              </>
-            )}
-
-            {/* Proceed Modal */}
-            {activeModal === 'proceed' && (
-              <>
-                <h3 className="text-xl font-bold text-gray-900 mb-4">Approve Loan Application</h3>
-                <p className="text-sm text-gray-600 mb-8">
-                  You are about to approve the loan application for <span className="font-bold text-gray-900">{loanDetails.memberName}</span>. Proceed?
-                </p>
-              </>
-            )}
-
-            {/* Recommend Modal */}
-            {activeModal === 'recommend' && (
-              <>
-                <h3 className="text-xl font-bold text-gray-900 mb-4">Recommend for Manager Approval</h3>
-                <p className="text-sm text-gray-600 mb-8">
-                  You are about to forward this loan of <span className="font-bold text-gray-900">{loanDetails.memberName}</span> to the Manager queue.
-                </p>
-              </>
-            )}
-
-            {/* Shared Notification Options */}
-            <div className="mb-8">
-              <h4 className="text-[10px] font-bold text-green-700 uppercase tracking-wider mb-3">Notification Options</h4>
-              <p className="text-xs text-gray-500">Email/SMS sending is disabled for this flow.</p>
+        {/* Reschedule Modal */}
+        {activeModal === 'reschedule' && (
+          <>
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
+              <p className="text-sm text-yellow-800 font-semibold">
+                ⚠️ Insufficient Funds
+              </p>
+              <p className="text-sm text-yellow-700 mt-2">
+                The disbursement for <span className="font-bold">{loanDetails.memberName}</span> cannot proceed at this time due to insufficient funds in the treasury.
+              </p>
             </div>
 
-            {actionError ? (
-              <div className="mb-4 text-sm text-red-600">{actionError}</div>
-            ) : null}
-
-            {/* Shared Footer Actions */}
-            <div className="flex justify-center gap-3 mt-4">
-              <button 
-                onClick={closeModal}
-                disabled={saving}
-                className="px-6 py-2.5 rounded-lg border border-gray-300 text-gray-700 font-medium text-sm hover:bg-gray-50 transition-colors w-1/2"
-              >
-                Cancel
-              </button>
-              
-              {activeModal === 'reject' && (
-                <button
-                  onClick={() => applyLoanStatusUpdate('reject')}
-                  disabled={saving}
-                  className="px-6 py-2.5 rounded-lg bg-[#DC2626] hover:bg-red-700 text-white font-medium text-sm transition-colors w-1/2 disabled:opacity-50"
-                >
-                  {saving ? 'Saving...' : 'Confirm Rejection'}
-                </button>
-              )}
-              {activeModal === 'revise' && (
-                <button
-                  onClick={() => applyLoanStatusUpdate('revise')}
-                  disabled={saving}
-                  className="px-6 py-2.5 rounded-lg bg-[#F59E0B] hover:bg-amber-600 text-white font-medium text-sm transition-colors w-1/2 disabled:opacity-50"
-                >
-                  {saving ? 'Saving...' : 'Send for Revision'}
-                </button>
-              )}
-              {activeModal === 'reschedule' && (
-                <button
-                  onClick={() => applyLoanStatusUpdate('reschedule')}
-                  disabled={saving}
-                  className="px-6 py-2.5 rounded-lg bg-[#F59E0B] hover:bg-amber-600 text-white font-medium text-sm transition-colors w-1/2 disabled:opacity-50"
-                >
-                  {saving ? 'Saving...' : 'Confirm Reschedule'}
-                </button>
-              )}
-              {activeModal === 'disburse' && (
-                <button
-                  onClick={() => applyLoanStatusUpdate('disburse')}
-                  disabled={saving}
-                  className="px-6 py-2.5 rounded-lg bg-[#1D6021] hover:bg-[#154718] text-white font-medium text-sm transition-colors w-1/2 disabled:opacity-50"
-                >
-                  {saving ? 'Processing...' : 'Confirm Disbursement'}
-                </button>
-              )}
-              {activeModal === 'proceed' && (
-                <button
-                  onClick={() => applyLoanStatusUpdate('proceed')}
-                  disabled={saving}
-                  className="px-6 py-2.5 rounded-lg bg-[#1D6021] hover:bg-[#154718] text-white font-medium text-sm transition-colors w-1/2 disabled:opacity-50"
-                >
-                  {saving ? 'Saving...' : 'Confirm Approval'}
-                </button>
-              )}
-              {activeModal === 'recommend' && (
-                <button
-                  onClick={() => applyLoanStatusUpdate('recommend')}
-                  disabled={saving}
-                  className="px-6 py-2.5 rounded-lg bg-[#1D6021] hover:bg-[#154718] text-white font-medium text-sm transition-colors w-1/2 disabled:opacity-50"
-                >
-                  {saving ? 'Saving...' : 'Send to Manager'}
-                </button>
-              )}
+            <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-6">
+              <div className="space-y-3">
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">Loan Amount:</span>
+                  <span className="font-bold text-gray-900">{formatCurrency(loanDetails.loanAmount)}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">Current Available Funds:</span>
+                  <span className="font-bold text-red-600">Pending Review</span>
+                </div>
+                <div className="border-t border-gray-300 pt-3 flex justify-between text-sm">
+                  <span className="text-gray-600 font-semibold">Status:</span>
+                  <span className="font-bold text-yellow-700">Pending Rescheduling</span>
+                </div>
+              </div>
             </div>
 
-          </div>
+            <div className="mb-2">
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                Rescheduling Notes (Optional)
+              </label>
+              <textarea
+                rows="3"
+                className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 outline-none"
+                placeholder="Add any notes about when funds will be available or other relevant information..."
+                value={remarks}
+                onChange={(e) => setRemarks(e.target.value)}
+              ></textarea>
+            </div>
+          </>
+        )}
+
+        {/* Disbursement Approval Modal */}
+        {activeModal === 'disburse' && (
+          <>
+            <p className="text-sm text-gray-600 mb-6">
+              Review and confirm the disbursement details for <span className="font-bold text-gray-900">{loanDetails.memberName}</span>:
+            </p>
+
+            <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
+              <div className="space-y-3">
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">Loan Type:</span>
+                  <span className="font-bold text-gray-900">{loanDetails.loanType}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">Loan Amount:</span>
+                  <span className="font-bold text-green-700 text-lg">{formatCurrency(loanDetails.loanAmount)}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">Term:</span>
+                  <span className="font-bold text-gray-900">{loanDetails.term}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">Monthly Amortization:</span>
+                  <span className="font-bold text-gray-900">{loanDetails.computation?.monthlyAmortization || 'N/A'}</span>
+                </div>
+                <div className="border-t border-green-300 pt-3 flex justify-between text-sm">
+                  <span className="text-gray-700 font-semibold">Status:</span>
+                  <span className="font-bold text-green-700">Ready for Disbursement</span>
+                </div>
+                {loanDetails.disbursement_confirmation && (
+                  <div className="border-t border-green-300 pt-3 flex justify-between text-sm">
+                    <span className="text-gray-700 font-semibold">Disbursement Confirmed</span>
+                    <span className="font-bold text-green-700">{new Date(loanDetails.disbursement_confirmation).toLocaleString()}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+              <p className="text-xs text-blue-800">
+                ℹ️ By approving this disbursement, the funds will be transferred to the member's account and the loan status will be updated to "Active".
+              </p>
+            </div>
+          </>
+        )}
+
+        {/* Proceed Modal */}
+        {activeModal === 'proceed' && (
+          <p className="text-sm text-gray-600">
+            You are about to approve the loan application for <span className="font-bold text-gray-900">{loanDetails.memberName}</span>. Proceed?
+          </p>
+        )}
+
+        {/* Recommend Modal */}
+        {activeModal === 'recommend' && (
+          <p className="text-sm text-gray-600">
+            You are about to forward this loan of <span className="font-bold text-gray-900">{loanDetails.memberName}</span> to the Manager queue.
+          </p>
+        )}
+
+        {/* Shared Notification Options */}
+        <div className="mt-6">
+          <h4 className="text-[10px] font-bold text-green-700 uppercase tracking-wider mb-3">Notification Options</h4>
+          <p className="text-xs text-gray-500">Email/SMS sending is disabled for this flow.</p>
         </div>
-      )}
+      </ConfirmDialog>
 
     </div>
   );

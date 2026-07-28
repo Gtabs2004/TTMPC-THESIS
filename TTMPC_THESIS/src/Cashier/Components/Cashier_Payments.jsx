@@ -2,6 +2,7 @@
 import { useNavigate, NavLink } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
 import { useNotification } from "../../contex/NotificationContext";
+import { useConfirm } from "../../contex/ConfirmContext";
 import { PortalSidebarIdentity, PortalTopbarIdentity } from "../../components/PortalIdentity"; // Adjust path to AuthContext if needed
 import { 
   LayoutDashboard, 
@@ -256,12 +257,13 @@ const Cashier_Payments = () => {
   const { signOut } = UserAuth();
   const navigate = useNavigate();
   const { addNotification } = useNotification();
+  const confirm = useConfirm();
   const [isDepositsOpen, setIsDepositsOpen] = useState(true);
   const [loans, setLoans] = useState([]);
   const [selectedLoan, setSelectedLoan] = useState(null);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [paymentAmount, setPaymentAmount] = useState("");
-  const [feedbackMessage, setFeedbackMessage] = useState("");
+  const [isSubmittingPayment, setIsSubmittingPayment] = useState(false);
   const [formError, setFormError] = useState("");
   const [paymentRecords, setPaymentRecords] = useState([]);
   const [loadingLoans, setLoadingLoans] = useState(false);
@@ -470,7 +472,7 @@ const Cashier_Payments = () => {
       });
       setLoans(fallbackLoans);
       setPaymentRecords([]);
-      setFeedbackMessage("Backend unavailable. Showing mock loan data.");
+      addNotification("Backend unavailable. Showing mock loan data.", "warning");
     } finally {
       setLoadingLoans(false);
     }
@@ -519,7 +521,6 @@ const Cashier_Payments = () => {
     setSelectedLoan(loan);
     setPaymentAmount("");
     setFormError("");
-    setFeedbackMessage("");
     setIsPaymentModalOpen(true);
   };
 
@@ -532,7 +533,7 @@ const Cashier_Payments = () => {
 
   const handleSubmitPayment = async (event) => {
     event.preventDefault();
-    if (!selectedLoan) return;
+    if (!selectedLoan || isSubmittingPayment) return;
 
     const parsedPaymentAmount = Number(paymentAmount);
     const totalDue = selectedLoan.remaining_balance + selectedLoanPenalty;
@@ -547,6 +548,14 @@ const Cashier_Payments = () => {
       return;
     }
 
+    const ok = await confirm({
+      title: "Log Payment",
+      message: `Log a payment of ${formatCurrency(parsedPaymentAmount)} for this loan? This will be sent to the Bookkeeper for review; the loan balance stays unchanged until they confirm it.`,
+      confirmLabel: "Log Payment",
+      tone: "default",
+    });
+    if (!ok) return;
+
     const penaltyCollected = Math.min(selectedLoanPenalty, parsedPaymentAmount);
     const principalPaid = Math.max(parsedPaymentAmount - penaltyCollected, 0);
     const nextSequence = paymentRecords.length + 1;
@@ -560,14 +569,18 @@ const Cashier_Payments = () => {
       transaction_reference: formatSequenceId("TTMPCLP_TXN_", nextSequence),
     };
 
+    setIsSubmittingPayment(true);
     try {
       const insertedRecord = await processPayment(paymentPayload);
       setPaymentRecords((previous) => [insertedRecord, ...previous]);
-      setFeedbackMessage("Payment logged and pending Bookkeeper confirmation. Loan balance is unchanged until confirmation.");
+      addNotification("Payment logged and pending Bookkeeper confirmation. Loan balance is unchanged until confirmation.", "success");
       closePaymentModal();
       await fetchLoans();
     } catch (error) {
       setFormError(error.message || "Failed to submit payment.");
+      addNotification(error.message || "Failed to submit payment.", "error");
+    } finally {
+      setIsSubmittingPayment(false);
     }
   };
 
@@ -731,13 +744,6 @@ const Cashier_Payments = () => {
               <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700 flex items-center gap-2">
                 <Clock size={16} />
                 Loading loans and payment records...
-              </div>
-            )}
-
-            {feedbackMessage && (
-              <div className="mb-4 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700 flex items-center gap-2">
-                <CheckCircle2 size={16} />
-                {feedbackMessage}
               </div>
             )}
 
@@ -1159,15 +1165,17 @@ const Cashier_Payments = () => {
                       <button
                         type="button"
                         onClick={closePaymentModal}
-                        className="rounded-lg border border-gray-300 px-6 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition"
+                        disabled={isSubmittingPayment}
+                        className="rounded-lg border border-gray-300 px-6 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition disabled:opacity-50"
                       >
                         Cancel
                       </button>
                       <button
                         type="submit"
-                        className="rounded-lg bg-green-600 px-6 py-2.5 text-sm font-semibold text-white hover:bg-green-700 transition"
+                        disabled={isSubmittingPayment}
+                        className="rounded-lg bg-green-600 px-6 py-2.5 text-sm font-semibold text-white hover:bg-green-700 transition disabled:opacity-50"
                       >
-                        Submit Payment
+                        {isSubmittingPayment ? "Logging..." : "Submit Payment"}
                       </button>
                     </div>
                   </form>

@@ -5,6 +5,7 @@ import { createUniqueControlNumber, fetchLoanPrefill, submitUnifiedLoan } from '
 import { buildBonusPayload, computeLoan } from './loanComputeApi';
 import { formatTinNumber, TIN_FORMATTED_MAX_LENGTH } from './tinFormat';
 import { useLoanEligibility } from '../hooks/useLoanEligibility';
+import { useNotification } from '../contex/NotificationContext';
 
 const numberToWords = (num) => {
   if (num === '' || num === undefined || num === null) return '';
@@ -53,6 +54,7 @@ const numberToWords = (num) => {
 function Bonus_Loan() {
   const location = useLocation();
   const navigate = useNavigate();
+  const { addNotification } = useNotification();
   const isNonMemberBonus = useMemo(() => {
     const params = new URLSearchParams(location.search);
     return params.get('loanType')?.toUpperCase() === 'NONMEMBER_BONUS';
@@ -166,7 +168,7 @@ function Bonus_Loan() {
 
       setTimeout(() => URL.revokeObjectURL(objectUrl), 30000);
     } catch (error) {
-      alert(`Print Error: ${error.message}`);
+      addNotification(`Print error: ${error.message}`, 'error');
     } finally {
       setPrinting(false);
     }
@@ -328,10 +330,10 @@ function Bonus_Loan() {
         },
       });
 
-      alert('Bonus Loan Application Submitted Successfully!');
-      window.location.reload();
+      addNotification('Bonus loan application submitted successfully.', 'success');
+      setTimeout(() => window.location.reload(), 1500);
     } catch (err) {
-      alert('Submission Error: ' + err.message);
+      addNotification('Submission error: ' + err.message, 'error');
     } finally {
       setLoading(false);
     }

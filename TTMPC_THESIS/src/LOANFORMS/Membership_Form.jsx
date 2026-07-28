@@ -6,10 +6,12 @@ import { formatTinNumber, TIN_FORMATTED_MAX_LENGTH, TIN_MIN_DIGITS, TIN_MAX_DIGI
 const GSIS_DIGIT_LENGTH = 10;
 const formatGsisNumber = (value) => String(value ?? '').replace(/\D/g, '').slice(0, GSIS_DIGIT_LENGTH);
 import SmartDateInput from '../components/SmartDateInput';
+import { useNotification } from '../contex/NotificationContext';
 import { AlertCircle } from 'lucide-react';
 
 function Membership_Form() {
   const navigate = useNavigate();
+  const { addNotification } = useNotification();
 
   const generateApplicationId = () => {
     const randomPart = Math.floor(100000 + Math.random() * 9000); // generate a 4 random 
@@ -229,15 +231,15 @@ function Membership_Form() {
 
       if (error) {
         console.error(error);
-        alert(`Application error: ${error.message}`);
+        addNotification(`Application error: ${error.message}`, 'error');
         return;
       }
 
-      alert('Application submitted successfully.');
+      addNotification('Application submitted successfully.', 'success');
       navigate('/');
     } catch (error) {
       console.error(error);
-      alert('Unexpected error. Please try again.');
+      addNotification('Unexpected error. Please try again.', 'error');
     } finally {
       setLoading(false);
     }

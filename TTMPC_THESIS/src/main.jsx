@@ -7,6 +7,7 @@ import { router } from './Router.jsx'
 import { AuthContextProvider } from "./contex/AuthContext.jsx";
 import { NotificationProvider } from "./contex/NotificationContext.jsx";
 import NotificationContainer from "./components/NotificationContainer.jsx";
+import { ConfirmProvider } from "./contex/ConfirmContext.jsx";
 import { ThemeProvider } from "./contex/ThemeContext.jsx";
 
 createRoot(document.getElementById('root')).render(
@@ -14,10 +15,12 @@ createRoot(document.getElementById('root')).render(
     <>
      <ThemeProvider>
        <NotificationProvider>
-         <AuthContextProvider>
-           <NotificationContainer />
-           <RouterProvider router={router} />
-         </AuthContextProvider>
+         <ConfirmProvider>
+           <AuthContextProvider>
+             <NotificationContainer />
+             <RouterProvider router={router} />
+           </AuthContextProvider>
+         </ConfirmProvider>
        </NotificationProvider>
      </ThemeProvider>
     </>

@@ -2,6 +2,8 @@
 import { useNavigate, NavLink } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
 import { useNotification } from "../../contex/NotificationContext";
+import { useConfirm } from "../../contex/ConfirmContext";
+import ConfirmDialog from "../../components/ConfirmDialog";
 import { PortalSidebarIdentity, PortalTopbarIdentity } from "../../components/PortalIdentity";
 import {
   LayoutDashboard,
@@ -52,6 +54,9 @@ const BookkeeperSavingsTransactions = () => {
   const { signOut } = UserAuth();
   const navigate = useNavigate();
   const { addNotification } = useNotification();
+  const confirm = useConfirm();
+  const [rejectTarget, setRejectTarget] = useState(null);
+  const [rejectReason, setRejectReason] = useState("");
 
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -180,8 +185,7 @@ const BookkeeperSavingsTransactions = () => {
     }
   };
 
-  const rejectTransaction = async (transactionId) => {
-    const reason = window.prompt("Reason for rejection:", "Rejected by Bookkeeper") || "Rejected by Bookkeeper";
+  const rejectTransaction = async (transactionId, reason) => {
     setWorkingId(transactionId);
     try {
       const response = await fetch(`${API_BASE_URL}/api/bookkeeper/savings-transactions/${encodeURIComponent(transactionId)}/reject`, {
@@ -189,7 +193,7 @@ const BookkeeperSavingsTransactions = () => {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ notes: reason }),
+        body: JSON.stringify({ notes: reason || "Rejected by Bookkeeper" }),
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok || !payload?.success) {
@@ -202,6 +206,36 @@ const BookkeeperSavingsTransactions = () => {
     } finally {
       setWorkingId("");
     }
+  };
+
+  const handleConfirmPostClick = async (row) => {
+    const ok = await confirm({
+      title: "Confirm Savings Transaction",
+      message: `Confirm and post this ${row.account_type || row.transaction_type} transaction of ${formatCurrency(row.amount)} for ${row.member_name || "this member"}? This will update the member's savings ledger.`,
+      confirmLabel: "Confirm & Post",
+      tone: "default",
+    });
+    if (ok) {
+      await confirmPost(row.transaction_id);
+    }
+  };
+
+  const openRejectDialog = (row) => {
+    setRejectTarget(row);
+    setRejectReason("");
+  };
+
+  const closeRejectDialog = () => {
+    if (workingId === rejectTarget?.transaction_id) return;
+    setRejectTarget(null);
+    setRejectReason("");
+  };
+
+  const confirmRejectDialog = async () => {
+    if (!rejectTarget) return;
+    await rejectTransaction(rejectTarget.transaction_id, rejectReason.trim() || "Rejected by Bookkeeper");
+    setRejectTarget(null);
+    setRejectReason("");
   };
 
   return (
@@ -390,7 +424,7 @@ const BookkeeperSavingsTransactions = () => {
                           {row.transaction_status === "pending_verification" ? (
                             <div className="inline-flex items-center gap-1.5">
                               <button
-                                onClick={() => confirmPost(row.transaction_id)}
+                                onClick={() => handleConfirmPostClick(row)}
                                 disabled={workingId === row.transaction_id}
                                 className="px-2 py-1 rounded bg-green-600 hover:bg-green-700 text-white text-[11px] font-semibold inline-flex items-center gap-1 disabled:opacity-50"
                               >
@@ -398,7 +432,7 @@ const BookkeeperSavingsTransactions = () => {
                                 Confirm
                               </button>
                               <button
-                                onClick={() => rejectTransaction(row.transaction_id)}
+                                onClick={() => openRejectDialog(row)}
                                 disabled={workingId === row.transaction_id}
                                 className="px-2 py-1 rounded bg-red-600 hover:bg-red-700 text-white text-[11px] font-semibold inline-flex items-center gap-1 disabled:opacity-50"
                               >
@@ -435,6 +469,25 @@ const BookkeeperSavingsTransactions = () => {
           </div>
         </main>
       </div>
+
+      <ConfirmDialog
+        open={!!rejectTarget}
+        title="Reject Savings Transaction"
+        message={rejectTarget ? `Provide a reason for rejecting this ${rejectTarget.account_type || rejectTarget.transaction_type} transaction of ${formatCurrency(rejectTarget.amount)} for ${rejectTarget.member_name || "this member"}.` : ""}
+        confirmLabel="Confirm Rejection"
+        tone="destructive"
+        loading={!!rejectTarget && workingId === rejectTarget.transaction_id}
+        onCancel={closeRejectDialog}
+        onConfirm={confirmRejectDialog}
+      >
+        <textarea
+          value={rejectReason}
+          onChange={(e) => setRejectReason(e.target.value)}
+          rows={4}
+          className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
+          placeholder="Enter rejection reason"
+        />
+      </ConfirmDialog>
     </div>
   );
 };

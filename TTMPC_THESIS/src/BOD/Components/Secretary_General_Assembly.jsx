@@ -20,7 +20,6 @@ import {
   AlertTriangle,
   History,
   Check,
-  X
 } from "lucide-react";
 
 import { UserAuth } from "../../contex/AuthContext";
@@ -29,6 +28,7 @@ import {
   PortalSidebarIdentity,
   PortalTopbarIdentity,
 } from "../../components/PortalIdentity";
+import ConfirmDialog from "../../components/ConfirmDialog";
 import logo from "../../assets/img/ttmpc logo.png";
 import NotificationBell from "./NotificationBell";
 import { usePortalRole } from "../../utils/usePortalRole";
@@ -634,88 +634,63 @@ const Secretary_General_Assembly = () => {
           </div>
 
           {/* Confirmation Modal */}
-          {showConfirmModal && confirmationMode === "bulk" && (
-            <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50">
-              <div className="bg-white rounded-lg shadow-xl w-[500px] max-h-[80vh] overflow-y-auto animate-in fade-in zoom-in duration-200">
-                {/* Modal Header */}
-                <div className="bg-[#65B741] p-4 sticky top-0">
-                  <h2 className="text-white font-bold text-lg">Confirm Attendance</h2>
-                </div>
-                
-                {/* Modal Body */}
-                <div className="p-6">
-                  <div className="mb-6">
-                    <p className="text-sm text-gray-700 mb-4">
-                      Are you sure you want to mark{" "}
-                      <strong className={bulkStatus === "Present" ? "text-green-700" : "text-amber-700"}>
-                        {selectedMembers.size} member{selectedMembers.size === 1 ? "" : "s"}
-                      </strong>{" "}
-                      as {bulkStatus}?
-                    </p>
-                  </div>
+          <ConfirmDialog
+            open={showConfirmModal && confirmationMode === "bulk"}
+            title="Confirm Attendance"
+            confirmLabel={`Mark as ${bulkStatus}`}
+            loadingLabel="Confirming..."
+            tone={bulkStatus === "Present" ? "default" : "warning"}
+            loading={saving}
+            onCancel={() => {
+              setShowConfirmModal(false);
+              setConfirmationMode(null);
+            }}
+            onConfirm={handleConfirmBulkMark}
+          >
+            <p className="text-sm text-gray-700 mb-4">
+              Are you sure you want to mark{" "}
+              <strong className={bulkStatus === "Present" ? "text-green-700" : "text-amber-700"}>
+                {selectedMembers.size} member{selectedMembers.size === 1 ? "" : "s"}
+              </strong>{" "}
+              as {bulkStatus}?
+            </p>
 
-                  {/* Selected Members List */}
-                  <div className="mb-6 rounded-lg border border-gray-200 bg-gray-50 p-4">
-                    <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Selected Members:</p>
-                    <div className="space-y-2">
-                      {(() => {
-                        const memberIds = Array.from(selectedMembers);
-                        const memberRows = memberIds
-                          .map((id) => rows.find((r) => r.id === id))
-                          .filter(Boolean);
-                        
-                        const previewCount = 3;
-                        const displayMembers = memberRows.slice(0, previewCount);
-                        const remainingCount = memberRows.length - previewCount;
+            {/* Selected Members List */}
+            <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+              <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Selected Members:</p>
+              <div className="space-y-2">
+                {(() => {
+                  const memberIds = Array.from(selectedMembers);
+                  const memberRows = memberIds
+                    .map((id) => rows.find((r) => r.id === id))
+                    .filter(Boolean);
 
-                        return (
-                          <>
-                            {displayMembers.map((member) => (
-                              <div key={member.id} className="flex items-start gap-2 text-sm text-gray-700">
-                                <Check size={16} className="text-green-600 mt-0.5 flex-shrink-0" />
-                                <div>
-                                  <div className="font-medium">{member.full_name}</div>
-                                  <div className="text-xs text-gray-500">ID: {member.membership_id}</div>
-                                </div>
-                              </div>
-                            ))}
-                            {remainingCount > 0 && (
-                              <div className="flex items-center gap-2 text-sm text-gray-600 font-medium pt-2 border-t border-gray-200">
-                                <span>+ {remainingCount} more member{remainingCount === 1 ? "" : "s"}</span>
-                              </div>
-                            )}
-                          </>
-                        );
-                      })()}
-                    </div>
-                  </div>
+                  const previewCount = 3;
+                  const displayMembers = memberRows.slice(0, previewCount);
+                  const remainingCount = memberRows.length - previewCount;
 
-                  {/* Action Buttons */}
-                  <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
-                    <button 
-                      onClick={() => {
-                        setShowConfirmModal(false);
-                        setConfirmationMode(null);
-                      }}
-                      disabled={saving}
-                      className="px-6 py-2 border border-gray-300 rounded-lg text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50"
-                    >
-                      <X size={14} className="inline mr-1" />
-                      Cancel
-                    </button>
-                    <button 
-                      onClick={handleConfirmBulkMark}
-                      disabled={saving}
-                      className="px-6 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-semibold transition-colors disabled:opacity-50 inline-flex items-center gap-1"
-                    >
-                      <Check size={14} />
-                      {saving ? "Confirming..." : "Confirm"}
-                    </button>
-                  </div>
-                </div>
+                  return (
+                    <>
+                      {displayMembers.map((member) => (
+                        <div key={member.id} className="flex items-start gap-2 text-sm text-gray-700">
+                          <Check size={16} className="text-green-600 mt-0.5 flex-shrink-0" />
+                          <div>
+                            <div className="font-medium">{member.full_name}</div>
+                            <div className="text-xs text-gray-500">ID: {member.membership_id}</div>
+                          </div>
+                        </div>
+                      ))}
+                      {remainingCount > 0 && (
+                        <div className="flex items-center gap-2 text-sm text-gray-600 font-medium pt-2 border-t border-gray-200">
+                          <span>+ {remainingCount} more member{remainingCount === 1 ? "" : "s"}</span>
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
               </div>
             </div>
-          )}
+          </ConfirmDialog>
         </main>
       </div>
     </div>

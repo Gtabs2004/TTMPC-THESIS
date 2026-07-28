@@ -7,6 +7,7 @@ import { supabase } from '../supabaseClient';
 import { resolveAccountFromSessionUser } from '../utils/sessionIdentity';
 import { useMigsLabel } from '../hooks/useMigsLabel';
 import { useLoanEligibility } from '../hooks/useLoanEligibility';
+import { useNotification } from '../contex/NotificationContext';
 
 const generateControlNumber = () => {
   const now = new Date();
@@ -63,6 +64,7 @@ const numberToWords = (num) => {
 
 function Emergency_Loan() {
   const navigate = useNavigate();
+  const { addNotification } = useNotification();
   const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000';
   const PDF_PREVIEW_WINDOW_NAME = 'emergency-loan-preview';
   const inputStyles = 'border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-[#66B538] outline-none w-full bg-white text-sm transition-all';
@@ -493,7 +495,7 @@ function Emergency_Loan() {
 
       setTimeout(() => URL.revokeObjectURL(objectUrl), 30000);
     } catch (error) {
-      alert(`Print Error: ${error.message}`);
+      addNotification(`Print error: ${error.message}`, 'error');
     } finally {
       setPrinting(false);
     }
@@ -591,17 +593,12 @@ function Emergency_Loan() {
     
     const principal = Number(formData.loan_amount_numeric || 0);
     if (principal > 20000) {
-      alert('Emergency loan maximum amount is 20,000.');
+      addNotification('Emergency loan maximum amount is 20,000.', 'error');
       return;
     }
 
     if (submissionBlockMessage) {
-      alert(submissionBlockMessage);
-      return;
-    }
-
-    if (submissionBlockMessage) {
-      alert(submissionBlockMessage);
+      addNotification(submissionBlockMessage, 'error');
       return;
     }
 
@@ -638,11 +635,11 @@ function Emergency_Loan() {
         },
       });
 
-      alert('Emergency Loan Application Submitted Successfully!');
-      window.location.reload();
+      addNotification('Emergency loan application submitted successfully.', 'success');
+      setTimeout(() => window.location.reload(), 1500);
     } catch (err) {
       console.error('Emergency Loan Submission Error:', err);
-      alert('Submission Error: ' + (err.message || JSON.stringify(err)));
+      addNotification('Submission error: ' + (err.message || JSON.stringify(err)), 'error');
     } finally {
       setLoading(false);
       setShowSummary(false);

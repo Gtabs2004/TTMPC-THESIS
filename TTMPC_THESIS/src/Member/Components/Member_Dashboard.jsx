@@ -438,9 +438,9 @@ const MemberDashboard = () => {
 
   useEffect(() => {
     if (isTemporaryAccount) {
-      window.alert('Password is in default. Please change password right away in Member Profile.');
+      addNotification('Your password is still the default one. Please change it right away in Member Profile.', 'warning', 8000);
     }
-  }, [isTemporaryAccount]);
+  }, [isTemporaryAccount, addNotification]);
 
   const activeLoans = useMemo(
     () => memberLoans.filter((loan) => !['rejected', 'cancelled'].includes(String(loan.loan_status || '').toLowerCase())),

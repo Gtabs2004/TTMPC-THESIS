@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { UserAuth } from "../contex/AuthContext";
+import { useNotification } from "../contex/NotificationContext";
 import { Lock } from "lucide-react";
 import PasswordInput from "../components/PasswordInput";
 import PasswordRequirements from "../components/PasswordRequirements";
@@ -14,6 +15,7 @@ function ResetPassword() {
 
   const { updatePassword } = UserAuth();
   const navigate = useNavigate();
+  const { addNotification } = useNotification();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -35,7 +37,7 @@ function ResetPassword() {
 
     if (result.success) {
       sessionStorage.removeItem("reset_email");
-      alert("Password updated. Please log in with your new password.");
+      addNotification("Password updated. Please log in with your new password.", "success");
       navigate("/memberlogin");
     } else {
       setError(result.error || "Could not update password. Try requesting a new code.");
