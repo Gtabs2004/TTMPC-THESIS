@@ -1,6 +1,7 @@
 ﻿import React, { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
+import { useConfirm } from "../../contex/ConfirmContext";
 import { PortalSidebarIdentity, PortalTopbarIdentity } from "../../components/PortalIdentity";
 import {
   LayoutDashboard,
@@ -27,6 +28,7 @@ const MIGSDetails = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const memberId = searchParams.get("member_id");
+  const confirm = useConfirm();
 
   const [memberData, setMemberData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -126,10 +128,13 @@ const MIGSDetails = () => {
 
   const handleFinalizeScore = async () => {
     if (busy) return;
-    if (!window.confirm(
-      "Finalize and snapshot this year's MIGS classification for all members?\n\n" +
-      "This writes an official row to member_classification_temporal that other modules read."
-    )) return;
+    const ok = await confirm({
+      title: "Finalize MIGS Classification",
+      message: "Finalize and snapshot this year's MIGS classification for all members? This writes an official row to member_classification_temporal that other modules read.",
+      confirmLabel: "Finalize",
+      tone: "warning",
+    });
+    if (!ok) return;
     setBusy(true);
     try {
       const year = new Date().getFullYear();

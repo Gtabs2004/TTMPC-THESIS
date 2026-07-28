@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
+import { useConfirm } from "../../contex/ConfirmContext";
 import { PortalTopbarIdentity,  PortalSidebarIdentity } from "../../components/PortalIdentity";
 import {
   LayoutDashboard,
@@ -26,6 +27,7 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000
 const LegacyMemberLink = () => {
   const { session, signOut } = UserAuth();
   const navigate = useNavigate();
+  const confirm = useConfirm();
 
   const [pending, setPending] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -118,7 +120,13 @@ const LegacyMemberLink = () => {
 
   const confirmLink = async (memberId, memberName) => {
     if (!pickerFor) return;
-    if (!window.confirm(`Confirm: "${pickerFor.last_name}, ${pickerFor.first_name}" from the old records is the same person as "${memberName}"?`)) return;
+    const ok = await confirm({
+      title: "Confirm Legacy Member Link",
+      message: `Confirm: "${pickerFor.last_name}, ${pickerFor.first_name}" from the old records is the same person as "${memberName}"?`,
+      confirmLabel: "Confirm Link",
+      tone: "default",
+    });
+    if (!ok) return;
     setSubmitting(true);
     setActionMsg("");
     try {
@@ -144,7 +152,13 @@ const LegacyMemberLink = () => {
   };
 
   const markNoHistory = async (entry) => {
-    if (!window.confirm(`Confirm: "${entry.last_name}, ${entry.first_name}" has no old loans or payments?`)) return;
+    const ok = await confirm({
+      title: "Confirm No Legacy Records",
+      message: `Confirm: "${entry.last_name}, ${entry.first_name}" has no old loans or payments?`,
+      confirmLabel: "Confirm",
+      tone: "default",
+    });
+    if (!ok) return;
     setSubmitting(true);
     setActionMsg("");
     try {

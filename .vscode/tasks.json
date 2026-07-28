@@ -18,7 +18,7 @@
     {
       "label": "Backend: FastAPI (venv)",
       "type": "shell",
-      "command": "${workspaceFolder}/TTMPC_THESIS/src/server/.venv/Scripts/python.exe",
+      "command": "${workspaceFolder}/.venv/Scripts/python.exe",
       "args": [
         "-m",
         "uvicorn",

@@ -1,6 +1,8 @@
 ﻿import React, { useState } from 'react';
+import { useNotification } from '../contex/NotificationContext';
 
 function Savings_Forms() {
+  const { addNotification } = useNotification();
   const inputStyles = "border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-[#66B538] outline-none w-full bg-white text-sm transition-all";
   const labelStyles = "block text-xs font-bold text-gray-700 mb-1";
   const sectionHeader = "bg-[#66B538] text-white px-4 py-2 flex items-center gap-2 font-bold uppercase tracking-wide";
@@ -59,7 +61,7 @@ function Savings_Forms() {
   const handleSubmit = (e) => {
     e.preventDefault();
     console.log("Submitting Savings Account Data:", formData);
-    alert("Savings Account Application Submitted!");
+    addNotification("Savings account application submitted successfully.", "success");
     // Add your API submission logic here
   };
 

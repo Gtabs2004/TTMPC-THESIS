@@ -2,6 +2,8 @@
 import { useNavigate, NavLink } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
 import { useNotification } from "../../contex/NotificationContext";
+import { useConfirm } from "../../contex/ConfirmContext";
+import ConfirmDialog from "../../components/ConfirmDialog";
 import { PortalSidebarIdentity, PortalTopbarIdentity } from "../../components/PortalIdentity";
 import {
   LayoutDashboard,
@@ -73,6 +75,7 @@ const BookkeeperPayments = () => {
   const { signOut } = UserAuth();
   const navigate = useNavigate();
   const { addNotification } = useNotification();
+  const confirm = useConfirm();
 
   const [loans, setLoans] = useState([]);
   const [payments, setPayments] = useState([]);
@@ -347,6 +350,18 @@ const BookkeeperPayments = () => {
       navigate("/");
     } catch (error) {
       console.error("Failed to sign out:", error);
+    }
+  };
+
+  const handleApproveClick = async (payment) => {
+    const ok = await confirm({
+      title: "Approve Payment",
+      message: `Approve payment ${payment.payment_id} of ${formatCurrency(payment.payment_amount)}? This will update the member's loan ledger.`,
+      confirmLabel: "Confirm Approval",
+      tone: "default",
+    });
+    if (ok) {
+      await approvePayment(payment.payment_id);
     }
   };
 
@@ -697,7 +712,7 @@ const BookkeeperPayments = () => {
                               <>
                                 <button
                                   type="button"
-                                  onClick={() => approvePayment(item.payment_id)}
+                                  onClick={() => handleApproveClick(item)}
                                   disabled={workingPaymentId === item.payment_id}
                                   className="btn-enhanced inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-green-600 px-3 py-2 text-xs font-semibold text-white hover:bg-green-700 disabled:opacity-50"
                                 >
@@ -724,43 +739,28 @@ const BookkeeperPayments = () => {
         </main>
       </div>
 
-      {showRejectModal && selectedRejectPayment && (
-        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
-          <div className="w-full max-w-md rounded-lg bg-white p-6 border border-gray-200">
-            <h2 className="text-lg font-bold text-gray-800 mb-4">Reject Payment</h2>
-            <p className="text-sm text-gray-600 mb-3">
-              Provide reason for rejecting payment {selectedRejectPayment.payment_id}.
-            </p>
-            <textarea
-              value={rejectReason}
-              onChange={(event) => setRejectReason(event.target.value)}
-              rows={4}
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-              placeholder="Enter rejection reason"
-            />
-            <div className="mt-4 flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setShowRejectModal(false);
-                  setSelectedRejectPayment(null);
-                  setRejectReason("");
-                }}
-                className="rounded-md border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={confirmReject}
-                className="rounded-md bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700"
-              >
-                Confirm Reject
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmDialog
+        open={showRejectModal && !!selectedRejectPayment}
+        title="Reject Payment"
+        message={selectedRejectPayment ? `Provide a reason for rejecting payment ${selectedRejectPayment.payment_id}.` : ""}
+        confirmLabel="Confirm Rejection"
+        tone="destructive"
+        loading={!!selectedRejectPayment && workingPaymentId === selectedRejectPayment.payment_id}
+        onConfirm={confirmReject}
+        onCancel={() => {
+          setShowRejectModal(false);
+          setSelectedRejectPayment(null);
+          setRejectReason("");
+        }}
+      >
+        <textarea
+          value={rejectReason}
+          onChange={(event) => setRejectReason(event.target.value)}
+          rows={4}
+          className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+          placeholder="Enter rejection reason"
+        />
+      </ConfirmDialog>
     </div>
   );
 };

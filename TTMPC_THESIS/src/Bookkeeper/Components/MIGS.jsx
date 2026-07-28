@@ -2,6 +2,7 @@
 import { useNavigate, NavLink } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
 import { useNotification } from "../../contex/NotificationContext";
+import { useConfirm } from "../../contex/ConfirmContext";
 import { PortalSidebarIdentity, PortalTopbarIdentity } from "../../components/PortalIdentity";
 import {
   LayoutDashboard,
@@ -31,6 +32,7 @@ const MIGS = () => {
   const { session, signOut } = UserAuth();
   const navigate = useNavigate();
   const { addNotification } = useNotification();
+  const confirm = useConfirm();
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(false);
   const [query, setQuery] = useState("");
@@ -144,12 +146,13 @@ const MIGS = () => {
 
   const handleComputeAll = async () => {
     if (computing) return;
-    if (!window.confirm(
-      "Recompute and label every member's MIGS classification?\n\n" +
-      "This saves a snapshot to the system so other modules (loan approval, member view) can use the official label."
-    )) {
-      return;
-    }
+    const ok = await confirm({
+      title: "Recompute MIGS Classifications",
+      message: "Recompute and label every member's MIGS classification? This saves a snapshot to the system so other modules (loan approval, member view) can use the official label.",
+      confirmLabel: "Recompute All",
+      tone: "warning",
+    });
+    if (!ok) return;
     setComputing(true);
     try {
       const response = await fetch(

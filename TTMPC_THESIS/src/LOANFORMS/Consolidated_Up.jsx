@@ -6,6 +6,7 @@ import { formatTinNumber, TIN_FORMATTED_MAX_LENGTH } from './tinFormat';
 import { supabase } from '../supabaseClient';
 import { resolveAccountFromSessionUser } from '../utils/sessionIdentity';
 import { useMigsLabel } from '../hooks/useMigsLabel';
+import { useNotification } from '../contex/NotificationContext';
 
 // Function to generate control number: CL-YYYYMMDD-XXXX
 const generateControlNumber = () => {
@@ -72,6 +73,7 @@ const formatLoanAmountOption = (amount) => Number(amount).toLocaleString('en-PH'
 
 function Consolidated_Up() {
   const navigate = useNavigate();
+  const { addNotification } = useNotification();
 
   const inputStyles = "border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-[#66B538] outline-none w-full bg-white text-sm transition-all";
   const labelStyles = "block text-xs font-bold text-gray-700 mb-1";
@@ -556,7 +558,7 @@ function Consolidated_Up() {
       setTimeout(() => URL.revokeObjectURL(objectUrl), 30000);
     } catch (error) {
       console.error('Consolidated loan PDF error:', error);
-      alert(`Print Error: ${error.message}`);
+      addNotification(`Print error: ${error.message}`, 'error');
     } finally {
       setPrinting(false);
     }
@@ -759,10 +761,10 @@ function Consolidated_Up() {
         },
       });
 
-      alert("Loan Application Submitted Successfully!");
-      window.location.reload();
+      addNotification("Loan application submitted successfully.", "success");
+      setTimeout(() => window.location.reload(), 1500);
     } catch (err) {
-      alert("Submission Error: " + err.message);
+      addNotification("Submission error: " + err.message, "error");
     } finally {
       setLoading(false);
     }

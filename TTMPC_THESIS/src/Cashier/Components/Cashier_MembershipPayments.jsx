@@ -3,6 +3,7 @@ import { useNavigate, NavLink } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
 import { useNotification } from "../../contex/NotificationContext";
 import { PortalSidebarIdentity, PortalTopbarIdentity } from "../../components/PortalIdentity";
+import ConfirmDialog from "../../components/ConfirmDialog";
 import { supabase } from "../../supabaseClient";
 import {
   LayoutDashboard,
@@ -14,7 +15,6 @@ import {
   ChevronRight,
   UserSearch,
   UserPlus,
-  X,
   CheckCircle2,
   AlertCircle,
   Loader2,
@@ -673,142 +673,115 @@ const Cashier_MembershipPayments = () => {
       </div>
 
       {/* RECORD PAYMENT MODAL */}
-      {showModal && selectedApplicant && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg p-6 relative animate-in fade-in zoom-in-95 duration-200">
-            <button
-              onClick={closeModal}
-              disabled={submitting}
-              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
-            >
-              <X className="w-5 h-5" />
-            </button>
+      {selectedApplicant && (
+        <ConfirmDialog
+          open={showModal}
+          title={`Record ${PAYMENT_TYPE_META[selectedPaymentType].label}`}
+          confirmLabel="Confirm Payment"
+          loadingLabel="Recording..."
+          tone="default"
+          loading={submitting}
+          errorMessage={submitError}
+          onCancel={closeModal}
+          onConfirm={handleSubmitPayment}
+        >
+          <p className="text-sm text-gray-600 mb-5">
+            Recording payment for{" "}
+            <span className="font-bold text-gray-900">{selectedApplicant.full_name}</span>.
+          </p>
 
-            <h3 className="text-xl font-bold text-gray-900 mb-2">
-              Record {PAYMENT_TYPE_META[selectedPaymentType].label}
-            </h3>
-            <p className="text-sm text-gray-600 mb-5">
-              Recording payment for{" "}
-              <span className="font-bold text-gray-900">{selectedApplicant.full_name}</span>.
-            </p>
-
-            <div className="bg-gray-50 rounded-lg p-3 mb-5 text-sm space-y-1">
-              <div className="flex justify-between">
-                <span className="text-gray-500">Application ID</span>
-                <span className="font-mono font-semibold text-gray-700">
-                  {selectedApplicant.application_id}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-500">Status</span>
-                <span className="font-semibold text-gray-700">
-                  {selectedApplicant.application_status}
-                </span>
-              </div>
+          <div className="bg-gray-50 rounded-lg p-3 mb-5 text-sm space-y-1">
+            <div className="flex justify-between">
+              <span className="text-gray-500">Application ID</span>
+              <span className="font-mono font-semibold text-gray-700">
+                {selectedApplicant.application_id}
+              </span>
             </div>
-
-            <div className="space-y-4 mb-5">
-              <div>
-                <label className="block text-xs font-bold text-gray-700 mb-1 uppercase tracking-wider">
-                  Payment Type
-                </label>
-                <div className="w-full rounded-lg border border-gray-300 bg-gray-100 px-3 py-2 text-sm font-semibold text-gray-600">
-                  {PAYMENT_TYPE_META[selectedPaymentType].label} (₱
-                  {PAYMENT_TYPE_META[selectedPaymentType].defaultAmount.toLocaleString()})
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-gray-700 mb-1 uppercase tracking-wider">
-                  Amount (₱) <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min={PAYMENT_TYPE_META[selectedPaymentType].minAmount}
-                  value={amountInput}
-                  onChange={(e) => setAmountInput(e.target.value)}
-                  disabled={submitting}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#389734]"
-                />
-                <p className="text-[10px] text-gray-500 mt-1">
-                  Minimum: ₱
-                  {PAYMENT_TYPE_META[selectedPaymentType].minAmount.toLocaleString()}
-                </p>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-gray-700 mb-1 uppercase tracking-wider">
-                  Payment Method <span className="text-red-500">*</span>
-                </label>
-                <select
-                  value={paymentMethod}
-                  onChange={(e) => setPaymentMethod(e.target.value)}
-                  disabled={submitting}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#389734]"
-                >
-                  <option value="cash">Cash</option>
-                  <option value="gcash">GCash</option>
-                  <option value="bank_transfer">Bank Transfer</option>
-                  <option value="check">Check</option>
-                  <option value="other">Other</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-gray-700 mb-1 uppercase tracking-wider">
-                  Reference Number{" "}
-                  
-                </label>
-                <input
-                  type="text"
-                  value={referenceNumber}
-                  onChange={(e) => setReferenceNumber(e.target.value)}
-                  disabled={submitting}
-                  placeholder="e.g., OR-001234, GCash ref"
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#389734]"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-gray-700 mb-1 uppercase tracking-wider">
-                  Notes <span className="text-gray-400 font-normal lowercase">(optional)</span>
-                </label>
-                <textarea
-                  rows={2}
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  disabled={submitting}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#389734]"
-                />
-              </div>
-            </div>
-
-            {submitError && (
-              <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-                {submitError}
-              </div>
-            )}
-
-            <div className="flex justify-end gap-3">
-              <button
-                onClick={closeModal}
-                disabled={submitting}
-                className="px-5 py-2 rounded-lg border border-gray-300 text-gray-700 font-medium text-sm hover:bg-gray-50 disabled:opacity-50"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleSubmitPayment}
-                disabled={submitting}
-                className="px-5 py-2 rounded-lg bg-[#1D6021] hover:bg-[#164a18] text-white font-bold text-sm disabled:opacity-50 flex items-center gap-2"
-              >
-                {submitting ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
-                {submitting ? "Recording..." : "Confirm Payment"}
-              </button>
+            <div className="flex justify-between">
+              <span className="text-gray-500">Status</span>
+              <span className="font-semibold text-gray-700">
+                {selectedApplicant.application_status}
+              </span>
             </div>
           </div>
-        </div>
+
+          <div className="space-y-4">
+            <div>
+              <label className="block text-xs font-bold text-gray-700 mb-1 uppercase tracking-wider">
+                Payment Type
+              </label>
+              <div className="w-full rounded-lg border border-gray-300 bg-gray-100 px-3 py-2 text-sm font-semibold text-gray-600">
+                {PAYMENT_TYPE_META[selectedPaymentType].label} (₱
+                {PAYMENT_TYPE_META[selectedPaymentType].defaultAmount.toLocaleString()})
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-gray-700 mb-1 uppercase tracking-wider">
+                Amount (₱) <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="number"
+                step="0.01"
+                min={PAYMENT_TYPE_META[selectedPaymentType].minAmount}
+                value={amountInput}
+                onChange={(e) => setAmountInput(e.target.value)}
+                disabled={submitting}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#389734]"
+              />
+              <p className="text-[10px] text-gray-500 mt-1">
+                Minimum: ₱
+                {PAYMENT_TYPE_META[selectedPaymentType].minAmount.toLocaleString()}
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-gray-700 mb-1 uppercase tracking-wider">
+                Payment Method <span className="text-red-500">*</span>
+              </label>
+              <select
+                value={paymentMethod}
+                onChange={(e) => setPaymentMethod(e.target.value)}
+                disabled={submitting}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#389734]"
+              >
+                <option value="cash">Cash</option>
+                <option value="gcash">GCash</option>
+                <option value="bank_transfer">Bank Transfer</option>
+                <option value="check">Check</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-gray-700 mb-1 uppercase tracking-wider">
+                Reference Number{" "}
+
+              </label>
+              <input
+                type="text"
+                value={referenceNumber}
+                onChange={(e) => setReferenceNumber(e.target.value)}
+                disabled={submitting}
+                placeholder="e.g., OR-001234, GCash ref"
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#389734]"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-gray-700 mb-1 uppercase tracking-wider">
+                Notes <span className="text-gray-400 font-normal lowercase">(optional)</span>
+              </label>
+              <textarea
+                rows={2}
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                disabled={submitting}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#389734]"
+              />
+            </div>
+          </div>
+        </ConfirmDialog>
       )}
     </div>
   );

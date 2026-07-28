@@ -2,6 +2,7 @@
 import { useNavigate, NavLink, useSearchParams } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
 import { useNotification } from "../../contex/NotificationContext";
+import ConfirmDialog from "../../components/ConfirmDialog";
 import { supabase } from "../../supabaseClient";
 import { resolveMemberContextFromSessionUser } from "../../utils/sessionIdentity";
 import { loadMemberAvatarSignedUrl } from "../../utils/memberAvatar";
@@ -1289,62 +1290,30 @@ const Members_Profile = () => {
           </div>
 
           {/* Save confirmation modal */}
-          {showConfirmSave ? (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-              <div className="w-full max-w-md bg-white dark:bg-gray-900 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-6">
-                <h3 className="text-lg font-extrabold text-gray-900 dark:text-white mb-2">Save profile changes?</h3>
-                <p className="text-sm text-gray-600 dark:text-gray-400 mb-5">
-                  Your updates will be written to your Personal Data Sheet and will be visible across all cooperative modules.
-                </p>
-                <div className="flex items-center justify-end gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setShowConfirmSave(false)}
-                    disabled={savingProfile}
-                    className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 text-sm font-semibold hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-50"
-                  >
-                    Review again
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleConfirmSave}
-                    disabled={savingProfile}
-                    className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[#1D6021] text-white text-sm font-semibold hover:bg-[#154718] disabled:opacity-50"
-                  >
-                    {savingProfile ? 'Saving…' : (<><Save className="w-4 h-4" /> Confirm Save</>)}
-                  </button>
-                </div>
-              </div>
-            </div>
-          ) : null}
+          <ConfirmDialog
+            open={showConfirmSave}
+            title="Save profile changes?"
+            message="Your updates will be written to your Personal Data Sheet and will be visible across all cooperative modules."
+            cancelLabel="Review again"
+            confirmLabel="Confirm Save"
+            loadingLabel="Saving…"
+            tone="default"
+            loading={savingProfile}
+            onCancel={() => setShowConfirmSave(false)}
+            onConfirm={handleConfirmSave}
+          />
 
           {/* Unsaved changes warning when switching tabs */}
-          {pendingTabChange ? (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-              <div className="w-full max-w-md bg-white dark:bg-gray-900 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-6">
-                <h3 className="text-lg font-extrabold text-gray-900 dark:text-white mb-2">Discard unsaved changes?</h3>
-                <p className="text-sm text-gray-600 dark:text-gray-400 mb-5">
-                  You have unsaved edits in this section. Switching tabs will discard them. Continue?
-                </p>
-                <div className="flex items-center justify-end gap-3">
-                  <button
-                    type="button"
-                    onClick={() => confirmTabChange(false)}
-                    className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 text-sm font-semibold hover:bg-gray-50 dark:hover:bg-gray-800"
-                  >
-                    Keep editing
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => confirmTabChange(true)}
-                    className="px-4 py-2 rounded-lg bg-red-600 text-white text-sm font-semibold hover:bg-red-700"
-                  >
-                    Discard & switch
-                  </button>
-                </div>
-              </div>
-            </div>
-          ) : null}
+          <ConfirmDialog
+            open={!!pendingTabChange}
+            title="Discard unsaved changes?"
+            message="You have unsaved edits in this section. Switching tabs will discard them. Continue?"
+            cancelLabel="Keep editing"
+            confirmLabel="Discard & switch"
+            tone="destructive"
+            onCancel={() => confirmTabChange(false)}
+            onConfirm={() => confirmTabChange(true)}
+          />
 
           {/* Notification preferences */}
           <div className="mt-6 w-full bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 overflow-hidden">

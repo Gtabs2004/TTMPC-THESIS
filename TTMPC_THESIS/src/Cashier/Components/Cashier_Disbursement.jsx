@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
 import { useNotification } from "../../contex/NotificationContext";
+import { useConfirm } from "../../contex/ConfirmContext";
 import { PortalSidebarIdentity, PortalTopbarIdentity } from "../../components/PortalIdentity";
 import {
   LayoutDashboard,
@@ -53,6 +54,7 @@ const Cashier_Disbursement = () => {
   const { session, signOut } = UserAuth();
   const navigate = useNavigate();
   const { addNotification } = useNotification();
+  const confirm = useConfirm();
   const [isDepositsOpen, setIsDepositsOpen] = useState(true);
   const [readyLoans, setReadyLoans] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -229,6 +231,19 @@ const Cashier_Disbursement = () => {
       setErrorMessage(error.message || "Disbursement failed.");
     } finally {
       setDisbursingLoanId("");
+    }
+  };
+
+  const handleFinalDisburseClick = async () => {
+    if (!previewLoan) return;
+    const ok = await confirm({
+      title: "Confirm Loan Disbursement",
+      message: `Release ${formatCurrency(previewDeductions?.net_proceeds)} to ${previewLoan.member_name}? This will transfer the funds and cannot be undone.`,
+      confirmLabel: "Release Funds",
+      tone: "default",
+    });
+    if (ok) {
+      await handleDisburseLoan(previewLoan.loan_id);
     }
   };
 
@@ -797,8 +812,9 @@ const Cashier_Disbursement = () => {
               <button
                 type="button"
                 onClick={() =>
-                  alert(
-                    "PRINT-RECEIPT-OVERLAY · Coming soon.\n\nWill render only the variable fields (member, amount, date, reference) onto the cooperative's pre-printed disbursement voucher bond paper."
+                  addNotification(
+                    "Print voucher is coming soon. It will render the variable fields (member, amount, date, reference) onto the cooperative's pre-printed disbursement voucher bond paper.",
+                    "info"
                   )
                 }
                 className="rounded-lg border-2 border-dashed border-blue-400 bg-blue-50 hover:bg-blue-100 text-blue-700 text-sm font-semibold px-4 py-2 transition inline-flex items-center gap-2"
@@ -947,7 +963,7 @@ const Cashier_Disbursement = () => {
               </button>
               <button
                 type="button"
-                onClick={() => handleDisburseLoan(previewLoan.loan_id)}
+                onClick={handleFinalDisburseClick}
                 disabled={
                   !!disbursingLoanId ||
                   previewLoading ||

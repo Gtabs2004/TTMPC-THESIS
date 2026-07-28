@@ -350,7 +350,7 @@ const Dashboard = () => {
         </button>
       </aside>
 
-      {/* MAIN CONTENT AREA */}
+      
       <div className="flex-1 flex flex-col h-screen overflow-y-auto">
         <header className="bg-white h-16 shadow-sm flex items-center justify-end px-8 shrink-0">
           <div className="relative">
