@@ -5852,67 +5852,193 @@ async def send_status_email(payload: StatusEmailRequest):
     if not runtime_resend_api_key:
         raise HTTPException(status_code=500, detail="RESEND_API_KEY is not configured.")
 
-    status_color = "#2563eb" # Default Blue
-    status_text = payload.status.upper()
-    
-    # Designer Note: You can expand this logic to change colors based on the status string
-    if "approved" in status_text.lower(): status_color = "#059669" # Green
-    if "pending" in status_text.lower(): status_color = "#d97706" # Orange
+    status_text = str(payload.status or "Updated").strip()
+    status_lower = status_text.lower()
+    member_name = str(payload.member_name or "Applicant").strip() or "Applicant"
 
-    details_html = ""
+    is_revision = "revision" in status_lower
+    is_approved = "approved" in status_lower or "official" in status_lower or "member" == status_lower
+    is_rejected = "reject" in status_lower or "denied" in status_lower
+
+    if is_revision:
+        accent_color = "#D97706"
+        accent_soft = "#FEF3C7"
+        accent_border = "#F59E0B"
+        headline = "Action Required: Revisions Needed"
+        intro = (
+            "Thank you for submitting your membership application. After review, the Board of Directors "
+            "has identified items that need to be revised before your application can move forward."
+        )
+        notes_label = "Revision Instructions from the Board"
+        cta_label = "Sign in to Update Application"
+        next_steps = [
+            "Sign in to the member portal using your registered email.",
+            "Open your application and address each item listed above.",
+            "Resubmit for review — the Board will be notified automatically.",
+        ]
+    elif is_rejected:
+        accent_color = "#B91C1C"
+        accent_soft = "#FEE2E2"
+        accent_border = "#EF4444"
+        headline = "Application Update"
+        intro = "The Board of Directors has completed its review of your membership application."
+        notes_label = "Notes from the Board"
+        cta_label = "Contact the Board"
+        next_steps = [
+            "Review the notes above from the Board of Directors.",
+            "If you have questions, please contact your training coordinator.",
+        ]
+    elif is_approved:
+        accent_color = "#3F6B22"
+        accent_soft = "#EAF6DF"
+        accent_border = "#66B538"
+        headline = "Application Update"
+        intro = "Good news — the Board of Directors has moved your application forward."
+        notes_label = "Notes from the Board"
+        cta_label = "Sign in to Member Portal"
+        next_steps = [
+            "Sign in to view your updated application status.",
+            "Watch your inbox for further instructions.",
+        ]
+    else:
+        accent_color = "#3F6B22"
+        accent_soft = "#EAF6DF"
+        accent_border = "#66B538"
+        headline = "Application Update"
+        intro = "This is a notification regarding your membership application."
+        notes_label = "Notes from the Board"
+        cta_label = "Sign in to Member Portal"
+        next_steps = [
+            "Sign in to the portal to view your current status.",
+        ]
+
+    remarks_section = ""
     if payload.remarks:
-        details_html = f"""
-            <div style="margin-top: 24px; padding: 20px; background-color: #fff7ed; border-radius: 8px; border: 1px solid #ffedd5;">
-                <p style="margin: 0 0 8px 0; font-size: 12px; font-weight: 700; color: #9a3412; text-transform: uppercase; letter-spacing: 0.05em;">Notes from the Board</p>
-                <p style="margin: 0; font-size: 14px; color: #7c2d12; line-height: 1.5;">{payload.remarks}</p>
-            </div>
+        remarks_section = f"""
+          <tr>
+            <td style="padding:0 32px 8px 32px;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+                     style="background:{accent_soft};border-left:4px solid {accent_border};border-radius:6px;">
+                <tr>
+                  <td style="padding:16px 20px;">
+                    <p style="margin:0 0 6px 0;font-size:12px;color:{accent_color};text-transform:uppercase;letter-spacing:0.08em;font-weight:700;">
+                      {notes_label}
+                    </p>
+                    <p style="margin:0;font-size:14px;color:#0f172a;line-height:1.6;white-space:pre-wrap;">{payload.remarks}</p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
         """
+
+    next_steps_items = "".join(
+        f'<li style="margin-bottom:6px;">{step}</li>' for step in next_steps
+    )
+
+    subject = (
+        "Action Required: Please Revise Your TTMPC Membership Application"
+        if is_revision else f"TTMPC Membership Application — {status_text}"
+    )
+
+    html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="color-scheme" content="light" />
+<title>{subject}</title>
+</head>
+<body style="margin:0;padding:0;background-color:#F3F4F6;font-family:Arial,Helvetica,sans-serif;color:#0f172a;">
+  <div style="display:none;max-height:0;overflow:hidden;opacity:0;">
+    {headline} — please review the Board's notes and take the next steps.
+  </div>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#F3F4F6;padding:24px 12px;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0"
+               style="max-width:600px;width:100%;background-color:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(15,23,42,0.06);">
+
+          <tr>
+            <td style="background-color:#66B538;padding:28px 32px;text-align:center;">
+              <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:700;letter-spacing:0.5px;font-family:Arial,Helvetica,sans-serif;">
+                Tubungan Teachers' Multi-Purpose Cooperative
+              </h1>
+              <p style="margin:6px 0 0 0;color:#EAF6DF;font-size:13px;letter-spacing:2px;text-transform:uppercase;">
+                Membership Application
+              </p>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="padding:32px 32px 8px 32px;">
+              <p style="margin:0 0 12px 0;font-size:17px;color:#0f172a;">Hi <strong>{member_name}</strong>,</p>
+              <h2 style="margin:0 0 12px 0;font-size:18px;color:{accent_color};font-weight:700;">{headline}</h2>
+              <p style="margin:0 0 16px 0;font-size:15px;line-height:1.6;color:#334155;">{intro}</p>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="padding:0 32px 8px 32px;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+                     style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:8px;">
+                <tr>
+                  <td style="padding:16px 20px;text-align:center;">
+                    <p style="margin:0 0 6px 0;font-size:12px;color:#64748B;text-transform:uppercase;letter-spacing:0.08em;font-weight:700;">
+                      Current Status
+                    </p>
+                    <p style="margin:0;font-size:22px;color:{accent_color};font-weight:800;letter-spacing:0.3px;">
+                      {status_text.upper()}
+                    </p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          {remarks_section}
+
+          <tr>
+            <td style="padding:16px 32px 8px 32px;">
+              <p style="margin:0 0 8px 0;font-size:14px;color:#0f172a;font-weight:700;">Next steps</p>
+              <ul style="margin:0 0 8px 20px;padding:0;color:#334155;font-size:14px;line-height:1.6;">
+                {next_steps_items}
+              </ul>
+            </td>
+          </tr>
+
+          <tr>
+            <td align="center" style="padding:20px 32px 32px 32px;">
+              <a href="http://localhost:5173/memberlogin"
+                 style="background-color:#66B538;color:#ffffff;text-decoration:none;padding:12px 28px;border-radius:6px;font-weight:700;font-size:15px;display:inline-block;font-family:Arial,Helvetica,sans-serif;">
+                {cta_label}
+              </a>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="background-color:#F8FAFC;border-top:1px solid #E2E8F0;padding:18px 24px;text-align:center;">
+              <p style="margin:0;font-size:12px;color:#64748B;">
+                This message was sent by the TTMPC Board of Directors regarding your membership application.
+              </p>
+              <p style="margin:4px 0 0 0;font-size:12px;color:#94A3B8;">
+                &copy; 2026 Tubungan Teachers' Multi-Purpose Cooperative. All rights reserved.
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>"""
 
     resend_payload = {
         "from": runtime_resend_from_email,
         "to": [payload.to_email],
-        "subject": f"Update: Your Membership Application is {payload.status}",
-        "html": f"""
-        <div style="background-color: #f8fafc; padding: 40px 10px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
-            <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03); border: 1px solid #e2e8f0;">
-                
-                <div style="background-color: #111827; padding: 32px; text-align: center;">
-                    <p style="color: #60a5fa; font-size: 12px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 8px;">TTMPC BOD Portal</p>
-                    <h1 style="color: #ffffff; margin: 0; font-size: 22px; font-weight: 700;">Application Update</h1>
-                </div>
-
-                <div style="padding: 40px;">
-                    <p style="font-size: 16px; color: #4b5563; margin-top: 0;">Hello <strong>{payload.member_name}</strong>,</p>
-                    
-                    <p style="font-size: 15px; color: #64748b; line-height: 1.6;">
-                        This is an official notification regarding your current membership and training application. The Board of Directors has updated your profile status:
-                    </p>
-
-                    <div style="margin: 32px 0; text-align: center; padding: 32px; background-color: #f1f5f9; border-radius: 12px; border: 1px dashed #cbd5e1;">
-                        <span style="font-size: 13px; color: #64748b; text-transform: uppercase; letter-spacing: 1px;">Current Status</span>
-                        <div style="margin-top: 12px; font-size: 28px; font-weight: 800; color: {status_color}; letter-spacing: -0.5px;">
-                            {status_text}
-                        </div>
-                    </div>
-
-                    {details_html}
-
-                    <p style="margin-top: 32px; font-size: 15px; color: #4b5563;">
-                        If further action is required, please log in to the portal or contact your training coordinator.
-                    </p>
-
-                    <div style="margin-top: 40px; padding-top: 24px; border-top: 1px solid #f1f5f9;">
-                        <p style="margin: 0; font-size: 14px; font-weight: 700; color: #111827;">TTMPC Board of Directors</p>
-                        <p style="margin: 4px 0 0 0; font-size: 13px; color: #94a3b8;">Official Membership & Training Division</p>
-                    </div>
-                </div>
-
-                <div style="background-color: #f8fafc; padding: 20px; text-align: center; font-size: 11px; color: #94a3b8; border-top: 1px solid #e2e8f0;">
-                    <p style="margin: 0;">This is an automated administrative message. Please do not reply directly to this email.</p>
-                </div>
-            </div>
-        </div>
-        """,
+        "subject": subject,
+        "html": html,
     }
 
     req = urlrequest.Request(

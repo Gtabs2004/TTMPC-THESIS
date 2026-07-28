@@ -824,6 +824,7 @@ def send_confirmation_email(
 	default_password: str | None,
 	resend_api_key: str,
 	resend_from_email: str,
+	training_schedule: str | None = None,
 ) -> dict[str, Any]:
 	if not resend_api_key:
 		return {"sent": False, "reason": "RESEND_API_KEY is not configured."}
@@ -831,55 +832,152 @@ def send_confirmation_email(
 	if not to_email:
 		return {"sent": False, "reason": "No recipient email found."}
 
-	password_html = ""
+	safe_first_name = str(first_name or "Member").strip() or "Member"
+	safe_email = str(to_email).strip()
+
+	password_row = ""
 	if default_password:
-		password_html = f"<p><strong>Temporary Password:</strong> {default_password}</p>"
+		password_row = f"""
+                <tr>
+                  <td style="padding:8px 0;font-size:14px;color:#334155;font-weight:600;width:40%;">Temporary Password</td>
+                  <td style="padding:8px 0;font-size:14px;color:#0f172a;font-family:'Courier New',monospace;">{default_password}</td>
+                </tr>
+		"""
+
+	training_section = ""
+	if training_schedule:
+		training_section = f"""
+        <tr>
+          <td style="padding:0 32px 24px 32px;">
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#F1F8EC;border-left:4px solid #66B538;border-radius:6px;">
+              <tr>
+                <td style="padding:16px 20px;">
+                  <p style="margin:0 0 4px 0;font-size:12px;color:#3F6B22;text-transform:uppercase;letter-spacing:0.08em;font-weight:700;">Upcoming Training Schedule</p>
+                  <p style="margin:0;font-size:15px;color:#0f172a;font-weight:600;">{training_schedule}</p>
+                  <p style="margin:6px 0 0 0;font-size:13px;color:#475569;">Please mark your calendar and arrive on time.</p>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+		"""
+
+	subject = "Welcome to TTMPC — Your Membership is Active"
+
+	html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="color-scheme" content="light" />
+<title>{subject}</title>
+</head>
+<body style="margin:0;padding:0;background-color:#F3F4F6;font-family:Arial,Helvetica,sans-serif;color:#0f172a;">
+  <div style="display:none;max-height:0;overflow:hidden;opacity:0;">
+    Your TTMPC membership is now active. Sign in with your email to access the Member Portal.
+  </div>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#F3F4F6;padding:24px 12px;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;width:100%;background-color:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(15,23,42,0.06);">
+
+          <tr>
+            <td style="background-color:#66B538;padding:28px 32px;text-align:center;">
+              <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:700;letter-spacing:0.5px;font-family:Arial,Helvetica,sans-serif;">
+                Tubungan Teachers' Multi-Purpose Cooperative
+              </h1>
+              <p style="margin:6px 0 0 0;color:#EAF6DF;font-size:13px;letter-spacing:2px;text-transform:uppercase;">
+                Membership Activated
+              </p>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="padding:32px 32px 8px 32px;">
+              <p style="margin:0 0 12px 0;font-size:17px;color:#0f172a;">Hi <strong>{safe_first_name}</strong>,</p>
+              <p style="margin:0 0 12px 0;font-size:15px;line-height:1.6;color:#334155;">
+                Congratulations! You have successfully completed the required training and your application has been approved by the Board of Directors.
+              </p>
+              <p style="margin:0 0 20px 0;font-size:15px;line-height:1.6;color:#334155;">
+                You are now recognized as a <strong style="color:#3F6B22;">Bona Fide Member</strong> of TTMPC, with full access to member services including savings, loans, and cooperative programs.
+              </p>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="padding:0 32px 8px 32px;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:8px;">
+                <tr>
+                  <td style="padding:18px 20px 6px 20px;">
+                    <p style="margin:0;font-size:12px;color:#64748B;text-transform:uppercase;letter-spacing:0.08em;font-weight:700;">
+                      Your Sign-in Credentials
+                    </p>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:0 20px 18px 20px;">
+                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                      <tr>
+                        <td style="padding:8px 0;font-size:14px;color:#334155;font-weight:600;width:40%;">Email</td>
+                        <td style="padding:8px 0;font-size:14px;color:#0f172a;word-break:break-all;">{safe_email}</td>
+                      </tr>
+                      {password_row}
+                    </table>
+                    <p style="margin:10px 0 0 0;font-size:12px;color:#64748B;">
+                      For your security, please change your temporary password after your first sign-in.
+                    </p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          {training_section}
+
+          <tr>
+            <td style="padding:16px 32px 8px 32px;">
+              <p style="margin:0 0 8px 0;font-size:14px;color:#0f172a;font-weight:700;">What's next</p>
+              <ul style="margin:0 0 8px 20px;padding:0;color:#334155;font-size:14px;line-height:1.6;">
+                <li style="margin-bottom:6px;">Sign in to the Member Portal to view your dashboard.</li>
+                <li style="margin-bottom:6px;">Complete your personal data sheet and profile.</li>
+                <li style="margin-bottom:6px;">Explore savings and loan services available to members.</li>
+              </ul>
+            </td>
+          </tr>
+
+          <tr>
+            <td align="center" style="padding:20px 32px 32px 32px;">
+              <a href="http://localhost:5173/memberlogin"
+                 style="background-color:#66B538;color:#ffffff;text-decoration:none;padding:12px 28px;border-radius:6px;font-weight:700;font-size:15px;display:inline-block;font-family:Arial,Helvetica,sans-serif;">
+                Sign in to Member Portal
+              </a>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="background-color:#F8FAFC;border-top:1px solid #E2E8F0;padding:18px 24px;text-align:center;">
+              <p style="margin:0;font-size:12px;color:#64748B;">
+                This message was sent by TTMPC because your membership application was approved.
+              </p>
+              <p style="margin:4px 0 0 0;font-size:12px;color:#94A3B8;">
+                &copy; 2026 Tubungan Teachers' Multi-Purpose Cooperative. All rights reserved.
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>"""
 
 	payload = {
-    "from": resend_from_email,
-    "to": [to_email],
-    "subject": "🌟 Welcome to the Inner Circle: Your Membership is Active!",
-    "html": f"""
-    <div style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; color: #111827; line-height: 1.6; max-width: 600px; margin: 0 auto; border: 1px solid #e5e7eb; border-radius: 12px; overflow: hidden;">
-        
-        <div style="background-color: #111827; padding: 30px; text-align: center;">
-            <h1 style="color: #ffffff; margin: 0; font-size: 24px; letter-spacing: 1px;">MEMBERSHIP ACTIVATED</h1>
-        </div>
-
-        <div style="padding: 40px 30px;">
-            <p style="font-size: 18px; margin-top: 0;">Hi <strong>{first_name}</strong>,</p>
-            
-            <p>Congratulations! We are proud to announce that you have successfully completed your initial training requirements.</p>
-            
-            <p>Your status has been officially upgraded. You are now recognized as a <strong>Bona Fide Member</strong>, granting you full access to our professional community and exclusive resources.</p>
-
-            <div style="background-color: #f9fafb; border: 1px solid #d1d5db; padding: 25px; border-radius: 8px; margin: 30px 0;">
-                <h3 style="margin-top: 0; font-size: 14px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em;">Your Access Credentials</h3>
-				<p style="margin: 10px 0; font-size: 16px;"><strong>Membership ID:</strong> <span style="font-family: monospace; color: #2563eb;">{membership_id}</span></p>
-                <div style="margin-top: 10px;">
-                    {password_html}
-                </div>
-            </div>
-
-            <h3 style="font-size: 18px; color: #111827;">WElcome to TTMPC</h3>
-            <p style="margin-bottom: 20px;">Now that you're officially in, here is what you can do next:</p>
-            <ul style="padding-left: 20px; color: #4b5563;">
-                <li style="margin-bottom: 10px;"><strong>Access the Dashboard:</strong> View your exclusive member-only content.</li>
-                <li style="margin-bottom: 10px;"><strong>Complete Your Profile:</strong> Let the community know who you are.</li>
-            </ul>
-
-            <div style="text-align: center; margin-top: 40px;">
-				<a href="/memberlogin" style="background-color: #2563eb; color: #ffffff; padding: 14px 28px; text-decoration: none; border-radius: 6px; font-weight: 600; display: inline-block;">Log In to Member Portal</a>
-            </div>
-        </div>
-
-        <div style="background-color: #f3f4f6; padding: 20px; text-align: center; font-size: 12px; color: #9ca3af;">
-            <p style="margin: 0;">You are receiving this because you completed the training at Your Organization.</p>
-            <p style="margin: 5px 0;">&copy; 2026 Your Company Name. All rights reserved.</p>
-        </div>
-    </div>
-    """,
-}
+		"from": resend_from_email,
+		"to": [to_email],
+		"subject": subject,
+		"html": html,
+	}
 	req = urlrequest.Request(
 		"https://api.resend.com/emails",
 		data=json.dumps(payload).encode("utf-8"),

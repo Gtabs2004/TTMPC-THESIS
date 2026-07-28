@@ -47,9 +47,19 @@ const Secretary_Attendance = () => {
     Pending: [],
     Training: [],
     "For Revision": [],
+    "Reschedule Training": [],
   });
   const [portalRole, setPortalRole] = useState("");
   const [savingAttendance, setSavingAttendance] = useState(false);
+  const [isRescheduleModalOpen, setIsRescheduleModalOpen] = useState(false);
+  const [rescheduleMember, setRescheduleMember] = useState(null);
+  const [rescheduleDate, setRescheduleDate] = useState("");
+  const [rescheduleTime, setRescheduleTime] = useState("");
+  const [rescheduleNote, setRescheduleNote] = useState("");
+  const [savingReschedule, setSavingReschedule] = useState(false);
+  const [lockConfirm, setLockConfirm] = useState(null); // { member } when confirming lock-in
+
+  const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 
   const menuItems = [
      {
@@ -180,15 +190,20 @@ const Secretary_Attendance = () => {
   };
 
   const fetchAttendanceRows = async () => {
-    const [{ data, error }, logsResponse] = await Promise.all([
+    const [{ data, error }, logsResponse, rescheduleLogsResponse] = await Promise.all([
       supabase
         .from("member_applications")
         .select("application_id, first_name, middle_name, surname, email, created_at, application_status, attendance_status, remarks")
         .order("created_at", { ascending: false }),
       supabase
         .from("attendance_logs")
-        .select("application_id, attendance_status, remarks, meeting_date, recorded_at, training_stage")
+        .select("application_id, attendance_status, remarks, meeting_date, recorded_at, training_stage, is_locked")
         .eq("training_stage", "Training")
+        .order("recorded_at", { ascending: false }),
+      supabase
+        .from("attendance_logs")
+        .select("application_id, attendance_status, remarks, meeting_date, recorded_at, training_stage, is_locked")
+        .eq("training_stage", "Rescheduled Training")
         .order("recorded_at", { ascending: false }),
     ]);
 
@@ -200,6 +215,9 @@ const Secretary_Attendance = () => {
     if (logsResponse.error) {
       console.warn("Unable to load attendance_logs entries:", logsResponse.error.message || logsResponse.error);
     }
+    if (rescheduleLogsResponse?.error) {
+      console.warn("Unable to load reschedule logs:", rescheduleLogsResponse.error.message || rescheduleLogsResponse.error);
+    }
 
     const attendanceLogMap = new Map();
     for (const log of logsResponse.data || []) {
@@ -208,15 +226,22 @@ const Secretary_Attendance = () => {
       }
     }
 
+    const rescheduleLogMap = new Map();
+    for (const log of rescheduleLogsResponse?.data || []) {
+      if (!rescheduleLogMap.has(log.application_id)) {
+        rescheduleLogMap.set(log.application_id, log);
+      }
+    }
+
     const grouped = {
       Pending: [],
       Training: [],
       "For Revision": [],
+      "Reschedule Training": [],
     };
 
     for (const row of data || []) {
       const status = normalizeStatus(row.application_status);
-      if (!grouped[status]) continue;
 
       const fullName = [row.first_name, row.middle_name, row.surname]
         .map((part) => String(part || "").trim())
@@ -230,7 +255,7 @@ const Secretary_Attendance = () => {
         : firstTrainingSchedule;
       const scheduleTime = attendanceLog?.recorded_at ? formatDisplayTime(attendanceLog.recorded_at) : "";
 
-      grouped[status].push({
+      const baseRow = {
         id: row.application_id,
         applicationId: row.application_id,
         name: fullName,
@@ -238,14 +263,64 @@ const Secretary_Attendance = () => {
         schedule: attendanceLog
           ? `${formatDisplayDate(scheduleDate.toISOString())}${scheduleTime ? ` · ${scheduleTime}` : ""}`
           : formatDisplayDate(scheduleDate.toISOString()),
+        originalMeetingDate: attendanceLog?.meeting_date || "",
+        originalRecordedAt: attendanceLog?.recorded_at || "",
         meetingDate: attendanceLog?.meeting_date || "",
         recordedAt: attendanceLog?.recorded_at || "",
-        // Prefer the per-training-stage log status (authoritative for the
-        // current tab). member_applications.attendance_status is a single
-        // column and can hold a stale/legacy value from a prior stage.
         status: attendanceLog?.attendance_status || row.attendance_status || "Pending",
         remarks: attendanceLog?.remarks || row.remarks || "",
-      });
+        isLocked: !!attendanceLog?.is_locked,
+      };
+
+      // A member qualifies for "Reschedule Training" if they were marked Absent
+      // for the Training stage AND have a recorded meeting_date (i.e. a real
+      // training session was scheduled and missed). Rescheduled entries stay
+      // visible with the new schedule so the secretary can track outcome.
+      const wasAbsentAtTraining =
+        String(attendanceLog?.attendance_status || "").toLowerCase() === "absent" &&
+        !!attendanceLog?.meeting_date;
+
+      // A member belongs to the Reschedule Training tab as soon as they were
+      // marked Absent at the Training stage (regardless of whether a new date
+      // has actually been picked yet). Once in the Reschedule tab, they must
+      // be hidden from the Training tab so the same person doesn't appear in
+      // both places.
+      const rescheduleLog = rescheduleLogMap.get(row.application_id);
+      const belongsToReschedule = wasAbsentAtTraining;
+
+      if (status && grouped[status]) {
+        if (!(status === "Training" && belongsToReschedule)) {
+          grouped[status].push(baseRow);
+        }
+      }
+
+      if (wasAbsentAtTraining) {
+        const rescheduleScheduleDate = rescheduleLog?.meeting_date
+          ? new Date(rescheduleLog.meeting_date)
+          : null;
+        const rescheduleScheduleTime = rescheduleLog?.recorded_at
+          ? formatDisplayTime(rescheduleLog.recorded_at)
+          : "";
+
+        grouped["Reschedule Training"].push({
+          ...baseRow,
+          // Present the rescheduled log as the primary schedule / status / remarks
+          // so the shared Training-tab UI can update it directly. Keep the
+          // original absent record accessible via `originalMeetingDate` for
+          // context in the reschedule-date modal.
+          schedule: rescheduleScheduleDate
+            ? `${formatDisplayDate(rescheduleScheduleDate.toISOString())}${
+                rescheduleScheduleTime ? ` · ${rescheduleScheduleTime}` : ""
+              }`
+            : "Not yet rescheduled",
+          meetingDate: rescheduleLog?.meeting_date || "",
+          recordedAt: rescheduleLog?.recorded_at || "",
+          status: rescheduleLog?.attendance_status || "Pending",
+          remarks: rescheduleLog?.remarks || "",
+          hasReschedule: !!rescheduleLog,
+          isLocked: !!rescheduleLog?.is_locked,
+        });
+      }
     }
 
     setTableData(grouped);
@@ -276,7 +351,12 @@ const Secretary_Attendance = () => {
       member.recordedAt ? new Date(member.recordedAt) : new Date()
     );
 
-    if (normalizedTab !== "training") {
+    let resolvedTrainingStage;
+    if (normalizedTab === "training") {
+      resolvedTrainingStage = "Training";
+    } else if (normalizedTab === "reschedule training") {
+      resolvedTrainingStage = "Rescheduled Training";
+    } else {
       return {
         ok: true,
         skipped: true,
@@ -284,7 +364,14 @@ const Secretary_Attendance = () => {
     }
 
     const { data: authData } = await supabase.auth.getUser();
-    const resolvedTrainingStage = "Training";
+
+    // Lock semantics differ by stage:
+    // - Training: Present/Absent locks immediately (legacy rule).
+    // - Rescheduled Training: never locks via normal status change; the
+    //   secretary must explicitly click "Lock In Attendance".
+    const isDecidedStatus = member.status === "Present" || member.status === "Absent";
+    const nextIsLocked =
+      resolvedTrainingStage === "Training" ? isDecidedStatus : false;
 
     const payload = {
       application_id: member.applicationId || member.id,
@@ -296,6 +383,7 @@ const Secretary_Attendance = () => {
       meeting_date: resolvedMeetingDate || null,
       recorded_at: resolvedRecordedAt,
       recorded_by: authData?.user?.id || null,
+      is_locked: nextIsLocked,
     };
 
     const tableCandidates = ["attendance_logs"];
@@ -328,14 +416,17 @@ const Secretary_Attendance = () => {
   const tabs = [
     { name: "Pending", count: tableData["Pending"].length, color: "bg-green-600" },
     { name: "Training", count: tableData["Training"].length, color: "bg-blue-500" },
-    { name: "For Revision", count: tableData["For Revision"].length, color: "bg-amber-500" }
+    { name: "For Revision", count: tableData["For Revision"].length, color: "bg-amber-500" },
+    { name: "Reschedule Training", count: tableData["Reschedule Training"].length, color: "bg-orange-500" },
   ];
   const isSecretary = portalRole === "secretary";
-  const visibleTabs = isSecretary ? ["Pending", "Training", "For Revision"] : tabs.map((tab) => tab.name);
+  const visibleTabs = isSecretary
+    ? ["Pending", "Training", "For Revision", "Reschedule Training"]
+    : tabs.map((tab) => tab.name);
 
-  // Secretary is locked to the Training tab; if state ever drifts away, snap back.
+  // Secretary is locked to Training + Reschedule Training tabs.
   useEffect(() => {
-    if (isSecretary && activeTab !== "Training") {
+    if (isSecretary && !["Training", "Reschedule Training"].includes(activeTab)) {
       setActiveTab("Training");
     }
   }, [isSecretary, activeTab]);
@@ -395,16 +486,149 @@ const Secretary_Attendance = () => {
     }
   };
 
+  const openRescheduleModal = (member) => {
+    setRescheduleMember(member);
+    setRescheduleDate(member.meetingDate || "");
+    setRescheduleTime(formatTimeInputValue(member.recordedAt) || "");
+    setRescheduleNote(member.hasReschedule ? "" : "");
+    setIsRescheduleModalOpen(true);
+  };
+
+  const closeRescheduleModal = () => {
+    setIsRescheduleModalOpen(false);
+    setRescheduleMember(null);
+    setRescheduleDate("");
+    setRescheduleTime("");
+    setRescheduleNote("");
+  };
+
+  const sendRescheduleEmail = async (member, newDateIso, note) => {
+    if (!member?.email || member.email === "-") return;
+    const formattedNew = `${formatDisplayDate(newDateIso)}${
+      rescheduleTime ? ` at ${formatDisplayTime(newDateIso)}` : ""
+    }`;
+    const remarksText = [
+      `Your original training on ${formatDisplayDate(member.originalMeetingDate || member.recordedAt)} was recorded as Absent.`,
+      `Your rescheduled training is now set for ${formattedNew}.`,
+      note ? `Note from Secretary: ${note}` : "",
+    ].filter(Boolean).join("\n\n");
+
+    try {
+      await fetch(`${apiBaseUrl}/api/send-status-email`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({
+          to_email: member.email,
+          member_name: member.name,
+          status: "Training Rescheduled",
+          remarks: remarksText,
+        }),
+      });
+    } catch (err) {
+      console.warn("Reschedule email failed:", err);
+    }
+  };
+
+  const saveReschedule = async () => {
+    if (!rescheduleMember) return;
+    if (!rescheduleDate) {
+      addNotification("Please pick a new training date.", "error");
+      return;
+    }
+
+    setSavingReschedule(true);
+    try {
+      const recordedAt = buildRecordedAt(rescheduleDate, rescheduleTime, new Date());
+
+      const { data: authData } = await supabase.auth.getUser();
+      const payload = {
+        application_id: rescheduleMember.applicationId || rescheduleMember.id,
+        member_name: rescheduleMember.name,
+        member_email: rescheduleMember.email,
+        training_stage: "Rescheduled Training",
+        attendance_status: "Pending",
+        remarks: rescheduleNote || null,
+        meeting_date: rescheduleDate,
+        recorded_at: recordedAt,
+        recorded_by: authData?.user?.id || null,
+      };
+
+      const upsertTry = await supabase
+        .from("attendance_logs")
+        .upsert(payload, { onConflict: "application_id,training_stage" });
+
+      if (upsertTry.error) {
+        const insertTry = await supabase.from("attendance_logs").insert(payload);
+        if (insertTry.error) throw new Error(insertTry.error.message);
+      }
+
+      await sendRescheduleEmail(rescheduleMember, recordedAt, rescheduleNote);
+      addNotification("Training rescheduled and member notified.", "success");
+      await fetchAttendanceRows();
+      closeRescheduleModal();
+    } catch (err) {
+      addNotification(err.message || "Unable to reschedule training.", "error");
+    } finally {
+      setSavingReschedule(false);
+    }
+  };
+
   const handleAttendanceStatusChange = async (member, nextStatus) => {
-    // If changing to Present or Absent, show confirmation modal
+    // Reschedule tab: no upfront confirmation — the secretary can change the
+    // status freely until they explicitly lock it in via "Lock In Attendance".
+    if (activeTab === "Reschedule Training") {
+      await saveAttendanceStatusChange(member, nextStatus);
+      return;
+    }
+
+    // Training tab (legacy): Present/Absent locks immediately, so confirm.
     if (nextStatus === "Present" || nextStatus === "Absent") {
       setPendingAttendanceChange({ member, nextStatus });
       setIsConfirmationModalOpen(true);
       return;
     }
 
-    // For Pending status, proceed directly without confirmation
     await saveAttendanceStatusChange(member, nextStatus);
+  };
+
+  const requestLockIn = (member) => {
+    setLockConfirm({ member });
+  };
+
+  const cancelLockIn = () => setLockConfirm(null);
+
+  const confirmLockIn = async () => {
+    if (!lockConfirm?.member) return;
+    const member = lockConfirm.member;
+    setSavingAttendance(true);
+    try {
+      const { data: authData } = await supabase.auth.getUser();
+      const recordedAt = member.recordedAt || buildRecordedAt(member.meetingDate || "", "", new Date());
+      const payload = {
+        application_id: member.applicationId || member.id,
+        member_name: member.name,
+        member_email: member.email,
+        training_stage: "Rescheduled Training",
+        attendance_status: member.status,
+        remarks: member.remarks || null,
+        meeting_date: member.meetingDate || null,
+        recorded_at: recordedAt,
+        recorded_by: authData?.user?.id || null,
+        is_locked: true,
+      };
+      const upsertTry = await supabase
+        .from("attendance_logs")
+        .upsert(payload, { onConflict: "application_id,training_stage" });
+      if (upsertTry.error) throw new Error(upsertTry.error.message);
+
+      addNotification("Attendance locked in.", "success");
+      setLockConfirm(null);
+      await fetchAttendanceRows();
+    } catch (err) {
+      addNotification(err.message || "Unable to lock attendance.", "error");
+    } finally {
+      setSavingAttendance(false);
+    }
   };
 
   const confirmAttendanceChange = async () => {
@@ -543,58 +767,68 @@ const Secretary_Attendance = () => {
         </header>
 
         <main className="p-8 overflow-auto">
-          {/* Top Stats Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-            <div className="bg-white border border-gray-100 rounded-xl p-5 flex items-center gap-4 shadow-sm">
-              <div className="w-12 h-12 rounded-lg bg-[#EAF5EC] flex items-center justify-center flex-shrink-0">
-                <UserPlus className="text-[#2C7A3F] w-6 h-6" />
+          {/* Top Stats Cards — reflect the Secretary's active workload on this
+              page: recording attendance, handling reschedules, and locking in
+              verified rescheduled sessions. */}
+          {(() => {
+            const trainingRows = tableData["Training"] || [];
+            const rescheduleRows = tableData["Reschedule Training"] || [];
+            const isStatus = (s, target) => String(s || "").toLowerCase() === target;
+
+            // "Attendance Recorded" — Training rows already decided as
+            // Present/Absent (the secretary's completed work for the current
+            // session).
+            const attendanceRecorded = trainingRows.filter(
+              (r) => isStatus(r.status, "present") || isStatus(r.status, "absent")
+            ).length;
+
+            // "Awaiting Attendance" — Training rows still Pending (secretary
+            // hasn't recorded them yet).
+            const awaitingAttendance = trainingRows.filter((r) => isStatus(r.status, "pending")).length;
+
+            // "To Reschedule" — Absent members who don't have a new date yet
+            // (action needed from the secretary).
+            const toReschedule = rescheduleRows.filter((r) => !r.hasReschedule).length;
+
+            // "Rescheduled Sessions" — new dates already set (work done).
+            const rescheduledSessions = rescheduleRows.filter((r) => r.hasReschedule).length;
+
+            const cards = [
+              { label: "ATTENDANCE RECORDED", value: attendanceRecorded, Icon: BadgeCheck, iconBg: "#EAF5EC", iconColor: "#2C7A3F" },
+              { label: "AWAITING ATTENDANCE", value: awaitingAttendance, Icon: ClipboardList, iconBg: "#FFF4E5", iconColor: "#D97706" },
+              { label: "TO RESCHEDULE", value: toReschedule, Icon: AlertTriangle, iconBg: "#FEE2E2", iconColor: "#B91C1C" },
+              { label: "RESCHEDULED SESSIONS", value: rescheduledSessions, Icon: CalendarDays, iconBg: "#FFF4E5", iconColor: "#D97706" },
+            ];
+
+            return (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+                {cards.map(({ label, value, Icon, iconBg, iconColor }) => (
+                  <div key={label} className="bg-white border border-gray-100 rounded-xl p-5 flex items-center gap-4 shadow-sm">
+                    <div className="w-12 h-12 rounded-lg flex items-center justify-center flex-shrink-0" style={{ backgroundColor: iconBg }}>
+                      <Icon className="w-6 h-6" style={{ color: iconColor }} />
+                    </div>
+                    <div className="flex flex-col">
+                      <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{label}</h3>
+                      <p className="text-2xl font-extrabold text-slate-800 mt-0.5">{value}</p>
+                    </div>
+                  </div>
+                ))}
               </div>
-              <div className="flex flex-col">
-                <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">TOTAL EVALUATED</h3>
-                <p className="text-2xl font-extrabold text-slate-800 mt-0.5">8</p>
-              </div>
-            </div>
-            <div className="bg-white border border-gray-100 rounded-xl p-5 flex items-center gap-4 shadow-sm">
-              <div className="w-12 h-12 rounded-lg bg-[#FFF4E5] flex items-center justify-center flex-shrink-0">
-                <ClipboardList className="text-[#D97706] w-6 h-6" />
-              </div>
-              <div className="flex flex-col">
-                <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">PASSED TRAINING</h3>
-                <p className="text-2xl font-extrabold text-slate-800 mt-0.5">6</p>
-              </div>
-            </div>
-            <div className="bg-white border border-gray-100 rounded-xl p-5 flex items-center gap-4 shadow-sm">
-              <div className="w-12 h-12 rounded-lg bg-[#EAF5EC] flex items-center justify-center flex-shrink-0">
-                <BadgeCheck className="text-[#2C7A3F] w-6 h-6" />
-              </div>
-              <div className="flex flex-col">
-                <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">PENDING EVAL</h3>
-                <p className="text-2xl font-extrabold text-slate-800 mt-0.5">2</p>
-              </div>
-            </div>
-            <div className="bg-white border border-gray-100 rounded-xl p-5 flex items-center gap-4 shadow-sm">
-              <div className="w-12 h-12 rounded-lg bg-[#EAF5EC] flex items-center justify-center flex-shrink-0">
-                <BadgeCheck className="text-[#2C7A3F] w-6 h-6" />
-              </div>
-              <div className="flex flex-col">
-                <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">NO SHOW</h3>
-                <p className="text-2xl font-extrabold text-slate-800 mt-0.5">2</p>
-              </div>
-            </div>
-          </div>
+            );
+          })()}
 
           {/* Table Container */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-200">
             {/* Tabs */}
             <div className="flex gap-8 px-6 pt-4 border-b border-gray-200">
               {tabs.filter((tab) => visibleTabs.includes(tab.name)).map((tab) => {
-                const isTabDisabled = isSecretary && tab.name !== "Training";
+                const isTabDisabled = isSecretary && !["Training", "Reschedule Training"].includes(tab.name);
                 return (
                   <button
                     key={tab.name}
                     onClick={() => !isTabDisabled && setActiveTab(tab.name)}
                     disabled={isTabDisabled}
-                    title={isTabDisabled ? "Only Training is accessible to Secretary accounts" : undefined}
+                    title={isTabDisabled ? "Only Training and Reschedule Training are accessible to Secretary accounts" : undefined}
                     className={`flex items-center gap-2 pb-4 px-1 text-sm font-semibold transition-colors relative ${
                       isTabDisabled
                         ? "text-gray-300 cursor-not-allowed"
@@ -623,13 +857,15 @@ const Secretary_Attendance = () => {
               </button>
             </div>
 
-            {/* Table Body */}
+            {/* Table Body — shared UI for Training and Reschedule Training */}
             <div className="overflow-x-auto pb-4">
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="bg-green-700 text-[10px] uppercase tracking-wider text-white font-extrabold">
                     <th className="p-5 font-bold">Member Name</th>
-                    <th className="p-5 font-bold">Training Schedule</th>
+                    <th className="p-5 font-bold">
+                      {activeTab === "Reschedule Training" ? "New Training Schedule" : "Training Schedule"}
+                    </th>
                     <th className="p-5 font-bold">Attendance Status</th>
                     <th className="p-5 font-bold">Remarks</th>
                   </tr>
@@ -642,41 +878,80 @@ const Secretary_Attendance = () => {
                         <p className="text-xs text-gray-500">{row.email}</p>
                       </td>
                       <td className="p-5 text-sm text-gray-600 font-medium">
-                        {row.schedule}
-                      </td>
-                      <td className="p-5">
-                        {/* Attendance status select - disabled if already Present */}
-                        <select
-                          className={`text-sm font-bold bg-transparent border border-gray-200 rounded-md py-1.5 px-3 pr-8 appearance-none focus:outline-none focus:ring-2 focus:ring-green-500 cursor-pointer transition-all
-                            ${row.status === 'Present' ? 'text-green-600 cursor-not-allowed opacity-75' :
-                              row.status === 'Absent' ? 'text-red-600 cursor-not-allowed opacity-75' :
-                              'text-yellow-600'}
-                          `}
-                          value={row.status}
-                          disabled={row.status === 'Present' || row.status === 'Absent'}
-                          onChange={(e) => handleAttendanceStatusChange(row, e.target.value)}
-                          title={row.status === 'Present' || row.status === 'Absent' ? 'This attendance is locked and cannot be changed' : ''}
-                          style={{
-                            backgroundImage: `url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%239CA3AF%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E")`,
-                            backgroundRepeat: "no-repeat",
-                            backgroundPosition: "right 0.7rem top 50%",
-                            backgroundSize: "0.65rem auto"
-                          }}
-                        >
-                          <option value="Present" className="text-green-600">Present</option>
-                          <option value="Absent" className="text-red-600">Absent</option>
-                          <option value="Pending" className="text-yellow-600">Pending</option>
-                        </select>
-                        {(row.status === 'Present' || row.status === 'Absent') && (
-                          <p className="text-xs text-gray-500 mt-1 flex items-center gap-1">
-                            <span className="inline-block w-1 h-1 bg-gray-400 rounded-full"></span>
-                            Status locked
-                          </p>
+                        {activeTab === "Reschedule Training" ? (
+                          <button
+                            onClick={() => openRescheduleModal(row)}
+                            className="text-left hover:text-orange-600 hover:underline transition-colors"
+                            title="Click to set or update the rescheduled training date"
+                          >
+                            {row.schedule}
+                          </button>
+                        ) : (
+                          row.schedule
                         )}
                       </td>
                       <td className="p-5">
-                         {/* Trigger button for Modal instead of select */}
-                         <button 
+                        {/* Lock rules per tab:
+                            - Training: locked whenever attendance is Present/Absent
+                              (isLocked from DB, but keep status-based fallback
+                              so pre-migration rows still lock as expected).
+                            - Reschedule Training: only locked once secretary
+                              explicitly clicks "Lock In Attendance".
+                        */}
+                        {(() => {
+                          const isReschedule = activeTab === "Reschedule Training";
+                          const decided = row.status === "Present" || row.status === "Absent";
+                          const locked = isReschedule
+                            ? row.isLocked
+                            : row.isLocked || decided;
+                          return (
+                            <>
+                              <select
+                                className={`text-sm font-bold bg-transparent border border-gray-200 rounded-md py-1.5 px-3 pr-8 appearance-none focus:outline-none focus:ring-2 focus:ring-green-500 cursor-pointer transition-all
+                                  ${row.status === 'Present' ? 'text-green-600' :
+                                    row.status === 'Absent' ? 'text-red-600' :
+                                    row.status === 'Rescheduled' ? 'text-orange-600' :
+                                    'text-yellow-600'}
+                                  ${locked ? 'cursor-not-allowed opacity-75' : ''}
+                                `}
+                                value={row.status}
+                                disabled={locked}
+                                onChange={(e) => handleAttendanceStatusChange(row, e.target.value)}
+                                title={locked ? 'This attendance is locked and cannot be changed' : ''}
+                                style={{
+                                  backgroundImage: `url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%239CA3AF%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E")`,
+                                  backgroundRepeat: "no-repeat",
+                                  backgroundPosition: "right 0.7rem top 50%",
+                                  backgroundSize: "0.65rem auto"
+                                }}
+                              >
+                                <option value="Present" className="text-green-600">Present</option>
+                                <option value="Absent" className="text-red-600">Absent</option>
+                                <option value="Pending" className="text-yellow-600">Pending</option>
+                                {isReschedule && (
+                                  <option value="Rescheduled" className="text-orange-600">Rescheduled</option>
+                                )}
+                              </select>
+                              {locked && (
+                                <p className="text-xs text-gray-500 mt-1 flex items-center gap-1">
+                                  <span className="inline-block w-1 h-1 bg-gray-400 rounded-full"></span>
+                                  Status locked
+                                </p>
+                              )}
+                              {isReschedule && !locked && decided && row.hasReschedule && (
+                                <button
+                                  onClick={() => requestLockIn(row)}
+                                  className="mt-2 inline-flex items-center gap-1 rounded-md bg-orange-600 px-2.5 py-1 text-[11px] font-bold text-white transition-colors hover:bg-orange-700"
+                                >
+                                  Lock In Attendance
+                                </button>
+                              )}
+                            </>
+                          );
+                        })()}
+                      </td>
+                      <td className="p-5">
+                        <button
                           onClick={() => openModal(row)}
                           className="w-full text-left text-sm font-medium text-gray-500 bg-gray-50 border border-gray-200 rounded-md py-2 px-3 hover:bg-gray-100 transition-colors truncate"
                         >
@@ -688,7 +963,9 @@ const Secretary_Attendance = () => {
                   {(!tableData[activeTab] || tableData[activeTab].length === 0) && (
                     <tr>
                       <td colSpan="4" className="py-8 text-center text-gray-500 font-medium">
-                        No records found for this category.
+                        {activeTab === "Reschedule Training"
+                          ? "No absent members require rescheduling."
+                          : "No records found for this category."}
                       </td>
                     </tr>
                   )}
@@ -761,7 +1038,7 @@ const Secretary_Attendance = () => {
                   <div className="min-w-0 flex-1">
                     <p className="text-[10px] font-bold uppercase tracking-widest text-green-700">Training Session</p>
                     <p className="mt-1 text-sm text-green-900">
-                      Optional date and time fields below let you override the default schedule for this attendance record.
+                      Record the secretary's evaluation remarks for this training attendance. To change the schedule for absent members, use the Reschedule Training tab.
                     </p>
                   </div>
                 </div>
@@ -779,44 +1056,6 @@ const Secretary_Attendance = () => {
                   <p className="font-bold text-gray-800 text-base">{selectedMember.schedule}</p>
                 </div>
               </div>
-
-              <div className="grid grid-cols-1 m8d:grid-cols-2 gap-4 mb-6">
-                <div>
-                  <label className="mb-2 flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-gray-400">
-                    <CalendarDays size={14} />
-                    Optional Training Date
-                  </label>
-                  <input
-                    type="date"
-                    className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#65B741]"
-                    value={editedMeetingDate}
-                    onChange={(e) => setEditedMeetingDate(e.target.value)}
-                    disabled={selectedMember?.status === 'Present'}
-                  />
-                </div>
-                {/* Training Time field - only shown if status is Absent */}
-                {selectedMember?.status === 'Absent' && (
-                  <div>
-                    <label className="mb-2 flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-gray-400">
-                      <Clock3 size={14} />
-                      Optional Training Time
-                    </label>
-                    <input
-                      type="time"
-                      className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#65B741]"
-                      value={editedMeetingTime}
-                      onChange={(e) => setEditedMeetingTime(e.target.value)}
-                    />
-                  </div>
-                )}
-              </div>
-
-              <p className="mb-6 text-xs text-gray-500">
-                {selectedMember?.status === 'Present' 
-                  ? 'Training date field is hidden when attendance is marked as Present.'
-                  : 'Leave date and time fields blank to keep the existing default schedule behavior.'
-                }
-              </p>
 
               {/* Status Row */}
               <div className="mb-6">
@@ -863,6 +1102,157 @@ const Secretary_Attendance = () => {
                   className="px-6 py-2 bg-[#1B5E20] hover:bg-green-800 text-white rounded-lg text-sm font-semibold transition-colors disabled:opacity-60"
                 >
                   {savingAttendance ? 'Saving...' : 'Save'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* --- LOCK-IN CONFIRMATION MODAL (Reschedule Training) --- */}
+      {lockConfirm?.member && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl w-[460px] overflow-hidden animate-in fade-in zoom-in duration-200">
+            <div className="bg-orange-600 p-4">
+              <h2 className="text-white font-bold text-lg">Lock In Rescheduled Attendance</h2>
+            </div>
+            <div className="p-6">
+              <div className="mb-5 rounded-xl border border-amber-100 bg-amber-50/70 p-4">
+                <div className="flex items-start gap-3">
+                  <div className="rounded-lg bg-white p-2 text-amber-600 shadow-sm flex-shrink-0">
+                    <AlertTriangle size={20} />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold text-amber-900 mb-1">This action is final</p>
+                    <p className="text-xs text-amber-800">
+                      Once locked, this rescheduled attendance can no longer be changed. Only proceed if you have verified the status.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mb-5">
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Member</p>
+                <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+                  <p className="font-bold text-gray-900">{lockConfirm.member.name}</p>
+                  <p className="text-sm text-gray-600 mt-1 break-all">{lockConfirm.member.email}</p>
+                  <p className="text-xs text-gray-500 mt-2">
+                    Rescheduled to <strong>{lockConfirm.member.schedule}</strong>
+                  </p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Marking as{" "}
+                    <strong className={lockConfirm.member.status === "Present" ? "text-green-700" : "text-red-700"}>
+                      {lockConfirm.member.status}
+                    </strong>
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
+                <button
+                  onClick={cancelLockIn}
+                  className="px-6 py-2 border border-gray-300 rounded-lg text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmLockIn}
+                  disabled={savingAttendance}
+                  className="px-6 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg text-sm font-semibold transition-colors disabled:opacity-60"
+                >
+                  {savingAttendance ? "Locking..." : "Lock In"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* --- RESCHEDULE TRAINING MODAL --- */}
+      {isRescheduleModalOpen && rescheduleMember && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl w-[520px] overflow-hidden animate-in fade-in zoom-in duration-200">
+            <div className="bg-orange-600 p-4">
+              <h2 className="text-white font-bold text-lg">Reschedule Training</h2>
+              <p className="text-orange-100 text-xs mt-1">Set a new training date for a member marked absent.</p>
+            </div>
+
+            <div className="p-6">
+              <div className="mb-5 rounded-xl border border-orange-100 bg-orange-50/70 p-4">
+                <div className="flex items-start gap-3">
+                  <div className="rounded-lg bg-white p-2 text-orange-600 shadow-sm">
+                    <AlertTriangle size={18} />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold text-orange-900 mb-1">Missed Training</p>
+                    <p className="text-xs text-orange-800">
+                      This member was recorded absent on <strong>{formatDisplayDate(rescheduleMember.originalMeetingDate || rescheduleMember.originalRecordedAt)}</strong>. Setting a new date will notify them by email.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mb-5">
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Member</p>
+                <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+                  <p className="font-bold text-gray-900">{rescheduleMember.name}</p>
+                  <p className="text-sm text-gray-600 mt-1 break-all">{rescheduleMember.email}</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-5">
+                <div>
+                  <label className="mb-2 flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-gray-400">
+                    <CalendarDays size={14} />
+                    New Training Date
+                  </label>
+                  <input
+                    type="date"
+                    className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    value={rescheduleDate}
+                    onChange={(e) => setRescheduleDate(e.target.value)}
+                    min={formatDateInputValue(new Date())}
+                  />
+                </div>
+                <div>
+                  <label className="mb-2 flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-gray-400">
+                    <Clock3 size={14} />
+                    New Training Time
+                  </label>
+                  <input
+                    type="time"
+                    className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    value={rescheduleTime}
+                    onChange={(e) => setRescheduleTime(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className="mb-5">
+                <label className="mb-2 flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-gray-400">
+                  Note to Member (optional)
+                </label>
+                <textarea
+                  className="w-full border border-gray-200 rounded-lg p-3 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500 min-h-[80px] resize-none"
+                  placeholder="e.g. Please arrive 15 minutes early. Bring a valid ID."
+                  value={rescheduleNote}
+                  onChange={(e) => setRescheduleNote(e.target.value)}
+                />
+              </div>
+
+              <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
+                <button
+                  onClick={closeRescheduleModal}
+                  className="px-6 py-2 border border-gray-300 rounded-lg text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={saveReschedule}
+                  disabled={savingReschedule || !rescheduleDate}
+                  className="px-6 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg text-sm font-semibold transition-colors disabled:opacity-60"
+                >
+                  {savingReschedule ? "Saving..." : "Save & Notify Member"}
                 </button>
               </div>
             </div>
