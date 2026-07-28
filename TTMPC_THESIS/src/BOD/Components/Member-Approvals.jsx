@@ -115,7 +115,7 @@ const Member_Approvals = () => {
         .from("attendance_logs")
         .select("application_id")
         .eq("training_stage", "Training")
-        .eq("attendance_status", "Absent"),
+        .in("attendance_status", ["Absent", "Rescheduled"]),
     ]);
     if (rescheduledRes.error) {
       console.warn("Unable to load rescheduled logs:", rescheduledRes.error.message || rescheduledRes.error);

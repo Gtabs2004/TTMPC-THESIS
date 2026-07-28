@@ -2847,10 +2847,20 @@ async def get_secretary_membership_records():
         raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
 
     try:
+        # Narrow selects and bound the result count. Selecting * from member +
+        # unbounded capital_build_up + * from personal_data_sheet can push
+        # supabase-py past the HTTP2 stream limit, which surfaces as a client
+        # `ConnectionTerminated` with no server-side traceback. Keeping the
+        # payload small avoids that failure mode.
         members_response = (
             supabase.table("member")
-            .select("*")
+            .select(
+                "id,membership_id,first_name,middle_initial,last_name,"
+                "membership_date,created_at,share_capital_amount,"
+                "number_of_shares,initial_paid_up_capital"
+            )
             .order("created_at", desc=True)
+            .limit(2000)
             .execute()
         )
         member_rows = members_response.data or []
@@ -2859,6 +2869,7 @@ async def get_secretary_membership_records():
             supabase.table("capital_build_up")
             .select("member_id,transaction_date,ending_share_capital")
             .order("transaction_date", desc=True)
+            .limit(5000)
             .execute()
         )
         cbu_rows = cbu_response.data or []
@@ -2910,17 +2921,24 @@ async def get_secretary_membership_records():
             seen_membership_numbers.add(str(membership_number or "").strip())
 
         # Include personal_data_sheet records not yet present in member table.
+        pds_columns = (
+            "membership_number_id,first_name,middle_name,surname,"
+            "date_of_membership,created_at,number_of_shares,"
+            "initial_paid_up_capital,amount"
+        )
         try:
             pds_rows = (
                 supabase.table("personal_data_sheet")
-                .select("*")
+                .select(pds_columns)
                 .order("created_at", desc=True)
+                .limit(2000)
                 .execute()
             ).data or []
         except Exception:
             pds_rows = (
                 supabase.table("personal_data_sheet")
-                .select("*")
+                .select(pds_columns)
+                .limit(2000)
                 .execute()
             ).data or []
 
@@ -2954,6 +2972,8 @@ async def get_secretary_membership_records():
 
         return {"success": True, "data": records}
     except Exception as err:
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Failed to load secretary membership records: {err}")
 
 

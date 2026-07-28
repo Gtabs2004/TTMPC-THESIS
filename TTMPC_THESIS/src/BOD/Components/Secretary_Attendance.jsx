@@ -58,6 +58,7 @@ const Secretary_Attendance = () => {
   const [rescheduleNote, setRescheduleNote] = useState("");
   const [savingReschedule, setSavingReschedule] = useState(false);
   const [lockConfirm, setLockConfirm] = useState(null); // { member } when confirming lock-in
+  const [isRescheduleConfirmOpen, setIsRescheduleConfirmOpen] = useState(false);
 
   const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 
@@ -272,12 +273,12 @@ const Secretary_Attendance = () => {
         isLocked: !!attendanceLog?.is_locked,
       };
 
-      // A member qualifies for "Reschedule Training" if they were marked Absent
-      // for the Training stage AND have a recorded meeting_date (i.e. a real
-      // training session was scheduled and missed). Rescheduled entries stay
-      // visible with the new schedule so the secretary can track outcome.
+      // A member qualifies for "Reschedule Training" if the secretary marked
+      // them Absent or explicitly Rescheduled at the Training stage AND a
+      // meeting_date was recorded (i.e. a real session was scheduled).
+      const trainingStatusLower = String(attendanceLog?.attendance_status || "").toLowerCase();
       const wasAbsentAtTraining =
-        String(attendanceLog?.attendance_status || "").toLowerCase() === "absent" &&
+        (trainingStatusLower === "absent" || trainingStatusLower === "rescheduled") &&
         !!attendanceLog?.meeting_date;
 
       // A member belongs to the Reschedule Training tab as soon as they were
@@ -366,10 +367,13 @@ const Secretary_Attendance = () => {
     const { data: authData } = await supabase.auth.getUser();
 
     // Lock semantics differ by stage:
-    // - Training: Present/Absent locks immediately (legacy rule).
+    // - Training: Present / Absent / Rescheduled all lock immediately.
     // - Rescheduled Training: never locks via normal status change; the
     //   secretary must explicitly click "Lock In Attendance".
-    const isDecidedStatus = member.status === "Present" || member.status === "Absent";
+    const isDecidedStatus =
+      member.status === "Present" ||
+      member.status === "Absent" ||
+      member.status === "Rescheduled";
     const nextIsLocked =
       resolvedTrainingStage === "Training" ? isDecidedStatus : false;
 
@@ -496,6 +500,7 @@ const Secretary_Attendance = () => {
 
   const closeRescheduleModal = () => {
     setIsRescheduleModalOpen(false);
+    setIsRescheduleConfirmOpen(false);
     setRescheduleMember(null);
     setRescheduleDate("");
     setRescheduleTime("");
@@ -581,8 +586,9 @@ const Secretary_Attendance = () => {
       return;
     }
 
-    // Training tab (legacy): Present/Absent locks immediately, so confirm.
-    if (nextStatus === "Present" || nextStatus === "Absent") {
+    // Training tab: Present / Absent / Rescheduled all lock immediately, so
+    // confirm before committing.
+    if (nextStatus === "Present" || nextStatus === "Absent" || nextStatus === "Rescheduled") {
       setPendingAttendanceChange({ member, nextStatus });
       setIsConfirmationModalOpen(true);
       return;
@@ -881,9 +887,14 @@ const Secretary_Attendance = () => {
                         {activeTab === "Reschedule Training" ? (
                           <button
                             onClick={() => openRescheduleModal(row)}
-                            className="text-left hover:text-orange-600 hover:underline transition-colors"
+                            className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-xs font-bold transition-colors ${
+                              row.hasReschedule
+                                ? "border-[#66B538] bg-[#EAF6DF] text-[#1B5E20] hover:bg-[#D8EEC8]"
+                                : "border-[#66B538] bg-[#66B538] text-white hover:bg-[#2C7A3F]"
+                            }`}
                             title="Click to set or update the rescheduled training date"
                           >
+                            <CalendarDays size={14} />
                             {row.schedule}
                           </button>
                         ) : (
@@ -900,7 +911,14 @@ const Secretary_Attendance = () => {
                         */}
                         {(() => {
                           const isReschedule = activeTab === "Reschedule Training";
-                          const decided = row.status === "Present" || row.status === "Absent";
+                          const decided = row.status === "Present" || row.status === "Absent" || row.status === "Rescheduled";
+                          // Lock rules:
+                          // - Training tab: any decided status (Present /
+                          //   Absent / Rescheduled) locks immediately.
+                          // - Reschedule tab: rows are unlocked again so the
+                          //   secretary can record attendance for the new
+                          //   session; locking is re-established via the
+                          //   explicit "Lock In Attendance" button.
                           const locked = isReschedule
                             ? row.isLocked
                             : row.isLocked || decided;
@@ -928,9 +946,7 @@ const Secretary_Attendance = () => {
                                 <option value="Present" className="text-green-600">Present</option>
                                 <option value="Absent" className="text-red-600">Absent</option>
                                 <option value="Pending" className="text-yellow-600">Pending</option>
-                                {isReschedule && (
-                                  <option value="Rescheduled" className="text-orange-600">Rescheduled</option>
-                                )}
+                                <option value="Rescheduled" className="text-orange-600">Rescheduled</option>
                               </select>
                               {locked && (
                                 <p className="text-xs text-gray-500 mt-1 flex items-center gap-1">
@@ -1013,7 +1029,11 @@ const Secretary_Attendance = () => {
             </div>
 
             <p className="text-sm text-gray-700">
-              Are you sure you want to mark this member as <strong className={pendingAttendanceChange.nextStatus === 'Present' ? 'text-green-700' : 'text-red-700'}>{pendingAttendanceChange.nextStatus}</strong>?
+              Are you sure you want to mark this member as <strong className={
+                pendingAttendanceChange.nextStatus === 'Present' ? 'text-green-700' :
+                pendingAttendanceChange.nextStatus === 'Rescheduled' ? 'text-orange-700' :
+                'text-red-700'
+              }>{pendingAttendanceChange.nextStatus}</strong>?
             </p>
           </>
         )}
@@ -1172,20 +1192,20 @@ const Secretary_Attendance = () => {
       {isRescheduleModalOpen && rescheduleMember && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50">
           <div className="bg-white rounded-lg shadow-xl w-[520px] overflow-hidden animate-in fade-in zoom-in duration-200">
-            <div className="bg-orange-600 p-4">
+            <div className="bg-[#66B538] p-4">
               <h2 className="text-white font-bold text-lg">Reschedule Training</h2>
-              <p className="text-orange-100 text-xs mt-1">Set a new training date for a member marked absent.</p>
+              <p className="text-[#EAF6DF] text-xs mt-1">Set a new training date for a member marked absent.</p>
             </div>
 
             <div className="p-6">
-              <div className="mb-5 rounded-xl border border-orange-100 bg-orange-50/70 p-4">
+              <div className="mb-5 rounded-xl border border-green-100 bg-green-50/70 p-4">
                 <div className="flex items-start gap-3">
-                  <div className="rounded-lg bg-white p-2 text-orange-600 shadow-sm">
+                  <div className="rounded-lg bg-white p-2 text-[#2C7A3F] shadow-sm">
                     <AlertTriangle size={18} />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm font-semibold text-orange-900 mb-1">Missed Training</p>
-                    <p className="text-xs text-orange-800">
+                    <p className="text-sm font-semibold text-[#1B5E20] mb-1">Missed Training</p>
+                    <p className="text-xs text-green-900">
                       This member was recorded absent on <strong>{formatDisplayDate(rescheduleMember.originalMeetingDate || rescheduleMember.originalRecordedAt)}</strong>. Setting a new date will notify them by email.
                     </p>
                   </div>
@@ -1208,7 +1228,7 @@ const Secretary_Attendance = () => {
                   </label>
                   <input
                     type="date"
-                    className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#66B538]"
                     value={rescheduleDate}
                     onChange={(e) => setRescheduleDate(e.target.value)}
                     min={formatDateInputValue(new Date())}
@@ -1221,7 +1241,7 @@ const Secretary_Attendance = () => {
                   </label>
                   <input
                     type="time"
-                    className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#66B538]"
                     value={rescheduleTime}
                     onChange={(e) => setRescheduleTime(e.target.value)}
                   />
@@ -1233,7 +1253,7 @@ const Secretary_Attendance = () => {
                   Note to Member (optional)
                 </label>
                 <textarea
-                  className="w-full border border-gray-200 rounded-lg p-3 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500 min-h-[80px] resize-none"
+                  className="w-full border border-gray-200 rounded-lg p-3 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#66B538] min-h-[80px] resize-none"
                   placeholder="e.g. Please arrive 15 minutes early. Bring a valid ID."
                   value={rescheduleNote}
                   onChange={(e) => setRescheduleNote(e.target.value)}
@@ -1248,11 +1268,77 @@ const Secretary_Attendance = () => {
                   Cancel
                 </button>
                 <button
-                  onClick={saveReschedule}
+                  onClick={() => setIsRescheduleConfirmOpen(true)}
                   disabled={savingReschedule || !rescheduleDate}
-                  className="px-6 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg text-sm font-semibold transition-colors disabled:opacity-60"
+                  className="px-6 py-2 bg-[#66B538] hover:bg-[#2C7A3F] text-white rounded-lg text-sm font-semibold transition-colors disabled:opacity-60"
                 >
                   {savingReschedule ? "Saving..." : "Save & Notify Member"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* --- FINAL CONFIRMATION: send reschedule email --- */}
+      {isRescheduleConfirmOpen && rescheduleMember && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[60]">
+          <div className="bg-white rounded-lg shadow-xl w-[460px] overflow-hidden animate-in fade-in zoom-in duration-200">
+            <div className="bg-[#66B538] p-4">
+              <h2 className="text-white font-bold text-lg">Confirm Reschedule Notification</h2>
+              <p className="text-[#EAF6DF] text-xs mt-1">Review before sending the email to the member.</p>
+            </div>
+            <div className="p-6">
+              <div className="mb-5 rounded-xl border border-green-100 bg-green-50/70 p-4">
+                <div className="flex items-start gap-3">
+                  <div className="rounded-lg bg-white p-2 text-[#2C7A3F] shadow-sm flex-shrink-0">
+                    <AlertTriangle size={18} />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold text-[#1B5E20] mb-1">This will send an email</p>
+                    <p className="text-xs text-green-900">
+                      A branded reschedule notification will be sent to the member's email. Make sure the details are correct.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mb-5 rounded-lg border border-gray-200 bg-gray-50 p-4">
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Member</p>
+                <p className="font-bold text-gray-900">{rescheduleMember.name}</p>
+                <p className="text-sm text-gray-600 mt-1 break-all">{rescheduleMember.email}</p>
+                <div className="mt-3 pt-3 border-t border-gray-200">
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">New Training Schedule</p>
+                  <p className="text-sm font-semibold text-[#1B5E20]">
+                    {formatDisplayDate(rescheduleDate)}
+                    {rescheduleTime ? ` · ${rescheduleTime}` : ""}
+                  </p>
+                </div>
+                {rescheduleNote && (
+                  <div className="mt-3 pt-3 border-t border-gray-200">
+                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Note to Member</p>
+                    <p className="text-xs text-gray-700 whitespace-pre-wrap">{rescheduleNote}</p>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
+                <button
+                  onClick={() => setIsRescheduleConfirmOpen(false)}
+                  disabled={savingReschedule}
+                  className="px-6 py-2 border border-gray-300 rounded-lg text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-60"
+                >
+                  Back
+                </button>
+                <button
+                  onClick={async () => {
+                    await saveReschedule();
+                    setIsRescheduleConfirmOpen(false);
+                  }}
+                  disabled={savingReschedule}
+                  className="px-6 py-2 bg-[#66B538] hover:bg-[#2C7A3F] text-white rounded-lg text-sm font-semibold transition-colors disabled:opacity-60"
+                >
+                  {savingReschedule ? "Sending..." : "Confirm & Send Email"}
                 </button>
               </div>
             </div>
