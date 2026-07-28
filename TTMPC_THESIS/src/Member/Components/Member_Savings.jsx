@@ -412,7 +412,7 @@ const Member_Savings = () => {
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col overflow-hidden lg:ml-64">
         {/* Header */}
-        <header className="bg-white dark:bg-gray-900 h-16 shadow-sm flex items-center justify-between px-4 sm:px-6 lg:px-8 z-10 border-b border-gray-100 dark:border-gray-800">
+        <header className="bg-white dark:bg-gray-900 h-16 shrink-0 shadow-sm flex items-center justify-between px-4 sm:px-6 lg:px-8 z-10 border-b border-gray-100 dark:border-gray-800">
           <div className="flex items-center gap-2 sm:gap-3">
             <button
               aria-label="Open sidebar"
@@ -425,27 +425,15 @@ const Member_Savings = () => {
           </div>
 
           <div className="flex items-center gap-2 sm:gap-4">
-          <div className="relative hidden md:block">
-            <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400"/>
-            <input
-              type="text"
-              className="bg-gray-50 dark:bg-gray-800 w-64 h-10 rounded-full border border-gray-200 dark:border-gray-700 pl-10 pr-4 py-1 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#1D6021] focus:bg-white dark:focus:bg-gray-800 transition-all"
-              placeholder="Search..."
-            />
-          </div>
-          <LoanNotificationBell role="member" accentClass="bg-[#1D6021]" />
-
-          <button
-            onClick={() => setIsSettingsOpen(true)}
-            className="p-2 rounded-md text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-            aria-label="Open settings"
-          >
-            <Settings className="w-5 h-5" />
-          </button>
-
-          <div className="flex items-center gap-2 sm:gap-3 border-l border-gray-200 dark:border-gray-700 pl-2 sm:pl-4 cursor-pointer">
-            
-          </div>
+           
+            <LoanNotificationBell role="member" accentClass="bg-[#1D6021]" />
+            <button
+              onClick={() => setIsSettingsOpen(true)}
+              className="p-2 rounded-md text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+              aria-label="Open settings"
+            >
+              <Settings className="w-5 h-5" />
+            </button>
           </div>
         </header>
    

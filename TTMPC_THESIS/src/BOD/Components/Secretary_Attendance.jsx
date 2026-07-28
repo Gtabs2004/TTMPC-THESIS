@@ -332,6 +332,13 @@ const Secretary_Attendance = () => {
   const isSecretary = portalRole === "secretary";
   const visibleTabs = isSecretary ? ["Pending", "Training", "For Revision"] : tabs.map((tab) => tab.name);
 
+  // Secretary is locked to the Training tab; if state ever drifts away, snap back.
+  useEffect(() => {
+    if (isSecretary && activeTab !== "Training") {
+      setActiveTab("Training");
+    }
+  }, [isSecretary, activeTab]);
+
   const handleSignOut = async (e) => {
     e.preventDefault();
     try {
@@ -579,22 +586,29 @@ const Secretary_Attendance = () => {
           <div className="bg-white rounded-xl shadow-sm border border-gray-200">
             {/* Tabs */}
             <div className="flex gap-8 px-6 pt-4 border-b border-gray-200">
-              {tabs.filter((tab) => visibleTabs.includes(tab.name)).map((tab) => (
-                <button
-                  key={tab.name}
-                  onClick={() => setActiveTab(tab.name)}
-                  className={`flex items-center gap-2 pb-4 px-1 text-sm font-semibold transition-colors relative ${
-                    activeTab === tab.name 
-                      ? "text-green-600 border-b-2 border-green-600" 
-                      : "text-gray-500 hover:text-gray-700"
-                  }`}
-                >
-                  {tab.name}
-                  <span className={`px-2 py-0.5 rounded-full text-xs text-white ${tab.color}`}>
-                    {tab.count}
-                  </span>
-                </button>
-              ))}
+              {tabs.filter((tab) => visibleTabs.includes(tab.name)).map((tab) => {
+                const isTabDisabled = isSecretary && tab.name !== "Training";
+                return (
+                  <button
+                    key={tab.name}
+                    onClick={() => !isTabDisabled && setActiveTab(tab.name)}
+                    disabled={isTabDisabled}
+                    title={isTabDisabled ? "Only Training is accessible to Secretary accounts" : undefined}
+                    className={`flex items-center gap-2 pb-4 px-1 text-sm font-semibold transition-colors relative ${
+                      isTabDisabled
+                        ? "text-gray-300 cursor-not-allowed"
+                        : activeTab === tab.name
+                        ? "text-green-600 border-b-2 border-green-600"
+                        : "text-gray-500 hover:text-gray-700"
+                    }`}
+                  >
+                    {tab.name}
+                    <span className={`px-2 py-0.5 rounded-full text-xs text-white ${isTabDisabled ? "bg-gray-300" : tab.color}`}>
+                      {tab.count}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
 
             {/* Table Header */}
