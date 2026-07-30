@@ -2438,11 +2438,53 @@ async def get_bookkeeper_manage_loans():
         )
         payment_rows = payments_response.data or []
 
+        # Also pull legacy payments (historical, pre-migration). These live in
+        # loan_payments_legacy and are keyed by the same control_number, but have
+        # no confirmation workflow — they are always considered validated.
+        # Supabase caps result sets at 1000 rows/page, so we page through until
+        # done (legacy table can have 6k+ rows across all loans).
+        legacy_payment_rows: list[dict] = []
+        try:
+            page = 1000
+            offset = 0
+            while True:
+                batch = (
+                    supabase.table("loan_payments_legacy")
+                    .select("id,loan_id,amount_paid,payment_date,payment_code,or_cdv_no,is_overpayment")
+                    .in_("loan_id", loan_ids)
+                    .order("payment_date")
+                    .range(offset, offset + page - 1)
+                    .execute()
+                ).data or []
+                if not batch:
+                    break
+                legacy_payment_rows.extend(batch)
+                if len(batch) < page:
+                    break
+                offset += page
+        except Exception:
+            legacy_payment_rows = []
+
+        # Normalize legacy rows into the same shape as live loan_payments so the
+        # downstream merge loop can treat them uniformly.
+        for legacy in legacy_payment_rows:
+            payment_rows.append({
+                "id": legacy.get("id"),
+                "loan_id": legacy.get("loan_id"),
+                "amount_paid": legacy.get("amount_paid"),
+                "penalties": 0,
+                "payment_date": legacy.get("payment_date"),
+                "confirmation_status": "validated",  # legacy = historical fact
+                "payment_reference": legacy.get("payment_code") or legacy.get("or_cdv_no"),
+                "transaction_reference": legacy.get("or_cdv_no") or legacy.get("payment_code"),
+                "_is_legacy": True,
+            })
+
         schedule_rows = []
         try:
             schedule_rows = (
                 supabase.table("loan_schedules")
-                .select("loan_id,due_date,schedule_status")
+                .select("loan_id,due_date,schedule_status,expected_amount,installment_no")
                 .in_("loan_id", loan_ids)
                 .order("due_date")
                 .execute()
@@ -2526,6 +2568,22 @@ async def get_bookkeeper_manage_loans():
                     break
 
             due_date = active_due.get("due_date") if active_due else None
+
+            # Inject the current-due schedule row as an "Upcoming" ledger entry so
+            # the ledger UI has something to show for loans without any recorded
+            # payments yet (e.g., legacy loans reconstructed from CSV).
+            if active_due:
+                payment_history.append(
+                    {
+                        "payment_id": f"SCHED-{loan_id}-{active_due.get('installment_no')}",
+                        "date_paid": active_due.get("due_date"),
+                        "reference_no": f"Installment #{active_due.get('installment_no')}",
+                        "amount_paid": decimal_to_float(active_due.get("expected_amount") or 0),
+                        "penalties": 0.0,
+                        "remaining_after": decimal_to_float(remaining_balance),
+                        "confirmation_status": "upcoming",
+                    }
+                )
 
             if repayment_status == "Fully Paid":
                 fully_paid_count += 1

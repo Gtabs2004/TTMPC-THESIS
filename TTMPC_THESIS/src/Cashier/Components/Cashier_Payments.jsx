@@ -272,6 +272,8 @@ const Cashier_Payments = () => {
   // Filtering and sorting
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [typeFilter, setTypeFilter] = useState("all");
+  const [yearFilter, setYearFilter] = useState("all");
   // Default LIFO: newest disbursed loan first. Panelists expect the most recent
   // activity at the top; sorting by due_date buried fresh loans below overdue ones.
   const [sortConfig, setSortConfig] = useState({ key: "disbursal_date", direction: "desc" });
@@ -287,16 +289,27 @@ const Cashier_Payments = () => {
 
   // Derived data: filtered and sorted loans
   const filteredAndSortedLoans = useMemo(() => {
+    const q = (searchTerm ?? "").toLowerCase();
     let filtered = loans.filter((loan) => {
+      const memberName = (loan.member_name ?? "").toLowerCase();
+      const loanId = (loan.loan_id ?? "").toLowerCase();
+      const memberId = (loan.member_id ?? "").toLowerCase();
       const matchesSearch =
-        loan.member_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        loan.loan_id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        loan.member_id.toLowerCase().includes(searchTerm.toLowerCase());
+        memberName.includes(q) || loanId.includes(q) || memberId.includes(q);
 
       const matchesStatus =
-        statusFilter === "all" || loan.loan_status === statusFilter;
+        statusFilter === "all" || (loan.loan_status ?? "") === statusFilter;
 
-      return matchesSearch && matchesStatus;
+      const loanType = String(loan.loan_type ?? "").toLowerCase();
+      const matchesType =
+        typeFilter === "all" || loanType === typeFilter.toLowerCase();
+
+      const disbursalYear = loan.disbursal_date
+        ? String(new Date(loan.disbursal_date).getFullYear())
+        : "";
+      const matchesYear = yearFilter === "all" || disbursalYear === yearFilter;
+
+      return matchesSearch && matchesStatus && matchesType && matchesYear;
     });
 
     // Sort the filtered results
