@@ -340,7 +340,28 @@ const Cashier_Payments = () => {
     }
 
     return filtered;
-  }, [loans, searchTerm, statusFilter, sortConfig]);
+  }, [loans, searchTerm, statusFilter, typeFilter, yearFilter, sortConfig]);
+
+  // Derive available years + loan types from the loaded loans so the filter
+  // dropdowns only offer values that will actually match something.
+  const availableTypes = useMemo(() => {
+    const set = new Set();
+    for (const l of loans) {
+      const t = String(l.loan_type ?? "").trim();
+      if (t) set.add(t);
+    }
+    return Array.from(set).sort();
+  }, [loans]);
+
+  const availableYears = useMemo(() => {
+    const set = new Set();
+    for (const l of loans) {
+      if (l.disbursal_date) {
+        set.add(String(new Date(l.disbursal_date).getFullYear()));
+      }
+    }
+    return Array.from(set).sort((a, b) => Number(b) - Number(a));
+  }, [loans]);
 
   const handleSort = (key) => {
     setSortConfig((prevConfig) => ({
@@ -355,7 +376,7 @@ const Cashier_Payments = () => {
     return filteredAndSortedLoans.slice(start, start + PAGE_SIZE);
   }, [filteredAndSortedLoans, page]);
 
-  useEffect(() => setPage(1), [searchTerm, statusFilter, sortConfig]);
+  useEffect(() => setPage(1), [searchTerm, statusFilter, typeFilter, yearFilter, sortConfig]);
 
   const menuItems = [
     { name: "Dashboard", icon: LayoutDashboard, path: "/Cashier_Dashboard" },
@@ -786,7 +807,7 @@ const Cashier_Payments = () => {
             {/* Filters Dropdown */}
             {showFilters && (
               <div className="mb-6 rounded-lg border border-gray-200 bg-gray-50 p-4">
-                <div className="space-y-3">
+                <div className="space-y-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Loan Status
@@ -807,6 +828,83 @@ const Cashier_Payments = () => {
                       ))}
                     </div>
                   </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Loan Type
+                    </label>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        onClick={() => setTypeFilter("all")}
+                        className={`rounded-full px-4 py-1.5 text-sm font-medium transition ${
+                          typeFilter === "all"
+                            ? "bg-green-600 text-white"
+                            : "bg-white border border-gray-300 text-gray-700 hover:border-green-500"
+                        }`}
+                      >
+                        All Types
+                      </button>
+                      {availableTypes.map((type) => (
+                        <button
+                          key={type}
+                          onClick={() => setTypeFilter(type)}
+                          className={`rounded-full px-4 py-1.5 text-sm font-medium transition ${
+                            typeFilter === type
+                              ? "bg-green-600 text-white"
+                              : "bg-white border border-gray-300 text-gray-700 hover:border-green-500"
+                          }`}
+                        >
+                          {type}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Disbursal Year
+                    </label>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        onClick={() => setYearFilter("all")}
+                        className={`rounded-full px-4 py-1.5 text-sm font-medium transition ${
+                          yearFilter === "all"
+                            ? "bg-green-600 text-white"
+                            : "bg-white border border-gray-300 text-gray-700 hover:border-green-500"
+                        }`}
+                      >
+                        All Years
+                      </button>
+                      {availableYears.map((year) => (
+                        <button
+                          key={year}
+                          onClick={() => setYearFilter(year)}
+                          className={`rounded-full px-4 py-1.5 text-sm font-medium transition ${
+                            yearFilter === year
+                              ? "bg-green-600 text-white"
+                              : "bg-white border border-gray-300 text-gray-700 hover:border-green-500"
+                          }`}
+                        >
+                          {year}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {(statusFilter !== "all" || typeFilter !== "all" || yearFilter !== "all") && (
+                    <div className="pt-2 border-t border-gray-200">
+                      <button
+                        onClick={() => {
+                          setStatusFilter("all");
+                          setTypeFilter("all");
+                          setYearFilter("all");
+                        }}
+                        className="text-sm text-red-600 hover:text-red-700 font-medium"
+                      >
+                        Clear all filters
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             )}

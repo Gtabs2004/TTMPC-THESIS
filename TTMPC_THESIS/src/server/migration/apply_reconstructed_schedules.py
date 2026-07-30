@@ -81,22 +81,16 @@ def main() -> int:
     if existing_count > 0:
         answer = input("Delete existing LEGACY_% rows before reapply? (yes/no): ").strip().lower()
         if answer == "yes":
-            print("  Deleting existing LEGACY_% rows...")
-            # Delete in chunks to avoid timeout
-            while True:
-                r = (
-                    sb.table("loan_schedules")
-                    .select("id")
-                    .like("schedule_id", "LEGACY_%")
-                    .limit(1000)
-                    .execute()
-                )
-                ids = [row["id"] for row in (r.data or [])]
-                if not ids:
-                    break
-                sb.table("loan_schedules").delete().in_("id", ids).execute()
-                print(f"    Deleted {len(ids)} rows...")
-            print("  Done deleting.")
+            print("  Deleting existing LEGACY_% rows via server-side filter...")
+            sb.table("loan_schedules").delete().like("schedule_id", "LEGACY_%").execute()
+            # Verify
+            r = (
+                sb.table("loan_schedules")
+                .select("schedule_id", count="exact", head=True)
+                .like("schedule_id", "LEGACY_%")
+                .execute()
+            )
+            print(f"  Done. Remaining LEGACY_% rows: {r.count or 0}")
 
     print(f"\nParsing {SQL_FILE.name}...")
     rows = parse_sql(SQL_FILE)

@@ -1137,6 +1137,29 @@ async def get_cashier_loans_for_payments():
             if str(row.get("loan_status") or "").strip().lower() not in {"rejected", "cancelled"}
         ]
 
+        # Cashier view = only ACTIVE (collectible) loans. Restructured / closed
+        # legacy loans have all their schedule rows marked Paid (no Unpaid/
+        # Pending/Overdue row remaining) — filter them out here so the cashier
+        # doesn't see them alongside collectible loans. Restructured history
+        # is still visible in the Bookkeeper Loan Ledger and Member SOA.
+        _active_loan_ids: set[str] = set()
+        try:
+            _active_scheds = (
+                supabase.table("loan_schedules")
+                .select("loan_id")
+                .in_("schedule_status", ["Unpaid", "unpaid", "Pending", "pending", "Overdue", "overdue"])
+                .execute()
+            ).data or []
+            _active_loan_ids = {str(r.get("loan_id") or "") for r in _active_scheds if r.get("loan_id")}
+        except Exception:
+            _active_loan_ids = set()
+
+        if _active_loan_ids:
+            loans_rows = [
+                row for row in loans_rows
+                if str(row.get("control_number") or "") in _active_loan_ids
+            ]
+
         schedules_by_loan: dict[str, list[dict]] = {}
         try:
             try:
