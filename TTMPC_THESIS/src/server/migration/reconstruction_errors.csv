@@ -1,0 +1,2 @@
+loan_id,reason
+TTMPCL-357,"missing fields: principal=20000, term=12, app_date=None"
