@@ -274,17 +274,22 @@ def read_payment_dates() -> dict[str, list[date]]:
 def detect_restructured(
     loans_by_member: dict[str, list[dict]],
     payment_dates: dict[str, list[date]],
+    payment_totals: dict[str, Decimal],
 ) -> set[str]:
     """
-    For each member, walk loans in application_date order. If loan N had >=6
-    payments recorded before loan N+1's application_date, loan N is restructured
-    (superseded by N+1). Returns set of loan_ids to mark Restructured.
+    Classify old loans in a member/type chain:
+      - RENEWAL (Restructured): new loan came while old one still had
+        outstanding balance AND old loan had >=6 monthly payments recorded.
+      - SEPARATE NEW LOAN: old loan was FULLY PAID (payments >= expected total)
+        before the new loan started. Old loan stays as "Fully Paid" — the new
+        one is unrelated.
+
+    Only RENEWAL loans are returned in the set — they will be hidden from
+    the cashier view and skipped for schedule emission (the newer loan
+    represents the "current" state).
     """
     restructured: set[str] = set()
     for member_loans in loans_by_member.values():
-        # Bucket by loan_type: a member can have 1 Consolidated + 1 Emergency
-        # concurrently, but only one of each type — so restructure chains are
-        # per-type, not per-member.
         by_type: dict[str, list[dict]] = {}
         for l in member_loans:
             if not l.get("_app_date"):
@@ -295,11 +300,58 @@ def detect_restructured(
             for i in range(len(ordered) - 1):
                 older = ordered[i]
                 newer = ordered[i + 1]
-                paid_before_new = sum(
-                    1 for pd in payment_dates.get(older["loan_id"], []) if pd < newer["_app_date"]
+                older_id = older["loan_id"]
+                newer_app = newer["_app_date"]
+
+                # Count monthly payments on the older loan BEFORE the newer
+                # loan's application date.
+                pmts_before_new = sum(
+                    1 for pd in payment_dates.get(older_id, []) if pd < newer_app
                 )
-                if paid_before_new >= 6:
-                    restructured.add(older["loan_id"])
+                if pmts_before_new < 6:
+                    continue  # Not enough history to be a renewal
+
+                # Was the old loan fully paid before the new one started?
+                # Compute expected total from the CSV row and compare to total
+                # payments received before the renewal date.
+                raw = older.get("_raw") or {}
+                try:
+                    principal = Decimal(str(raw.get("LoanAmount") or "0"))
+                    term = int(float(raw.get("LoanTerm") or 0))
+                except (ValueError, ArithmeticError):
+                    continue
+                loan_type = older.get("_loan_type") or ""
+                rate_pct = INTEREST_RATE_PCT.get(loan_type, Decimal("0"))
+                if term <= 0 or principal <= 0:
+                    continue
+                monthly_rate = rate_pct / 100
+                # Straight-line expected total mirrors main.py amortization
+                # (Consolidated/Bonus flat interest, Emergency approximated).
+                if loan_type == "EMERGENCY":
+                    # Diminishing: sum principal + interest on ending balances.
+                    # Cheap approximation is fine here since we just need a
+                    # threshold comparison, not exact numbers.
+                    expected_total = principal + (principal * monthly_rate * Decimal(term) / 2)
+                else:
+                    expected_total = principal + (principal * monthly_rate * Decimal(term))
+
+                paid_before_new = payment_totals.get(older_id, Decimal("0"))
+                # Sum only payments dated before renewal — payment_totals sums
+                # everything, so recompute here from dates for accuracy.
+                paid_before_new = Decimal("0")
+                # (payment_dates gives dates only; we don't have per-payment
+                # amounts easily here, so approximate: if pmts_before_new *
+                # monthly_installment >= expected_total, treat as fully paid.)
+                monthly_installment = expected_total / Decimal(term)
+                paid_before_new_est = monthly_installment * Decimal(pmts_before_new)
+
+                if paid_before_new_est >= expected_total:
+                    # Old loan was fully paid before new one -> SEPARATE NEW LOAN.
+                    # Don't mark as restructured; it stays as its own Fully Paid loan.
+                    continue
+
+                # Balance remained + >=6 payments made -> genuine renewal
+                restructured.add(older_id)
     return restructured
 
 
@@ -344,7 +396,7 @@ def main() -> int:
         if master_uuid and app_date:
             loans_by_member.setdefault(master_uuid, []).append(entry)
 
-    restructured_ids = detect_restructured(loans_by_member, payment_dates)
+    restructured_ids = detect_restructured(loans_by_member, payment_dates, payment_totals)
     print(f"Detected {len(restructured_ids)} restructured (superseded) loans")
 
     sql_lines: list[str] = [
