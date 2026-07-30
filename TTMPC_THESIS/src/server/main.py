@@ -1160,24 +1160,39 @@ async def get_cashier_loans_for_payments():
                 if str(row.get("control_number") or "") in _active_loan_ids
             ]
 
+        # Page through loan_schedules — 6,080+ LEGACY rows plus live means a
+        # single .execute() silently caps at 1000 and starves most loans of
+        # their schedule data, which the loop below reads to decide whether to
+        # emit each loan. Without pagination live loans dropped out entirely.
         schedules_by_loan: dict[str, list[dict]] = {}
         try:
-            try:
-                schedules_response = (
-                    supabase.table("loan_schedules")
-                    .select("id,schedule_id,loan_id,installment_no,due_date,expected_amount,expected_principal,expected_interest,penalty,remaining_principal,schedule_status")
-                    .order("due_date")
-                    .execute()
-                )
-            except Exception:
-                schedules_response = (
-                    supabase.table("loan_schedules")
-                    .select("id,loan_id,installment_no,due_date,expected_amount,principal_component,interest_component,schedule_status")
-                    .order("due_date")
-                    .execute()
-                )
-            for row in schedules_response.data or []:
-                schedules_by_loan.setdefault(str(row.get("loan_id") or ""), []).append(row)
+            page = 1000
+            offset = 0
+            wide_cols = "id,schedule_id,loan_id,installment_no,due_date,expected_amount,expected_principal,expected_interest,penalty,remaining_principal,schedule_status"
+            narrow_cols = "id,loan_id,installment_no,due_date,expected_amount,principal_component,interest_component,schedule_status"
+            use_wide = True
+            while True:
+                try:
+                    cols = wide_cols if use_wide else narrow_cols
+                    batch = (
+                        supabase.table("loan_schedules")
+                        .select(cols)
+                        .order("due_date")
+                        .range(offset, offset + page - 1)
+                        .execute()
+                    ).data or []
+                except Exception:
+                    if use_wide:
+                        use_wide = False
+                        continue
+                    raise
+                if not batch:
+                    break
+                for row in batch:
+                    schedules_by_loan.setdefault(str(row.get("loan_id") or ""), []).append(row)
+                if len(batch) < page:
+                    break
+                offset += page
         except Exception:
             schedules_by_loan = {}
 
@@ -1189,23 +1204,77 @@ async def get_cashier_loans_for_payments():
                 if internal_id:
                     schedule_display_by_internal_id[internal_id] = display_id
 
-        payments_rows = []
+        # Page through loan_payments (live) — Supabase caps at 1000 rows/page.
+        payments_rows: list[dict] = []
         try:
-            payments_response = (
-                supabase.table("loan_payments")
-                .select("id,loan_id,schedule_id,amount_paid,penalties,payment_date,deficiency,confirmation_status,payment_reference,transaction_reference")
-                .order("payment_date", desc=True)
-                .execute()
-            )
-            payments_rows = payments_response.data or []
+            page = 1000
+            offset = 0
+            while True:
+                batch = (
+                    supabase.table("loan_payments")
+                    .select("id,loan_id,schedule_id,amount_paid,penalties,payment_date,deficiency,confirmation_status,payment_reference,transaction_reference")
+                    .order("payment_date", desc=True)
+                    .range(offset, offset + page - 1)
+                    .execute()
+                ).data or []
+                if not batch:
+                    break
+                payments_rows.extend(batch)
+                if len(batch) < page:
+                    break
+                offset += page
         except Exception:
-            payments_response = (
-                supabase.table("loan_payments")
-                .select("id,loan_id,schedule_id,amount_paid,penalties,payment_date,deficiency")
-                .order("payment_date", desc=True)
-                .execute()
-            )
-            payments_rows = payments_response.data or []
+            offset = 0
+            while True:
+                batch = (
+                    supabase.table("loan_payments")
+                    .select("id,loan_id,schedule_id,amount_paid,penalties,payment_date,deficiency")
+                    .order("payment_date", desc=True)
+                    .range(offset, offset + 999)
+                    .execute()
+                ).data or []
+                if not batch:
+                    break
+                payments_rows.extend(batch)
+                if len(batch) < 1000:
+                    break
+                offset += 1000
+
+        # Also union loan_payments_legacy — historical payments migrated from
+        # the coop's pre-app records. Always treated as validated. Same pagination
+        # pattern as the bookkeeper ledger endpoint (main.py:2469).
+        try:
+            page = 1000
+            offset = 0
+            while True:
+                batch = (
+                    supabase.table("loan_payments_legacy")
+                    .select("id,loan_id,amount_paid,payment_date,payment_code,or_cdv_no")
+                    .order("payment_date", desc=True)
+                    .range(offset, offset + page - 1)
+                    .execute()
+                ).data or []
+                if not batch:
+                    break
+                for legacy in batch:
+                    payments_rows.append({
+                        "id": legacy.get("id"),
+                        "loan_id": legacy.get("loan_id"),
+                        "schedule_id": None,
+                        "amount_paid": legacy.get("amount_paid"),
+                        "penalties": 0,
+                        "payment_date": legacy.get("payment_date"),
+                        "deficiency": 0,
+                        "confirmation_status": "validated",
+                        "payment_reference": legacy.get("payment_code") or legacy.get("or_cdv_no"),
+                        "transaction_reference": legacy.get("or_cdv_no") or legacy.get("payment_code"),
+                        "_is_legacy": True,
+                    })
+                if len(batch) < page:
+                    break
+                offset += page
+        except Exception:
+            pass
 
         confirmed_paid_by_loan: dict[str, Decimal] = {}
         last_payment_date_by_loan: dict[str, str] = {}
