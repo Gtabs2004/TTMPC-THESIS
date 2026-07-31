@@ -2572,15 +2572,28 @@ async def get_bookkeeper_manage_loans():
                 "_is_legacy": True,
             })
 
-        schedule_rows = []
+        # Page through schedules — 6,080+ LEGACY rows silently truncate at
+        # 1000 without pagination, starving most loans of their due dates and
+        # leaving the Repayment Behavior chart empty for those loans.
+        schedule_rows: list[dict] = []
         try:
-            schedule_rows = (
-                supabase.table("loan_schedules")
-                .select("loan_id,due_date,schedule_status,expected_amount,installment_no")
-                .in_("loan_id", loan_ids)
-                .order("due_date")
-                .execute()
-            ).data or []
+            page = 1000
+            offset = 0
+            while True:
+                batch = (
+                    supabase.table("loan_schedules")
+                    .select("loan_id,due_date,schedule_status,expected_amount,installment_no")
+                    .in_("loan_id", loan_ids)
+                    .order("due_date")
+                    .range(offset, offset + page - 1)
+                    .execute()
+                ).data or []
+                if not batch:
+                    break
+                schedule_rows.extend(batch)
+                if len(batch) < page:
+                    break
+                offset += page
         except Exception:
             schedule_rows = []
 
@@ -2624,6 +2637,25 @@ async def get_bookkeeper_manage_loans():
                 key=lambda item: str(item.get("payment_date") or ""),
             )
 
+            # Repayment-speed pairing.
+            #
+            # Compare each payment to its NEAREST reconstructed due date and
+            # report the signed offset. days_offset >0 = late, <0 = early.
+            #
+            # We do NOT roll due dates forward for renewals — doing so hides
+            # the delinquency signal by inventing synthetic slots near every
+            # renewal-era payment. If a loan's reconstructed schedule ends in
+            # 2020 and the member is still paying in 2025, that's real
+            # delinquency vs the original contract and should show as red
+            # (offset ~1800 days). Bookkeepers reason about loans against the
+            # contract's original term, not against a phantom extended one.
+            _due_dates: list = []
+            for _s in schedules_by_loan.get(loan_id, []):
+                d = parse_date_value(_s.get("due_date"))
+                if d:
+                    _due_dates.append(d)
+            _due_dates.sort()
+
             total_validated = Decimal("0")
             payment_history = []
             for payment in loan_payments:
@@ -2631,6 +2663,12 @@ async def get_bookkeeper_manage_loans():
                 if is_validated_payment_status(payment.get("confirmation_status")):
                     total_validated += amount_paid
                 running_remaining = max(total_payable_amount - total_validated, Decimal("0"))
+
+                days_offset = None
+                _paid_on = parse_date_value(payment.get("payment_date"))
+                if _paid_on and _due_dates:
+                    nearest = min(_due_dates, key=lambda d: abs((_paid_on - d).days))
+                    days_offset = (_paid_on - nearest).days
 
                 payment_history.append(
                     {
@@ -2641,6 +2679,7 @@ async def get_bookkeeper_manage_loans():
                         "penalties": decimal_to_float(payment.get("penalties") or 0),
                         "remaining_after": decimal_to_float(running_remaining),
                         "confirmation_status": payment.get("confirmation_status") or "pending_bookkeeper",
+                        "days_offset": days_offset,
                     }
                 )
 
@@ -4207,26 +4246,122 @@ async def list_migs_members(year: int | None = None):
         except Exception as exc:  # noqa: BLE001
             print(f"[migs] cbu lookup failed: {exc}")
 
-        # --- Loan availed YTD (sum of principal_amount this year) ---------
+        # --- Loan availed YTD (sum of principal_amount this year)
+        # AND current outstanding loan balance across all years.
+        # `loan_availed` feeds the MIGS score's 5th criterion (loans this year).
+        # `loan_balance` is what the UI displays in the "Loan" column so the
+        # bookkeeper can see the member's actual outstanding debt at a glance
+        # — 90+% of TTMPC's legacy portfolio was disbursed pre-2026, so
+        # limiting to YTD principal shows ₱0 for essentially everyone.
         loans_by_member: dict[str, float] = {m: 0.0 for m in member_ids}
+        loan_balance_by_member: dict[str, float] = {m: 0.0 for m in member_ids}
         try:
-            loans_response = (
-                supabase.table("loans")
-                .select("member_id,principal_amount,application_date,loan_status")
-                .in_("member_id", member_ids)
-                .gte("application_date", f"{target_year}-01-01")
-                .lte("application_date", f"{target_year}-12-31")
-                .execute()
-            )
-            for row in loans_response.data or []:
+            # Pull all non-rejected loans in a paginated loop (portfolio may
+            # exceed the 1000-row default cap once legacy is included).
+            _page = 1000
+            _offset = 0
+            all_loans: list[dict] = []
+            while True:
+                _batch = (
+                    supabase.table("loans")
+                    .select("control_number,member_id,principal_amount,application_date,loan_status,total_interest,monthly_amortization,term")
+                    .in_("member_id", member_ids)
+                    .range(_offset, _offset + _page - 1)
+                    .execute()
+                ).data or []
+                if not _batch:
+                    break
+                all_loans.extend(_batch)
+                if len(_batch) < _page:
+                    break
+                _offset += _page
+
+            # Payments summed per loan to compute outstanding balance.
+            loan_ids_all = [l.get("control_number") for l in all_loans if l.get("control_number")]
+            paid_by_loan: dict[str, float] = {}
+            try:
+                _offset = 0
+                while True:
+                    _batch = (
+                        supabase.table("loan_payments")
+                        .select("loan_id,amount_paid,confirmation_status")
+                        .range(_offset, _offset + 999)
+                        .execute()
+                    ).data or []
+                    if not _batch:
+                        break
+                    for _p in _batch:
+                        if str(_p.get("confirmation_status") or "").lower() not in {"validated","confirmed","approved","bookkeeper_confirmed"}:
+                            continue
+                        _lid = str(_p.get("loan_id") or "")
+                        if _lid:
+                            paid_by_loan[_lid] = paid_by_loan.get(_lid, 0.0) + float(_p.get("amount_paid") or 0)
+                    if len(_batch) < 1000:
+                        break
+                    _offset += 1000
+                # Legacy payments (always validated)
+                _offset = 0
+                while True:
+                    _batch = (
+                        supabase.table("loan_payments_legacy")
+                        .select("loan_id,amount_paid")
+                        .range(_offset, _offset + 999)
+                        .execute()
+                    ).data or []
+                    if not _batch:
+                        break
+                    for _p in _batch:
+                        _lid = str(_p.get("loan_id") or "")
+                        if _lid:
+                            paid_by_loan[_lid] = paid_by_loan.get(_lid, 0.0) + float(_p.get("amount_paid") or 0)
+                    if len(_batch) < 1000:
+                        break
+                    _offset += 1000
+            except Exception as exc:  # noqa: BLE001
+                print(f"[migs] payments-for-balance lookup failed: {exc}")
+
+            for row in all_loans:
                 status_lc = str(row.get("loan_status") or "").lower()
                 if status_lc in {"rejected", "cancelled", "canceled"}:
                     continue
                 mid = row.get("member_id")
-                if mid:
-                    loans_by_member[mid] = loans_by_member.get(mid, 0.0) + float(
-                        row.get("principal_amount") or 0
-                    )
+                if not mid:
+                    continue
+                principal = float(row.get("principal_amount") or 0)
+
+                # MIGS "Loan Availed" counts loans whose repayment period is
+                # still active during target_year — i.e., a loan opened in
+                # 2023 with a 60-month term runs until 2028 so it counts for
+                # FY 2026. Fully-paid or expired loans are excluded.
+                app_date_str = str(row.get("application_date") or "")
+                term_months = int(row.get("term") or 0)
+                _app_year = None
+                _app_month = None
+                if len(app_date_str) >= 7:
+                    try:
+                        _app_year = int(app_date_str[:4])
+                        _app_month = int(app_date_str[5:7])
+                    except Exception:
+                        _app_year = None
+                if _app_year and _app_month and term_months > 0:
+                    # Loan is active in target_year if app_year <= target_year
+                    # AND the maturity month is >= January of target_year.
+                    _maturity_total_months = _app_year * 12 + (_app_month - 1) + term_months
+                    _target_start_months = target_year * 12
+                    if _app_year <= target_year and _maturity_total_months >= _target_start_months:
+                        # Also skip if already fully paid.
+                        if status_lc != "fully paid":
+                            loans_by_member[mid] = loans_by_member.get(mid, 0.0) + principal
+
+                # Outstanding balance (informational column, all non-rejected).
+                total_interest = float(row.get("total_interest") or 0)
+                if total_interest <= 0 and term_months > 0:
+                    monthly = float(row.get("monthly_amortization") or 0)
+                    if monthly > 0:
+                        total_interest = max(monthly * term_months - principal, 0.0)
+                total_payable = principal + total_interest
+                paid = paid_by_loan.get(str(row.get("control_number") or ""), 0.0)
+                loan_balance_by_member[mid] = loan_balance_by_member.get(mid, 0.0) + max(total_payable - paid, 0.0)
         except Exception as exc:  # noqa: BLE001
             print(f"[migs] loans lookup failed: {exc}")
 
@@ -4367,6 +4502,7 @@ async def list_migs_members(year: int | None = None):
 
             capital_v = cbu_by_member.get(mid, 0.0)
             loan_v = loans_by_member.get(mid, 0.0)
+            loan_balance_v = loan_balance_by_member.get(mid, 0.0)
             savings_v = savings_by_member.get(mid, 0.0)
             late_v = late_count_by_member.get(mid, 0)
             grocery_v = grocery_by_member.get(mid, 0.0)
@@ -4388,7 +4524,8 @@ async def list_migs_members(year: int | None = None):
                 "full_name": full_name,
                 "is_bona_fide": bool(m.get("is_bona_fide")),
                 "capital": capital_v,
-                "loan_balance": loan_v,
+                "loan_balance": loan_balance_v,
+                "loan_availed_ytd": loan_v,
                 "savings_balance": savings_v,
                 "late_payment_count": late_v,
                 "groceries_availed": grocery_v,
@@ -4715,22 +4852,79 @@ async def get_migs_member_detail(member_key: str, year: int | None = None):
         except Exception as exc:  # noqa: BLE001
             print(f"[migs detail] cbu lookup failed: {exc}")
 
-        # --- Loan availed (this year) ------------------------------------
+        # --- Loan availed (this year) + Outstanding balance (all years) ---
+        # `loan_availed` feeds the MIGS engine's Loan-Availed criterion which
+        # scores loans taken during the target year.
+        # `loan_balance` is the member's total outstanding debt across all
+        # their loans (legacy + live) and is what the UI's Loan column shows
+        # in the Scoring Breakdown row.
         loan_availed = 0.0
+        loan_balance = 0.0
         try:
             loans_response = (
                 supabase.table("loans")
-                .select("principal_amount,application_date,loan_status")
+                .select("control_number,principal_amount,application_date,loan_status,total_interest,monthly_amortization,term")
                 .eq("member_id", mid)
-                .gte("application_date", f"{target_year}-01-01")
-                .lte("application_date", f"{target_year}-12-31")
                 .execute()
             )
-            for row in loans_response.data or []:
+            _member_loans = loans_response.data or []
+
+            # Sum validated payments per loan (live + legacy) to compute
+            # outstanding balance = principal + interest − paid.
+            _loan_ids = [l.get("control_number") for l in _member_loans if l.get("control_number")]
+            _paid_by_loan: dict[str, float] = {}
+            if _loan_ids:
+                try:
+                    live_p = supabase.table("loan_payments").select("loan_id,amount_paid,confirmation_status").in_("loan_id", _loan_ids).execute().data or []
+                    for _p in live_p:
+                        if str(_p.get("confirmation_status") or "").lower() not in {"validated","confirmed","approved","bookkeeper_confirmed"}:
+                            continue
+                        _lid = str(_p.get("loan_id") or "")
+                        if _lid:
+                            _paid_by_loan[_lid] = _paid_by_loan.get(_lid, 0.0) + float(_p.get("amount_paid") or 0)
+                    legacy_p = supabase.table("loan_payments_legacy").select("loan_id,amount_paid").in_("loan_id", _loan_ids).execute().data or []
+                    for _p in legacy_p:
+                        _lid = str(_p.get("loan_id") or "")
+                        if _lid:
+                            _paid_by_loan[_lid] = _paid_by_loan.get(_lid, 0.0) + float(_p.get("amount_paid") or 0)
+                except Exception as exc:  # noqa: BLE001
+                    print(f"[migs detail] payments-for-balance lookup failed: {exc}")
+
+            for row in _member_loans:
                 status_lc = str(row.get("loan_status") or "").lower()
                 if status_lc in {"rejected", "cancelled", "canceled"}:
                     continue
-                loan_availed += float(row.get("principal_amount") or 0)
+                principal = float(row.get("principal_amount") or 0)
+                term_months = int(row.get("term") or 0)
+                app_date_str = str(row.get("application_date") or "")
+
+                # Active-window check: loan opened in app_year with term_months
+                # is "still running" during target_year if maturity month >=
+                # January of target_year. Excludes fully-paid loans.
+                _app_year = None
+                _app_month = None
+                if len(app_date_str) >= 7:
+                    try:
+                        _app_year = int(app_date_str[:4])
+                        _app_month = int(app_date_str[5:7])
+                    except Exception:
+                        _app_year = None
+                if _app_year and _app_month and term_months > 0:
+                    _maturity_total_months = _app_year * 12 + (_app_month - 1) + term_months
+                    _target_start_months = target_year * 12
+                    if _app_year <= target_year and _maturity_total_months >= _target_start_months:
+                        if status_lc != "fully paid":
+                            loan_availed += principal
+
+                # Outstanding balance (informational, all non-rejected).
+                total_interest = float(row.get("total_interest") or 0)
+                if total_interest <= 0 and term_months > 0:
+                    monthly = float(row.get("monthly_amortization") or 0)
+                    if monthly > 0:
+                        total_interest = max(monthly * term_months - principal, 0.0)
+                total_payable = principal + total_interest
+                paid = _paid_by_loan.get(str(row.get("control_number") or ""), 0.0)
+                loan_balance += max(total_payable - paid, 0.0)
         except Exception as exc:  # noqa: BLE001
             print(f"[migs detail] loans lookup failed: {exc}")
 
@@ -4858,6 +5052,7 @@ async def get_migs_member_detail(member_key: str, year: int | None = None):
                 "year": target_year,
                 "capital": capital,
                 "loan_availed": loan_availed,
+                "loan_balance": loan_balance,
                 "savings_balance": savings,
                 "late_payment_count": late_count,
                 "groceries_availed": groceries,

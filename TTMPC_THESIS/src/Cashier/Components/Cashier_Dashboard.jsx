@@ -20,6 +20,8 @@ import {
   PiggyBank,
   ShoppingCart,
   ArrowDownLeft,
+  Calendar,
+  ChevronLeft,
 } from "lucide-react";
 import {
   AreaChart,
@@ -68,14 +70,56 @@ const Cashier_Dashboard = () => {
   const [distributionData, setDistributionData] = useState([]);
   const [recentActivity, setRecentActivity] = useState([]);
 
+  // Selected date for the dashboard view. Defaults to today but a cashier can
+  // rewind to inspect any past day's transactions. Stored as YYYY-MM-DD (the
+  // native <input type="date"> format) to avoid timezone drift.
+  const toIso = (d) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  const shiftDays = (isoStr, delta) => {
+    const [y, m, d] = isoStr.split("-").map(Number);
+    const nd = new Date(y, m - 1, d + delta);
+    return toIso(nd);
+  };
+  const todayIso = useMemo(() => toIso(new Date()), []);
+  const yesterdayIso = useMemo(() => shiftDays(todayIso, -1), [todayIso]);
+  const weekAgoIso = useMemo(() => shiftDays(todayIso, -7), [todayIso]);
+  const monthAgoIso = useMemo(() => shiftDays(todayIso, -30), [todayIso]);
+
+  const [selectedDate, setSelectedDate] = useState(todayIso);
+  const isViewingToday = selectedDate === todayIso;
+  const selectedDateObj = useMemo(() => {
+    const [y, m, d] = selectedDate.split("-").map(Number);
+    return new Date(y, m - 1, d);
+  }, [selectedDate]);
+  const selectedDateLabel = useMemo(
+    () =>
+      selectedDateObj.toLocaleDateString("en-US", {
+        month: "short", day: "numeric", year: "numeric",
+      }),
+    [selectedDateObj]
+  );
+  const selectedWeekday = useMemo(
+    () => selectedDateObj.toLocaleDateString("en-US", { weekday: "long" }),
+    [selectedDateObj]
+  );
+
+  const presetKey =
+    selectedDate === todayIso ? "today"
+    : selectedDate === yesterdayIso ? "yesterday"
+    : selectedDate === weekAgoIso ? "week"
+    : selectedDate === monthAgoIso ? "month"
+    : "custom";
+
   useEffect(() => {
     let cancelled = false;
     const load = async () => {
       setLoading(true);
       try {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        const isoToday = today.toISOString();
+        const [y, m, d] = selectedDate.split("-").map(Number);
+        const dayStart = new Date(y, m - 1, d, 0, 0, 0, 0);
+        const dayEnd = new Date(y, m - 1, d + 1, 0, 0, 0, 0);
+        const isoStart = dayStart.toISOString();
+        const isoEnd = dayEnd.toISOString();
 
         // Build hourly buckets (8AM–3PM, the active window from the original chart).
         const hourLabels = ["8AM", "9AM", "10AM", "11AM", "12PM", "1PM", "2PM", "3PM"];
@@ -89,39 +133,44 @@ const Cashier_Dashboard = () => {
           ledgerRes,
           readyLoansRes,
         ] = await Promise.all([
-          // Loan payments today (cash IN)
+          // Loan payments in selected day window (cash IN)
           supabase
             .from("loan_payments")
             .select("id, loan_id, amount_paid, payment_date, confirmation_status, payment_reference")
-            .gte("payment_date", isoToday)
+            .gte("payment_date", isoStart)
+            .lt("payment_date", isoEnd)
             .order("payment_date", { ascending: false })
             .limit(2000),
-          // Loan disbursals today (cash OUT)
+          // Loan disbursals in selected day window (cash OUT)
           supabase
             .from("loans")
             .select("control_number, loan_amount, disbursal_date, loan_status, member:member_id(first_name, last_name), loan_types:loan_type_id(name)")
-            .gte("disbursal_date", isoToday)
+            .gte("disbursal_date", isoStart)
+            .lt("disbursal_date", isoEnd)
             .order("disbursal_date", { ascending: false })
             .limit(2000),
-          // Membership payments today (cash IN — application/share fees)
+          // Membership payments in selected day window
           supabase
             .from("membership_payments")
             .select("id, application_id, payment_date, payment_status, payment_type, amount")
-            .gte("payment_date", isoToday)
+            .gte("payment_date", isoStart)
+            .lt("payment_date", isoEnd)
             .order("payment_date", { ascending: false })
             .limit(2000),
-          // CBU contributions today (cash IN)
+          // CBU contributions in selected day window
           supabase
             .from("capital_build_up")
             .select("id, member_id, transaction_date, capital_added")
-            .gte("transaction_date", isoToday)
+            .gte("transaction_date", isoStart)
+            .lt("transaction_date", isoEnd)
             .order("transaction_date", { ascending: false })
             .limit(2000),
-          // Savings ledger today (deposits IN, withdrawals OUT)
+          // Savings ledger in selected day window
           supabase
             .from("savings_ledger")
             .select("id, account_number, entry_type, amount, reference, posted_at")
-            .gte("posted_at", isoToday)
+            .gte("posted_at", isoStart)
+            .lt("posted_at", isoEnd)
             .order("posted_at", { ascending: false })
             .limit(2000),
           // Pending disbursal queue (count only)
@@ -297,7 +346,7 @@ const Cashier_Dashboard = () => {
     load();
     return () => { cancelled = true; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [selectedDate]);
 
   const menuItems = [
     { name: "Dashboard", icon: LayoutDashboard, path: "/Cashier_Dashboard" },
@@ -467,12 +516,12 @@ const Cashier_Dashboard = () => {
             <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100 flex flex-col justify-between">
               <div className="flex justify-between items-start mb-4">
                 <div className="p-2 bg-blue-50 text-blue-500 rounded-lg"><FileText size={20} /></div>
-                <span className="bg-blue-50 text-blue-600 rounded-full px-3 py-1 text-xs font-bold">Today</span>
+                <span className="bg-blue-50 text-blue-600 rounded-full px-3 py-1 text-xs font-bold">{isViewingToday ? "Today" : selectedDateLabel}</span>
               </div>
               <div>
                 <h3 className="text-gray-500 text-sm font-medium">Total Transactions</h3>
                 <p className="font-bold text-3xl text-gray-800 mt-1">{loading ? "—" : kpis.totalTransactions}</p>
-                <p className="text-xs font-medium text-gray-400 mt-2">Recorded today</p>
+                <p className="text-xs font-medium text-gray-400 mt-2">{isViewingToday ? "Recorded today" : `Recorded on ${selectedDateLabel}`}</p>
               </div>
             </div>
 
@@ -507,12 +556,12 @@ const Cashier_Dashboard = () => {
             <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100 flex flex-col justify-between">
               <div className="flex justify-between items-start mb-4">
                 <div className="p-2 bg-purple-50 text-purple-500 rounded-lg"><Users size={20} /></div>
-                <span className="bg-teal-50 text-teal-600 rounded-full px-3 py-1 text-xs font-bold">Today</span>
+                <span className="bg-teal-50 text-teal-600 rounded-full px-3 py-1 text-xs font-bold">{isViewingToday ? "Today" : selectedDateLabel}</span>
               </div>
               <div>
                 <h3 className="text-gray-500 text-sm font-medium">Members Served</h3>
                 <p className="font-bold text-3xl text-gray-800 mt-1">{loading ? "—" : kpis.membersServed}</p>
-                <p className="text-xs font-medium text-gray-400 mt-2">Unique accounts today</p>
+                <p className="text-xs font-medium text-gray-400 mt-2">{isViewingToday ? "Unique accounts today" : `Unique accounts on ${selectedDateLabel}`}</p>
               </div>
             </div>
           </div>
@@ -521,11 +570,85 @@ const Cashier_Dashboard = () => {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
             {/* Area Chart */}
             <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100 lg:col-span-2">
-              <div className="flex justify-between items-center mb-6">
-                <h3 className="text-gray-800 font-bold text-lg">Transaction Volume Today</h3>
-                <button className="flex items-center gap-2 text-xs font-medium text-gray-600 border border-gray-200 rounded-md px-3 py-1.5 hover:bg-gray-50">
-                  Hourly <ChevronDown size={14} />
-                </button>
+              {/* Chart header — big date display + preset chips + day-stepper */}
+              <div className="mb-6 space-y-3">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <h3 className="text-gray-800 font-bold text-lg leading-tight">Transaction Volume</h3>
+                    <p className="mt-0.5 text-xs text-gray-500">
+                      <span className="font-semibold text-gray-700">{selectedWeekday}</span>
+                      <span className="mx-1.5 text-gray-300">·</span>
+                      <span>{selectedDateLabel}</span>
+                      {isViewingToday && (
+                        <span className="ml-2 rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-green-700">Today</span>
+                      )}
+                    </p>
+                  </div>
+
+                  {/* Day stepper: prev / calendar / next */}
+                  <div className="flex items-center overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedDate(shiftDays(selectedDate, -1))}
+                      className="flex h-8 w-8 items-center justify-center text-gray-500 hover:bg-gray-50 hover:text-gray-800"
+                      aria-label="Previous day"
+                    >
+                      <ChevronLeft size={16} />
+                    </button>
+                    <label className="relative flex h-8 items-center gap-1.5 border-x border-gray-200 px-2.5 text-xs font-medium text-gray-700 hover:bg-gray-50 cursor-pointer">
+                      <Calendar size={14} className="text-gray-500" />
+                      <span>Pick</span>
+                      <input
+                        type="date"
+                        value={selectedDate}
+                        max={todayIso}
+                        onChange={(e) => setSelectedDate(e.target.value || todayIso)}
+                        className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                        aria-label="Choose date"
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedDate(shiftDays(selectedDate, 1))}
+                      disabled={isViewingToday}
+                      className="flex h-8 w-8 items-center justify-center text-gray-500 hover:bg-gray-50 hover:text-gray-800 disabled:cursor-not-allowed disabled:opacity-30"
+                      aria-label="Next day"
+                    >
+                      <ChevronRight size={16} />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Preset chips */}
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    { key: "today",     label: "Today",       iso: todayIso },
+                    { key: "yesterday", label: "Yesterday",   iso: yesterdayIso },
+                    { key: "week",      label: "7 days ago",  iso: weekAgoIso },
+                    { key: "month",     label: "30 days ago", iso: monthAgoIso },
+                  ].map((preset) => {
+                    const active = presetKey === preset.key;
+                    return (
+                      <button
+                        key={preset.key}
+                        type="button"
+                        onClick={() => setSelectedDate(preset.iso)}
+                        className={`rounded-full px-3 py-1 text-xs font-semibold transition ${
+                          active
+                            ? "bg-green-600 text-white shadow-sm"
+                            : "border border-gray-200 bg-white text-gray-600 hover:border-green-500 hover:text-green-700"
+                        }`}
+                      >
+                        {preset.label}
+                      </button>
+                    );
+                  })}
+                  {presetKey === "custom" && (
+                    <span className="rounded-full bg-green-600 px-3 py-1 text-xs font-semibold text-white shadow-sm">
+                      Custom · {selectedDateLabel}
+                    </span>
+                  )}
+                </div>
               </div>
               <div className="h-64">
                 <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={1}>
@@ -657,7 +780,7 @@ const Cashier_Dashboard = () => {
             </div>
 
             <div className="p-4 px-6 border-t border-gray-50 flex justify-between items-center text-xs text-gray-400 font-medium">
-              <span>Showing {recentActivity.length} of {kpis.totalTransactions} transactions today</span>
+              <span>Showing {recentActivity.length} of {kpis.totalTransactions} transactions {isViewingToday ? "today" : `on ${selectedDateLabel}`}</span>
               <div className="flex gap-2">
                 <button className="px-3 py-1 border border-gray-200 rounded-md hover:bg-gray-50">Previous</button>
                 <button className="px-3 py-1 border border-gray-200 rounded-md hover:bg-gray-50 text-gray-600">Next</button>

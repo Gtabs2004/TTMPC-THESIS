@@ -271,7 +271,6 @@ const Cashier_Payments = () => {
   
   // Filtering and sorting
   const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
   const [typeFilter, setTypeFilter] = useState("all");
   const [yearFilter, setYearFilter] = useState("all");
   // Default LIFO: newest disbursed loan first. Panelists expect the most recent
@@ -297,9 +296,6 @@ const Cashier_Payments = () => {
       const matchesSearch =
         memberName.includes(q) || loanId.includes(q) || memberId.includes(q);
 
-      const matchesStatus =
-        statusFilter === "all" || (loan.loan_status ?? "") === statusFilter;
-
       const loanType = String(loan.loan_type ?? "").toLowerCase();
       const matchesType =
         typeFilter === "all" || loanType === typeFilter.toLowerCase();
@@ -309,7 +305,7 @@ const Cashier_Payments = () => {
         : "";
       const matchesYear = yearFilter === "all" || disbursalYear === yearFilter;
 
-      return matchesSearch && matchesStatus && matchesType && matchesYear;
+      return matchesSearch && matchesType && matchesYear;
     });
 
     // Sort the filtered results
@@ -340,7 +336,7 @@ const Cashier_Payments = () => {
     }
 
     return filtered;
-  }, [loans, searchTerm, statusFilter, typeFilter, yearFilter, sortConfig]);
+  }, [loans, searchTerm, typeFilter, yearFilter, sortConfig]);
 
   // Derive available years + loan types from the loaded loans so the filter
   // dropdowns only offer values that will actually match something.
@@ -376,7 +372,7 @@ const Cashier_Payments = () => {
     return filteredAndSortedLoans.slice(start, start + PAGE_SIZE);
   }, [filteredAndSortedLoans, page]);
 
-  useEffect(() => setPage(1), [searchTerm, statusFilter, typeFilter, yearFilter, sortConfig]);
+  useEffect(() => setPage(1), [searchTerm, typeFilter, yearFilter, sortConfig]);
 
   const menuItems = [
     { name: "Dashboard", icon: LayoutDashboard, path: "/Cashier_Dashboard" },
@@ -810,28 +806,7 @@ const Cashier_Payments = () => {
                 <div className="space-y-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Loan Status
-                    </label>
-                    <div className="flex flex-wrap gap-2">
-                      {["all", "Fully Paid", "Partially Paid", "Unpaid"].map((status) => (
-                        <button
-                          key={status}
-                          onClick={() => setStatusFilter(status)}
-                          className={`rounded-full px-4 py-1.5 text-sm font-medium transition ${
-                            statusFilter === status
-                              ? "bg-green-600 text-white"
-                              : "bg-white border border-gray-300 text-gray-700 hover:border-green-500"
-                          }`}
-                        >
-                          {status === "all" ? "All Status" : status}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Loan Type
+                      Loan Category
                     </label>
                     <div className="flex flex-wrap gap-2">
                       <button
@@ -891,11 +866,10 @@ const Cashier_Payments = () => {
                     </div>
                   </div>
 
-                  {(statusFilter !== "all" || typeFilter !== "all" || yearFilter !== "all") && (
+                  {(typeFilter !== "all" || yearFilter !== "all") && (
                     <div className="pt-2 border-t border-gray-200">
                       <button
                         onClick={() => {
-                          setStatusFilter("all");
                           setTypeFilter("all");
                           setYearFilter("all");
                         }}

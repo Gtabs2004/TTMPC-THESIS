@@ -20,6 +20,9 @@ import {
   Briefcase,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
+  ChevronUp,
+  RefreshCw,
 } from "lucide-react";
 import logo from "../../assets/img/ttmpc logo.png";
 
@@ -62,6 +65,9 @@ const ManageLoans = () => {
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
+  // Which renewal groups have their history expanded. Keyed by the parent
+  // (current active) loan_id — flipping a chevron toggles its entry here.
+  const [expandedGroups, setExpandedGroups] = useState(() => new Set());
 
   const menuItems = [
       { name: "Dashboard", icon: LayoutDashboard },
@@ -172,11 +178,51 @@ const ManageLoans = () => {
     setCurrentPage(1);
   }, [searchTerm, activeTab, loanTypeFilter, memberTypeFilter, loans.length]);
 
-  const totalPages = Math.max(1, Math.ceil(filteredLoans.length / ITEMS_PER_PAGE));
-  const paginatedLoans = useMemo(() => {
+  // Collapse renewal chains: same member + same loan_type = one visible
+  // parent (the most recent loan by application_date), with older
+  // renewals folded underneath as a "Previous renewals (N)" toggle.
+  // Purely a UI grouping — the underlying rows aren't merged.
+  const groupedLoans = useMemo(() => {
+    const chains = new Map();
+    for (const loan of filteredLoans) {
+      const key = `${loan.member_name || ""}::${loan.loan_type_code || loan.loan_type || ""}`;
+      if (!chains.has(key)) chains.set(key, []);
+      chains.get(key).push(loan);
+    }
+    const results = [];
+    for (const items of chains.values()) {
+      const sorted = [...items].sort((a, b) => {
+        const da = new Date(a.application_date || 0).getTime();
+        const db = new Date(b.application_date || 0).getTime();
+        if (db !== da) return db - da;
+        return String(b.loan_id || "").localeCompare(String(a.loan_id || ""));
+      });
+      const [parent, ...renewals] = sorted;
+      results.push({ parent, renewals });
+    }
+    // Keep parent ordering stable (newest activity first).
+    results.sort((a, b) => {
+      const da = new Date(a.parent.application_date || 0).getTime();
+      const db = new Date(b.parent.application_date || 0).getTime();
+      return db - da;
+    });
+    return results;
+  }, [filteredLoans]);
+
+  const totalPages = Math.max(1, Math.ceil(groupedLoans.length / ITEMS_PER_PAGE));
+  const paginatedGroups = useMemo(() => {
     const start = (currentPage - 1) * ITEMS_PER_PAGE;
-    return filteredLoans.slice(start, start + ITEMS_PER_PAGE);
-  }, [filteredLoans, currentPage]);
+    return groupedLoans.slice(start, start + ITEMS_PER_PAGE);
+  }, [groupedLoans, currentPage]);
+
+  const toggleGroup = (loanId) => {
+    setExpandedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(loanId)) next.delete(loanId);
+      else next.add(loanId);
+      return next;
+    });
+  };
 
   const handleSignOut = async (event) => {
     event.preventDefault();
@@ -395,23 +441,34 @@ const ManageLoans = () => {
             )}
           </div>
 
-          <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-lg enhanced-table">
-            <table className="w-full text-left border-collapse">
+          <div className="rounded-xl border border-gray-200 bg-white shadow-lg enhanced-table">
+            <table className="w-full text-left border-collapse table-fixed">
+              <colgroup>
+                <col style={{ width: "16%" }} />
+                <col style={{ width: "14%" }} />
+                <col style={{ width: "10%" }} />
+                <col style={{ width: "10%" }} />
+                <col style={{ width: "6%" }} />
+                <col style={{ width: "12%" }} />
+                <col style={{ width: "12%" }} />
+                <col style={{ width: "12%" }} />
+                <col style={{ width: "8%" }} />
+              </colgroup>
               <thead>
                 <tr className="bg-green-700 text-[10px] uppercase tracking-wider text-white font-extrabold">
-                  <th className="p-5 font-bold">Loan ID</th>
-                  <th className="p-5 font-bold">Member Name</th>
-                  <th className="p-5 font-bold">Loan Type</th>
-                  <th className="p-5 font-bold">Loan Amount</th>
-                  <th className="p-5 font-bold text-right">Interest</th>
-                  <th className="p-5 font-bold text-right">Amortization</th>
-                  <th className="p-5 font-bold text-right">Remaining</th>
-                  <th className="p-5 font-bold">Due Date</th>
-                  <th className="p-5 font-bold text-center">Action</th>
+                  <th className="px-3 py-4 font-bold">Loan ID</th>
+                  <th className="px-3 py-4 font-bold">Member Name</th>
+                  <th className="px-3 py-4 font-bold">Loan Type</th>
+                  <th className="px-3 py-4 font-bold text-right">Loan Amt</th>
+                  <th className="px-3 py-4 font-bold text-right">Int</th>
+                  <th className="px-3 py-4 font-bold text-right">Amortization</th>
+                  <th className="px-3 py-4 font-bold text-right">Remaining</th>
+                  <th className="px-3 py-4 font-bold">Due Date</th>
+                  <th className="px-3 py-4 font-bold text-center">Action</th>
                 </tr>
               </thead>
               <tbody>
-                {filteredLoans.length === 0 && (
+                {groupedLoans.length === 0 && (
                   <tr>
                     <td colSpan={9} className="p-5 text-center">
                       <div className="flex flex-col items-center gap-2">
@@ -425,42 +482,137 @@ const ManageLoans = () => {
                   </tr>
                 )}
 
-                {paginatedLoans.map((loan, index) => {
+                {paginatedGroups.map(({ parent, renewals }) => {
+                  const expanded = expandedGroups.has(parent.loan_id);
+                  const hasRenewals = renewals.length > 0;
+                  const chainAccent = hasRenewals
+                    ? (expanded ? "border-l-4 border-green-600" : "border-l-4 border-green-200")
+                    : "";
                   return (
-                    <tr key={loan.loan_id} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
-                      <td className="p-5 text-sm font-mono font-bold text-green-700">{loan.loan_id}</td>
-                      <td className="p-5 text-sm text-gray-800 font-semibold">{loan.member_name}</td>
-                      <td className="p-5">
-                        <span className={`badge-animated ${getLoanTypeStyle(loan.loan_type_code)}`}>
-                          {loan.loan_type}
-                        </span>
-                      </td>
-                      <td className="p-5 text-sm text-gray-800 font-semibold">{formatCurrency(loan.loan_amount)}</td>
-                      <td className="p-5 text-sm text-gray-700 text-right font-medium">{loan.interest_rate}%</td>
-                      <td className="p-5 text-sm text-gray-700 text-right font-medium">{formatCurrency(loan.amortization)}</td>
-                      <td className="p-5 text-sm text-right font-bold">
-                        <span className={loan.remaining_balance > 0 ? 'text-amber-600' : 'text-green-600'}>
-                          {formatCurrency(loan.remaining_balance)}
-                        </span>
-                      </td>
-                      <td className="p-5 text-sm text-gray-700 font-medium">{loan.due_date}</td>
-                      <td className="p-5 text-center">
-                        <button
-                          type="button"
-                          onClick={() => navigate(`/bookkeeper-loan-ledger/${loan.loan_id}`, { state: { loan } })}
-                          className="btn-enhanced inline-flex items-center gap-1.5 rounded-lg bg-green-600 px-3 py-2 text-xs font-semibold text-white hover:bg-green-700"
-                        >
-                          <Eye size={14} /> View
-                        </button>
-                      </td>
-                    </tr>
+                    <React.Fragment key={parent.loan_id}>
+                      <tr
+                        className={`border-b border-gray-100 hover:bg-green-50/40 transition-colors ${chainAccent}`}
+                      >
+                        <td className="px-3 py-4 text-xs font-mono font-bold text-green-700 align-middle">
+                          <div className="flex flex-col gap-1.5">
+                            <button
+                              type="button"
+                              onClick={hasRenewals ? () => toggleGroup(parent.loan_id) : undefined}
+                              disabled={!hasRenewals}
+                              className={`flex items-center gap-2 text-left ${
+                                hasRenewals ? "cursor-pointer" : "cursor-default"
+                              }`}
+                            >
+                              {hasRenewals ? (
+                                <span
+                                  className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md border transition-colors ${
+                                    expanded
+                                      ? "border-green-600 bg-green-600 text-white"
+                                      : "border-green-200 bg-green-50 text-green-700"
+                                  }`}
+                                >
+                                  {expanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                                </span>
+                              ) : (
+                                <span className="h-6 w-6 shrink-0" aria-hidden="true" />
+                              )}
+                              <span className="truncate">{parent.loan_id}</span>
+                            </button>
+                            {hasRenewals && (
+                              <span
+                                title={`${renewals.length} previous renewal${renewals.length > 1 ? "s" : ""} in chain`}
+                                className="ml-8 inline-flex w-fit items-center gap-1 rounded-full bg-green-100 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-green-700"
+                              >
+                                <RefreshCw size={8} /> +{renewals.length}
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-3 py-4 text-xs text-gray-800 font-semibold align-top">{parent.member_name}</td>
+                        <td className="px-3 py-4 align-top">
+                          <span className={`inline-block whitespace-nowrap px-2 py-0.5 rounded-full text-[10px] font-semibold ${getLoanTypeStyle(parent.loan_type_code)}`}>
+                            {parent.loan_type}
+                          </span>
+                        </td>
+                        <td className="px-3 py-4 text-xs text-gray-800 font-semibold text-right whitespace-nowrap align-top">{formatCurrency(parent.loan_amount)}</td>
+                        <td className="px-3 py-4 text-xs text-gray-700 text-right font-medium whitespace-nowrap align-top">{parent.interest_rate}%</td>
+                        <td className="px-3 py-4 text-xs text-gray-700 text-right font-medium whitespace-nowrap align-top">{formatCurrency(parent.amortization)}</td>
+                        <td className="px-3 py-4 text-xs text-right font-bold whitespace-nowrap align-top">
+                          <span className={parent.remaining_balance > 0 ? 'text-amber-600' : 'text-green-600'}>
+                            {formatCurrency(parent.remaining_balance)}
+                          </span>
+                        </td>
+                        <td className="px-3 py-4 text-xs text-gray-700 font-medium whitespace-nowrap align-top">{parent.due_date}</td>
+                        <td className="px-3 py-4 text-center align-top">
+                          <button
+                            type="button"
+                            onClick={() => navigate(`/bookkeeper-loan-ledger/${parent.loan_id}`, { state: { loan: parent } })}
+                            className="btn-enhanced inline-flex items-center gap-1 rounded-lg bg-green-600 px-2 py-1.5 text-[11px] font-semibold text-white hover:bg-green-700"
+                          >
+                            <Eye size={12} /> View
+                          </button>
+                        </td>
+                      </tr>
+
+                      {expanded && renewals.map((r, i) => {
+                        const isLast = i === renewals.length - 1;
+                        return (
+                          <tr
+                            key={r.loan_id}
+                            className={`bg-green-50/30 hover:bg-green-50/60 transition-colors border-l-4 border-green-600 ${
+                              isLast ? "border-b border-gray-100" : "border-b border-green-100/70"
+                            }`}
+                          >
+                            <td className="pl-9 pr-3 py-2.5 text-xs font-mono align-top">
+                              <div className="flex items-start gap-1.5">
+                                <span className="text-green-400 leading-none">└</span>
+                                <div className="min-w-0 flex-1 flex flex-wrap items-center gap-1.5">
+                                  <span className="text-gray-500 break-all">{r.loan_id}</span>
+                                  <span className="inline-flex items-center rounded-full bg-gray-100 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-gray-600">
+                                    Renewed
+                                  </span>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="px-3 py-2.5 text-xs text-gray-500 align-top">{r.member_name}</td>
+                            <td className="px-3 py-2.5 align-top">
+                              <span className={`inline-block whitespace-nowrap px-2 py-0.5 rounded-full text-[10px] font-semibold ${getLoanTypeStyle(r.loan_type_code)}`}>
+                                {r.loan_type}
+                              </span>
+                            </td>
+                            <td className="px-3 py-2.5 text-xs text-gray-600 font-medium text-right whitespace-nowrap align-top">{formatCurrency(r.loan_amount)}</td>
+                            <td className="px-3 py-2.5 text-xs text-gray-500 text-right whitespace-nowrap align-top">{r.interest_rate}%</td>
+                            <td className="px-3 py-2.5 text-xs text-gray-500 text-right whitespace-nowrap align-top">{formatCurrency(r.amortization)}</td>
+                            <td className="px-3 py-2.5 text-xs text-right font-semibold whitespace-nowrap align-top">
+                              <span className={r.remaining_balance > 0 ? "text-amber-600" : "text-gray-400"}>
+                                {formatCurrency(r.remaining_balance)}
+                              </span>
+                            </td>
+                            <td className="px-3 py-2.5 text-xs text-gray-500 whitespace-nowrap align-top">
+                              {r.application_date
+                                ? new Date(r.application_date).toLocaleDateString("en-PH", { year: "numeric", month: "short", day: "numeric" })
+                                : "—"}
+                            </td>
+                            <td className="px-3 py-2.5 text-center align-top">
+                              <button
+                                type="button"
+                                onClick={() => navigate(`/bookkeeper-loan-ledger/${r.loan_id}`, { state: { loan: r } })}
+                                className="inline-flex items-center gap-1 rounded-md border border-green-200 bg-white px-2 py-1 text-[10px] font-semibold text-green-700 hover:bg-green-50"
+                              >
+                                <Eye size={11} /> View
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </React.Fragment>
                   );
                 })}
               </tbody>
             </table>
           </div>
 
-          {filteredLoans.length > ITEMS_PER_PAGE && (
+          {groupedLoans.length > ITEMS_PER_PAGE && (
             <div className="flex items-center justify-center p-6 gap-2 border-t border-gray-100">
               <button
                 className="w-8 h-8 flex items-center justify-center rounded-full border border-gray-300 bg-white text-gray-500 transition-colors hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"

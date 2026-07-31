@@ -30,8 +30,13 @@ import {
   YAxis,
   CartesianGrid,
   ResponsiveContainer,
-  LineChart,
-  Line,
+  Tooltip,
+  Legend,
+  ScatterChart,
+  Scatter,
+  ZAxis,
+  ReferenceLine,
+  Cell,
 } from "recharts";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
@@ -141,7 +146,10 @@ const Dashboard = () => {
           throw new Error(loansJson?.detail || "Failed to load loans data.");
         }
         const rows = Array.isArray(loansJson?.data?.rows) ? loansJson.data.rows : [];
-        const filtered = rows.filter((loan) => !isDelinquent(loan));
+        // Include all loans (delinquent + on-track) so the Total Loans KPI is a
+        // true portfolio count and Yearly Collections / Repayment Speed span the
+        // full history including migrated legacy payments.
+        const filtered = rows;
 
         // Total share capital: backend aggregates from member.share_capital_amount
         // (falling back to latest capital_build_up.ending_share_capital, then PDS
@@ -205,7 +213,9 @@ const Dashboard = () => {
   );
 
   const stats = useMemo(() => {
-    const activeLoans = loans.filter((loan) => Number(loan.remaining_balance || 0) > 0).length;
+    // Total loans = every loan the bookkeeper is tracking (approved onward,
+    // filtered upstream). Previously we hid delinquent + zero-balance rows.
+    const totalLoans = loans.length;
 
     const currentKey = monthKey(new Date());
     const prevDate = new Date();
@@ -224,7 +234,7 @@ const Dashboard = () => {
       : 0;
 
     return {
-      activeLoans,
+      totalLoans,
       paymentsThisMonth,
       paymentsLastMonth,
       monthChangePct,
@@ -232,42 +242,85 @@ const Dashboard = () => {
     };
   }, [loans, allPayments, shareCapitalTotal]);
 
-  const barChartData = useMemo(() => {
-    const months = buildCalendarYearMonths();
-    return months.map(({ key, label }) => {
-      const total = allPayments
-        .filter((p) => String(p.date_paid || "").slice(0, 7) === key)
-        .reduce((s, p) => s + Number(p.amount_paid || 0), 0);
-      return { name: label, value: Math.round(total) };
+  // Yearly Collections — one bar per fiscal year across all migrated + live
+  // payments. TTMPC's legacy data spans ~2015-2026, so a static "this year vs
+  // last year" is not enough context for the panelists.
+  const yearlyBarData = useMemo(() => {
+    const byYear = new Map();
+    allPayments.forEach((p) => {
+      const y = String(p.date_paid || "").slice(0, 4);
+      if (!y || y.length !== 4) return;
+      byYear.set(y, (byYear.get(y) || 0) + Number(p.amount_paid || 0));
     });
+    return Array.from(byYear.entries())
+      .sort(([a], [b]) => Number(a) - Number(b))
+      .map(([year, total]) => ({ name: year, value: Math.round(total) }));
   }, [allPayments]);
 
   const collectionsChangePct = useMemo(() => {
-    const currentMonthIdx = new Date().getMonth();
-    if (currentMonthIdx === 0) return 0;
-    const latest = barChartData[currentMonthIdx]?.value || 0;
-    const prior = barChartData[currentMonthIdx - 1]?.value || 0;
+    if (yearlyBarData.length < 2) return 0;
+    const latest = yearlyBarData[yearlyBarData.length - 1]?.value || 0;
+    const prior = yearlyBarData[yearlyBarData.length - 2]?.value || 0;
     if (prior <= 0) return 0;
     return ((latest - prior) / prior) * 100;
-  }, [barChartData]);
+  }, [yearlyBarData]);
 
-  const lineChartData = useMemo(() => {
-    const months = buildCalendarYearMonths();
-    return months.map(({ key, label }) => {
-      const monthPays = allPayments.filter(
-        (p) => String(p.date_paid || "").slice(0, 7) === key
-      );
-      const total = monthPays.length;
-      if (total === 0) return { name: label, onTime: 0, late: 0 };
-      const late = monthPays.filter((p) => Number(p.penalties || 0) > 0).length;
-      const onTime = total - late;
+  // Repayment behavior — monthly buckets for a user-picked year. TTMPC's 3-
+  // month rule = delinquent when >90 days past due. Legacy due dates are
+  // reconstructed but paired within a 180-day window so real late payments
+  // register while renewal-era payments (long after original term) are
+  // excluded from the ratio.
+  const DELINQUENT_DAY_THRESHOLD = 90;
+
+  const availableYears = useMemo(() => {
+    const set = new Set();
+    allPayments.forEach((p) => {
+      if (p.days_offset === null || p.days_offset === undefined) return;
+      const y = String(p.date_paid || "").slice(0, 4);
+      if (y.length === 4) set.add(y);
+    });
+    return Array.from(set).sort((a, b) => Number(b) - Number(a));
+  }, [allPayments]);
+
+  const [chartYear, setChartYear] = useState("");
+  useEffect(() => {
+    if (!chartYear && availableYears.length) {
+      // Default to the most recent year that has data.
+      setChartYear(availableYears[0]);
+    }
+  }, [availableYears, chartYear]);
+
+  const monthlyBehaviorData = useMemo(() => {
+    const monthLabels = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+    const buckets = monthLabels.map((label, idx) => ({
+      name: label,
+      monthIdx: idx,
+      onTime: 0,
+      late: 0,
+    }));
+    if (!chartYear) return [];
+    allPayments.forEach((p) => {
+      if (p.days_offset === null || p.days_offset === undefined) return;
+      const iso = String(p.date_paid || "");
+      if (iso.slice(0, 4) !== chartYear) return;
+      const monthNum = Number(iso.slice(5, 7));
+      if (!monthNum) return;
+      const bucket = buckets[monthNum - 1];
+      if (Number(p.days_offset) > DELINQUENT_DAY_THRESHOLD) bucket.late += 1;
+      else bucket.onTime += 1;
+    });
+    return buckets.map((b) => {
+      const total = b.onTime + b.late;
       return {
-        name: label,
-        onTime: Math.round((onTime / total) * 100),
-        late: Math.round((late / total) * 100),
+        name: b.name,
+        onTimePct: total > 0 ? Math.round((b.onTime / total) * 100) : 0,
+        latePct: total > 0 ? Math.round((b.late / total) * 100) : 0,
+        onTimeCount: b.onTime,
+        lateCount: b.late,
+        total,
       };
     });
-  }, [allPayments]);
+  }, [allPayments, chartYear]);
 
   const recentActivities = useMemo(() => {
     const sorted = [...allPayments].sort((a, b) => {
@@ -379,20 +432,20 @@ const Dashboard = () => {
 
           {/* Top KPI Cards */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-            {/* Card 1: Active Loans */}
+            {/* Card 1: Total Loans */}
             <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100 flex flex-col justify-between">
               <div className="flex justify-between items-start">
-                <span className="text-gray-500 text-sm font-medium">Active Loans</span>
+                <span className="text-gray-500 text-sm font-medium">Total Loans</span>
                 <div className="p-2 bg-green-50 text-green-500 rounded-lg">
                   <Users size={18} />
                 </div>
               </div>
               <div className="mt-4">
                 <h3 className="text-3xl font-bold text-gray-800">
-                  {loading ? "..." : stats.activeLoans}
+                  {loading ? "..." : stats.totalLoans}
                 </h3>
                 <div className="flex items-center mt-2 text-xs">
-                  <span className="text-gray-400">Excludes delinquent accounts</span>
+                  <span className="text-gray-400">Legacy + live loans on record</span>
                 </div>
               </div>
             </div>
@@ -434,12 +487,12 @@ const Dashboard = () => {
 
           {/* Middle Charts Section */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-            {/* Bar Chart */}
+            {/* Yearly Collections Bar Chart */}
             <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
               <div className="flex justify-between items-end mb-6">
                 <div>
-                  <h3 className="text-gray-800 font-bold text-lg">Monthly Collections</h3>
-                  <p className="text-gray-400 text-xs">{new Date().getFullYear()} overview</p>
+                  <h3 className="text-gray-800 font-bold text-lg">Yearly Collections</h3>
+                  <p className="text-gray-400 text-xs">Fiscal year totals (legacy + live)</p>
                 </div>
                 <div
                   className={`px-2 py-1 rounded text-xs font-semibold ${
@@ -452,37 +505,113 @@ const Dashboard = () => {
               </div>
               <div className="h-64">
                 <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={1}>
-                  <BarChart data={barChartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                  <BarChart data={yearlyBarData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
                     <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: "#9ca3af", fontSize: 12 }} dy={10} />
                     <YAxis axisLine={false} tickLine={false} tick={{ fill: "#9ca3af", fontSize: 12 }} tickFormatter={(val) => `${PESO}${Math.round(val / 1000)}k`} />
+                    <Tooltip
+                      formatter={(v) => [formatPeso(v), "Collected"]}
+                      labelFormatter={(l) => `FY ${l}`}
+                      cursor={{ fill: "rgba(16,185,129,0.08)" }}
+                    />
                     <Bar dataKey="value" fill="#10b981" radius={[4, 4, 0, 0]} barSize={28} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
             </div>
 
-            {/* Line Chart */}
+            {/* Repayment Behavior — monthly scatter for a selected year */}
             <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
-              <div className="flex justify-between items-end mb-6">
+              <div className="flex justify-between items-start mb-4 gap-3 flex-wrap">
                 <div>
-                  <h3 className="text-gray-800 font-bold text-lg">Repayment Trends</h3>
-                  <p className="text-gray-400 text-xs">On-time vs late payments</p>
+                  <h3 className="text-gray-800 font-bold text-lg">Repayment Behavior</h3>
+                  <p className="text-gray-400 text-xs">
+                    Each dot = 1 month · dot size = payment volume · higher = more delinquent
+                  </p>
                 </div>
-                <div className="flex gap-4 text-xs font-medium">
-                  <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-green-500"></span><span className="text-gray-500">On-time</span></div>
-                  <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-red-400"></span><span className="text-gray-500">Late</span></div>
+                <div className="flex items-center gap-2">
+                  <label htmlFor="chart-year" className="text-xs text-gray-500">Year</label>
+                  <select
+                    id="chart-year"
+                    value={chartYear}
+                    onChange={(e) => setChartYear(e.target.value)}
+                    className="rounded-md border border-gray-200 px-2 py-1 text-xs font-semibold text-gray-700 focus:border-green-500 focus:outline-none focus:ring-2 focus:ring-green-200"
+                  >
+                    {availableYears.length === 0 && <option value="">—</option>}
+                    {availableYears.map((y) => (
+                      <option key={y} value={y}>FY {y}</option>
+                    ))}
+                  </select>
                 </div>
               </div>
-              <div className="h-64">
+              <div className="flex flex-wrap gap-4 text-xs font-medium mb-3">
+                <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-green-500"></span><span className="text-gray-500">Healthy (&lt;2% late)</span></div>
+                <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-amber-400"></span><span className="text-gray-500">Watch (2-5%)</span></div>
+                <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-red-400"></span><span className="text-gray-500">Poor (&gt;5%)</span></div>
+                <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-gray-300"></span><span className="text-gray-500">No data</span></div>
+              </div>
+              <div className="h-56">
                 <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
-                  <LineChart data={lineChartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
-                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: "#9ca3af", fontSize: 12 }} dy={10} />
-                    <YAxis axisLine={false} tickLine={false} tick={{ fill: "#9ca3af", fontSize: 12 }} tickFormatter={(val) => `${val}%`} />
-                    <Line type="monotone" dataKey="onTime" stroke="#10b981" strokeWidth={3} dot={{ r: 4, fill: "#10b981", strokeWidth: 0 }} />
-                    <Line type="monotone" dataKey="late" stroke="#f87171" strokeWidth={3} dot={{ r: 4, fill: "#f87171", strokeWidth: 0 }} />
-                  </LineChart>
+                  <ScatterChart margin={{ top: 10, right: 20, left: -5, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                    <XAxis
+                      type="category"
+                      dataKey="name"
+                      name="Month"
+                      tick={{ fill: "#9ca3af", fontSize: 11 }}
+                      axisLine={false}
+                      tickLine={false}
+                      padding={{ left: 20, right: 20 }}
+                    />
+                    <YAxis
+                      type="number"
+                      dataKey="latePct"
+                      name="% Delinquent"
+                      domain={[0, (dataMax) => Math.max(15, Math.ceil((dataMax + 2) / 5) * 5)]}
+                      tick={{ fill: "#9ca3af", fontSize: 11 }}
+                      tickFormatter={(v) => `${v}%`}
+                      axisLine={false}
+                      tickLine={false}
+                    />
+                    <ZAxis type="number" dataKey="total" range={[60, 500]} name="Payments" />
+                    <ReferenceLine y={2} stroke="#f59e0b" strokeDasharray="4 4" label={{ value: "2%", fill: "#b45309", fontSize: 10, position: "insideRight" }} />
+                    <ReferenceLine y={5} stroke="#ef4444" strokeDasharray="4 4" label={{ value: "5%", fill: "#b91c1c", fontSize: 10, position: "insideRight" }} />
+                    <Tooltip
+                      cursor={{ strokeDasharray: "3 3" }}
+                      content={({ active, payload }) => {
+                        if (!active || !payload?.length) return null;
+                        const r = payload[0].payload;
+                        if (r.total === 0) {
+                          return (
+                            <div className="bg-white rounded-md border border-gray-200 shadow-sm px-3 py-2 text-xs">
+                              <div className="font-semibold text-gray-800">{r.name} {chartYear}</div>
+                              <div className="text-gray-500">No paired payments this month</div>
+                            </div>
+                          );
+                        }
+                        return (
+                          <div className="bg-white rounded-md border border-gray-200 shadow-sm px-3 py-2 text-xs">
+                            <div className="font-semibold text-gray-800 mb-1">{r.name} {chartYear}</div>
+                            <div className="text-red-600">Delinquent: {r.latePct}% ({r.lateCount.toLocaleString()})</div>
+                            <div className="text-green-600">On-time: {r.onTimePct}% ({r.onTimeCount.toLocaleString()})</div>
+                            <div className="text-gray-500 mt-1 pt-1 border-t border-gray-100">
+                              {r.total.toLocaleString()} paired payments
+                            </div>
+                          </div>
+                        );
+                      }}
+                    />
+                    <Scatter data={monthlyBehaviorData}>
+                      {monthlyBehaviorData.map((entry, idx) => {
+                        const color =
+                          entry.total === 0 ? "#d1d5db"
+                          : entry.latePct > 5 ? "#f87171"
+                          : entry.latePct >= 2 ? "#fbbf24"
+                          : "#10b981";
+                        return <Cell key={idx} fill={color} fillOpacity={0.8} />;
+                      })}
+                    </Scatter>
+                  </ScatterChart>
                 </ResponsiveContainer>
               </div>
             </div>
