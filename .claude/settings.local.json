@@ -2,7 +2,10 @@
   "permissions": {
     "allow": [
       "Bash(python TTMPC_THESIS/src/server/migration/_check_savings.py TTMPC-212)",
-      "Bash(node verify_members_profile.mjs)"
+      "Bash(node verify_members_profile.mjs)",
+      "Read(//c/Users/User/AppData/Local/Temp/**)",
+      "Bash(curl -s http://127.0.0.1:8000/api/bookkeeper/manage-loans -o api.json)",
+      "Bash(python -c ' *)"
     ]
   }
 }
