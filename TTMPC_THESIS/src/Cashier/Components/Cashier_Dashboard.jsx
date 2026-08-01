@@ -22,6 +22,7 @@ import {
   ArrowDownLeft,
   Calendar,
   ChevronLeft,
+  History,
 } from "lucide-react";
 import {
   AreaChart,
@@ -364,7 +365,7 @@ const Cashier_Dashboard = () => {
     },
     { name: "Withdrawals", icon: ArrowDownLeft, path: "/Cashier_Withdrawals" },
     { name: "Grocery", icon: ShoppingCart, path: "/Cashier_Grocery" },
-    { name: "Audit Log", icon: ShoppingCart, path: "/cashier-audit-log" },
+    { name: "Audit Log", icon: History, path: "/cashier-audit-log" },
   ];
 
   const handleSignOut = async (e) => {

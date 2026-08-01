@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
 import { useNotification } from "../../contex/NotificationContext";
@@ -13,20 +13,30 @@ import {
   ArrowDownLeft,
   ShoppingCart,
   History,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react";
 
 const Cashier_Audit_Log = () => {
   const { signOut } = UserAuth();
   const navigate = useNavigate();
   const { addNotification } = useNotification();
+  const [isDepositsOpen, setIsDepositsOpen] = useState(true);
 
   const menuItems = [
     { name: "Dashboard", icon: LayoutDashboard, path: "/Cashier_Dashboard" },
     { name: "Payments", icon: ArrowUpRight, path: "/Cashier_Payments" },
     { name: "Disbursement", icon: Send, path: "/Cashier_Disbursement" },
     { name: "Membership Payments", icon: UserPlus, path: "/Cashier_MembershipPayments" },
-    { name: "Savings", icon: PiggyBank, path: "/Cashier_Savings" },
-    { name: "Capital Build-Up", icon: PiggyBank, path: "/Cashier_CBU" },
+    {
+      name: "Deposits",
+      icon: PiggyBank,
+      isDropdown: true,
+      subItems: [
+        { name: "Savings", path: "/Cashier_Savings" },
+        { name: "Capital Build-Up", path: "/Cashier_CBU" },
+      ],
+    },
     { name: "Withdrawals", icon: ArrowDownLeft, path: "/Cashier_Withdrawals" },
     { name: "Grocery", icon: ShoppingCart, path: "/Cashier_Grocery" },
     { name: "Audit Log", icon: History, path: "/cashier-audit-log" },
@@ -51,6 +61,44 @@ const Cashier_Audit_Log = () => {
         <nav className="flex flex-col gap-2 text-sm flex-grow">
           {menuItems.map((item) => {
             const Icon = item.icon;
+
+            if (item.isDropdown) {
+              return (
+                <div key={item.name} className="flex flex-col">
+                  <button
+                    onClick={() => setIsDepositsOpen(!isDepositsOpen)}
+                    className="flex items-center justify-between p-2 rounded-md text-gray-700 hover:bg-green-50 hover:text-green-700 transition-colors w-full"
+                  >
+                    <div className="flex items-center gap-3">
+                      <Icon size={20} />
+                      <span>{item.name}</span>
+                    </div>
+                    {isDepositsOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                  </button>
+
+                  {isDepositsOpen && (
+                    <div className="flex flex-col mt-1 space-y-1">
+                      {item.subItems.map((subItem) => (
+                        <NavLink
+                          key={subItem.name}
+                          to={subItem.path}
+                          className={({ isActive }) =>
+                            `block pl-11 pr-4 py-2 rounded-md transition-colors ${
+                              isActive
+                                ? "text-green-700 font-semibold"
+                                : "text-gray-500 hover:text-green-700 hover:bg-green-50"
+                            }`
+                          }
+                        >
+                          {subItem.name}
+                        </NavLink>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            }
+
             return (
               <NavLink key={item.name} to={item.path}
                 className={({ isActive }) => `flex items-center gap-3 p-2 rounded-md transition-colors ${isActive ? "bg-green-50 text-green-700 font-semibold" : "text-gray-700 hover:bg-green-50 hover:text-green-700"}`}>

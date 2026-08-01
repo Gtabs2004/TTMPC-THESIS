@@ -56,6 +56,7 @@ const LoanLedger = () => {
     { name: "Reports", icon: BarChart3 },
     { name: "Audit Trail", icon: History },
     { name: "Grocery", icon: Coins },
+    { name: "Legacy Member Validation", icon: Search },
   ];
 
   const routeMap = {
@@ -70,6 +71,7 @@ const LoanLedger = () => {
     Reports: "/reports",
     "Audit Trail": "/audit-trail",
     Grocery: "/grocery",
+    "Legacy Member Validation": "/legacy-member-validation",
   };
 
   const initialLoan = location.state?.loan || {
@@ -131,9 +133,11 @@ const LoanLedger = () => {
           <img src={logo} alt="Logo" className="h-12 w-auto" />
           <div className="flex flex-col">
             <h1 className="text-xl font-bold text-[#389734]">TTMPC</h1>
-            <p className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold">
-              Bookkeeper Portal
-            </p>
+            <PortalSidebarIdentity
+              className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold"
+              fallbackPortal="Bookkeeper Portal"
+              fallbackRole="Bookkeeper"
+            />
           </div>
         </div>
 

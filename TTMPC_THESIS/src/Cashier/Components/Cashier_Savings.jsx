@@ -19,6 +19,7 @@ import {
   ShoppingCart,
   UserPlus,
   Wallet,
+  History,
 } from "lucide-react";
 
 import { UserAuth } from "../../contex/AuthContext";
@@ -124,6 +125,7 @@ const Cashier_Savings = () => {
       },
       { name: "Withdrawals", icon: ArrowDownLeft, path: "/Cashier_Withdrawals" },
       { name: "Grocery", icon: ShoppingCart, path: "/Cashier_Grocery" },
+      { name: "Audit Log", icon: History, path: "/cashier-audit-log" },
     ],
     []
   );
