@@ -1,0 +1,123 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-08-01T00:00:00.000Z",
+  "title": "Design System: REGANT",
+  "extensions": {
+    "colorMeta": {
+      "primary": { "role": "primary", "displayName": "Cooperative Green", "canonical": "#389734", "tonalRamp": ["#0F2B0D", "#1B4A18", "#276823", "#2E7A2A", "#389734", "#57B152", "#8ECB8B", "#D3ECD2"] },
+      "primary-deep": { "role": "primary", "displayName": "Cooperative Green — Deep (hover)", "canonical": "#2E7A2A", "tonalRamp": ["#0D2409", "#173F13", "#215A1C", "#2E7A2A", "#3D9A38", "#66B862", "#9AD498", "#D9EFD8"] },
+      "system-green": { "role": "secondary", "displayName": "System Green", "canonical": "#16A34A", "tonalRamp": ["#052E16", "#14532D", "#166534", "#15803D", "#16A34A", "#22C55E", "#4ADE80", "#BBF7D0"] },
+      "neutral-bg": { "role": "neutral", "displayName": "Cooperative Slate", "canonical": "#F8FAFC", "tonalRamp": ["#0F172A", "#334155", "#64748B", "#94A3B8", "#CBD5E1", "#E2E8F0", "#F1F5F9", "#F8FAFC"] },
+      "surface-white": { "role": "neutral", "displayName": "Surface White", "canonical": "#FFFFFF", "tonalRamp": ["#E5E7EB", "#EDEEF0", "#F3F4F6", "#F7F8F9", "#FAFAFB", "#FCFCFD", "#FEFEFE", "#FFFFFF"] },
+      "text-strong": { "role": "neutral", "displayName": "Text — Strong", "canonical": "#111827", "tonalRamp": ["#030712", "#111827", "#1F2937", "#374151", "#4B5563", "#6B7280", "#9CA3AF", "#D1D5DB"] },
+      "danger": { "role": "semantic", "displayName": "Danger", "canonical": "#DC2626", "tonalRamp": ["#450A0A", "#7F1D1D", "#991B1B", "#B91C1C", "#DC2626", "#EF4444", "#F87171", "#FECACA"] },
+      "info": { "role": "semantic", "displayName": "Info", "canonical": "#2563EB", "tonalRamp": ["#172554", "#1E3A8A", "#1D4ED8", "#2563EB", "#3B82F6", "#60A5FA", "#93C5FD", "#DBEAFE"] },
+      "warning": { "role": "semantic", "displayName": "Warning", "canonical": "#B45309", "tonalRamp": ["#451A03", "#78350F", "#92400E", "#B45309", "#D97706", "#F59E0B", "#FBBF24", "#FDE68A"] }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display", "purpose": "Page titles (e.g. \"Released Loans\", \"Payment Records\")." },
+      "title": { "displayName": "Title", "purpose": "Card and table section headings." },
+      "body": { "displayName": "Body", "purpose": "Table cells, form labels, descriptive copy." },
+      "label": { "displayName": "Label", "purpose": "Uppercase kicker labels, table column headers, status badges." }
+    },
+    "shadows": [
+      { "name": "resting", "value": "0 1px 2px 0 rgba(0,0,0,0.05)", "purpose": "Default elevation for every card, input, and toolbar chip (Tailwind shadow-sm)." },
+      { "name": "lifted", "value": "0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -2px rgba(0,0,0,0.1)", "purpose": "Hover state for interactive cards, paired with a 4px upward translate (Tailwind shadow-md)." },
+      { "name": "overlay", "value": "0 20px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.1)", "purpose": "Dropdown and action menus (Tailwind shadow-xl)." },
+      { "name": "modal", "value": "0 25px 50px -12px rgba(0,0,0,0.25)", "purpose": "Modal dialogs, paired with a bg-gray-900/60 backdrop-blur-sm scrim (Tailwind shadow-2xl)." }
+    ],
+    "motion": [
+      { "name": "hover-lift", "value": "transform 300ms, box-shadow 300ms", "purpose": "Interactive card hover: translateY(-4px) + shadow-sm to shadow-md." },
+      { "name": "modal-in", "value": "scale 200ms ease-out", "purpose": "Modal entrance: scale from 95% to 100% (animate-in zoom-in-95)." },
+      { "name": "toast-slide", "value": "transform 300ms ease-out, opacity 300ms ease-out", "purpose": "Toast notifications sliding in/out from the right (slideIn/slideOut keyframes)." }
+    ],
+    "breakpoints": [
+      { "name": "md", "value": "768px" },
+      { "name": "lg", "value": "1024px" },
+      { "name": "xl", "value": "1280px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Committed page-level action (e.g. \"Refresh Data\"), Cooperative Green.",
+      "html": "<button class=\"ds-btn-primary\">Refresh Data</button>",
+      "css": ".ds-btn-primary { display: inline-flex; align-items: center; gap: 8px; background: #389734; color: #FFFFFF; font-size: 14px; font-weight: 600; padding: 10px 20px; border: none; border-radius: 8px; box-shadow: 0 1px 2px 0 rgba(0,0,0,0.05); transition: background 0.2s, transform 0.2s, box-shadow 0.2s; } .ds-btn-primary:hover { background: #2E7A2A; } .ds-btn-primary:focus-visible { outline: 2px solid #389734; outline-offset: 2px; } .ds-btn-primary:disabled { background: #D1D5DB; cursor: not-allowed; }"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Non-committing action (\"Close\", \"Previous\", \"Next\").",
+      "html": "<button class=\"ds-btn-secondary\">Close Record</button>",
+      "css": ".ds-btn-secondary { background: #FFFFFF; color: #374151; font-size: 14px; font-weight: 700; padding: 10px 20px; border: 1px solid #D1D5DB; border-radius: 8px; box-shadow: 0 1px 2px 0 rgba(0,0,0,0.05); transition: background 0.2s; } .ds-btn-secondary:hover { background: #F9FAFB; } .ds-btn-secondary:focus-visible { outline: 2px solid #389734; outline-offset: 2px; }"
+    },
+    {
+      "name": "Stat / KPI Card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "Signature metric building block: colored icon chip + kicker label + bold numeral + trend line.",
+      "html": "<div class=\"ds-stat-card\"><div class=\"ds-stat-card__icon\"><svg width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><path d=\"M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2\"/><circle cx=\"9\" cy=\"7\" r=\"4\"/><path d=\"M23 21v-2a4 4 0 0 0-3-3.87\"/><path d=\"M16 3.13a4 4 0 0 1 0 7.75\"/></svg></div><p class=\"ds-stat-card__label\">Total Members</p><h3 class=\"ds-stat-card__value\">256</h3><div class=\"ds-stat-card__trend\">+4 vs last month</div></div>",
+      "css": ".ds-stat-card { background: #FFFFFF; border: 1px solid #E5E7EB; border-radius: 12px; padding: 20px; box-shadow: 0 1px 2px 0 rgba(0,0,0,0.05); transition: transform 0.3s, box-shadow 0.3s; } .ds-stat-card:hover { transform: translateY(-4px); box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -2px rgba(0,0,0,0.1); } .ds-stat-card__icon { display: inline-flex; padding: 8px; background: #EFF6FF; color: #3B82F6; border-radius: 8px; margin-bottom: 12px; } .ds-stat-card__label { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #9CA3AF; margin: 0 0 4px; } .ds-stat-card__value { font-size: 30px; font-weight: 800; letter-spacing: -0.01em; color: #111827; margin: 0; } .ds-stat-card__trend { font-size: 12px; font-weight: 500; color: #22C55E; margin-top: 8px; }"
+    },
+    {
+      "name": "Status Badge (outlined)",
+      "kind": "chip",
+      "refersTo": "badge-status",
+      "description": "Canonical status/rank badge: tinted background, colored text, matching ring — not the legacy solid-fill variant.",
+      "html": "<span class=\"ds-badge ds-badge--green\">Docs (3)</span>",
+      "css": ".ds-badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 9999px; font-size: 12px; font-weight: 700; box-shadow: inset 0 0 0 1px var(--ring, transparent); } .ds-badge--green { background: #F0FDF4; color: #15803D; --ring: #BBF7D0; } .ds-badge--red { background: #FEF2F2; color: #B91C1C; --ring: #FECACA; } .ds-badge--amber { background: #FFFBEB; color: #B45309; --ring: #FDE68A; } .ds-badge--blue { background: #EFF6FF; color: #1D4ED8; --ring: #BFDBFE; }"
+    },
+    {
+      "name": "Sidebar Nav Item",
+      "kind": "nav",
+      "refersTo": null,
+      "description": "Default/hover/active states for the shared sidebar nav, reused verbatim across every role portal.",
+      "html": "<a href=\"#\" class=\"ds-nav-item ds-nav-item--active\"><svg width=\"20\" height=\"20\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><rect x=\"3\" y=\"3\" width=\"7\" height=\"9\"/><rect x=\"14\" y=\"3\" width=\"7\" height=\"5\"/><rect x=\"14\" y=\"12\" width=\"7\" height=\"9\"/><rect x=\"3\" y=\"16\" width=\"7\" height=\"5\"/></svg><span>Dashboard</span></a>",
+      "css": ".ds-nav-item { display: flex; align-items: center; gap: 12px; padding: 8px; border-radius: 8px; font-size: 14px; color: #374151; text-decoration: none; transition: background-color 0.2s, color 0.2s; } .ds-nav-item:hover { background: #F0FDF4; color: #15803D; } .ds-nav-item--active { background: #F0FDF4; color: #15803D; font-weight: 600; }"
+    },
+    {
+      "name": "Modal",
+      "kind": "custom",
+      "refersTo": null,
+      "description": "Record/detail modal: scrim, rounded-2xl card, bg-gray-50 header/footer, dl-based data grid body.",
+      "html": "<div class=\"ds-modal-scrim\"><div class=\"ds-modal\"><div class=\"ds-modal__header\"><h3>Disbursement Record</h3><button class=\"ds-modal__close\">&times;</button></div><div class=\"ds-modal__body\"><p>Modal body content (dl/dt/dd data grid).</p></div><div class=\"ds-modal__footer\"><button class=\"ds-btn-secondary\">Close Record</button></div></div></div>",
+      "css": ".ds-modal-scrim { position: fixed; inset: 0; background: rgba(17,24,39,0.6); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; padding: 16px; } .ds-modal { background: #FFFFFF; border-radius: 16px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25); max-width: 32rem; width: 100%; overflow: hidden; } .ds-modal__header { display: flex; align-items: center; justify-content: space-between; padding: 20px; background: #F9FAFB; border-bottom: 1px solid #E5E7EB; } .ds-modal__header h3 { font-size: 16px; font-weight: 700; color: #111827; margin: 0; } .ds-modal__close { color: #9CA3AF; background: none; border: none; font-size: 20px; cursor: pointer; } .ds-modal__body { padding: 24px; } .ds-modal__footer { display: flex; justify-content: flex-end; gap: 12px; padding: 20px; background: #F9FAFB; border-top: 1px solid #E5E7EB; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Cooperative Ledger",
+    "overview": "REGANT reads as a trustworthy, exact bookkeeping instrument, not a generic admin template. Every screen is built around the same shell — a fixed green-accented sidebar, a light slate canvas, and white cards that hold numbers, tables, and ledger-style records — because the people using it (bookkeepers, treasurers, cashiers, managers, board members) are trusting it with real cooperative money and member trust. The voice is warm and institutional: approachable enough for a small teachers' cooperative office, precise enough that a treasurer would trust it with a disbursement ledger. It should never read as a cold, generic enterprise SaaS dashboard, nor as a playful consumer app.\n\nComponents are tactile and confident: cards lift and gain shadow on hover, KPI numerals are bold and oversized, and primary actions commit to a single, deliberate green. The system favors clarity over decoration — status is always color-coded and labeled, currency is always formatted as PHP, and every list ends in a real empty/loading state rather than a silent blank.",
+    "keyCharacteristics": [
+      "One shell (sidebar + topbar + p-8 content canvas) reused verbatim across every role portal.",
+      "Cooperative Green (#389734) as the singular brand accent; Tailwind's system green is its close functional sibling, not a second brand color.",
+      "White, rounded-xl, shadow-sm cards on a light slate canvas — flat at rest, lifted on interaction.",
+      "Bold, oversized KPI numerals paired with small uppercase kicker labels.",
+      "Status is never color-only: every badge carries a label, and rank/priority badges are ringed and tinted, not solid-filled."
+    ],
+    "rules": [
+      { "name": "The One Green Rule", "body": "Cooperative Green (#389734) and System Green (#16A34A) are the only two greens in the system, and they're close enough in hue to read as one brand color at a glance. Any third green value is drift, not a variant to keep.", "section": "colors" },
+      { "name": "The Text-on-Green Rule", "body": "Real text under the large-text threshold (<24px regular / <18.66px bold) — button labels, links, paragraphs — sitting on or rendered in Cooperative Green must use the Deep step (#2E7A2A), never base Primary (#389734), which only clears ~3.7:1 against white and fails the 4.5:1 body-text minimum. Reserve base Primary for large headline text, icons, and non-text decoration where only 3:1 is required.", "section": "colors" },
+      { "name": "The Kicker Rule", "body": "Any label that categorizes rather than states a value (stat card captions, table headers, breadcrumbs) is uppercase, text-xs, bold, and tracked-out. Any label that states a value (numbers, names, dates) is not uppercased.", "section": "typography" },
+      { "name": "The Lift-on-Hover Rule", "body": "Interactive cards (stat cards, list rows meant to be clicked) go from shadow-sm at rest to shadow-md with a 4px upward translate on hover. Static, non-interactive cards stay flat.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do use Cooperative Green (#389734) for the one primary, page-level commit action and for brand touchpoints (wordmark, active breadcrumb).",
+      "Do use System Green (#16A34A/#15803D) for sidebar nav and the sign-out button, exactly as already built.",
+      "Do use the colored-icon-chip + kicker + numeral + trend pattern for any new stat/KPI card.",
+      "Do give every table an explicit empty state and loading state.",
+      "Do use the outlined/ring badge style (bg-{tone}-50 text-{tone}-700 ring-1 ring-{tone}-200) for new status and rank badges.",
+      "Do canonicalize new page backgrounds on #F8FAFC."
+    ],
+    "donts": [
+      "Don't introduce a third green. The login page's #66B538 is drift, not a variant — new work should use Cooperative Green (#389734/#2E7A2A) instead, and existing occurrences should migrate to it when touched. App.jsx had the same drift (#66B539/#529E2E) and has been migrated.",
+      "Don't use base Primary (#389734) for real text under the large-text threshold or for button fills — it fails 4.5:1 body-text contrast. Use Deep (#2E7A2A) there.",
+      "Don't mix bg-gray-50/bg-gray-100 page backgrounds into new screens — #F8FAFC is canonical; treat gray-50/100 pages as legacy to migrate, not a pattern to repeat.",
+      "Don't add new solid-pill badges (bg-{tone}-100 text-{tone}-700) — the ringed/outlined style is canonical going forward.",
+      "Don't invent a new card radius, shadow step, or font. The system has exactly one radius scale, one shadow vocabulary, and one typeface (Poppins); reuse it.",
+      "Don't design a new sidebar or topbar per portal — every role reuses the same shell verbatim; only the nav item list and route map change."
+    ]
+  }
+}

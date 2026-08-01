@@ -27,6 +27,7 @@ const menuItems = [
     { name: "Payments", icon: Users },
     { name: "Loan Approval", icon: CreditCard },
     { name: "Accounting", icon: BarChart3 },
+    { name: "Audit Log", icon: History },
   ];
  
 
@@ -57,13 +58,14 @@ const menuItems = [
         <nav className="flex flex-col gap-2 text-sm flex-grow">
   {(() => {
      const routeMap = {
-      "Dashboard": "/Treasurer_Dashboard",
-      "Disbursement": "/disbursement",
-      "Schedule": "/schedule",
-      "Payments": "/treasurer-payments",
-      "Loan Approval": "/treasurer-approval",
-      "Accounting": "/treasurer-accounting",
-    };
+    "Dashboard": "/Treasurer_Dashboard",
+    "Disbursement": "/disbursement",
+    "Schedule": "/schedule",
+    "Payments": "/treasurer-payments",
+    "Loan Approval": "/treasurer-approval",
+    "Accounting": "/treasurer-accounting",
+    "Audit Log": "/treasurer-audit-log",
+  };
 
     return menuItems.map((item) => {
       const Icon = item.icon;

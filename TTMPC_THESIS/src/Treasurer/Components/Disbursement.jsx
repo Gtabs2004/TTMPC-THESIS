@@ -129,13 +129,14 @@ const Disbursements = () => {
   }, [fetchReleasedLoans]);
 
   const menuItems = [
-    { name: "Dashboard", icon: LayoutDashboard },
-    { name: "Disbursement", icon: CreditCard },
-    { name: "Schedule", icon: Calculator },
-    { name: "Payments", icon: Users },
-    { name: "Loan Approval", icon: CreditCard },
-    { name: "Accounting", icon: BarChart3 },
-  ];
+      { name: "Dashboard", icon: LayoutDashboard },
+      { name: "Disbursement", icon: CreditCard },
+      { name: "Schedule", icon: Calculator },
+      { name: "Payments", icon: Users },
+      { name: "Loan Approval", icon: CreditCard },
+      { name: "Accounting", icon: BarChart3 },
+      { name: "Audit Log", icon: History },
+    ];
 
   const formatCurrency = (n) =>
     new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP", minimumFractionDigits: 2 }).format(n || 0);
@@ -206,14 +207,15 @@ const Disbursements = () => {
 
         <nav className="flex flex-col gap-2 text-sm flex-grow">
           {(() => {
-             const routeMap = {
-              "Dashboard": "/Treasurer_Dashboard",
-              "Disbursement": "/disbursement",
-              "Schedule": "/schedule",
-              "Payments": "/treasurer-payments",
-              "Loan Approval": "/treasurer-approval",
-              "Accounting": "/treasurer-accounting",
-            };
+              const routeMap = {
+    "Dashboard": "/Treasurer_Dashboard",
+    "Disbursement": "/disbursement",
+    "Schedule": "/schedule",
+    "Payments": "/treasurer-payments",
+    "Loan Approval": "/treasurer-approval",
+    "Accounting": "/treasurer-accounting",
+    "Audit Log": "/treasurer-audit-log",
+  };
 
             return menuItems.map((item) => {
               const Icon = item.icon;

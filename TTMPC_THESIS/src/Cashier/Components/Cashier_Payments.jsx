@@ -21,9 +21,10 @@ import {
   UserPlus,
   ArrowUpRight,
   Send, 
-  PiggyBank,  
+  PiggyBank,
   ArrowDownLeft,
-  ShoppingCart
+  ShoppingCart,
+  History
 } from 'lucide-react';
 import logo from "../../assets/img/ttmpc logo.png"; // Adjust path to logo if needed
 
@@ -390,7 +391,8 @@ const Cashier_Payments = () => {
         },
         { name: "Withdrawals", icon: ArrowDownLeft, path: "/Cashier_Withdrawals" },
         { name: "Grocery", icon: ShoppingCart, path: "/Cashier_Grocery" },
-      ];  
+        { name: "Audit Log", icon: History, path: "/cashier-audit-log" },
+      ];
 
   useEffect(() => {
     fetchLoans();

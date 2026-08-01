@@ -37,6 +37,7 @@ const Treasurer_Approval = () => {
       { name: "Payments", icon: Users },
       { name: "Loan Approval", icon: CreditCard },
       { name: "Accounting", icon: BarChart3 },
+      { name: "Audit Log", icon: History },
     ];
 
   useEffect(() => {
@@ -221,12 +222,13 @@ const Treasurer_Approval = () => {
         <nav className="flex flex-col gap-2 text-sm flex-grow">
           {(() => {
             const routeMap = {
-              Dashboard: "/Treasurer_Dashboard",
-              Disbursement: "/disbursement",
-              Schedule: "/schedule",
-              Payments: "/treasurer-payments",
+              "Dashboard": "/Treasurer_Dashboard",
+              "Disbursement": "/disbursement",
+              "Schedule": "/schedule",
+              "Payments": "/treasurer-payments",
               "Loan Approval": "/treasurer-approval",
-              Accounting: "/treasurer-accounting",
+              "Accounting": "/treasurer-accounting",
+              "Audit Log": "/treasurer-audit-log",
             };
 
             return menuItems.map((item) => {
