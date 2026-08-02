@@ -487,45 +487,34 @@ const ManageLoans = () => {
                   const hasRenewals = renewals.length > 0;
                   const chainAccent = hasRenewals
                     ? (expanded ? "border-l-4 border-green-600" : "border-l-4 border-green-200")
-                    : "";
+                    : "border-l-4 border-transparent";
                   return (
                     <React.Fragment key={parent.loan_id}>
                       <tr
                         className={`border-b border-gray-100 hover:bg-green-50/40 transition-colors ${chainAccent}`}
                       >
                         <td className="px-3 py-4 text-xs font-mono font-bold text-green-700 align-middle">
-                          <div className="flex flex-col gap-1.5">
+                          <div className="flex min-h-[44px] flex-col items-start justify-center gap-1.5">
+                            <span className="truncate">{parent.loan_id}</span>
                             <button
                               type="button"
                               onClick={hasRenewals ? () => toggleGroup(parent.loan_id) : undefined}
                               disabled={!hasRenewals}
-                              className={`flex items-center gap-2 text-left ${
-                                hasRenewals ? "cursor-pointer" : "cursor-default"
+                              aria-hidden={!hasRenewals}
+                              tabIndex={hasRenewals ? 0 : -1}
+                              title={hasRenewals ? `${renewals.length} previous renewal${renewals.length > 1 ? "s" : ""} in chain — click to ${expanded ? "collapse" : "expand"}` : undefined}
+                              className={`inline-flex w-fit items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide transition-colors ${
+                                !hasRenewals
+                                  ? "invisible pointer-events-none"
+                                  : expanded
+                                  ? "bg-green-600 text-white hover:bg-green-700"
+                                  : "bg-green-100 text-green-700 hover:bg-green-200"
                               }`}
                             >
-                              {hasRenewals ? (
-                                <span
-                                  className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md border transition-colors ${
-                                    expanded
-                                      ? "border-green-600 bg-green-600 text-white"
-                                      : "border-green-200 bg-green-50 text-green-700"
-                                  }`}
-                                >
-                                  {expanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
-                                </span>
-                              ) : (
-                                <span className="h-6 w-6 shrink-0" aria-hidden="true" />
-                              )}
-                              <span className="truncate">{parent.loan_id}</span>
+                              <RefreshCw size={8} />
+                              {hasRenewals ? `${renewals.length} renewal${renewals.length > 1 ? "s" : ""}` : "0 renewals"}
+                              {hasRenewals && (expanded ? " ▲" : " ▼")}
                             </button>
-                            {hasRenewals && (
-                              <span
-                                title={`${renewals.length} previous renewal${renewals.length > 1 ? "s" : ""} in chain`}
-                                className="ml-8 inline-flex w-fit items-center gap-1 rounded-full bg-green-100 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-green-700"
-                              >
-                                <RefreshCw size={8} /> +{renewals.length}
-                              </span>
-                            )}
                           </div>
                         </td>
                         <td className="px-3 py-4 text-xs text-gray-800 font-semibold align-top">{parent.member_name}</td>
