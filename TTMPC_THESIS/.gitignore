@@ -33,3 +33,6 @@ dist-ssr
 .venv/
 __pycache__/
 *.pyc
+
+# Local schema dump
+src/server/schema_dump.json

@@ -21,6 +21,7 @@ import {
   History,
   Eye,
   CalendarDays,
+  ChevronLeft,
   ChevronRight,
   AlertCircle,
   X,
@@ -33,6 +34,7 @@ import {
 } from "lucide-react";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
+const ITEMS_PER_PAGE = 8;
 
 const PRIORITY_RULES = [
   { rank: 1, label: "Emergency", note: "MIGS & Non-MIGS · 20k max", match: (r) => r.type === "Emergency" },
@@ -73,6 +75,7 @@ const Disbursements = () => {
   const [summary, setSummary] = useState({ total_released_count: 0, total_released_amount: 0, released_today_amount: 0 });
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
   const menuRef = useRef(null);
 
   useEffect(() => {
@@ -170,6 +173,18 @@ const Disbursements = () => {
       return matchesSearch && matchesType;
     });
   }, [rankedRows, searchTerm, typeFilter]);
+
+  // Reset to page 1 whenever the filtered result set changes so the user isn't
+  // stranded on an empty page (matches the Manage-Loans pattern).
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, typeFilter, rows.length]);
+
+  const totalPages = Math.max(1, Math.ceil(visibleRows.length / ITEMS_PER_PAGE));
+  const paginatedRows = useMemo(() => {
+    const start = (currentPage - 1) * ITEMS_PER_PAGE;
+    return visibleRows.slice(start, start + ITEMS_PER_PAGE);
+  }, [visibleRows, currentPage]);
 
   const stats = useMemo(() => {
     return [
@@ -409,7 +424,7 @@ const Disbursements = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {visibleRows.map((row) => (
+                    {paginatedRows.map((row) => (
                       <tr key={row.id} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
                         <td className="p-5 align-top pt-5">
                           <span className={`inline-flex items-center justify-center min-w-8 h-7 px-2 rounded-full text-xs font-bold ring-1 ${rankTone[row.rank] || "bg-gray-100 text-gray-700 ring-gray-200"}`}>
@@ -484,6 +499,44 @@ const Disbursements = () => {
                     ))}
                   </tbody>
                 </table>
+              )}
+
+              {visibleRows.length > ITEMS_PER_PAGE && (
+                <div className="flex items-center justify-center p-6 gap-2 border-t border-gray-100">
+                  <button
+                    className="w-8 h-8 flex items-center justify-center rounded-full border border-gray-300 bg-white text-gray-500 transition-colors hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    disabled={currentPage <= 1}
+                    onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                  </button>
+
+                  {(() => {
+                    const groupStart = Math.floor((currentPage - 1) / 5) * 5 + 1;
+                    const groupEnd = Math.min(groupStart + 4, totalPages);
+                    return Array.from({ length: groupEnd - groupStart + 1 }, (_, i) => groupStart + i).map((page) => (
+                      <button
+                        key={page}
+                        onClick={() => setCurrentPage(page)}
+                        className={`w-8 h-8 flex items-center justify-center rounded-full border text-xs font-semibold transition-colors ${
+                          page === currentPage
+                            ? "bg-[#16A34A] text-white border-[#16A34A]"
+                            : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"
+                        }`}
+                      >
+                        {page}
+                      </button>
+                    ));
+                  })()}
+
+                  <button
+                    className="w-8 h-8 flex items-center justify-center rounded-full border border-gray-300 bg-white text-gray-500 transition-colors hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    disabled={currentPage >= totalPages}
+                    onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
+                  >
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                </div>
               )}
             </div>
           </div>

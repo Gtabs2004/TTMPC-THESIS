@@ -1,11 +1,13 @@
-﻿import React from "react";
+﻿import React, { useCallback, useEffect, useState } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
+import { supabase } from "../../supabaseClient";
 import { UserAuth } from "../../contex/AuthContext";
 import { useNotification } from "../../contex/NotificationContext";
 import { PortalSidebarIdentity, PortalTopbarIdentity } from "../../components/PortalIdentity";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
 import LoanDemandForecastCard from "../../components/LoanDemandForecastCard";
 import RecentActivityCard from "../../components/RecentActivityCard";
+import PriorityQueueCard from "../../components/PriorityQueueCard";
 import { 
   LayoutDashboard, 
   Users, 
@@ -59,14 +61,117 @@ const recentActivity = [
   { id: 4, name: "Liza Soberano", loanId: "#LN-8912", type: "Bonus", amount: "\u20B120,000.00", date: "Oct 19, 2023", status: "SCHEDULED", statusColor: "bg-gray-100 text-gray-600" },
 ];
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
+
+const PHP_COMPACT = (v) => {
+  const n = Number(v || 0);
+  if (Math.abs(n) >= 1_000_000) return `₱${(n / 1_000_000).toFixed(2)}M`;
+  if (Math.abs(n) >= 1_000) return `₱${Math.round(n / 1_000)}k`;
+  return `₱${n.toFixed(0)}`;
+};
+
+const PHP_FULL = (v) =>
+  new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP", minimumFractionDigits: 0 }).format(Number(v || 0));
+
 const Treasurer_Dashboard = () => {
   const { session, signOut } = UserAuth();
   const navigate = useNavigate();
+
+  // Live KPI state. All four cards refresh together on mount + on demand.
+  // Each fetch is independent so a partial failure (e.g. forecast API down)
+  // doesn't blank out the vault or pending numbers.
+  const [kpis, setKpis] = useState({
+    vault: { value: null, loading: true, error: "" },
+    pending: { count: null, amount: null, loading: true, error: "" },
+    forecastConsolidated: { value: null, loading: true, error: "" },
+    forecastEmergency: { value: null, loading: true, error: "" },
+    nextMonthLabel: "",
+  });
+
+  const fetchKpis = useCallback(async () => {
+    // Compute next-month key once so both forecast fetches use the same target.
+    const now = new Date();
+    const next = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+    const targetKey = `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, "0")}`;
+    const targetLabel = next.toLocaleDateString("en-PH", { year: "numeric", month: "long" });
+
+    setKpis((k) => ({
+      vault: { ...k.vault, loading: true, error: "" },
+      pending: { ...k.pending, loading: true, error: "" },
+      forecastConsolidated: { ...k.forecastConsolidated, loading: true, error: "" },
+      forecastEmergency: { ...k.forecastEmergency, loading: true, error: "" },
+      nextMonthLabel: targetLabel,
+    }));
+
+    // 1) Vault balance — direct Supabase, RLS enforced via user session.
+    (async () => {
+      try {
+        const { data, error } = await supabase.from("vault_balance_v").select("current_balance").maybeSingle();
+        if (error) throw error;
+        setKpis((k) => ({ ...k, vault: { value: Number(data?.current_balance || 0), loading: false, error: "" } }));
+      } catch (e) {
+        setKpis((k) => ({ ...k, vault: { value: null, loading: false, error: e?.message || "Failed" } }));
+      }
+    })();
+
+    // 2) Pending release — reuse the priority-queue summary (already ranked).
+    (async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/treasurer/disbursements/priority-queue?limit=1`, {
+          headers: { Accept: "application/json" },
+        });
+        const payload = await res.json().catch(() => ({}));
+        if (!res.ok || !payload?.success) throw new Error(payload?.detail || "Failed");
+        setKpis((k) => ({
+          ...k,
+          pending: {
+            count: payload.summary?.total_count ?? 0,
+            amount: payload.summary?.total_amount ?? 0,
+            loading: false,
+            error: "",
+          },
+        }));
+      } catch (e) {
+        setKpis((k) => ({ ...k, pending: { count: null, amount: null, loading: false, error: e?.message || "Failed" } }));
+      }
+    })();
+
+    // 3 & 4) Forecast per loan type — pull enough periods to reach next month.
+    const forecastFetch = async (loanType, key) => {
+      try {
+        const res = await fetch(
+          `${API_BASE_URL}/api/analytics/demand/forecast?loan_type=${loanType}&periods=60`,
+          { headers: { Accept: "application/json" } },
+        );
+        const payload = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(payload?.detail || "Failed");
+        const fcArray = payload?.data?.forecast || payload?.forecast || [];
+        const row = fcArray.find((r) => String(r.period || "").startsWith(targetKey));
+        setKpis((k) => ({
+          ...k,
+          [key]: {
+            // Use the point estimate for the KPI card (users expect a single
+            // headline number here); the Vault page shows the upper CI band.
+            value: row ? Number(row.predicted || 0) : null,
+            loading: false,
+            error: row ? "" : "No forecast for next month",
+          },
+        }));
+      } catch (e) {
+        setKpis((k) => ({ ...k, [key]: { value: null, loading: false, error: e?.message || "Failed" } }));
+      }
+    };
+    forecastFetch("consolidated", "forecastConsolidated");
+    forecastFetch("emergency", "forecastEmergency");
+  }, []);
+
+  useEffect(() => { fetchKpis(); }, [fetchKpis]);
   const { addNotification } = useNotification();
   
   const menuItems = [
       { name: "Dashboard", icon: LayoutDashboard },
       { name: "Disbursement", icon: CreditCard },
+      { name: "Vault", icon: Wallet },
       { name: "Schedule", icon: Calculator },
       { name: "Payments", icon: Users },
       { name: "Loan Approval", icon: CreditCard },
@@ -104,6 +209,7 @@ const Treasurer_Dashboard = () => {
               const routeMap = {
     "Dashboard": "/Treasurer_Dashboard",
     "Disbursement": "/disbursement",
+    "Vault": "/treasurer-vault",
     "Schedule": "/schedule",
     "Payments": "/treasurer-payments",
     "Loan Approval": "/treasurer-approval",
@@ -162,74 +268,89 @@ const Treasurer_Dashboard = () => {
         {/* DASHBOARD CONTENT */}
         <main className="p-8">
           
-          {/* Top KPI Cards */}
+          {/* Top KPI Cards \u2014 live data. Each card gracefully shows "\u2014" while
+              loading or on error so a slow/failed sub-fetch doesn't blank
+              the whole strip. */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
-            {/* Card 1 */}
-            <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100 flex flex-col justify-between">
+            {/* Card 1 \u2014 Cash in Vault (from vault_balance_v) */}
+            <button
+              type="button"
+              onClick={() => navigate("/treasurer-vault")}
+              className="bg-white rounded-xl p-5 shadow-sm border border-gray-100 flex flex-col justify-between text-left hover:border-green-300 hover:shadow-md transition"
+            >
               <div className="flex justify-between items-start">
-                <span className="text-gray-500 text-sm font-medium">Total Members</span>
-                <div className="p-2 bg-blue-50 text-blue-500 rounded-lg">
-                  <Users size={18} />
+                <span className="text-gray-500 text-sm font-medium">Cash in Vault</span>
+                <div className="p-2 bg-emerald-50 text-emerald-600 rounded-lg">
+                  <Wallet size={18} />
                 </div>
               </div>
               <div className="mt-4">
-                <h3 className="text-3xl font-bold text-gray-800">256</h3>
+                <h3 className="text-3xl font-bold text-gray-800 tabular-nums">
+                  {kpis.vault.loading ? "\u2026" : kpis.vault.error ? "\u2014" : PHP_COMPACT(kpis.vault.value)}
+                </h3>
                 <div className="flex items-center mt-2 text-xs">
-                  <TrendingUp size={14} className="text-green-500 mr-1" />
-                  <span className="text-green-500 font-medium">+4</span>
-                  <span className="text-gray-400 ml-1">vs last month</span>
+                  <span className="text-gray-400">Manage in Vault \u2192</span>
                 </div>
               </div>
-            </div>
+            </button>
 
-            {/* Card 2 */}
-            <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100 flex flex-col justify-between">
+            {/* Card 2 \u2014 Pending Release (count + total) */}
+            <button
+              type="button"
+              onClick={() => navigate("/disbursement")}
+              className="bg-white rounded-xl p-5 shadow-sm border border-gray-100 flex flex-col justify-between text-left hover:border-green-300 hover:shadow-md transition"
+            >
               <div className="flex justify-between items-start">
-                <span className="text-gray-500 text-sm font-medium">Pending Disbursements</span>
+                <span className="text-gray-500 text-sm font-medium">Pending Release</span>
                 <div className="p-2 bg-orange-50 text-orange-500 rounded-lg">
                   <ClipboardList size={18} />
                 </div>
               </div>
               <div className="mt-4">
-                <h3 className="text-3xl font-bold text-gray-800">14</h3>
+                <h3 className="text-3xl font-bold text-gray-800 tabular-nums">
+                  {kpis.pending.loading ? "\u2026" : kpis.pending.error ? "\u2014" : (kpis.pending.count ?? 0)}
+                </h3>
                 <div className="flex items-center mt-2 text-xs">
-                  <span className="text-gray-400">In queue for release</span>
+                  <span className="text-gray-500 font-medium tabular-nums">
+                    {kpis.pending.loading ? "" : PHP_FULL(kpis.pending.amount || 0)}
+                  </span>
+                  <span className="text-gray-400 ml-1">awaiting release</span>
+                </div>
+              </div>
+            </button>
+
+            {/* Card 3 - Forecast: Consolidated (next month) */}
+            <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100 flex flex-col justify-between">
+              <div className="flex justify-between items-start">
+                <span className="text-gray-500 text-sm font-medium">Forecast - Consolidated</span>
+                <div className="p-2 rounded-lg" style={{ background: "#1D602110", color: "#1D6021" }}>
+                  <TrendingUp size={18} />
+                </div>
+              </div>
+              <div className="mt-4">
+                <h3 className="text-3xl font-bold text-gray-800 tabular-nums">
+                  {kpis.forecastConsolidated.loading ? "\u2026" : kpis.forecastConsolidated.value == null ? "\u2014" : PHP_COMPACT(kpis.forecastConsolidated.value)}
+                </h3>
+                <div className="flex items-center mt-2 text-xs">
+                  <span className="text-gray-400">expected in {kpis.nextMonthLabel || "next month"}</span>
                 </div>
               </div>
             </div>
 
-            {/* Card 3 */}
+            {/* Card 4 - Forecast: Emergency (next month) */}
             <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100 flex flex-col justify-between">
               <div className="flex justify-between items-start">
-                <span className="text-gray-500 text-sm font-medium">Loans Released Today</span>
-                <div className="p-2 bg-green-50 text-green-500 rounded-lg">
-                  <ArrowUpRight size={18} />
+                <span className="text-gray-500 text-sm font-medium">Forecast - Emergency</span>
+                <div className="p-2 rounded-lg" style={{ background: "#B4530910", color: "#B45309" }}>
+                  <TrendingUp size={18} />
                 </div>
               </div>
               <div className="mt-4">
-                <h3 className="text-3xl font-bold text-gray-800">{"\u20B1"}85,000</h3>
+                <h3 className="text-3xl font-bold text-gray-800 tabular-nums">
+                  {kpis.forecastEmergency.loading ? "\u2026" : kpis.forecastEmergency.value == null ? "\u2014" : PHP_COMPACT(kpis.forecastEmergency.value)}
+                </h3>
                 <div className="flex items-center mt-2 text-xs">
-                  <TrendingUp size={14} className="text-green-500 mr-1" />
-                  <span className="text-green-500 font-medium">Active</span>
-                  <span className="text-gray-400 ml-1">disbursements</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Card 4 */}
-            <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100 flex flex-col justify-between">
-              <div className="flex justify-between items-start">
-                <span className="text-gray-500 text-sm font-medium">Total Cash Disbursed</span>
-                <div className="p-2 bg-teal-50 text-teal-500 rounded-lg">
-                  <Wallet size={18} />
-                </div>
-              </div>
-              <div className="mt-4">
-                <h3 className="text-3xl font-bold text-gray-800">{"\u20B1"}1.24M</h3>
-                <div className="flex items-center mt-2 text-xs">
-                  <TrendingUp size={14} className="text-green-500 mr-1" />
-                  <span className="text-green-500 font-medium">+12.4%</span>
-                  <span className="text-gray-400 ml-1">vs last month</span>
+                  <span className="text-gray-400">expected in {kpis.nextMonthLabel || "next month"}</span>
                 </div>
               </div>
             </div>
@@ -272,98 +393,12 @@ const Treasurer_Dashboard = () => {
               </div>
             </div>
 
-            {/* Donut Chart (Takes up 2 columns) */}
-            <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100 lg:col-span-2">
-              <h3 className="text-gray-800 font-bold text-lg mb-4">Loan Type Distribution</h3>
-              <div className="relative h-48 flex justify-center items-center mt-4">
-                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={1}>
-                  <PieChart>
-                    <Pie
-                      data={distributionData}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={65}
-                      outerRadius={85}
-                      paddingAngle={0}
-                      dataKey="value"
-                      stroke="none"
-                    >
-                      {distributionData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
-                      ))}
-                    </Pie>
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-
-              {/* Legend placed inline horizontally at the bottom */}
-              <div className="mt-6 flex justify-center gap-6 text-xs font-medium text-gray-500">
-                {distributionData.map((item, index) => (
-                  <div key={index} className="flex items-center gap-2">
-                    <span className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color }}></span>
-                    <span>{item.name}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
+            {/* Priority Queue (Takes up 2 columns) — replaces the old
+                Loan Type Distribution donut. The queue tells the treasurer
+                which loans to release next based on TTMPC policy ranking,
+                which is directly actionable vs. a static category donut. */}
+            <PriorityQueueCard className="lg:col-span-2" limit={10} seeAllHref="/treasurer-approval" />
           </div>
-
-          {/* Bottom Table Section */}
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-            <div className="p-6 flex justify-between items-center border-b border-gray-100">
-              <h3 className="text-gray-800 font-bold text-lg">Recent Loan Activity</h3>
-              <div className="flex gap-4 text-sm font-semibold text-gray-500">
-                <button className="text-gray-800 bg-gray-50 px-3 py-1 rounded-md">All</button>
-                <button className="hover:text-gray-800 px-3 py-1">Pending</button>
-                <button className="hover:text-gray-800 px-3 py-1">Disbursed</button>
-              </div>
-            </div>
-            
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="bg-green-700 text-[10px] uppercase tracking-wider text-white font-extrabold">
-                    <th className="p-5 font-bold">Member Name</th>
-                    <th className="p-5 font-bold">Loan ID</th>
-                    <th className="p-5 font-bold">Loan Type</th>
-                    <th className="p-5 font-bold">Amount</th>
-                    <th className="p-5 font-bold">Applied Date</th>
-                    <th className="p-5 font-bold">Status</th>
-                    <th className="p-5 font-bold"></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {recentActivity.map((row) => (
-                    <tr key={row.id} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
-                      <td className="p-5 text-sm font-bold text-gray-800">{row.name}</td>
-                      <td className="p-5 text-sm text-gray-400 font-medium">{row.loanId}</td>
-                      <td className="p-5 text-sm text-gray-600">{row.type}</td>
-                      <td className="p-5 text-sm font-bold text-gray-800">{row.amount}</td>
-                      <td className="p-5 text-sm text-gray-500">{row.date}</td>
-                      <td className="p-5 text-sm">
-                        <span className={`badge-animated px-2.5 py-1 rounded-md text-[10px] font-bold tracking-wider uppercase ${row.statusColor}`}>
-                          {row.status}
-                        </span>
-                      </td>
-                      <td className="p-5 text-sm text-gray-400 hover:text-gray-600 cursor-pointer text-right">
-                        <MoreVertical size={16} className="inline" />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            
-            {/* Pagination Footer */}
-            <div className="p-4 px-6 border-t border-gray-50 flex justify-between items-center text-xs text-gray-400 font-medium">
-              <span>Showing 4 of 28 transactions</span>
-              <div className="flex gap-2">
-                <button className="px-3 py-1 border border-gray-200 rounded-md hover:bg-gray-50">Previous</button>
-                <button className="px-3 py-1 border border-gray-200 rounded-md hover:bg-gray-50 text-gray-600">Next</button>
-              </div>
-            </div>
-          </div>
-
           <div className="mt-8">
             <RecentActivityCard to="/treasurer-audit-log" title="My Audit Activity" />
           </div>

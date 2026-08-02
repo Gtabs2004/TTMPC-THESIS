@@ -1518,6 +1518,27 @@ def _normalize_disbursement_loan_type(raw: str) -> str:
     return (raw or "Other").title()
 
 
+# Priority-queue rank per TTMPC disbursement policy. Same rules as the ones
+# hard-coded on the Disbursement page (Disbursement.jsx PRIORITY_RULES) — keep
+# these in sync if the policy changes.
+DISBURSEMENT_PRIORITY_RULES = (
+    (1, "Emergency",                   lambda t, m: t == "Emergency"),
+    (2, "Consolidated (MIGS)",         lambda t, m: t == "Consolidated" and m == "MIGS"),
+    (3, "Consolidated (Non-MIGS)",     lambda t, m: t == "Consolidated" and m == "Non-MIGS"),
+    (4, "Bonus (MIGS)",                lambda t, m: t == "Bonus" and m == "MIGS"),
+    (5, "ABFF Loan",                   lambda t, m: t == "ABFF"),
+    (6, "Bonus (Non-MIGS)",            lambda t, m: t == "Bonus" and m == "Non-MIGS"),
+    (7, "Bonus (Non-Members)",         lambda t, m: t == "Bonus" and m == "Non-Member"),
+)
+
+
+def _compute_disbursement_rank(loan_type: str, migs: str) -> tuple[int, str]:
+    for rank, label, match in DISBURSEMENT_PRIORITY_RULES:
+        if match(loan_type, migs):
+            return rank, label
+    return 99, "Unranked"
+
+
 # ============================================================================
 # SECTION: Treasurer — Disbursements
 # Endpoints that surface loans already released by the cashier for treasurer
@@ -1630,6 +1651,263 @@ async def get_treasurer_released_loans():
     }
 
     return {"success": True, "data": mapped, "summary": summary}
+
+
+@app.get("/api/treasurer/disbursements/priority-queue")
+async def get_treasurer_priority_queue(limit: int = 10, offset: int = 0):
+    """Loans waiting to be released, ranked by TTMPC disbursement policy.
+
+    Returned rows are ordered by (rank asc, application_date asc). The rank
+    encodes the coop's priority rules — Emergency first, then MIGS-heavy
+    products, ABFF loans, etc. See DISBURSEMENT_PRIORITY_RULES for the
+    canonical mapping.
+
+    Query params:
+      - limit:  page size (default 10, max 100)
+      - offset: page offset for pagination
+
+    Also returns a `summary` with totals + per-rank aggregates so the
+    dashboard can show "N loans / ₱X pending" without a second query.
+    """
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+
+    try:
+        response = (
+            supabase.table("loans")
+            .select(
+                "control_number,loan_amount,principal_amount,loan_status,application_status,application_date,"
+                "member:member_id(membership_id,first_name,last_name,is_bona_fide),"
+                "loan_type:loan_type_id(name)"
+            )
+            .order("application_date", desc=False)  # oldest first within a rank
+            .execute()
+        )
+        rows = response.data or []
+    except Exception as err:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch priority queue: {err}")
+
+    now = datetime.now()
+    queue = []
+
+    for row in rows:
+        # Only loans genuinely waiting for treasurer/cashier action.
+        status = str(row.get("loan_status") or "").strip().lower()
+        if status not in {"ready for disbursement", "approved", "awaiting disbursement"}:
+            continue
+
+        member = row.get("member") or {}
+        loan_type_row = row.get("loan_type") or {}
+        raw_type = loan_type_row.get("name") or ""
+        loan_type = _normalize_disbursement_loan_type(raw_type)
+        migs = _classify_migs(member)
+        rank, rank_label = _compute_disbursement_rank(loan_type, migs)
+
+        app_date_str = row.get("application_date")
+        days_waiting = None
+        if app_date_str:
+            try:
+                app_dt = datetime.fromisoformat(str(app_date_str).replace("Z", "+00:00"))
+                days_waiting = max(0, (now - app_dt.replace(tzinfo=None)).days)
+            except (ValueError, TypeError):
+                days_waiting = None
+
+        amount = decimal_to_float(row.get("principal_amount") or row.get("loan_amount") or 0)
+        member_name = f"{member.get('first_name') or ''} {member.get('last_name') or ''}".strip() or "Unknown Member"
+
+        queue.append({
+            "rank": rank,
+            "rank_label": rank_label,
+            "loan_id": row.get("control_number"),
+            "member_name": member_name,
+            "membership_id": member.get("membership_id"),
+            "loan_type": loan_type,
+            "migs": migs,
+            "amount": amount,
+            "application_date": app_date_str,
+            "days_waiting": days_waiting,
+            "loan_status": row.get("loan_status"),
+        })
+
+    # Sort by (rank asc, days_waiting desc → oldest first). Rows without
+    # days_waiting sink to the bottom of their rank.
+    queue.sort(key=lambda r: (r["rank"], -(r["days_waiting"] or 0)))
+
+    # Summary — before slicing, so totals reflect the full queue not just the page.
+    total_count = len(queue)
+    total_amount = sum(r["amount"] for r in queue)
+    per_rank: dict[int, dict] = {}
+    for r in queue:
+        bucket = per_rank.setdefault(r["rank"], {
+            "rank": r["rank"],
+            "rank_label": r["rank_label"],
+            "count": 0,
+            "amount": 0.0,
+        })
+        bucket["count"] += 1
+        bucket["amount"] += r["amount"]
+
+    # Pagination — clamp inputs then slice AFTER ranking so page N still
+    # reflects the correct priority order.
+    limit_clean = max(1, min(int(limit), 100))
+    offset_clean = max(0, int(offset))
+    paged = queue[offset_clean : offset_clean + limit_clean]
+
+    return {
+        "success": True,
+        "data": paged,
+        "summary": {
+            "total_count": total_count,
+            "total_amount": round(total_amount, 2),
+            "per_rank": sorted(per_rank.values(), key=lambda x: x["rank"]),
+        },
+        "pagination": {
+            "limit": limit_clean,
+            "offset": offset_clean,
+            "total": total_count,
+            "has_more": (offset_clean + limit_clean) < total_count,
+        },
+    }
+
+
+# ============================================================================
+# SECTION: Treasurer — Vault (cash-on-hand ledger)
+# Append-only ledger of vault cash movements. Current balance = SUM(amount).
+# Backing table: public.vault_entries (see vault_entries_schema.sql).
+# Auth is enforced by RLS via is_vault_reader() / is_vault_writer() — the
+# supabase client here uses the anon key, so the user's JWT (forwarded from
+# the frontend) drives policy evaluation. If policies reject, Supabase returns
+# an empty result / insert error which we surface as HTTP 403.
+# ============================================================================
+
+@app.get("/api/treasurer/vault")
+async def get_treasurer_vault_balance():
+    """Return the current vault balance from the vault_balance_v view."""
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+    try:
+        response = supabase.table("vault_balance_v").select("*").limit(1).execute()
+        rows = response.data or []
+        if not rows:
+            return {
+                "success": True,
+                "data": {"current_balance": 0.0, "last_updated_at": None, "entry_count": 0},
+            }
+        row = rows[0]
+        return {
+            "success": True,
+            "data": {
+                "current_balance": float(row.get("current_balance") or 0),
+                "last_updated_at": row.get("last_updated_at"),
+                "entry_count": int(row.get("entry_count") or 0),
+            },
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch vault balance: {e}")
+
+
+@app.get("/api/treasurer/vault/entries")
+async def get_treasurer_vault_entries(
+    limit: int = 50,
+    offset: int = 0,
+    change_type: str | None = None,
+):
+    """Paginated ledger of vault entries, newest first.
+
+    Query params:
+      - limit:       page size (max 200)
+      - offset:      row offset for pagination
+      - change_type: optional filter (deposit / withdrawal / disbursement / adjustment / opening_balance)
+    """
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+
+    limit_clean = max(1, min(int(limit), 200))
+    offset_clean = max(0, int(offset))
+
+    try:
+        query = (
+            supabase.table("vault_entries")
+            .select("id,amount,change_type,note,reference_id,entered_by,entered_at", count="exact")
+            .order("entered_at", desc=True)
+            .range(offset_clean, offset_clean + limit_clean - 1)
+        )
+        if change_type:
+            query = query.eq("change_type", change_type.strip().lower())
+        response = query.execute()
+        rows = response.data or []
+        total = getattr(response, "count", None)
+        return {
+            "success": True,
+            "data": [
+                {
+                    "id": r.get("id"),
+                    "amount": float(r.get("amount") or 0),
+                    "change_type": r.get("change_type"),
+                    "note": r.get("note"),
+                    "reference_id": r.get("reference_id"),
+                    "entered_by": r.get("entered_by"),
+                    "entered_at": r.get("entered_at"),
+                }
+                for r in rows
+            ],
+            "pagination": {"limit": limit_clean, "offset": offset_clean, "total": total},
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch vault entries: {e}")
+
+
+@app.post("/api/treasurer/vault/entries")
+async def create_treasurer_vault_entry(payload: dict = Body(...)):
+    """Append a new entry to the vault ledger.
+
+    Body:
+      - amount:       required. Signed peso amount (positive for cash in, negative for cash out).
+                      The frontend should compute the sign from the chosen change_type so the
+                      treasurer never has to type a negative number.
+      - change_type:  required. One of the CHECK-constraint values.
+      - note:         optional but STRONGLY recommended for 'adjustment'.
+      - reference_id: optional. Loans.id when this entry ties to a specific loan.
+      - entered_by:   optional (uuid). If omitted, DB column stays NULL — pass the treasurer's
+                      auth user id from the frontend so the ledger is attributable.
+    """
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+
+    valid_types = {"deposit", "withdrawal", "disbursement", "adjustment", "opening_balance"}
+
+    try:
+        amount = float(payload.get("amount"))
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=400, detail="`amount` is required and must be numeric.")
+    if amount == 0:
+        raise HTTPException(status_code=400, detail="`amount` must be non-zero.")
+
+    change_type = str(payload.get("change_type") or "").strip().lower()
+    if change_type not in valid_types:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid change_type. Must be one of: {', '.join(sorted(valid_types))}.",
+        )
+
+    if change_type == "adjustment" and not str(payload.get("note") or "").strip():
+        raise HTTPException(status_code=400, detail="`note` is required for adjustment entries.")
+
+    row = {
+        "amount": amount,
+        "change_type": change_type,
+        "note": (payload.get("note") or None),
+        "reference_id": payload.get("reference_id"),
+        "entered_by": payload.get("entered_by"),
+    }
+
+    try:
+        response = supabase.table("vault_entries").insert(row).execute()
+        inserted = (response.data or [{}])[0]
+        return {"success": True, "data": inserted}
+    except Exception as e:
+        # RLS rejection surfaces here — most likely cause when this fails.
+        raise HTTPException(status_code=403, detail=f"Failed to insert vault entry: {e}")
 
 
 # ============================================================================
