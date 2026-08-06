@@ -1,60 +1,167 @@
-﻿import React, { useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
-import { useNotification } from "../../contex/NotificationContext";
 import { PortalSidebarIdentity, PortalTopbarIdentity } from "../../components/PortalIdentity";
-import { 
-  LayoutDashboard, 
-  Users, 
-  CreditCard, 
-  Calculator, 
-  BarChart3, 
+import LoanNotificationBell from "../../components/LoanNotificationBell";
+import {
+  LayoutDashboard,
+  Users,
+  CreditCard,
+  Calculator,
+  BarChart3,
   Search,
-  Bell,
   Wallet,
-  CalendarCheck,
-  Clock,
-  TrendingUp,
-  CheckCircle2,
-  AlertCircle,
-  Plus,
-  Download,
+  CalendarDays,
   ChevronLeft,
   ChevronRight,
   ChevronRight as ChevronRightIcon,
-  History
-} from 'lucide-react';
+  History,
+  ArrowDownCircle,
+  ArrowUpCircle,
+  Filter,
+  Info,
+} from "lucide-react";
 
-// Mock data matching your screenshot
-const paymentsData = [
-  { id: "TTMPCPAY-2026-001", name: "Romelyn Delos Reyes", type: "Bonus", amount: "\u20B12,000", date: "Feb. 10, 2026", status: "On-Time", balance: "\u20B118,000" },
-  { id: "TTMPCPAY-2026-002", name: "Erden Jhed Teope", type: "Emergency", amount: "\u20B12,500", date: "Feb. 10, 2026", status: "On-Time", balance: "\u20B122,500" },
-  { id: "TTMPCPAY-2026-003", name: "Ashley Nicole Bulataolo", type: "Consolidated", amount: "\u20B110,000", date: "Feb. 10, 2026", status: "On-Time", balance: "\u20B1110,000" },
-  { id: "TTMPCPAY-2026-004", name: "Karina Dela Cruz", type: "Bonus", amount: "\u20B12,000", date: "Feb. 11, 2026", status: "On-Time", balance: "\u20B118,000" },
-  { id: "TTMPCPAY-2026-005", name: "Gero Antoni Tablolo", type: "Emergency", amount: "\u20B12,500", date: "Feb. 11, 2026", status: "On-Time", balance: "\u20B122,500" },
-  { id: "TTMPCPAY-2026-006", name: "Nash Ervine Slaton", type: "Consolidated", amount: "\u20B115,000", date: "Feb. 12, 2026", status: "On-Time", balance: "\u20B1165,000" },
-  { id: "TTMPCPAY-2026-007", name: "Paul Soriano", type: "Consolidated", amount: "\u20B15,000", date: "Feb. 12, 2026", status: "On-Time", balance: "\u20B155,000" },
-  { id: "TTMPCPAY-2026-008", name: "Joseph Mercado", type: "Consolidated", amount: "\u20B14,500", date: "Feb. 12, 2026", status: "Late", balance: "\u20B145,000" },
-  { id: "TTMPCPAY-2026-009", name: "Antonio Ramirez", type: "Emergency", amount: "\u20B13,500", date: "Feb. 13, 2026", status: "On-Time", balance: "\u20B138,500" },
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
+
+const PHP = (v) =>
+  new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP", minimumFractionDigits: 2 }).format(Number(v || 0));
+
+const formatDate = (iso) => {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "2-digit" });
+};
+
+// Ledger-entry type metadata. Colors distinguish inflow (green tint) vs
+// outflow (red tint) so a treasurer scanning the ledger sees direction at
+// a glance without reading the debit/credit columns.
+const TYPE_META = {
+  loan_payment:        { label: "Loan Payment",        cls: "bg-green-100 text-green-700",   dir: "in"  },
+  loan_disbursal:      { label: "Loan Disbursal",      cls: "bg-red-100 text-red-700",       dir: "out" },
+  savings_deposit:     { label: "Savings Deposit",     cls: "bg-emerald-100 text-emerald-700", dir: "in"  },
+  savings_withdrawal:  { label: "Savings Withdrawal",  cls: "bg-orange-100 text-orange-700", dir: "out" },
+  cbu_contribution:    { label: "CBU Contribution",    cls: "bg-blue-100 text-blue-700",     dir: "in"  },
+  membership_payment:  { label: "Membership Payment",  cls: "bg-purple-100 text-purple-700", dir: "in"  },
+  vault_adjustment:    { label: "Vault Adjustment",    cls: "bg-gray-100 text-gray-700",     dir: "any" },
+};
+
+const TYPE_OPTIONS = [
+  { value: "", label: "All types" },
+  { value: "loan_payment", label: "Loan Payments" },
+  { value: "loan_disbursal", label: "Loan Disbursals" },
+  { value: "savings_deposit", label: "Savings Deposits" },
+  { value: "savings_withdrawal", label: "Savings Withdrawals" },
+  { value: "cbu_contribution", label: "CBU Contributions" },
+  { value: "membership_payment", label: "Membership Payments" },
+  { value: "vault_adjustment", label: "Vault Adjustments" },
 ];
 
-const Payments = () => {
-  const { session, signOut } = UserAuth();
+// Default window: last 30 days ending today. Formatted as YYYY-MM-DD for the
+// native date inputs (avoids timezone drift from toISOString/toLocaleDateString).
+const toIsoDate = (d) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+const Treasurer_Payments = () => {
+  const { signOut } = UserAuth();
   const navigate = useNavigate();
-  const { addNotification } = useNotification();
-  const [currentPage, setCurrentPage] = useState(1);
+
+  const today = useMemo(() => new Date(), []);
+  const defaultStart = useMemo(() => {
+    const d = new Date(today);
+    d.setDate(d.getDate() - 30);
+    return d;
+  }, [today]);
+
+  const [startDate, setStartDate] = useState(toIsoDate(defaultStart));
+  const [endDate, setEndDate] = useState(toIsoDate(today));
+  const [typeFilter, setTypeFilter] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
-  
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 10;
+
+  const [ledger, setLedger] = useState({
+    entries: [],
+    total_count: 0,
+    total_debit: 0,
+    total_credit: 0,
+    net: 0,
+    window: { start: "", end: "" },
+  });
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+
+  const fetchLedger = useCallback(async () => {
+    setLoading(true);
+    setLoadError("");
+    try {
+      const params = new URLSearchParams({
+        start_date: startDate,
+        end_date: endDate,
+        limit: "2000",
+        offset: "0",
+      });
+      if (typeFilter) params.set("type_filter", typeFilter);
+      const r = await fetch(`${API_BASE_URL}/api/treasurer/cash-ledger?${params.toString()}`);
+      const payload = await r.json();
+      if (!r.ok || !payload?.success) {
+        throw new Error(payload?.detail || "Failed to load ledger.");
+      }
+      setLedger(payload.data);
+      setPage(1);
+    } catch (e) {
+      setLoadError(e?.message || "Unable to load ledger.");
+    } finally {
+      setLoading(false);
+    }
+  }, [startDate, endDate, typeFilter]);
+
+  useEffect(() => { fetchLedger(); }, [fetchLedger]);
+
+  // Client-side search filter across description + member + reference. The
+  // backend already applied the date window and type filter; search is
+  // client-side because the entry list is bounded (paged 2000 max).
+  const searchedEntries = useMemo(() => {
+    const q = String(searchTerm || "").trim().toLowerCase();
+    if (!q) return ledger.entries;
+    return ledger.entries.filter((e) => {
+      return (
+        String(e.description || "").toLowerCase().includes(q) ||
+        String(e.member_name || "").toLowerCase().includes(q) ||
+        String(e.reference || "").toLowerCase().includes(q)
+      );
+    });
+  }, [ledger.entries, searchTerm]);
+
+  const totalPages = Math.max(1, Math.ceil(searchedEntries.length / PAGE_SIZE));
+  const pagedEntries = useMemo(() => {
+    const start = (page - 1) * PAGE_SIZE;
+    return searchedEntries.slice(start, start + PAGE_SIZE);
+  }, [searchedEntries, page]);
+
   const menuItems = [
-      { name: "Dashboard", icon: LayoutDashboard },
-      { name: "Disbursement", icon: CreditCard },
-      { name: "Schedule", icon: Calculator },
-      { name: "Payments", icon: Users },
-      { name: "Loan Approval", icon: CreditCard },
-      { name: "Accounting", icon: BarChart3 },
-      { name: "Audit Log", icon: History },
-    ];
-  
+    { name: "Dashboard", icon: LayoutDashboard },
+    { name: "Disbursement", icon: CreditCard },
+    { name: "Vault", icon: Wallet },
+    { name: "Schedule", icon: CalendarDays },
+    { name: "Payments", icon: Users },
+    { name: "Loan Approval", icon: CreditCard },
+    { name: "Accounting", icon: BarChart3 },
+    { name: "Audit Log", icon: History },
+  ];
+
+  const routeMap = {
+    "Dashboard": "/Treasurer_Dashboard",
+    "Disbursement": "/disbursement",
+    "Vault": "/treasurer-vault",
+    "Schedule": "/schedule",
+    "Payments": "/treasurer-payments",
+    "Loan Approval": "/treasurer-approval",
+    "Accounting": "/treasurer-accounting",
+    "Audit Log": "/treasurer-audit-log",
+  };
+
   const handleSignOut = async (e) => {
     e.preventDefault();
     try {
@@ -65,20 +172,17 @@ const Payments = () => {
     }
   };
 
-  // Helper function for loan type badge colors - REVERTED TO ORIGINAL
-  const getLoanBadgeClass = (type) => {
-    switch(type) {
-      case 'Bonus': return 'bg-blue-100 text-blue-700';
-      case 'Emergency': return 'bg-red-100 text-red-700';
-      case 'Consolidated': return 'bg-purple-100 text-purple-700';
-      default: return 'bg-gray-100 text-gray-700';
-    }
+  const setQuickRange = (days) => {
+    const end = new Date();
+    const start = new Date();
+    start.setDate(start.getDate() - days);
+    setStartDate(toIsoDate(start));
+    setEndDate(toIsoDate(end));
   };
 
   return (
-    <div className="flex min-h-screen bg-[#F8FAFC] font-['Poppins']">
-      
-      {/* --- ORIGINAL USER SIDEBAR --- */}
+    <div className="flex min-h-screen bg-gray-50">
+      {/* SIDEBAR */}
       <aside className="bg-white w-64 p-4 flex flex-col border-r border-gray-200">
         <div className="flex flex-row items-start gap-2 mb-6">
           <img src="/img/ttmpc logo.png" alt="Logo" className="h-12 w-auto" />
@@ -87,45 +191,27 @@ const Payments = () => {
             <PortalSidebarIdentity className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold" fallbackPortal="Treasurer Portal" fallbackRole="Treasurer" />
           </div>
         </div>
-
         <hr className="w-full border-gray-200 mb-6" />
-
         <nav className="flex flex-col gap-2 text-sm flex-grow">
-          {(() => {
-             const routeMap = {
-                 "Dashboard": "/Treasurer_Dashboard",
-                 "Disbursement": "/disbursement",
-                 "Schedule": "/schedule",
-                 "Payments": "/treasurer-payments",
-                 "Loan Approval": "/treasurer-approval",
-                 "Accounting": "/treasurer-accounting",
-                 "Audit Log": "/treasurer-audit-log",
-               };
-
-            return menuItems.map((item) => {
-              const Icon = item.icon;
-              const to = routeMap[item.name] || `/${item.name.toLowerCase().replace(/\s+/g, '-')}`;
-
-              return (
-                <NavLink
-                  key={item.name}
-                  to={to}
-                  className={({ isActive }) =>
-                    `flex items-center gap-3 p-2 rounded-md transition-colors ${
-                      isActive
-                        ? 'bg-green-50 text-green-700 font-semibold'
-                        : 'text-gray-700 hover:bg-green-50 hover:text-green-700'
-                    }`
-                  }
-                >
-                  <Icon size={20} />
-                  <span>{item.name}</span>
-                </NavLink>
-              );
-            });
-          })()}
+          {menuItems.map((item) => {
+            const Icon = item.icon;
+            const to = routeMap[item.name] || `/${item.name.toLowerCase().replace(/\s+/g, "-")}`;
+            return (
+              <NavLink
+                key={item.name}
+                to={to}
+                className={({ isActive }) =>
+                  `flex items-center gap-3 p-2 rounded-md transition-colors ${
+                    isActive ? "bg-green-50 text-green-700 font-semibold" : "text-gray-700 hover:bg-green-50 hover:text-green-700"
+                  }`
+                }
+              >
+                <Icon size={20} />
+                <span>{item.name}</span>
+              </NavLink>
+            );
+          })}
         </nav>
-
         <button
           onClick={handleSignOut}
           className="mt-auto w-full rounded p-2 text-xs bg-green-600 hover:bg-green-700 text-white font-bold transition-colors"
@@ -134,187 +220,217 @@ const Payments = () => {
         </button>
       </aside>
 
-      {/* Main Content Area */}
-      <div className="flex-1 flex flex-col h-screen overflow-y-auto w-full">
-        
-        {/* --- ORIGINAL USER TOPBAR --- */}
-        <header className="bg-white h-16 border-b border-gray-200 flex items-center justify-end px-8 shrink-0">
+      {/* MAIN */}
+      <div className="flex-1 flex flex-col h-screen overflow-y-auto">
+        <header className="bg-white h-16 shadow-sm flex items-center justify-end px-8 shrink-0">
           <div className="relative">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400" />
             <input
               type="text"
+              value={searchTerm}
+              onChange={(e) => { setSearchTerm(e.target.value); setPage(1); }}
               className="bg-gray-50 w-52 h-10 rounded-lg border border-gray-300 px-4 py-1 pl-9 focus:outline-none focus:ring-2 focus:ring-green-500"
-              placeholder="Search..."
+              placeholder="Search description / member / ref..."
             />
           </div>
-          <button className="ml-6 relative p-1 rounded-full text-gray-500 hover:bg-gray-100 transition-colors">
-            <Bell className="w-5 h-5"/>
-            <span className="absolute top-1 right-1 block h-2 w-2 rounded-full bg-red-500 ring-2 ring-white"></span>
-          </button>
+          <LoanNotificationBell role="treasurer" />
           <img src="/img/treasurer-profile.png" alt="Treasurer Profile" className="ml-4 w-8 h-8 rounded-full bg-gray-200" />
           <PortalTopbarIdentity className="text-sm font-medium text-gray-700" fallbackRole="Treasurer" />
         </header>
 
-        {/* FULL WIDTH DASHBOARD AREA */}
-        <main className="p-8 w-full">
-          
-          {/* Breadcrumb & Page Header */}
-          <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4 mb-8">
-            <div>
-              <div className="flex items-center gap-2 text-sm text-gray-500 font-medium mb-1">
-                <span>Treasurer</span>
-                <ChevronRightIcon className="w-4 h-4 text-gray-300" />
-                <span className="text-[#389734]">Payments Ledger</span>
-              </div>
-              <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">Payment Records</h1>
-              <p className="text-sm text-gray-500 mt-1 font-medium">Track, manage, and record member loan repayments.</p>
+        <main className="p-8">
+          {/* Breadcrumb + Header */}
+          <div className="mb-6">
+            <div className="flex items-center gap-2 text-sm text-gray-500 font-medium mb-1">
+              <span>Treasurer</span>
+              <ChevronRightIcon className="w-4 h-4 text-gray-300" />
+              <span className="text-[#389734]">Cash Ledger</span>
             </div>
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-200 bg-white text-gray-700 text-sm font-semibold shadow-sm">
-                <CalendarCheck className="w-4 h-4 text-gray-400" />
-                {new Date().toLocaleDateString("en-US", { year: "numeric", month: "short", day: "2-digit" })}
+            <h1 className="font-bold text-2xl text-gray-800">Cash Ledger</h1>
+            <p className="text-sm text-gray-500 mt-1">
+              All cash-affecting transactions processed through the Cashier. Read-only, accounting-style ledger — Debit = cash in, Credit = cash out.
+            </p>
+          </div>
+
+          {/* KPI STRIP */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+            <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
+              <div className="flex justify-between items-start">
+                <span className="text-gray-500 text-sm font-medium">Total Debits (Cash In)</span>
+                <div className="p-2 bg-green-50 text-green-600 rounded-lg">
+                  <ArrowDownCircle size={18} />
+                </div>
               </div>
+              <h3 className="mt-4 text-3xl font-bold text-gray-800 tabular-nums">
+                {loading ? "…" : PHP(ledger.total_debit)}
+              </h3>
+              <div className="text-xs text-gray-400 mt-2">payments in for selected window</div>
+            </div>
+
+            <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
+              <div className="flex justify-between items-start">
+                <span className="text-gray-500 text-sm font-medium">Total Credits (Cash Out)</span>
+                <div className="p-2 bg-red-50 text-red-500 rounded-lg">
+                  <ArrowUpCircle size={18} />
+                </div>
+              </div>
+              <h3 className="mt-4 text-3xl font-bold text-gray-800 tabular-nums">
+                {loading ? "…" : PHP(ledger.total_credit)}
+              </h3>
+              <div className="text-xs text-gray-400 mt-2">disbursals + withdrawals for selected window</div>
+            </div>
+
+            <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
+              <div className="flex justify-between items-start">
+                <span className="text-gray-500 text-sm font-medium">Net Cash Movement</span>
+                <div className="p-2 rounded-lg" style={{ background: "#1D602110", color: "#1D6021" }}>
+                  <Wallet size={18} />
+                </div>
+              </div>
+              <h3 className={`mt-4 text-3xl font-bold tabular-nums ${
+                ledger.net < 0 ? "text-red-600" : "text-gray-800"
+              }`}>
+                {loading ? "…" : PHP(ledger.net)}
+              </h3>
+              <div className="text-xs text-gray-400 mt-2">debits − credits (not vault balance)</div>
             </div>
           </div>
 
-          {/* Top Stat Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-            {/* Card 1 */}
-            <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm flex flex-col relative hover:-translate-y-1 hover:shadow-md transition-all duration-300">
-              <div className="flex justify-between items-start mb-2">
-                <div className="p-2.5 bg-green-50 rounded-xl">
-                  <Wallet className="w-5 h-5 text-[#389734]" />
-                </div>
-                <TrendingUp className="w-5 h-5 text-gray-300" />
-              </div>
-              <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mt-2">Total Collected</p>
-              <div className="flex items-end gap-3 mt-1">
-                <h2 className="text-2xl font-extrabold text-gray-900 tracking-tight">{"\u20B1"}125,500.00</h2>
-                <span className="text-xs text-[#389734] font-bold mb-1 bg-green-50 px-2 py-0.5 rounded-md">
-                  +12% vs last month
-                </span>
-              </div>
+          {/* FILTER BAR */}
+          <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100 mb-4 flex flex-wrap items-end gap-4">
+            <div className="flex flex-col">
+              <label className="text-[11px] uppercase tracking-wider text-gray-500 font-semibold mb-1">From</label>
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="border border-gray-300 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+              />
             </div>
-
-            {/* Card 2 */}
-            <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm flex flex-col relative hover:-translate-y-1 hover:shadow-md transition-all duration-300">
-              <div className="flex justify-between items-start mb-2">
-                <div className="p-2.5 bg-blue-50 rounded-xl">
-                  <CheckCircle2 className="w-5 h-5 text-blue-600" />
-                </div>
-                <div className="bg-gray-100 text-gray-400 text-[10px] font-bold px-2 py-1 rounded-md">THIS CYCLE</div>
-              </div>
-              <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mt-2">On-Time Payments</p>
-              <div className="flex items-end gap-2 mt-1">
-                <h2 className="text-2xl font-extrabold text-gray-900 tracking-tight">15</h2>
-                <span className="text-sm text-gray-500 font-medium mb-0.5">members</span>
-              </div>
+            <div className="flex flex-col">
+              <label className="text-[11px] uppercase tracking-wider text-gray-500 font-semibold mb-1">To</label>
+              <input
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="border border-gray-300 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+              />
             </div>
-
-            {/* Card 3 */}
-            <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm flex flex-col relative hover:-translate-y-1 hover:shadow-md transition-all duration-300">
-              <div className="flex justify-between items-start mb-2">
-                <div className="p-2.5 bg-red-50 rounded-xl relative">
-                  <Clock className="w-5 h-5 text-red-600" />
-                  <span className="absolute -top-1 -right-1 flex h-3 w-3">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500 border-2 border-white"></span>
-                  </span>
-                </div>
-              </div>
-              <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mt-2">Late Payments</p>
-              <div className="flex items-end gap-3 mt-1">
-                <h2 className="text-2xl font-extrabold text-gray-900 tracking-tight">3</h2>
-                <span className="text-xs text-red-600 font-bold mb-1 bg-red-50 px-2 py-0.5 rounded-md border border-red-100 flex items-center gap-1">
-                  <AlertCircle className="w-3 h-3"/> Action Required
-                </span>
-              </div>
+            <div className="flex flex-col">
+              <label className="text-[11px] uppercase tracking-wider text-gray-500 font-semibold mb-1 flex items-center gap-1">
+                <Filter size={11} /> Type
+              </label>
+              <select
+                value={typeFilter}
+                onChange={(e) => setTypeFilter(e.target.value)}
+                className="border border-gray-300 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+              >
+                {TYPE_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
+            </div>
+            <div className="flex items-center gap-1 ml-auto">
+              <button
+                onClick={() => setQuickRange(7)}
+                className="text-xs text-gray-600 border border-gray-200 hover:bg-gray-50 rounded-md px-3 py-1.5 font-medium"
+              >
+                Last 7d
+              </button>
+              <button
+                onClick={() => setQuickRange(30)}
+                className="text-xs text-gray-600 border border-gray-200 hover:bg-gray-50 rounded-md px-3 py-1.5 font-medium"
+              >
+                Last 30d
+              </button>
+              <button
+                onClick={() => setQuickRange(90)}
+                className="text-xs text-gray-600 border border-gray-200 hover:bg-gray-50 rounded-md px-3 py-1.5 font-medium"
+              >
+                Last 90d
+              </button>
             </div>
           </div>
 
-          {/* Table Section */}
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden flex flex-col">
-            
-            {/* Table Toolbar */}
-            <div className="p-6 border-b border-gray-200 flex flex-col sm:flex-row justify-between items-center gap-4 bg-white">
-              <h3 className="text-lg font-bold text-gray-900">Payment Records</h3>
-              
-              <div className="flex items-center gap-3 w-full sm:w-auto">
-                <button className="bg-[#5CBA47] hover:bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors">
-                  <Plus className="w-4 h-4" />
-                  Record Payment
-                </button>
-                
-                <button className="bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors">
-                  <Download className="w-4 h-4" />
-                  Export
-                </button>
+          {/* LEDGER TABLE */}
+          <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+            <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center">
+              <div>
+                <h3 className="text-gray-800 font-bold text-lg">Ledger Entries</h3>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  {loading ? "Loading…" : `${searchedEntries.length} entries · ${ledger.window.start} to ${ledger.window.end}`}
+                </p>
+              </div>
+              <div className="text-xs text-gray-400 flex items-center gap-1">
+                <Info size={12} /> Debit = cash in, Credit = cash out (cooperative's cash-account perspective)
               </div>
             </div>
 
-            {/* Actual Table */}
+            {loadError && (
+              <div className="mx-6 mt-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                {loadError}
+              </div>
+            )}
+
             <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="bg-green-700 text-[10px] uppercase tracking-wider text-white font-extrabold">
-                    <th className="p-5 font-bold">Payment ID</th>
-                    <th className="p-5 font-bold">Member Name</th>
-                    <th className="p-5 font-bold">Loan Type</th>
-                    <th className="p-5 font-bold">Amount Paid</th>
-                    <th className="p-5 font-bold">Payment Date</th>
-                    <th className="p-5 font-bold">Status</th>
-                    <th className="p-5 font-bold">Remaining Balance</th>
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50">
+                  <tr className="text-left text-[11px] uppercase text-gray-500 border-b border-gray-100">
+                    <th className="px-4 py-2 font-medium">Date</th>
+                    <th className="px-4 py-2 font-medium">Reference</th>
+                    <th className="px-4 py-2 font-medium">Description</th>
+                    <th className="px-4 py-2 font-medium">Type</th>
+                    <th className="px-4 py-2 font-medium">Member</th>
+                    <th className="px-4 py-2 font-medium text-right" title="Cash in — from the cooperative's cash-account perspective">Debit</th>
+                    <th className="px-4 py-2 font-medium text-right" title="Cash out — from the cooperative's cash-account perspective">Credit</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {paymentsData.map((row, index) => (
-                    <tr key={index} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
-                      <td className="p-5 text-gray-500 font-medium">{row.id}</td>
-                      <td className="p-5 font-semibold text-gray-900">{row.name}</td>
-                      <td className="p-5">
-                        {/* REVERTED TO ORIGINAL */}
-                        <span className={`badge-animated px-3 py-1 rounded-full text-xs font-semibold ${getLoanBadgeClass(row.type)}`}>
-                          {row.type}
-                        </span>
-                      </td>
-                      <td className="p-5 font-bold text-gray-900">{row.amount}</td>
-                      <td className="p-5 text-gray-500">{row.date}</td>
-                      <td className="p-5">
-                        {/* REVERTED TO ORIGINAL */}
-                        <span className={`badge-animated px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1.5 w-max ${
-                          row.status === 'On-Time' 
-                            ? 'bg-green-100 text-green-700' 
-                            : 'bg-red-100 text-red-700'
-                        }`}>
-                          <span className={`w-1.5 h-1.5 rounded-full ${row.status === 'On-Time' ? 'bg-green-500' : 'bg-red-500'}`}></span>
-                          {row.status}
-                        </span>
-                      </td>
-                      <td className="p-5 font-semibold text-gray-600">{row.balance}</td>
-                    </tr>
-                  ))}
+                  {loading ? (
+                    <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-500 text-sm">Loading ledger…</td></tr>
+                  ) : pagedEntries.length === 0 ? (
+                    <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-500 text-sm">No entries in this window.</td></tr>
+                  ) : (
+                    pagedEntries.map((e, idx) => {
+                      const meta = TYPE_META[e.type] || { label: e.type, cls: "bg-gray-100 text-gray-700", dir: "any" };
+                      return (
+                        <tr key={`${e.source_table}-${e.reference}-${idx}`} className="border-b border-gray-50 hover:bg-gray-50/60">
+                          <td className="px-4 py-2 text-gray-700 tabular-nums whitespace-nowrap">{formatDate(e.date)}</td>
+                          <td className="px-4 py-2 text-gray-600 font-mono text-xs whitespace-nowrap">{e.reference}</td>
+                          <td className="px-4 py-2 text-gray-800">{e.description}</td>
+                          <td className="px-4 py-2 whitespace-nowrap">
+                            <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold ${meta.cls}`}>
+                              {meta.label}
+                            </span>
+                          </td>
+                          <td className="px-4 py-2 text-gray-700 whitespace-nowrap">{e.member_name || "—"}</td>
+                          <td className="px-4 py-2 text-right tabular-nums whitespace-nowrap font-medium">
+                            {e.debit > 0 ? <span className="text-green-700">{PHP(e.debit)}</span> : <span className="text-gray-300">—</span>}
+                          </td>
+                          <td className="px-4 py-2 text-right tabular-nums whitespace-nowrap font-medium">
+                            {e.credit > 0 ? <span className="text-red-700">{PHP(e.credit)}</span> : <span className="text-gray-300">—</span>}
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
                 </tbody>
+                {searchedEntries.length > 0 && (
+                  <tfoot className="bg-gray-50 font-semibold">
+                    <tr className="border-t-2 border-gray-200">
+                      <td colSpan={5} className="px-4 py-3 text-right text-gray-600 text-xs uppercase tracking-wider">Window totals</td>
+                      <td className="px-4 py-3 text-right tabular-nums text-green-700">{PHP(ledger.total_debit)}</td>
+                      <td className="px-4 py-3 text-right tabular-nums text-red-700">{PHP(ledger.total_credit)}</td>
+                    </tr>
+                  </tfoot>
+                )}
               </table>
             </div>
 
-            {/* Pagination - REVERTED TO ORIGINAL */}
-            <div className="p-4 border-t border-gray-200 flex justify-center items-center gap-2">
-              <button className="w-8 h-8 flex items-center justify-center rounded-full border border-gray-300 text-gray-500 hover:bg-gray-50">
-                <ChevronLeft className="w-4 h-4" />
-              </button>
-              <button className="w-8 h-8 flex items-center justify-center rounded-full bg-[#389734] text-white font-medium text-sm">
-                1
-              </button>
-              {[2, 3, 4, 5].map((num) => (
-                <button key={num} className="w-8 h-8 flex items-center justify-center rounded-full border border-gray-300 text-gray-600 hover:bg-gray-50 font-medium text-sm">
-                  {num}
-                </button>
-              ))}
-              <button className="w-8 h-8 flex items-center justify-center rounded-full border border-gray-300 text-gray-500 hover:bg-gray-50">
-                <ChevronRight className="w-4 h-4" />
-              </button>
-            </div>
-
+            {/* Pagination — reuses the pattern from Cashier_Payments (5-page groups). */}
+            {searchedEntries.length > PAGE_SIZE && (
+              <Pagination page={page} totalPages={totalPages} onChange={setPage} />
+            )}
           </div>
         </main>
       </div>
@@ -322,4 +438,44 @@ const Payments = () => {
   );
 };
 
-export default Payments;
+// Pagination — copied from Cashier_Payments.jsx to keep the paginator identical
+// across the two payment pages. Renders 5-page groups with prev/next chevrons.
+const Pagination = ({ page, totalPages, onChange }) => (
+  <div className="flex items-center justify-center p-6 gap-2 border-t border-gray-100">
+    <button
+      className="w-8 h-8 flex items-center justify-center rounded-full border border-gray-300 bg-white text-gray-500 transition-colors hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+      disabled={page <= 1}
+      onClick={() => onChange(Math.max(page - 1, 1))}
+    >
+      <ChevronLeft className="w-4 h-4" />
+    </button>
+
+    {(() => {
+      const groupStart = Math.floor((page - 1) / 5) * 5 + 1;
+      const groupEnd = Math.min(groupStart + 4, totalPages);
+      return Array.from({ length: groupEnd - groupStart + 1 }, (_, i) => groupStart + i).map((p) => (
+        <button
+          key={p}
+          onClick={() => onChange(p)}
+          className={`w-8 h-8 flex items-center justify-center rounded-full border text-xs font-semibold transition-colors ${
+            p === page
+              ? "bg-[#16A34A] text-white border-[#16A34A]"
+              : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"
+          }`}
+        >
+          {p}
+        </button>
+      ));
+    })()}
+
+    <button
+      className="w-8 h-8 flex items-center justify-center rounded-full border border-gray-300 bg-white text-gray-500 transition-colors hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+      disabled={page >= totalPages}
+      onClick={() => onChange(Math.min(page + 1, totalPages))}
+    >
+      <ChevronRight className="w-4 h-4" />
+    </button>
+  </div>
+);
+
+export default Treasurer_Payments;

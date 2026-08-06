@@ -134,6 +134,7 @@ const Disbursements = () => {
   const menuItems = [
       { name: "Dashboard", icon: LayoutDashboard },
       { name: "Disbursement", icon: CreditCard },
+      { name: "Vault", icon: Wallet },
       { name: "Schedule", icon: Calculator },
       { name: "Payments", icon: Users },
       { name: "Loan Approval", icon: CreditCard },
@@ -225,6 +226,7 @@ const Disbursements = () => {
               const routeMap = {
     "Dashboard": "/Treasurer_Dashboard",
     "Disbursement": "/disbursement",
+    "Vault": "/treasurer-vault",
     "Schedule": "/schedule",
     "Payments": "/treasurer-payments",
     "Loan Approval": "/treasurer-approval",

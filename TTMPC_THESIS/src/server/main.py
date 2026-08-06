@@ -2336,6 +2336,310 @@ async def get_late_payments_for_cycle(
 
 
 # ============================================================================
+# SECTION: Treasurer — Cash Ledger (all cash movements, read-only)
+# Aggregates every cash-affecting transaction the Cashier processes into a
+# single ledger view for the Treasurer. Distinct from the Bookkeeper Payments
+# page, which is loan-payments only. This ledger uses formal accounting
+# convention from the cooperative's cash-account perspective:
+#   Debit  = cash IN  (loan payments, savings deposits, CBU, membership fees, vault deposits)
+#   Credit = cash OUT (savings withdrawals, loan disbursals, vault withdrawals)
+# No running balance — this endpoint is display-only, not a source of truth
+# for cash on hand (vault_balance_v owns that).
+# ============================================================================
+
+@app.get("/api/treasurer/cash-ledger")
+async def get_treasurer_cash_ledger(
+    start_date: str | None = None,
+    end_date: str | None = None,
+    type_filter: str | None = None,
+    limit: int = 500,
+    offset: int = 0,
+):
+    """Return a unified cash ledger for the Treasurer.
+
+    Query params:
+      - start_date (YYYY-MM-DD): inclusive. Defaults to 30 days ago.
+      - end_date   (YYYY-MM-DD): inclusive. Defaults to today.
+      - type_filter: optional tag to filter — one of:
+          loan_payment, loan_disbursal, savings_deposit, savings_withdrawal,
+          cbu_contribution, membership_payment, vault_adjustment
+      - limit / offset: pagination. Default 500 rows per page.
+
+    Returns rows shaped as:
+      {
+        date, reference, description, type,
+        member_name, debit, credit, source_table
+      }
+    Sorted DESC by date so newest entries appear first.
+    """
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+
+    today = date.today()
+    try:
+        end_d = date.fromisoformat(end_date) if end_date else today
+        start_d = date.fromisoformat(start_date) if start_date else (end_d - timedelta(days=30))
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Dates must be YYYY-MM-DD.")
+
+    if start_d > end_d:
+        raise HTTPException(status_code=400, detail="start_date must be on or before end_date.")
+
+    # Inclusive end-of-day for timestamp columns.
+    start_ts = f"{start_d.isoformat()}T00:00:00"
+    end_ts = f"{end_d.isoformat()}T23:59:59"
+
+    entries: list[dict] = []
+
+    def _member_name(m: dict | None) -> str:
+        if not m:
+            return ""
+        first = str(m.get("first_name") or "").strip()
+        last = str(m.get("last_name") or "").strip()
+        return f"{first} {last}".strip()
+
+    want = (type_filter or "").strip().lower() or None
+    valid_types = {
+        "loan_payment", "loan_disbursal", "savings_deposit", "savings_withdrawal",
+        "cbu_contribution", "membership_payment", "vault_adjustment",
+    }
+    if want and want not in valid_types:
+        raise HTTPException(status_code=400, detail=f"Invalid type_filter. Must be one of: {', '.join(sorted(valid_types))}.")
+
+    def _include(t: str) -> bool:
+        return want is None or want == t
+
+    # ---- 1) Loan payments (live) — DEBIT (cash in)
+    if _include("loan_payment"):
+        try:
+            resp = (
+                supabase.table("loan_payments")
+                .select(
+                    "id, amount_paid, payment_date, payment_reference, confirmation_status, "
+                    "loan:loan_id(control_number, member:member_id(first_name, last_name))"
+                )
+                .gte("payment_date", start_ts)
+                .lte("payment_date", end_ts)
+                .order("payment_date", desc=True)
+                .execute()
+            )
+            for r in (resp.data or []):
+                loan = r.get("loan") or {}
+                entries.append({
+                    "date": r.get("payment_date"),
+                    "reference": r.get("payment_reference") or f"PMT-{r.get('id')}",
+                    "description": f"Loan payment · {loan.get('control_number') or '—'}",
+                    "type": "loan_payment",
+                    "member_name": _member_name(loan.get("member")),
+                    "debit": float(r.get("amount_paid") or 0),
+                    "credit": 0.0,
+                    "status": r.get("confirmation_status"),
+                    "source_table": "loan_payments",
+                })
+        except Exception:
+            pass
+
+    # ---- 2) Loan payments (legacy) — DEBIT
+    if _include("loan_payment"):
+        try:
+            resp = (
+                supabase.table("loan_payments_legacy")
+                .select("id, loan_id, amount_paid, payment_date, payment_code, or_cdv_no")
+                .gte("payment_date", start_d.isoformat())
+                .lte("payment_date", end_d.isoformat())
+                .order("payment_date", desc=True)
+                .execute()
+            )
+            for r in (resp.data or []):
+                entries.append({
+                    "date": r.get("payment_date"),
+                    "reference": r.get("payment_code") or r.get("or_cdv_no") or f"LEG-{r.get('id')}",
+                    "description": f"Loan payment (legacy) · {r.get('loan_id') or '—'}",
+                    "type": "loan_payment",
+                    "member_name": "",
+                    "debit": float(r.get("amount_paid") or 0),
+                    "credit": 0.0,
+                    "status": "validated",
+                    "source_table": "loan_payments_legacy",
+                })
+        except Exception:
+            pass
+
+    # ---- 3) Loan disbursals — CREDIT (cash out)
+    if _include("loan_disbursal"):
+        try:
+            resp = (
+                supabase.table("loans")
+                .select(
+                    "control_number, loan_amount, disbursal_date, loan_status, "
+                    "member:member_id(first_name, last_name), loan_type:loan_type_id(name)"
+                )
+                .gte("disbursal_date", start_d.isoformat())
+                .lte("disbursal_date", end_d.isoformat())
+                .not_.is_("disbursal_date", "null")
+                .order("disbursal_date", desc=True)
+                .execute()
+            )
+            for r in (resp.data or []):
+                loan_type = (r.get("loan_type") or {}).get("name") or "Loan"
+                entries.append({
+                    "date": r.get("disbursal_date"),
+                    "reference": r.get("control_number") or "—",
+                    "description": f"{loan_type} disbursal · {r.get('control_number') or '—'}",
+                    "type": "loan_disbursal",
+                    "member_name": _member_name(r.get("member")),
+                    "debit": 0.0,
+                    "credit": float(r.get("loan_amount") or 0),
+                    "status": r.get("loan_status"),
+                    "source_table": "loans",
+                })
+        except Exception:
+            pass
+
+    # ---- 4) Savings ledger — DEBIT for deposit, CREDIT for withdrawal
+    if _include("savings_deposit") or _include("savings_withdrawal"):
+        try:
+            resp = (
+                supabase.table("savings_ledger")
+                .select("id, account_number, entry_type, amount, reference, posted_at")
+                .gte("posted_at", start_ts)
+                .lte("posted_at", end_ts)
+                .order("posted_at", desc=True)
+                .execute()
+            )
+            for r in (resp.data or []):
+                entry_type = str(r.get("entry_type") or "").strip().lower()
+                is_withdrawal = "withdraw" in entry_type
+                tag = "savings_withdrawal" if is_withdrawal else "savings_deposit"
+                if not _include(tag):
+                    continue
+                amt = float(r.get("amount") or 0)
+                entries.append({
+                    "date": r.get("posted_at"),
+                    "reference": r.get("reference") or f"SAV-{r.get('id')}",
+                    "description": f"{'Savings withdrawal' if is_withdrawal else 'Savings deposit'} · Acct {r.get('account_number') or '—'}",
+                    "type": tag,
+                    "member_name": "",
+                    "debit": 0.0 if is_withdrawal else amt,
+                    "credit": amt if is_withdrawal else 0.0,
+                    "status": "posted",
+                    "source_table": "savings_ledger",
+                })
+        except Exception:
+            pass
+
+    # ---- 5) CBU contributions — DEBIT
+    if _include("cbu_contribution"):
+        try:
+            resp = (
+                supabase.table("capital_build_up")
+                .select(
+                    "id, capital_added, transaction_date, "
+                    "member:member_id(first_name, last_name)"
+                )
+                .gte("transaction_date", start_ts)
+                .lte("transaction_date", end_ts)
+                .order("transaction_date", desc=True)
+                .execute()
+            )
+            for r in (resp.data or []):
+                entries.append({
+                    "date": r.get("transaction_date"),
+                    "reference": f"CBU-{r.get('id')}",
+                    "description": "CBU contribution",
+                    "type": "cbu_contribution",
+                    "member_name": _member_name(r.get("member")),
+                    "debit": float(r.get("capital_added") or 0),
+                    "credit": 0.0,
+                    "status": "posted",
+                    "source_table": "capital_build_up",
+                })
+        except Exception:
+            pass
+
+    # ---- 6) Membership payments — DEBIT
+    if _include("membership_payment"):
+        try:
+            resp = (
+                supabase.table("membership_payments")
+                .select("id, application_id, payment_date, payment_status, payment_type, amount")
+                .gte("payment_date", start_ts)
+                .lte("payment_date", end_ts)
+                .order("payment_date", desc=True)
+                .execute()
+            )
+            for r in (resp.data or []):
+                entries.append({
+                    "date": r.get("payment_date"),
+                    "reference": f"MEM-{r.get('id')}",
+                    "description": f"Membership {r.get('payment_type') or 'payment'} · App {r.get('application_id') or '—'}",
+                    "type": "membership_payment",
+                    "member_name": "",
+                    "debit": float(r.get("amount") or 0),
+                    "credit": 0.0,
+                    "status": r.get("payment_status"),
+                    "source_table": "membership_payments",
+                })
+        except Exception:
+            pass
+
+    # ---- 7) Vault entries — sign of `amount` decides debit vs credit
+    if _include("vault_adjustment"):
+        try:
+            resp = (
+                supabase.table("vault_entries")
+                .select("id, amount, change_type, note, reference_id, created_at")
+                .gte("created_at", start_ts)
+                .lte("created_at", end_ts)
+                .order("created_at", desc=True)
+                .execute()
+            )
+            for r in (resp.data or []):
+                amt = float(r.get("amount") or 0)
+                change_type = str(r.get("change_type") or "adjustment")
+                # Skip disbursements here — already captured as loan_disbursal
+                # rows from the `loans` table above, would double-count.
+                if change_type.lower() == "disbursement":
+                    continue
+                entries.append({
+                    "date": r.get("created_at"),
+                    "reference": f"VLT-{r.get('id')}",
+                    "description": f"Vault {change_type}" + (f" · {r.get('note')}" if r.get("note") else ""),
+                    "type": "vault_adjustment",
+                    "member_name": "",
+                    "debit": amt if amt > 0 else 0.0,
+                    "credit": abs(amt) if amt < 0 else 0.0,
+                    "status": None,
+                    "source_table": "vault_entries",
+                })
+        except Exception:
+            pass
+
+    # Sort DESC by date (all sources produce ISO strings — lexicographic sort works).
+    entries.sort(key=lambda e: str(e.get("date") or ""), reverse=True)
+
+    # Totals across the full filtered window (pre-pagination) so the KPI cards
+    # reflect the window, not just the visible page.
+    total_debit = sum(e.get("debit") or 0 for e in entries)
+    total_credit = sum(e.get("credit") or 0 for e in entries)
+
+    # Pagination — applied AFTER totals so cards stay meaningful.
+    paged = entries[offset : offset + limit]
+
+    return {
+        "success": True,
+        "data": {
+            "entries": paged,
+            "total_count": len(entries),
+            "total_debit": total_debit,
+            "total_credit": total_credit,
+            "net": total_debit - total_credit,
+            "window": {"start": start_d.isoformat(), "end": end_d.isoformat()},
+        },
+    }
+
+
+# ============================================================================
 # SECTION: Cashier — CBU (Capital Build-Up)
 # Endpoints for listing CBU members, viewing balances, listing deposit
 # transactions, and recording CBU deposits.
