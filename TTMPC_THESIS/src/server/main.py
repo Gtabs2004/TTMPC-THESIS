@@ -1911,6 +1911,431 @@ async def create_treasurer_vault_entry(payload: dict = Body(...)):
 
 
 # ============================================================================
+# SECTION: Treasurer — Salary Schedule (per team spec SALARY_SCHEDULE)
+# Manual logbook of member employer-agency payroll releases. Treasurer marks
+# when each half-month cycle actually released per agency; downstream code
+# uses this for grace-period / late-payment detection. Cashier reads it.
+# Supported agencies: NGA, LGU, SUC, PI, NGO, Cooperative.
+# See payroll_release_schedule_schema.sql for table + views.
+# ============================================================================
+
+SALARY_AGENCIES = ("NGA", "LGU", "SUC", "PI", "NGO", "Cooperative")
+
+
+def _classify_agency(employer_name: str | None) -> str | None:
+    """Best-effort classification of free-text `members.employer_name` into
+    one of the 6 agency categories. Returns None when we can't confidently
+    infer — caller decides how to handle (typically: exclude from late panel).
+
+    This is intentionally simple keyword matching, not ML. Cleanup of the
+    free-text field is out of scope for Phase 1; this helper exists so
+    Phase 2 (per-agency late-payment detection) can start incrementally.
+    """
+    if not employer_name:
+        return None
+    n = employer_name.strip().lower()
+    if not n:
+        return None
+    # National government agencies (DepEd is the biggest for a teachers' coop)
+    if any(k in n for k in ("deped", "department of education", "dep-ed",
+                              "dilg", "dpwh", "doh ", "dost", "dswd",
+                              "national government", "nga")):
+        return "NGA"
+    if any(k in n for k in ("lgu", "municipal", "municipality", "city government",
+                              "provincial", "barangay", "local government")):
+        return "LGU"
+    if any(k in n for k in ("state university", "state college", "suc",
+                              "wvsu", "up ", "wester visayas state")):
+        return "SUC"
+    if any(k in n for k in ("private", "school inc", "corporation", "corp.",
+                              "inc.", "company", "enterprises")):
+        return "PI"
+    if any(k in n for k in ("ngo", "foundation", "non-government", "non-governmental")):
+        return "NGO"
+    if any(k in n for k in ("cooperative", "coop", "ttmpc", "multi-purpose")):
+        return "Cooperative"
+    return None
+
+
+def _last_working_day_on_or_before(year: int, month: int, day: int) -> date:
+    """Return the last weekday (Mon-Fri) on or before the given date.
+
+    Used to compute expected payroll dates: 1st half = 15th (or prior Friday),
+    2nd half = last day of month (or prior Friday). We don't consult a holiday
+    calendar here — the Treasurer's manual `actual_date` is the source of truth
+    when it deviates. This function only produces the *expected* baseline.
+    """
+    d = date(year, month, day)
+    while d.weekday() >= 5:  # 5=Sat, 6=Sun
+        d = d - timedelta(days=1)
+    return d
+
+
+def _expected_payroll_date(year: int, month: int, half: int) -> date:
+    if half == 1:
+        return _last_working_day_on_or_before(year, month, 15)
+    last_day = calendar.monthrange(year, month)[1]
+    return _last_working_day_on_or_before(year, month, last_day)
+
+
+def _ensure_salary_cycles_seeded(months_ahead: int = 6, months_back: int = 6) -> None:
+    """Idempotently create cycle rows for every supported agency around
+    the current month.
+
+    Called at the top of the list endpoint so the Treasurer always sees a
+    populated calendar without a separate cron job. UNIQUE (agency, year,
+    month, half) constraint makes re-seeding safe.
+
+    NOTE: All agencies get the same default expected_date (last working day
+    on or before 15th / month-end). Non-NGA agencies whose actual payroll
+    cadence differs can be adjusted by the Treasurer per-row via the edit
+    modal — the seed is a starting point, not a claim.
+    """
+    if not supabase:
+        return
+    today = date.today()
+    rows = []
+    for delta in range(-months_back, months_ahead + 1):
+        y = today.year
+        m = today.month + delta
+        while m <= 0:
+            m += 12
+            y -= 1
+        while m > 12:
+            m -= 12
+            y += 1
+        for half in (1, 2):
+            expected = _expected_payroll_date(y, m, half).isoformat()
+            for agency in SALARY_AGENCIES:
+                rows.append({
+                    "agency": agency,
+                    "cycle_year": y,
+                    "cycle_month": m,
+                    "cycle_half": half,
+                    "expected_date": expected,
+                })
+    try:
+        supabase.table("salary_schedule").upsert(
+            rows,
+            on_conflict="agency,cycle_year,cycle_month,cycle_half",
+            ignore_duplicates=True,
+        ).execute()
+    except Exception:
+        # Non-fatal — a failed seed just means the frontend sees fewer rows.
+        pass
+
+
+@app.get("/api/treasurer/payroll/schedule")
+async def get_salary_schedule(
+    months_back: int = 6,
+    months_ahead: int = 6,
+    agency: str | None = None,
+):
+    """Return the salary release calendar around the current month.
+
+    Query params:
+      - agency (optional): filter to a single agency (NGA/LGU/SUC/PI/NGO/Cooperative).
+        When omitted, returns rows for all agencies (frontend can group/filter).
+    """
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+
+    if agency and agency not in SALARY_AGENCIES:
+        raise HTTPException(status_code=400, detail=f"Invalid agency. Must be one of: {', '.join(SALARY_AGENCIES)}.")
+
+    _ensure_salary_cycles_seeded(months_ahead=months_ahead, months_back=months_back)
+
+    today = date.today()
+    lower = (today.replace(day=1) - timedelta(days=months_back * 31)).isoformat()
+    upper = (today.replace(day=1) + timedelta(days=months_ahead * 31)).isoformat()
+
+    try:
+        q = (
+            supabase.table("salary_schedule")
+            .select("*")
+            .gte("expected_date", lower)
+            .lte("expected_date", upper)
+            .order("expected_date", desc=False)
+            .order("agency", desc=False)
+        )
+        if agency:
+            q = q.eq("agency", agency)
+        resp = q.execute()
+        rows = resp.data or []
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to load schedule: {e}")
+
+    def _decorate(r: dict) -> dict:
+        release = r.get("release_date")
+        expected = r.get("expected_date")
+        if release and expected:
+            try:
+                delay = (date.fromisoformat(release) - date.fromisoformat(expected)).days
+                r["delay_days"] = delay
+                r["status"] = "on_time" if delay <= 0 else "late"
+            except Exception:
+                r["delay_days"] = None
+                r["status"] = "unknown"
+        else:
+            r["delay_days"] = None
+            try:
+                r["status"] = "overdue" if date.fromisoformat(expected) < today else "pending"
+            except Exception:
+                r["status"] = "pending"
+        return r
+
+    return {"success": True, "data": [_decorate(r) for r in rows]}
+
+
+@app.get("/api/treasurer/payroll/stats")
+async def get_salary_stats(agency: str | None = None):
+    """Rolling stats (last 6 logged cycles) grouped by agency.
+
+    Returns a list. Frontend picks the row it needs based on the selected
+    agency filter (or aggregates client-side).
+    """
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+    try:
+        q = supabase.from_("salary_schedule_delay_stats_v").select("*")
+        if agency:
+            q = q.eq("agency", agency)
+        resp = q.execute()
+        return {"success": True, "data": resp.data or []}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to load stats: {e}")
+
+
+@app.post("/api/treasurer/payroll/log")
+async def log_salary_release(payload: dict = Body(...)):
+    """Log or update the actual release date for a salary cycle.
+
+    Body:
+      - schedule_id (uuid, optional): cycle to update. If omitted, resolve by
+        (agency, cycle_year, cycle_month, cycle_half).
+      - agency (str): required when schedule_id omitted.
+      - cycle_year, cycle_month, cycle_half (int): required when schedule_id omitted.
+      - release_date (YYYY-MM-DD): required. Pass null to clear/unmark a cycle.
+      - notes (str, optional): free-form context (holiday, DepEd delay, etc.).
+      - recorded_by (uuid, optional): the Treasurer's auth user id.
+    """
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+
+    release_raw = payload.get("release_date")
+    release_date = None
+    if release_raw:
+        try:
+            release_date = date.fromisoformat(str(release_raw)).isoformat()
+        except ValueError:
+            raise HTTPException(status_code=400, detail="`release_date` must be YYYY-MM-DD or null.")
+
+    now_iso = datetime.utcnow().isoformat()
+    update = {
+        "release_date": release_date,
+        "notes": (payload.get("notes") or None),
+        "recorded_by": payload.get("recorded_by"),
+        "recorded_at": now_iso,
+        "updated_at": now_iso,
+    }
+
+    try:
+        if payload.get("schedule_id"):
+            resp = (
+                supabase.table("salary_schedule")
+                .update(update)
+                .eq("schedule_id", str(payload["schedule_id"]))
+                .execute()
+            )
+        else:
+            for k in ("agency", "cycle_year", "cycle_month", "cycle_half"):
+                if payload.get(k) is None:
+                    raise HTTPException(status_code=400, detail=f"`{k}` is required when schedule_id is not provided.")
+            if payload["agency"] not in SALARY_AGENCIES:
+                raise HTTPException(status_code=400, detail=f"Invalid agency. Must be one of: {', '.join(SALARY_AGENCIES)}.")
+            resp = (
+                supabase.table("salary_schedule")
+                .update(update)
+                .eq("agency", payload["agency"])
+                .eq("cycle_year", int(payload["cycle_year"]))
+                .eq("cycle_month", int(payload["cycle_month"]))
+                .eq("cycle_half", int(payload["cycle_half"]))
+                .execute()
+            )
+        updated = (resp.data or [{}])[0]
+        if not updated:
+            raise HTTPException(status_code=404, detail="Cycle not found — check schedule_id or agency/year/month/half.")
+        return {"success": True, "data": updated}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to log salary release: {e}")
+
+
+# Grace-period buffer after actual payroll release: members need time to
+# get to the coop office. Configurable so TTMPC can tune from a single spot.
+PAYROLL_GRACE_BUFFER_DAYS = 3
+
+
+@app.get("/api/treasurer/payroll/late-payments")
+async def get_late_payments_for_cycle(
+    cycle_year: int | None = None,
+    cycle_month: int | None = None,
+    cycle_half: int | None = None,
+    agency: str | None = None,
+):
+    """Return active loans whose payment is due in the given cycle window
+    but has no payment recorded yet.
+
+    Grace period rule:
+      - If payroll was late, due date is effectively shifted to
+        release_date + PAYROLL_GRACE_BUFFER_DAYS.
+      - If release_date is not yet logged AND expected_date has passed, we
+        return `paused=True` and an empty list — caller shows a banner
+        instead of flagging members unfairly.
+
+    Agency filter (Phase 2 groundwork):
+      - When `agency` is provided, we call _classify_agency() on each flagged
+        member's employer_name and only return members whose classified
+        agency matches. Members with unclassifiable employer_name are
+        excluded from filtered results (surfaced separately by the frontend
+        via a "needs classification" count if desired).
+      - When `agency` is omitted, all flagged loans return (Phase 1 behavior).
+
+    Filters to ACTIVE loans only.
+    """
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+
+    if agency and agency not in SALARY_AGENCIES:
+        raise HTTPException(status_code=400, detail=f"Invalid agency. Must be one of: {', '.join(SALARY_AGENCIES)}.")
+
+    today = date.today()
+    if cycle_year is None or cycle_month is None or cycle_half is None:
+        cycle_year = today.year
+        cycle_month = today.month
+        cycle_half = 1 if today.day <= 15 else 2
+
+    # Pick the cycle row to consult for grace-period logic. If an agency is
+    # specified, use that agency's cycle; otherwise fall back to NGA (the
+    # majority agency for a teachers' coop).
+    lookup_agency = agency or "NGA"
+
+    try:
+        cycle_resp = (
+            supabase.table("salary_schedule")
+            .select("*")
+            .eq("agency", lookup_agency)
+            .eq("cycle_year", cycle_year)
+            .eq("cycle_month", cycle_month)
+            .eq("cycle_half", cycle_half)
+            .maybe_single()
+            .execute()
+        )
+        cycle = cycle_resp.data if cycle_resp else None
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to load cycle: {e}")
+
+    if not cycle:
+        return {"success": True, "paused": True, "reason": "cycle_not_found", "data": []}
+
+    expected = date.fromisoformat(cycle["expected_date"])
+    release = date.fromisoformat(cycle["release_date"]) if cycle.get("release_date") else None
+
+    if release is None and expected < today:
+        return {
+            "success": True,
+            "paused": True,
+            "reason": "payroll_not_logged",
+            "cycle": cycle,
+            "data": [],
+        }
+
+    if cycle_half == 1:
+        window_start = date(cycle_year, cycle_month, 1)
+        window_end = date(cycle_year, cycle_month, 15)
+    else:
+        window_start = date(cycle_year, cycle_month, 16)
+        last_day = calendar.monthrange(cycle_year, cycle_month)[1]
+        window_end = date(cycle_year, cycle_month, last_day)
+
+    grace_deadline = None
+    if release and release > expected:
+        grace_deadline = release + timedelta(days=PAYROLL_GRACE_BUFFER_DAYS)
+
+    cutoff = grace_deadline if grace_deadline else window_end
+    if today <= cutoff:
+        return {
+            "success": True,
+            "paused": False,
+            "cycle": cycle,
+            "grace_deadline": grace_deadline.isoformat() if grace_deadline else None,
+            "cutoff": cutoff.isoformat(),
+            "data": [],
+            "note": "Within grace period — no members flagged yet.",
+        }
+
+    try:
+        sched = (
+            supabase.table("loan_schedule_payments")
+            .select(
+                "id, loan_id, due_date, amount_due, paid_at, "
+                "loans:loan_id(control_number, loan_status, "
+                "member:member_id(first_name, last_name, membership_id, employer_name))"
+            )
+            .gte("due_date", window_start.isoformat())
+            .lte("due_date", window_end.isoformat())
+            .is_("paid_at", "null")
+            .execute()
+        )
+        rows = sched.data or []
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to load schedule: {e}")
+
+    active_statuses = {"active", "disbursed", "ongoing", "current"}
+    flagged = []
+    unclassified_skipped = 0
+    for r in rows:
+        parent = r.get("loans") or {}
+        status = str(parent.get("loan_status") or "").strip().lower()
+        if status not in active_statuses:
+            continue
+        member = parent.get("member") or {}
+        member_agency = _classify_agency(member.get("employer_name"))
+        if agency:
+            if member_agency != agency:
+                if member_agency is None:
+                    unclassified_skipped += 1
+                continue
+        flagged.append({
+            "schedule_id_ref": r.get("id"),
+            "loan_id": r.get("loan_id"),
+            "control_number": parent.get("control_number"),
+            "member_name": f"{member.get('first_name', '')} {member.get('last_name', '')}".strip() or "Member",
+            "membership_id": member.get("membership_id"),
+            "employer_name": member.get("employer_name"),
+            "agency": member_agency,
+            "due_date": r.get("due_date"),
+            "amount_due": r.get("amount_due"),
+            "reason": (
+                f"Payroll delayed to {release.isoformat()}, grace extended to {cutoff.isoformat()}, no payment recorded"
+                if grace_deadline
+                else f"Due {r.get('due_date')}, payroll on-time, no payment recorded"
+            ),
+        })
+
+    return {
+        "success": True,
+        "paused": False,
+        "cycle": cycle,
+        "grace_deadline": grace_deadline.isoformat() if grace_deadline else None,
+        "cutoff": cutoff.isoformat(),
+        "data": flagged,
+        "unclassified_skipped": unclassified_skipped,
+    }
+
+
+# ============================================================================
 # SECTION: Cashier — CBU (Capital Build-Up)
 # Endpoints for listing CBU members, viewing balances, listing deposit
 # transactions, and recording CBU deposits.

@@ -20,6 +20,7 @@ import {
   UserPlus,
   Wallet,
   History,
+  CalendarDays,
 } from "lucide-react";
 
 import { UserAuth } from "../../contex/AuthContext";
@@ -125,6 +126,7 @@ const Cashier_Savings = () => {
       },
       { name: "Withdrawals", icon: ArrowDownLeft, path: "/Cashier_Withdrawals" },
       { name: "Grocery", icon: ShoppingCart, path: "/Cashier_Grocery" },
+      { name: "Payroll Schedule", icon: CalendarDays, path: "/Cashier_Schedule" },
       { name: "Audit Log", icon: History, path: "/cashier-audit-log" },
     ],
     []
