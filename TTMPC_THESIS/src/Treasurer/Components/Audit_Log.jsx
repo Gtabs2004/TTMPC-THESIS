@@ -11,6 +11,7 @@ import {
   Users,
   BarChart3,
   History,
+  Wallet,
 } from "lucide-react";
 
 const Treasurer_Audit_Log = () => {
@@ -21,6 +22,7 @@ const Treasurer_Audit_Log = () => {
   const menuItems = [
     { name: "Dashboard", icon: LayoutDashboard },
     { name: "Disbursement", icon: CreditCard },
+    { name: "Vault", icon: Wallet },
     { name: "Schedule", icon: Calculator },
     { name: "Payments", icon: Users },
     { name: "Loan Approval", icon: CreditCard },
@@ -31,6 +33,7 @@ const Treasurer_Audit_Log = () => {
   const routeMap = {
     "Dashboard": "/Treasurer_Dashboard",
     "Disbursement": "/disbursement",
+    "Vault": "/treasurer-vault",
     "Schedule": "/schedule",
     "Payments": "/treasurer-payments",
     "Loan Approval": "/treasurer-approval",

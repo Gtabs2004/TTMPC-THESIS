@@ -19,6 +19,7 @@ import {
   Info,
   PencilLine,
   X,
+  ChevronRight,
   Building2,
 } from "lucide-react";
 import {
@@ -284,6 +285,11 @@ const Schedule = () => {
         <main className="p-8">
           <div className="mb-6 flex items-start justify-between gap-4 flex-wrap">
             <div>
+                      <div className="flex items-center gap-2 text-sm text-gray-500 font-medium mb-1">
+                <span>Treasurer</span>
+                <ChevronRight className="w-4 h-4 text-gray-300" />
+                <span className="text-[#389734]">Schedule</span>
+              </div>
               <h1 className="font-bold text-2xl text-gray-800">Salary Schedule</h1>
               <p className="text-sm text-gray-500 mt-1">
                 Manually log when each agency's payroll actually releases. Late-payment detection uses this to apply grace periods and avoid unfair flags.
