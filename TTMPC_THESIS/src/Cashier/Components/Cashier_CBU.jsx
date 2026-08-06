@@ -23,6 +23,7 @@ import {
   ShoppingCart,
   ArrowDownLeft,
   History,
+  CalendarDays,
 } from 'lucide-react';
 import logo from "../../assets/img/ttmpc logo.png";
 
@@ -59,6 +60,7 @@ const Cashier_CBU = () => {
         },
         { name: "Withdrawals", icon: ArrowDownLeft, path: "/Cashier_Withdrawals" },
         { name: "Grocery", icon: ShoppingCart, path: "/Cashier_Grocery" },
+        { name: "Payroll Schedule", icon: CalendarDays, path: "/Cashier_Schedule" },
         { name: "Audit Log", icon: History, path: "/cashier-audit-log" },
       ];
 

@@ -24,7 +24,8 @@ import {
   PiggyBank,
   ArrowDownLeft,
   ShoppingCart,
-  History
+  History,
+  CalendarDays,
 } from 'lucide-react';
 import logo from "../../assets/img/ttmpc logo.png"; // Adjust path to logo if needed
 
@@ -263,6 +264,10 @@ const Cashier_Payments = () => {
   const [loans, setLoans] = useState([]);
   const [selectedLoan, setSelectedLoan] = useState(null);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+  // Ledger modal shows loan info + full payment history before the Cashier
+  // proceeds to the payment modal. Same selectedLoan is reused so the Pay
+  // action in the ledger flows straight into the existing payment flow.
+  const [isLedgerModalOpen, setIsLedgerModalOpen] = useState(false);
   const [paymentAmount, setPaymentAmount] = useState("");
   const [isSubmittingPayment, setIsSubmittingPayment] = useState(false);
   const [formError, setFormError] = useState("");
@@ -391,6 +396,7 @@ const Cashier_Payments = () => {
         },
         { name: "Withdrawals", icon: ArrowDownLeft, path: "/Cashier_Withdrawals" },
         { name: "Grocery", icon: ShoppingCart, path: "/Cashier_Grocery" },
+        { name: "Payroll Schedule", icon: CalendarDays, path: "/Cashier_Schedule" },
         { name: "Audit Log", icon: History, path: "/cashier-audit-log" },
       ];
 
@@ -561,6 +567,29 @@ const Cashier_Payments = () => {
     setSelectedLoan(null);
     setPaymentAmount("");
     setFormError("");
+  };
+
+  // Row click / Pay button entry point: show the loan ledger first so the
+  // Cashier reviews context before entering a payment amount.
+  const openLedgerModal = (loan) => {
+    setSelectedLoan(loan);
+    setIsLedgerModalOpen(true);
+  };
+
+  const closeLedgerModal = () => {
+    setIsLedgerModalOpen(false);
+    setSelectedLoan(null);
+  };
+
+  // Ledger → Payment transition. Keeps the same selectedLoan and pre-fills
+  // the amortization amount so we preserve the previous one-click UX for
+  // Cashiers who don't need to change the amount.
+  const proceedFromLedgerToPayment = () => {
+    if (!selectedLoan) return;
+    setIsLedgerModalOpen(false);
+    setPaymentAmount(String(selectedLoan.amortization || ""));
+    setFormError("");
+    setIsPaymentModalOpen(true);
   };
 
   const handleSubmitPayment = async (event) => {
@@ -932,8 +961,9 @@ const Cashier_Payments = () => {
                       <button
                         onClick={() => handleSort("due_date")}
                         className="flex items-center gap-2 font-semibold hover:text-green-100 transition group"
+                        title="The due date of the next unpaid installment (not the loan maturity date)"
                       >
-                        Due Date
+                        Next Unpaid Due
                         <ArrowUpDown size={14} className="opacity-0 group-hover:opacity-100 transition" />
                       </button>
                     </th>
@@ -979,7 +1009,11 @@ const Cashier_Payments = () => {
                     </tr>
                   ) : (
                     paginatedLoans.map((loan) => (
-                      <tr key={loan.loan_id} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
+                      <tr
+                        key={loan.loan_id}
+                        onClick={() => openLedgerModal(loan)}
+                        className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors cursor-pointer"
+                      >
                         <td className="px-3 py-3 text-xs font-medium text-gray-900 whitespace-nowrap">
                           {loan.member_name}
                         </td>
@@ -999,7 +1033,12 @@ const Cashier_Payments = () => {
                           {loan.disbursal_date ? new Date(loan.disbursal_date).toLocaleDateString() : "—"}
                         </td>
                         <td className="px-3 py-3 text-xs text-gray-700 whitespace-nowrap">
-                          {new Date(loan.due_date).toLocaleDateString()}
+                          <div>{new Date(loan.due_date).toLocaleDateString()}</div>
+                          {(loan.missed_count || 0) > 0 && (
+                            <div className="text-[10px] text-red-600 font-medium mt-0.5">
+                              · {loan.missed_count} missed
+                            </div>
+                          )}
                         </td>
                         <td className="px-3 py-3 whitespace-nowrap">
                           {(() => {
@@ -1039,11 +1078,11 @@ const Cashier_Payments = () => {
                         <td className="px-3 py-3 whitespace-nowrap">
                           <button
                             type="button"
-                            onClick={() => openPaymentModal(loan)}
+                            onClick={(e) => { e.stopPropagation(); openLedgerModal(loan); }}
                             disabled={loan.loan_status === "Fully Paid"}
                             className="btn-enhanced rounded-lg bg-green-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-green-700 transition disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500"
                           >
-                            Pay
+                            View
                           </button>
                         </td>
                       </tr>
@@ -1064,6 +1103,140 @@ const Cashier_Payments = () => {
               <Pagination page={page} totalPages={totalPages} onChange={setPage} />
             </div>
           </div>
+
+          {isLedgerModalOpen && selectedLoan && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+              <div className="w-full max-w-4xl max-h-[90vh] flex flex-col rounded-2xl bg-white shadow-2xl">
+                {/* Ledger Modal Header */}
+                <div className="flex items-start justify-between border-b border-gray-200 bg-linear-to-r from-green-50 to-emerald-50 px-6 py-5 rounded-t-2xl">
+                  <div>
+                    <h2 className="text-2xl font-bold text-gray-900">Loan Ledger</h2>
+                    <p className="text-sm text-gray-600 mt-1">
+                      {selectedLoan.loan_id} · {selectedLoan.member_name}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={closeLedgerModal}
+                    className="rounded-lg p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition"
+                  >
+                    <X size={24} />
+                  </button>
+                </div>
+
+                {/* Ledger Content — scrollable */}
+                <div className="flex-1 overflow-y-auto p-6">
+                  {/* Loan Info */}
+                  <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 mb-5">
+                    <h3 className="text-sm font-semibold text-gray-700 mb-3">Loan Information</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-x-4 gap-y-2 text-sm">
+                      <div><span className="text-gray-500">Loan Type: </span><span className="font-medium text-gray-900">{selectedLoan.loan_type}</span></div>
+                      <div><span className="text-gray-500">Loan Amount: </span><span className="font-medium text-gray-900">{formatCurrency(selectedLoan.loan_amount)}</span></div>
+                      <div><span className="text-gray-500">Interest Rate: </span><span className="font-medium text-gray-900">{getDisplayedInterestRate(selectedLoan)}</span></div>
+                      <div><span className="text-gray-500">Term: </span><span className="font-medium text-gray-900">{selectedLoan.term_months} months</span></div>
+                      <div><span className="text-gray-500">Amortization: </span><span className="font-medium text-gray-900">{formatCurrency(selectedLoan.amortization)}</span></div>
+                      <div><span className="text-gray-500">Disbursed: </span><span className="font-medium text-gray-900">{selectedLoan.disbursal_date ? new Date(selectedLoan.disbursal_date).toLocaleDateString() : "—"}</span></div>
+                      <div><span className="text-gray-500">Next Unpaid Due: </span><span className="font-medium text-gray-900">{selectedLoan.due_date ? new Date(selectedLoan.due_date).toLocaleDateString() : "—"}</span></div>
+                      <div><span className="text-gray-500">Remaining Balance: </span><span className="font-semibold text-gray-900">{formatCurrency(selectedLoan.remaining_balance)}</span></div>
+                      <div>
+                        <span className="text-gray-500">Status: </span>
+                        <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${
+                          selectedLoan.loan_status === "Fully Paid" ? "bg-green-100 text-green-700"
+                          : selectedLoan.loan_status === "Partially Paid" ? "bg-amber-100 text-amber-700"
+                          : "bg-red-100 text-red-700"
+                        }`}>{selectedLoan.loan_status}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Payment History */}
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-700 mb-3">Payment History</h3>
+                    {(() => {
+                      const loanPayments = paymentRecords
+                        .filter((p) => String(p.loan_id) === String(selectedLoan.loan_id))
+                        .sort((a, b) => new Date(b.payment_date || 0) - new Date(a.payment_date || 0));
+
+                      if (loanPayments.length === 0) {
+                        return (
+                          <div className="rounded-xl border border-dashed border-gray-300 bg-white px-4 py-8 text-center text-sm text-gray-500">
+                            No payments recorded for this loan yet.
+                          </div>
+                        );
+                      }
+
+                      return (
+                        <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
+                          <table className="w-full text-sm">
+                            <thead className="bg-gray-50">
+                              <tr className="text-left text-xs uppercase text-gray-500">
+                                <th className="px-4 py-2 font-medium">Date</th>
+                                <th className="px-4 py-2 font-medium">Reference #</th>
+                                <th className="px-4 py-2 font-medium text-right">Amount</th>
+                                <th className="px-4 py-2 font-medium text-right">Penalty</th>
+                                <th className="px-4 py-2 font-medium">Status</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {loanPayments.map((p) => (
+                                <tr key={p.payment_id} className="border-t border-gray-100">
+                                  <td className="px-4 py-2 text-gray-700 tabular-nums whitespace-nowrap">
+                                    {p.payment_date ? new Date(p.payment_date).toLocaleDateString() : "—"}
+                                  </td>
+                                  <td className="px-4 py-2 text-gray-700 whitespace-nowrap">{p.payment_id || "—"}</td>
+                                  <td className="px-4 py-2 text-gray-900 font-medium tabular-nums text-right whitespace-nowrap">
+                                    {formatCurrency(p.amount_paid)}
+                                  </td>
+                                  <td className="px-4 py-2 text-gray-700 tabular-nums text-right whitespace-nowrap">
+                                    {formatCurrency(p.penalties || 0)}
+                                  </td>
+                                  <td className="px-4 py-2 whitespace-nowrap">
+                                    {(() => {
+                                      const st = String(p.confirmation_status || "").toLowerCase();
+                                      const cls =
+                                        st.includes("validated") || st.includes("confirmed") || st.includes("approved")
+                                          ? "bg-green-100 text-green-700"
+                                          : st.includes("reject")
+                                          ? "bg-red-100 text-red-700"
+                                          : "bg-amber-100 text-amber-700";
+                                      return (
+                                        <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${cls}`}>
+                                          {p.confirmation_status || "pending"}
+                                        </span>
+                                      );
+                                    })()}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                </div>
+
+                {/* Ledger Modal Footer */}
+                <div className="flex items-center justify-end gap-3 border-t border-gray-200 px-6 py-4 rounded-b-2xl bg-gray-50">
+                  <button
+                    type="button"
+                    onClick={closeLedgerModal}
+                    className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-100 transition"
+                  >
+                    Close
+                  </button>
+                  <button
+                    type="button"
+                    onClick={proceedFromLedgerToPayment}
+                    disabled={selectedLoan.loan_status === "Fully Paid"}
+                    className="rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 transition disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500"
+                  >
+                    Pay
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {isPaymentModalOpen && selectedLoan && (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
