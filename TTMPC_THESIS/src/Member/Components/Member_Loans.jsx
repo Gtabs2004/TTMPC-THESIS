@@ -27,7 +27,9 @@ import {
   Receipt,
   Library,
   Settings,
-  Scroll
+  Scroll,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import SettingsDrawer from './SettingsDrawer';
 
@@ -144,6 +146,9 @@ const Member_Loans = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isCalculatorOpen, setIsCalculatorOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  // Pagination for the Active Loans Summary table.
+  const [loansPage, setLoansPage] = useState(1);
+  const LOANS_PAGE_SIZE = 5;
 
   const menuItems = [
       { name: "Dashboard", icon: LayoutDashboard },
@@ -225,6 +230,27 @@ const Member_Loans = () => {
         const totalInterest = Number(loan.total_interest ?? 0);
         const totalPayable = principal + totalInterest;
         const monthly = Number(loan.monthly_amortization ?? 0);
+        const term = Number(loan.term ?? 0);
+
+        // Service fee, per TTMPC policy files (see project_*_loan_policy memories).
+        // Consolidated: ₱100 per ₱50,000 of loan applied.
+        // Emergency & Bonus: ₱100 flat.
+        // Others (KOICA/unknown): 0 — surfaced as ₱0.00, not hidden, so nothing
+        // is silently wrong; the loan-computation summary is the source of truth.
+        const loanTypeName = String(loan.loan_type?.name || '').toLowerCase();
+        let serviceFee = 0;
+        if (loanTypeName.includes('consolidated')) {
+          // Round up to nearest 50k tier, then × ₱100. A ₱260k loan pays ₱600 (6 tiers).
+          serviceFee = Math.ceil(principal / 50000) * 100;
+        } else if (loanTypeName.includes('emergency') || loanTypeName.includes('bonus')) {
+          serviceFee = 100;
+        }
+
+        // CLIMBS insurance, Consolidated only: loan_amount × 1.35 × 12 ÷ 1000
+        // (per Consolidated policy memory). Zero for other types.
+        const insurance = loanTypeName.includes('consolidated')
+          ? (principal * 1.35 * 12) / 1000
+          : 0;
 
         return {
           id: loan.control_number,
@@ -237,6 +263,14 @@ const Member_Loans = () => {
           status: toStatus(loan.loan_status),
           numericBalance: totalPayable,
           numericPayment: monthly,
+          // New fields for the Loan Summary card:
+          termMonths: term,
+          totalInterest,
+          totalPayable,
+          serviceFee,
+          insurance,
+          _principal: principal,
+          _loanTypeKey: loanTypeName,
         };
       });
 
@@ -518,7 +552,9 @@ const Member_Loans = () => {
                   <tr>
                     <td colSpan="7" className="p-5 text-sm text-gray-500 dark:text-gray-400">No loan records found.</td>
                   </tr>
-                ) : loans.map((loan, idx) => (
+                ) : loans
+                    .slice((loansPage - 1) * LOANS_PAGE_SIZE, loansPage * LOANS_PAGE_SIZE)
+                    .map((loan, idx) => (
                   <tr key={idx} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
                     <td className="p-5">
                       <p className="text-sm font-bold text-gray-900 dark:text-white">{loan.type}</p>
@@ -541,43 +577,117 @@ const Member_Loans = () => {
               </tbody>
             </table>
             </div>
+
+            {/* Pagination — matches the pattern from Cashier_Payments /
+                Treasurer_Payments so paginators feel identical across portals.
+                Hidden when everything fits on one page. */}
+            {loans.length > LOANS_PAGE_SIZE && (
+              <div className="flex items-center justify-center p-6 gap-2 border-t border-gray-100 dark:border-gray-800">
+                {(() => {
+                  const totalPages = Math.max(1, Math.ceil(loans.length / LOANS_PAGE_SIZE));
+                  const groupStart = Math.floor((loansPage - 1) / 5) * 5 + 1;
+                  const groupEnd = Math.min(groupStart + 4, totalPages);
+                  return (
+                    <>
+                      <button
+                        type="button"
+                        className="w-8 h-8 flex items-center justify-center rounded-full border border-gray-300 bg-white text-gray-500 transition-colors hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed dark:bg-gray-800 dark:border-gray-700 dark:text-gray-400"
+                        disabled={loansPage <= 1}
+                        onClick={() => setLoansPage(Math.max(loansPage - 1, 1))}
+                      >
+                        <ChevronLeft className="w-4 h-4" />
+                      </button>
+
+                      {Array.from({ length: groupEnd - groupStart + 1 }, (_, i) => groupStart + i).map((p) => (
+                        <button
+                          type="button"
+                          key={p}
+                          onClick={() => setLoansPage(p)}
+                          className={`w-8 h-8 flex items-center justify-center rounded-full border text-xs font-semibold transition-colors ${
+                            p === loansPage
+                              ? 'bg-[#16A34A] text-white border-[#16A34A]'
+                              : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-400'
+                          }`}
+                        >
+                          {p}
+                        </button>
+                      ))}
+
+                      <button
+                        type="button"
+                        className="w-8 h-8 flex items-center justify-center rounded-full border border-gray-300 bg-white text-gray-500 transition-colors hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed dark:bg-gray-800 dark:border-gray-700 dark:text-gray-400"
+                        disabled={loansPage >= totalPages}
+                        onClick={() => setLoansPage(Math.min(loansPage + 1, totalPages))}
+                      >
+                        <ChevronRight className="w-4 h-4" />
+                      </button>
+                    </>
+                  );
+                })()}
+              </div>
+            )}
           </div>
 
           {/* Bottom Grid: Breakdown & Eligibility */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
             
-            {/* Recent Payment Breakdown */}
+            {/* Loan Summary — was "Recent Payment Breakdown" (renamed because
+                it shows loan setup, not payment history; payment history lives
+                on Statement of Account). All fields below are either fetched
+                directly or derived from data already in the loans row —
+                no extra query. */}
             <div className="lg:col-span-2 bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 p-5 sm:p-8 flex flex-col">
               <div className="mb-6 pb-6 border-b border-gray-100 dark:border-gray-800">
-                <h3 className="text-lg font-bold text-gray-900 dark:text-white">Recent Payment Breakdown</h3>
+                <h3 className="text-lg font-bold text-gray-900 dark:text-white">Loan Summary</h3>
                 <p className="text-xs text-gray-400 dark:text-gray-500 font-medium mt-1">{latestLoan ? `${latestLoan.id} (${latestLoan.type})` : 'No loan selected'}</p>
               </div>
 
-              <div className="space-y-6 flex-1">
+              <div className="space-y-4 flex-1">
                 <div className="flex justify-between items-center text-sm">
                   <span className="text-gray-600 dark:text-gray-400 font-medium">Principal Amount</span>
                   <span className="font-bold text-gray-900 dark:text-white">{latestLoan?.originalAmount || 'N/A'}</span>
                 </div>
                 <div className="flex justify-between items-center text-sm">
-                  <span className="text-gray-600 dark:text-gray-400 font-medium">Interest</span>
+                  <span className="text-gray-600 dark:text-gray-400 font-medium">Interest Rate</span>
                   <span className="font-bold text-gray-900 dark:text-white">{latestLoan?.interestRate || 'N/A'}</span>
                 </div>
                 <div className="flex justify-between items-center text-sm">
-                  <span className="text-gray-600 dark:text-gray-400 font-medium">Service Fee / Insurance</span>
-                  <span className="font-bold text-gray-900 dark:text-white">See loan computation summary</span>
+                  <span className="text-gray-600 dark:text-gray-400 font-medium">Term</span>
+                  <span className="font-bold text-gray-900 dark:text-white">
+                    {latestLoan?.termMonths ? `${latestLoan.termMonths} months` : 'N/A'}
+                  </span>
                 </div>
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-gray-600 dark:text-gray-400 font-medium">Total Interest</span>
+                  <span className="font-bold text-gray-900 dark:text-white">
+                    {latestLoan ? formatCurrency(latestLoan.totalInterest) : 'N/A'}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-gray-600 dark:text-gray-400 font-medium">Total Payable</span>
+                  <span className="font-bold text-gray-900 dark:text-white">
+                    {latestLoan ? formatCurrency(latestLoan.totalPayable) : 'N/A'}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-gray-600 dark:text-gray-400 font-medium">Service Fee</span>
+                  <span className="font-bold text-gray-900 dark:text-white">
+                    {latestLoan ? formatCurrency(latestLoan.serviceFee) : 'N/A'}
+                  </span>
+                </div>
+                {latestLoan?._loanTypeKey?.includes('consolidated') && (
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-gray-600 dark:text-gray-400 font-medium">CLIMBS Insurance</span>
+                    <span className="font-bold text-gray-900 dark:text-white">
+                      {formatCurrency(latestLoan.insurance)}
+                    </span>
+                  </div>
+                )}
               </div>
 
               <div className="flex justify-between items-center mt-8 pt-6 border-t border-gray-100 dark:border-gray-800">
-                <span className="font-bold text-gray-900 dark:text-white">Total Monthly Ammortization</span>
+                <span className="font-bold text-gray-900 dark:text-white">Total Monthly Amortization</span>
                 <span className="text-xl font-black text-[#1D6021]">{latestLoan?.payment || 'N/A'}</span>
-              </div>
-
-              <div className="mt-8 bg-[#F8F9FA] p-4 rounded-xl flex items-start gap-3 border border-gray-100 hidden">
-                <Info className="w-4 h-4 text-[#1D6021] shrink-0 mt-0.5 hidden" />
-                <p className="text-[11px] text-gray-500 font-medium leading-relaxed hidden">
-                  Repayments are automatically deducted from your DepEd payroll on the 15th of every month. For discrepancies, please visit the nearest TTMPC branch.
-                </p>
               </div>
             </div>
 
