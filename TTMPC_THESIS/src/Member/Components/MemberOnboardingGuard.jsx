@@ -9,7 +9,10 @@ const ONBOARDING_ROUTES = new Set([
   "/members-profile/change-email",
 ]);
 
-const SKIP_PREFIXES = ["/login", "/signup", "/forgot", "/reset"];
+// Paths where we should NOT check onboarding status. Anything not member-facing
+// (auth flows, marketing landing, staff portals) doesn't need this check —
+// skipping avoids a spurious 401 when a staff auth token or no token is present.
+const SKIP_PREFIXES = ["/login", "/signup", "/forgot", "/reset", "/memberlogin"];
 
 // Cache the security-status result for the lifetime of the SPA session so
 // tab-to-tab navigation doesn't blank the screen while re-fetching. The cache

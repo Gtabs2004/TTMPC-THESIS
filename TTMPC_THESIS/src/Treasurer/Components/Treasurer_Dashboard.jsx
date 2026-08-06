@@ -8,58 +8,18 @@ import LoanNotificationBell from "../../components/LoanNotificationBell";
 import LoanDemandForecastCard from "../../components/LoanDemandForecastCard";
 import RecentActivityCard from "../../components/RecentActivityCard";
 import PriorityQueueCard from "../../components/PriorityQueueCard";
-import { 
-  LayoutDashboard, 
-  Users, 
-  CreditCard, 
-  Calculator, 
-  BarChart3, 
+import {
+  LayoutDashboard,
+  Users,
+  CreditCard,
+  Calculator,
+  BarChart3,
   Search,
-  Bell,
   ClipboardList,
-  ArrowUpRight,
   Wallet,
-  CalendarDays,
-  ChevronDown,
-  MoreVertical,
   TrendingUp,
-  TrendingDown,
   History
 } from 'lucide-react';
-import {
-  AreaChart,
-  Area,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell
-} from "recharts";
-
-// --- MOCK DATA ---
-const trendData = [
-  { name: 'Jan', value: 650000 },
-  { name: 'Feb', value: 720000 },
-  { name: 'Mar', value: 580000 },
-  { name: 'Apr', value: 890000 },
-  { name: 'May', value: 750000 },
-  { name: 'Jun', value: 850000 },
-];
-
-const distributionData = [
-  { name: 'Bonus', value: 20, color: '#22c55e' },         // Green 500
-  { name: 'Consolidation', value: 55, color: '#166534' }, // Green 800
-  { name: 'Emergency', value: 25, color: '#4ade80' },     // Green 400
-];
-
-const recentActivity = [
-  { id: 1, name: "Robert C. Santos", loanId: "#LN-8921", type: "Consolidated", amount: "\u20B150,000.00", date: "Oct 22, 2023", status: "PENDING DISBURSEMENT", statusColor: "bg-yellow-100 text-yellow-700" },
-  { id: 2, name: "Maria Elena Cruz", loanId: "#LN-8918", type: "Emergency", amount: "\u20B115,000.00", date: "Oct 21, 2023", status: "DISBURSED", statusColor: "bg-green-100 text-green-700" },
-  { id: 3, name: "Juan Dela Cruz", loanId: "#LN-8915", type: "Consolidated", amount: "\u20B1100,000.00", date: "Oct 20, 2023", status: "APPROVED", statusColor: "bg-blue-100 text-blue-700" },
-  { id: 4, name: "Liza Soberano", loanId: "#LN-8912", type: "Bonus", amount: "\u20B120,000.00", date: "Oct 19, 2023", status: "SCHEDULED", statusColor: "bg-gray-100 text-gray-600" },
-];
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 
@@ -289,7 +249,7 @@ const Treasurer_Dashboard = () => {
                   {kpis.vault.loading ? "\u2026" : kpis.vault.error ? "\u2014" : PHP_COMPACT(kpis.vault.value)}
                 </h3>
                 <div className="flex items-center mt-2 text-xs">
-                  <span className="text-gray-400">Manage in Vault \u2192</span>
+                  <span className="text-gray-400">Manage in Vault →</span>
                 </div>
               </div>
             </button>
@@ -297,7 +257,7 @@ const Treasurer_Dashboard = () => {
             {/* Card 2 \u2014 Pending Release (count + total) */}
             <button
               type="button"
-              onClick={() => navigate("/disbursement")}
+              onClick={() => navigate("/treasurer-approval")}
               className="bg-white rounded-xl p-5 shadow-sm border border-gray-100 flex flex-col justify-between text-left hover:border-green-300 hover:shadow-md transition"
             >
               <div className="flex justify-between items-start">
@@ -356,48 +316,13 @@ const Treasurer_Dashboard = () => {
             </div>
           </div>
 
-          {/* Charts Section */}
-          <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 mb-6">
-            
-            {/* Area Chart (Takes up 3 columns) */}
-            <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100 lg:col-span-3">
-              <div className="flex justify-between items-center mb-6">
-                <h3 className="text-gray-800 font-bold text-lg">Monthly Disbursement Trend</h3>
-                <button className="flex items-center gap-2 text-xs font-medium text-gray-600 border border-gray-200 rounded-md px-3 py-1.5 hover:bg-gray-50">
-                  Last 6 Months <ChevronDown size={14} />
-                </button>
-              </div>
-              <div className="h-64">
-                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={1}>
-                  <AreaChart data={trendData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
-                    <defs>
-                      <linearGradient id="colorTrend" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#22c55e" stopOpacity={0.2}/>
-                        <stop offset="95%" stopColor="#22c55e" stopOpacity={0}/>
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
-                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: "#9ca3af", fontSize: 12 }} dy={10} />
-                    <YAxis axisLine={false} tickLine={false} tick={{ fill: "#9ca3af", fontSize: 12 }} tickFormatter={(val) => `\u20B1${val / 1000}k`} />
-                    <Area 
-                      type="monotone" 
-                      dataKey="value" 
-                      stroke="#22c55e" 
-                      strokeWidth={3} 
-                      fill="url(#colorTrend)" 
-                      activeDot={{ r: 6, fill: "#fff", stroke: "#22c55e", strokeWidth: 2 }}
-                      dot={{ r: 4, fill: "#fff", stroke: "#22c55e", strokeWidth: 2 }}
-                    />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-
-            {/* Priority Queue (Takes up 2 columns) — replaces the old
-                Loan Type Distribution donut. The queue tells the treasurer
-                which loans to release next based on TTMPC policy ranking,
-                which is directly actionable vs. a static category donut. */}
-            <PriorityQueueCard className="lg:col-span-2" limit={10} seeAllHref="/treasurer-approval" />
+          {/* Priority Queue — full width. The Monthly Disbursement Trend
+              chart was removed here because it duplicated info now shown on
+              the Cash Ledger page and pushed the actionable Priority Queue
+              into a cramped 2-column slot. Full-width lets the treasurer
+              see more waiting loans at once without scrolling. */}
+          <div className="mb-6">
+            <PriorityQueueCard limit={10} seeAllHref="/treasurer-approval" />
           </div>
           <div className="mt-8">
             <RecentActivityCard to="/treasurer-audit-log" title="My Audit Activity" />

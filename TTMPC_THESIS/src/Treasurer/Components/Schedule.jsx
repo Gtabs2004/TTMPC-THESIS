@@ -285,7 +285,7 @@ const Schedule = () => {
         <main className="p-8">
           <div className="mb-6 flex items-start justify-between gap-4 flex-wrap">
             <div>
-                      <div className="flex items-center gap-2 text-sm text-gray-500 font-medium mb-1">
+                <div className="flex items-center gap-2 text-sm text-gray-500 font-medium mb-1">
                 <span>Treasurer</span>
                 <ChevronRight className="w-4 h-4 text-gray-300" />
                 <span className="text-[#389734]">Schedule</span>

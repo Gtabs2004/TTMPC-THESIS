@@ -400,7 +400,12 @@ const Member_Lifecycle = () => {
   useEffect(() => {
     loadLifecycleData();
 
-    const intervalId = window.setInterval(loadLifecycleData, 7000);
+    // Poll every 30s (was 7s). Lifecycle data changes on user actions elsewhere
+    // in the portal, not spontaneously — 7s created ~9 requests/min per open
+    // tab and serialized against every other Supabase call for that user,
+    // making unrelated pages feel slow. 30s keeps freshness reasonable while
+    // cutting background load ~4x.
+    const intervalId = window.setInterval(loadLifecycleData, 30000);
     return () => window.clearInterval(intervalId);
   }, []);
 

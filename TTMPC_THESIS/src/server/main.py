@@ -65,6 +65,14 @@ supabase: Client | None = create_client(url, key) if url and key else None
 
 app = FastAPI()
 
+
+@app.get("/favicon.ico", include_in_schema=False)
+async def _favicon_noop():
+    """Silence the /favicon.ico 404 noise. Browsers auto-request /favicon.ico
+    on any URL opened directly; FastAPI serves no UI, so 204 No Content is the
+    correct "nothing to see here, don't ask again" response."""
+    return Response(status_code=204)
+
 # 3. CORS - Allow Frontend to connect
 app.add_middleware(
     CORSMiddleware,
@@ -3401,6 +3409,11 @@ def _resolve_loan_type_code(row: dict) -> str | None:
     return None
 
 def _compute_bucket_for_type(member_id: str, loan_type: str) -> dict:
+    """Single-type variant. Kept for the ?loan_type=X query-param path.
+
+    For the per-type map (no filter), use _compute_all_buckets which batches
+    all three loan types into 2 total queries instead of 6.
+    """
     loans_response = (
         supabase.table("loans")
         .select("control_number,loan_status,application_date,disbursal_date,loan_type_id,loan_types:loan_type_id(code,name)")
@@ -3408,7 +3421,14 @@ def _compute_bucket_for_type(member_id: str, loan_type: str) -> dict:
         .execute()
     )
     loan_rows = loans_response.data or []
+    return _bucket_from_loans(loan_rows, loan_type)
 
+
+def _bucket_from_loans(loan_rows: list[dict], loan_type: str, payments_by_loan: dict[str, int] | None = None) -> dict:
+    """Compute a bucket for one loan type from a pre-fetched loan list.
+
+    If payments_by_loan is provided, skips the per-loan payment count query.
+    """
     active_loan = None
     for row in loan_rows:
         if _resolve_loan_type_code(row) != loan_type:
@@ -3429,14 +3449,65 @@ def _compute_bucket_for_type(member_id: str, loan_type: str) -> dict:
         return _clean_bucket(loan_type)
 
     active_id = active_loan.get("control_number")
-    payments_response = (
-        supabase.table("loan_payments")
-        .select("id")
-        .eq("loan_id", active_id)
+    if payments_by_loan is not None:
+        payments_made = payments_by_loan.get(str(active_id or ""), 0)
+    else:
+        # Fallback path used by _compute_bucket_for_type when caller didn't
+        # pre-batch payments. One query per bucket in this case.
+        payments_response = (
+            supabase.table("loan_payments")
+            .select("id")
+            .eq("loan_id", active_id)
+            .execute()
+        )
+        payments_made = len(payments_response.data or [])
+    return _blocked_bucket(loan_type, payments_made, active_id)
+
+
+def _compute_all_buckets(member_id: str) -> dict[str, dict]:
+    """Batch path — computes all three type buckets from just 2 queries.
+
+    Query 1: all loans for this member (classify by type in Python).
+    Query 2: payment counts for any active loans, using .in_ to fetch all at once.
+
+    Replaces the prior N calls where N = 3 loans queries + up to 3 payment queries.
+    """
+    loans_response = (
+        supabase.table("loans")
+        .select("control_number,loan_status,application_date,disbursal_date,loan_type_id,loan_types:loan_type_id(code,name)")
+        .eq("member_id", member_id)
         .execute()
     )
-    payments_made = len(payments_response.data or [])
-    return _blocked_bucket(loan_type, payments_made, active_id)
+    loan_rows = loans_response.data or []
+
+    # Find every active loan across all types so we can count payments in one
+    # .in_ query, not one per active loan.
+    active_ids: list[str] = []
+    for row in loan_rows:
+        status = str(row.get("loan_status") or "").strip().lower()
+        if status in ACTIVE_LOAN_STATUSES and row.get("control_number"):
+            active_ids.append(str(row["control_number"]))
+
+    payments_by_loan: dict[str, int] = {}
+    if active_ids:
+        try:
+            payments_response = (
+                supabase.table("loan_payments")
+                .select("id,loan_id")
+                .in_("loan_id", active_ids)
+                .execute()
+            )
+            for p in payments_response.data or []:
+                key = str(p.get("loan_id") or "")
+                if key:
+                    payments_by_loan[key] = payments_by_loan.get(key, 0) + 1
+        except Exception:
+            payments_by_loan = {}
+
+    return {
+        lt: _bucket_from_loans(loan_rows, lt, payments_by_loan)
+        for lt in ELIGIBILITY_LOAN_TYPES
+    }
 
 # ============================================================================
 # SECTION: Loan Eligibility
@@ -3473,7 +3544,9 @@ async def get_loan_eligibility(
     try:
         if normalized_type:
             return _compute_bucket_for_type(member_id, normalized_type)
-        per_type = {lt: _compute_bucket_for_type(member_id, lt) for lt in ELIGIBILITY_LOAN_TYPES}
+        # Batched path: 2 queries total instead of up to 6. Big win for the
+        # Member ApplyLoans page which fires this on every mount.
+        per_type = _compute_all_buckets(member_id)
         return {"per_type": per_type, "simulation_active": False}
     except HTTPException:
         raise
