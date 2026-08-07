@@ -32,6 +32,14 @@ const ALLOWED_PREFIXES = [
   "/forgot",
   "/reset",
   "/verify",
+  // Loan application forms — reached from Member_ApplyLoans loan-type buttons.
+  // Their route names don't start with /member- so must be listed explicitly.
+  "/conso_choice",
+  "/consolidated_loan",
+  "/consolidated_up",
+  "/emergency_loan",
+  "/bonus_loan",
+  "/koica_loan",
 ];
 
 const isAllowed = (pathname) => {
