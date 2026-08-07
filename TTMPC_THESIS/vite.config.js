@@ -45,6 +45,18 @@ export default defineConfig({
         // (would cause stale-data confusion). Only static assets + navigation
         // routes fall back to a cached shell when offline.
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
+        // Skip the huge marketing landing image — it's only used on the public
+        // marketing page which the PWA doesn't need offline, and it pushes
+        // Workbox past its default 2 MB per-file precache limit.
+        globIgnores: [
+          '**/img/landing page.png',
+          '**/img/landing-page.png',
+          '**/assets/img/landing-page.png',
+        ],
+        // Bump per-file cache ceiling so the main JS bundle (~2.7 MB — recharts
+        // + pdf-lib + jspdf are the heavy hitters) can still be precached for
+        // instant offline shell load. Splitting is a Phase-2 optimization.
+        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // 5 MB
         // Don't try to precache the Railway backend origin.
         navigateFallbackDenylist: [/^\/api\//],
         // Runtime cache for images (member avatars, etc.) — network-first so
