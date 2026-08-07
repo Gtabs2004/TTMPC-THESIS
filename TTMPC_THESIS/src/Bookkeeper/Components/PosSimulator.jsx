@@ -142,9 +142,30 @@ export default function PosSimulator() {
           )}
 
           {result && (
-            <div className="text-xs bg-gray-50 border border-gray-200 rounded p-3 font-mono whitespace-pre-wrap overflow-x-auto">
-              {JSON.stringify(result, null, 2)}
-            </div>
+            (() => {
+              const ok = result.httpStatus >= 200 && result.httpStatus < 300;
+              return ok ? (
+                <div className="flex items-start gap-3 rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-800">
+                  <span className="text-xl leading-none">✓</span>
+                  <div>
+                    <p className="font-semibold">Grocery transaction successful</p>
+                    <p className="text-xs text-green-700 mt-0.5">
+                      Recorded ₱{Number(amount).toLocaleString()} for {membershipId} ({status}).
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-start gap-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+                  <span className="text-xl leading-none">✗</span>
+                  <div>
+                    <p className="font-semibold">Transaction failed</p>
+                    <p className="text-xs text-red-700 mt-0.5">
+                      {result.detail || result.message || "The POS event was rejected. Please try again."}
+                    </p>
+                  </div>
+                </div>
+              );
+            })()
           )}
         </form>
 
