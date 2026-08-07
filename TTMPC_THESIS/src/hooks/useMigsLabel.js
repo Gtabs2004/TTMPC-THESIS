@@ -1,9 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
+import { supabase } from "../supabaseClient";
 
 /**
  * Fetches the latest MIGS classification snapshot for one member.
+ *
+ * Queries Supabase directly (no Railway/FastAPI dependency) so it works
+ * even when the backend is cold/sleeping on the free tier. The score is
+ * read from member_classification_temporal — the same snapshot table the
+ * old /api/migs/label endpoint used.
  *
  * Returns:
  *   - data:    { label, score, as_of, loan_multiplier, can_vote, breakdown }
@@ -28,15 +32,77 @@ export const useMigsLabel = (memberKey) => {
     setStatus("loading");
     setError(null);
     try {
-      const response = await fetch(
-        `${API_BASE_URL}/api/migs/label/${encodeURIComponent(memberKey)}`
-      );
-      const result = await response.json().catch(() => ({}));
-      if (!response.ok || !result?.success) {
-        throw new Error(result?.detail || "Failed to load MIGS label.");
+      const key = String(memberKey).trim();
+      const isUuid = key.length === 36 && (key.match(/-/g) || []).length === 4;
+      const lookupField = isUuid ? "id" : "membership_id";
+
+      const { data: memberRows, error: memberErr } = await supabase
+        .from("member")
+        .select("id,membership_id")
+        .eq(lookupField, key)
+        .limit(1);
+      if (memberErr) throw memberErr;
+      const member = memberRows?.[0];
+      if (!member) throw new Error("Member not found.");
+
+      const { data: snapRows, error: snapErr } = await supabase
+        .from("member_classification_temporal")
+        .select(
+          "accrual_date,total_score,final_status,classification_level_id,cbu_points,loan_points,savings_points,payment_points,grocery_points,pli_points,attendance_points"
+        )
+        .eq("membership_number_id", member.id)
+        .order("accrual_date", { ascending: false })
+        .limit(1);
+      if (snapErr) throw snapErr;
+      const snapshot = snapRows?.[0];
+
+      if (!snapshot) {
+        setData({
+          member_id: member.id,
+          membership_id: member.membership_id,
+          label: "Unscored",
+          score: null,
+          as_of: null,
+          loan_multiplier: 3.0,
+          can_vote: false,
+        });
+        setStatus("unscored");
+        return;
       }
-      setData(result.data || null);
-      setStatus(result.data?.label === "Unscored" ? "unscored" : "ready");
+
+      // final_status is only set on first-week snapshots. Fall back to the
+      // classification_level table for mid-month snapshots.
+      let label = snapshot.final_status;
+      if (!label && snapshot.classification_level_id) {
+        const { data: lvlRows } = await supabase
+          .from("classification_level")
+          .select("label")
+          .eq("classification_level_id", snapshot.classification_level_id)
+          .limit(1);
+        label = lvlRows?.[0]?.label || null;
+      }
+
+      const isMigs = String(label || "").toLowerCase().startsWith("migs");
+      const payload = {
+        member_id: member.id,
+        membership_id: member.membership_id,
+        label,
+        score: snapshot.total_score,
+        as_of: snapshot.accrual_date,
+        loan_multiplier: isMigs ? 5.0 : 3.0,
+        can_vote: isMigs,
+        breakdown: {
+          cbu: snapshot.cbu_points,
+          loan: snapshot.loan_points,
+          savings: snapshot.savings_points,
+          payment: snapshot.payment_points,
+          grocery: snapshot.grocery_points,
+          pli: snapshot.pli_points,
+          attendance: snapshot.attendance_points,
+        },
+      };
+      setData(payload);
+      setStatus(label === "Unscored" || !label ? "unscored" : "ready");
     } catch (err) {
       setError(err?.message || "Unable to fetch MIGS label.");
       setData(null);
