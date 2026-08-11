@@ -130,7 +130,6 @@ const MemberDashboard = () => {
     { name: "Member Loans", icon: Activity },
     { name: "Statement of Account", icon: Receipt },
     { name: "Loan Lifecycle", icon: History },
-    { name: "Member Savings", icon: CreditCard },
      { name: "Member Profile", icon: Users },
   ];
 
@@ -523,7 +522,7 @@ const MemberDashboard = () => {
               "Statement of Account": "/member-statement-of-account",
               "Loan Lifecycle": "/member-lifecycle",
               "Member Profile": "/members-profile", 
-              "Member Savings": "/member-savings"
+              
             };
        
             return menuItems.map((item) => {
@@ -595,7 +594,7 @@ const MemberDashboard = () => {
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
             <h1 className="hidden lg:block font-extrabold text-[#1a4a2f] dark:text-green-400 text-2xl">Dashboard</h1>
 
-            <div className="flex gap-3">
+            <div className="flex justify-center sm:justify-start gap-3">
               <button
                 type="button"
                 onClick={() => navigate('/member-apply-loans')}
@@ -667,7 +666,7 @@ const MemberDashboard = () => {
                   <p className="text-xs text-red-600 font-semibold mb-3">{profileError}</p>
                 ) : null}
 
-                <div className="flex flex-wrap items-center gap-2">
+                <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
                   <button onClick={() => navigate('/members-profile')} className="flex items-center justify-center gap-2 border border-[#1D6021] text-[#1D6021] hover:bg-[#EAF1EB] dark:hover:bg-green-900/30 transition-colors font-bold rounded-lg px-4 py-2 text-sm">
                   <Pencil className="w-4 h-4" /> Edit Profile
                   </button>

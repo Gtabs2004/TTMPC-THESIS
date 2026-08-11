@@ -250,7 +250,7 @@ const Member_Lifecycle = () => {
       { name: "Member Loans", icon: Activity },
       { name: "Statement of Account", icon: Receipt },
       { name: "Loan Lifecycle", icon: History },
-      { name: "Member Savings", icon: CreditCard },
+      
        { name: "Member Profile", icon: Users },
     ];
   
@@ -262,7 +262,7 @@ const Member_Lifecycle = () => {
               "Statement of Account": "/member-statement-of-account",
               "Loan Lifecycle": "/member-lifecycle",
               "Member Profile": "/members-profile", 
-              "Member Savings": "/member-savings"
+             
             };
 
   const loadLifecycleData = async () => {
@@ -463,7 +463,7 @@ const Member_Lifecycle = () => {
   };
 
   return (
-    <div className="relative flex min-h-screen bg-[#F8F9FA] dark:bg-gray-950">
+    <div className="relative flex h-screen overflow-hidden bg-[#F8F9FA] dark:bg-gray-950">
       <style>{styles}</style>
       <SettingsDrawer isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
       {isSidebarOpen ? (
@@ -903,11 +903,12 @@ const Member_Lifecycle = () => {
               {(() => {
                 const routeMap = {
                   "Dashboard": "/member-dashboard",
+                  "Apply for Loan": "/member-apply-loans",
                   "Member Loans": "/member-loans",
                   "Statement of Account": "/member-statement-of-account",
                   "Loan Lifecycle": "/member-lifecycle",
                   "Member Profile": "/members-profile",
-                  "Member Savings": "/member-savings"
+                  
                 };
 
                 return menuItems.map((item) => {

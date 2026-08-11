@@ -326,7 +326,7 @@ const Member_Savings = () => {
   };
 
   return (
-    <div className="relative flex min-h-screen bg-[#F8F9FA] dark:bg-gray-950">
+    <div className="relative flex h-screen overflow-hidden bg-[#F8F9FA] dark:bg-gray-950">
       <style>{styles}</style>
       <SettingsDrawer isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
       {isSidebarOpen ? (
@@ -546,6 +546,7 @@ const Member_Savings = () => {
               {(() => {
                 const routeMap = {
                   "Dashboard": "/member-dashboard",
+                  "Apply for Loan": "/member-apply-loans",
                   "Member Loans": "/member-loans",
                   "Statement of Account": "/member-statement-of-account",
                   "Loan Lifecycle": "/member-lifecycle",
