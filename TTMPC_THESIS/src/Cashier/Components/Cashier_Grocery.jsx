@@ -3,6 +3,7 @@ import { useNavigate, NavLink, Link } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
 import { supabase } from "../../supabaseClient";
 import { PortalSidebarIdentity, PortalTopbarIdentity } from "../../components/PortalIdentity";
+import LoanNotificationBell from "../../components/LoanNotificationBell";
 import { 
   LayoutDashboard,
   Search,
@@ -237,10 +238,7 @@ const Cashier_Grocery = () => {
               className="bg-gray-50 w-52 h-10 rounded-lg border border-gray-200 px-4 pl-9 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
             />
           </div>
-          <button className="ml-6 relative p-1 rounded-full text-gray-500 hover:bg-gray-100 transition-colors">
-            <Bell className="w-5 h-5"/>
-            <span className="absolute top-1 right-1 block h-2 w-2 rounded-full bg-red-500 ring-2 ring-white"></span>
-          </button>
+          <LoanNotificationBell role="cashier" />
           <img src="/img/cashier-profile.png" alt="Profile" className="ml-4 w-8 h-8 rounded-full object-cover bg-gray-200" />
           <PortalTopbarIdentity className="font-medium text-sm text-gray-700 ml-2" fallbackRole="Cashier" />
         </header>

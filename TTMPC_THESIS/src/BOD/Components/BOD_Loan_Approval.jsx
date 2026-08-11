@@ -218,9 +218,6 @@ const BOD_Loan_Approval = () => {
           </div>
 
           <div className="bg-white border border-gray-200 rounded-xl shadow-sm">
-            <div className="px-6 pt-5 pb-2">
-              <h2 className="text-sm font-bold text-gray-800">High-value Consolidated loans (above ₱500,000) awaiting board approval.</h2>
-            </div>
             <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>

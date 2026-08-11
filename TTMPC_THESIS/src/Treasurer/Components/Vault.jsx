@@ -266,7 +266,7 @@ const Vault = () => {
             </div>
           </div>
           <div className="flex items-center gap-4 ml-6">
-            <LoanNotificationBell />
+            <LoanNotificationBell role="treasurer" />
             <div className="flex items-center gap-3 pl-4 border-l border-gray-200">
               <img src="/img/treasurer-profile.png" alt="Treasurer" className="w-8 h-8 rounded-full shadow-sm" />
               <PortalTopbarIdentity className="text-sm font-semibold text-gray-700 hidden sm:block" fallbackRole="Treasurer" />
@@ -317,7 +317,6 @@ const Vault = () => {
               the TTMPC identity. */}
           <div
             className="rounded-2xl text-white p-8 shadow-lg"
-            style={{ background: "linear-gradient(135deg, #389734 0%, #1D6021 100%)" }}
           >
             <p className="text-sm uppercase tracking-wider font-semibold text-white/90">Current Vault Balance</p>
             <p className="mt-2 text-5xl font-extrabold tabular-nums text-white">{PHP(balance.current_balance)}</p>
