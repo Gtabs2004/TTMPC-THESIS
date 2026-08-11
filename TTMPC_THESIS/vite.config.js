@@ -1,7 +1,13 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
-import { VitePWA } from 'vite-plugin-pwa'
+
+let VitePWA
+try {
+  ({ VitePWA } = await import('vite-plugin-pwa'))
+} catch {
+  VitePWA = null
+}
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -13,7 +19,7 @@ export default defineConfig({
     // routes exist. Access control is still enforced by Supabase auth.
     // The service worker caches the app shell so the UI opens instantly on
     // repeat visits and works offline; data still requires network.
-    VitePWA({
+    VitePWA?.({
       registerType: 'autoUpdate',
       // Files in /public/ that should be included in the precache.
       // (icons + favicon so the installed app has them offline)
@@ -79,7 +85,7 @@ export default defineConfig({
         type: 'module',
       },
     }),
-  ],
+  ].filter(Boolean),
   build: {
     chunkSizeWarningLimit: 1000,
     rollupOptions: {
