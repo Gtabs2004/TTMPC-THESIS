@@ -20,8 +20,6 @@ import {
   Briefcase,
   ChevronLeft,
   ChevronRight,
-  ChevronDown,
-  ChevronUp,
   RefreshCw,
 } from "lucide-react";
 import logo from "../../assets/img/ttmpc logo.png";
@@ -36,19 +34,17 @@ const formatCurrency = (value) =>
     minimumFractionDigits: 2,
   }).format(Number(value || 0));
 
+const formatDate = (value) =>
+  value
+    ? new Date(value).toLocaleDateString("en-PH", { year: "numeric", month: "short", day: "numeric" })
+    : "—";
+
 const getLoanTypeStyle = (code) => {
   const key = String(code || "").toUpperCase();
   if (key === "CONSOLIDATED") return "bg-blue-100 text-blue-700";
   if (key === "EMERGENCY") return "bg-red-100 text-red-700";
   if (key === "BONUS") return "bg-amber-100 text-amber-700";
   if (key === "KOICA" || key === "ABF") return "bg-emerald-100 text-emerald-700";
-  return "bg-gray-100 text-gray-700";
-};
-
-const getStatusStyle = (status) => {
-  const key = String(status || "").toLowerCase();
-  if (key.includes("fully")) return "bg-green-100 text-green-700";
-  if (key.includes("partial")) return "bg-amber-100 text-amber-700";
   return "bg-gray-100 text-gray-700";
 };
 
@@ -241,7 +237,7 @@ const ManageLoans = () => {
           <img src={logo} alt="Logo" className="h-12 w-auto" />
           <div className="flex flex-col">
             <h1 className="text-xl font-bold text-[#389734]">TTMPC</h1>
-             <PortalSidebarIdentity className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold" fallbackPortal="Bookkeeper Portal" fallbackRole="Bookkeeper" />
+             <PortalSidebarIdentity className="text-xs uppercase tracking-wider text-gray-500 font-semibold" fallbackPortal="Bookkeeper Portal" fallbackRole="Bookkeeper" />
           </div>
         </div>
 
@@ -273,7 +269,7 @@ const ManageLoans = () => {
 
         <button
           onClick={handleSignOut}
-          className="mt-auto w-full rounded p-2 text-xs bg-green-600 hover:bg-green-700 text-white font-bold transition-colors"
+          className="mt-auto w-full rounded p-2 text-sm bg-green-600 hover:bg-green-700 text-white font-bold transition-colors"
         >
           Sign out
         </button>
@@ -318,9 +314,10 @@ const ManageLoans = () => {
             <button
               type="button"
               onClick={fetchApprovedLoans}
-              className="inline-flex items-center gap-2 px-5 py-2.5 bg-green-600 text-white rounded-lg text-sm font-semibold hover:bg-green-700 active:bg-green-800 transition-colors"
+              disabled={loading}
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-green-600 text-white rounded-lg text-sm font-semibold hover:bg-green-700 active:bg-green-800 disabled:opacity-70 disabled:cursor-not-allowed transition-colors"
             >
-              ↻ Refresh
+              <RefreshCw size={16} className={loading ? "animate-spin" : ""} /> Refresh
             </button>
           </div>
 
@@ -328,7 +325,7 @@ const ManageLoans = () => {
             <div className="rounded-xl bg-white border border-gray-200 shadow-sm hover:shadow-md transition-shadow p-6">
               <div className="flex items-start justify-between">
                 <div className="flex-1">
-                  <p className="text-xs uppercase tracking-wider text-gray-600 font-semibold">Total Active Loans</p>
+                  <p className="text-sm uppercase tracking-wider text-gray-600 font-semibold">Total Active Loans</p>
                   <h2 className="mt-3 text-3xl font-bold text-gray-900">{dashboardStats.totalActiveLoans}</h2>
                 </div>
                 <div className="bg-blue-100 rounded-lg p-3">
@@ -340,7 +337,7 @@ const ManageLoans = () => {
             <div className="rounded-xl bg-white border border-gray-200 shadow-sm hover:shadow-md transition-shadow p-6">
               <div className="flex items-start justify-between">
                 <div className="flex-1">
-                  <p className="text-xs uppercase tracking-wider text-gray-600 font-semibold">Outstanding Balance</p>
+                  <p className="text-sm uppercase tracking-wider text-gray-600 font-semibold">Outstanding Balance</p>
                   <h2 className="mt-3 text-3xl font-bold text-gray-900">{formatCurrency(dashboardStats.totalOutstanding)}</h2>
                 </div>
                 <div className="bg-amber-100 rounded-lg p-3">
@@ -352,7 +349,7 @@ const ManageLoans = () => {
             <div className="rounded-xl bg-white border border-gray-200 shadow-sm hover:shadow-md transition-shadow p-6">
               <div className="flex items-start justify-between">
                 <div className="flex-1">
-                  <p className="text-xs uppercase tracking-wider text-gray-600 font-semibold">Collected This Month</p>
+                  <p className="text-sm uppercase tracking-wider text-gray-600 font-semibold">Collected This Month</p>
                   <h2 className="mt-3 text-3xl font-bold text-gray-900">{formatCurrency(dashboardStats.collectedThisMonth)}</h2>
                 </div>
                 <div className="bg-green-100 rounded-lg p-3">
@@ -362,8 +359,8 @@ const ManageLoans = () => {
             </div>
           </div>
 
-          <div className="rounded-xl bg-white border border-gray-200 shadow-sm mb-6 p-4">
-            <div className="flex flex-wrap gap-2">
+          <div className="rounded-xl bg-white border border-gray-200 shadow-sm mb-6 p-5">
+            <div className="flex flex-wrap gap-2 pb-5 mb-5 border-b border-gray-100">
               {tabs.map((tab) => (
                 <button
                   key={tab.key}
@@ -386,9 +383,7 @@ const ManageLoans = () => {
                 </button>
               ))}
             </div>
-          </div>
 
-          <div className="rounded-xl bg-white border border-gray-200 shadow-sm mb-6 p-5">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
               <div className="flex flex-wrap items-center gap-3">
                 <select
@@ -439,6 +434,19 @@ const ManageLoans = () => {
                 Syncing approved loans from server...
               </div>
             )}
+
+            {!loading && loadError && (
+              <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 flex items-start justify-between gap-3">
+                <span>{loadError}</span>
+                <button
+                  type="button"
+                  onClick={fetchApprovedLoans}
+                  className="shrink-0 font-semibold underline decoration-red-400 underline-offset-2 hover:text-red-900"
+                >
+                  Retry
+                </button>
+              </div>
+            )}
           </div>
 
           <div className="rounded-xl border border-gray-200 bg-white shadow-lg enhanced-table">
@@ -455,7 +463,7 @@ const ManageLoans = () => {
                 <col style={{ width: "8%" }} />
               </colgroup>
               <thead>
-                <tr className="bg-green-700 text-[10px] uppercase tracking-wider text-white font-extrabold">
+                <tr className="bg-green-700 text-xs uppercase tracking-wider text-white font-extrabold">
                   <th className="px-3 py-4 font-bold">Loan ID</th>
                   <th className="px-3 py-4 font-bold">Member Name</th>
                   <th className="px-3 py-4 font-bold">Loan Type</th>
@@ -485,15 +493,14 @@ const ManageLoans = () => {
                 {paginatedGroups.map(({ parent, renewals }) => {
                   const expanded = expandedGroups.has(parent.loan_id);
                   const hasRenewals = renewals.length > 0;
-                  const chainAccent = hasRenewals
-                    ? (expanded ? "border-l-4 border-green-600" : "border-l-4 border-green-200")
-                    : "border-l-4 border-transparent";
                   return (
                     <React.Fragment key={parent.loan_id}>
                       <tr
-                        className={`border-b border-gray-100 hover:bg-green-50/40 transition-colors ${chainAccent}`}
+                        className={`border-b border-gray-100 transition-colors ${
+                          expanded ? "bg-green-50/40 hover:bg-green-50/60" : "hover:bg-green-50/40"
+                        }`}
                       >
-                        <td className="px-3 py-4 text-xs font-mono font-bold text-green-700 align-middle">
+                        <td className="px-3 py-4 text-sm font-mono font-bold text-green-700 align-middle">
                           <div className="flex min-h-[44px] flex-col items-start justify-center gap-1.5">
                             <span className="truncate">{parent.loan_id}</span>
                             <button
@@ -503,7 +510,7 @@ const ManageLoans = () => {
                               aria-hidden={!hasRenewals}
                               tabIndex={hasRenewals ? 0 : -1}
                               title={hasRenewals ? `${renewals.length} previous renewal${renewals.length > 1 ? "s" : ""} in chain — click to ${expanded ? "collapse" : "expand"}` : undefined}
-                              className={`inline-flex w-fit items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide transition-colors ${
+                              className={`inline-flex w-fit items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide transition-colors ${
                                 !hasRenewals
                                   ? "invisible pointer-events-none"
                                   : expanded
@@ -511,32 +518,32 @@ const ManageLoans = () => {
                                   : "bg-green-100 text-green-700 hover:bg-green-200"
                               }`}
                             >
-                              <RefreshCw size={8} />
+                              <RefreshCw size={9} />
                               {hasRenewals ? `${renewals.length} renewal${renewals.length > 1 ? "s" : ""}` : "0 renewals"}
                               {hasRenewals && (expanded ? " ▲" : " ▼")}
                             </button>
                           </div>
                         </td>
-                        <td className="px-3 py-4 text-xs text-gray-800 font-semibold align-top">{parent.member_name}</td>
+                        <td className="px-3 py-4 text-sm text-gray-800 font-semibold align-top">{parent.member_name}</td>
                         <td className="px-3 py-4 align-top">
-                          <span className={`inline-block whitespace-nowrap px-2 py-0.5 rounded-full text-[10px] font-semibold ${getLoanTypeStyle(parent.loan_type_code)}`}>
+                          <span className={`inline-block whitespace-nowrap px-2 py-0.5 rounded-full text-[11px] font-semibold ${getLoanTypeStyle(parent.loan_type_code)}`}>
                             {parent.loan_type}
                           </span>
                         </td>
-                        <td className="px-3 py-4 text-xs text-gray-800 font-semibold text-right whitespace-nowrap align-top">{formatCurrency(parent.loan_amount)}</td>
-                        <td className="px-3 py-4 text-xs text-gray-700 text-right font-medium whitespace-nowrap align-top">{parent.interest_rate}%</td>
-                        <td className="px-3 py-4 text-xs text-gray-700 text-right font-medium whitespace-nowrap align-top">{formatCurrency(parent.amortization)}</td>
-                        <td className="px-3 py-4 text-xs text-right font-bold whitespace-nowrap align-top">
+                        <td className="px-3 py-4 text-sm text-gray-800 font-semibold text-right whitespace-nowrap align-top">{formatCurrency(parent.loan_amount)}</td>
+                        <td className="px-3 py-4 text-sm text-gray-700 text-right font-medium whitespace-nowrap align-top">{parent.interest_rate}%</td>
+                        <td className="px-3 py-4 text-sm text-gray-700 text-left font-medium whitespace-nowrap align-top">{formatCurrency(parent.amortization)}</td>
+                        <td className="px-3 py-4 text-sm text-left font-bold whitespace-nowrap align-top">
                           <span className={parent.remaining_balance > 0 ? 'text-amber-600' : 'text-green-600'}>
                             {formatCurrency(parent.remaining_balance)}
                           </span>
                         </td>
-                        <td className="px-3 py-4 text-xs text-gray-700 font-medium whitespace-nowrap align-top">{parent.due_date}</td>
+                        <td className="px-3 py-4 text-sm text-gray-700 font-medium whitespace-nowrap align-top">{formatDate(parent.due_date)}</td>
                         <td className="px-3 py-4 text-center align-top">
                           <button
                             type="button"
                             onClick={() => navigate(`/bookkeeper-loan-ledger/${parent.loan_id}`, { state: { loan: parent } })}
-                            className="btn-enhanced inline-flex items-center gap-1 rounded-lg bg-green-600 px-2 py-1.5 text-[11px] font-semibold text-white hover:bg-green-700"
+                            className="btn-enhanced inline-flex items-center gap-1 rounded-lg bg-green-600 px-2 py-1.5 text-xs font-semibold text-white hover:bg-green-700"
                           >
                             <Eye size={12} /> View
                           </button>
@@ -548,45 +555,43 @@ const ManageLoans = () => {
                         return (
                           <tr
                             key={r.loan_id}
-                            className={`bg-green-50/30 hover:bg-green-50/60 transition-colors border-l-4 border-green-600 ${
+                            className={`bg-green-50/30 hover:bg-green-50/60 transition-colors ${
                               isLast ? "border-b border-gray-100" : "border-b border-green-100/70"
                             }`}
                           >
-                            <td className="pl-9 pr-3 py-2.5 text-xs font-mono align-top">
+                            <td className="pl-9 pr-3 py-2.5 text-sm font-mono align-top">
                               <div className="flex items-start gap-1.5">
                                 <span className="text-green-400 leading-none">└</span>
                                 <div className="min-w-0 flex-1 flex flex-wrap items-center gap-1.5">
                                   <span className="text-gray-500 break-all">{r.loan_id}</span>
-                                  <span className="inline-flex items-center rounded-full bg-gray-100 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-gray-600">
+                                  <span className="inline-flex items-center rounded-full bg-gray-100 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-gray-600">
                                     Renewed
                                   </span>
                                 </div>
                               </div>
                             </td>
-                            <td className="px-3 py-2.5 text-xs text-gray-500 align-top">{r.member_name}</td>
+                            <td className="px-3 py-2.5 text-sm text-gray-500 align-top">{r.member_name}</td>
                             <td className="px-3 py-2.5 align-top">
-                              <span className={`inline-block whitespace-nowrap px-2 py-0.5 rounded-full text-[10px] font-semibold ${getLoanTypeStyle(r.loan_type_code)}`}>
+                              <span className={`inline-block whitespace-nowrap px-2 py-0.5 rounded-full text-[11px] font-semibold ${getLoanTypeStyle(r.loan_type_code)}`}>
                                 {r.loan_type}
                               </span>
                             </td>
-                            <td className="px-3 py-2.5 text-xs text-gray-600 font-medium text-right whitespace-nowrap align-top">{formatCurrency(r.loan_amount)}</td>
-                            <td className="px-3 py-2.5 text-xs text-gray-500 text-right whitespace-nowrap align-top">{r.interest_rate}%</td>
-                            <td className="px-3 py-2.5 text-xs text-gray-500 text-right whitespace-nowrap align-top">{formatCurrency(r.amortization)}</td>
-                            <td className="px-3 py-2.5 text-xs text-right font-semibold whitespace-nowrap align-top">
+                            <td className="px-3 py-2.5 text-sm text-gray-600 font-medium text-right whitespace-nowrap align-top">{formatCurrency(r.loan_amount)}</td>
+                            <td className="px-3 py-2.5 text-sm text-gray-500 text-right whitespace-nowrap align-top">{r.interest_rate}%</td>
+                            <td className="px-3 py-2.5 text-sm text-gray-500 text-left whitespace-nowrap align-top">{formatCurrency(r.amortization)}</td>
+                            <td className="px-3 py-2.5 text-sm text-left font-semibold whitespace-nowrap align-top">
                               <span className={r.remaining_balance > 0 ? "text-amber-600" : "text-gray-400"}>
                                 {formatCurrency(r.remaining_balance)}
                               </span>
                             </td>
-                            <td className="px-3 py-2.5 text-xs text-gray-500 whitespace-nowrap align-top">
-                              {r.application_date
-                                ? new Date(r.application_date).toLocaleDateString("en-PH", { year: "numeric", month: "short", day: "numeric" })
-                                : "—"}
+                            <td className="px-3 py-2.5 text-sm text-gray-500 whitespace-nowrap align-top">
+                              {formatDate(r.application_date)}
                             </td>
                             <td className="px-3 py-2.5 text-center align-top">
                               <button
                                 type="button"
                                 onClick={() => navigate(`/bookkeeper-loan-ledger/${r.loan_id}`, { state: { loan: r } })}
-                                className="inline-flex items-center gap-1 rounded-md border border-green-200 bg-white px-2 py-1 text-[10px] font-semibold text-green-700 hover:bg-green-50"
+                                className="inline-flex items-center gap-1 rounded-md border border-green-200 bg-white px-2 py-1 text-xs font-semibold text-green-700 hover:bg-green-50"
                               >
                                 <Eye size={11} /> View
                               </button>
@@ -618,7 +623,7 @@ const ManageLoans = () => {
                   <button
                     key={page}
                     onClick={() => setCurrentPage(page)}
-                    className={`w-8 h-8 flex items-center justify-center rounded-full border text-xs font-semibold transition-colors ${
+                    className={`w-8 h-8 flex items-center justify-center rounded-full border text-sm font-semibold transition-colors ${
                       page === currentPage
                         ? "bg-[#16A34A] text-white border-[#16A34A]"
                         : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"
