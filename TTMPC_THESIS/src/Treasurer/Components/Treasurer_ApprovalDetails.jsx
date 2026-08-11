@@ -113,6 +113,20 @@ const Treasurer_ApprovalDetails = () => {
   const [sendSms, setSendSms] = useState(true);
   const [sendEmail, setSendEmail] = useState(true);
   const [loanDetails, setLoanDetails] = useState(null);
+  const [vaultBalance, setVaultBalance] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase
+        .from('vault_balance_v')
+        .select('current_balance')
+        .limit(1)
+        .maybeSingle();
+      if (!cancelled) setVaultBalance(Number(data?.current_balance || 0));
+    })();
+    return () => { cancelled = true; };
+  }, []);
   const [borrowerMemberId, setBorrowerMemberId] = useState(null);
   const { data: migsLabel, status: migsStatusFetch } = useMigsLabel(borrowerMemberId);
   const [supportingDocs, setSupportingDocs] = useState([]);
@@ -420,6 +434,8 @@ const Treasurer_ApprovalDetails = () => {
           memberName,
           loanType: resolvedLoanType,
           loanAmount: Number(data.loan_amount ?? principalAmount ?? 0),
+          principalAmountRaw: principalAmount,
+          totalInterestRaw: resolvedTotalInterest,
           term: `${termMonths} Months`,
           status: formatStatus(data.loan_status || data.application_status),
           borrowerMemberId: resolvedMember?.id || data.member_id || null,
@@ -856,28 +872,73 @@ const Treasurer_ApprovalDetails = () => {
                 <BarChart2 className="w-5 h-5 mr-2 text-[#1D6021]" /> Treasurer's Disbursement Assessment
               </h2>
               <div className="bg-white rounded-xl border border-gray-200 p-6">
-                <div className="space-y-6">
-                  {/* Fund Availability */}
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-semibold text-gray-700">Cooperative Fund Availability</span>
-                    <div className="flex items-center gap-2">
-                      <div className="w-32 h-3 bg-gray-200 rounded-full overflow-hidden">
-                        <div className="h-3 bg-[#1D6021] rounded-full" style={{ width: '80%' }}></div>
+                {(() => {
+                  const principal = Number(loanDetails.principalAmountRaw || loanDetails.loanAmount || 0);
+                  const interest = Number(loanDetails.totalInterestRaw || 0);
+                  const vault = vaultBalance;
+                  const loading = vault === null;
+                  const coverage = !loading && principal > 0 ? vault / principal : 0;
+                  const barPct = Math.max(0, Math.min(100, coverage * 100));
+                  let fundLabel, fundColor, barColor;
+                  if (loading) {
+                    fundLabel = 'Loading\u2026'; fundColor = 'text-gray-500'; barColor = 'bg-gray-300';
+                  } else if (coverage >= 1.5) {
+                    fundLabel = 'Sufficient'; fundColor = 'text-green-700'; barColor = 'bg-[#1D6021]';
+                  } else if (coverage >= 1) {
+                    fundLabel = 'Adequate'; fundColor = 'text-amber-700'; barColor = 'bg-amber-500';
+                  } else {
+                    fundLabel = 'Insufficient'; fundColor = 'text-red-700'; barColor = 'bg-red-500';
+                  }
+                  const PHP = (n) => `\u20B1${Number(n || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+                  let recLabel, recClasses, recExplain;
+                  const coveragePct = (coverage * 100).toFixed(0);
+                  if (loading) {
+                    recLabel = 'Pending';
+                    recClasses = 'bg-gray-100 text-gray-600 border-gray-200';
+                    recExplain = 'Checking vault balance…';
+                  } else if (coverage >= 1.5 && interest > 0) {
+                    recLabel = 'Highly Recommended';
+                    recClasses = 'bg-green-100 text-green-700 border-green-200';
+                    recExplain = `Vault covers ${coveragePct}% of the principal and the loan yields ${PHP(interest)} in interest — safe to disburse.`;
+                  } else if (coverage >= 1) {
+                    recLabel = 'Recommended';
+                    recClasses = 'bg-amber-100 text-amber-700 border-amber-200';
+                    recExplain = `Vault covers ${coveragePct}% of the principal — enough to disburse, but leaves limited buffer for other releases this period.`;
+                  } else {
+                    recLabel = 'Not Recommended';
+                    recClasses = 'bg-red-100 text-red-700 border-red-200';
+                    const shortfall = principal - vault;
+                    recExplain = `Vault covers only ${coveragePct}% of the principal — short by ${PHP(shortfall)}. Refund the vault before releasing.`;
+                  }
+                  return (
+                    <div className="space-y-6">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-semibold text-gray-700">Cooperative Fund Availability</span>
+                        <div className="flex items-center gap-2">
+                          <div className="w-32 h-3 bg-gray-200 rounded-full overflow-hidden">
+                            <div className={`h-3 ${barColor} rounded-full`} style={{ width: `${barPct}%` }}></div>
+                          </div>
+                          <span className={`text-xs font-bold ${fundColor}`}>{fundLabel}</span>
+                        </div>
                       </div>
-                      <span className="text-xs font-bold text-green-700">Sufficient</span>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-semibold text-gray-700">Vault On Hand</span>
+                        <span className="text-xs font-bold text-gray-800 tabular-nums">{loading ? '\u2026' : PHP(vault)}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-semibold text-gray-700">Financial Impact Assessment</span>
+                        <span className="text-xs font-bold text-gray-800">Projected Interest Revenue: {PHP(interest)}</span>
+                      </div>
+                      <div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-semibold text-gray-700">Recommendation Status</span>
+                          <span className={`px-3 py-1 rounded-full text-xs font-bold border ${recClasses}`}>{recLabel}</span>
+                        </div>
+                        <p className="mt-2 text-xs text-gray-600 leading-relaxed">{recExplain}</p>
+                      </div>
                     </div>
-                  </div>
-                  {/* Financial Impact Assessment */}
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-semibold text-gray-700">Financial Impact Assessment</span>
-                    <span className="text-xs font-bold text-gray-800">Projected Interest Revenue: {"\u20B1"}100,000.00</span>
-                  </div>
-                  {/* Recommendation Status */}
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-semibold text-gray-700">Recommendation Status</span>
-                    <span className="px-3 py-1 rounded-full bg-green-100 text-green-700 text-xs font-bold border border-green-200">Highly Recommended</span>
-                  </div>
-                </div>
+                  );
+                })()}
               </div>
             </div>
           </div>

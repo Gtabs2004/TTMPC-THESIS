@@ -3,6 +3,7 @@ import { useNavigate, NavLink } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
 import { useNotification } from "../../contex/NotificationContext";
 import { PortalSidebarIdentity, PortalTopbarIdentity } from "../../components/PortalIdentity";
+import LoanNotificationBell from "../../components/LoanNotificationBell";
 import ConfirmDialog from "../../components/ConfirmDialog";
 import { supabase } from "../../supabaseClient";
 import {
@@ -410,11 +411,7 @@ const Cashier_MembershipPayments = () => {
            </div>
      
            {/* Notifications */}
-           <button className="relative p-2 rounded-full text-gray-500 hover:bg-gray-50 transition-colors">
-             <Bell className="w-5 h-5" />
-             {/* Adjusted badge alignment so it sits perfectly on the shoulder of the bell */}
-             <span className="absolute top-1.5 right-1.5 block h-2 w-2 rounded-full bg-red-500 ring-2 ring-white"></span>
-           </button>
+           <LoanNotificationBell role="cashier" />
      
            {/* Profile Divider (Optional but adds a premium touch) */}
            <span className="h-6 w-px bg-gray-200"></span>

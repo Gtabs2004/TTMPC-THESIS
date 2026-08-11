@@ -50,7 +50,9 @@ CREATE INDEX IF NOT EXISTS idx_salary_schedule_agency
 
 -- Convenience view: only cycles that have been logged.
 -- Derived delay_days lets downstream code skip recomputing it.
-CREATE OR REPLACE VIEW salary_schedule_logged_v AS
+-- security_invoker=true so RLS runs as the querying user, not the view owner.
+CREATE OR REPLACE VIEW salary_schedule_logged_v
+WITH (security_invoker = true) AS
 SELECT
   schedule_id,
   agency,
@@ -73,7 +75,8 @@ WHERE release_date IS NOT NULL;
 
 -- Rolling stats view: last 6 logged cycles per agency.
 -- Drives the "Late Cycles: N of last M" KPI. Frontend filters by agency.
-CREATE OR REPLACE VIEW salary_schedule_delay_stats_v AS
+CREATE OR REPLACE VIEW salary_schedule_delay_stats_v
+WITH (security_invoker = true) AS
 WITH ranked AS (
   SELECT
     v.*,

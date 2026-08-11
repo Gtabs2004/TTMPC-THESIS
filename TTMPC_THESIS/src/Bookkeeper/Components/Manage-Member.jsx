@@ -3,6 +3,7 @@ import { NavLink, useNavigate } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
 import { LayoutDashboard, Users, FileText, CreditCard, Calculator, Activity, BarChart3, History, Search, Bell, ChevronLeft, ChevronRight, X, Briefcase, Wallet, Coins } from "lucide-react";
 import { PortalSidebarIdentity, PortalTopbarIdentity } from "../../components/PortalIdentity";
+import LoanNotificationBell from "../../components/LoanNotificationBell";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 const ITEMS_PER_PAGE = 10;
@@ -179,10 +180,7 @@ const Manage_Member = () => {
 
       <div className="flex-1 flex flex-col h-screen overflow-y-auto">
         <header className="bg-white h-16 shadow-sm flex items-center justify-end px-8 border-b border-gray-100">
-          <button className="ml-6 relative p-1.5 rounded-full text-gray-500 hover:bg-gray-100 active:scale-95 transition-all duration-150 ease-in-out">
-            <Bell className="w-5 h-5"/>
-            <span className="absolute top-1 right-1 block h-2 w-2 rounded-full bg-red-500 ring-2 ring-white"></span>
-          </button>
+          <LoanNotificationBell role="bookkeeper" />
           <div className="flex items-center ml-4 gap-2 border-l border-gray-200 pl-4">
             <img src="/img/bookkeeper-profile.png" alt="Profile" className="w-8 h-8 rounded-full bg-gray-200"></img>
             <PortalTopbarIdentity className="text-sm font-medium text-gray-700" fallbackRole="BOD" />
