@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useState } from 'react';
+﻿import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { fetchLoanPrefill, submitUnifiedLoan } from './loanSubmission';
 import { buildConsolidatedPayload, computeLoan } from './loanComputeApi';
@@ -8,6 +8,7 @@ import { resolveAccountFromSessionUser } from '../utils/sessionIdentity';
 import { useMigsLabel } from '../hooks/useMigsLabel';
 import { useLoanEligibility } from '../hooks/useLoanEligibility';
 import { useNotification } from '../contex/NotificationContext';
+import { FileImage, Loader2, Upload } from 'lucide-react';
 
 // Function to generate control number: CL-YYYYMMDD-XXXX
 const generateControlNumber = () => {
@@ -149,6 +150,8 @@ function Consolidated_Loan() {
   // Collateral rows the applicant declares against this loan. Persisted post-submit
   // into loan_collateral, one row per item, linked by loan control_number.
   const [collaterals, setCollaterals] = useState([]);
+  const [collateralUploadingIndex, setCollateralUploadingIndex] = useState(null);
+  const collateralFileInputRefs = useRef({});
 
   const COLLATERAL_TYPES = [
     { value: 'co_maker',    label: 'Co-Maker Guarantee' },
@@ -160,7 +163,7 @@ function Consolidated_Loan() {
   ];
 
   const addCollateral = () => {
-    setCollaterals((rows) => [...rows, { type: '', description: '', declared_value: '' }]);
+    setCollaterals((rows) => [...rows, { type: '', description: '', declared_value: '', document_url: '' }]);
   };
 
   const removeCollateral = (index) => {
@@ -169,6 +172,38 @@ function Consolidated_Loan() {
 
   const updateCollateral = (index, field, value) => {
     setCollaterals((rows) => rows.map((row, i) => (i === index ? { ...row, [field]: value } : row)));
+  };
+
+  const handleCollateralImageUpload = async (event, index, row) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+
+    if (!file) return;
+    if (!file.type || !file.type.startsWith('image/')) {
+      addNotification('Please choose an image file for the collateral photo.', 'warning');
+      return;
+    }
+
+    try {
+      setCollateralUploadingIndex(index);
+      const safeName = String(file.name || 'image').replace(/[^a-zA-Z0-9._-]+/g, '_');
+      const storagePath = `loan_collateral/${formData.control_no}/${index}_${Date.now()}_${safeName}`;
+
+      const { error } = await supabase.storage
+        .from('Supporting_Documents')
+        .upload(storagePath, file, { upsert: false, contentType: file.type || 'image/*' });
+
+      if (error) {
+        throw new Error(error.message || 'Failed to upload collateral image.');
+      }
+
+      updateCollateral(index, 'document_url', storagePath);
+      addNotification('Collateral image uploaded successfully.', 'success');
+    } catch (err) {
+      addNotification(err?.message || 'Unable to upload collateral image.', 'error');
+    } finally {
+      setCollateralUploadingIndex(null);
+    }
   };
 
   const totalDeclaredCollateral = collaterals.reduce(
@@ -898,6 +933,7 @@ function Consolidated_Loan() {
             collateral_type: c.type,
             description: c.description,
             declared_value: parseFloat(c.declared_value) || 0,
+            document_url: String(c.document_url || '').trim() || null,
           }));
 
         if (rows.length > 0) {
@@ -1316,7 +1352,30 @@ function Consolidated_Loan() {
                       required
                     />
                   </div>
-                  <div className="md:col-span-1 flex justify-end">
+                  <div className="md:col-span-1 flex flex-col items-end gap-2">
+                    <input
+                      ref={(element) => {
+                        collateralFileInputRefs.current[index] = element;
+                      }}
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => handleCollateralImageUpload(e, index, row)}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => collateralFileInputRefs.current[index]?.click()}
+                      className="inline-flex items-center gap-1 rounded-md border border-[#66B538] px-2 py-2 text-[10px] font-bold text-[#1D6021] hover:bg-[#E9F7DE]"
+                    >
+                      {collateralUploadingIndex === index ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
+                      {row.document_url ? 'Change image' : 'Upload image'}
+                    </button>
+                    {row.document_url ? (
+                      <span className="inline-flex items-center gap-1 rounded-md bg-green-50 px-2 py-1 text-[10px] font-bold text-green-700">
+                        <FileImage className="h-3.5 w-3.5" />
+                        Added
+                      </span>
+                    ) : null}
                     <button
                       type="button"
                       onClick={() => removeCollateral(index)}
@@ -1349,6 +1408,7 @@ function Consolidated_Loan() {
                   </span>
                 )}
               </div>
+              
             </div>
 
             {collateralShort && (

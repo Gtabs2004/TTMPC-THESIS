@@ -109,6 +109,7 @@ const LoanApprovalDetails = () => {
   const [coMakerDetails, setCoMakerDetails] = useState(EMPTY_CO_MAKERS);
   const [collateralRows, setCollateralRows] = useState([]);
   const [collateralSavingId, setCollateralSavingId] = useState(null);
+  const [collateralDocumentUrls, setCollateralDocumentUrls] = useState({});
 
   const COLLATERAL_TYPE_LABEL = {
     co_maker: 'Co-Maker Guarantee',
@@ -158,6 +159,39 @@ const LoanApprovalDetails = () => {
     })();
     return () => { cancelled = true; };
   }, [id]);
+
+  useEffect(() => {
+    let active = true;
+
+    const resolveUrls = async () => {
+      const resolved = {};
+
+      for (const row of collateralRows) {
+        const path = String(row.document_url || '').trim();
+        if (!path) continue;
+
+        const { data, error } = await supabase.storage
+          .from(SUPPORTING_DOCS_BUCKET)
+          .createSignedUrl(path, 60 * 60);
+
+        if (!error && data?.signedUrl) {
+          resolved[row.collateral_id] = data.signedUrl;
+        }
+      }
+
+      if (active) {
+        setCollateralDocumentUrls(resolved);
+      }
+    };
+
+    if (!collateralRows.length) {
+      setCollateralDocumentUrls({});
+      return () => { active = false; };
+    }
+
+    resolveUrls();
+    return () => { active = false; };
+  }, [collateralRows]);
 
   const updateCollateralAppraisal = (collateralId, value) => {
     setCollateralRows((rows) =>
@@ -1171,16 +1205,32 @@ const LoanApprovalDetails = () => {
 
       // ---- Loan workflow notification dispatch (non-blocking, idempotent on the backend) ----
       // Rules:
-      //   Bookkeeper recommend -> in-app notification to Manager.   No member email.
-      //   Bookkeeper reject    -> in-app notification to Manager.   No member email.
+      //   Bookkeeper recommend -> in-app notification to Manager + member email ("recommended").
+      //   Bookkeeper reject    -> in-app notification to Manager + member email ("declined").
       //   Manager proceed      -> in-app notification to Treasurer + member email.
       //   Manager reject/revise-> in-app notification only (Bookkeeper side, future). No member email.
       // The treasurer 'released/disbursed' member email is fired server-side from
       // the /api/cashier/disbursements/{loan_id}/disburse endpoint.
       if (isBookkeeperFlow && modalType === 'recommend') {
         dispatchInAppNotification({ recipientRole: 'manager', notificationType: 'recommend' });
+        if (sendEmail !== false) {
+          dispatchLoanEmail({
+            stage: 'bookkeeper',
+            action: 'recommend',
+            remarks: remarks?.trim() || null,
+            overrideMemberEmail: loanDetails?.summary?.memberEmail || null,
+          });
+        }
       } else if (isBookkeeperFlow && modalType === 'reject') {
         dispatchInAppNotification({ recipientRole: 'manager', notificationType: 'decline' });
+        if (sendEmail !== false) {
+          dispatchLoanEmail({
+            stage: 'bookkeeper',
+            action: 'reject',
+            remarks: remarks?.trim() || null,
+            overrideMemberEmail: loanDetails?.summary?.memberEmail || null,
+          });
+        }
       } else if (!isBookkeeperFlow && modalType === 'proceed') {
         dispatchInAppNotification({ recipientRole: 'treasurer', notificationType: 'approve' });
         if (sendEmail !== false) {
@@ -1960,6 +2010,29 @@ const LoanApprovalDetails = () => {
                             {appraised === null ? <span className="text-gray-400 italic">Not appraised</span> : formatCurrency(appraised)}
                           </p>
                         )}
+                        <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+                          {row.document_url ? (
+                            collateralDocumentUrls[row.collateral_id] ? (
+                              <a
+                                href={collateralDocumentUrls[row.collateral_id]}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="inline-flex items-center gap-1.5 rounded-md bg-gray-100 px-2 py-1 font-semibold text-gray-700 hover:bg-gray-200"
+                              >
+                                <FileImage className="h-3.5 w-3.5" />
+                                View image
+                                <ExternalLink className="h-3 w-3" />
+                              </a>
+                            ) : (
+                              <span className="inline-flex items-center gap-1.5 rounded-md bg-gray-100 px-2 py-1 font-semibold text-gray-500">
+                                <FileImage className="h-3.5 w-3.5" />
+                                Image attached
+                              </span>
+                            )
+                          ) : (
+                            <span className="text-gray-400">No image uploaded</span>
+                          )}
+                        </div>
                       </div>
                     </div>
                   );
