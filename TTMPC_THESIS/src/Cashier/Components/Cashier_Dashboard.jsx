@@ -587,35 +587,6 @@ const Cashier_Dashboard = () => {
 
                   {/* Day stepper: prev / calendar / next */}
                   <div className="flex items-center overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
-                    <button
-                      type="button"
-                      onClick={() => setSelectedDate(shiftDays(selectedDate, -1))}
-                      className="flex h-8 w-8 items-center justify-center text-gray-500 hover:bg-gray-50 hover:text-gray-800"
-                      aria-label="Previous day"
-                    >
-                      <ChevronLeft size={16} />
-                    </button>
-                    <label className="relative flex h-8 items-center gap-1.5 border-x border-gray-200 px-2.5 text-xs font-medium text-gray-700 hover:bg-gray-50 cursor-pointer">
-                      <Calendar size={14} className="text-gray-500" />
-                      <span>Pick</span>
-                      <input
-                        type="date"
-                        value={selectedDate}
-                        max={todayIso}
-                        onChange={(e) => setSelectedDate(e.target.value || todayIso)}
-                        className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
-                        aria-label="Choose date"
-                      />
-                    </label>
-                    <button
-                      type="button"
-                      onClick={() => setSelectedDate(shiftDays(selectedDate, 1))}
-                      disabled={isViewingToday}
-                      className="flex h-8 w-8 items-center justify-center text-gray-500 hover:bg-gray-50 hover:text-gray-800 disabled:cursor-not-allowed disabled:opacity-30"
-                      aria-label="Next day"
-                    >
-                      <ChevronRight size={16} />
-                    </button>
                   </div>
                 </div>
 

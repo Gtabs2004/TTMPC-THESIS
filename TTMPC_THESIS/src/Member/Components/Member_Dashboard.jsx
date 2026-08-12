@@ -214,6 +214,135 @@ const MemberDashboard = () => {
       setAvatarUrl(snap.resolvedAvatarUrl);
     };
 
+    // Fast path: single RPC call replaces the ~9 per-query fetches below.
+    // Returns null if the RPC hasn't been deployed yet or the account row
+    // is missing, so the caller can fall through to the legacy path.
+    const buildSnapshotFromRpc = async (sessionUser) => {
+      const { data: bundle, error } = await supabase.rpc('get_member_login_bundle', {
+        p_auth_user_id: sessionUser.id,
+      });
+      if (error) throw error;
+      if (!bundle || bundle.error || !bundle.account) return null;
+
+      const account = bundle.account;
+      const memberRow = bundle.member || null;
+      const authEmail = sessionUser?.email || '';
+      const memberId = account?.user_id || sessionUser.id;
+      const membershipId = String(account?.membership_id || memberRow?.membership_number_id || '').trim();
+      const temporaryFlag = Boolean(account?.is_temporary);
+      const latestApplication = bundle.application || null;
+
+      const cbuRows = bundle.cbu || [];
+      const cbuRow = cbuRows[0] || null;
+      const shareCapitalBalance = cbuRow
+        ? (cbuRow.ending_share_capital !== null && cbuRow.ending_share_capital !== undefined
+            ? Number(cbuRow.ending_share_capital)
+            : cbuRows.reduce((sum, row) => sum + Number(row?.capital_added || 0), 0))
+        : 0;
+
+      const normalizedLoans = (bundle.loans || []).map((loan) => {
+        const principal = Number(loan.principal_amount ?? loan.loan_amount ?? 0);
+        const totalInterest = Number(loan.total_interest ?? 0);
+        const monthly = Number(loan.monthly_amortization ?? 0);
+        return {
+          ...loan,
+          principal,
+          totalInterest,
+          totalPayable: principal + totalInterest,
+          monthly,
+        };
+      });
+
+      const fullName = [
+        memberRow?.first_name || latestApplication?.first_name,
+        memberRow?.middle_name || latestApplication?.middle_name,
+        memberRow?.surname || latestApplication?.surname || latestApplication?.last_name,
+      ].filter(Boolean).join(' ').trim() || 'Member';
+
+      const shareCapital = Number.isFinite(shareCapitalBalance) ? shareCapitalBalance : 0;
+
+      const savingsAccountTotal = (bundle.savings || []).reduce((sum, row) => {
+        const amount = Number(row?.Balance ?? row?.Savings_Amount ?? row?.Amount ?? 0);
+        return sum + (Number.isFinite(amount) ? amount : 0);
+      }, 0);
+
+      const nextSchedule = (bundle.upcoming_schedules || []).find((row) => {
+        const statusText = String(row?.schedule_status || '').trim().toLowerCase();
+        return !['paid', 'fully paid', 'completed'].includes(statusText);
+      });
+      const derivedNextDueDate = nextSchedule?.due_date || null;
+
+      const transactionRows = [];
+      if (shareCapital > 0) {
+        transactionRows.push({
+          id: 'share-capital',
+          timestamp: cbuRow?.transaction_date || memberRow?.created_at || new Date().toISOString(),
+          date: formatDate(cbuRow?.transaction_date || memberRow?.created_at),
+          desc: 'Share Capital Contribution',
+          category: 'EQUITY',
+          type: 'equity',
+          amount: `+${formatCurrency(shareCapital).replace('₱ ', '₱')}`,
+          highlight: true,
+        });
+      }
+
+      (bundle.pending_savings || []).forEach((row) => {
+        const isWithdraw = String(row?.transaction_type || '').toLowerCase() === 'withdraw';
+        const amount = Number(row?.amount || 0);
+        transactionRows.push({
+          id: row?.transaction_id || `savings-${Math.random()}`,
+          timestamp: row?.requested_at,
+          date: formatDate(row?.requested_at),
+          desc: isWithdraw ? 'Savings Withdrawal' : 'Savings Deposit',
+          category: 'SAVINGS',
+          type: 'savings',
+          amount: `${isWithdraw ? '-' : '+'}${formatCurrency(Math.abs(amount)).replace('₱ ', '₱')}`,
+          highlight: !isWithdraw,
+        });
+      });
+
+      (bundle.recent_payments || []).forEach((row) => {
+        const paid = Number(row?.amount_paid || 0);
+        const penalties = Number(row?.penalties || 0);
+        const totalPaid = paid + penalties;
+        transactionRows.push({
+          id: row?.id || `loan-${Math.random()}`,
+          timestamp: row?.payment_date,
+          date: formatDate(row?.payment_date),
+          desc: `Loan Repayment (${row?.loan_id || 'Loan'})`,
+          category: 'LOAN',
+          type: 'loan',
+          amount: `-${formatCurrency(totalPaid).replace('₱ ', '₱')}`,
+          highlight: false,
+        });
+      });
+
+      const latestTransactions = transactionRows
+        .sort((a, b) => new Date(b.timestamp || 0).getTime() - new Date(a.timestamp || 0).getTime())
+        .slice(0, 6);
+
+      const resolvedAvatarUrl = await resolveAvatarDisplayUrl(bundle.avatar_url, sessionUser.id);
+
+      return {
+        profile: {
+          fullName,
+          membershipId: account?.membership_id || memberRow?.membership_number_id || 'N/A',
+          joinDate: formatDate(memberRow?.date_of_membership || memberRow?.created_at || latestApplication?.created_at),
+          memberType: 'Member',
+          isActive: true,
+          shareCapital,
+        },
+        migsMemberKey: memberId || account?.membership_id || memberRow?.id || null,
+        isTemporary: temporaryFlag,
+        normalizedLoans,
+        savingsAccountTotal,
+        derivedNextDueDate,
+        latestTransactions,
+        resolvedAvatarUrl,
+        _sessionUserId: sessionUser.id,
+      };
+    };
+
     const buildSnapshot = async () => {
         // Sequential — auth + context must resolve before per-member queries.
         const { data: authData, error: authError } = await supabase.auth.getUser();
@@ -221,6 +350,17 @@ const MemberDashboard = () => {
 
         const sessionUser = authData?.user;
         if (!sessionUser?.id) throw new Error('Please sign in again to load your dashboard.');
+
+        // FAST PATH — try the RPC bundle first (1 round-trip instead of ~9).
+        // If it fails for any reason (RPC not deployed yet, network hiccup,
+        // shape mismatch) we silently fall through to the legacy per-query
+        // path below so the dashboard still loads.
+        try {
+          const rpcSnap = await buildSnapshotFromRpc(sessionUser);
+          if (rpcSnap) return rpcSnap;
+        } catch (rpcErr) {
+          console.warn('[Member_Dashboard] RPC bundle failed, falling back to per-query path:', rpcErr?.message || rpcErr);
+        }
 
         const { account, member: memberRow } = await resolveMemberContextFromSessionUser(sessionUser);
         const authEmail = sessionUser?.email || '';

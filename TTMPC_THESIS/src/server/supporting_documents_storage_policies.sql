@@ -1,6 +1,7 @@
 -- Supporting documents storage policies for loan approval workflows.
 -- Bucket: Supporting_Documents
 -- Access:
+--   - Member: upload collateral photos from loan forms
 --   - Bookkeeper: upload/update/delete files
 --   - Bookkeeper/Manager/Treasurer: view files
 --   - service_role: full access
@@ -44,6 +45,21 @@ WITH CHECK (
     auth.uid(),
     auth.email(),
     ARRAY['bookkeeper']
+  )
+);
+
+DROP POLICY IF EXISTS supporting_documents_member_collateral_insert ON storage.objects;
+CREATE POLICY supporting_documents_member_collateral_insert
+ON storage.objects
+FOR INSERT
+TO authenticated
+WITH CHECK (
+  bucket_id = 'Supporting_Documents'
+  AND name LIKE 'loan_collateral/%'
+  AND public.has_portal_role(
+    auth.uid(),
+    auth.email(),
+    ARRAY['member']
   )
 );
 
