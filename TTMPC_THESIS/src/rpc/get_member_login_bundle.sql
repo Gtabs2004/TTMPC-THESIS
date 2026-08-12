@@ -14,7 +14,7 @@
 -- Returns JSON shape:
 --   {
 --     account:            member_account row (or null),
---     member:             member row keyed by membership_number_id,
+--     member:             personal_data_sheet row keyed by membership_number_id,
 --     avatar_url:         profiles.avatar_url,
 --     application:        latest member_applications row (by membership_id, else email),
 --     loans:              [ loan rows, newest application_date first ],
@@ -77,7 +77,7 @@ begin
 
     'member',     (
       select row_to_json(m)
-      from public.member m
+      from public.personal_data_sheet m
       where m.membership_number_id = v_membership_id
       limit 1
     ),
