@@ -74,9 +74,18 @@ async def _favicon_noop():
     return Response(status_code=204)
 
 # 3. CORS - Allow Frontend to connect
+# NOTE: `allow_origins=["*"]` + `allow_credentials=True` is a CORS spec
+# violation — Starlette silently drops the Access-Control-Allow-Origin
+# header on preflight, browser rejects, request hangs until Railway 502s.
+# List real origins explicitly and cover Vercel preview URLs with a regex.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], 
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "https://ttmpc-thesis.vercel.app",
+    ],
+    allow_origin_regex=r"https://ttmpc-thesis-[a-z0-9]+-gtabs2004s-projects\.vercel\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
