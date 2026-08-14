@@ -3571,6 +3571,281 @@ async def get_loan_eligibility(
         raise HTTPException(status_code=500, detail=f"Eligibility lookup failed: {exc}") from exc
 
 
+@app.get("/api/member/{member_key}/debt-capacity")
+async def get_member_debt_capacity(member_key: str):
+    """Compute maximum borrowable amount per loan type for a member.
+
+    Consolidated: (Share Capital × multiplier) − outstanding Consolidated balances.
+                  Multiplier = 5× for MIGS, 3× for Non-MIGS.
+    Emergency:    Flat ₱20,000 cap − outstanding Emergency balance.
+    Bonus:        Equal to member's bonus salary (null when unavailable).
+    """
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+
+    key = str(member_key or "").strip()
+    if not key:
+        raise HTTPException(status_code=400, detail="member_key is required.")
+
+    try:
+        member_table = _resolve_member_table(supabase) if "_resolve_member_table" in globals() else "member"
+        lookup_field = "id" if len(key) == 36 and key.count("-") == 4 else "membership_id"
+        member_response = (
+            supabase.table(member_table)
+            .select("id,membership_id,share_capital_amount,is_bona_fide")
+            .eq(lookup_field, key)
+            .limit(1)
+            .execute()
+        )
+        member = (member_response.data or [None])[0]
+        if not member:
+            raise HTTPException(status_code=404, detail="Member not found.")
+        member_uuid = member["id"]
+
+        share_capital = Decimal(str(member.get("share_capital_amount") or 0))
+        if share_capital <= 0:
+            cbu_resp = (
+                supabase.table("capital_build_up")
+                .select("ending_share_capital,transaction_date")
+                .eq("member_id", member_uuid)
+                .order("transaction_date", desc=True)
+                .limit(1)
+                .execute()
+            )
+            latest = (cbu_resp.data or [None])[0]
+            if latest:
+                share_capital = Decimal(str(latest.get("ending_share_capital") or 0))
+
+        multiplier = Decimal("3.0")
+        migs_label = "Non-MIGS"
+        try:
+            snap_resp = (
+                supabase.table("member_classification_temporal")
+                .select("final_status,classification_level_id,accrual_date")
+                .eq("membership_number_id", member_uuid)
+                .order("accrual_date", desc=True)
+                .limit(1)
+                .execute()
+            )
+            snap = (snap_resp.data or [None])[0]
+            if snap:
+                label = snap.get("final_status")
+                if not label and snap.get("classification_level_id"):
+                    lvl_resp = (
+                        supabase.table("classification_level")
+                        .select("label")
+                        .eq("classification_level_id", snap["classification_level_id"])
+                        .limit(1)
+                        .execute()
+                    )
+                    lvl = (lvl_resp.data or [None])[0]
+                    if lvl:
+                        label = lvl.get("label")
+                if str(label or "").lower().startswith("migs"):
+                    multiplier = Decimal("5.0")
+                    migs_label = "MIGS"
+        except Exception:
+            pass
+
+        loans_resp = (
+            supabase.table("loans")
+            .select(
+                "control_number,principal_amount,loan_amount,total_interest,"
+                "monthly_amortization,term,loan_status,application_date,disbursal_date,"
+                "loan_types:loan_type_id(code,name)"
+            )
+            .eq("member_id", member_uuid)
+            .execute()
+        )
+        loan_rows = loans_resp.data or []
+
+        active_statuses = {"released", "partially paid", "unpaid", "paid"}
+        active_by_type: dict[str, list[dict]] = {"consolidated": [], "emergency": [], "bonus": []}
+        for row in loan_rows:
+            if str(row.get("loan_status") or "").strip().lower() not in active_statuses:
+                continue
+            lt_code = _resolve_loan_type_code(row)
+            if lt_code in active_by_type:
+                active_by_type[lt_code].append(row)
+
+        active_ids = [
+            str(r.get("control_number"))
+            for lst in active_by_type.values()
+            for r in lst
+            if r.get("control_number")
+        ]
+        paid_by_loan: dict[str, Decimal] = {}
+        legacy_loan_ids: set[str] = set()
+        if active_ids:
+            try:
+                pay_resp = (
+                    supabase.table("loan_payments")
+                    .select("loan_id,amount_paid,confirmation_status")
+                    .in_("loan_id", active_ids)
+                    .execute()
+                ).data or []
+                for p in pay_resp:
+                    if is_validated_payment_status(p.get("confirmation_status")):
+                        lid = str(p.get("loan_id") or "")
+                        paid_by_loan[lid] = paid_by_loan.get(lid, Decimal("0")) + Decimal(str(p.get("amount_paid") or 0))
+            except Exception:
+                pass
+            try:
+                leg_resp = (
+                    supabase.table("loan_payments_legacy")
+                    .select("loan_id,amount_paid")
+                    .in_("loan_id", active_ids)
+                    .execute()
+                ).data or []
+                for p in leg_resp:
+                    lid = str(p.get("loan_id") or "")
+                    paid_by_loan[lid] = paid_by_loan.get(lid, Decimal("0")) + Decimal(str(p.get("amount_paid") or 0))
+                    legacy_loan_ids.add(lid)
+            except Exception:
+                pass
+
+        # Earliest unpaid schedule per active loan — used for penalty accrual.
+        # Penalty applies only after the 3-month grace past the earliest missed due date.
+        earliest_unpaid_due: dict[str, date] = {}
+        if active_ids:
+            try:
+                sched_resp = (
+                    supabase.table("loan_schedules")
+                    .select("loan_id,due_date,schedule_status")
+                    .in_("loan_id", active_ids)
+                    .execute()
+                ).data or []
+                for s in sched_resp:
+                    status = str(s.get("schedule_status") or "").strip().lower()
+                    if "paid" in status:
+                        continue
+                    d = parse_date_value(s.get("due_date"))
+                    if not d:
+                        continue
+                    lid = str(s.get("loan_id") or "")
+                    if lid and (lid not in earliest_unpaid_due or d < earliest_unpaid_due[lid]):
+                        earliest_unpaid_due[lid] = d
+            except Exception:
+                pass
+
+        today = datetime.utcnow().date()
+
+        def _accrued_penalty(loan_id: str, loan_type_code: str, remaining_principal: Decimal) -> Decimal:
+            # Legacy loans (any row in loan_payments_legacy) — skip penalty accrual.
+            # Historical delinquency on migrated loans is not chargeable retroactively.
+            if loan_id in legacy_loan_ids:
+                return Decimal("0")
+            earliest = earliest_unpaid_due.get(loan_id)
+            if not earliest:
+                return Decimal("0")
+            grace_end = add_months(earliest, 3)
+            if today <= grace_end:
+                return Decimal("0")
+            months_overdue = (today.year - grace_end.year) * 12 + (today.month - grace_end.month)
+            if today.day < grace_end.day:
+                months_overdue -= 1
+            if months_overdue <= 0:
+                return Decimal("0")
+            rate = Decimal("0.01") if loan_type_code == "bonus" else Decimal("0.02")
+            return max(remaining_principal, Decimal("0")) * rate * Decimal(months_overdue)
+
+        def _remaining_for(loans: list[dict], type_code: str) -> Decimal:
+            total = Decimal("0")
+            for r in loans:
+                principal = Decimal(str(r.get("principal_amount") or r.get("loan_amount") or 0))
+                interest = Decimal(str(r.get("total_interest") or 0))
+                if interest <= 0:
+                    term = int(r.get("term") or 0)
+                    amort = Decimal(str(r.get("monthly_amortization") or 0))
+                    if term > 0 and amort > 0:
+                        interest = max(amort * term - principal, Decimal("0"))
+                total_payable = principal + interest
+                loan_id = str(r.get("control_number") or "")
+                paid = paid_by_loan.get(loan_id, Decimal("0"))
+                remaining = max(total_payable - paid, Decimal("0"))
+                penalty = _accrued_penalty(loan_id, type_code, remaining)
+                total += remaining + penalty
+            return total
+
+        outstanding_consolidated = _remaining_for(active_by_type["consolidated"], "consolidated")
+        outstanding_emergency = _remaining_for(active_by_type["emergency"], "emergency")
+
+        def _loan_summary(r: dict, type_label: str, type_code: str) -> dict:
+            principal = Decimal(str(r.get("principal_amount") or r.get("loan_amount") or 0))
+            interest = Decimal(str(r.get("total_interest") or 0))
+            if interest <= 0:
+                term = int(r.get("term") or 0)
+                amort = Decimal(str(r.get("monthly_amortization") or 0))
+                if term > 0 and amort > 0:
+                    interest = max(amort * term - principal, Decimal("0"))
+            total_payable = principal + interest
+            loan_id = str(r.get("control_number") or "")
+            paid = paid_by_loan.get(loan_id, Decimal("0"))
+            remaining = max(total_payable - paid, Decimal("0"))
+            penalty = _accrued_penalty(loan_id, type_code, remaining)
+            is_legacy = loan_id in legacy_loan_ids
+            return {
+                "control_number": r.get("control_number"),
+                "loan_type": type_label,
+                "loan_status": r.get("loan_status"),
+                "principal": decimal_to_float(principal),
+                "total_payable": decimal_to_float(total_payable),
+                "paid": decimal_to_float(paid),
+                "remaining_balance": decimal_to_float(remaining),
+                "accrued_penalty": decimal_to_float(penalty),
+                "total_with_penalty": decimal_to_float(remaining + penalty),
+                "is_legacy": is_legacy,
+                "monthly_amortization": decimal_to_float(r.get("monthly_amortization") or 0),
+                "term": int(r.get("term") or 0),
+                "application_date": r.get("application_date"),
+                "disbursal_date": r.get("disbursal_date"),
+            }
+
+        active_loans_list: list[dict] = []
+        for lt_code, rows in active_by_type.items():
+            label = lt_code.capitalize()
+            for row in rows:
+                active_loans_list.append(_loan_summary(row, label, lt_code))
+        active_loans_list.sort(key=lambda x: str(x.get("disbursal_date") or x.get("application_date") or ""), reverse=True)
+
+        consolidated_ceiling = share_capital * multiplier
+        consolidated_max = max(consolidated_ceiling - outstanding_consolidated, Decimal("0"))
+        emergency_cap = Decimal("20000")
+        emergency_max = max(emergency_cap - outstanding_emergency, Decimal("0"))
+
+        return {
+            "success": True,
+            "data": {
+                "member_id": member_uuid,
+                "membership_id": member.get("membership_id"),
+                "migs_status": migs_label,
+                "multiplier": float(multiplier),
+                "share_capital": decimal_to_float(share_capital),
+                "consolidated": {
+                    "ceiling": decimal_to_float(consolidated_ceiling),
+                    "outstanding": decimal_to_float(outstanding_consolidated),
+                    "max_available": decimal_to_float(consolidated_max),
+                },
+                "emergency": {
+                    "ceiling": decimal_to_float(emergency_cap),
+                    "outstanding": decimal_to_float(outstanding_emergency),
+                    "max_available": decimal_to_float(emergency_max),
+                },
+                "bonus": {
+                    "ceiling": None,
+                    "outstanding": None,
+                    "max_available": None,
+                    "note": "Equal to member's Bonus Salary (not yet captured in schema).",
+                },
+                "active_loans": active_loans_list,
+            },
+        }
+    except HTTPException:
+        raise
+    except Exception as err:
+        raise HTTPException(status_code=500, detail=f"Failed to compute debt capacity: {err}")
+
+
 # ============================================================================
 # SECTION: Bookkeeper — Loan Management & Ledger
 # Endpoints for the bookkeeper's manage-loans queue and per-loan ledger view.
