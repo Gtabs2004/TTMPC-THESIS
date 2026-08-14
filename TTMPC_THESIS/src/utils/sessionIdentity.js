@@ -1,6 +1,6 @@
 import { supabase } from "../supabaseClient";
 
-const ACCOUNT_TABLES = ["member_account", "member_accounts"];
+const ACCOUNT_TABLES = ["member_account"];
 
 const normalizeValue = (value) => String(value || "").trim();
 const normalizeEmail = (value) => normalizeValue(value).toLowerCase();
