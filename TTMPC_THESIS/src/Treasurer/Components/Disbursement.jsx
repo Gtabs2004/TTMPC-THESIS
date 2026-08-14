@@ -1,14 +1,10 @@
 ﻿import React, { useMemo, useRef, useEffect, useState, useCallback } from "react";
-import { useNavigate, NavLink } from "react-router-dom";
-import { UserAuth } from "../../contex/AuthContext";
 import { useNotification } from "../../contex/NotificationContext";
-import { PortalSidebarIdentity, PortalTopbarIdentity } from "../../components/PortalIdentity";
+import { PortalTopbarIdentity } from "../../components/PortalIdentity";
+import StaffSidebar from "../../components/StaffSidebar";
+import { treasurerNav } from "../../components/StaffSidebar/configs/treasurer";
 import {
-  LayoutDashboard,
   Users,
-  CreditCard,
-  Calculator,
-  BarChart3,
   Search,
   Bell,
   Wallet,
@@ -17,9 +13,7 @@ import {
   CheckCircle2,
   Clock,
   Receipt,
-  Printer,
   History,
-  Eye,
   CalendarDays,
   ChevronLeft,
   ChevronRight,
@@ -27,7 +21,6 @@ import {
   X,
   Check,
   MoreHorizontal,
-  ListOrdered,
   RefreshCw,
   FileCheck2,
   FileX2,
@@ -62,8 +55,6 @@ const computeRank = (row) => {
 };
 
 const Disbursements = () => {
-  const { session, signOut } = UserAuth();
-  const navigate = useNavigate();
   const { addNotification } = useNotification();
   const [activeLoan, setActiveLoan] = useState(null);
   const [openMenuId, setOpenMenuId] = useState(null);
@@ -131,17 +122,6 @@ const Disbursements = () => {
     fetchReleasedLoans();
   }, [fetchReleasedLoans]);
 
-  const menuItems = [
-      { name: "Dashboard", icon: LayoutDashboard },
-      { name: "Disbursement", icon: CreditCard },
-      { name: "Vault", icon: Wallet },
-      { name: "Schedule", icon: Calculator },
-      { name: "Payments", icon: Users },
-      { name: "Loan Approval", icon: CreditCard },
-      { name: "Accounting", icon: BarChart3 },
-      { name: "Audit Log", icon: History },
-    ];
-
   const formatCurrency = (n) =>
     new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP", minimumFractionDigits: 2 }).format(n || 0);
 
@@ -196,75 +176,9 @@ const Disbursements = () => {
     ];
   }, [rows.length, summary, isLoading]);
 
-  const handleSignOut = async (e) => {
-    e.preventDefault();
-    try {
-      await signOut();
-      navigate("/");
-    } catch (err) {
-      console.error("Failed to sign out:", err);
-    }
-  };
-
   return (
     <div className="flex min-h-screen bg-[#F8FAFC]">
-      
-      {/* --- ORIGINAL USER SIDEBAR --- */}
-      <aside className="bg-white w-64 p-4 flex flex-col border-r border-gray-200">
-        <div className="flex flex-row items-start gap-2 mb-6">
-          <img src="/img/ttmpc logo.png" alt="Logo" className="h-12 w-auto" />
-          <div className="flex flex-col">
-            <h1 className="text-xl font-bold text-[#389734]">TTMPC</h1>
-            <PortalSidebarIdentity className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold" fallbackPortal="Treasurer Portal" fallbackRole="Treasurer" />
-          </div>
-        </div>
-
-        <hr className="w-full border-gray-200 mb-6" />
-
-        <nav className="flex flex-col gap-2 text-sm flex-grow">
-          {(() => {
-              const routeMap = {
-    "Dashboard": "/Treasurer_Dashboard",
-    "Disbursement": "/disbursement",
-    "Vault": "/treasurer-vault",
-    "Schedule": "/schedule",
-    "Payments": "/treasurer-payments",
-    "Loan Approval": "/treasurer-approval",
-    "Accounting": "/treasurer-accounting",
-    "Audit Log": "/treasurer-audit-log",
-  };
-
-            return menuItems.map((item) => {
-              const Icon = item.icon;
-              const to = routeMap[item.name] || `/${item.name.toLowerCase().replace(/\s+/g, '-')}`;
-
-              return (
-                <NavLink
-                  key={item.name}
-                  to={to}
-                  className={({ isActive }) =>
-                    `flex items-center gap-3 p-2 rounded-md transition-colors ${
-                      isActive
-                        ? 'bg-green-50 text-green-700 font-semibold'
-                        : 'text-gray-700 hover:bg-green-50 hover:text-green-700'
-                    }`
-                  }
-                >
-                  <Icon size={20} />
-                  <span>{item.name}</span>
-                </NavLink>
-              );
-            });
-          })()}
-        </nav>
-
-        <button
-          onClick={handleSignOut}
-          className="mt-auto w-full rounded p-2 text-xs bg-green-600 hover:bg-green-700 text-white font-bold transition-colors"
-        >
-          Sign out
-        </button>
-      </aside>
+      <StaffSidebar portal="Treasurer" items={treasurerNav} />
 
       {/* --- MAIN CONTENT --- */}
       <div className="flex-1 flex flex-col min-w-0 h-screen overflow-y-auto font-['Poppins']">
@@ -313,7 +227,7 @@ const Disbursements = () => {
               <button
                 onClick={fetchReleasedLoans}
                 disabled={isLoading}
-                className="flex items-center gap-2 px-5 py-2 rounded-lg bg-[#389734] text-white text-sm font-semibold hover:bg-[#2e7a2a] disabled:bg-gray-300 transition-colors shadow-sm"
+                className="flex items-center gap-2 px-5 py-2 rounded-lg bg-[#2E7A2A] text-white text-sm font-semibold hover:bg-[#1D6021] disabled:bg-gray-300 transition-colors shadow-sm"
               >
                 <RefreshCw className={`w-4 h-4 ${isLoading ? "animate-spin" : ""}`} />
                 Refresh Data
@@ -564,7 +478,7 @@ const Disbursements = () => {
                   { label: "Loan Approved", detail: "Manager authorization", icon: Check, tone: "bg-gray-800 text-white" },
                   { label: "Bookkeeper Verifies", detail: "Compliance check", icon: Check, tone: "bg-gray-800 text-white" },
                   { label: "Cashier Releases", detail: "Funds disbursed", icon: Wallet, tone: "bg-gray-800 text-white" },
-                  { label: "Treasury Logs", detail: "Ledger updated", icon: CheckCircle2, tone: "bg-[#389734] text-white ring-4 ring-green-50" },
+                  { label: "Treasury Logs", detail: "Ledger updated", icon: CheckCircle2, tone: "bg-[#2E7A2A] text-white ring-4 ring-green-50" },
                 ].map((step, idx) => {
                   const StepIcon = step.icon;
                   return (

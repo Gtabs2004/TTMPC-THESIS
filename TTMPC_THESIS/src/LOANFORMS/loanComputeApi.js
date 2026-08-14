@@ -1,7 +1,17 @@
 import { supabase } from '../supabaseClient';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
-let backendComputeAvailable = true;
+
+// Cooldown-based backend availability tracker. When a backend call fails, we
+// skip the network for BACKEND_COOLDOWN_MS and use the local fallback compute
+// instead. After the cooldown expires the next call tries the backend again,
+// so one transient error can't strand the whole session on hardcoded fees.
+const BACKEND_COOLDOWN_MS = 30_000;
+let backendUnavailableUntil = 0;
+const isBackendCoolingDown = () => Date.now() < backendUnavailableUntil;
+const markBackendUnavailable = () => {
+  backendUnavailableUntil = Date.now() + BACKEND_COOLDOWN_MS;
+};
 
 const TWOPLACES = 2;
 
@@ -288,7 +298,7 @@ const computeLoanLocally = async (payload) => {
 };
 
 export async function computeLoan(payload) {
-  if (!backendComputeAvailable) {
+  if (isBackendCoolingDown()) {
     return await computeLoanLocally(payload);
   }
 
@@ -304,7 +314,7 @@ export async function computeLoan(payload) {
 
     const result = await response.json().catch(() => ({}));
     if (!response.ok) {
-      backendComputeAvailable = false;
+      markBackendUnavailable();
       try {
         return await computeLoanLocally(payload);
       } catch (_localErr) {
@@ -315,7 +325,7 @@ export async function computeLoan(payload) {
 
     return result?.data || result;
   } catch (error) {
-    backendComputeAvailable = false;
+    markBackendUnavailable();
     if (String(error?.message || '').toLowerCase().includes('failed to fetch')) {
       return await computeLoanLocally(payload);
     }

@@ -165,6 +165,17 @@ const Loan_Policies = () => {
         throw new Error(`Invalid value(s): ${errors.join(", ")}`);
       }
 
+      // Capture the acting BOD user so the audit trail records who edited
+      // the policy. The DB trigger stamp_loan_fee_policy_actor also fills
+      // this from auth.uid() as a fallback, but we send it explicitly so a
+      // failed session lookup surfaces here instead of silently anonymizing
+      // the change.
+      const { data: { session } } = await supabase.auth.getSession();
+      const actorId = session?.user?.id || null;
+      if (!actorId) {
+        throw new Error("Your session has expired. Please sign in again to save policy changes.");
+      }
+
       const feePayload = {
         loan_type_code: draft.loan_type_code,
         service_fee_mode: draft.service_fee_mode,
@@ -173,6 +184,7 @@ const Loan_Policies = () => {
         cbu_rate: Number(draft.cbu_rate),
         insurance_per_thousand: Number(draft.insurance_per_thousand),
         notarial_fee: Number(draft.notarial_fee),
+        updated_by: actorId,
       };
 
       // Upsert into loan_fee_policies (loan_type_code is unique).

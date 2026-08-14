@@ -33,48 +33,6 @@ import logo from "../../assets/img/ttmpc logo.png"; // Adjust path to logo if ne
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 const PAGE_SIZE = 5;
 
-const MOCK_LOANS = [
-  {
-    loan_id: "a5fe5f28-4fc9-4a43-b4c9-a206a94587d1",
-    schedule_id: "TTMPCLP_SI_001",
-    member_id: "M-0001",
-    member_name: "Juan Dela Cruz",
-    loan_type: "consolidated",
-    is_migs_member: true,
-    loan_amount: 50000,
-    term_months: 12,
-    due_date: "2026-02-28",
-    remaining_balance: 21450,
-    loan_status: "Partially Paid",
-  },
-  {
-    loan_id: "8d8f7906-a326-4587-ab98-a64fd5ab6fa4",
-    schedule_id: "TTMPCLP_SI_002",
-    member_id: "M-0002",
-    member_name: "Maria Santos",
-    loan_type: "emergency",
-    is_migs_member: false,
-    loan_amount: 30000,
-    term_months: 8,
-    due_date: "2026-03-10",
-    remaining_balance: 30000,
-    loan_status: "Unpaid",
-  },
-  {
-    loan_id: "0f7414a7-950d-4fcd-b0bc-3ca98f59c4e0",
-    schedule_id: "TTMPCLP_SI_003",
-    member_id: "M-0003",
-    member_name: "Pedro Reyes",
-    loan_type: "bonus",
-    is_migs_member: true,
-    loan_amount: 20000,
-    term_months: 6,
-    due_date: "2026-01-15",
-    remaining_balance: 0,
-    loan_status: "Fully Paid",
-  },
-];
-
 const formatCurrency = (value) =>
   new Intl.NumberFormat("en-PH", {
     style: "currency",
@@ -274,6 +232,7 @@ const Cashier_Payments = () => {
   const [formError, setFormError] = useState("");
   const [paymentRecords, setPaymentRecords] = useState([]);
   const [loadingLoans, setLoadingLoans] = useState(false);
+  const [loansError, setLoansError] = useState("");
   
   
   // Filtering and sorting
@@ -407,6 +366,7 @@ const Cashier_Payments = () => {
 
   async function fetchLoans() {
     setLoadingLoans(true);
+    setLoansError("");
     try {
       const response = await fetch(`${API_BASE_URL}/api/cashier/loan-payments/loans`, {
         method: "GET",
@@ -494,24 +454,11 @@ const Cashier_Payments = () => {
       setPaymentRecords(rawPaymentRecords);
     } catch (error) {
       console.error("Failed to fetch cashier loan data:", error);
-      const fallbackLoans = MOCK_LOANS.map((loan) => {
-        const amortization = calculateAmortization(loan);
-        const totalInterest = Math.max(
-          amortization * Number(loan.term_months || 0) - Number(loan.loan_amount || 0),
-          0,
-        );
-        return {
-          ...loan,
-          amortization,
-          total_interest: totalInterest,
-          interest_paid: 0,
-          outstanding_interest: totalInterest,
-          outstanding_principal: Math.max(Number(loan.remaining_balance || 0) - totalInterest, 0),
-        };
-      });
-      setLoans(fallbackLoans);
+      setLoans([]);
       setPaymentRecords([]);
-      addNotification("Backend unavailable. Showing mock loan data.", "warning");
+      const message = error?.message || "Unable to load loans. Please try again.";
+      setLoansError(message);
+      addNotification(`Failed to load loans: ${message}`, "error");
     } finally {
       setLoadingLoans(false);
     }
@@ -802,6 +749,25 @@ const Cashier_Payments = () => {
               <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700 flex items-center gap-2">
                 <Clock size={16} />
                 Loading loans and payment records...
+              </div>
+            )}
+
+            {!loadingLoans && loansError && (
+              <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 flex items-start justify-between gap-3">
+                <div className="flex items-start gap-2">
+                  <AlertCircle size={16} className="mt-0.5 flex-shrink-0" />
+                  <div>
+                    <div className="font-medium">Unable to load loans</div>
+                    <div className="text-red-600">{loansError}</div>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={fetchCashierData}
+                  className="rounded-md border border-red-300 bg-white px-3 py-1 text-xs font-medium text-red-700 hover:bg-red-100 transition"
+                >
+                  Retry
+                </button>
               </div>
             )}
 

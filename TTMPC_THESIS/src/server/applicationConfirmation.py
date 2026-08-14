@@ -12,6 +12,11 @@ from supabase import Client, create_client
 
 ROOT_ENV_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".env"))
 
+# Base URL of the public-facing React frontend, used in outbound emails.
+# Overridden per environment via .env — production sets it to the deployed
+# origin so members receive working sign-in links instead of localhost:5173.
+FRONTEND_BASE_URL = os.environ.get("FRONTEND_BASE_URL", "http://localhost:5173").rstrip("/")
+
 APPLICATION_TABLE_CANDIDATES = ["membership_application", "member_applications"]
 MEMBER_TABLE_CANDIDATES = ["member", "members"]
 
@@ -947,7 +952,7 @@ def send_confirmation_email(
 
           <tr>
             <td align="center" style="padding:20px 32px 32px 32px;">
-              <a href="http://localhost:5173/memberlogin"
+              <a href="{FRONTEND_BASE_URL}/memberlogin"
                  style="background-color:#66B538;color:#ffffff;text-decoration:none;padding:12px 28px;border-radius:6px;font-weight:700;font-size:15px;display:inline-block;font-family:Arial,Helvetica,sans-serif;">
                 Sign in to Member Portal
               </a>

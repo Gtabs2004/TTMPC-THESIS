@@ -52,24 +52,13 @@ CREATE TABLE IF NOT EXISTS public.loan_fee_policies (
 CREATE INDEX IF NOT EXISTS idx_loan_fee_policies_loan_type_code
     ON public.loan_fee_policies (loan_type_code);
 
--- Auto-bump updated_at on UPDATE.
-CREATE OR REPLACE FUNCTION public.touch_loan_fee_policy_updated_at()
-RETURNS trigger
-LANGUAGE plpgsql
-AS $$
-BEGIN
-    NEW.updated_at := now();
-    RETURN NEW;
-END;
-$$;
-
+-- Actor + timestamp stamping is now handled by
+-- public.stamp_loan_fee_policy_actor in audit_log_triggers.sql, which sets
+-- both updated_at and updated_by (from auth.uid()) in one BEFORE trigger.
+-- The old touch_loan_fee_policy_updated_at trigger is removed to avoid two
+-- BEFORE triggers competing for the same NEW row.
 DROP TRIGGER IF EXISTS trg_touch_loan_fee_policies_updated_at
     ON public.loan_fee_policies;
-
-CREATE TRIGGER trg_touch_loan_fee_policies_updated_at
-BEFORE UPDATE ON public.loan_fee_policies
-FOR EACH ROW
-EXECUTE FUNCTION public.touch_loan_fee_policy_updated_at();
 
 -- ----------------------------------------------------------------------------
 -- 2. Seed defaults that match the values currently hard-coded in the codebase
@@ -89,7 +78,9 @@ ON CONFLICT (loan_type_code) DO NOTHING;
 
 -- ----------------------------------------------------------------------------
 -- 3. RLS — read for any authenticated user (compute endpoint, member kiosk),
---    write only for BOD / Manager / Treasurer staff.
+--    write ONLY for BOD accounts. Loan-Policies.jsx is the only editor and
+--    it lives in the BOD portal; tightening this at the DB prevents a
+--    manager/treasurer/cashier from POSTing directly to Supabase.
 -- ----------------------------------------------------------------------------
 ALTER TABLE public.loan_fee_policies ENABLE ROW LEVEL SECURITY;
 
@@ -101,14 +92,32 @@ FOR SELECT
 TO authenticated
 USING (true);
 
+CREATE OR REPLACE FUNCTION public.is_bod_account()
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT EXISTS (
+    SELECT 1
+    FROM public.member_account ma
+    WHERE (ma.auth_user_id = auth.uid() OR ma.user_id = auth.uid())
+      AND lower(coalesce(ma.role, '')) = 'bod'
+  );
+$$;
+
+-- Replace the older permissive staff-wide policy if it exists.
 DROP POLICY IF EXISTS loan_fee_policies_write_staff
     ON public.loan_fee_policies;
-CREATE POLICY loan_fee_policies_write_staff
+DROP POLICY IF EXISTS loan_fee_policies_write_bod
+    ON public.loan_fee_policies;
+CREATE POLICY loan_fee_policies_write_bod
 ON public.loan_fee_policies
 FOR ALL
 TO authenticated
-USING (public.is_cbu_staff())
-WITH CHECK (public.is_cbu_staff());
+USING (public.is_bod_account())
+WITH CHECK (public.is_bod_account());
 
 GRANT SELECT ON public.loan_fee_policies TO authenticated;
 GRANT INSERT, UPDATE ON public.loan_fee_policies TO authenticated;
