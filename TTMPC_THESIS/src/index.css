@@ -3,36 +3,27 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
+@theme {
+  --color-primary: #1d6021;
+  --color-primary-deep: #154718;
+  --color-primary-dark: #1a4a2f;
+  --color-primary-mid: #2c7a3f;
+  --color-primary-medium: #389734;
+  --color-primary-accent: #66b538;
+  --color-primary-soft: #a0d284;
+  --color-primary-surface: #e9f7de;
+  --color-primary-muted: #eaf1eb;
+}
+
 html{
   scroll-behavior:smooth;
 }
 
 body {
-  background-color: #F5F5F5;
+  background-color: #F8FAFC;
   font-family: "Poppins", sans-serif;
 }
 
-.migs-status{
-  display: inline-block;
-  background-color: #16A34A;
-  color: white;
-  border-radius: 15px;
-  padding: 7px;
-  font-size: 15x;
-  vertical-align: middle;
-  margin-top: 23px;
-}
-
-.non-migs{
-  display: inline-block;
-  background-color: #A9AEB8;
-  color: white;
-  border-radius: 9999px;
-  padding: 7px;
-  font-size: 15px;
-  vertical-align: middle;
-  margin-top: 23px;
-}
 .stat{
   color:#94A3B8;
   font-size: 12px;
@@ -176,25 +167,13 @@ body {
   @apply scale-95;
 }
 
-/* Status Badge Animations */
+/* Status Badge — canonical shell. Outlined/ringed pattern is the default;
+ * callers still supply tone classes (e.g., bg-yellow-100 text-yellow-700) but
+ * even a bare `.status-badge` reads as a badge because of the inset ring.
+ * The old .status-pending/success/error/info variants were removed — no file
+ * ever used them; getStatusStyle() returns raw Tailwind pairs instead. */
 .status-badge {
-  @apply inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-bold;
-}
-
-.status-pending {
-  @apply bg-yellow-100 text-yellow-700;
-}
-
-.status-success {
-  @apply bg-green-100 text-green-700;
-}
-
-.status-error {
-  @apply bg-red-100 text-red-700;
-}
-
-.status-info {
-  @apply bg-blue-100 text-blue-700;
+  @apply inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-bold ring-1 ring-inset ring-black/5;
 }
 
 /* Loading Animation */

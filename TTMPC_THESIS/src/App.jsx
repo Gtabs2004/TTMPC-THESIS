@@ -272,7 +272,7 @@ function App() {
           <Link to="/" onClick={() => setMenuOpen(false)} className="py-2 border-b border-gray-50">Home</Link>
           <a href="#about" onClick={() => setMenuOpen(false)} className="py-2 border-b border-gray-50">About</a>
           <a href="#features" onClick={() => setMenuOpen(false)} className="py-2 border-b border-gray-50">Features</a>
-          <Link to="/" onClick={() => setMenuOpen(false)} className="py-2">Contact</Link>
+          <a href="#contact" onClick={() => setMenuOpen(false)} className="py-2">Contact</a>
           <div className="flex flex-col gap-3 mt-4 pt-4 border-t border-gray-100">
             <Button to="/membership_form" variant="secondary" onClick={() => setMenuOpen(false)}>
               Become a Member

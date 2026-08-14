@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
 import { useNotification } from "../../contex/NotificationContext";
+import { useConfirm } from "../../contex/ConfirmContext";
 import { PortalSidebarIdentity, PortalTopbarIdentity } from "../../components/PortalIdentity";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
 import ConfirmDialog from "../../components/ConfirmDialog";
@@ -54,6 +55,7 @@ const Cashier_MembershipPayments = () => {
   const { signOut } = UserAuth();
   const navigate = useNavigate();
   const { addNotification } = useNotification();
+  const confirm = useConfirm();
   const [isDepositsOpen, setIsDepositsOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("applicants"); // applicants | transactions
   const [applicants, setApplicants] = useState([]);
@@ -244,6 +246,15 @@ const Cashier_MembershipPayments = () => {
       setSubmitError(`${meta.label} must be at least ₱${meta.minAmount.toLocaleString()}.`);
       return;
     }
+
+    const ok = await confirm({
+      title: `Record ${meta.label}`,
+      message: `Record a ${meta.label} of ₱${amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} for ${selectedApplicant.full_name}? This will post to the ledger immediately and cannot be undone without a reversing entry.`,
+      confirmLabel: "Record Payment",
+      tone: "default",
+    });
+    if (!ok) return;
+
     setSubmitting(true);
     setSubmitError("");
     try {

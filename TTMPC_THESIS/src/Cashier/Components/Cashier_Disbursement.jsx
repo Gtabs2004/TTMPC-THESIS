@@ -830,7 +830,7 @@ const Cashier_Disbursement = () => {
               <button
                 type="button"
                 onClick={() => setConfirmation(null)}
-                className="rounded-lg bg-[#389734] hover:bg-[#2d7c29] text-white text-sm font-semibold px-5 py-2 transition"
+                className="rounded-lg bg-[#2E7A2A] hover:bg-[#1D6021] text-white text-sm font-semibold px-5 py-2 transition"
               >
                 Done
               </button>
@@ -971,7 +971,7 @@ const Cashier_Disbursement = () => {
                   !!previewError ||
                   !previewDeductions
                 }
-                className="rounded-lg bg-[#389734] hover:bg-[#2d7c29] text-white text-sm font-semibold px-5 py-2 transition disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500"
+                className="rounded-lg bg-[#2E7A2A] hover:bg-[#1D6021] text-white text-sm font-semibold px-5 py-2 transition disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500"
               >
                 {disbursingLoanId === previewLoan.loan_id ? "Releasing..." : "Confirm & Release"}
               </button>

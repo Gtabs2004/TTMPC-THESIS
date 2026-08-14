@@ -266,3 +266,138 @@ BEGIN
              FOR EACH ROW EXECUTE FUNCTION public.audit_trg_member_applications()';
   END IF;
 END $$;
+
+-- ---------------------------------------------------------------------------
+-- 5. loan_fee_policies
+-- Meaningful: any fee/rate change or a new loan-type row inserted. Also
+-- stamps updated_by/updated_at from the JWT so the actor is captured even
+-- when the client forgets to pass it.
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.stamp_loan_fee_policy_actor()
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = public
+AS $$
+BEGIN
+  -- auth.uid() is NULL for service-role / SQL-editor writes; only overwrite
+  -- when we actually have a caller identity, so seed scripts don't get
+  -- rejected.
+  IF auth.uid() IS NOT NULL THEN
+    NEW.updated_by := auth.uid();
+  END IF;
+  NEW.updated_at := now();
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_stamp_loan_fee_policies_actor
+    ON public.loan_fee_policies;
+
+CREATE TRIGGER trg_stamp_loan_fee_policies_actor
+BEFORE INSERT OR UPDATE ON public.loan_fee_policies
+FOR EACH ROW EXECUTE FUNCTION public.stamp_loan_fee_policy_actor();
+
+CREATE OR REPLACE FUNCTION public.audit_trg_loan_fee_policies()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_before jsonb := '{}'::jsonb;
+  v_after  jsonb := '{}'::jsonb;
+  v_changed boolean := false;
+  v_action text := 'update';
+BEGIN
+  IF TG_OP = 'INSERT' THEN
+    PERFORM public.audit_write(
+      'policy',
+      NEW.loan_type_code,
+      'create',
+      NULL,
+      jsonb_build_object(
+        'service_fee_mode',         NEW.service_fee_mode,
+        'service_fee_per_bracket',  NEW.service_fee_per_bracket,
+        'service_fee_bracket_size', NEW.service_fee_bracket_size,
+        'cbu_rate',                 NEW.cbu_rate,
+        'insurance_per_thousand',   NEW.insurance_per_thousand,
+        'notarial_fee',             NEW.notarial_fee
+      ),
+      jsonb_build_object(
+        'loan_type_code', NEW.loan_type_code,
+        'updated_by',     NEW.updated_by
+      )
+    );
+    RETURN NEW;
+  END IF;
+
+  IF TG_OP = 'UPDATE' THEN
+    IF NEW.service_fee_mode IS DISTINCT FROM OLD.service_fee_mode THEN
+      v_before := v_before || jsonb_build_object('service_fee_mode', OLD.service_fee_mode);
+      v_after  := v_after  || jsonb_build_object('service_fee_mode', NEW.service_fee_mode);
+      v_changed := true;
+    END IF;
+    IF NEW.service_fee_per_bracket IS DISTINCT FROM OLD.service_fee_per_bracket THEN
+      v_before := v_before || jsonb_build_object('service_fee_per_bracket', OLD.service_fee_per_bracket);
+      v_after  := v_after  || jsonb_build_object('service_fee_per_bracket', NEW.service_fee_per_bracket);
+      v_changed := true;
+    END IF;
+    IF NEW.service_fee_bracket_size IS DISTINCT FROM OLD.service_fee_bracket_size THEN
+      v_before := v_before || jsonb_build_object('service_fee_bracket_size', OLD.service_fee_bracket_size);
+      v_after  := v_after  || jsonb_build_object('service_fee_bracket_size', NEW.service_fee_bracket_size);
+      v_changed := true;
+    END IF;
+    IF NEW.cbu_rate IS DISTINCT FROM OLD.cbu_rate THEN
+      v_before := v_before || jsonb_build_object('cbu_rate', OLD.cbu_rate);
+      v_after  := v_after  || jsonb_build_object('cbu_rate', NEW.cbu_rate);
+      v_changed := true;
+    END IF;
+    IF NEW.insurance_per_thousand IS DISTINCT FROM OLD.insurance_per_thousand THEN
+      v_before := v_before || jsonb_build_object('insurance_per_thousand', OLD.insurance_per_thousand);
+      v_after  := v_after  || jsonb_build_object('insurance_per_thousand', NEW.insurance_per_thousand);
+      v_changed := true;
+    END IF;
+    IF NEW.notarial_fee IS DISTINCT FROM OLD.notarial_fee THEN
+      v_before := v_before || jsonb_build_object('notarial_fee', OLD.notarial_fee);
+      v_after  := v_after  || jsonb_build_object('notarial_fee', NEW.notarial_fee);
+      v_changed := true;
+    END IF;
+
+    IF v_changed THEN
+      PERFORM public.audit_write(
+        'policy',
+        NEW.loan_type_code,
+        v_action,
+        v_before,
+        v_after,
+        jsonb_build_object(
+          'loan_type_code', NEW.loan_type_code,
+          'updated_by',     NEW.updated_by
+        )
+      );
+    END IF;
+    RETURN NEW;
+  END IF;
+
+  RETURN NULL;
+END;
+$$;
+
+DO $$
+BEGIN
+  IF to_regclass('public.loan_fee_policies') IS NOT NULL THEN
+    EXECUTE 'DROP TRIGGER IF EXISTS trg_audit_loan_fee_policies ON public.loan_fee_policies';
+    EXECUTE 'CREATE TRIGGER trg_audit_loan_fee_policies
+             AFTER INSERT OR UPDATE ON public.loan_fee_policies
+             FOR EACH ROW EXECUTE FUNCTION public.audit_trg_loan_fee_policies()';
+  END IF;
+END $$;
+
+-- Trigger functions are invoked by the trigger itself, never via REST. Revoke
+-- the default PUBLIC EXECUTE grant so Supabase's linter stops flagging them as
+-- anon-callable /rest/v1/rpc endpoints, and so a rogue client can't call them
+-- directly to forge audit_log rows.
+REVOKE EXECUTE ON FUNCTION public.audit_trg_loan_fee_policies()
+    FROM PUBLIC, anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.stamp_loan_fee_policy_actor()
+    FROM PUBLIC, anon, authenticated;

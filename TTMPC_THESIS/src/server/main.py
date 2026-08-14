@@ -53,6 +53,11 @@ key: str = (
 resend_api_key: str = os.environ.get("RESEND_API_KEY") or os.environ.get("VITE_RESEND_API_KEY")
 resend_from_email: str = os.environ.get("RESEND_FROM_EMAIL", "onboarding@resend.dev")
 
+# Base URL of the public-facing React frontend. Emails and CORS both derive
+# from this. Overridden per environment via .env; defaults to the local dev
+# server so the current local workflow still works with no config.
+FRONTEND_BASE_URL = os.environ.get("FRONTEND_BASE_URL", "http://localhost:5173").rstrip("/")
+
 if not url:
     print("Error: VITE_SUPABASE_URL is missing.")
 if not key:
@@ -78,13 +83,16 @@ async def _favicon_noop():
 # violation — Starlette silently drops the Access-Control-Allow-Origin
 # header on preflight, browser rejects, request hangs until Railway 502s.
 # List real origins explicitly and cover Vercel preview URLs with a regex.
+_cors_origins = list({
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "https://ttmpc-thesis.vercel.app",
+    FRONTEND_BASE_URL,
+})
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-        "https://ttmpc-thesis.vercel.app",
-    ],
+    allow_origins=_cors_origins,
     allow_origin_regex=r"https://ttmpc-thesis-[a-z0-9]+-gtabs2004s-projects\.vercel\.app",
     allow_credentials=True,
     allow_methods=["*"],
@@ -7463,7 +7471,7 @@ async def send_status_email(payload: StatusEmailRequest):
 
           <tr>
             <td align="center" style="padding:20px 32px 32px 32px;">
-              <a href="http://localhost:5173/memberlogin"
+              <a href="{FRONTEND_BASE_URL}/memberlogin"
                  style="background-color:#66B538;color:#ffffff;text-decoration:none;padding:12px 28px;border-radius:6px;font-weight:700;font-size:15px;display:inline-block;font-family:Arial,Helvetica,sans-serif;">
                 {cta_label}
               </a>

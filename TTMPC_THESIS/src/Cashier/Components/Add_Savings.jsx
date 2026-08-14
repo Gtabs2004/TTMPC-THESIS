@@ -1,8 +1,13 @@
 ﻿import React, { useEffect, useState } from 'react';
+import { useConfirm } from '../../contex/ConfirmContext';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000';
 
+const formatCurrency = (value) =>
+  `₱${Number(value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
 function Add_Savings() {
+  const confirm = useConfirm();
   const inputStyles = "border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-green-600 outline-none w-full bg-white text-sm transition-all";
   const labelStyles = "block text-xs font-bold text-gray-700 mb-1";
   const sectionHeader = "bg-green-600 text-white px-4 py-2 flex items-center gap-2 font-bold uppercase tracking-wide";
@@ -180,6 +185,18 @@ function Add_Savings() {
       setSubmitError('Please search and select a member first.');
       return;
     }
+
+    const openingBalance = Number(formData.annual_income || 0) || 0;
+    const memberLabel = [formData.first_name, formData.surname].filter(Boolean).join(' ').trim()
+      || formData.account_name
+      || formData.membership_number_id;
+    const ok = await confirm({
+      title: 'Create Savings Account',
+      message: `Create a new savings account for ${memberLabel} with an opening balance of ${formatCurrency(openingBalance)}? This will register the member's account on the ledger and cannot be undone without a reversing entry.`,
+      confirmLabel: 'Create Account',
+      tone: 'default',
+    });
+    if (!ok) return;
 
     try {
       setSubmitting(true);

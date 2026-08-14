@@ -1,6 +1,7 @@
 ﻿import React, { useEffect, useState } from "react";
 import { useNavigate, NavLink, useParams } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
+import { useConfirm } from "../../contex/ConfirmContext";
 import { PortalSidebarIdentity, PortalTopbarIdentity } from "../../components/PortalIdentity";
 import {
   LayoutDashboard,
@@ -37,6 +38,7 @@ const formatCurrency = (value) =>
 
 const Cashier_CBU_Deposit = () => {
   const { signOut } = UserAuth();
+  const confirm = useConfirm();
   const navigate = useNavigate();
   const { memberId } = useParams();
   const [isDepositsOpen, setIsDepositsOpen] = useState(true);
@@ -125,6 +127,15 @@ const Cashier_CBU_Deposit = () => {
       setStatusMessage("Please complete required fields: Deposit Amount, Payment Mode, and Transaction Date.");
       return;
     }
+
+    const memberLabel = selectedMember.full_name || selectedMember.member_name || selectedMember.membership_id || "this member";
+    const ok = await confirm({
+      title: "Record CBU Deposit",
+      message: `Record a CBU deposit of ${formatCurrency(amount)} to ${memberLabel}? This will credit the member's Capital Build-Up ledger immediately and cannot be undone without a reversing entry.`,
+      confirmLabel: "Record Deposit",
+      tone: "default",
+    });
+    if (!ok) return;
 
     try {
       const response = await fetch(`${API_BASE_URL}/api/cashier/cbu/deposits`, {
@@ -389,7 +400,7 @@ const Cashier_CBU_Deposit = () => {
               <button
                 type="button"
                 onClick={handleSubmit}
-                className="bg-[#389734] hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-colors"
+                className="bg-[#2E7A2A] hover:bg-[#1D6021] text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-colors"
               >
                 <ReceiptText className="w-4 h-4" /> Submit CBU Deposit
               </button>
