@@ -52,6 +52,13 @@ const selectorOptions = [
   },
 ];
 
+// Bonus loans may only be availed during Mid-year (May) and Year-end
+// (November) bonus release windows. The FastAPI backend enforces the same
+// rule as the source of truth.
+const BONUS_APPLICATION_MONTHS = [5, 11];
+const BONUS_WINDOW_MESSAGE =
+  'Bonus loan applications are accepted only during Mid-year (May) and Year-end (November).';
+
 const styles = `
   @keyframes fadeInUp {
     from {
@@ -122,7 +129,11 @@ const Member_ApplyLoans = () => {
 
   // Per-type helpers. An active loan of one type does not block other types.
   const bucketFor = (key) => perType[key] || null;
+  const currentMonth = new Date().getMonth() + 1;
+  const bonusWindowOpen = BONUS_APPLICATION_MONTHS.includes(currentMonth);
+
   const isLocked = (key) => {
+    if (key === 'bonus' && !bonusWindowOpen) return true;
     const b = bucketFor(key);
     if (!b || !eligibilityReady) return false;
     return !b.can_apply_new && !b.can_renew;
@@ -360,6 +371,10 @@ const Member_ApplyLoans = () => {
                 const Icon = item.icon;
                 const disabled = isLocked(item.key);
                 const bucket = bucketFor(item.key);
+                const bonusClosed = item.key === 'bonus' && !bonusWindowOpen;
+                const disabledReason = bonusClosed
+                  ? BONUS_WINDOW_MESSAGE
+                  : (bucket?.reason || "This loan type is locked while you have an active one.");
                 return (
                   <button
                     key={item.key}
@@ -370,7 +385,7 @@ const Member_ApplyLoans = () => {
                     }}
                     disabled={disabled}
                     aria-disabled={disabled}
-                    title={disabled ? (bucket?.reason || "This loan type is locked while you have an active one.") : ""}
+                    title={disabled ? disabledReason : ""}
                     className={`bg-white rounded-2xl flex flex-col items-center justify-center shadow-sm border border-slate-100 transition-all group p-6 dark:bg-gray-800 dark:border-gray-700 ${
                       disabled
                         ? "opacity-50 grayscale cursor-not-allowed"
@@ -382,7 +397,9 @@ const Member_ApplyLoans = () => {
                     </div>
                     <h1 className="font-bold text-slate-800 text-sm text-center dark:text-gray-200">{item.label}</h1>
                     {disabled && (
-                      <span className="mt-2 text-[10px] font-bold uppercase tracking-wider text-red-600">Locked</span>
+                      <span className="mt-2 text-[10px] font-bold uppercase tracking-wider text-red-600">
+                        {bonusClosed ? 'Window closed' : 'Locked'}
+                      </span>
                     )}
                   </button>
                 );

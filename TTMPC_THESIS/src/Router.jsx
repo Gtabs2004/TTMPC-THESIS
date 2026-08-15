@@ -118,9 +118,9 @@ import Consolidated_Up from"./LOANFORMS/Consolidated_Up";
 
 export const router = createBrowserRouter([
     {path: "/", element: <App/>},
-    {path: "/Bonus_Loan", element: <Bonus_Loan/>},
-    {path: "/Consolidated_Loan", element: <Consolidated_Loan/>},
-    {path: "/Emergency_Loan", element: <Emergency_Loan/>},
+    {path: "/Bonus_Loan", element: memberGuarded(<Bonus_Loan/>)},
+    {path: "/Consolidated_Loan", element: memberGuarded(<Consolidated_Loan/>)},
+    {path: "/Emergency_Loan", element: memberGuarded(<Emergency_Loan/>)},
     {path: "/Sign_Up", element: <Sign_Up/>},
     {path: "/Login", element: <Login/>},
     {path: "/dashboard", element: bookkeeperGuarded(<Dashboard/>)},
