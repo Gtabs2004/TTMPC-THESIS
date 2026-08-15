@@ -23,10 +23,13 @@ import {
   Wallet,
   Coins,
   Briefcase,
+  ChevronRight,
+  ChevronLeft,
 } from "lucide-react";
 import logo from "../../assets/img/ttmpc logo.png";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
+const ITEMS_PER_PAGE = 5;
 
 const formatCurrency = (value) =>
   new Intl.NumberFormat("en-PH", {
@@ -209,6 +212,24 @@ const BookkeeperPayments = () => {
   const activeRecordCount = activeTab === "active" || activeTab === "fully_paid"
     ? filteredLoanRows.length
     : filteredPaymentRows.length;
+
+  const [currentPage, setCurrentPage] = useState(1);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeTab, searchTerm, loanTypeFilter, memberTypeFilter]);
+
+  const totalPages = Math.max(1, Math.ceil(activeRecordCount / ITEMS_PER_PAGE));
+
+  const paginatedLoanRows = useMemo(() => {
+    const start = (currentPage - 1) * ITEMS_PER_PAGE;
+    return filteredLoanRows.slice(start, start + ITEMS_PER_PAGE);
+  }, [filteredLoanRows, currentPage]);
+
+  const paginatedPaymentRows = useMemo(() => {
+    const start = (currentPage - 1) * ITEMS_PER_PAGE;
+    return filteredPaymentRows.slice(start, start + ITEMS_PER_PAGE);
+  }, [filteredPaymentRows, currentPage]);
 
   useEffect(() => {
     fetchPendingPayments();
@@ -458,9 +479,10 @@ const BookkeeperPayments = () => {
 
         <main className="p-8">
           <div className="flex items-center justify-between mb-6">
-            <div>
-              <h1 className="font-bold text-2xl text-gray-800">Bookkeeper Loan Monitoring</h1>
-              <p className="text-sm text-gray-500 mt-1">Validate cashier payments and monitor loan repayment ledgers.</p>
+                      <div className="flex items-center gap-2 text-sm text-gray-500 font-medium mb-1">
+                          <span>Bookkeeper</span>
+                           <ChevronRight className="w-4 h-4 text-gray-300" />
+                            <span className="text-[#389734]">Payments Confirmation</span>
             </div>
             <button
               type="button"
@@ -581,24 +603,24 @@ const BookkeeperPayments = () => {
               <thead>
                 {activeTab === "active" || activeTab === "fully_paid" ? (
                   <tr className="bg-green-700 text-[10px] uppercase tracking-wider text-white font-extrabold">
-                    <th className="p-5 font-bold">Loan ID</th>
-                    <th className="p-5 font-bold">Member Name</th>
-                    <th className="p-5 font-bold">Loan Type</th>
-                    <th className="p-5 font-bold">Loan Amount</th>
+                    <th className="p-3 font-bold">Loan ID</th>
+                    <th className="p-3 font-bold">Member Name</th>
+                    <th className="p-3 font-bold">Loan Type</th>
+                    <th className="p-3 font-bold">Loan Amount</th>
                     <th className="p-5 font-bold text-right">Remaining Balance</th>
-                    <th className="p-5 font-bold">Due Date</th>
-                    <th className="p-5 font-bold">Status</th>
+                    <th className="p-3 font-bold">Due Date</th>
+                    <th className="p-3 font-bold">Status</th>
                     <th className="p-5 font-bold text-center">Action</th>
                   </tr>
                 ) : (
                   <tr className="bg-green-700 text-[10px] uppercase tracking-wider text-white font-extrabold">
-                    <th className="p-5 font-bold">Payment ID</th>
-                    <th className="p-5 font-bold">Member Name</th>
-                    <th className="p-5 font-bold">Loan Details</th>
-                    <th className="p-5 font-bold">Payment Amount</th>
-                    <th className="p-5 font-bold">Date Paid</th>
-                    <th className="p-5 font-bold">Entered By</th>
-                    <th className="p-5 font-bold">Status</th>
+                    <th className="p-3 font-bold">Payment ID</th>
+                    <th className="p-3 font-bold">Member Name</th>
+                    <th className="p-3 font-bold">Loan Details</th>
+                    <th className="p-3 font-bold">Payment Amount</th>
+                    <th className="p-3 font-bold">Date Paid</th>
+                    <th className="p-3 font-bold">Entered By</th>
+                    <th className="p-3 font-bold">Status</th>
                     <th className="p-5 font-bold text-center">Action</th>
                   </tr>
                 )}
@@ -606,7 +628,7 @@ const BookkeeperPayments = () => {
               <tbody>
                 {activeRecordCount === 0 && (
                   <tr>
-                    <td colSpan={8} className="p-5 text-center">
+                    <td colSpan={8} className="p-4 text-center">
                       <div className="flex flex-col items-center gap-2">
                         <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center">
                           <Eye size={24} className="text-gray-300" />
@@ -619,22 +641,22 @@ const BookkeeperPayments = () => {
                 )}
 
                 {(activeTab === "active" || activeTab === "fully_paid") &&
-                  filteredLoanRows.map((loan, index) => (
+                  paginatedLoanRows.map((loan, index) => (
                     <tr key={loan.loan_id} className="border-b border-gray-100">
-                      <td className="p-5 text-sm font-mono font-bold text-green-700">{loan.loan_id}</td>
-                      <td className="p-5 text-sm text-gray-800 font-semibold">{loan.member_name}</td>
-                      <td className="p-5">
+                      <td className="p-3 text-xs font-mono font-bold text-green-700">{loan.loan_id}</td>
+                      <td className="p-3 text-xs text-gray-800 font-semibold">{loan.member_name}</td>
+                      <td className="p-3">
                         <span className={`badge-animated ${getLoanTypeStyle(loan.loan_type_code)}`}>
                           {loan.loan_type}
                         </span>
                       </td>
-                      <td className="p-5 text-sm text-gray-800 font-semibold">{formatCurrency(loan.loan_amount)}</td>
-                      <td className="p-5 text-sm text-right font-bold">
+                      <td className="p-3 text-xs text-gray-800 font-semibold">{formatCurrency(loan.loan_amount)}</td>
+                      <td className="p-3 text-xs text-right font-bold">
                         <span className={loan.remaining_balance > 0 ? 'text-amber-600' : 'text-green-600'}>
                           {formatCurrency(loan.remaining_balance)}
                         </span>
                       </td>
-                      <td className="p-5 text-sm text-gray-700 font-medium">
+                      <td className="p-3 text-xs text-gray-700 font-medium">
                         <div className="flex flex-col gap-1">
                           <span>{loan.due_date}</span>
                           {(() => {
@@ -653,58 +675,58 @@ const BookkeeperPayments = () => {
                           })()}
                         </div>
                       </td>
-                      <td className="p-5">
+                      <td className="p-3">
                         <span className={`status-badge ${getStatusStyle(loan.status)}`}>
                           {loan.status}
                         </span>
                       </td>
-                      <td className="p-5 text-center">
+                      <td className="p-3 text-center">
                         <button
                           type="button"
                           onClick={() => openLoanDetailsFromLoan(loan)}
-                          className="btn-enhanced inline-flex items-center gap-1.5 rounded-lg bg-green-600 px-3 py-2 text-xs font-semibold text-white hover:bg-green-700"
+                          className="btn-enhanced inline-flex items-center gap-1.5 rounded-lg bg-green-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-green-700"
                         >
-                          <Eye size={14} /> View Ledger
+                          <Eye size={12} /> View Ledger
                         </button>
                       </td>
                     </tr>
                   ))}
 
                 {!(activeTab === "active" || activeTab === "fully_paid") &&
-                  filteredPaymentRows.map((item, index) => {
+                  paginatedPaymentRows.map((item, index) => {
                     const loan = loanById.get(item.loan_id);
 
                     return (
                       <tr key={item.payment_id} className="border-b border-gray-100">
-                        <td className="p-5 text-sm font-mono font-bold text-green-700">{item.payment_id}</td>
-                        <td className="p-5 text-sm text-gray-800 font-semibold">{loan?.member_name || "Unknown Member"}</td>
-                        <td className="p-5">
-                          <div className="text-xs text-gray-500 mb-1">Loan ID: {item.loan_id}</div>
+                        <td className="p-3 text-xs font-mono font-bold text-green-700 whitespace-nowrap">{item.payment_id}</td>
+                        <td className="p-3 text-xs text-gray-800 font-semibold">{loan?.member_name || "Unknown Member"}</td>
+                        <td className="p-3">
+                          <div className="text-[10px] text-gray-500 mb-1 whitespace-nowrap">Loan ID: {item.loan_id}</div>
                           <div>
                             <span className={`badge-animated ${getLoanTypeStyle(loan?.loan_type_code)}`}>
                               {loan?.loan_type || "N/A"}
                             </span>
                           </div>
                         </td>
-                        <td className="p-5 text-sm text-gray-800 font-semibold">
+                        <td className="p-3 text-xs text-gray-800 font-semibold">
                           <div>{formatCurrency(item.payment_amount)}</div>
-                          <div className="text-xs text-gray-500 mt-1">Penalty: {formatCurrency(item.penalties)}</div>
+                          <div className="text-[10px] text-gray-500 mt-1">Penalty: {formatCurrency(item.penalties)}</div>
                         </td>
-                        <td className="p-5 text-sm text-gray-700 font-medium">{new Date(item.date_paid).toLocaleDateString()}</td>
-                        <td className="p-5 text-sm text-gray-700 font-medium">{item.entered_by}</td>
-                        <td className="p-5">
+                        <td className="p-3 text-xs text-gray-700 font-medium">{new Date(item.date_paid).toLocaleDateString()}</td>
+                        <td className="p-3 text-xs text-gray-700 font-medium">{item.entered_by}</td>
+                        <td className="p-3">
                           <span className={`status-badge ${getStatusStyle(item.confirmation_status)}`}>
                             {item.confirmation_status}
                           </span>
                         </td>
-                        <td className="p-5 text-center">
-                          <div className="flex flex-nowrap items-center gap-2 justify-center whitespace-nowrap">
+                        <td className="p-3 text-center">
+                          <div className="flex flex-nowrap items-center gap-1.5 justify-center whitespace-nowrap">
                             <button
                               type="button"
                               onClick={() => openLoanDetailsFromPayment(item)}
-                              className="btn-enhanced inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-green-600 px-3 py-2 text-xs font-semibold text-white hover:bg-green-700"
+                              className="btn-enhanced inline-flex shrink-0 items-center gap-1 rounded-lg bg-green-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-green-700"
                             >
-                              <Eye size={14} /> View
+                              <Eye size={12} /> View
                             </button>
                             {activeTab === "pending" && (
                               <>
@@ -712,17 +734,17 @@ const BookkeeperPayments = () => {
                                   type="button"
                                   onClick={() => handleApproveClick(item)}
                                   disabled={workingPaymentId === item.payment_id}
-                                  className="btn-enhanced inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-green-600 px-3 py-2 text-xs font-semibold text-white hover:bg-green-700 disabled:opacity-50"
+                                  className="btn-enhanced inline-flex shrink-0 items-center gap-1 rounded-lg bg-green-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-green-700 disabled:opacity-50"
                                 >
-                                  <CheckCircle size={14} /> {workingPaymentId === item.payment_id ? "Processing..." : "Approve"}
+                                  <CheckCircle size={12} /> {workingPaymentId === item.payment_id ? "Processing..." : "Approve"}
                                 </button>
                                 <button
                                   type="button"
                                   onClick={() => openRejectFlow(item)}
                                   disabled={workingPaymentId === item.payment_id}
-                                  className="btn-enhanced inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-red-600 px-3 py-2 text-xs font-semibold text-white hover:bg-red-700 disabled:opacity-50"
+                                  className="btn-enhanced inline-flex shrink-0 items-center gap-1 rounded-lg bg-red-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-red-700 disabled:opacity-50"
                                 >
-                                  <XCircle size={14} /> Reject
+                                  <XCircle size={12} /> Reject
                                 </button>
                               </>
                             )}
@@ -734,6 +756,44 @@ const BookkeeperPayments = () => {
               </tbody>
             </table>
           </div>
+
+          {activeRecordCount > ITEMS_PER_PAGE && (
+            <div className="flex items-center justify-center p-6 gap-2 border-t border-gray-100">
+              <button
+                className="w-8 h-8 flex items-center justify-center rounded-full border border-gray-300 bg-white text-gray-500 transition-colors hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={currentPage <= 1}
+                onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+
+              {(() => {
+                const groupStart = Math.floor((currentPage - 1) / 5) * 5 + 1;
+                const groupEnd = Math.min(groupStart + 4, totalPages);
+                return Array.from({ length: groupEnd - groupStart + 1 }, (_, i) => groupStart + i).map((page) => (
+                  <button
+                    key={page}
+                    onClick={() => setCurrentPage(page)}
+                    className={`w-8 h-8 flex items-center justify-center rounded-full border text-sm font-semibold transition-colors ${
+                      page === currentPage
+                        ? "bg-[#16A34A] text-white border-[#16A34A]"
+                        : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"
+                    }`}
+                  >
+                    {page}
+                  </button>
+                ));
+              })()}
+
+              <button
+                className="w-8 h-8 flex items-center justify-center rounded-full border border-gray-300 bg-white text-gray-500 transition-colors hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={currentPage >= totalPages}
+                onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+          )}
         </main>
       </div>
 

@@ -345,6 +345,12 @@ const BookkeeperLoanApproval = () => {
                 </header>
 
         <main className="p-8 flex-1">
+            <div className="flex items-center gap-2 text-sm text-gray-500 font-medium mb-1">
+                          <span>Bookkeeper</span>
+                           <ChevronRight className="w-4 h-4 text-gray-300" />
+                            <span className="text-[#389734]">Loan Approvals</span>
+            </div>
+
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
             <div className="bg-white border border-gray-100 rounded-xl p-5 flex items-center gap-4 shadow-sm">
               <div className="w-12 h-12 rounded-lg bg-[#EAF5EC] flex items-center justify-center flex-shrink-0">

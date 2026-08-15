@@ -308,7 +308,13 @@ const ManageLoans = () => {
         <main className="p-8">
           <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-8 gap-4">
             <div>
-              <h1 className="font-bold text-4xl text-gray-900">Manage Loans</h1>
+              
+            <div className="flex items-center gap-2 text-sm text-gray-500 font-medium mb-1">
+                              <span>Bookkeeper</span>
+                              <ChevronRight className="w-4 h-4 text-gray-300" />
+                              <span className="text-[#389734]">Manage loans</span>
+                            </div>
+
               <p className="text-base text-gray-600 mt-2">Track loan status, monitor balances, and manage member ledger records in real-time.</p>
             </div>
             <button
@@ -360,72 +366,69 @@ const ManageLoans = () => {
           </div>
 
           <div className="rounded-xl bg-white border border-gray-200 shadow-sm mb-6 p-5">
-            <div className="flex flex-wrap gap-2 pb-5 mb-5 border-b border-gray-100">
-              {tabs.map((tab) => (
-                <button
-                  key={tab.key}
-                  type="button"
-                  onClick={() => setActiveTab(tab.key)}
-                  className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
-                    activeTab === tab.key
-                      ? "bg-green-600 text-white"
-                      : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                  }`}
-                >
-                  <span>{tab.label}</span>
-                  <span className={`inline-flex items-center justify-center min-w-6 h-6 rounded-full text-xs font-semibold ${
-                    activeTab === tab.key
-                      ? "bg-white/30"
-                      : "bg-gray-300 text-gray-700"
-                  }`}>
-                    {tab.count}
-                  </span>
-                </button>
-              ))}
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
-              <div className="flex flex-wrap items-center gap-3">
-                <select
-                  value={loanTypeFilter}
-                  onChange={(event) => setLoanTypeFilter(event.target.value)}
-                  className="h-10 rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                >
-                  <option value="all">All Loan Types</option>
-                  <option value="CONSOLIDATED">Consolidated</option>
-                  <option value="EMERGENCY">Emergency</option>
-                  <option value="BONUS">Bonus</option>
-                  <option value="KOICA">KOICA</option>
-                  <option value="ABF">ABF</option>
-                </select>
-
-                <select
-                  value={memberTypeFilter}
-                  onChange={(event) => setMemberTypeFilter(event.target.value)}
-                  className="h-10 rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                >
-                  <option value="all">All Member Types</option>
-                  <option value="Member">Member</option>
-                  <option value="Non-Member">Non-Member</option>
-                  <option value="KOICA">KOICA</option>
-                </select>
+            <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+              <div className="flex flex-wrap items-center gap-2">
+                {tabs.map((tab) => (
+                  <button
+                    key={tab.key}
+                    type="button"
+                    onClick={() => setActiveTab(tab.key)}
+                    className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+                      activeTab === tab.key
+                        ? "bg-green-600 text-white"
+                        : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                    }`}
+                  >
+                    <span>{tab.label}</span>
+                    <span className={`inline-flex items-center justify-center min-w-6 h-6 rounded-full text-xs font-semibold ${
+                      activeTab === tab.key
+                        ? "bg-white/30"
+                        : "bg-gray-300 text-gray-700"
+                    }`}>
+                      {tab.count}
+                    </span>
+                  </button>
+                ))}
               </div>
 
-              <div className="relative lg:justify-self-end">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                <input
-                  type="text"
-                  value={searchTerm}
-                  onChange={(event) => setSearchTerm(event.target.value)}
-                  className="bg-white w-full lg:w-80 h-10 rounded-lg border border-gray-300 pl-9 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                  placeholder="Search by loan ID, member name..."
-                />
-              </div>
-            </div>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end xl:ml-auto">
+                <div className="flex flex-wrap items-center gap-3">
+                  <select
+                    value={loanTypeFilter}
+                    onChange={(event) => setLoanTypeFilter(event.target.value)}
+                    className="h-10 rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                  >
+                    <option value="all">All Loan Types</option>
+                    <option value="CONSOLIDATED">Consolidated</option>
+                    <option value="EMERGENCY">Emergency</option>
+                    <option value="BONUS">Bonus</option>
+                    <option value="KOICA">KOICA</option>
+                    <option value="ABF">ABF</option>
+                  </select>
 
-            <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 flex items-start gap-2">
-              <span className="mt-0.5 font-semibold">Note:</span>
-              <span>Non-Members are limited to Bonus loans. KOICA users are limited to KOICA or ABF loans.</span>
+                  <select
+                    value={memberTypeFilter}
+                    onChange={(event) => setMemberTypeFilter(event.target.value)}
+                    className="h-10 rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                  >
+                    <option value="all">All Member Types</option>
+                    <option value="Member">Member</option>
+                    <option value="Non-Member">Non-Member</option>
+                    <option value="KOICA">KOICA</option>
+                  </select>
+                </div>
+
+                <div className="relative w-full sm:w-80">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <input
+                    type="text"
+                    value={searchTerm}
+                    onChange={(event) => setSearchTerm(event.target.value)}
+                    className="bg-white w-full h-10 rounded-lg border border-gray-300 pl-9 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                    placeholder="Search by loan ID, member name..."
+                  />
+                </div>
+              </div>
             </div>
 
             {loading && (

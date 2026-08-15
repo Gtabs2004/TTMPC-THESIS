@@ -188,12 +188,13 @@ const Manage_Member = () => {
         </header>
               
         <main className="p-8">
+        <div className="flex items-center gap-2 text-sm text-gray-500 font-medium mb-1">
+              <span>Bookkeeper</span>
+              <ChevronRight className="w-4 h-4 text-gray-300" />
+              <span className="text-[#389734]">Members Profile</span>
+          </div>
           <div className="flex items-end justify-between mb-6">
             <div>
-              <h1 className="font-bold text-3xl text-gray-900 tracking-tight">Manage Members</h1>
-              <p className="text-sm text-gray-500 mt-1">
-                {loading ? "Loading records..." : `${filtered.length} member${filtered.length === 1 ? "" : "s"} found`}
-              </p>
             </div>
           </div>
 
