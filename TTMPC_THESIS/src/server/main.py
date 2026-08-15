@@ -3362,6 +3362,18 @@ ACTIVE_LOAN_STATUSES = {"released", "paid", "partially paid"}
 RENEWAL_MIN_PAYMENTS = 6
 ELIGIBILITY_LOAN_TYPES = ("consolidated", "bonus", "emergency")
 
+# Bonus loans may only be availed during Mid-year (May) and Year-end
+# (November) release windows. Server time is the source of truth so a
+# client-side clock cannot bypass the rule.
+BONUS_APPLICATION_MONTHS = {5, 11}
+BONUS_WINDOW_REASON = (
+    "Bonus loan applications are accepted only during Mid-year (May) "
+    "and Year-end (November)."
+)
+
+def _bonus_window_open(now: datetime | None = None) -> bool:
+    return (now or datetime.now()).month in BONUS_APPLICATION_MONTHS
+
 def _clean_bucket(loan_type: str, simulated: bool = False) -> dict:
     return {
         "loan_type": loan_type,
@@ -3446,6 +3458,16 @@ def _bucket_from_loans(loan_rows: list[dict], loan_type: str, payments_by_loan: 
 
     If payments_by_loan is provided, skips the per-loan payment count query.
     """
+    if loan_type == "bonus" and not _bonus_window_open():
+        return {
+            "loan_type": "bonus",
+            "can_apply_new": False,
+            "can_renew": False,
+            "reason": BONUS_WINDOW_REASON,
+            "active_loan_id": None,
+            "payments_made": 0,
+            "simulation_active": False,
+        }
     active_loan = None
     for row in loan_rows:
         if _resolve_loan_type_code(row) != loan_type:

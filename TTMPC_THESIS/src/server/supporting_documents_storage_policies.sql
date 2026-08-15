@@ -63,6 +63,40 @@ WITH CHECK (
   )
 );
 
+-- Members must be able to read their just-uploaded collateral so the loan
+-- form can render a thumbnail preview. Signed URLs also go through this policy.
+DROP POLICY IF EXISTS supporting_documents_member_collateral_select ON storage.objects;
+CREATE POLICY supporting_documents_member_collateral_select
+ON storage.objects
+FOR SELECT
+TO authenticated
+USING (
+  bucket_id = 'Supporting_Documents'
+  AND name LIKE 'loan_collateral/%'
+  AND public.has_portal_role(
+    auth.uid(),
+    auth.email(),
+    ARRAY['member']
+  )
+);
+
+-- Members can remove a collateral photo they uploaded while filling the loan
+-- form (before submission), so an unwanted upload doesn't linger in storage.
+DROP POLICY IF EXISTS supporting_documents_member_collateral_delete ON storage.objects;
+CREATE POLICY supporting_documents_member_collateral_delete
+ON storage.objects
+FOR DELETE
+TO authenticated
+USING (
+  bucket_id = 'Supporting_Documents'
+  AND name LIKE 'loan_collateral/%'
+  AND public.has_portal_role(
+    auth.uid(),
+    auth.email(),
+    ARRAY['member']
+  )
+);
+
 DROP POLICY IF EXISTS supporting_documents_bookkeeper_update ON storage.objects;
 CREATE POLICY supporting_documents_bookkeeper_update
 ON storage.objects

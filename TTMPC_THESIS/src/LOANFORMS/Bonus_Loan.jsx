@@ -281,8 +281,23 @@ function Bonus_Loan() {
     return () => clearTimeout(timer);
   }, [formData.loan_amount_numeric, formData.loan_term_months, formData.payment_start_date]);
 
+  // Bonus loans may only be availed during the Mid-year (May) and
+  // Year-end (November) bonus release windows. The server enforces the
+  // same rule as the source of truth (main.py). Month is 1-indexed.
+  const BONUS_APPLICATION_MONTHS = [5, 11];
+  const currentMonth = new Date().getMonth() + 1;
+  const bonusWindowOpen = BONUS_APPLICATION_MONTHS.includes(currentMonth);
+  const bonusWindowMessage =
+    'Bonus loan applications are accepted only during Mid-year (May) and Year-end (November).';
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    if (!bonusWindowOpen) {
+      addNotification(bonusWindowMessage, 'error');
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -621,7 +636,12 @@ function Bonus_Loan() {
             <button type="button" onClick={handlePrintPdf} disabled={printing || loading} className="bg-white border border-[#66B538] text-[#66B538] px-5 py-2 rounded hover:bg-[#EEF6F1] transition-colors text-sm font-semibold disabled:opacity-50">
               {printing ? 'Printing...' : 'Print PDF'}
             </button>
-            <button type="submit" disabled={loading || printing} className="bg-[#66B538] text-white px-5 py-2 rounded hover:bg-[#5aa12b] transition-colors text-sm font-semibold disabled:opacity-50">
+            <button
+              type="submit"
+              disabled={loading || printing || !bonusWindowOpen}
+              title={bonusWindowOpen ? '' : bonusWindowMessage}
+              className="bg-[#66B538] text-white px-5 py-2 rounded hover:bg-[#5aa12b] transition-colors text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+            >
               {loading ? 'Processing...' : 'Submit Application'}
             </button>
           </div>

@@ -2017,20 +2017,29 @@ const LoanApprovalDetails = () => {
                                 href={collateralDocumentUrls[row.collateral_id]}
                                 target="_blank"
                                 rel="noreferrer"
-                                className="inline-flex items-center gap-1.5 rounded-md bg-gray-100 px-2 py-1 font-semibold text-gray-700 hover:bg-gray-200"
+                                className="group relative block h-20 w-20 overflow-hidden rounded-md border border-gray-200 bg-gray-50 hover:border-[#66B538] transition-colors"
+                                title="Open full-size in new tab"
                               >
-                                <FileImage className="h-3.5 w-3.5" />
-                                View image
-                                <ExternalLink className="h-3 w-3" />
+                                <img
+                                  src={collateralDocumentUrls[row.collateral_id]}
+                                  alt="Collateral"
+                                  className="h-full w-full object-cover"
+                                  loading="lazy"
+                                />
+                                <span className="absolute bottom-0 inset-x-0 bg-black/60 text-white text-xs font-semibold text-center py-0.5 opacity-0 group-hover:opacity-100 transition-opacity inline-flex items-center justify-center gap-1">
+                                  <ExternalLink className="h-3 w-3" /> Open
+                                </span>
                               </a>
                             ) : (
-                              <span className="inline-flex items-center gap-1.5 rounded-md bg-gray-100 px-2 py-1 font-semibold text-gray-500">
-                                <FileImage className="h-3.5 w-3.5" />
-                                Image attached
+                              <span className="inline-flex h-20 w-20 items-center justify-center rounded-md border border-gray-200 bg-gray-50 text-gray-400">
+                                <Loader2 className="h-4 w-4 animate-spin" />
                               </span>
                             )
                           ) : (
-                            <span className="text-gray-400">No image uploaded</span>
+                            <span className="inline-flex h-20 w-20 flex-col items-center justify-center gap-1 rounded-md border border-dashed border-gray-200 bg-gray-50 text-xs font-medium text-gray-400">
+                              <FileImage className="h-4 w-4" />
+                              No image
+                            </span>
                           )}
                         </div>
                       </div>

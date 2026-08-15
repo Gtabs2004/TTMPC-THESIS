@@ -8,7 +8,7 @@ import { resolveAccountFromSessionUser } from '../utils/sessionIdentity';
 import { useMigsLabel } from '../hooks/useMigsLabel';
 import { useLoanEligibility } from '../hooks/useLoanEligibility';
 import { useNotification } from '../contex/NotificationContext';
-import { FileImage, Loader2, Upload } from 'lucide-react';
+import { FileImage, Loader2, Upload, ShieldCheck, Trash2, Plus, CheckCircle2, ImagePlus } from 'lucide-react';
 
 // Function to generate control number: CL-YYYYMMDD-XXXX
 const generateControlNumber = () => {
@@ -151,6 +151,7 @@ function Consolidated_Loan() {
   // into loan_collateral, one row per item, linked by loan control_number.
   const [collaterals, setCollaterals] = useState([]);
   const [collateralUploadingIndex, setCollateralUploadingIndex] = useState(null);
+  const [collateralPreviews, setCollateralPreviews] = useState({});
   const collateralFileInputRefs = useRef({});
 
   const COLLATERAL_TYPES = [
@@ -163,12 +164,40 @@ function Consolidated_Loan() {
   ];
 
   const addCollateral = () => {
-    setCollaterals((rows) => [...rows, { type: '', description: '', declared_value: '', document_url: '' }]);
+    setCollaterals((rows) => [...rows, { type: '', description: '', document_url: '' }]);
   };
 
   const removeCollateral = (index) => {
-    setCollaterals((rows) => rows.filter((_, i) => i !== index));
+    setCollaterals((rows) => {
+      const removed = rows[index];
+      const path = removed?.document_url;
+      if (path) {
+        setCollateralPreviews((prev) => {
+          if (!prev[path]) return prev;
+          URL.revokeObjectURL(prev[path]);
+          const { [path]: _drop, ...rest } = prev;
+          return rest;
+        });
+
+        supabase.storage
+          .from('Supporting_Documents')
+          .remove([path])
+          .then(({ error }) => {
+            if (error) console.warn('Failed to remove collateral photo from storage:', error.message);
+          });
+      }
+      return rows.filter((_, i) => i !== index);
+    });
   };
+
+  useEffect(() => {
+    return () => {
+      setCollateralPreviews((prev) => {
+        Object.values(prev).forEach((url) => URL.revokeObjectURL(url));
+        return {};
+      });
+    };
+  }, []);
 
   const updateCollateral = (index, field, value) => {
     setCollaterals((rows) => rows.map((row, i) => (i === index ? { ...row, [field]: value } : row)));
@@ -198,6 +227,15 @@ function Consolidated_Loan() {
       }
 
       updateCollateral(index, 'document_url', storagePath);
+
+      const localPreview = URL.createObjectURL(file);
+      setCollateralPreviews((prev) => {
+        const next = { ...prev };
+        if (next[storagePath]) URL.revokeObjectURL(next[storagePath]);
+        next[storagePath] = localPreview;
+        return next;
+      });
+
       addNotification('Collateral image uploaded successfully.', 'success');
     } catch (err) {
       addNotification(err?.message || 'Unable to upload collateral image.', 'error');
@@ -205,13 +243,6 @@ function Consolidated_Loan() {
       setCollateralUploadingIndex(null);
     }
   };
-
-  const totalDeclaredCollateral = collaterals.reduce(
-    (sum, row) => sum + (parseFloat(row.declared_value) || 0),
-    0,
-  );
-  const requestedPrincipal = parseFloat(formData.loan_amount_numeric) || 0;
-  const collateralShort = requestedPrincipal > 0 && totalDeclaredCollateral < requestedPrincipal;
 
   /*
     ============================================================
@@ -926,13 +957,13 @@ function Consolidated_Loan() {
       const controlNumber = submitResult?.controlNumber || formData.control_no;
       if (collaterals.length > 0 && controlNumber) {
         const rows = collaterals
-          .filter((c) => c.type && c.description && c.declared_value !== '')
+          .filter((c) => c.type && c.description)
           .map((c) => ({
             collateral_id: `col_${controlNumber}_${Math.random().toString(36).slice(2, 8)}_${Date.now()}`,
             loan_control_number: controlNumber,
             collateral_type: c.type,
             description: c.description,
-            declared_value: parseFloat(c.declared_value) || 0,
+            declared_value: 0,
             document_url: String(c.document_url || '').trim() || null,
           }));
 
@@ -980,10 +1011,6 @@ function Consolidated_Loan() {
     }
     if (stressIndexExceeded) {
       addNotification('Your Repayment Stress Index exceeds the allowed threshold. Reduce the amount or extend the term.', 'error');
-      return;
-    }
-    if (collateralShort) {
-      addNotification('Declared collateral value is below the required amount.', 'error');
       return;
     }
     if (eligibilityReady && !canApplyNew && !canRenew) {
@@ -1294,127 +1321,174 @@ function Consolidated_Loan() {
           </div>
         </div>
         {/* Section 2.5: COLLATERAL */}
-        <div className="mt-8 bg-white rounded-lg shadow-md overflow-hidden max-w-6xl mx-auto w-full">
-          <div className={sectionHeader}>
-            <span className="bg-white text-[#66B538] rounded-full w-6 h-6 flex items-center justify-center text-sm">C</span>
-            LOAN COLLATERAL
+        <div className="mt-8 bg-white rounded-xl shadow-sm ring-1 ring-gray-200 overflow-hidden max-w-6xl mx-auto w-full">
+          <div className="bg-[#66B538] text-white px-5 py-4 flex items-center gap-3">
+            <span className="bg-white/15 ring-1 ring-white/25 rounded-lg w-9 h-9 flex items-center justify-center">
+              <ShieldCheck className="h-5 w-5" aria-hidden="true" />
+            </span>
+            <div className="flex flex-col leading-tight">
+              <span className="text-sm font-bold uppercase tracking-wide">Loan Collateral</span>
+              <span className="text-xs font-medium text-white/90">Secure your loan with eligible assets</span>
+            </div>
           </div>
-          <div className="p-6 text-sm text-gray-800">
-            <p className="text-xs text-gray-600 mb-4">
-              Declare the assets, guarantees, or holdings securing this loan. The Bookkeeper will
-              appraise each item during evaluation. Total declared value should meet or exceed
-              the requested loan amount.
-            </p>
 
-            {collaterals.length === 0 && (
-              <div className="border border-dashed border-gray-300 rounded-md p-4 text-center text-xs text-gray-500 mb-4">
-                No collateral declared yet.
+          <div className="p-5 sm:p-6 text-sm text-gray-800">
+            <div className="mb-5">
+              <p className="text-sm text-gray-700">
+                Declare the assets, guarantees, or holdings securing this loan.
+              </p>
+              <p className="text-xs text-gray-500 mt-1">
+                The Bookkeeper will appraise each item during evaluation. Total declared value should meet or exceed the requested loan amount.
+              </p>
+            </div>
+
+            {collaterals.length === 0 ? (
+              <div className="border-2 border-dashed border-gray-200 rounded-xl px-6 py-10 flex flex-col items-center text-center bg-gray-50/60">
+                <span className="w-12 h-12 rounded-full bg-white ring-1 ring-gray-200 flex items-center justify-center mb-3">
+                  <ShieldCheck className="h-6 w-6 text-gray-400" aria-hidden="true" />
+                </span>
+                <p className="text-sm font-semibold text-gray-800">No collateral added yet</p>
+                <p className="text-xs text-gray-500 mt-1 max-w-sm">
+                  Add at least one asset such as a vehicle, appliance, or savings deposit to back this loan.
+                </p>
+                <button
+                  type="button"
+                  onClick={addCollateral}
+                  className="mt-4 inline-flex items-center gap-1.5 rounded-lg bg-[#1D6021] px-4 py-2 text-xs font-bold text-white hover:bg-[#154a19] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#1D6021] transition-colors"
+                >
+                  <Plus className="h-4 w-4" aria-hidden="true" /> Add collateral
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {collaterals.map((row, index) => (
+                  <div
+                    key={index}
+                    className="rounded-xl border border-gray-200 bg-white hover:border-gray-300 transition-colors p-4"
+                  >
+                    <div className="grid grid-cols-1 md:grid-cols-12 gap-3 md:gap-4 md:items-end">
+                      <div className="md:col-span-3">
+                        <label className={labelStyles} htmlFor={`collateral-type-${index}`}>Type</label>
+                        <select
+                          id={`collateral-type-${index}`}
+                          value={row.type}
+                          onChange={(e) => updateCollateral(index, 'type', e.target.value)}
+                          className={inputStyles}
+                          required
+                        >
+                          <option value="">Select type</option>
+                          {COLLATERAL_TYPES.map((t) => (
+                            <option key={t.value} value={t.value}>{t.label}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="md:col-span-7">
+                        <label className={labelStyles} htmlFor={`collateral-desc-${index}`}>Description</label>
+                        <input
+                          id={`collateral-desc-${index}`}
+                          type="text"
+                          value={row.description}
+                          onChange={(e) => updateCollateral(index, 'description', e.target.value)}
+                          placeholder="e.g., 2019 Honda Click, plate ABC-123"
+                          className={inputStyles}
+                          required
+                        />
+                      </div>
+
+                      <div className="md:col-span-2">
+                        <span className={`${labelStyles} invisible hidden md:block`} aria-hidden="true">Photo</span>
+                        <div className="flex md:justify-end items-start gap-2">
+                        <input
+                          id={`collateral-photo-${index}`}
+                          ref={(element) => {
+                            collateralFileInputRefs.current[index] = element;
+                          }}
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(e) => handleCollateralImageUpload(e, index, row)}
+                          aria-label={`Upload photo for collateral ${index + 1}`}
+                        />
+                        {row.document_url && collateralPreviews[row.document_url] ? (
+                          <button
+                            type="button"
+                            onClick={() => collateralFileInputRefs.current[index]?.click()}
+                            className="group relative h-28 w-28 shrink-0 overflow-hidden rounded-lg border border-green-200 bg-green-50 transition-colors hover:border-[#66B538]"
+                            title="Click to change photo"
+                            aria-label="Change collateral photo"
+                          >
+                            <img
+                              src={collateralPreviews[row.document_url]}
+                              alt="Collateral preview"
+                              className="h-full w-full object-cover"
+                            />
+                            {collateralUploadingIndex === index && (
+                              <span className="absolute inset-0 flex items-center justify-center bg-white/70">
+                                <Loader2 className="h-5 w-5 animate-spin text-[#1D6021]" aria-hidden="true" />
+                              </span>
+                            )}
+                            <span className="absolute bottom-0 inset-x-0 bg-black/60 text-white text-xs font-semibold text-center py-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                              Change
+                            </span>
+                          </button>
+                        ) : row.document_url ? (
+                          <button
+                            type="button"
+                            onClick={() => collateralFileInputRefs.current[index]?.click()}
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-green-200 bg-green-50 px-2.5 py-2 text-xs font-semibold text-green-700 hover:bg-green-100 transition-colors"
+                            title="Change photo"
+                          >
+                            {collateralUploadingIndex === index ? (
+                              <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                            ) : (
+                              <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+                            )}
+                            <span>Attached</span>
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => collateralFileInputRefs.current[index]?.click()}
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-2.5 py-2 text-xs font-semibold text-gray-700 hover:border-[#66B538] hover:text-[#1D6021] transition-colors"
+                            title="Upload a photo of this collateral"
+                          >
+                            {collateralUploadingIndex === index ? (
+                              <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                            ) : (
+                              <ImagePlus className="h-4 w-4" aria-hidden="true" />
+                            )}
+                            <span>Photo</span>
+                          </button>
+                        )}
+
+                        <button
+                          type="button"
+                          onClick={() => removeCollateral(index)}
+                          className="inline-flex items-center justify-center h-9 w-9 rounded-lg border border-gray-200 bg-white text-gray-400 hover:text-red-600 hover:border-red-200 hover:bg-red-50 transition-colors"
+                          aria-label="Remove collateral"
+                          title="Remove collateral"
+                        >
+                          <Trash2 className="h-4 w-4" aria-hidden="true" />
+                        </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
 
-            <div className="space-y-3">
-              {collaterals.map((row, index) => (
-                <div key={index} className="grid grid-cols-1 md:grid-cols-12 gap-2 items-end border border-gray-200 rounded-md p-3 bg-gray-50">
-                  <div className="md:col-span-3">
-                    <label className={labelStyles}>Type</label>
-                    <select
-                      value={row.type}
-                      onChange={(e) => updateCollateral(index, 'type', e.target.value)}
-                      className={inputStyles}
-                      required
-                    >
-                      <option value="">Select type</option>
-                      {COLLATERAL_TYPES.map((t) => (
-                        <option key={t.value} value={t.value}>{t.label}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="md:col-span-6">
-                    <label className={labelStyles}>Description</label>
-                    <input
-                      type="text"
-                      value={row.description}
-                      onChange={(e) => updateCollateral(index, 'description', e.target.value)}
-                      placeholder="e.g., 2019 Honda Click, plate ABC-123"
-                      className={inputStyles}
-                      required
-                    />
-                  </div>
-                  <div className="md:col-span-2">
-                    <label className={labelStyles}>Declared Value (₱)</label>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={row.declared_value}
-                      onChange={(e) => updateCollateral(index, 'declared_value', e.target.value)}
-                      className={inputStyles}
-                      required
-                    />
-                  </div>
-                  <div className="md:col-span-1 flex flex-col items-end gap-2">
-                    <input
-                      ref={(element) => {
-                        collateralFileInputRefs.current[index] = element;
-                      }}
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={(e) => handleCollateralImageUpload(e, index, row)}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => collateralFileInputRefs.current[index]?.click()}
-                      className="inline-flex items-center gap-1 rounded-md border border-[#66B538] px-2 py-2 text-[10px] font-bold text-[#1D6021] hover:bg-[#E9F7DE]"
-                    >
-                      {collateralUploadingIndex === index ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
-                      {row.document_url ? 'Change image' : 'Upload image'}
-                    </button>
-                    {row.document_url ? (
-                      <span className="inline-flex items-center gap-1 rounded-md bg-green-50 px-2 py-1 text-[10px] font-bold text-green-700">
-                        <FileImage className="h-3.5 w-3.5" />
-                        Added
-                      </span>
-                    ) : null}
-                    <button
-                      type="button"
-                      onClick={() => removeCollateral(index)}
-                      className="px-3 py-2 text-xs font-bold text-red-600 border border-red-200 rounded-md hover:bg-red-50"
-                      aria-label="Remove collateral"
-                    >
-                      ×
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-              <button
-                type="button"
-                onClick={addCollateral}
-                className="px-4 py-2 text-xs font-bold text-[#1D6021] border border-[#66B538] rounded-md hover:bg-[#E9F7DE]"
-              >
-                + Add Collateral
-              </button>
-              <div className="text-xs">
-                <span className="font-semibold text-gray-600">Total Declared: </span>
-                <span className={`font-bold ${collateralShort ? 'text-red-600' : 'text-[#1D6021]'}`}>
-                  ₱{totalDeclaredCollateral.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                </span>
-                {requestedPrincipal > 0 && (
-                  <span className="ml-2 text-gray-500">
-                    / ₱{requestedPrincipal.toLocaleString('en-PH')} requested
-                  </span>
-                )}
+            {collaterals.length > 0 && (
+              <div className="mt-5">
+                <button
+                  type="button"
+                  onClick={addCollateral}
+                  className="w-full inline-flex items-center justify-center gap-1.5 rounded-lg border-2 border-dashed border-gray-300 bg-white px-4 py-3 text-xs font-bold text-gray-600 hover:border-[#66B538] hover:text-[#1D6021] hover:bg-[#F5FBF0] transition-colors"
+                >
+                  <Plus className="h-4 w-4" aria-hidden="true" /> Add another collateral
+                </button>
               </div>
-              
-            </div>
-
-            {collateralShort && (
-              <p className="mt-3 text-xs text-red-600 font-semibold">
-                Declared collateral is less than the requested loan amount. Add more items or reduce the loan amount.
-              </p>
             )}
           </div>
         </div>
