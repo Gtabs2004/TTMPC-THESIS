@@ -1,4 +1,4 @@
-  import React, { useEffect, useMemo, useState } from "react";
+﻿  import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
 import { useNotification } from "../../contex/NotificationContext";
@@ -26,6 +26,7 @@ import {
   PiggyBank,
   ChevronDown,
   ChevronRight,
+  ShieldAlert,
 } from "lucide-react";
 import logo from "../../assets/img/ttmpc logo.png";
 
@@ -71,6 +72,7 @@ const BookkeeperSavingsTransactions = () => {
       { name: "Manage Member", icon: Users },
       { name: "Loan Approval", icon: FileText },
       { name: "Manage Loans", icon: Briefcase },
+      { name: "Delinquency", icon: ShieldAlert },
       { name: "Payments", icon: Wallet },
       {
         name: "Savings Accounts",
@@ -94,6 +96,7 @@ const BookkeeperSavingsTransactions = () => {
     "Manage Member": "/manage-member",
     "Loan Approval": "/bookkeeper-loan-approval",
     "Manage Loans": "/manage-loans",
+    Delinquency: "/delinquency",
     Payments: "/payments",
     Accounting: "/accounting",
     "MIGS Scoring": "/migs",
@@ -439,16 +442,16 @@ const BookkeeperSavingsTransactions = () => {
                               </button>
                             </div>
                           ) : (
-                            // TODO: PRINT-RECEIPT-OVERLAY · withdrawal slip after bookkeeper validates
+                            // TODO: PRINT-RECEIPT-OVERLAY Â· withdrawal slip after bookkeeper validates
                             <button
                               onClick={() =>
                                 addNotification(
-                                  `Print withdrawal slip for ${row.transaction_id} — coming soon.`,
+                                  `Print withdrawal slip for ${row.transaction_id} â€” coming soon.`,
                                   "info"
                                 )
                               }
                               className="px-2 py-1 rounded border border-dashed border-blue-400 bg-blue-50 hover:bg-blue-100 text-blue-700 text-[11px] font-semibold inline-flex items-center gap-1"
-                              title="PRINT-RECEIPT-OVERLAY · Coming soon"
+                              title="PRINT-RECEIPT-OVERLAY Â· Coming soon"
                             >
                               <Printer size={12} />
                               Print

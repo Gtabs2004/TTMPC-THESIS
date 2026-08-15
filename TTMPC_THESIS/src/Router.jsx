@@ -27,6 +27,7 @@ import Verification from "./Index_Pages/verification";
 import Member_Services from "./Index_Pages/member_services";
 import Non_Member from "./Index_Pages/non_member";
 import Manage_Loans from "./Bookkeeper/Components/Manage-Loans";
+import Delinquency from "./Bookkeeper/Components/Delinquency";
 import Member_Details from "./Bookkeeper/Components/member_details";
 import Membership_Form from "./LOANFORMS/Membership_Form";
 import Dashboard_BOD from "./BOD/Components/B-Dashboard";
@@ -142,6 +143,7 @@ export const router = createBrowserRouter([
     {path: "/Member_Services", element: <Member_Services/>},
     {path: "/Non_Member", element: <Non_Member/>},
     {path: "/manage-loans", element: bookkeeperGuarded(<Manage_Loans/>)},
+    {path: "/delinquency", element: bookkeeperGuarded(<Delinquency/>)},
     {path: "/manage-member", element: bookkeeperGuarded(<Manage_Member/>)},
     {path: "/member_details", element: bookkeeperGuarded(<Member_Details/>)},
     {path: "/membership_form", element:<Membership_Form/>},

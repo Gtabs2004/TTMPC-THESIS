@@ -22,6 +22,9 @@ import {
   Wallet,
   Coins,
   History,
+  ShieldAlert,
+  AlertTriangle,
+  ChevronRight,
 } from "lucide-react";
 import {
   BarChart,
@@ -100,6 +103,7 @@ const Dashboard = () => {
        { name: "Manage Member", icon: Users },
        { name: "Loan Approval", icon: FileText },
        { name: "Manage Loans", icon: Briefcase },
+      { name: "Delinquency", icon: ShieldAlert },
        { name: "Payments", icon: Wallet },
        { name: "Savings Withdrawals", icon: CreditCard },
        { name: "Accounting", icon: Calculator },
@@ -115,6 +119,7 @@ const Dashboard = () => {
     "Manage Member": "/manage-member",
     "Loan Approval": "/bookkeeper-loan-approval",
     "Manage Loans": "/manage-loans",
+    Delinquency: "/delinquency",
     Payments: "/payments",
     "Savings Withdrawals": "/bookkeeper-savings-transactions",
     Accounting: "/accounting",
@@ -200,7 +205,10 @@ const Dashboard = () => {
     }
 
     fetchData();
-    const intervalId = window.setInterval(fetchData, 15000);
+    // 60s poll (was 15s) — endpoint takes 8-15s cold and the tighter interval
+    // caused request pile-up on the Bookkeeper's browser. Backend now caches
+    // responses for 30s so the second poll is near-instant.
+    const intervalId = window.setInterval(fetchData, 60000);
     return () => {
       cancelled = true;
       window.clearInterval(intervalId);
@@ -241,6 +249,70 @@ const Dashboard = () => {
       shareCapital: shareCapitalTotal,
     };
   }, [loans, allPayments, shareCapitalTotal]);
+
+  // Delinquency snapshot for the dashboard snippet. Uses days-since-last-payment
+  // and the 90-day threshold (memory: project_delinquency_rule.md). Full detail
+  // + collection worklist lives at /delinquency.
+  const delinquencySnapshot = useMemo(() => {
+    const DAY_MS = 1000 * 60 * 60 * 24;
+    // Anchor "now" to the most recent payment in the dataset so legacy loans
+    // (imported through Feb 2026) aren't uniformly flagged delinquent when the
+    // browser clock is months ahead of the data cutoff.
+    const lastActivityTs = (loan) => {
+      const history = Array.isArray(loan?.payment_history) ? loan.payment_history : [];
+      if (history.length) {
+        const times = history
+          .map((p) => new Date(p.date_paid || 0).getTime())
+          .filter((t) => t > 0);
+        if (times.length) return Math.max(...times);
+      }
+      return new Date(loan?.application_date || 0).getTime() || 0;
+    };
+    // Anchor to max payment date, but cap at today — simulated payments in
+    // this dataset carry future dates (2026-2028) that would otherwise flag
+    // every loan as 600+ days delinquent. See Delinquency.jsx for full
+    // rationale.
+    let referenceTs = 0;
+    for (const loan of loans) {
+      const t = lastActivityTs(loan);
+      if (t > referenceTs) referenceTs = t;
+    }
+    const today = Date.now();
+    referenceTs = referenceTs ? Math.min(referenceTs, today) : today;
+
+    // Collapse renewal chains: 1 live loan per (member, loan_type). Prevents a
+    // single renewed member from appearing multiple times and inflating counts.
+    const chains = new Map();
+    for (const loan of loans) {
+      if (Number(loan?.remaining_balance || 0) <= 0) continue;
+      const key = `${loan.member_name || ""}::${loan.loan_type_code || loan.loan_type || ""}`;
+      if (!chains.has(key)) chains.set(key, []);
+      chains.get(key).push(loan);
+    }
+    const active = Array.from(chains.values()).map((items) =>
+      [...items].sort((a, b) => {
+        const da = new Date(a.application_date || 0).getTime();
+        const db = new Date(b.application_date || 0).getTime();
+        if (db !== da) return db - da;
+        return String(b.loan_id || "").localeCompare(String(a.loan_id || ""));
+      })[0]
+    );
+    const scored = active.map((loan) => {
+      const lastTs = lastActivityTs(loan);
+      const days = lastTs ? Math.max(0, Math.floor((referenceTs - lastTs) / DAY_MS)) : 0;
+      return { loan, days };
+    });
+    const delinquent = scored.filter((r) => r.days > 90);
+    const outstanding = delinquent.reduce((s, r) => s + Number(r.loan.remaining_balance || 0), 0);
+    const topOffenders = [...delinquent].sort((a, b) => b.days - a.days).slice(0, 3);
+    return {
+      count: delinquent.length,
+      outstanding,
+      rate: active.length > 0 ? (delinquent.length / active.length) * 100 : 0,
+      topOffenders,
+      referenceTs,
+    };
+  }, [loans]);
 
   // Yearly Collections — one bar per fiscal year across all migrated + live
   // payments. TTMPC's legacy data spans ~2015-2026, so a static "this year vs
@@ -323,11 +395,21 @@ const Dashboard = () => {
   }, [allPayments, chartYear]);
 
   const recentActivities = useMemo(() => {
-    const sorted = [...allPayments].sort((a, b) => {
-      const da = new Date(a.date_paid || 0).getTime();
-      const db = new Date(b.date_paid || 0).getTime();
-      return db - da;
-    });
+    // Exclude future-dated payments — Recent Activity should reflect payments
+    // that actually happened. The dataset carries simulated payments dated
+    // 2026-2028; without this filter they all render as "Just now" (timeAgo
+    // clamps negative deltas to 0) and drown out real recent activity.
+    const now = Date.now();
+    const sorted = [...allPayments]
+      .filter((p) => {
+        const t = new Date(p.date_paid || 0).getTime();
+        return Number.isFinite(t) && t > 0 && t <= now;
+      })
+      .sort((a, b) => {
+        const da = new Date(a.date_paid || 0).getTime();
+        const db = new Date(b.date_paid || 0).getTime();
+        return db - da;
+      });
     return sorted.slice(0, 5).map((p, idx) => {
       const isLate = Number(p.penalties || 0) > 0;
       return {
@@ -617,6 +699,82 @@ const Dashboard = () => {
               </div>
             </div>
           </div>
+
+          {/* Delinquency Snapshot — clickable, routes to full /delinquency page */}
+          <button
+            type="button"
+            onClick={() => navigate("/delinquency")}
+            className="w-full text-left bg-white rounded-xl p-6 shadow-sm border border-gray-100 hover:shadow-md hover:border-red-200 transition mb-6 group"
+          >
+            <div className="flex items-start justify-between gap-4 flex-wrap">
+              <div className="flex items-start gap-3">
+                <div className={`p-2.5 rounded-lg ${delinquencySnapshot.count > 0 ? "bg-red-50 text-red-600" : "bg-green-50 text-green-600"}`}>
+                  <AlertTriangle size={20} />
+                </div>
+                <div>
+                  <h3 className="text-gray-800 font-bold text-lg flex items-center gap-2">
+                    Delinquency Snapshot
+                    <ChevronRight size={18} className="text-gray-400 group-hover:text-red-500 group-hover:translate-x-0.5 transition" />
+                  </h3>
+                  <p className="text-gray-500 text-xs mt-0.5">
+                    Loans past 90 days without payment · click for full worklist
+                  </p>
+                  <p className="text-xs text-amber-700 mt-0.5">
+                    Aging as of {new Date(delinquencySnapshot.referenceTs).toLocaleDateString("en-PH", { year: "numeric", month: "short", day: "numeric" })} (dataset latest)
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-6">
+                <div>
+                  <p className="text-xs text-gray-500 font-medium">Delinquent Loans</p>
+                  <p className={`text-2xl font-bold ${delinquencySnapshot.count > 0 ? "text-red-600" : "text-green-600"}`}>
+                    {loading ? "..." : delinquencySnapshot.count}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500 font-medium">Outstanding</p>
+                  <p className="text-2xl font-bold text-gray-800">
+                    {loading ? "..." : formatPesoCompact(delinquencySnapshot.outstanding)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500 font-medium">Rate</p>
+                  <p className={`text-2xl font-bold ${delinquencySnapshot.rate > 5 ? "text-red-600" : delinquencySnapshot.rate > 2 ? "text-amber-600" : "text-green-600"}`}>
+                    {loading ? "..." : `${delinquencySnapshot.rate.toFixed(1)}%`}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {delinquencySnapshot.topOffenders.length > 0 && (
+              <div className="mt-5 pt-4 border-t border-gray-100">
+                <p className="text-xs text-gray-500 font-semibold uppercase tracking-wider mb-3">
+                  Top offenders
+                </p>
+                <ul className="space-y-2">
+                  {delinquencySnapshot.topOffenders.map(({ loan, days }) => (
+                    <li key={loan.loan_id} className="flex items-center justify-between text-sm">
+                      <div className="flex items-center gap-3">
+                        <span className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0" />
+                        <span className="font-semibold text-gray-800">{loan.member_name || "—"}</span>
+                        <span className="text-xs text-gray-400">{loan.loan_type_code || loan.loan_type || ""}</span>
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <span className="text-xs text-gray-500">{formatPeso(loan.remaining_balance)}</span>
+                        <span className="text-xs font-bold text-red-600">{days}d past</span>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {!loading && delinquencySnapshot.count === 0 && (
+              <p className="mt-4 text-sm text-green-700 font-medium">
+                No delinquent loans right now. Portfolio is healthy.
+              </p>
+            )}
+          </button>
 
           {/* Bottom Activity Section */}
           <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">

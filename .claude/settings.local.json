@@ -5,7 +5,9 @@
       "Bash(node verify_members_profile.mjs)",
       "Read(//c/Users/User/AppData/Local/Temp/**)",
       "Bash(curl -s http://127.0.0.1:8000/api/bookkeeper/manage-loans -o api.json)",
-      "Bash(python -c ' *)"
+      "Bash(python -c ' *)",
+      "Bash(cd /c/Users/User/Desktop/TTMPC-Thesis/TTMPC_THESIS && grep -l \"loading\\\\|error\\\\|empty\\\\|skeleton\" src/*/Components/*.jsx | head -15)",
+      "Read(//c/c/Users/User/Desktop/TTMPC-Thesis/TTMPC_THESIS/**)"
     ]
   },
   "hooks": {

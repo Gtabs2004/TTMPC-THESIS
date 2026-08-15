@@ -1,0 +1,41 @@
+CREDIT RISK MODEL UPGRADE — TODO
+=================================
+
+Status: New model trained, more accurate than current. NOT YET DEPLOYED.
+
+Current in production:
+  - File:  ttmpc_credit_risk_model.pkl
+  - Type:  Logistic Regression
+  - AUC:   0.43 (per formal system evaluation — effectively inverted)
+  - Served by: risk_model.py -> POST /score-loan
+
+To swap in the new model:
+  [ ] 1. Drop the new .pkl file into TTMPC_THESIS/src/server/
+  [ ] 2. Update the joblib.load(...) path in risk_model.py
+  [ ] 3. If feature schema changed, update the input Pydantic model
+  [ ] 4. Verify /score-loan still returns:
+           {
+             "probability": <float 0..1>,
+             "drivers": [
+                { "feature": str, "contribution": float,
+                  "value": float, "cohort_median": float }, ... ]
+           }
+         (The Credit Risk UI on Bookkeeper + Manager dashboards
+          reads this shape — keep it stable.)
+  [ ] 5. If the new model is a tree ensemble (RF / XGBoost),
+         replace coefficient-based driver contributions with SHAP values.
+         Requires:  pip install shap
+         Pattern:   explainer = shap.TreeExplainer(model)
+                    shap_values = explainer.shap_values(X_single_row)
+                    drivers = sorted by |shap_value| desc, take top 3
+  [ ] 6. Retire the "inverted AUC 0.43" flag in the system evaluation
+         memo after verifying the new model on holdout.
+  [ ] 7. Retrain cohort medians if feature set changed (cohort_median
+         is used by the UI's "value vs. cohort" bar).
+
+The UI (Bookkeeper + Manager Credit Risk sidebar page + dashboard
+snippet) is intentionally model-agnostic. It reads the normalized
+{probability, drivers[]} response, so no frontend changes are needed
+when swapping the model — only risk_model.py.
+
+Reference memory: memory/project_credit_risk_model_upgrade.md
