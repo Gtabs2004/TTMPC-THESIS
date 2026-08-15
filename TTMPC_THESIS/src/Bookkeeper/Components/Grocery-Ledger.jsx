@@ -34,14 +34,14 @@ const periodKey = (date, filter) => {
   return String(d.getFullYear());
 };
 import { PortalSidebarIdentity, PortalTopbarIdentity } from "../../components/PortalIdentity";
-import { 
-  LayoutDashboard, 
-  Users, 
-  FileText, 
-  CreditCard, 
-  Calculator, 
-  Activity, 
-  BarChart3, 
+import {
+  LayoutDashboard,
+  Users,
+  FileText,
+  CreditCard,
+  Calculator,
+  Activity,
+  BarChart3,
   History,
   Search,
   Bell,
@@ -53,8 +53,9 @@ import {
   ChevronUp,
   Briefcase,
   Wallet,
-  Coins
-} from 'lucide-react';
+  Coins,
+  ShieldAlert,
+} from "lucide-react";
 
 // Legacy mock kept only as fallback shape reference; real data is fetched from Supabase.
 const _UNUSED_MOCK = {
@@ -236,6 +237,7 @@ const Grocery_Ledger = () => {
     { name: "Manage Member", icon: Users },
     { name: "Loan Approval", icon: FileText },
     { name: "Manage Loans", icon: Briefcase },
+      { name: "Delinquency", icon: ShieldAlert },
     { name: "Payments", icon: Wallet },
     { name: "Savings Withdrawals", icon: CreditCard },
     { name: "Accounting", icon: Calculator },
@@ -294,6 +296,7 @@ const Grocery_Ledger = () => {
               "Manage Member": "/manage-member",
               "Loan Approval": "/bookkeeper-loan-approval",
               "Manage Loans": "/manage-loans",
+    Delinquency: "/delinquency",
               Payments: "/payments",
               "Savings Withdrawals": "/bookkeeper-savings-transactions",
               Accounting: "/accounting",

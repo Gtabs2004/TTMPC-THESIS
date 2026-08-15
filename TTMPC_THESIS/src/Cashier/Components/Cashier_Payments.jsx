@@ -978,7 +978,24 @@ const Cashier_Payments = () => {
                         className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors cursor-pointer"
                       >
                         <td className="px-3 py-3 text-xs font-medium text-gray-900 whitespace-nowrap">
-                          {loan.member_name}
+                          <div className="flex items-center gap-1.5">
+                            <span>{loan.member_name}</span>
+                            {(loan.prior_versions || 0) > 0 ? (
+                              <span
+                                title={`This loan is the current version of a restructured chain (${loan.prior_versions} prior version${loan.prior_versions > 1 ? "s" : ""}). Payment goes to this loan only — predecessors were rolled into it.`}
+                                className="inline-flex items-center rounded-full bg-blue-100 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-blue-700"
+                              >
+                                Restructured
+                              </span>
+                            ) : (
+                              <span
+                                title="First loan of this type for this member."
+                                className="inline-flex items-center rounded-full bg-emerald-100 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-700"
+                              >
+                                Original
+                              </span>
+                            )}
+                          </div>
                         </td>
                         <td className="px-3 py-3 text-xs text-gray-700 font-semibold whitespace-nowrap">
                           {formatCurrency(loan.loan_amount)}

@@ -1,7 +1,25 @@
 ﻿import React, { useEffect, useMemo, useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
-import { LayoutDashboard, Users, FileText, CreditCard, Calculator, Activity, BarChart3, History, Search, Bell, ChevronLeft, ChevronRight, X, Briefcase, Wallet, Coins } from "lucide-react";
+import {
+  LayoutDashboard,
+  Users,
+  FileText,
+  CreditCard,
+  Calculator,
+  Activity,
+  BarChart3,
+  History,
+  Search,
+  Bell,
+  ChevronLeft,
+  ChevronRight,
+  X,
+  Briefcase,
+  Wallet,
+  Coins,
+  ShieldAlert,
+} from "lucide-react";
 import { PortalSidebarIdentity, PortalTopbarIdentity } from "../../components/PortalIdentity";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
 
@@ -34,6 +52,7 @@ const Manage_Member = () => {
     { name: "Manage Member", icon: Users },
     { name: "Loan Approval", icon: FileText },
     { name: "Manage Loans", icon: Briefcase },
+      { name: "Delinquency", icon: ShieldAlert },
     { name: "Payments", icon: Wallet },
     { name: "Savings Withdrawals", icon: CreditCard },
     { name: "Accounting", icon: Calculator },
@@ -49,6 +68,7 @@ const Manage_Member = () => {
     "Manage Member": "/manage-member",
     "Loan Approval": "/bookkeeper-loan-approval",
     "Manage Loans": "/manage-loans",
+    Delinquency: "/delinquency",
     Payments: "/payments",
     "Savings Withdrawals": "/bookkeeper-savings-transactions",
     Accounting: "/accounting",

@@ -15,7 +15,8 @@ import {
   ArrowLeft,
   Wallet,
   Briefcase,
-  Coins
+  Coins,
+  ShieldAlert,
 } from "lucide-react";
 import logo from "../../assets/img/ttmpc logo.png";
 
@@ -49,6 +50,7 @@ const LoanLedger = () => {
     { name: "Manage Member", icon: Users },
     { name: "Loan Approval", icon: FileText },
     { name: "Manage Loans", icon: Briefcase },
+      { name: "Delinquency", icon: ShieldAlert },
     { name: "Payments", icon: Wallet },
     { name: "Savings Withdrawals", icon: CreditCard },
     { name: "Accounting", icon: Calculator },
@@ -64,6 +66,7 @@ const LoanLedger = () => {
     "Manage Member": "/manage-member",
     "Loan Approval": "/bookkeeper-loan-approval",
     "Manage Loans": "/manage-loans",
+    Delinquency: "/delinquency",
     Payments: "/payments",
     "Savings Withdrawals": "/bookkeeper-savings-transactions",
     Accounting: "/accounting",

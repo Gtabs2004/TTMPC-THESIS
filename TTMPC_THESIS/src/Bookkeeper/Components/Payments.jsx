@@ -25,6 +25,7 @@ import {
   Briefcase,
   ChevronRight,
   ChevronLeft,
+  ShieldAlert,
 } from "lucide-react";
 import logo from "../../assets/img/ttmpc logo.png";
 
@@ -98,6 +99,7 @@ const BookkeeperPayments = () => {
       { name: "Manage Member", icon: Users },
       { name: "Loan Approval", icon: FileText },
       { name: "Manage Loans", icon: Briefcase },
+      { name: "Delinquency", icon: ShieldAlert },
       { name: "Payments", icon: Wallet },
       { name: "Savings Withdrawals", icon: CreditCard },
       { name: "Accounting", icon: Calculator },
@@ -113,6 +115,7 @@ const BookkeeperPayments = () => {
     "Manage Member": "/manage-member",
     "Loan Approval": "/bookkeeper-loan-approval",
     "Manage Loans": "/manage-loans",
+    Delinquency: "/delinquency",
     Payments: "/payments",
     "Savings Withdrawals": "/bookkeeper-savings-transactions",
     Accounting: "/accounting",

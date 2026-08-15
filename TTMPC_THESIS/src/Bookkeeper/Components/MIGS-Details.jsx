@@ -18,7 +18,8 @@ import {
   Download,
   Briefcase,
   Wallet,
-  Coins
+  Coins,
+  ShieldAlert,
 } from "lucide-react";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
@@ -58,6 +59,7 @@ const MIGSDetails = () => {
     { name: "Manage Member", icon: Users },
     { name: "Loan Approval", icon: FileText },
     { name: "Manage Loans", icon: Briefcase },
+      { name: "Delinquency", icon: ShieldAlert },
     { name: "Payments", icon: Wallet },
     { name: "Savings Withdrawals", icon: CreditCard },
     { name: "Accounting", icon: Calculator },
@@ -72,6 +74,7 @@ const MIGSDetails = () => {
     "Manage Member": "/manage-member",
     "Loan Approval": "/bookkeeper-loan-approval",
     "Manage Loans": "/manage-loans",
+    Delinquency: "/delinquency",
     Payments: "/payments",
     "Savings Withdrawals": "/bookkeeper-savings-transactions",
     Accounting: "/accounting",

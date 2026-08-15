@@ -1162,6 +1162,33 @@ async def get_cashier_loans_for_payments():
             if str(row.get("loan_status") or "").strip().lower() not in {"rejected", "cancelled"}
         ]
 
+        # Prior-version count per loan. Computed BEFORE the active-loan filter
+        # below (which hides restructured predecessors) so the cashier can see
+        # whether the loan they're collecting on is a restructured successor.
+        # Chain = same (member_id, loan_type_name); older = earlier
+        # application_date. Predecessors themselves aren't returned to the
+        # cashier, but the count travels with the successor.
+        prior_versions_by_loan: dict[str, int] = {}
+        try:
+            chains: dict[tuple, list[dict]] = {}
+            for row in loans_rows:
+                mid = row.get("member_id")
+                ltype = ((row.get("loan_type") or {}).get("name")) or ""
+                if not mid or not ltype:
+                    continue
+                chains.setdefault((mid, ltype), []).append(row)
+            for items in chains.values():
+                sorted_items = sorted(
+                    items,
+                    key=lambda r: str(r.get("application_date") or ""),
+                )
+                for idx, r in enumerate(sorted_items):
+                    cn = str(r.get("control_number") or "")
+                    if cn:
+                        prior_versions_by_loan[cn] = idx
+        except Exception:
+            prior_versions_by_loan = {}
+
         # Cashier view = only ACTIVE (collectible) loans. Restructured / closed
         # legacy loans have all their schedule rows marked Paid (no Unpaid/
         # Pending/Overdue row remaining) — filter them out here so the cashier
@@ -1440,6 +1467,7 @@ async def get_cashier_loans_for_payments():
                     "total_payable": decimal_to_float(total_payable_amount),
                     "total_interest": decimal_to_float(total_interest_amount),
                     "loan_status": repayment_status,
+                    "prior_versions": prior_versions_by_loan.get(control_number, 0),
                 }
             )
 
@@ -3873,22 +3901,61 @@ async def get_member_debt_capacity(member_key: str):
 # Endpoints for the bookkeeper's manage-loans queue and per-loan ledger view.
 # ============================================================================
 
+# 30-second in-memory cache for /api/bookkeeper/manage-loans. The endpoint
+# takes 8-15s cold (fetches loans + payments + schedules with pagination
+# loops), and is polled by the Bookkeeper Dashboard + reused by Manage-Loans
+# and Delinquency pages — without caching, multiple tabs and the 60s poll
+# stack up into request pile-up. TTL is short enough that new payments show
+# up within half a minute; not worth wiring write-invalidation for a demo.
+_MANAGE_LOANS_CACHE: dict = {"payload": None, "expires_at": 0.0}
+_MANAGE_LOANS_CACHE_TTL_SECONDS = 30.0
+
 @app.get("/api/bookkeeper/manage-loans")
 async def get_bookkeeper_manage_loans():
     if not supabase:
         raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
 
+    import time as _time
+    now = _time.monotonic()
+    cached = _MANAGE_LOANS_CACHE
+    if cached["payload"] is not None and cached["expires_at"] > now:
+        return cached["payload"]
+
     try:
         loans_response = (
             supabase.table("loans")
             .select(
-                "control_number,loan_amount,principal_amount,interest_rate,term,loan_status,application_status,monthly_amortization,total_interest,application_date," \
+                "control_number,member_id,loan_amount,principal_amount,interest_rate,term,loan_status,application_status,monthly_amortization,total_interest,application_date," \
                 "member:member_id(membership_id,first_name,last_name,is_bona_fide),loan_type:loan_type_id(code,name,interest_rate)"
             )
             .order("application_date", desc=True)
             .execute()
         )
         loan_rows = loans_response.data or []
+
+        # Prior-version count per loan. Same pattern as
+        # /api/cashier/loan-payments/loans — chain = (member_id, loan_type_name)
+        # sorted by application_date, index in the chain = number of prior
+        # versions. Delinquency page uses this to exclude restructured
+        # predecessors from the collection worklist (their balances are
+        # bookkeeping artifacts, already rolled into the successor).
+        prior_versions_by_loan: dict[str, int] = {}
+        try:
+            chains: dict[tuple, list[dict]] = {}
+            for row in loan_rows:
+                mid = row.get("member_id")
+                ltype = ((row.get("loan_type") or {}).get("name")) or ""
+                if not mid or not ltype:
+                    continue
+                chains.setdefault((mid, ltype), []).append(row)
+            for items in chains.values():
+                sorted_items = sorted(items, key=lambda r: str(r.get("application_date") or ""))
+                for idx, r in enumerate(sorted_items):
+                    cn = str(r.get("control_number") or "")
+                    if cn:
+                        prior_versions_by_loan[cn] = idx
+        except Exception:
+            prior_versions_by_loan = {}
 
         visible_statuses = {
             "approved",
@@ -3976,7 +4043,7 @@ async def get_bookkeeper_manage_loans():
             while True:
                 batch = (
                     supabase.table("loan_schedules")
-                    .select("loan_id,due_date,schedule_status,expected_amount,installment_no")
+                    .select("loan_id,schedule_id,due_date,schedule_status,expected_amount,installment_no")
                     .in_("loan_id", loan_ids)
                     .order("due_date")
                     .range(offset, offset + page - 1)
@@ -4139,10 +4206,23 @@ async def get_bookkeeper_manage_loans():
                     "source_application_status": row.get("application_status"),
                     "application_date": row.get("application_date"),
                     "payment_history": payment_history,
+                    "prior_versions": prior_versions_by_loan.get(loan_id, 0),
+                    # Legacy = loan whose schedule was reconstructed by the
+                    # migration script (schedule_id prefixed "LEGACY_" per
+                    # memory:project_legacy_loan_reconstruction.md). This
+                    # marker is authoritative and survives later live
+                    # payments, unlike a payment-based check which flips
+                    # false as soon as a legacy loan takes its first live
+                    # payment. Delinquency worklist defaults to Live so
+                    # panelists see loans created through the running app.
+                    "is_legacy": any(
+                        str(s.get("schedule_id") or "").startswith("LEGACY_")
+                        for s in schedules_by_loan.get(loan_id, [])
+                    ),
                 }
             )
 
-        return {
+        payload = {
             "success": True,
             "data": {
                 "server_time": datetime.utcnow().isoformat(),
@@ -4150,6 +4230,9 @@ async def get_bookkeeper_manage_loans():
                 "rows": mapped_rows,
             },
         }
+        _MANAGE_LOANS_CACHE["payload"] = payload
+        _MANAGE_LOANS_CACHE["expires_at"] = _time.monotonic() + _MANAGE_LOANS_CACHE_TTL_SECONDS
+        return payload
     except Exception as err:
         raise HTTPException(status_code=500, detail=f"Failed to load manage loans data: {err}")
 

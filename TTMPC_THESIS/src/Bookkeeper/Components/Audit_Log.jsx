@@ -1,4 +1,4 @@
-import React from "react";
+﻿import React from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
 import { useNotification } from "../../contex/NotificationContext";
@@ -17,6 +17,7 @@ import {
   Briefcase,
   Wallet,
   Coins,
+  ShieldAlert,
 } from "lucide-react";
 
 const Bookkeeper_Audit_Log = () => {
@@ -29,6 +30,7 @@ const Bookkeeper_Audit_Log = () => {
     { name: "Manage Member", icon: Users },
     { name: "Loan Approval", icon: FileText },
     { name: "Manage Loans", icon: Briefcase },
+      { name: "Delinquency", icon: ShieldAlert },
     { name: "Payments", icon: Wallet },
     { name: "Savings Withdrawals", icon: CreditCard },
     { name: "Accounting", icon: Calculator },
@@ -43,6 +45,7 @@ const Bookkeeper_Audit_Log = () => {
     "Manage Member": "/manage-member",
     "Loan Approval": "/bookkeeper-loan-approval",
     "Manage Loans": "/manage-loans",
+    Delinquency: "/delinquency",
     Payments: "/payments",
     "Savings Withdrawals": "/bookkeeper-savings-transactions",
     Accounting: "/accounting",

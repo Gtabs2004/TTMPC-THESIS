@@ -1,6 +1,17 @@
-import React, { useEffect, useMemo, useState } from 'react';
+﻿import React, { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Phone, Calendar, ShieldCheck, UserX, Wallet, AlertTriangle, TrendingUp, FileText } from 'lucide-react';
+import {
+  ArrowLeft,
+  Phone,
+  Calendar,
+  ShieldCheck,
+  UserX,
+  Wallet,
+  AlertTriangle,
+  TrendingUp,
+  FileText,
+  ShieldAlert,
+} from "lucide-react";
 import { formatTinNumber } from '../../LOANFORMS/tinFormat';
 import { UserAuth } from '../../contex/AuthContext';
 import { resolveAccountFromSessionUser } from '../../utils/sessionIdentity';
@@ -140,7 +151,7 @@ const StaffAccountPanel = ({ membershipId, viewerRole }) => {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
           <div>
             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Current Role</p>
-            <p className="font-bold text-gray-800 capitalize">{account?.role || '—'}</p>
+            <p className="font-bold text-gray-800 capitalize">{account?.role || 'â€”'}</p>
           </div>
           <div>
             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Account Status</p>
@@ -150,7 +161,7 @@ const StaffAccountPanel = ({ membershipId, viewerRole }) => {
           </div>
           <div>
             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Account Email</p>
-            <p className="font-medium text-gray-800 break-all">{account?.email || '—'}</p>
+            <p className="font-medium text-gray-800 break-all">{account?.email || 'â€”'}</p>
           </div>
         </div>
 
@@ -163,7 +174,7 @@ const StaffAccountPanel = ({ membershipId, viewerRole }) => {
                 className="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
                 disabled={busy}
               >
-                <option value="">— Select role —</option>
+                <option value="">â€” Select role â€”</option>
                 {ROLE_OPTIONS.map((r) => (
                   <option key={r.value} value={r.value}>{r.label}</option>
                 ))}
@@ -262,7 +273,7 @@ const StaffAccountPanel = ({ membershipId, viewerRole }) => {
                 disabled={busy || !termReason.trim()}
                 className="text-sm font-bold rounded-md px-4 py-2 bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
               >
-                {busy ? 'Terminating…' : 'Confirm Termination'}
+                {busy ? 'Terminatingâ€¦' : 'Confirm Termination'}
               </button>
             </div>
           </div>
@@ -274,8 +285,8 @@ const StaffAccountPanel = ({ membershipId, viewerRole }) => {
 
 const formatPeso = (n) => {
   const v = Number(n);
-  if (!Number.isFinite(v)) return '—';
-  return `₱${v.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  if (!Number.isFinite(v)) return 'â€”';
+  return `â‚±${v.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 };
 
 const DebtCapacityPanel = ({ membershipId }) => {
@@ -371,13 +382,13 @@ const DebtCapacityPanel = ({ membershipId }) => {
   const overallPrescription = (() => {
     if (!data) return null;
     if (shareCapital <= 0) {
-      return { tone: 'danger', text: 'Member has ₱0 share capital on file. Consolidated loans cannot be approved until Capital Build-Up is established.' };
+      return { tone: 'danger', text: 'Member has â‚±0 share capital on file. Consolidated loans cannot be approved until Capital Build-Up is established.' };
     }
     if (!isMigs) {
       const upliftGain = shareCapital * (5 - multiplier);
-      return { tone: 'ok', text: `Member is currently Non-MIGS (3× multiplier). Achieving MIGS status would raise the Consolidated ceiling by ${formatPeso(upliftGain)} without any additional capital.` };
+      return { tone: 'ok', text: `Member is currently Non-MIGS (3Ã— multiplier). Achieving MIGS status would raise the Consolidated ceiling by ${formatPeso(upliftGain)} without any additional capital.` };
     }
-    return { tone: 'good', text: 'Member holds MIGS status with the full 5× multiplier applied. No policy uplift available beyond this tier.' };
+    return { tone: 'good', text: 'Member holds MIGS status with the full 5Ã— multiplier applied. No policy uplift available beyond this tier.' };
   })();
 
   const activeLoans = Array.isArray(data?.active_loans) ? data.active_loans : [];
@@ -411,7 +422,7 @@ const DebtCapacityPanel = ({ membershipId }) => {
               isMigs ? 'bg-emerald-50 text-emerald-800 border-emerald-200' : 'bg-slate-50 text-slate-800 border-slate-200'
             }`}>
               <ShieldCheck className="w-3 h-3" />
-              {isMigs ? `MIGS · ${multiplier.toFixed(0)}× multiplier` : `Non-MIGS · ${multiplier.toFixed(0)}× multiplier`}
+              {isMigs ? `MIGS Â· ${multiplier.toFixed(0)}Ã— multiplier` : `Non-MIGS Â· ${multiplier.toFixed(0)}Ã— multiplier`}
             </span>
           ) : null}
         </div>
@@ -424,7 +435,7 @@ const DebtCapacityPanel = ({ membershipId }) => {
 
       {loading ? (
         <div className="rounded-xl border border-gray-100 bg-gray-50 p-6 text-sm text-gray-500">
-          Computing capacity…
+          Computing capacityâ€¦
         </div>
       ) : error ? (
         <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 flex items-start gap-2">
@@ -453,7 +464,7 @@ const DebtCapacityPanel = ({ membershipId }) => {
               </div>
               <p className="text-xs text-gray-700 mb-1">Maximum Approvable Loan Amount</p>
               <p className="text-2xl font-extrabold text-[#1a4a2f]">
-                {c.max === null || c.max === undefined ? '—' : formatPeso(c.max)}
+                {c.max === null || c.max === undefined ? 'â€”' : formatPeso(c.max)}
               </p>
               <p className="text-xs text-gray-700 mb-3">Headroom remaining after existing obligations</p>
 
@@ -488,7 +499,7 @@ const DebtCapacityPanel = ({ membershipId }) => {
               </div>
 
               <div className={`mt-3 rounded-lg border px-3 py-2 text-xs ${prescriptionStyle[c.prescription.tone]}`}>
-                <p className="font-bold uppercase tracking-wider text-xs mb-0.5">Prescription · {c.prescription.label}</p>
+                <p className="font-bold uppercase tracking-wider text-xs mb-0.5">Prescription Â· {c.prescription.label}</p>
                 <p className="leading-snug">{c.prescription.text}</p>
               </div>
             </div>
@@ -523,7 +534,7 @@ const DebtCapacityPanel = ({ membershipId }) => {
 
       {loading ? (
         <div className="rounded-xl border border-gray-100 bg-gray-50 p-6 text-sm text-gray-500">
-          Loading loans…
+          Loading loansâ€¦
         </div>
       ) : error ? null : activeLoans.length === 0 ? (
         <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 p-6 text-sm text-gray-500 text-center">
@@ -573,11 +584,11 @@ const DebtCapacityPanel = ({ membershipId }) => {
                   <td className="p-3 text-right text-gray-700">{formatPeso(loan.paid)}</td>
                   <td className="p-3 text-right text-gray-800">{formatPeso(loan.remaining_balance)}</td>
                   <td className={`p-3 text-right ${penalty > 0 ? 'text-red-700 font-semibold' : 'text-gray-500'}`}>
-                    {loan.is_legacy ? '—' : formatPeso(penalty)}
+                    {loan.is_legacy ? 'â€”' : formatPeso(penalty)}
                   </td>
                   <td className="p-3 text-right font-bold text-[#1a4a2f]">{formatPeso(totalOwed)}</td>
                   <td className="p-3 text-right text-gray-700">{formatPeso(loan.monthly_amortization)}</td>
-                  <td className="p-3 text-xs text-gray-600">{loan.disbursal_date || loan.application_date || '—'}</td>
+                  <td className="p-3 text-xs text-gray-600">{loan.disbursal_date || loan.application_date || 'â€”'}</td>
                 </tr>
                 );
               })}

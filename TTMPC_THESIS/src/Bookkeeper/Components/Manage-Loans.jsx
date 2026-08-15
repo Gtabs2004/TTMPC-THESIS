@@ -21,6 +21,7 @@ import {
   ChevronLeft,
   ChevronRight,
   RefreshCw,
+  ShieldAlert,
 } from "lucide-react";
 import logo from "../../assets/img/ttmpc logo.png";
 
@@ -70,6 +71,7 @@ const ManageLoans = () => {
       { name: "Manage Member", icon: Users },
       { name: "Loan Approval", icon: FileText },
       { name: "Manage Loans", icon: Briefcase },
+      { name: "Delinquency", icon: ShieldAlert },
       { name: "Payments", icon: Wallet },
       { name: "Savings Withdrawals", icon: CreditCard },
       { name: "Accounting", icon: Calculator },
@@ -85,6 +87,7 @@ const ManageLoans = () => {
     "Manage Member": "/manage-member",
     "Loan Approval": "/bookkeeper-loan-approval",
     "Manage Loans": "/manage-loans",
+    Delinquency: "/delinquency",
     Payments: "/payments",
     "Savings Withdrawals": "/bookkeeper-savings-transactions",
     Accounting: "/accounting",
@@ -505,14 +508,31 @@ const ManageLoans = () => {
                       >
                         <td className="px-3 py-4 text-sm font-mono font-bold text-green-700 align-middle">
                           <div className="flex min-h-[44px] flex-col items-start justify-center gap-1.5">
-                            <span className="truncate">{parent.loan_id}</span>
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <span className="truncate">{parent.loan_id}</span>
+                              {hasRenewals ? (
+                                <span
+                                  title={`This loan is the current active version of a restructured chain (${renewals.length} previous version${renewals.length > 1 ? "s" : ""}).`}
+                                  className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-blue-700"
+                                >
+                                  Restructured
+                                </span>
+                              ) : (
+                                <span
+                                  title="First loan of this type for this member."
+                                  className="inline-flex items-center rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-700"
+                                >
+                                  Original
+                                </span>
+                              )}
+                            </div>
                             <button
                               type="button"
                               onClick={hasRenewals ? () => toggleGroup(parent.loan_id) : undefined}
                               disabled={!hasRenewals}
                               aria-hidden={!hasRenewals}
                               tabIndex={hasRenewals ? 0 : -1}
-                              title={hasRenewals ? `${renewals.length} previous renewal${renewals.length > 1 ? "s" : ""} in chain — click to ${expanded ? "collapse" : "expand"}` : undefined}
+                              title={hasRenewals ? `${renewals.length} previous version${renewals.length > 1 ? "s" : ""} in chain — click to ${expanded ? "collapse" : "expand"}` : undefined}
                               className={`inline-flex w-fit items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide transition-colors ${
                                 !hasRenewals
                                   ? "invisible pointer-events-none"
@@ -522,7 +542,7 @@ const ManageLoans = () => {
                               }`}
                             >
                               <RefreshCw size={9} />
-                              {hasRenewals ? `${renewals.length} renewal${renewals.length > 1 ? "s" : ""}` : "0 renewals"}
+                              {hasRenewals ? `${renewals.length} prior version${renewals.length > 1 ? "s" : ""}` : "0 renewals"}
                               {hasRenewals && (expanded ? " ▲" : " ▼")}
                             </button>
                           </div>
@@ -565,11 +585,19 @@ const ManageLoans = () => {
                             <td className="pl-9 pr-3 py-2.5 text-sm font-mono align-top">
                               <div className="flex items-start gap-1.5">
                                 <span className="text-green-400 leading-none">└</span>
-                                <div className="min-w-0 flex-1 flex flex-wrap items-center gap-1.5">
-                                  <span className="text-gray-500 break-all">{r.loan_id}</span>
-                                  <span className="inline-flex items-center rounded-full bg-gray-100 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-gray-600">
-                                    Renewed
-                                  </span>
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex flex-wrap items-center gap-1.5">
+                                    <span className="text-gray-500 break-all">{r.loan_id}</span>
+                                    <span
+                                      title={`This loan was closed and restructured into ${parent.loan_id} on ${formatDate(parent.application_date)}. Its remaining balance was rolled into the successor.`}
+                                      className="inline-flex items-center rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-800"
+                                    >
+                                      Closed → Restructured
+                                    </span>
+                                  </div>
+                                  <p className="mt-0.5 text-[11px] font-sans font-normal text-gray-500 normal-case">
+                                    Superseded by <span className="font-semibold text-gray-700">{parent.loan_id}</span> on {formatDate(parent.application_date)}
+                                  </p>
                                 </div>
                               </div>
                             </td>
@@ -582,10 +610,17 @@ const ManageLoans = () => {
                             <td className="px-3 py-2.5 text-sm text-gray-600 font-medium text-right whitespace-nowrap align-top">{formatCurrency(r.loan_amount)}</td>
                             <td className="px-3 py-2.5 text-sm text-gray-500 text-right whitespace-nowrap align-top">{r.interest_rate}%</td>
                             <td className="px-3 py-2.5 text-sm text-gray-500 text-left whitespace-nowrap align-top">{formatCurrency(r.amortization)}</td>
-                            <td className="px-3 py-2.5 text-sm text-left font-semibold whitespace-nowrap align-top">
-                              <span className={r.remaining_balance > 0 ? "text-amber-600" : "text-gray-400"}>
-                                {formatCurrency(r.remaining_balance)}
-                              </span>
+                            <td className="px-3 py-2.5 text-sm text-left font-semibold align-top">
+                              <div className="flex flex-col gap-0.5">
+                                <span className={`whitespace-nowrap ${r.remaining_balance > 0 ? "text-gray-500 line-through" : "text-gray-400"}`}>
+                                  {formatCurrency(r.remaining_balance)}
+                                </span>
+                                {r.remaining_balance > 0 && (
+                                  <span className="text-[11px] font-normal italic text-amber-700 whitespace-nowrap">
+                                    Rolled into {parent.loan_id}
+                                  </span>
+                                )}
+                              </div>
                             </td>
                             <td className="px-3 py-2.5 text-sm text-gray-500 whitespace-nowrap align-top">
                               {formatDate(r.application_date)}

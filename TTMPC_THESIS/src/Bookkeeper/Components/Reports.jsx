@@ -4,14 +4,14 @@ import { UserAuth } from "../../contex/AuthContext";
 import { useNotification } from "../../contex/NotificationContext";
 import { PortalSidebarIdentity, PortalTopbarIdentity } from "../../components/PortalIdentity";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
-import { 
-  LayoutDashboard, 
-  Users, 
-  FileText, 
-  CreditCard, 
-  Calculator, 
-  Activity, 
-  BarChart3, 
+import {
+  LayoutDashboard,
+  Users,
+  FileText,
+  CreditCard,
+  Calculator,
+  Activity,
+  BarChart3,
   History,
   Search,
   Bell,
@@ -23,8 +23,9 @@ import {
   CircleDollarSign,
   FileDown,
   Briefcase,
-  Coins
-} from 'lucide-react';
+  Coins,
+  ShieldAlert,
+} from "lucide-react";
 import { 
   BarChart, Bar, 
   LineChart, Line, 
@@ -42,6 +43,7 @@ const Reports = () => {
       { name: "Manage Member", icon: Users },
       { name: "Loan Approval", icon: FileText },
       { name: "Manage Loans", icon: Briefcase },
+      { name: "Delinquency", icon: ShieldAlert },
       { name: "Payments", icon: Wallet },
       { name: "Savings Withdrawals", icon: CreditCard },
       { name: "Accounting", icon: Calculator },
@@ -126,6 +128,7 @@ const Reports = () => {
     "Manage Member": "/manage-member",
     "Loan Approval": "/bookkeeper-loan-approval",
     "Manage Loans": "/manage-loans",
+    Delinquency: "/delinquency",
     Payments: "/payments",
     "Savings Withdrawals": "/bookkeeper-savings-transactions",
     Accounting: "/accounting",

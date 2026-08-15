@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+﻿import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import {
   Activity,
@@ -22,6 +22,7 @@ import {
   Search,
   Users,
   Wallet,
+  ShieldAlert,
 } from "lucide-react";
 
 import { UserAuth } from "../../contex/AuthContext";
@@ -37,16 +38,16 @@ const PAGE_SIZE = 5;
 
 const formatCurrency = (value) => {
   const amount = Number(value || 0);
-  return `₱${amount.toLocaleString(undefined, {
+  return `â‚±${amount.toLocaleString(undefined, {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })}`;
 };
 
 const formatDate = (value) => {
-  if (!value) return "—";
+  if (!value) return "â€”";
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "—";
+  if (Number.isNaN(date.getTime())) return "â€”";
   return date.toLocaleDateString("en-US", {
     year: "numeric",
     month: "short",
@@ -115,6 +116,7 @@ const Bookkeeper_Savings_Accounts = () => {
     { name: "Manage Member", icon: Users },
     { name: "Loan Approval", icon: FileText },
     { name: "Manage Loans", icon: Briefcase },
+      { name: "Delinquency", icon: ShieldAlert },
     { name: "Payments", icon: Wallet },
     {
       name: "Savings Accounts",
@@ -138,6 +140,7 @@ const Bookkeeper_Savings_Accounts = () => {
     "Manage Member": "/manage-member",
     "Loan Approval": "/bookkeeper-loan-approval",
     "Manage Loans": "/manage-loans",
+    Delinquency: "/delinquency",
     Payments: "/payments",
     Accounting: "/accounting",
     "MIGS Scoring": "/migs",
@@ -332,7 +335,7 @@ const Bookkeeper_Savings_Accounts = () => {
                 </p>
               </div>
               <div className="flex items-center gap-2 px-3 py-1 bg-blue-50 border border-blue-200 rounded-lg text-xs text-blue-600 font-medium">
-                {accounts.length} accounts • {formatCurrency(totals.total)} total
+                {accounts.length} accounts â€¢ {formatCurrency(totals.total)} total
               </div>
             </div>
 
