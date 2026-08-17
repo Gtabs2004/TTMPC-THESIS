@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { UserAuth } from '../contex/AuthContext';
 import { Mail, Lock, User } from 'lucide-react';
 import PasswordInput from '../components/PasswordInput';
+import LoginLoadingOverlay from '../components/LoginLoadingOverlay';
 
 function Login() {
   const [email, setEmail] = useState('');
@@ -45,6 +46,7 @@ function Login() {
         setError('Selected role does not match your account role.');
       } else {
         navigate(getRoleRoute(result.role));
+        return;
       }
     } else {
       setError(result.error || 'Login failed. Please try again.');
@@ -55,7 +57,8 @@ function Login() {
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
-      
+      <LoginLoadingOverlay show={loading} />
+
       {/* Header & Logo */}
       <div className="sm:mx-auto sm:w-full sm:max-w-md flex flex-col items-center">
         <img

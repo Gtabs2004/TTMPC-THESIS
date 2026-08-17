@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { UserAuth } from '../contex/AuthContext';
 import { Mail, Lock } from 'lucide-react';
 import PasswordInput from '../components/PasswordInput';
+import LoginLoadingOverlay from '../components/LoginLoadingOverlay';
 
 function MemberLogin() {
   const [email, setEmail] = useState('');
@@ -22,6 +23,7 @@ function MemberLogin() {
 
     if (result.success) {
       navigate('/member-dashboard');
+      return;
     } else {
       setError(result.error || 'Login failed. Please try again.');
     }
@@ -31,7 +33,8 @@ function MemberLogin() {
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
-      
+      <LoginLoadingOverlay show={loading} />
+
       {/* Header & Logo */}
       <div className="sm:mx-auto sm:w-full sm:max-w-md flex flex-col items-center">
         <img
