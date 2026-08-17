@@ -19,6 +19,7 @@ from applicationConfirmation import (
     get_next_membership_id,
     _build_default_password,
     _extract_user_id,
+    _resolve_member_table,
 )
 from pypdf.generic import DecodedStreamObject, DictionaryObject, NameObject
 from risk_model import ModelNotAvailableError, score as risk_score
@@ -3638,7 +3639,7 @@ async def get_member_debt_capacity(member_key: str):
         raise HTTPException(status_code=400, detail="member_key is required.")
 
     try:
-        member_table = _resolve_member_table(supabase) if "_resolve_member_table" in globals() else "member"
+        member_table = _resolve_member_table(supabase)
         lookup_field = "id" if len(key) == 36 and key.count("-") == 4 else "membership_id"
         member_response = (
             supabase.table(member_table)
@@ -5672,7 +5673,7 @@ async def list_migs_members(year: int | None = None):
 
     try:
         # --- Member roster ------------------------------------------------
-        member_table = _resolve_member_table(supabase) if "_resolve_member_table" in globals() else "member"
+        member_table = _resolve_member_table(supabase)
         members_response = (
             supabase.table(member_table)
             .select("id,membership_id,first_name,last_name,is_bona_fide")
@@ -6173,7 +6174,7 @@ async def get_migs_label(member_key: str):
         raise HTTPException(status_code=400, detail="member_key is required.")
 
     try:
-        member_table = _resolve_member_table(supabase) if "_resolve_member_table" in globals() else "member"
+        member_table = _resolve_member_table(supabase)
         lookup_field = "id" if len(key) == 36 and key.count("-") == 4 else "membership_id"
         member_response = (
             supabase.table(member_table)
@@ -6273,7 +6274,7 @@ async def get_migs_member_detail(member_key: str, year: int | None = None):
         raise HTTPException(status_code=400, detail="member_key is required.")
 
     try:
-        member_table = _resolve_member_table(supabase) if "_resolve_member_table" in globals() else "member"
+        member_table = _resolve_member_table(supabase)
         lookup_field = "id" if len(key) == 36 and key.count("-") == 4 else "membership_id"
         member_response = (
             supabase.table(member_table)
@@ -6570,7 +6571,7 @@ async def get_ga_attendance_roster(year: int):
 
     try:
         year_int = int(year)
-        member_table = _resolve_member_table(supabase) if "_resolve_member_table" in globals() else "member"
+        member_table = _resolve_member_table(supabase)
         members_response = (
             supabase.table(member_table)
             .select("id,membership_id,first_name,last_name")

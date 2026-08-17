@@ -6,6 +6,35 @@ import { clearAll as clearMemberDataCache } from '../Member/memberDataCache';
 
 const AuthContext = createContext();
 
+// Pre-load member data on login using the RPC bundle (1 roundtrip instead of 9+)
+// Stores result in sessionStorage so Member_Dashboard can use cached data immediately
+const preloadMemberData = async (sessionUser) => {
+  try {
+    if (!sessionUser?.id) return null;
+
+    const { data: bundle, error } = await supabase.rpc('get_member_login_bundle', {
+      p_auth_user_id: sessionUser.id,
+    });
+
+    if (error || !bundle || !bundle.account) {
+      console.warn('[AuthContext] Member data preload failed:', error?.message);
+      return null;
+    }
+
+    // Cache the bundle in sessionStorage so Member_Dashboard can use it immediately
+    sessionStorage.setItem('_member_login_bundle_cache', JSON.stringify({
+      bundle,
+      sessionUserId: sessionUser.id,
+      timestamp: Date.now(),
+    }));
+
+    return bundle;
+  } catch (err) {
+    console.warn('[AuthContext] Error preloading member data:', err?.message);
+    return null;
+  }
+};
+
 export const AuthContextProvider = ({ children }) => {
   const [session, setSession] = useState(undefined);
 
@@ -210,6 +239,13 @@ export const AuthContextProvider = ({ children }) => {
         await ensurePersonalDataSheetExists(memberEmail, membershipId, isTemporary, userId);
       }
 
+      // Pre-load member data in background (non-blocking) — stored in sessionStorage
+      // for Member_Dashboard to use immediately without re-fetching
+      preloadMemberData(data?.user).catch(err => {
+        console.warn('[AuthContext] Background preload failed:', err?.message);
+        // Non-blocking — dashboard will do its own queries if needed
+      });
+
       console.log("Sign-in success:", data);
       return {
         success: true,
@@ -282,6 +318,7 @@ export const AuthContextProvider = ({ children }) => {
   const signOut = async () => {
     // Drop all cached member data so the next user doesn't see stale data.
     clearMemberDataCache();
+    sessionStorage.removeItem('_member_login_bundle_cache');
     const { error } = await supabase.auth.signOut();
     if (error) {
       console.error("Error signing out:", error);
