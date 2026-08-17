@@ -1,11 +1,10 @@
 {
   "$schema": "https://railway.com/railway.schema.json",
   "build": {
-    "builder": "RAILPACK",
-    "buildCommand": "python -m pip install -r TTMPC_THESIS/src/server/requirements.txt"
+    "builder": "RAILPACK"
   },
   "deploy": {
-    "startCommand": "cd TTMPC_THESIS/src/server && python -m uvicorn main:app --host 0.0.0.0 --port $PORT",
+    "startCommand": "python -m uvicorn main:app --host 0.0.0.0 --port $PORT",
     "healthcheckPath": "/health"
   }
 }
