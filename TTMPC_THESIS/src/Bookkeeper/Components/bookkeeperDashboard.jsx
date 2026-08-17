@@ -25,6 +25,7 @@ import {
   ShieldAlert,
   AlertTriangle,
   ChevronRight,
+  Brain,
 } from "lucide-react";
 import {
   BarChart,
@@ -97,6 +98,8 @@ const Dashboard = () => {
   const [shareCapitalTotal, setShareCapitalTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
+  const [creditRiskQueue, setCreditRiskQueue] = useState([]);
+  const [creditRiskModelVersion, setCreditRiskModelVersion] = useState(null);
 
    const menuItems = [
        { name: "Dashboard", icon: LayoutDashboard },
@@ -104,6 +107,7 @@ const Dashboard = () => {
        { name: "Loan Approval", icon: FileText },
        { name: "Manage Loans", icon: Briefcase },
       { name: "Delinquency", icon: ShieldAlert },
+      { name: "Credit Risk", icon: Brain },
        { name: "Payments", icon: Wallet },
        { name: "Savings Withdrawals", icon: CreditCard },
        { name: "Accounting", icon: Calculator },
@@ -120,6 +124,7 @@ const Dashboard = () => {
     "Loan Approval": "/bookkeeper-loan-approval",
     "Manage Loans": "/manage-loans",
     Delinquency: "/delinquency",
+    "Credit Risk": "/bookkeeper-credit-risk",
     Payments: "/payments",
     "Savings Withdrawals": "/bookkeeper-savings-transactions",
     Accounting: "/accounting",
@@ -204,7 +209,26 @@ const Dashboard = () => {
       }
     }
 
+    // Separate fetch for Credit Risk — cached backend so it's cheap, and
+    // decoupled from the main loans fetch so a slow /score-loan doesn't hold
+    // up the rest of the dashboard.
+    async function fetchCreditRisk() {
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/credit-risk/queue`);
+        const json = await res.json();
+        if (!res.ok || !json?.success) return;
+        if (cancelled) return;
+        const data = json?.data || {};
+        setCreditRiskQueue(Array.isArray(data.rows) ? data.rows : []);
+        setCreditRiskModelVersion(data.model_version || null);
+      } catch (err) {
+        // Silent-fail — dashboard still works without the credit risk card.
+        console.warn("Credit risk queue fetch failed:", err);
+      }
+    }
+
     fetchData();
+    fetchCreditRisk();
     // 60s poll (was 15s) — endpoint takes 8-15s cold and the tighter interval
     // caused request pile-up on the Bookkeeper's browser. Backend now caches
     // responses for 30s so the second poll is near-instant.
@@ -249,6 +273,27 @@ const Dashboard = () => {
       shareCapital: shareCapitalTotal,
     };
   }, [loans, allPayments, shareCapitalTotal]);
+
+  // Credit Risk snapshot for the dashboard snippet. Bucketed by
+  // probability so the card mirrors the full Credit Risk page classification.
+  const creditRiskSnapshot = useMemo(() => {
+    const scored = creditRiskQueue.filter((r) => r.probability != null);
+    const high = scored.filter((r) => r.probability >= 0.6);
+    const watch = scored.filter((r) => r.probability >= 0.3 && r.probability < 0.6);
+    const low = scored.filter((r) => r.probability < 0.3);
+    const topHigh = [...high]
+      .sort((a, b) => (b.probability || 0) - (a.probability || 0))
+      .slice(0, 3);
+    return {
+      total: scored.length,
+      queueTotal: creditRiskQueue.length,
+      high: high.length,
+      watch: watch.length,
+      low: low.length,
+      topHigh,
+      modelVersion: creditRiskModelVersion,
+    };
+  }, [creditRiskQueue, creditRiskModelVersion]);
 
   // Delinquency snapshot for the dashboard snippet. Uses days-since-last-payment
   // and the 90-day threshold (memory: project_delinquency_rule.md). Full detail
@@ -700,11 +745,13 @@ const Dashboard = () => {
             </div>
           </div>
 
+          {/* Delinquency + Credit Risk snippets side-by-side */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
           {/* Delinquency Snapshot — clickable, routes to full /delinquency page */}
           <button
             type="button"
             onClick={() => navigate("/delinquency")}
-            className="w-full text-left bg-white rounded-xl p-6 shadow-sm border border-gray-100 hover:shadow-md hover:border-red-200 transition mb-6 group"
+            className="w-full text-left bg-white rounded-xl p-6 shadow-sm border border-gray-100 hover:shadow-md hover:border-red-200 transition group"
           >
             <div className="flex items-start justify-between gap-4 flex-wrap">
               <div className="flex items-start gap-3">
@@ -775,6 +822,88 @@ const Dashboard = () => {
               </p>
             )}
           </button>
+
+          {/* Credit Risk Snapshot — clickable, routes to /bookkeeper-credit-risk */}
+          <button
+            type="button"
+            onClick={() => navigate("/bookkeeper-credit-risk")}
+            className="w-full text-left bg-white rounded-xl p-6 shadow-sm border border-gray-100 hover:shadow-md hover:border-indigo-200 transition group"
+          >
+            <div className="flex items-start justify-between gap-4 flex-wrap">
+              <div className="flex items-start gap-3">
+                <div className={`p-2.5 rounded-lg ${creditRiskSnapshot.high > 0 ? "bg-red-50 text-red-600" : "bg-indigo-50 text-indigo-600"}`}>
+                  <Brain size={20} />
+                </div>
+                <div>
+                  <h3 className="text-gray-800 font-bold text-lg flex items-center gap-2">
+                    Credit Risk Snapshot
+                    <ChevronRight size={18} className="text-gray-400 group-hover:text-indigo-500 group-hover:translate-x-0.5 transition" />
+                  </h3>
+                  <p className="text-gray-500 text-xs mt-0.5">
+                    Model-scored loan applicants in review · click for queue
+                  </p>
+                  <p className="text-xs text-indigo-700 mt-0.5">
+                    Model: {creditRiskSnapshot.modelVersion || "not identified"}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-6">
+                <div>
+                  <p className="text-xs text-gray-500 font-medium">High Risk</p>
+                  <p className={`text-2xl font-bold ${creditRiskSnapshot.high > 0 ? "text-red-600" : "text-gray-400"}`}>
+                    {creditRiskSnapshot.high}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500 font-medium">Watch</p>
+                  <p className={`text-2xl font-bold ${creditRiskSnapshot.watch > 0 ? "text-amber-600" : "text-gray-400"}`}>
+                    {creditRiskSnapshot.watch}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500 font-medium">Low</p>
+                  <p className={`text-2xl font-bold ${creditRiskSnapshot.low > 0 ? "text-emerald-600" : "text-gray-400"}`}>
+                    {creditRiskSnapshot.low}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {creditRiskSnapshot.topHigh.length > 0 && (
+              <div className="mt-5 pt-4 border-t border-gray-100">
+                <p className="text-xs text-gray-500 font-semibold uppercase tracking-wider mb-3">
+                  Top high-risk applicants
+                </p>
+                <ul className="space-y-2">
+                  {creditRiskSnapshot.topHigh.map((r) => (
+                    <li key={r.loan_id} className="flex items-center justify-between text-sm">
+                      <div className="flex items-center gap-3">
+                        <span className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0" />
+                        <span className="font-semibold text-gray-800">{r.member_name || "—"}</span>
+                        <span className="text-xs text-gray-400">{r.loan_type || ""}</span>
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <span className="text-xs text-gray-500">{formatPeso(r.loan_amount)}</span>
+                        <span className="text-xs font-bold text-red-600">{(r.probability * 100).toFixed(0)}%</span>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {creditRiskSnapshot.queueTotal === 0 && (
+              <p className="mt-4 text-sm text-gray-500 font-medium">
+                No applicants currently under review.
+              </p>
+            )}
+            {creditRiskSnapshot.queueTotal > 0 && creditRiskSnapshot.high === 0 && (
+              <p className="mt-4 text-sm text-emerald-700 font-medium">
+                No high-risk applicants in the queue. {creditRiskSnapshot.queueTotal} to review.
+              </p>
+            )}
+          </button>
+          </div>
 
           {/* Bottom Activity Section */}
           <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">

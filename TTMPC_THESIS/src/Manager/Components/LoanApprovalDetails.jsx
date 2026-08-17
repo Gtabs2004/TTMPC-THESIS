@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+﻿import React, { useCallback, useEffect, useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '../../supabaseClient';
 import { formatTinNumber } from '../../LOANFORMS/tinFormat';
@@ -26,7 +26,8 @@ import {
   Briefcase,
   Banknote,
   Wallet,
-} from 'lucide-react';
+  Brain,
+} from "lucide-react";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000';
 
@@ -635,7 +636,7 @@ const LoanApprovalDetails = () => {
         }
         if (data) setRiskAssessment(data);
       } catch (_err) {
-        // silent — empty assessment state means "not yet scored"
+        // silent â€” empty assessment state means "not yet scored"
       }
     })();
     return () => {
@@ -1081,7 +1082,7 @@ const LoanApprovalDetails = () => {
 
     let nextStatus = 'pending';
     if (isBookkeeperFlow && modalType === 'recommend') {
-      // Consolidated loans above ₱500K need BOD approval before going to the Manager.
+      // Consolidated loans above â‚±500K need BOD approval before going to the Manager.
       const isConsolidated = String(loanDetails.summary?.loanType || '').toLowerCase().includes('consolidated');
       const rawAmount = Number(
         loanDetails.summary?.recommendedAmountRaw
@@ -1264,9 +1265,9 @@ const LoanApprovalDetails = () => {
       case 'proceed':
         return { title: 'Approve Loan Application', confirmLabel: 'Confirm Approval', loadingLabel: 'Saving...', tone: 'default', onConfirm: () => applyLoanStatusUpdate('proceed') };
       case 'bod_approve':
-        return { title: 'BOD Approve Loan', confirmLabel: 'Confirm BOD Approval', loadingLabel: 'Submitting…', tone: 'default', onConfirm: () => applyBodDecision('approve') };
+        return { title: 'BOD Approve Loan', confirmLabel: 'Confirm BOD Approval', loadingLabel: 'Submittingâ€¦', tone: 'default', onConfirm: () => applyBodDecision('approve') };
       case 'bod_reject':
-        return { title: 'BOD Reject Loan', confirmLabel: 'Confirm Rejection', loadingLabel: 'Submitting…', tone: 'destructive', onConfirm: () => applyBodDecision('reject') };
+        return { title: 'BOD Reject Loan', confirmLabel: 'Confirm Rejection', loadingLabel: 'Submittingâ€¦', tone: 'destructive', onConfirm: () => applyBodDecision('reject') };
       case 'recommend': {
         const isConsolidatedHigh =
           String(loanDetails?.summary?.loanType || '').toLowerCase().includes('consolidated')
@@ -1343,7 +1344,7 @@ const LoanApprovalDetails = () => {
   } else if (statusLower.includes('treasurer') || statusLower.includes('approved by manager') || statusLower.includes('to be disbursed') || statusLower.includes('ready for disbursement')) {
     currentStepIdx = stepIndex('treasurer');
   } else if (statusLower.includes('bod')) {
-    // 'recommended for bod approval' or 'bod rejected' — show BOD step active.
+    // 'recommended for bod approval' or 'bod rejected' â€” show BOD step active.
     currentStepIdx = requiresBodStep ? stepIndex('bod') : stepIndex('manager');
   } else if (statusLower.includes('recommended for approval') || statusLower.includes('manager') || statusLower.includes('approved by bookkeeper')) {
     currentStepIdx = stepIndex('manager');
@@ -1387,9 +1388,9 @@ const LoanApprovalDetails = () => {
                 <span>
                   Control # <span className="font-mono font-bold text-[#1D6021]">{loanDetails.id}</span>
                 </span>
-                <span className="text-gray-300">·</span>
+                <span className="text-gray-300">Â·</span>
                 <span>{loanDetails.summary.loanType}</span>
-                <span className="text-gray-300">·</span>
+                <span className="text-gray-300">Â·</span>
                 <span className="font-bold text-gray-800">{loanDetails.summary.recommendedAmount}</span>
               </div>
             </div>
@@ -1495,7 +1496,7 @@ const LoanApprovalDetails = () => {
                     return (
                       <div className="flex items-center gap-1.5 flex-wrap">
                         <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${getMigsBadgeClasses(label)}`}>
-                          {migsStatusFetch === 'loading' ? 'Loading…' : label}
+                          {migsStatusFetch === 'loading' ? 'Loadingâ€¦' : label}
                         </span>
                         {score != null && (
                           <span className="text-[10px] font-bold text-gray-500">
@@ -1504,7 +1505,7 @@ const LoanApprovalDetails = () => {
                         )}
                         {migsLabel?.loan_multiplier && (
                           <span className="text-[10px] font-bold text-gray-500">
-                            ·  {migsLabel.loan_multiplier}x cap
+                            Â·  {migsLabel.loan_multiplier}x cap
                           </span>
                         )}
                       </div>
@@ -1567,7 +1568,7 @@ const LoanApprovalDetails = () => {
                   ? 'Service / Support or Unclassified'
                   : 'Entrepreneurial / Informal';
                 const incomeMissing = Number(features.Income_Is_Missing) === 1;
-                // Policy: show the exact computed Repayment Stress Index — no
+                // Policy: show the exact computed Repayment Stress Index â€” no
                 // display cap. The 40% ceiling still drives the risk band:
                 // anything above 40 is labelled High Risk regardless of how
                 // large the actual percentage gets (e.g. 120%).
@@ -1634,7 +1635,7 @@ const LoanApprovalDetails = () => {
                         <div>
                         <p className="text-[10px] text-gray-400 uppercase">Repayment Stress</p>
                           {incomeMissing ? (
-                            <p className="font-bold text-gray-800">— (income missing)</p>
+                            <p className="font-bold text-gray-800">â€” (income missing)</p>
                           ) : (
                             <>
                               <p className={`font-bold ${stressIndexOverCap ? 'text-red-700' : 'text-gray-800'}`}>
@@ -1955,7 +1956,7 @@ const LoanApprovalDetails = () => {
             </div>
           </div>
 
-          {/* Collateral panel — Bookkeeper edits appraised_value; others read-only. */}
+          {/* Collateral panel â€” Bookkeeper edits appraised_value; others read-only. */}
           <div className="border-t border-gray-200 pt-4 mt-4">
             <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-3">Loan Collateral</p>
             {collateralRows.length === 0 ? (
@@ -2002,7 +2003,7 @@ const LoanApprovalDetails = () => {
                               disabled={collateralSavingId === row.collateral_id}
                               className="px-2 py-1 text-[10px] font-bold rounded bg-[#1D6021] text-white hover:bg-[#154718] disabled:opacity-60"
                             >
-                              {collateralSavingId === row.collateral_id ? '…' : 'Save'}
+                              {collateralSavingId === row.collateral_id ? 'â€¦' : 'Save'}
                             </button>
                           </div>
                         ) : (
@@ -2072,8 +2073,8 @@ const LoanApprovalDetails = () => {
       <div className="fixed bottom-0 left-0 right-0 z-30 bg-white/95 backdrop-blur border-t border-gray-200 shadow-lg">
         <div className="px-8 py-3 flex flex-wrap items-center justify-between gap-3">
           <div className="text-xs text-gray-500 hidden md:block">
-            <span className="font-semibold text-gray-700">{loanDetails.memberName}</span> ·
-            <span className="ml-1 font-mono">{loanDetails.id}</span> ·
+            <span className="font-semibold text-gray-700">{loanDetails.memberName}</span> Â·
+            <span className="ml-1 font-mono">{loanDetails.id}</span> Â·
             <span className="ml-1 font-bold text-[#1D6021]">{loanDetails.computation.monthlyAmortization}/mo</span>
           </div>
           <div className="flex flex-wrap items-center gap-2 ml-auto">
@@ -2245,7 +2246,7 @@ const LoanApprovalDetails = () => {
               <textarea
                 rows="3"
                 className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-[#1D6021] focus:border-[#1D6021] outline-none"
-                placeholder="Optional notes for the Manager…"
+                placeholder="Optional notes for the Managerâ€¦"
                 value={bodRemarks}
                 onChange={(e) => setBodRemarks(e.target.value)}
               ></textarea>
@@ -2264,7 +2265,7 @@ const LoanApprovalDetails = () => {
               <textarea
                 rows="4"
                 className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none"
-                placeholder="State the reason…"
+                placeholder="State the reasonâ€¦"
                 value={bodRemarks}
                 onChange={(e) => setBodRemarks(e.target.value)}
               ></textarea>
@@ -2285,7 +2286,7 @@ const LoanApprovalDetails = () => {
               </p>
               {isConsolidatedHigh ? (
                 <div className="rounded-md bg-blue-50 border border-blue-200 px-3 py-2 text-xs text-blue-800 mb-4">
-                  This Consolidated loan is over ₱500,000 and requires <b>BOD approval first</b>. It will go to the Manager only after the BOD signs off.
+                  This Consolidated loan is over â‚±500,000 and requires <b>BOD approval first</b>. It will go to the Manager only after the BOD signs off.
                 </div>
               ) : null}
 

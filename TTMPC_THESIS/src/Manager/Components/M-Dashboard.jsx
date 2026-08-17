@@ -18,8 +18,10 @@ import {
   AlertTriangle,
   ChevronDown,
   History,
-  BarChart3 ,
-} from 'lucide-react';
+  BarChart3,
+  Brain,
+  ChevronRight,
+} from "lucide-react";
 import {
   AreaChart,
   Area,
@@ -61,10 +63,15 @@ const M_Dashboard = () => {
   const [distributionData, setDistributionData] = useState([]);
   const [recentRequests, setRecentRequests] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [creditRiskQueue, setCreditRiskQueue] = useState([]);
+  const [creditRiskModelVersion, setCreditRiskModelVersion] = useState(null);
+
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 
   const menuItems = [
     { name: "Dashboard", icon: LayoutDashboard },
     { name: "Loan Approval", icon: ClipboardCheck },
+    { name: "Credit Risk", icon: Brain },
     { name: "Manage Member", icon: Users },
     { name: "Reports", icon: BarChart3 },
     { name: "Audit Log", icon: History },
@@ -217,9 +224,45 @@ const M_Dashboard = () => {
       }
     };
     loadDashboard();
+
+    // Separate fetch for Credit Risk queue — decoupled so a slow scoring
+    // pass doesn't hold up the rest of the dashboard.
+    const loadCreditRisk = async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/credit-risk/queue`);
+        const json = await res.json();
+        if (!res.ok || !json?.success || !isMounted) return;
+        const data = json?.data || {};
+        setCreditRiskQueue(Array.isArray(data.rows) ? data.rows : []);
+        setCreditRiskModelVersion(data.model_version || null);
+      } catch (err) {
+        console.warn("Credit risk queue fetch failed:", err);
+      }
+    };
+    loadCreditRisk();
+
     return () => { isMounted = false; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const creditRiskSnapshot = useMemo(() => {
+    const scored = creditRiskQueue.filter((r) => r.probability != null);
+    const high = scored.filter((r) => r.probability >= 0.6);
+    const watch = scored.filter((r) => r.probability >= 0.3 && r.probability < 0.6);
+    const low = scored.filter((r) => r.probability < 0.3);
+    const topHigh = [...high]
+      .sort((a, b) => (b.probability || 0) - (a.probability || 0))
+      .slice(0, 3);
+    return {
+      total: scored.length,
+      queueTotal: creditRiskQueue.length,
+      high: high.length,
+      watch: watch.length,
+      low: low.length,
+      topHigh,
+      modelVersion: creditRiskModelVersion,
+    };
+  }, [creditRiskQueue, creditRiskModelVersion]);
 
   const totalActive = stats.totalLoans || 0;
 
@@ -252,6 +295,7 @@ const M_Dashboard = () => {
             const routeMap = {
               "Dashboard": "/manager-dashboard",
               "Loan Approval": "/loan-approval",
+              "Credit Risk": "/manager-credit-risk",
               "Manage Member": "/manager-manage-member",
               "Reports": "/manager-reports",
               "Audit Log": "/manager-audit-log",
@@ -445,6 +489,87 @@ const M_Dashboard = () => {
             </div>
 
           </div>
+
+          {/* Credit Risk Snapshot — clickable, routes to /manager-credit-risk */}
+          <button
+            type="button"
+            onClick={() => navigate("/manager-credit-risk")}
+            className="w-full text-left bg-white rounded-xl p-6 shadow-sm border border-gray-100 hover:shadow-md hover:border-indigo-200 transition mb-6 group"
+          >
+            <div className="flex items-start justify-between gap-4 flex-wrap">
+              <div className="flex items-start gap-3">
+                <div className={`p-2.5 rounded-lg ${creditRiskSnapshot.high > 0 ? "bg-red-50 text-red-600" : "bg-indigo-50 text-indigo-600"}`}>
+                  <Brain size={20} />
+                </div>
+                <div>
+                  <h3 className="text-gray-800 font-bold text-lg flex items-center gap-2">
+                    Credit Risk Snapshot
+                    <ChevronRight size={18} className="text-gray-400 group-hover:text-indigo-500 group-hover:translate-x-0.5 transition" />
+                  </h3>
+                  <p className="text-gray-500 text-xs mt-0.5">
+                    Model-scored loan applicants awaiting your decision · click for queue
+                  </p>
+                  <p className="text-xs text-indigo-700 mt-0.5">
+                    Model: {creditRiskSnapshot.modelVersion || "not identified"}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-6">
+                <div>
+                  <p className="text-xs text-gray-500 font-medium">High Risk</p>
+                  <p className={`text-2xl font-bold ${creditRiskSnapshot.high > 0 ? "text-red-600" : "text-gray-400"}`}>
+                    {creditRiskSnapshot.high}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500 font-medium">Watch</p>
+                  <p className={`text-2xl font-bold ${creditRiskSnapshot.watch > 0 ? "text-amber-600" : "text-gray-400"}`}>
+                    {creditRiskSnapshot.watch}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500 font-medium">Low</p>
+                  <p className={`text-2xl font-bold ${creditRiskSnapshot.low > 0 ? "text-emerald-600" : "text-gray-400"}`}>
+                    {creditRiskSnapshot.low}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {creditRiskSnapshot.topHigh.length > 0 && (
+              <div className="mt-5 pt-4 border-t border-gray-100">
+                <p className="text-xs text-gray-500 font-semibold uppercase tracking-wider mb-3">
+                  Top high-risk applicants
+                </p>
+                <ul className="space-y-2">
+                  {creditRiskSnapshot.topHigh.map((r) => (
+                    <li key={r.loan_id} className="flex items-center justify-between text-sm">
+                      <div className="flex items-center gap-3">
+                        <span className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0" />
+                        <span className="font-semibold text-gray-800">{r.member_name || "—"}</span>
+                        <span className="text-xs text-gray-400">{r.loan_type || ""}</span>
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <span className="text-xs text-gray-500">{formatCurrency(r.loan_amount)}</span>
+                        <span className="text-xs font-bold text-red-600">{(r.probability * 100).toFixed(0)}%</span>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {creditRiskSnapshot.queueTotal === 0 && (
+              <p className="mt-4 text-sm text-gray-500 font-medium">
+                No applicants currently awaiting your decision.
+              </p>
+            )}
+            {creditRiskSnapshot.queueTotal > 0 && creditRiskSnapshot.high === 0 && (
+              <p className="mt-4 text-sm text-emerald-700 font-medium">
+                No high-risk applicants in the queue. {creditRiskSnapshot.queueTotal} to review.
+              </p>
+            )}
+          </button>
 
           {/* My Audit Activity */}
           <div className="mb-6">

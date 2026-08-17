@@ -232,3 +232,162 @@ def score(
         "features_used": features_used,
         "model_version": meta.get("model_version") or meta.get("version") or meta.get("training_date"),
     }
+
+
+# ---------------------------------------------------------------------------
+# Model-agnostic driver contributions.
+#
+# This is the ONE place the Credit Risk UI depends on. When the new model
+# arrives, only this function needs to adapt:
+#   * Linear models  → coefficient × standardized_value
+#   * Tree models    → SHAP values (add `import shap`, wrap explainer)
+#   * Anything else  → surface top-k feature importances × value
+#
+# The UI reads {feature, value, cohort_median, contribution, direction} and
+# has no other assumption about the model type, so a swap is backend-only.
+# ---------------------------------------------------------------------------
+
+# Cohort-median cache. Computed once from training/reference metadata (or
+# derived from historical scoring calls if metadata doesn't ship medians).
+# Falls back to conservative defaults matching the current LR feature space.
+_COHORT_MEDIANS_FALLBACK: dict[str, float] = {
+    "LoanAmount": 50000.0,
+    "Stability_Score": 3.0,
+    "Advance_Payment_Count": 0.0,
+    "Income_Is_Missing": 0.0,
+    "Repayment_Stress_Index": 20.0,
+}
+
+
+def _cohort_medians() -> dict[str, float]:
+    """Prefer medians shipped in model_metadata.json; else use fallback."""
+    try:
+        _, meta = _load_model()
+    except ModelNotAvailableError:
+        return dict(_COHORT_MEDIANS_FALLBACK)
+    shipped = meta.get("cohort_medians") if isinstance(meta, dict) else None
+    if isinstance(shipped, dict) and shipped:
+        return {k: float(shipped.get(k, _COHORT_MEDIANS_FALLBACK.get(k, 0.0))) for k in FEATURE_COLUMNS}
+    return dict(_COHORT_MEDIANS_FALLBACK)
+
+
+def _driver_contributions(model, feature_values: dict[str, float]) -> list[dict]:
+    """
+    Per-feature contribution to the score. Result is sorted by absolute
+    contribution descending; top-of-list = biggest score driver.
+
+    Model-swap notes:
+      - sklearn LogisticRegression / LinearRegression → uses .coef_
+      - Tree ensembles → replace body with shap.TreeExplainer(model).shap_values(...)
+      - Keeps output shape stable regardless of model internals.
+    """
+    contributions: list[dict] = []
+
+    coef = getattr(model, "coef_", None)
+    if coef is not None:
+        try:
+            # Binary classifier: coef_ shape is (1, n_features)
+            weights = coef[0] if hasattr(coef, "__len__") and len(coef) else coef
+            for i, feat in enumerate(FEATURE_COLUMNS):
+                w = float(weights[i]) if i < len(weights) else 0.0
+                v = float(feature_values.get(feat, 0.0))
+                # Contribution = weight * value (log-odds contribution for LR).
+                # For thesis-level UI this is a defensible "which input pushed
+                # the score up/down" attribution.
+                contributions.append({
+                    "feature": feat,
+                    "value": v,
+                    "contribution": w * v,
+                })
+        except Exception:
+            contributions = []
+
+    # Fallback for models without .coef_ (trees, ensembles) — surface raw
+    # feature values scaled by feature_importances_ if available.
+    if not contributions:
+        importances = getattr(model, "feature_importances_", None)
+        if importances is not None and len(importances) >= len(FEATURE_COLUMNS):
+            for i, feat in enumerate(FEATURE_COLUMNS):
+                imp = float(importances[i])
+                v = float(feature_values.get(feat, 0.0))
+                contributions.append({
+                    "feature": feat,
+                    "value": v,
+                    "contribution": imp * v,
+                })
+        else:
+            # Last-resort: no attribution available — return values only so
+            # the UI still renders something rather than crashing.
+            for feat in FEATURE_COLUMNS:
+                contributions.append({
+                    "feature": feat,
+                    "value": float(feature_values.get(feat, 0.0)),
+                    "contribution": 0.0,
+                })
+
+    return sorted(contributions, key=lambda c: abs(c["contribution"]), reverse=True)
+
+
+def score_with_drivers(
+    loan_amount: Any,
+    occupation: Any,
+    annual_income: Any,
+    advance_payment_count: int = 0,
+    monthly_amortization: Any = None,
+    latest_net_pay: Any = None,
+) -> dict:
+    """
+    Same inputs as score(), but returns the normalized payload the Credit
+    Risk UI reads:
+
+        {
+          "probability": float,          # 0..1
+          "risk_label": str,             # "High Risk" | "Performing"
+          "model_version": str | None,
+          "drivers": [                   # sorted, biggest first
+            {
+              "feature": str,
+              "value": float,
+              "cohort_median": float,
+              "contribution": float,     # signed — positive = pushes score UP
+              "direction": "up" | "down" | "neutral",
+            },
+            ...
+          ],
+        }
+
+    Frontend must not depend on anything beyond this shape.
+    """
+    base = score(
+        loan_amount,
+        occupation,
+        annual_income,
+        advance_payment_count,
+        monthly_amortization,
+        latest_net_pay,
+    )
+    model, _ = _load_model()
+    medians = _cohort_medians()
+    contribs = _driver_contributions(model, base["features_used"])
+    drivers = []
+    for c in contribs:
+        contribution = float(c["contribution"])
+        if contribution > 1e-9:
+            direction = "up"
+        elif contribution < -1e-9:
+            direction = "down"
+        else:
+            direction = "neutral"
+        drivers.append({
+            "feature": c["feature"],
+            "value": float(c["value"]),
+            "cohort_median": float(medians.get(c["feature"], 0.0)),
+            "contribution": contribution,
+            "direction": direction,
+        })
+    return {
+        "probability": float(base["risk_probability"]),
+        "risk_label": base["risk_label"],
+        "model_version": base.get("model_version"),
+        "drivers": drivers,
+    }

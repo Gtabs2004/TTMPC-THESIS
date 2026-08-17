@@ -4,16 +4,18 @@ import { UserAuth } from "../../contex/AuthContext";
 import { useNotification } from "../../contex/NotificationContext";
 import { PortalSidebarIdentity, PortalTopbarIdentity } from "../../components/PortalIdentity";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
-import { LayoutDashboard,
-         Users,
-         ClipboardCheck,
-         Search,
-         Bell,
-         ChevronLeft,
-         ChevronRight,
-         BarChart3,
-         History,
-        } from "lucide-react";
+import {
+  LayoutDashboard,
+  Users,
+  ClipboardCheck,
+  Search,
+  Bell,
+  ChevronLeft,
+  ChevronRight,
+  BarChart3,
+  History,
+  Brain,
+} from "lucide-react";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 const ITEMS_PER_PAGE = 10;
@@ -30,6 +32,7 @@ const Manager_Manage_Member = () => {
   const menuItems = [
       { name: "Dashboard", icon: LayoutDashboard },
       { name: "Loan Approval", icon: ClipboardCheck },
+    { name: "Credit Risk", icon: Brain },
       { name: "Manage Member", icon: Users },
       { name: "Reports", icon: BarChart3 },
       { name: "Audit Log", icon: History },
@@ -38,6 +41,7 @@ const Manager_Manage_Member = () => {
   const routeMap = {
     "Dashboard": "/manager-dashboard",
     "Loan Approval": "/loan-approval",
+              "Credit Risk": "/manager-credit-risk",
     "Manage Member": "/manager-manage-member",
     "Reports": "/manager-reports",
     "Audit Log": "/manager-audit-log",

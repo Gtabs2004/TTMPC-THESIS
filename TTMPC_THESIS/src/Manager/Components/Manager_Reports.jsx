@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+﻿import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
 import { useNotification } from "../../contex/NotificationContext";
@@ -19,6 +19,7 @@ import {
   Wallet,
   Award,
   History,
+  Brain,
 } from "lucide-react";
 import {
   BarChart,
@@ -36,7 +37,7 @@ import {
 
 const formatCurrency = (value, opts = {}) => {
   const amount = Number(value || 0);
-  return `₱${amount.toLocaleString(undefined, {
+  return `â‚±${amount.toLocaleString(undefined, {
     minimumFractionDigits: opts.decimals ?? 0,
     maximumFractionDigits: opts.decimals ?? 0,
   })}`;
@@ -158,7 +159,7 @@ const Manager_Reports = () => {
           0
         );
 
-        // Overdue loans — distinct loan_ids that intersect with active loans
+        // Overdue loans â€” distinct loan_ids that intersect with active loans
         const overdueLoanIds = new Set(
           (overdueResult?.data || [])
             .map((s) => s.loan_id)
@@ -199,7 +200,7 @@ const Manager_Reports = () => {
             }))
         );
 
-        // MIGS breakdown — latest snapshot per member
+        // MIGS breakdown â€” latest snapshot per member
         const totalMembers = memberCountResult?.count || 0;
         const seen = new Set();
         let migsCount = 0;
@@ -208,7 +209,7 @@ const Manager_Reports = () => {
           const mid = row.membership_number_id;
           if (!mid || seen.has(mid)) return;
           seen.add(mid);
-          // total_score >= 50 → MIGS Qualified
+          // total_score >= 50 â†’ MIGS Qualified
           if (Number(row.total_score || 0) >= 50) migsCount += 1;
           else nonMigsCount += 1;
         });
@@ -310,6 +311,7 @@ const Manager_Reports = () => {
            const routeMap = {
     "Dashboard": "/manager-dashboard",
     "Loan Approval": "/loan-approval",
+              "Credit Risk": "/manager-credit-risk",
     "Manage Member": "/manager-manage-member",
     "Reports": "/manager-reports",
     "Audit Log": "/manager-audit-log",
@@ -383,7 +385,7 @@ const Manager_Reports = () => {
 
           {loading && (
             <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700 flex items-center gap-2">
-              <Clock size={16} /> Loading portfolio metrics…
+              <Clock size={16} /> Loading portfolio metricsâ€¦
             </div>
           )}
           {error && (
@@ -400,7 +402,7 @@ const Manager_Reports = () => {
                 <Banknote className="w-4 h-4 text-blue-600" />
               </div>
               <p className="text-2xl font-bold text-gray-900">
-                {loading ? "—" : portfolio.totalActive}
+                {loading ? "â€”" : portfolio.totalActive}
               </p>
               <p className="text-[11px] text-gray-500 mt-1">Released or partially paid</p>
             </div>
@@ -411,7 +413,7 @@ const Manager_Reports = () => {
                 <Wallet className="w-4 h-4 text-green-600" />
               </div>
               <p className="text-2xl font-bold text-gray-900">
-                {loading ? "—" : formatCurrency(portfolio.totalPrincipalOutstanding)}
+                {loading ? "â€”" : formatCurrency(portfolio.totalPrincipalOutstanding)}
               </p>
               <p className="text-[11px] text-gray-500 mt-1">Across all active loans</p>
             </div>
@@ -422,7 +424,7 @@ const Manager_Reports = () => {
                 <CheckCircle2 className="w-4 h-4 text-emerald-600" />
               </div>
               <p className="text-2xl font-bold text-gray-900">
-                {loading ? "—" : formatCurrency(portfolio.totalDisbursedYtd)}
+                {loading ? "â€”" : formatCurrency(portfolio.totalDisbursedYtd)}
               </p>
               <p className="text-[11px] text-gray-500 mt-1">Calendar year to date</p>
             </div>
@@ -433,7 +435,7 @@ const Manager_Reports = () => {
                 <AlertTriangle className="w-4 h-4 text-rose-600" />
               </div>
               <p className="text-2xl font-bold text-gray-900">
-                {loading ? "—" : `${portfolio.overdueRate.toFixed(1)}%`}
+                {loading ? "â€”" : `${portfolio.overdueRate.toFixed(1)}%`}
               </p>
               <p className="text-[11px] text-gray-500 mt-1">
                 {portfolio.overdueLoans} active loans with overdue schedules
@@ -447,7 +449,7 @@ const Manager_Reports = () => {
             <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100 lg:col-span-2">
               <div className="flex items-center gap-2 mb-4">
                 <TrendingUp className="w-4 h-4 text-gray-500" />
-                <h3 className="text-gray-800 font-bold text-sm">Loan Activity — Last 12 Months</h3>
+                <h3 className="text-gray-800 font-bold text-sm">Loan Activity â€” Last 12 Months</h3>
               </div>
               <div className="h-64">
                 <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={1}>
@@ -531,7 +533,7 @@ const Manager_Reports = () => {
                   {loading ? (
                     <tr>
                       <td colSpan={3} className="p-5 text-sm text-center text-gray-500">
-                        Loading…
+                        Loadingâ€¦
                       </td>
                     </tr>
                   ) : loanTypeBreakdown.length === 0 ? (
@@ -563,7 +565,7 @@ const Manager_Reports = () => {
 
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
               <div className="p-4 border-b border-gray-100">
-                <h3 className="text-gray-800 font-bold text-sm">Top 5 Borrowers — Outstanding</h3>
+                <h3 className="text-gray-800 font-bold text-sm">Top 5 Borrowers â€” Outstanding</h3>
               </div>
               <table className="w-full text-left border-collapse">
                 <thead>
@@ -577,7 +579,7 @@ const Manager_Reports = () => {
                   {loading ? (
                     <tr>
                       <td colSpan={3} className="p-5 text-sm text-center text-gray-500">
-                        Loading…
+                        Loadingâ€¦
                       </td>
                     </tr>
                   ) : topBorrowers.length === 0 ? (

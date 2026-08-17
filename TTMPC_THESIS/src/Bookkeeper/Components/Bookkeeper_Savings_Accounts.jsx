@@ -23,6 +23,7 @@ import {
   Users,
   Wallet,
   ShieldAlert,
+  Brain,
 } from "lucide-react";
 
 import { UserAuth } from "../../contex/AuthContext";
@@ -117,6 +118,7 @@ const Bookkeeper_Savings_Accounts = () => {
     { name: "Loan Approval", icon: FileText },
     { name: "Manage Loans", icon: Briefcase },
       { name: "Delinquency", icon: ShieldAlert },
+      { name: "Credit Risk", icon: Brain },
     { name: "Payments", icon: Wallet },
     {
       name: "Savings Accounts",
@@ -141,6 +143,7 @@ const Bookkeeper_Savings_Accounts = () => {
     "Loan Approval": "/bookkeeper-loan-approval",
     "Manage Loans": "/manage-loans",
     Delinquency: "/delinquency",
+    "Credit Risk": "/bookkeeper-credit-risk",
     Payments: "/payments",
     Accounting: "/accounting",
     "MIGS Scoring": "/migs",
