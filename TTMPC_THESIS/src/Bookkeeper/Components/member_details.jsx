@@ -11,6 +11,7 @@ import {
   TrendingUp,
   FileText,
   ShieldAlert,
+  Brain,
 } from "lucide-react";
 import { formatTinNumber } from '../../LOANFORMS/tinFormat';
 import { UserAuth } from '../../contex/AuthContext';

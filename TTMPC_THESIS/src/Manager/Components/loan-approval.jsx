@@ -19,7 +19,8 @@ import {
   BarChart3,
   History,
   ClipboardCheck,
-} from 'lucide-react';
+  Brain,
+} from "lucide-react";
 
 const Loan_Approval = () => {
   const { session, signOut } = UserAuth();
@@ -31,6 +32,7 @@ const Loan_Approval = () => {
   const menuItems = [
       { name: "Dashboard", icon: LayoutDashboard },
       { name: "Loan Approval", icon: ClipboardCheck },
+    { name: "Credit Risk", icon: Brain },
       { name: "Manage Member", icon: Users },
       { name: "Reports", icon: BarChart3 },
       { name: "Audit Log", icon: History },
@@ -194,6 +196,7 @@ const Loan_Approval = () => {
                const routeMap = {
                 "Dashboard": "/manager-dashboard",
                 "Loan Approval": "/loan-approval",
+              "Credit Risk": "/manager-credit-risk",
                 "Manage Member": "/manager-manage-member",
                 "Reports": "/manager-reports",
                 "Audit Log": "/manager-audit-log",

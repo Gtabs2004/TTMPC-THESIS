@@ -21,6 +21,7 @@ import {
   Wallet,
   Coins,
   ShieldAlert,
+  Brain,
 } from "lucide-react";
 
 
@@ -34,6 +35,7 @@ const menuItems = [
     { name: "Loan Approval", icon: FileText },
     { name: "Manage Loans", icon: Briefcase },
       { name: "Delinquency", icon: ShieldAlert },
+      { name: "Credit Risk", icon: Brain },
     { name: "Payments", icon: Wallet },
     { name: "Savings Withdrawals", icon: CreditCard },
     { name: "Accounting", icon: Calculator },
@@ -81,6 +83,7 @@ const menuItems = [
       "Loan Approval": "/bookkeeper-loan-approval",
       "Manage Loans": "/manage-loans",
     Delinquency: "/delinquency",
+    "Credit Risk": "/bookkeeper-credit-risk",
       Payments: "/payments",
       "Savings Withdrawals": "/bookkeeper-savings-transactions",
       Accounting: "/accounting",

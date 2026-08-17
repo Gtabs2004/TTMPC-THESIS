@@ -22,7 +22,7 @@ from applicationConfirmation import (
     _resolve_member_table,
 )
 from pypdf.generic import DecodedStreamObject, DictionaryObject, NameObject
-from risk_model import ModelNotAvailableError, score as risk_score
+from risk_model import ModelNotAvailableError, score as risk_score, score_with_drivers as risk_score_with_drivers
 from demand_model import (
     DemandModelNotAvailableError,
     SUPPORTED_LOAN_TYPES as DEMAND_LOAN_TYPES,
@@ -8954,6 +8954,206 @@ async def predict_loan_risk(payload: RiskPredictRequest):
     )
     saved = (upsert_resp.data or [insert_row])[0]
     return {"cached": False, **saved, "risk_label": result["risk_label"]}
+
+
+# ============================================================================
+# SECTION: Credit Risk Queue
+# Feeds the Credit Risk sidebar page (Bookkeeper + Manager) and the dashboard
+# snippet. Scores loans currently under review (application_status IN the
+# review set) and returns the normalized {probability, drivers[]} payload the
+# UI expects. Frontend is model-agnostic — swap the PKL in risk_model.py and
+# this endpoint's response shape stays the same.
+# ============================================================================
+
+# Application statuses considered "in review" — the Credit Risk page shows
+# only these because the model is meant to assist evaluation, not audit
+# already-approved loans.
+_CREDIT_RISK_QUEUE_STATUSES = {
+    "pending",
+    "for approval",
+    "for review",
+    "for evaluation",
+    "under review",
+    "submitted",
+    "for bookkeeper",
+    "for manager",
+}
+
+# 60s cache — same rationale as manage-loans, but scoring is CPU-heavier
+# than a plain fetch so caching helps even more.
+_CREDIT_RISK_QUEUE_CACHE: dict = {"payload": None, "expires_at": 0.0}
+_CREDIT_RISK_QUEUE_CACHE_TTL_SECONDS = 60.0
+
+
+@app.get("/api/credit-risk/queue")
+async def get_credit_risk_queue():
+    if supabase is None:
+        raise HTTPException(status_code=503, detail="Supabase client is not configured.")
+
+    import time as _time
+    now = _time.monotonic()
+    if _CREDIT_RISK_QUEUE_CACHE["payload"] is not None and _CREDIT_RISK_QUEUE_CACHE["expires_at"] > now:
+        return _CREDIT_RISK_QUEUE_CACHE["payload"]
+
+    try:
+        loans_resp = (
+            supabase.table("loans")
+            .select(
+                "control_number,member_id,loan_amount,principal_amount,monthly_amortization,"
+                "term,application_status,loan_status,application_date,latest_net_pay,raw_payload,"
+                "member:member_id(first_name,last_name,membership_id,is_bona_fide),"
+                "loan_type:loan_type_id(code,name)"
+            )
+            .order("application_date", desc=True)
+            .execute()
+        )
+        loan_rows = loans_resp.data or []
+    except Exception as err:
+        raise HTTPException(status_code=500, detail=f"Failed to load loans: {err}")
+
+    # Keep only loans in a review status. Use application_status if present,
+    # else fall back to loan_status.
+    filtered: list[dict] = []
+    for row in loan_rows:
+        status = str(row.get("application_status") or row.get("loan_status") or "").strip().lower()
+        if status in _CREDIT_RISK_QUEUE_STATUSES:
+            filtered.append(row)
+
+    # Batch-fetch PDS rows for all borrowers so we don't do N+1 queries.
+    member_ids = list({row.get("member_id") for row in filtered if row.get("member_id")})
+    pds_by_member: dict[str, dict] = {}
+    if member_ids:
+        try:
+            member_lookup = (
+                supabase.table("member")
+                .select("id,membership_number_id")
+                .in_("id", member_ids)
+                .execute()
+            ).data or []
+            membership_by_member = {
+                str(row.get("id")): str(row.get("membership_number_id") or "").strip()
+                for row in member_lookup
+                if row.get("id") and row.get("membership_number_id")
+            }
+            if membership_by_member:
+                membership_ids = list(set(membership_by_member.values()))
+                pds_rows = (
+                    supabase.table("personal_data_sheet")
+                    .select("membership_number_id,occupation,annual_income,salary")
+                    .in_("membership_number_id", membership_ids)
+                    .execute()
+                ).data or []
+                pds_by_membership = {
+                    str(r.get("membership_number_id") or "").strip(): r
+                    for r in pds_rows
+                }
+                for mid, mnid in membership_by_member.items():
+                    row = pds_by_membership.get(mnid)
+                    if row:
+                        pds_by_member[mid] = row
+        except Exception:
+            pds_by_member = {}
+
+    scored_rows: list[dict] = []
+    model_version: str | None = None
+
+    for loan in filtered:
+        member = loan.get("member") or {}
+        member_name = f"{member.get('first_name') or ''} {member.get('last_name') or ''}".strip() or "Unknown"
+        loan_type = (loan.get("loan_type") or {}).get("name") or (loan.get("loan_type") or {}).get("code") or "N/A"
+
+        pds = pds_by_member.get(str(loan.get("member_id")), {}) if loan.get("member_id") else {}
+        occupation = pds.get("occupation")
+        annual_income = pds.get("annual_income")
+        # PDS.salary is monthly net pay per existing convention.
+        pds_net_pay = pds.get("salary")
+
+        # KOICA loans embed applicant data in raw_payload.
+        raw = loan.get("raw_payload") or {}
+        if not occupation and isinstance(raw, dict):
+            occupation = raw.get("occupation")
+        if not annual_income and isinstance(raw, dict):
+            annual_income = raw.get("annual_income")
+
+        optional_fields = (raw.get("optionalFields") or {}) if isinstance(raw, dict) else {}
+        latest_net_pay = (
+            optional_fields.get("latest_net_pay")
+            or loan.get("latest_net_pay")
+            or pds_net_pay
+            or (raw.get("latest_net_pay") if isinstance(raw, dict) else None)
+        )
+        monthly_amort = loan.get("monthly_amortization") or optional_fields.get("monthly_amortization")
+
+        try:
+            result = risk_score_with_drivers(
+                loan_amount=loan.get("loan_amount") or loan.get("principal_amount") or 0,
+                occupation=occupation,
+                annual_income=annual_income,
+                advance_payment_count=0,
+                monthly_amortization=monthly_amort,
+                latest_net_pay=latest_net_pay,
+            )
+            if not model_version and result.get("model_version"):
+                model_version = result["model_version"]
+            scored_rows.append({
+                "loan_id": loan.get("control_number"),
+                "member_name": member_name,
+                "membership_id": str(member.get("membership_id") or "").strip(),
+                "member_type": "Member" if bool(member.get("is_bona_fide")) else "Non-Member",
+                "loan_type": loan_type,
+                "loan_amount": float(loan.get("loan_amount") or loan.get("principal_amount") or 0),
+                "term_months": int(loan.get("term") or 0),
+                "application_date": loan.get("application_date"),
+                "application_status": loan.get("application_status") or loan.get("loan_status"),
+                "probability": result["probability"],
+                "risk_label": result["risk_label"],
+                "drivers": result["drivers"],
+            })
+        except ModelNotAvailableError as e:
+            # Model isn't loaded — return an unscored row so the UI can still
+            # show the queue with a "model unavailable" note per row.
+            scored_rows.append({
+                "loan_id": loan.get("control_number"),
+                "member_name": member_name,
+                "membership_id": str(member.get("membership_id") or "").strip(),
+                "member_type": "Member" if bool(member.get("is_bona_fide")) else "Non-Member",
+                "loan_type": loan_type,
+                "loan_amount": float(loan.get("loan_amount") or loan.get("principal_amount") or 0),
+                "term_months": int(loan.get("term") or 0),
+                "application_date": loan.get("application_date"),
+                "application_status": loan.get("application_status") or loan.get("loan_status"),
+                "probability": None,
+                "risk_label": "Unavailable",
+                "drivers": [],
+                "error": str(e),
+            })
+        except Exception as e:
+            scored_rows.append({
+                "loan_id": loan.get("control_number"),
+                "member_name": member_name,
+                "loan_type": loan_type,
+                "loan_amount": float(loan.get("loan_amount") or loan.get("principal_amount") or 0),
+                "probability": None,
+                "risk_label": "Error",
+                "drivers": [],
+                "error": str(e),
+            })
+
+    # Sort by probability desc, unscored rows at the bottom.
+    scored_rows.sort(key=lambda r: (r.get("probability") is None, -(r.get("probability") or 0.0)))
+
+    payload = {
+        "success": True,
+        "data": {
+            "server_time": datetime.utcnow().isoformat(),
+            "model_version": model_version,
+            "count": len(scored_rows),
+            "rows": scored_rows,
+        },
+    }
+    _CREDIT_RISK_QUEUE_CACHE["payload"] = payload
+    _CREDIT_RISK_QUEUE_CACHE["expires_at"] = _time.monotonic() + _CREDIT_RISK_QUEUE_CACHE_TTL_SECONDS
+    return payload
 
 
 # =============================================================================
