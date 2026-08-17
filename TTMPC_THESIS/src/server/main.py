@@ -99,7 +99,7 @@ _cors_origins = list({
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_cors_origins,
-    allow_origin_regex=r"https://ttmpc-thesis-[a-z0-9]+-gtabs2004s-projects\.vercel\.app",
+    allow_origin_regex=r"https://ttmpc-thesis(?:-[a-zA-Z0-9-]+)?-gtabs2004s-projects\.vercel\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
