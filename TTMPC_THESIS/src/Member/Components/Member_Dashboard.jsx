@@ -8,6 +8,7 @@ import { resolveMemberContextFromSessionUser } from "../../utils/sessionIdentity
 import { useMigsLabel, getMigsBadgeClasses } from "../../hooks/useMigsLabel";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
 import LoanCalculatorModal from "./LoanCalculatorModal";
+import MemberDashboardLoading from "./MemberDashboardLoading";
 import { getOrFetch, peek } from "../memberDataCache";
 import {
   LayoutDashboard,
@@ -212,6 +213,32 @@ const MemberDashboard = () => {
       setNextDueDate(snap.derivedNextDueDate);
       setRecentTransactions(snap.latestTransactions);
       setAvatarUrl(snap.resolvedAvatarUrl);
+    };
+
+    // Try to load cached bundle from sessionStorage (pre-loaded by AuthContext on login)
+    const loadCachedBundle = () => {
+      try {
+        const cached = sessionStorage.getItem('_member_login_bundle_cache');
+        if (!cached) return null;
+        
+        const { bundle, sessionUserId, timestamp } = JSON.parse(cached);
+        
+        // Validate cache is fresh (5 minute TTL) and belongs to current user
+        if (Date.now() - timestamp > 5 * 60 * 1000) {
+          sessionStorage.removeItem('_member_login_bundle_cache');
+          return null;
+        }
+        
+        if (sessionUserId !== session?.user?.id) {
+          sessionStorage.removeItem('_member_login_bundle_cache');
+          return null;
+        }
+        
+        return bundle;
+      } catch (err) {
+        console.warn('[Member_Dashboard] Cache parse error:', err?.message);
+        return null;
+      }
     };
 
     // Fast path: single RPC call replaces the ~9 per-query fetches below.
@@ -545,6 +572,136 @@ const MemberDashboard = () => {
         const { data: authData } = await supabase.auth.getUser();
         const cacheKey = `member-dashboard:${authData?.user?.id || 'anon'}`;
 
+        // FAST PATH 1 — Try sessionStorage cache (pre-loaded by AuthContext on login)
+        const cachedBundle = loadCachedBundle();
+        if (cachedBundle && isMounted) {
+          try {
+            // Process bundle synchronously using same logic as buildSnapshotFromRpc
+            const account = cachedBundle.account;
+            const memberRow = cachedBundle.member || null;
+            const authEmail = authData?.user?.email || '';
+            const memberId = account?.user_id || authData?.user?.id;
+            const membershipId = String(account?.membership_id || memberRow?.membership_number_id || '').trim();
+            const temporaryFlag = Boolean(account?.is_temporary);
+
+            const cbuRows = cachedBundle.cbu || [];
+            const cbuRow = cbuRows[0] || null;
+            const shareCapitalBalance = cbuRow
+              ? (cbuRow.ending_share_capital !== null && cbuRow.ending_share_capital !== undefined
+                  ? Number(cbuRow.ending_share_capital)
+                  : cbuRows.reduce((sum, row) => sum + Number(row?.capital_added || 0), 0))
+              : 0;
+
+            const normalizedLoans = (cachedBundle.loans || []).map((loan) => {
+              const principal = Number(loan.principal_amount ?? loan.loan_amount ?? 0);
+              const totalInterest = Number(loan.total_interest ?? 0);
+              const monthly = Number(loan.monthly_amortization ?? 0);
+              return {
+                ...loan,
+                principal,
+                totalInterest,
+                totalPayable: principal + totalInterest,
+                monthly,
+              };
+            });
+
+            const fullName = [
+              memberRow?.first_name || cachedBundle.application?.first_name,
+              memberRow?.middle_name || cachedBundle.application?.middle_name,
+              memberRow?.surname || cachedBundle.application?.surname || cachedBundle.application?.last_name,
+            ].filter(Boolean).join(' ').trim() || 'Member';
+
+            const shareCapital = Number.isFinite(shareCapitalBalance) ? shareCapitalBalance : 0;
+            const savingsAccountTotal = (cachedBundle.savings || []).reduce((sum, row) => {
+              const amount = Number(row?.Balance ?? row?.Savings_Amount ?? row?.Amount ?? 0);
+              return sum + (Number.isFinite(amount) ? amount : 0);
+            }, 0);
+
+            const nextSchedule = (cachedBundle.upcoming_schedules || []).find((row) => {
+              const statusText = String(row?.schedule_status || '').trim().toLowerCase();
+              return !['paid', 'fully paid', 'completed'].includes(statusText);
+            });
+            const derivedNextDueDate = nextSchedule?.due_date || null;
+
+            const transactionRows = [];
+            if (shareCapital > 0) {
+              transactionRows.push({
+                id: 'share-capital',
+                timestamp: cbuRow?.transaction_date || memberRow?.created_at || new Date().toISOString(),
+                date: formatDate(cbuRow?.transaction_date || memberRow?.created_at),
+                desc: 'Share Capital Contribution',
+                category: 'EQUITY',
+                type: 'equity',
+                amount: `+${formatCurrency(shareCapital).replace('₱ ', '₱')}`,
+                highlight: true,
+              });
+            }
+
+            (cachedBundle.pending_savings || []).forEach((row) => {
+              const isWithdraw = String(row?.transaction_type || '').toLowerCase() === 'withdraw';
+              const amount = Number(row?.amount || 0);
+              transactionRows.push({
+                id: row?.transaction_id || `savings-${Math.random()}`,
+                timestamp: row?.requested_at,
+                date: formatDate(row?.requested_at),
+                desc: isWithdraw ? 'Savings Withdrawal' : 'Savings Deposit',
+                category: 'SAVINGS',
+                type: 'savings',
+                amount: `${isWithdraw ? '-' : '+'}${formatCurrency(Math.abs(amount)).replace('₱ ', '₱')}`,
+                highlight: !isWithdraw,
+              });
+            });
+
+            (cachedBundle.recent_payments || []).forEach((row) => {
+              const paid = Number(row?.amount_paid || 0);
+              const penalties = Number(row?.penalties || 0);
+              const totalPaid = paid + penalties;
+              transactionRows.push({
+                id: row?.id || `loan-${Math.random()}`,
+                timestamp: row?.payment_date,
+                date: formatDate(row?.payment_date),
+                desc: `Loan Repayment (${row?.loan_id || 'Loan'})`,
+                category: 'LOAN',
+                type: 'loan',
+                amount: `-${formatCurrency(totalPaid).replace('₱ ', '₱')}`,
+                highlight: false,
+              });
+            });
+
+            const latestTransactions = transactionRows
+              .sort((a, b) => new Date(b.timestamp || 0).getTime() - new Date(a.timestamp || 0).getTime())
+              .slice(0, 6);
+
+            const resolvedAvatarUrl = await resolveAvatarDisplayUrl(cachedBundle.avatar_url, authData?.user?.id);
+
+            const cachedSnapshot = {
+              profile: {
+                fullName,
+                membershipId: account?.membership_id || memberRow?.membership_number_id || 'N/A',
+                joinDate: formatDate(memberRow?.date_of_membership || memberRow?.created_at || cachedBundle.application?.created_at),
+                memberType: 'Member',
+                isActive: true,
+                shareCapital,
+              },
+              migsMemberKey: memberId || account?.membership_id || memberRow?.id || null,
+              isTemporary: temporaryFlag,
+              normalizedLoans,
+              savingsAccountTotal,
+              derivedNextDueDate,
+              latestTransactions,
+              resolvedAvatarUrl,
+              _sessionUserId: authData?.user?.id,
+            };
+
+            applySnapshot(cachedSnapshot);
+            setLoadingProfile(false);
+            console.log('[Member_Dashboard] Loaded from sessionStorage cache');
+          } catch (cacheErr) {
+            console.warn('[Member_Dashboard] Error processing cached bundle:', cacheErr?.message);
+            // Fall through to normal loading if cache processing fails
+          }
+        }
+
         // If we already have a fresh snapshot, paint it instantly and skip the spinner.
         const cached = peek(cacheKey);
         if (cached) {
@@ -616,6 +773,11 @@ const MemberDashboard = () => {
     })),
     [recentTransactions]
   );
+
+  // Show loading skeleton while dashboard data is loading
+  if (loadingProfile) {
+    return <MemberDashboardLoading />;
+  }
 
   return (
   <div className="relative flex h-screen overflow-hidden bg-[#F8F9FA] dark:bg-gray-950">
