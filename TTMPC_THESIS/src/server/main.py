@@ -79,6 +79,11 @@ async def _favicon_noop():
     correct "nothing to see here, don't ask again" response."""
     return Response(status_code=204)
 
+
+@app.get("/health", include_in_schema=False)
+async def _health_check():
+    return {"status": "ok"}
+
 # 3. CORS - Allow Frontend to connect
 # NOTE: `allow_origins=["*"]` + `allow_credentials=True` is a CORS spec
 # violation — Starlette silently drops the Access-Control-Allow-Origin
