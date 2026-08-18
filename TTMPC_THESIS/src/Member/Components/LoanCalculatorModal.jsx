@@ -1,27 +1,33 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { X, Calculator, RefreshCw, AlertTriangle, Sparkles, ChevronDown, Search } from "lucide-react";
+import {
+  X,
+  Calculator,
+  RefreshCw,
+  AlertTriangle,
+  ChevronDown,
+  TrendingUp,
+  Wallet,
+  Calendar,
+  Info,
+  CheckCircle2,
+} from "lucide-react";
 import { supabase } from "../../supabaseClient";
 import { resolveAccountFromSessionUser } from "../../utils/sessionIdentity";
 
 /*
   LoanCalculatorModal
   -------------------
-  Real-time loan simulator for the Member portal. Mirrors the math used by
-  Consolidated_Loan.jsx so simulated numbers match what the form will produce.
-
   Add-on interest formula (per TTMPC policy):
       monthly_amortization = (principal / term) + (principal * 0.0083)
       total_interest       = principal * 0.0083 * term
       total_repayment      = principal + total_interest
 
   Renewal mode:
-      Reads the member's most recent loan from `loans`, subtracts confirmed
-      `loan_payments` to get the remaining principal, then displays:
-          net_proceeds = new_loan_amount - remaining_balance
+      net_proceeds = new_loan_amount - remaining_balance
       Read-only — no DB writes, no draft application.
 */
 
-const MONTHLY_INTEREST_FACTOR = 0.0083; // 1% add-on / ~12% annual, matches Consolidated_Loan.jsx
+const MONTHLY_INTEREST_FACTOR = 0.0083;
 const TERM_MIN = 1;
 const TERM_MAX = 60;
 const TERM_QUICK_PICKS = [12, 24, 36, 48, 60];
@@ -36,11 +42,10 @@ const LOAN_TYPES = [
 ];
 
 const CONFIRMED_PAYMENT_STATUSES = new Set([
-  "validated",
-  "confirmed",
-  "bookkeeper_confirmed",
-  "approved",
+  "validated", "confirmed", "bookkeeper_confirmed", "approved",
 ]);
+
+const AMOUNT_QUICK_PICKS = [50000, 100000, 150000, 200000, 300000];
 
 const formatPHP = (value) => {
   const numeric = Number(value || 0);
@@ -53,33 +58,34 @@ const formatPHP = (value) => {
   });
 };
 
-const buildAmountOptions = (min, max, step) => {
-  const out = [];
-  for (let v = min; v <= max; v += step) out.push(v);
-  return out;
+const formatPHPCompact = (value) => {
+  const n = Number(value || 0);
+  if (n >= 1000000) return `₱${(n / 1000000).toFixed(2)}M`;
+  if (n >= 1000) return `₱${(n / 1000).toFixed(0)}K`;
+  return formatPHP(n);
 };
 
 export default function LoanCalculatorModal({ open, onClose }) {
   const [loanType, setLoanType] = useState("CONSOLIDATED");
-  const [loanAmount, setLoanAmount] = useState("");
+  const [loanAmount, setLoanAmount] = useState(100000);
   const [term, setTerm] = useState(24);
+  const [showFormula, setShowFormula] = useState(false);
 
   const [activeLoan, setActiveLoan] = useState(null);
   const [activeLoanLoading, setActiveLoanLoading] = useState(false);
   const [activeLoanError, setActiveLoanError] = useState("");
   const [renewalEnabled, setRenewalEnabled] = useState(false);
 
-  // Reset on close so reopening doesn't show stale state.
   useEffect(() => {
     if (!open) {
-      setLoanAmount("");
+      setLoanAmount(100000);
       setTerm(24);
       setRenewalEnabled(false);
       setActiveLoanError("");
+      setShowFormula(false);
     }
   }, [open]);
 
-  // Look up the member's existing active loan when the modal opens.
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
@@ -99,21 +105,13 @@ export default function LoanCalculatorModal({ open, onClose }) {
 
         const { data: loanRows, error } = await supabase
           .from("loans")
-          .select(
-            "control_number, principal_amount, loan_amount, monthly_amortization, term, application_date, loan_status"
-          )
+          .select("control_number, principal_amount, loan_amount, monthly_amortization, term, application_date, loan_status")
           .eq("member_id", memberId)
           .order("application_date", { ascending: false });
 
         if (cancelled) return;
-        if (error) {
-          setActiveLoanError(error.message);
-          return;
-        }
-        if (!loanRows || loanRows.length === 0) {
-          setActiveLoan(null);
-          return;
-        }
+        if (error) { setActiveLoanError(error.message); return; }
+        if (!loanRows || loanRows.length === 0) { setActiveLoan(null); return; }
 
         const controlNumbers = loanRows.map((l) => l.control_number).filter(Boolean);
         const paymentsByLoan = {};
@@ -122,10 +120,7 @@ export default function LoanCalculatorModal({ open, onClose }) {
             .from("loan_payments")
             .select("loan_id, amount_paid, confirmation_status")
             .in("loan_id", controlNumbers);
-          if (payErr) {
-            setActiveLoanError(payErr.message);
-            return;
-          }
+          if (payErr) { setActiveLoanError(payErr.message); return; }
           (payments || []).forEach((p) => {
             const status = String(p.confirmation_status || "confirmed").toLowerCase();
             if (!CONFIRMED_PAYMENT_STATUSES.has(status)) return;
@@ -159,30 +154,20 @@ export default function LoanCalculatorModal({ open, onClose }) {
       }
     })();
 
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [open]);
 
-  // Auto-disable renewal toggle if no active loan exists.
   useEffect(() => {
     if (!activeLoan) setRenewalEnabled(false);
   }, [activeLoan]);
 
   const selectedType = LOAN_TYPES.find((t) => t.code === loanType) || LOAN_TYPES[0];
 
-  const amountOptions = useMemo(
-    () => (selectedType.available ? buildAmountOptions(selectedType.min, selectedType.max, AMOUNT_STEP) : []),
-    [selectedType]
-  );
-
-  // Real-time computation. Pure function of (principal, term, renewal state).
   const result = useMemo(() => {
     const principal = Number(loanAmount || 0);
     const t = Number(term || 0);
     if (!principal || !t) return null;
 
-    // (principal / term) + (principal * monthly_factor)
     const monthly = principal / t + principal * MONTHLY_INTEREST_FACTOR;
     const totalInterest = principal * MONTHLY_INTEREST_FACTOR * t;
     const totalRepayment = principal + totalInterest;
@@ -191,100 +176,142 @@ export default function LoanCalculatorModal({ open, onClose }) {
     const remainingBalance = renewalActive ? Number(activeLoan.remaining || 0) : 0;
     const netProceeds = renewalActive ? principal - remainingBalance : principal;
 
-    return {
-      principal,
-      term: t,
-      monthly,
-      totalInterest,
-      totalRepayment,
-      renewalActive,
-      remainingBalance,
-      netProceeds,
-    };
+    return { principal, term: t, monthly, totalInterest, totalRepayment, renewalActive, remainingBalance, netProceeds };
   }, [loanAmount, term, renewalEnabled, activeLoan]);
-
-  const amountInvalid =
-    loanAmount !== "" &&
-    (Number(loanAmount) < (selectedType.min || 0) || Number(loanAmount) > (selectedType.max || Infinity));
 
   if (!open) return null;
 
+  const amountNum = Number(loanAmount || 0);
+  const sliderPct = selectedType.available
+    ? ((amountNum - selectedType.min) / (selectedType.max - selectedType.min)) * 100
+    : 0;
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4 py-6 overflow-y-auto">
-      <div className="w-full max-w-2xl bg-white rounded-2xl shadow-2xl border border-gray-200 my-auto">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 sm:px-4 sm:py-6 overflow-y-auto">
+      <div className="w-full sm:max-w-xl bg-white sm:rounded-2xl shadow-2xl border border-gray-200 sm:my-auto flex flex-col max-h-screen sm:max-h-[90vh]">
+
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-[#F3F9F1] rounded-t-2xl">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 bg-gradient-to-r from-[#F3F9F1] to-white rounded-t-2xl shrink-0">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-lg bg-[#1D6021] flex items-center justify-center">
-              <Calculator className="w-5 h-5 text-white" />
+            <div className="w-9 h-9 rounded-xl bg-[#1D6021] flex items-center justify-center shadow-sm">
+              <Calculator className="w-4 h-4 text-white" />
             </div>
             <div>
-              <h2 className="text-base font-bold text-gray-900">Loan Calculator</h2>
-              <p className="text-xs text-gray-500">Simulation only — no application will be submitted.</p>
+              <h2 className="text-sm font-extrabold text-gray-900">Loan Calculator</h2>
+              <p className="text-[11px] text-gray-400 font-medium">Simulation only — no application submitted</p>
             </div>
           </div>
           <button
             type="button"
             onClick={onClose}
             aria-label="Close calculator"
-            className="rounded-md p-1.5 text-gray-500 hover:bg-white hover:text-gray-700"
+            className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors"
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4" />
           </button>
         </div>
 
-        {/* Body */}
-        <div className="px-6 py-5 grid grid-cols-1 md:grid-cols-2 gap-5">
-          {/* Inputs */}
-          <div className="space-y-4">
-            <div>
-              <label className="block text-[11px] font-bold text-gray-600 uppercase tracking-wider mb-1">
-                Loan Type
-              </label>
+        {/* Scrollable body */}
+        <div className="overflow-y-auto flex-1 p-5 space-y-5">
+
+          {/* Loan Type */}
+          <div>
+            <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">
+              Loan Type
+            </label>
+            <div className="relative">
               <select
                 value={loanType}
                 onChange={(e) => setLoanType(e.target.value)}
-                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-[#66B538] outline-none"
+                className="w-full appearance-none border border-gray-200 rounded-xl px-4 py-2.5 text-sm font-semibold bg-white text-gray-800 focus:ring-2 focus:ring-[#66B538] outline-none pr-9"
               >
                 {LOAN_TYPES.map((t) => (
                   <option key={t.code} value={t.code} disabled={!t.available}>
-                    {t.label}
-                    {!t.available ? " — coming soon" : ""}
+                    {t.label}{!t.available ? " — coming soon" : ""}
                   </option>
                 ))}
               </select>
+              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
             </div>
+          </div>
 
+          {/* Loan Amount */}
+          {selectedType.available ? (
             <div>
-              <label className="block text-[11px] font-bold text-gray-600 uppercase tracking-wider mb-1">
-                Loan Amount
-                {selectedType.available && (
-                  <span className="ml-2 font-medium text-gray-400 normal-case tracking-normal">
-                    ({formatPHP(selectedType.min)} – {formatPHP(selectedType.max)}, step {AMOUNT_STEP.toLocaleString()})
-                  </span>
-                )}
-              </label>
-              {selectedType.available ? (
-                <AmountCombobox
-                  value={loanAmount}
-                  onChange={setLoanAmount}
-                  options={amountOptions}
-                  invalid={amountInvalid}
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Loan Amount</label>
+                <span className="text-lg font-extrabold text-[#1D6021]">{formatPHP(amountNum)}</span>
+              </div>
+
+              {/* Slider */}
+              <div className="relative mb-3">
+                <input
+                  type="range"
+                  min={selectedType.min}
+                  max={selectedType.max}
+                  step={AMOUNT_STEP}
+                  value={amountNum || selectedType.min}
+                  onChange={(e) => setLoanAmount(Number(e.target.value))}
+                  className="w-full h-2 rounded-full appearance-none cursor-pointer"
+                  style={{
+                    background: `linear-gradient(to right, #1D6021 ${sliderPct}%, #E5E7EB ${sliderPct}%)`,
+                  }}
                 />
-              ) : (
-                <p className="text-xs text-gray-500 italic px-3 py-2 bg-gray-50 rounded-md border border-gray-200">
-                  This loan type is not yet available for simulation.
-                </p>
-              )}
-            </div>
+                <div className="flex justify-between text-[10px] text-gray-400 font-medium mt-1">
+                  <span>{formatPHPCompact(selectedType.min)}</span>
+                  <span>{formatPHPCompact(selectedType.max)}</span>
+                </div>
+              </div>
 
-            <div>
-              <label className="block text-[11px] font-bold text-gray-600 uppercase tracking-wider mb-1">
-                Term (months)
-                <span className="ml-2 font-medium text-gray-400 normal-case tracking-normal">
-                  ({TERM_MIN}–{TERM_MAX})
-                </span>
-              </label>
+              {/* Quick picks */}
+              <div className="flex flex-wrap gap-1.5">
+                {AMOUNT_QUICK_PICKS.filter((v) => v >= selectedType.min && v <= selectedType.max).map((v) => (
+                  <button
+                    key={v}
+                    type="button"
+                    onClick={() => setLoanAmount(v)}
+                    className={`text-xs font-bold px-3 py-1.5 rounded-lg border transition-colors ${
+                      amountNum === v
+                        ? "bg-[#1D6021] text-white border-[#1D6021]"
+                        : "bg-white text-gray-600 border-gray-200 hover:border-[#66B538] hover:text-[#1D6021]"
+                    }`}
+                  >
+                    {formatPHPCompact(v)}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <p className="text-xs text-gray-500 italic px-3 py-2 bg-gray-50 rounded-xl border border-gray-200">
+              This loan type is not yet available for simulation.
+            </p>
+          )}
+
+          {/* Term */}
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Term</label>
+              <span className="text-sm font-extrabold text-gray-800">{term} months</span>
+            </div>
+            <div className="grid grid-cols-5 gap-1.5">
+              {TERM_QUICK_PICKS.map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => setTerm(t)}
+                  className={`text-xs font-bold py-2 rounded-xl border transition-colors ${
+                    Number(term) === t
+                      ? "bg-[#1D6021] text-white border-[#1D6021] shadow-sm"
+                      : "bg-white text-gray-600 border-gray-200 hover:border-[#66B538] hover:text-[#1D6021]"
+                  }`}
+                >
+                  {t} mo
+                </button>
+              ))}
+            </div>
+            {/* Custom term input */}
+            <div className="mt-2 flex items-center gap-2">
+              <span className="text-[11px] text-gray-400 shrink-0">Custom:</span>
               <input
                 type="number"
                 min={TERM_MIN}
@@ -293,160 +320,167 @@ export default function LoanCalculatorModal({ open, onClose }) {
                 value={term}
                 onChange={(e) => {
                   const raw = e.target.value;
-                  if (raw === "") {
-                    setTerm("");
-                    return;
-                  }
+                  if (raw === "") { setTerm(""); return; }
                   const n = Math.floor(Number(raw));
-                  if (!Number.isFinite(n)) return;
-                  setTerm(n);
+                  if (Number.isFinite(n)) setTerm(n);
                 }}
                 onBlur={() => {
-                  if (term === "" || term == null) return;
-                  const clamped = Math.min(Math.max(Number(term), TERM_MIN), TERM_MAX);
-                  setTerm(clamped);
+                  if (term === "" || term == null) { setTerm(TERM_MIN); return; }
+                  setTerm(Math.min(Math.max(Number(term), TERM_MIN), TERM_MAX));
                 }}
-                placeholder="e.g. 15"
-                className={`w-full border rounded-md px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-[#66B538] outline-none ${
+                className={`w-20 border rounded-lg px-2.5 py-1.5 text-sm font-semibold text-center focus:ring-2 focus:ring-[#66B538] outline-none ${
                   term !== "" && (Number(term) < TERM_MIN || Number(term) > TERM_MAX)
-                    ? "border-red-300"
-                    : "border-gray-300"
+                    ? "border-red-300 text-red-600"
+                    : "border-gray-200"
                 }`}
               />
-              <div className="grid grid-cols-5 gap-1.5 mt-2">
-                {TERM_QUICK_PICKS.map((t) => (
-                  <button
-                    key={t}
-                    type="button"
-                    onClick={() => setTerm(t)}
-                    className={`text-xs font-bold py-1.5 rounded-md border transition-colors ${
-                      Number(term) === t
-                        ? "bg-[#1D6021] text-white border-[#1D6021]"
-                        : "bg-white text-gray-700 border-gray-200 hover:border-[#66B538] hover:text-[#1D6021]"
-                    }`}
-                  >
-                    {t}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Renewal toggle */}
-            <div className="rounded-lg border border-gray-200 bg-[#FAFAFA] p-3">
-              <div className="flex items-start gap-3">
-                <RefreshCw className="w-4 h-4 text-[#1D6021] mt-0.5 shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="text-xs font-bold text-gray-800">Loan Renewal</p>
-                    <label
-                      className={`relative inline-flex items-center ${
-                        activeLoan ? "cursor-pointer" : "cursor-not-allowed opacity-50"
-                      }`}
-                    >
-                      <input
-                        type="checkbox"
-                        className="sr-only peer"
-                        checked={renewalEnabled}
-                        onChange={(e) => setRenewalEnabled(e.target.checked)}
-                        disabled={!activeLoan}
-                      />
-                      <span className="w-9 h-5 bg-gray-300 rounded-full peer-checked:bg-[#1D6021] transition-colors relative">
-                        <span
-                          className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform ${
-                            renewalEnabled ? "translate-x-4" : ""
-                          }`}
-                        />
-                      </span>
-                    </label>
-                  </div>
-                  {activeLoanLoading ? (
-                    <p className="text-[11px] text-gray-500 mt-1">Checking your active loans…</p>
-                  ) : activeLoanError ? (
-                    <p className="text-[11px] text-red-600 mt-1">{activeLoanError}</p>
-                  ) : activeLoan ? (
-                    <p className="text-[11px] text-gray-600 mt-1">
-                      Active loan <span className="font-semibold">{activeLoan.controlNumber}</span> — remaining{" "}
-                      <span className="font-semibold text-[#1D6021]">{formatPHP(activeLoan.remaining)}</span>
-                    </p>
-                  ) : (
-                    <p className="text-[11px] text-gray-500 mt-1">
-                      No active loan on file — renewal is unavailable.
-                    </p>
-                  )}
-                </div>
-              </div>
+              <span className="text-[11px] text-gray-400">months ({TERM_MIN}–{TERM_MAX})</span>
             </div>
           </div>
 
-          {/* Results */}
-          <div className="bg-[#F3F9F1] border border-[#D8EBD3] rounded-xl p-5 flex flex-col">
-            <div className="flex items-center gap-2 mb-4">
-              <Sparkles className="w-4 h-4 text-[#1D6021]" />
-              <h3 className="text-sm font-bold text-gray-900">Live Simulation</h3>
-            </div>
-
-            {!result ? (
-              <div className="flex-1 flex items-center justify-center text-center text-xs text-gray-500 italic">
-                Select a loan amount and term to see your monthly amortization, total interest, and total repayment.
+          {/* Results panel */}
+          {result ? (
+            <div className="rounded-2xl border border-[#D8EBD3] bg-[#F3F9F1] overflow-hidden">
+              {/* Primary stat — monthly amortization */}
+              <div className="px-5 py-4 bg-[#1D6021] text-white text-center">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-green-200 mb-1">Monthly Amortization</p>
+                <p className="text-3xl font-extrabold tracking-tight">{formatPHP(result.monthly)}</p>
+                <p className="text-[11px] text-green-200 mt-1">per month for {result.term} months</p>
               </div>
-            ) : (
-              <div className="space-y-3 text-sm">
-                <Row label="Principal" value={formatPHP(result.principal)} />
-                <Row label="Term" value={`${result.term} months`} />
-                <Row label="Interest rate" value="0.83% / month (add-on)" />
-                <Divider />
-                <Row
-                  label="Monthly amortization"
-                  value={formatPHP(result.monthly)}
-                  emphasis
-                />
-                <Row label="Total interest" value={formatPHP(result.totalInterest)} />
-                <Row label="Total repayment" value={formatPHP(result.totalRepayment)} />
 
-                {result.renewalActive && (
-                  <>
-                    <Divider />
-                    <div className="rounded-md bg-white border border-[#D8EBD3] p-3 space-y-2">
-                      <p className="text-[10px] font-extrabold text-[#1D6021] uppercase tracking-wider">
-                        Renewal Breakdown
-                      </p>
-                      <Row label="New gross loan" value={formatPHP(result.principal)} small />
-                      <Row
-                        label="Less: remaining balance"
-                        value={`- ${formatPHP(result.remainingBalance)}`}
-                        small
-                      />
-                      <Divider />
-                      <Row
-                        label="Net proceeds to member"
-                        value={formatPHP(result.netProceeds)}
-                        emphasis
-                      />
-                      {result.netProceeds <= 0 && (
-                        <div className="flex items-start gap-2 text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-md p-2">
-                          <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-                          <span>
-                            Net proceeds are zero or negative. Policy requires positive net proceeds for renewal.
-                          </span>
-                        </div>
-                      )}
+              {/* Secondary stats */}
+              <div className="grid grid-cols-2 divide-x divide-[#D8EBD3] border-b border-[#D8EBD3]">
+                <div className="px-4 py-3 text-center">
+                  <div className="flex items-center justify-center gap-1 mb-0.5">
+                    <TrendingUp className="w-3 h-3 text-[#1D6021]" />
+                    <p className="text-[10px] font-bold text-[#2d6a38] uppercase tracking-wider">Total Interest</p>
+                  </div>
+                  <p className="text-base font-extrabold text-gray-900">{formatPHP(result.totalInterest)}</p>
+                </div>
+                <div className="px-4 py-3 text-center">
+                  <div className="flex items-center justify-center gap-1 mb-0.5">
+                    <Wallet className="w-3 h-3 text-[#1D6021]" />
+                    <p className="text-[10px] font-bold text-[#2d6a38] uppercase tracking-wider">Total Repayment</p>
+                  </div>
+                  <p className="text-base font-extrabold text-gray-900">{formatPHP(result.totalRepayment)}</p>
+                </div>
+              </div>
+
+              {/* Interest formula breakdown (collapsible) */}
+              <div className="border-b border-[#D8EBD3]">
+                <button
+                  type="button"
+                  onClick={() => setShowFormula((v) => !v)}
+                  className="w-full flex items-center justify-between px-4 py-2.5 text-left hover:bg-[#eaf5e4] transition-colors"
+                >
+                  <span className="flex items-center gap-1.5 text-[11px] font-bold text-[#1D6021]">
+                    <Info className="w-3.5 h-3.5" /> How is this computed?
+                  </span>
+                  <ChevronDown className={`w-3.5 h-3.5 text-[#1D6021] transition-transform ${showFormula ? "rotate-180" : ""}`} />
+                </button>
+                {showFormula && (
+                  <div className="px-4 pb-3 space-y-1.5 text-xs">
+                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Interest Computation (Add-on, 0.83%/mo)</p>
+                    <FormulaRow label="Principal" value={formatPHP(result.principal)} />
+                    <FormulaRow label="× Interest rate" value="0.83% / month" />
+                    <FormulaRow label={`× Term (${result.term} months)`} value={`= ${formatPHP(result.totalInterest)}`} highlight />
+                    <div className="border-t border-dashed border-[#D8EBD3] pt-1.5 mt-1.5 space-y-1">
+                      <FormulaRow label="Principal ÷ Term" value={formatPHP(result.principal / result.term)} />
+                      <FormulaRow label="+ Monthly interest" value={formatPHP(result.principal * MONTHLY_INTEREST_FACTOR)} />
+                      <FormulaRow label="= Monthly amortization" value={formatPHP(result.monthly)} highlight />
                     </div>
-                  </>
+                  </div>
                 )}
               </div>
-            )}
+
+              {/* Loan summary row */}
+              <div className="px-4 py-3 flex items-center gap-4 flex-wrap">
+                <div className="flex items-center gap-1.5">
+                  <Calendar className="w-3.5 h-3.5 text-gray-400" />
+                  <span className="text-[11px] text-gray-500 font-medium">Loan amount: <span className="font-bold text-gray-700">{formatPHP(result.principal)}</span></span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-gray-400" />
+                  <span className="text-[11px] text-gray-500 font-medium">Rate: <span className="font-bold text-gray-700">0.83%/mo add-on</span></span>
+                </div>
+              </div>
+
+              {/* Renewal breakdown */}
+              {result.renewalActive && (
+                <div className="border-t border-[#D8EBD3] bg-white mx-0 p-4 space-y-2">
+                  <p className="text-[10px] font-extrabold text-[#1D6021] uppercase tracking-wider mb-2">Renewal Breakdown</p>
+                  <FormulaRow label="New gross loan" value={formatPHP(result.principal)} />
+                  <FormulaRow label="Less: remaining balance" value={`− ${formatPHP(result.remainingBalance)}`} />
+                  <div className="border-t border-dashed border-gray-200 pt-2">
+                    <FormulaRow label="Net proceeds to you" value={formatPHP(result.netProceeds)} highlight />
+                  </div>
+                  {result.netProceeds <= 0 && (
+                    <div className="flex items-start gap-2 text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-xl p-2.5 mt-2">
+                      <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                      <span>Net proceeds are zero or negative. Policy requires positive net proceeds for renewal to proceed.</span>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="rounded-2xl border border-gray-100 bg-gray-50 py-8 text-center">
+              <div className="w-12 h-12 rounded-full bg-[#EAF1EB] flex items-center justify-center mx-auto mb-3">
+                <Calculator className="w-5 h-5 text-[#1D6021]" />
+              </div>
+              <p className="text-sm font-bold text-gray-500">Adjust the amount and term</p>
+              <p className="text-xs text-gray-400 mt-1">Your monthly amortization will appear here.</p>
+            </div>
+          )}
+
+          {/* Renewal toggle */}
+          <div className={`rounded-xl border p-3.5 transition-colors ${
+            renewalEnabled ? "border-[#1D6021]/30 bg-[#F3F9F1]" : "border-gray-200 bg-gray-50"
+          }`}>
+            <div className="flex items-start gap-3">
+              <RefreshCw className={`w-4 h-4 mt-0.5 shrink-0 ${renewalEnabled ? "text-[#1D6021]" : "text-gray-400"}`} />
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-xs font-bold text-gray-800">Simulate Loan Renewal</p>
+                  <label className={`relative inline-flex items-center ${activeLoan ? "cursor-pointer" : "cursor-not-allowed opacity-40"}`}>
+                    <input
+                      type="checkbox"
+                      className="sr-only peer"
+                      checked={renewalEnabled}
+                      onChange={(e) => setRenewalEnabled(e.target.checked)}
+                      disabled={!activeLoan}
+                    />
+                    <span className="w-9 h-5 bg-gray-300 rounded-full peer-checked:bg-[#1D6021] transition-colors relative">
+                      <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${renewalEnabled ? "translate-x-4" : ""}`} />
+                    </span>
+                  </label>
+                </div>
+                {activeLoanLoading ? (
+                  <p className="text-[11px] text-gray-400 mt-1">Checking your active loans…</p>
+                ) : activeLoanError ? (
+                  <p className="text-[11px] text-red-500 mt-1">{activeLoanError}</p>
+                ) : activeLoan ? (
+                  <p className="text-[11px] text-gray-500 mt-1">
+                    Active loan <span className="font-semibold text-gray-700">{activeLoan.controlNumber}</span> — remaining{" "}
+                    <span className="font-semibold text-[#1D6021]">{formatPHP(activeLoan.remaining)}</span>
+                  </p>
+                ) : (
+                  <p className="text-[11px] text-gray-400 mt-1">No active loan found — renewal simulation unavailable.</p>
+                )}
+              </div>
+            </div>
           </div>
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-between bg-gray-50 rounded-b-2xl">
+        <div className="px-5 py-3.5 border-t border-gray-100 flex items-center justify-between bg-gray-50 rounded-b-2xl shrink-0">
           <p className="text-[10px] text-gray-400 font-medium uppercase tracking-wider">
             Read-only · Figures are indicative
           </p>
           <button
             type="button"
             onClick={onClose}
-            className="bg-[#1D6021] hover:bg-[#154718] text-white text-sm font-bold px-5 py-2 rounded-lg transition-colors"
+            className="bg-[#1D6021] hover:bg-[#154718] text-white text-sm font-bold px-5 py-2 rounded-xl transition-colors"
           >
             Close
           </button>
@@ -456,180 +490,11 @@ export default function LoanCalculatorModal({ open, onClose }) {
   );
 }
 
-function Row({ label, value, emphasis = false, small = false }) {
+function FormulaRow({ label, value, highlight = false }) {
   return (
     <div className="flex items-center justify-between gap-3">
-      <span className={`text-gray-600 ${small ? "text-xs" : "text-sm"}`}>{label}</span>
-      <span
-        className={`font-bold ${emphasis ? "text-[#1D6021] text-base" : "text-gray-900"} ${
-          small ? "text-xs" : "text-sm"
-        }`}
-      >
-        {value}
-      </span>
-    </div>
-  );
-}
-
-function Divider() {
-  return <div className="border-t border-dashed border-gray-200 my-1" />;
-}
-
-function AmountCombobox({ value, onChange, options, invalid }) {
-  const [open, setOpen] = useState(false);
-  const [query, setQuery] = useState("");
-  const [highlight, setHighlight] = useState(0);
-  const wrapperRef = useRef(null);
-  const listRef = useRef(null);
-
-  // Keep the input display in sync when `value` changes from outside (e.g. reset).
-  useEffect(() => {
-    if (value === "" || value === null || value === undefined) {
-      setQuery("");
-    } else {
-      setQuery(Number(value).toLocaleString("en-PH"));
-    }
-  }, [value]);
-
-  // Close on outside click.
-  useEffect(() => {
-    const handler = (e) => {
-      if (wrapperRef.current && !wrapperRef.current.contains(e.target)) {
-        setOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, []);
-
-  // Filter: strip non-digits from the query, then match option prefix.
-  // "35" -> matches 35000, 35000... "3" -> 30000, 35000, 300000, etc.
-  const digits = query.replace(/\D/g, "");
-  const filtered = useMemo(() => {
-    if (!digits) return options;
-    const match = options.filter((v) => String(v).startsWith(digits));
-    return match.length > 0 ? match : options;
-  }, [digits, options]);
-
-  // Keep highlight in range whenever the filtered list changes.
-  useEffect(() => {
-    setHighlight(0);
-  }, [digits]);
-
-  // Scroll highlighted item into view.
-  useEffect(() => {
-    if (!open || !listRef.current) return;
-    const node = listRef.current.children[highlight];
-    if (node) node.scrollIntoView({ block: "nearest" });
-  }, [highlight, open]);
-
-  const commit = (v) => {
-    onChange(String(v));
-    setQuery(Number(v).toLocaleString("en-PH"));
-    setOpen(false);
-  };
-
-  const handleKeyDown = (e) => {
-    if (e.key === "ArrowDown") {
-      e.preventDefault();
-      setOpen(true);
-      setHighlight((h) => Math.min(h + 1, filtered.length - 1));
-    } else if (e.key === "ArrowUp") {
-      e.preventDefault();
-      setHighlight((h) => Math.max(h - 1, 0));
-    } else if (e.key === "Enter") {
-      e.preventDefault();
-      if (open && filtered[highlight] != null) {
-        commit(filtered[highlight]);
-      }
-    } else if (e.key === "Escape") {
-      setOpen(false);
-    }
-  };
-
-  const handleBlurCommit = () => {
-    // If user typed digits that exactly match an option, keep it. Otherwise
-    // revert display to the current committed value (or clear).
-    if (!digits) {
-      onChange("");
-      setQuery("");
-      return;
-    }
-    const numeric = Number(digits);
-    if (options.includes(numeric)) {
-      onChange(String(numeric));
-      setQuery(Number(numeric).toLocaleString("en-PH"));
-    } else if (value) {
-      setQuery(Number(value).toLocaleString("en-PH"));
-    } else {
-      setQuery("");
-    }
-  };
-
-  return (
-    <div className="relative" ref={wrapperRef}>
-      <div
-        className={`flex items-center w-full border rounded-md bg-white focus-within:ring-2 focus-within:ring-[#66B538] ${
-          invalid ? "border-red-300" : "border-gray-300"
-        }`}
-      >
-        <Search className="w-4 h-4 text-gray-400 ml-2 shrink-0" />
-        <input
-          type="text"
-          inputMode="numeric"
-          value={query}
-          placeholder="Type or select amount (e.g. 35 → 35,000)"
-          onFocus={() => setOpen(true)}
-          onChange={(e) => {
-            setQuery(e.target.value);
-            setOpen(true);
-          }}
-          onKeyDown={handleKeyDown}
-          onBlur={() => {
-            // Delay so option click can register before blur commit.
-            setTimeout(handleBlurCommit, 120);
-          }}
-          className="flex-1 px-2 py-2 text-sm bg-transparent outline-none"
-        />
-        <button
-          type="button"
-          onClick={() => setOpen((o) => !o)}
-          className="px-2 py-2 text-gray-400 hover:text-gray-600"
-          aria-label="Toggle amount list"
-        >
-          <ChevronDown className={`w-4 h-4 transition-transform ${open ? "rotate-180" : ""}`} />
-        </button>
-      </div>
-
-      {open && (
-        <ul
-          ref={listRef}
-          className="absolute z-10 mt-1 w-full max-h-56 overflow-y-auto rounded-md border border-gray-200 bg-white shadow-lg text-sm"
-        >
-          {filtered.length === 0 ? (
-            <li className="px-3 py-2 text-xs text-gray-500 italic">No matching amount</li>
-          ) : (
-            filtered.map((v, idx) => (
-              <li
-                key={v}
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  commit(v);
-                }}
-                onMouseEnter={() => setHighlight(idx)}
-                className={`px-3 py-2 cursor-pointer flex items-center justify-between ${
-                  idx === highlight ? "bg-[#F3F9F1] text-[#1D6021]" : "text-gray-700"
-                } ${String(v) === String(value) ? "font-bold" : ""}`}
-              >
-                <span>{Number(v).toLocaleString("en-PH")}</span>
-                {String(v) === String(value) && (
-                  <span className="text-[10px] uppercase tracking-wider">Selected</span>
-                )}
-              </li>
-            ))
-          )}
-        </ul>
-      )}
+      <span className="text-gray-500 text-xs">{label}</span>
+      <span className={`font-bold text-xs ${highlight ? "text-[#1D6021]" : "text-gray-800"}`}>{value}</span>
     </div>
   );
 }
