@@ -93,6 +93,7 @@ _cors_origins = list({
     "http://localhost:5173",
     "http://127.0.0.1:5173",
     "https://ttmpc-thesis.vercel.app",
+    "https://ttmpc-thesis-xi.vercel.app",
     FRONTEND_BASE_URL,
 })
 
