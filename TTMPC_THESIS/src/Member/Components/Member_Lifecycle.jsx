@@ -197,15 +197,15 @@ const formatDate = (value) => {
 const statusBadgeClass = (status) => {
   const key = String(status || "").toLowerCase();
   if (["fully paid", "validated", "approved", "released"].includes(key)) {
-    return "bg-green-100 text-green-700";
+    return "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400";
   }
   if (["partially paid", "ready for disbursement", "to be disbursed", "recommended for approval"].includes(key)) {
-    return "bg-amber-100 text-amber-700";
+    return "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400";
   }
   if (["rejected", "cancelled"].includes(key)) {
-    return "bg-red-100 text-red-700";
+    return "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400";
   }
-  return "bg-gray-100 text-gray-700";
+  return "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300";
 };
 
 const mapApprovalStage = (status) => {
@@ -245,13 +245,12 @@ const Member_Lifecycle = () => {
   const [showSchedule, setShowSchedule] = useState(false);
 
   const menuItems = [
-      { name: "Dashboard", icon: LayoutDashboard },
-      { name: "Apply for Loan", icon: Scroll },
-      { name: "Member Loans", icon: Activity },
-      { name: "Statement of Account", icon: Receipt },
-      { name: "Loan Lifecycle", icon: History },
-      
-       { name: "Member Profile", icon: Users },
+      { name: "Dashboard", label: "Dashboard", icon: LayoutDashboard },
+      { name: "Apply for Loan", label: "Apply", icon: Scroll },
+      { name: "Member Loans", label: "Loans", icon: Activity },
+      { name: "Statement of Account", label: "Statement", icon: Receipt },
+      { name: "Loan Lifecycle", label: "Lifecycle", icon: History },
+      { name: "Member Profile", label: "Profile", icon: Users },
     ];
   
 
@@ -597,7 +596,7 @@ const Member_Lifecycle = () => {
 
           {!selectedLoan && !loading ? (
             <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm p-10 text-center">
-              <div className="mx-auto w-14 h-14 rounded-full bg-[#EAF1EB] dark:bg-green-900/30 flex items-center justify-center text-[#1D6021] mb-4">
+              <div className="mx-auto w-14 h-14 rounded-full bg-[#EAF1EB] dark:bg-green-900/30 flex items-center justify-center text-[#1D6021] dark:text-green-400 mb-4">
                 <Wallet className="w-7 h-7" />
               </div>
               <h3 className="font-extrabold text-gray-900 dark:text-white text-lg mb-1">No loans yet</h3>
@@ -640,7 +639,7 @@ const Member_Lifecycle = () => {
                     {/* Closure message for fully paid loans */}
                     {isFullyPaid ? (
                       <div className="mb-5 rounded-xl bg-[#1D6021]/10 border border-[#1D6021]/20 px-4 py-3 flex items-center gap-3">
-                        <CheckCircle2 className="w-5 h-5 text-[#1D6021] shrink-0" />
+                        <CheckCircle2 className="w-5 h-5 text-[#1D6021] dark:text-green-400 shrink-0" />
                         <div>
                           <p className="text-sm font-extrabold text-[#1a4a2f] dark:text-green-300">Loan fully settled</p>
                           <p className="text-xs text-[#2d6a38] dark:text-green-400 mt-0.5">All payments have been received and validated. This loan is now closed.</p>
@@ -653,7 +652,7 @@ const Member_Lifecycle = () => {
                       <div className="mb-5">
                         <div className="flex items-center justify-between mb-2">
                           <p className="text-xs font-bold text-gray-600 dark:text-gray-400 uppercase tracking-wider">Payment Progress</p>
-                          <p className="text-sm font-extrabold text-[#1D6021]">{selectedLoan.progress_percent}%</p>
+                          <p className="text-sm font-extrabold text-[#1D6021] dark:text-green-400">{selectedLoan.progress_percent}%</p>
                         </div>
                         <div className="h-2.5 w-full rounded-full bg-gray-100 dark:bg-gray-700 overflow-hidden">
                           <div
@@ -672,7 +671,7 @@ const Member_Lifecycle = () => {
                       <div className="grid grid-cols-2 gap-3">
                         <div className="rounded-xl border border-green-100 dark:border-green-900 bg-white dark:bg-gray-900 p-3">
                           <p className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Total Paid</p>
-                          <p className="text-sm font-extrabold text-[#1D6021]">{formatCurrency(selectedLoan.amount_paid)}</p>
+                          <p className="text-sm font-extrabold text-[#1D6021] dark:text-green-400">{formatCurrency(selectedLoan.amount_paid)}</p>
                         </div>
                         <div className="rounded-xl border border-green-100 dark:border-green-900 bg-white dark:bg-gray-900 p-3">
                           <p className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Total Payable</p>
@@ -695,7 +694,7 @@ const Member_Lifecycle = () => {
                         </div>
                         <div className="rounded-xl border border-gray-100 dark:border-gray-700 bg-[#FAF9FB] dark:bg-gray-800 p-3">
                           <p className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Remaining Balance</p>
-                          <p className="text-sm font-extrabold text-[#1D6021]">{formatCurrency(selectedLoan.remaining_balance)}</p>
+                          <p className="text-sm font-extrabold text-[#1D6021] dark:text-green-400">{formatCurrency(selectedLoan.remaining_balance)}</p>
                         </div>
                         <div className="rounded-xl border border-gray-100 dark:border-gray-700 bg-[#FAF9FB] dark:bg-gray-800 p-3">
                           <p className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Next Due Date</p>
@@ -722,7 +721,7 @@ const Member_Lifecycle = () => {
                       : 'bg-white dark:bg-gray-900 border-gray-100 dark:border-gray-800'
                   }`}>
                     <div className="flex items-center gap-2 mb-5">
-                      <CalendarClock className="w-5 h-5 text-[#1D6021]" />
+                      <CalendarClock className="w-5 h-5 text-[#1D6021] dark:text-green-400" />
                       <h3 className="font-extrabold text-gray-900 dark:text-white">Loan Journey</h3>
                       {isFullyPaid ? (
                         <span className="ml-auto inline-flex items-center gap-1 rounded-full bg-green-100 dark:bg-green-900/40 border border-green-200 dark:border-green-800 px-2.5 py-1 text-[10px] font-bold text-green-700 dark:text-green-400 uppercase tracking-wider">
@@ -759,9 +758,9 @@ const Member_Lifecycle = () => {
                                 </div>
                                 <p className={`mt-2 text-[11px] font-bold leading-tight ${
                                   isFinalTrophy
-                                    ? 'text-[#1D6021]'
+                                    ? 'text-[#1D6021] dark:text-green-400'
                                     : isActive
-                                      ? 'text-[#1D6021]'
+                                      ? 'text-[#1D6021] dark:text-green-400'
                                       : isComplete
                                         ? 'text-gray-700 dark:text-gray-300'
                                         : 'text-gray-400'
@@ -781,7 +780,7 @@ const Member_Lifecycle = () => {
                         })}
                       </div>
                       <p className="mt-5 text-sm text-gray-600 dark:text-gray-400 font-medium">
-                        <span className="font-bold text-[#1D6021]">{isFullyPaid ? 'Status:' : 'Current step:'}</span>{' '}
+                        <span className="font-bold text-[#1D6021] dark:text-green-400">{isFullyPaid ? 'Status:' : 'Current step:'}</span>{' '}
                         {isFullyPaid
                           ? 'All payments received and validated. This loan is fully closed.'
                           : LIFECYCLE_STAGES[selectedStageIndex]?.description}
@@ -815,9 +814,9 @@ const Member_Lifecycle = () => {
                             <div className="pt-1">
                               <p className={`text-sm font-bold ${
                                 isFinalTrophy
-                                  ? 'text-[#1D6021]'
+                                  ? 'text-[#1D6021] dark:text-green-400'
                                   : isActive
-                                    ? 'text-[#1D6021]'
+                                    ? 'text-[#1D6021] dark:text-green-400'
                                     : isComplete
                                       ? 'text-gray-800 dark:text-gray-200'
                                       : 'text-gray-400'
@@ -846,7 +845,7 @@ const Member_Lifecycle = () => {
                 return (
                   <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm mb-6 animate-fade-in-up overflow-hidden">
                     <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-800 flex items-center gap-2">
-                      <Wallet className="w-4 h-4 text-[#1D6021]" />
+                      <Wallet className="w-4 h-4 text-[#1D6021] dark:text-green-400" />
                       <h3 className="font-extrabold text-gray-900 dark:text-white">
                         {isFullyPaid ? 'Payment History' : 'Recent Payments'}
                       </h3>
@@ -890,7 +889,7 @@ const Member_Lifecycle = () => {
                   className="w-full px-5 py-4 flex items-center justify-between text-left hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
                 >
                   <span className="flex items-center gap-2">
-                    <ShieldCheck className="w-4 h-4 text-[#1D6021]" />
+                    <ShieldCheck className="w-4 h-4 text-[#1D6021] dark:text-green-400" />
                     <span className="font-extrabold text-gray-900 dark:text-white">View Loan Details</span>
                   </span>
                   {showDetails ? <ChevronUp className="w-4 h-4 text-gray-500 dark:text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-500 dark:text-gray-400" />}
@@ -925,7 +924,7 @@ const Member_Lifecycle = () => {
                         </div>
                         <div className="border-t border-gray-200 dark:border-gray-600 pt-2 flex items-center justify-between">
                           <span className="text-xs font-bold text-gray-700 dark:text-gray-300">= Total Interest</span>
-                          <span className="text-sm font-extrabold text-[#1D6021]">{formatCurrency(selectedLoan.total_interest)}</span>
+                          <span className="text-sm font-extrabold text-[#1D6021] dark:text-green-400">{formatCurrency(selectedLoan.total_interest)}</span>
                         </div>
                       </div>
                     </div>
@@ -942,7 +941,7 @@ const Member_Lifecycle = () => {
                     className="w-full px-5 py-4 flex items-center justify-between text-left hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
                   >
                     <span className="flex items-center gap-2">
-                      <CalendarClock className="w-4 h-4 text-[#1D6021]" />
+                      <CalendarClock className="w-4 h-4 text-[#1D6021] dark:text-green-400" />
                       <span className="font-extrabold text-gray-900 dark:text-white">View Payment Schedule</span>
                     </span>
                     {showSchedule ? <ChevronUp className="w-4 h-4 text-gray-500 dark:text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-500 dark:text-gray-400" />}
@@ -952,7 +951,7 @@ const Member_Lifecycle = () => {
                       <div className="px-5 py-3 bg-[#FAF9FB] dark:bg-gray-800 grid grid-cols-2 gap-3 text-xs">
                         <div>
                           <p className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Monthly Amortization</p>
-                          <p className="text-sm font-extrabold text-[#1D6021]">{formatCurrency(selectedLoan.monthly_amortization)}</p>
+                          <p className="text-sm font-extrabold text-[#1D6021] dark:text-green-400">{formatCurrency(selectedLoan.monthly_amortization)}</p>
                         </div>
                         <div>
                           <p className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Term</p>
@@ -1038,50 +1037,6 @@ const Member_Lifecycle = () => {
 
         </main>
 
-        {/* Bottom Navigation - Mobile Only */}
-        <nav className="fixed bottom-0 left-0 right-0 lg:hidden bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800 px-2 py-2">
-          <div className="max-w-lg mx-auto">
-            <div className="flex items-center justify-around gap-1">
-              {(() => {
-                const routeMap = {
-                  "Dashboard": "/member-dashboard",
-                  "Apply for Loan": "/member-apply-loans",
-                  "Member Loans": "/member-loans",
-                  "Statement of Account": "/member-statement-of-account",
-                  "Loan Lifecycle": "/member-lifecycle",
-                  "Member Profile": "/members-profile",
-                  
-                };
-
-                return menuItems.map((item) => {
-                  const Icon = item.icon;
-                  const to = routeMap[item.name] || `/${item.name.toLowerCase().replace(/\s+/g, '-')}`;
-
-                  return (
-                    <NavLink
-                      key={item.name}
-                      to={to}
-                      className={({ isActive }) =>
-                        `flex flex-col items-center justify-center px-2.5 py-2 rounded-full transition-all ${
-                          isActive
-                            ? 'bg-[#1D6021] text-white'
-                            : 'text-gray-600 hover:text-[#1D6021] dark:text-gray-400 dark:hover:text-green-400'
-                        }`
-                      }
-                    >
-                      {({ isActive }) => (
-                        <>
-                          <Icon size={20} strokeWidth={isActive ? 2.5 : 2} className="mb-1" />
-                          <span className="text-[10px] font-semibold">{item.name.split(' ')[0]}</span>
-                        </>
-                      )}
-                    </NavLink>
-                  );
-                });
-              })()}
-            </div>
-          </div>
-        </nav>
       </div>
     </div>
   );

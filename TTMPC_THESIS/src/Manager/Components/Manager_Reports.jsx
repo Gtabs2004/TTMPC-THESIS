@@ -20,6 +20,7 @@ import {
   Award,
   History,
   Brain,
+  ClipboardCheck,
 } from "lucide-react";
 import {
   BarChart,
@@ -66,12 +67,13 @@ const Manager_Reports = () => {
   const [topBorrowers, setTopBorrowers] = useState([]);
 
   const menuItems = [
-      { name: "Dashboard", icon: LayoutDashboard },
-      { name: "Loan Approval", icon: Users },
-      { name: "Manage Member", icon: Users },
-      { name: "Reports", icon: BarChart3 },
-      { name: "Audit Log", icon: History },
-    ];
+    { name: "Dashboard", icon: LayoutDashboard },
+    { name: "Loan Approval", icon: ClipboardCheck },
+    { name: "Credit Risk", icon: Brain },
+    { name: "Manage Member", icon: Users },
+    { name: "Reports", icon: BarChart3 },
+    { name: "Audit Log", icon: History },
+  ];
 
 
   const handleSignOut = async (e) => {

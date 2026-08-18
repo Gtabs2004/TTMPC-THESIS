@@ -51,6 +51,7 @@ import Member_ApplyLoans from "./Member/Components/Member_ApplyLoans";
 import Members_Profile from "./Member/Components/Members_Profile";
 import ChangeEmail from "./Member/Components/ChangeEmail";
 import MemberOnboardingGuard from "./Member/Components/MemberOnboardingGuard";
+import MemberLayout from "./Member/Components/MemberLayout";
 import RequireRole from "./utils/RequireRole";
 
 // Helper to wrap a member-portal element with the onboarding guard so that
@@ -165,14 +166,22 @@ export const router = createBrowserRouter([
     {path: "/reset-password", element:<ResetPassword/>},
     {path: "/loan-approval/:id", element: managerGuarded(<LoanApprovalDetails/>)},
     {path: "/bookkeeper-loan-approval/:id", element: bookkeeperGuarded(<LoanApprovalDetails/>)},
-    {path: "/member-dashboard", element: memberGuarded(<Member_Dashboard/>)},
-    {path: "/member-loans", element: memberGuarded(<Member_Loans/>)},
-    {path: "/member-apply-loans", element: memberGuarded(<Member_ApplyLoans/>)},
-    {path: "/member-lifecycle", element: memberGuarded(<Member_Lifecycle/>)},
-    {path: "/members-profile", element: memberGuarded(<Members_Profile/>)},
-    {path: "/members-profile/change-email", element: memberGuarded(<ChangeEmail/>)},
-    {path: "/member-savings", element: memberGuarded(<Member_Savings/>)},
-    {path: "/member-statement-of-account", element: memberGuarded(<Member_StatementOfAccount/>)},
+    {
+      // Layout route (no path of its own): keeps the guard and the bottom
+      // nav mounted once across every Member page instead of remounting
+      // per navigation. See MemberLayout.jsx.
+      element: <MemberLayout />,
+      children: [
+        {path: "/member-dashboard", element: <Member_Dashboard/>},
+        {path: "/member-loans", element: <Member_Loans/>},
+        {path: "/member-apply-loans", element: <Member_ApplyLoans/>},
+        {path: "/member-lifecycle", element: <Member_Lifecycle/>},
+        {path: "/members-profile", element: <Members_Profile/>},
+        {path: "/members-profile/change-email", element: <ChangeEmail/>},
+        {path: "/member-savings", element: <Member_Savings/>},
+        {path: "/member-statement-of-account", element: <Member_StatementOfAccount/>},
+      ],
+    },
     {path: "/Koica_Forms", element:<Koica_Forms/>},
     {path: "/loan_services", element:<Loan_Services/>},
     {path: "/savings_services", element:<Savings_Services/>},

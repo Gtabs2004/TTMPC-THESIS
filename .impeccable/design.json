@@ -1,12 +1,14 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-08-01T00:00:00.000Z",
+  "generatedAt": "2026-08-18T00:00:00.000Z",
   "title": "Design System: REGANT",
   "extensions": {
     "colorMeta": {
       "primary": { "role": "primary", "displayName": "Cooperative Green", "canonical": "#389734", "tonalRamp": ["#0F2B0D", "#1B4A18", "#276823", "#2E7A2A", "#389734", "#57B152", "#8ECB8B", "#D3ECD2"] },
       "primary-deep": { "role": "primary", "displayName": "Cooperative Green — Deep (hover)", "canonical": "#2E7A2A", "tonalRamp": ["#0D2409", "#173F13", "#215A1C", "#2E7A2A", "#3D9A38", "#66B862", "#9AD498", "#D9EFD8"] },
       "system-green": { "role": "secondary", "displayName": "System Green", "canonical": "#16A34A", "tonalRamp": ["#052E16", "#14532D", "#166534", "#15803D", "#16A34A", "#22C55E", "#4ADE80", "#BBF7D0"] },
+      "member-green": { "role": "primary", "displayName": "Member Green", "canonical": "#1D6021", "tonalRamp": ["#08210A", "#123510", "#194B16", "#1D6021", "#26801E", "#3AA62D", "#66C956", "#A8E296"] },
+      "member-green-dark": { "role": "primary", "displayName": "Member Green — Dark (dark-mode pairing)", "canonical": "#4ADE80", "tonalRamp": ["#052E16", "#14532D", "#166534", "#15803D", "#16A34A", "#22C55E", "#4ADE80", "#BBF7D0"] },
       "neutral-bg": { "role": "neutral", "displayName": "Cooperative Slate", "canonical": "#F8FAFC", "tonalRamp": ["#0F172A", "#334155", "#64748B", "#94A3B8", "#CBD5E1", "#E2E8F0", "#F1F5F9", "#F8FAFC"] },
       "surface-white": { "role": "neutral", "displayName": "Surface White", "canonical": "#FFFFFF", "tonalRamp": ["#E5E7EB", "#EDEEF0", "#F3F4F6", "#F7F8F9", "#FAFAFB", "#FCFCFD", "#FEFEFE", "#FFFFFF"] },
       "text-strong": { "role": "neutral", "displayName": "Text — Strong", "canonical": "#111827", "tonalRamp": ["#030712", "#111827", "#1F2937", "#374151", "#4B5563", "#6B7280", "#9CA3AF", "#D1D5DB"] },
@@ -98,7 +100,7 @@
       "Status is never color-only: every badge carries a label, and rank/priority badges are ringed and tinted, not solid-filled."
     ],
     "rules": [
-      { "name": "The One Green Rule", "body": "Cooperative Green (#389734) and System Green (#16A34A) are the only two greens in the system, and they're close enough in hue to read as one brand color at a glance. Any third green value is drift, not a variant to keep.", "section": "colors" },
+      { "name": "The One Green Rule", "body": "Cooperative Green (#389734) and System Green (#16A34A) are the two shell-level greens shared by every portal. Member Green (#1D6021) is the single sanctioned exception, scoped entirely to the Member self-service portal and always paired with dark:#4ADE80 in dark mode. Any other green value is drift, not a variant to keep.", "section": "colors" },
       { "name": "The Text-on-Green Rule", "body": "Real text under the large-text threshold (<24px regular / <18.66px bold) — button labels, links, paragraphs — sitting on or rendered in Cooperative Green must use the Deep step (#2E7A2A), never base Primary (#389734), which only clears ~3.7:1 against white and fails the 4.5:1 body-text minimum. Reserve base Primary for large headline text, icons, and non-text decoration where only 3:1 is required.", "section": "colors" },
       { "name": "The Kicker Rule", "body": "Any label that categorizes rather than states a value (stat card captions, table headers, breadcrumbs) is uppercase, text-xs, bold, and tracked-out. Any label that states a value (numbers, names, dates) is not uppercased.", "section": "typography" },
       { "name": "The Lift-on-Hover Rule", "body": "Interactive cards (stat cards, list rows meant to be clicked) go from shadow-sm at rest to shadow-md with a 4px upward translate on hover. Static, non-interactive cards stay flat.", "section": "elevation" }
@@ -109,10 +111,12 @@
       "Do use the colored-icon-chip + kicker + numeral + trend pattern for any new stat/KPI card.",
       "Do give every table an explicit empty state and loading state.",
       "Do use the outlined/ring badge style (bg-{tone}-50 text-{tone}-700 ring-1 ring-{tone}-200) for new status and rank badges.",
-      "Do canonicalize new page backgrounds on #F8FAFC."
+      "Do canonicalize new page backgrounds on #F8FAFC.",
+      "Do use Member Green (#1D6021) for Member-portal text/icon accents, always paired with dark:#4ADE80 — never ship the bare hex without its dark-mode partner."
     ],
     "donts": [
-      "Don't introduce a third green. The login page's #66B538 is drift, not a variant — new work should use Cooperative Green (#389734/#2E7A2A) instead, and existing occurrences should migrate to it when touched. App.jsx had the same drift (#66B539/#529E2E) and has been migrated.",
+      "Don't introduce a fourth green, or use Member Green (#1D6021) outside the Member portal. The login page's #66B538 is drift, not a variant — new work should use Cooperative Green (#389734/#2E7A2A) instead, and existing occurrences should migrate to it when touched. App.jsx had the same drift (#66B539/#529E2E) and has been migrated.",
+      "Don't use Member Green (#1D6021) for text or an icon without its dark:text-green-400 (#4ADE80) pairing — bare, it drops to 1.9–2.6:1 contrast on the portal's dark surfaces.",
       "Don't use base Primary (#389734) for real text under the large-text threshold or for button fills — it fails 4.5:1 body-text contrast. Use Deep (#2E7A2A) there.",
       "Don't mix bg-gray-50/bg-gray-100 page backgrounds into new screens — #F8FAFC is canonical; treat gray-50/100 pages as legacy to migrate, not a pattern to repeat.",
       "Don't add new solid-pill badges (bg-{tone}-100 text-{tone}-700) — the ringed/outlined style is canonical going forward.",

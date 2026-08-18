@@ -34,21 +34,21 @@ const selectorOptions = [
     label: "Consolidated Loan",
     path: "/conso_choice",
     icon: Library,
-    tone: "bg-blue-50 text-blue-600",
+    tone: "bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400",
   },
   {
     key: "emergency",
     label: "Emergency Loan",
     path: "/Emergency_Loan",
     icon: AlertCircle,
-    tone: "bg-red-50 text-red-600",
+    tone: "bg-red-50 text-red-600 dark:bg-red-900/30 dark:text-red-400",
   },
   {
     key: "bonus",
     label: "Bonus Loan",
     path: "/Bonus_Loan",
     icon: Gift,
-    tone: "bg-[#F0FDF4] text-green-600",
+    tone: "bg-[#F0FDF4] text-green-600 dark:bg-green-900/30 dark:text-green-400",
   },
 ];
 
@@ -105,13 +105,12 @@ const styles = `
 `;
 
 const menuItems = [
-  { name: "Dashboard", icon: LayoutDashboard },
-  { name: "Apply for Loan", icon: Scroll },
-  { name: "Member Loans", icon: Activity },
-  { name: "Statement of Account", icon: Receipt },
-  { name: "Loan Lifecycle", icon: History },
-  
-  { name: "Member Profile", icon: Users }
+  { name: "Dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { name: "Apply for Loan", label: "Apply", icon: Scroll },
+  { name: "Member Loans", label: "Loans", icon: Activity },
+  { name: "Statement of Account", label: "Statement", icon: Receipt },
+  { name: "Loan Lifecycle", label: "Lifecycle", icon: History },
+  { name: "Member Profile", label: "Profile", icon: Users }
 ];
 
 const Member_ApplyLoans = () => {
@@ -235,11 +234,11 @@ const Member_ApplyLoans = () => {
              const routeMap = {
               "Dashboard": "/member-dashboard",
               "Apply for Loan": "/member-apply-loans",
-              "Member Loans": "/member-loans",
+              " Loans": "/member-loans",
               "Statement of Account": "/member-statement-of-account",
               "Loan Lifecycle": "/member-lifecycle",
-              "Member Savings": "/member-savings",
-              "Member Profile": "/members-profile", 
+           
+              " Profile": "/members-profile", 
             };
        
             return menuItems.map((item) => {
@@ -321,7 +320,7 @@ const Member_ApplyLoans = () => {
                 <button
                   type="button"
                   onClick={() => setIsCalculatorOpen(true)}
-                  className="inline-flex items-center gap-1.5 rounded-full border border-[#1D6021] px-3 py-1 text-[11px] font-bold text-[#1D6021] hover:bg-[#EAF1EB] dark:hover:bg-green-900/30"
+                  className="inline-flex items-center gap-1.5 rounded-full border border-[#1D6021] px-3 py-1 text-[11px] font-bold text-[#1D6021] hover:bg-[#EAF1EB] dark:border-green-500 dark:text-green-400 dark:hover:bg-green-900/30"
                 >
                   <Calculator className="w-3.5 h-3.5" /> Simulate Before Applying
                 </button>
@@ -397,7 +396,7 @@ const Member_ApplyLoans = () => {
                     </div>
                     <h1 className="font-bold text-slate-800 text-sm text-center dark:text-gray-200">{item.label}</h1>
                     {disabled && (
-                      <span className="mt-2 text-[10px] font-bold uppercase tracking-wider text-red-600">
+                      <span className="mt-2 text-[10px] font-bold uppercase tracking-wider text-red-600 dark:text-red-400">
                         {bonusClosed ? 'Window closed' : 'Locked'}
                       </span>
                     )}
@@ -408,48 +407,6 @@ const Member_ApplyLoans = () => {
           </div>
         </main>
 
-        {/* Bottom Navigation - Mobile Only */}
-        <nav className="fixed bottom-0 left-0 right-0 lg:hidden bg-white border-t border-gray-200 dark:bg-gray-900 dark:border-gray-800 px-2 py-2">
-          <div className="max-w-lg mx-auto">
-            <div className="flex items-center justify-around gap-1">
-              {(() => {
-                 const routeMap = {
-              "Dashboard": "/member-dashboard",
-              "Apply for Loan": "/member-apply-loans",
-              "Member Loans": "/member-loans",
-              "Statement of Account": "/member-statement-of-account",
-              "Loan Lifecycle": "/member-lifecycle",
-              
-              "Member Profile": "/members-profile"
-            };
-
-                return menuItems.map((item) => {
-                  const Icon = item.icon;
-                  const to = routeMap[item.name] || `/${item.name.toLowerCase().replace(/\s+/g, '-')}`;
-
-                  return (
-                    <NavLink
-                      key={item.name}
-                      to={to}
-                      className={({ isActive }) =>
-                        `flex flex-col items-center justify-center px-2.5 py-2 rounded-full transition-all ${
-                          isActive ? 'bg-[#1D6021] text-white' : 'text-gray-600 hover:text-[#1D6021] dark:text-gray-400 dark:hover:text-green-400'
-                        }`
-                      }
-                    >
-                      {({ isActive }) => (
-                        <>
-                          <Icon size={20} strokeWidth={isActive ? 2.5 : 2} className="mb-1" />
-                          <span className="text-[10px] font-semibold">{item.name.split(' ')[0]}</span>
-                        </>
-                      )}
-                    </NavLink>
-                  );
-                });
-              })()}
-            </div>
-          </div>
-        </nav>
       </div>
 
       <LoanCalculatorModal open={isCalculatorOpen} onClose={() => setIsCalculatorOpen(false)} />

@@ -302,13 +302,12 @@ const Members_Profile = () => {
   }, [formData, visibleFieldKeys]);
 
   const menuItems = [
-      { name: "Dashboard", icon: LayoutDashboard },
-      { name: "Apply for Loan", icon: Scroll },
-      { name: "Member Loans", icon: Activity },
-      { name: "Statement of Account", icon: Receipt },
-      { name: "Loan Lifecycle", icon: History },
-      
-       { name: "Member Profile", icon: Users },
+      { name: "Dashboard", label: "Dashboard", icon: LayoutDashboard },
+      { name: "Apply for Loan", label: "Apply", icon: Scroll },
+      { name: "Member Loans", label: "Loans", icon: Activity },
+      { name: "Statement of Account", label: "Statement", icon: Receipt },
+      { name: "Loan Lifecycle", label: "Lifecycle", icon: History },
+      { name: "Member Profile", label: "Profile", icon: Users },
     ];
 
   const handleSignOut = async (e) => {
@@ -1012,7 +1011,7 @@ const Members_Profile = () => {
               <button
                 onClick={handleOpenFilePicker}
                 disabled={uploadingAvatar}
-                className="flex items-center justify-center gap-2 border border-[#1D6021] text-[#1D6021] hover:bg-[#1D6021]/10 transition-colors font-bold rounded-lg px-5 py-2.5 text-sm disabled:opacity-60 disabled:cursor-not-allowed"
+                className="flex items-center justify-center gap-2 border border-[#1D6021] text-[#1D6021] hover:bg-[#1D6021]/10 dark:border-green-500 dark:text-green-400 dark:hover:bg-green-900/30 transition-colors font-bold rounded-lg px-5 py-2.5 text-sm disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 {uploadingAvatar ? (
                   <>
@@ -1027,7 +1026,7 @@ const Members_Profile = () => {
               </button>
               <button
                 onClick={handleOpenChangeEmail}
-                className="flex items-center justify-center gap-2 border border-[#1D6021] text-[#1D6021] hover:bg-[#1D6021]/10 transition-colors font-bold rounded-lg px-5 py-2.5 text-sm"
+                className="flex items-center justify-center gap-2 border border-[#1D6021] text-[#1D6021] hover:bg-[#1D6021]/10 dark:border-green-500 dark:text-green-400 dark:hover:bg-green-900/30 transition-colors font-bold rounded-lg px-5 py-2.5 text-sm"
               >
                 <Pencil className="w-4 h-4" /> Change Email
               </button>
@@ -1041,13 +1040,13 @@ const Members_Profile = () => {
             </div>
           </div>
           {avatarUploadError ? (
-            <div className="w-full mb-6 p-4 rounded-xl border border-red-200 bg-red-50 text-sm text-red-700">
+            <div className="w-full mb-6 p-4 rounded-xl border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/30 text-sm text-red-700 dark:text-red-400">
               {avatarUploadError}
             </div>
           ) : null}
 
           {isTemporaryAccount ? (
-            <div className="w-full mb-6 p-4 rounded-xl border border-amber-200 bg-amber-50 text-sm text-amber-800 font-semibold flex items-center justify-between gap-3">
+            <div className="w-full mb-6 p-4 rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/30 text-sm text-amber-800 dark:text-amber-300 font-semibold flex items-center justify-between gap-3">
               <span>Your account is still using a temporary password. Update it now for security.</span>
               <button
                 onClick={handleOpenChangePassword}
@@ -1059,7 +1058,7 @@ const Members_Profile = () => {
           ) : null}
 
           {profileError ? (
-            <div className="w-full mb-6 p-4 rounded-xl border border-red-200 bg-red-50 text-sm text-red-700">
+            <div className="w-full mb-6 p-4 rounded-xl border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/30 text-sm text-red-700 dark:text-red-400">
               {profileError}
             </div>
           ) : null}
@@ -1081,7 +1080,7 @@ const Members_Profile = () => {
             <div className="flex-1">
               <div className="flex items-center justify-between mb-2">
                 <p className="text-sm font-bold text-gray-900 dark:text-white">Profile Completion</p>
-                <p className="text-sm font-extrabold text-[#1D6021]">{completionPercent}%</p>
+                <p className="text-sm font-extrabold text-[#1D6021] dark:text-green-400">{completionPercent}%</p>
               </div>
               <div className="h-2 w-full rounded-full bg-gray-100 dark:bg-gray-700 overflow-hidden">
                 <div
@@ -1143,7 +1142,7 @@ const Members_Profile = () => {
                       </div>
                       <div className="flex items-center gap-4">
                         <span className={`text-[10px] font-bold rounded-full px-2 py-0.5 ${
-                          isActive ? 'bg-white dark:bg-gray-800 text-[#1D6021]' : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400'
+                          isActive ? 'bg-white dark:bg-gray-800 text-[#1D6021] dark:text-green-400' : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400'
                         }`}>
                           {sectionFilled}/{section.fields.length}
                         </span>
@@ -1317,7 +1316,7 @@ const Members_Profile = () => {
 
           {/* Notification preferences */}
           <div className="mt-6 w-full bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-800 bg-[#FAF9FB] dark:bg-gray-800 flex items-center gap-2 text-[#1D6021]">
+            <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-800 bg-[#FAF9FB] dark:bg-gray-800 flex items-center gap-2 text-[#1D6021] dark:text-green-400">
               <ShieldCheck className="w-5 h-5" />
               <h2 className="font-extrabold text-gray-900 dark:text-white text-base">Notification Preferences</h2>
             </div>
@@ -1381,7 +1380,7 @@ const Members_Profile = () => {
                         <button
                           type="button"
                           onClick={() => { setPasswordRecoveryMode(true); setCurrentPasswordInput(''); setNewPassword(''); setConfirmPassword(''); setPasswordError(''); }}
-                          className="mt-2 text-xs text-[#1D6021] hover:underline"
+                          className="mt-2 text-xs text-[#1D6021] dark:text-green-400 hover:underline"
                         >
                           Forgot your current password?
                         </button>
@@ -1420,7 +1419,7 @@ const Members_Profile = () => {
                       <button
                         type="button"
                         onClick={() => { setPasswordRecoveryMode(false); setPasswordError(''); }}
-                        className="block mt-1 text-[#1D6021] hover:underline"
+                        className="block mt-1 text-[#1D6021] dark:text-green-400 hover:underline"
                       >
                         I remember my current password
                       </button>
@@ -1445,7 +1444,7 @@ const Members_Profile = () => {
                       type="button"
                       onClick={handleRequestPasswordOtp}
                       disabled={passwordOtpCooldown > 0 || updatingPassword}
-                      className="mt-2 text-xs text-[#1D6021] hover:underline disabled:text-gray-400 disabled:no-underline"
+                      className="mt-2 text-xs text-[#1D6021] dark:text-green-400 hover:underline disabled:text-gray-400 disabled:no-underline"
                     >
                       {passwordOtpCooldown > 0 ? `Resend code in ${passwordOtpCooldown}s` : 'Resend code'}
                     </button>
@@ -1520,50 +1519,6 @@ const Members_Profile = () => {
           </div>
         ) : null}
 
-        {/* Bottom Navigation - Mobile Only */}
-        <nav className="fixed bottom-0 left-0 right-0 lg:hidden bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800 px-2 py-2">
-          <div className="max-w-lg mx-auto">
-            <div className="flex items-center justify-around gap-1">
-              {(() => {
-                const routeMap = {
-                  "Dashboard": "/member-dashboard",
-                  "Apply for Loan": "/member-apply-loans",
-                  "Member Loans": "/member-loans",
-                  "Statement of Account": "/member-statement-of-account",
-                  "Loan Lifecycle": "/member-lifecycle",
-                  "Member Profile": "/members-profile",
-                  "Member Savings": "/member-savings"
-                };
-
-                return menuItems.map((item) => {
-                  const Icon = item.icon;
-                  const to = routeMap[item.name] || `/${item.name.toLowerCase().replace(/\s+/g, '-')}`;
-
-                  return (
-                    <NavLink
-                      key={item.name}
-                      to={to}
-                      className={({ isActive }) =>
-                        `flex flex-col items-center justify-center px-2.5 py-2 rounded-full transition-all ${
-                          isActive
-                            ? 'bg-[#1D6021] text-white'
-                            : 'text-gray-600 hover:text-[#1D6021] dark:text-gray-400 dark:hover:text-green-400'
-                        }`
-                      }
-                    >
-                      {({ isActive }) => (
-                        <>
-                          <Icon size={20} strokeWidth={isActive ? 2.5 : 2} className="mb-1" />
-                          <span className="text-[10px] font-semibold">{item.name.split(' ')[0]}</span>
-                        </>
-                      )}
-                    </NavLink>
-                  );
-                });
-              })()}
-            </div>
-          </div>
-        </nav>
       </div>
     </div>
   );

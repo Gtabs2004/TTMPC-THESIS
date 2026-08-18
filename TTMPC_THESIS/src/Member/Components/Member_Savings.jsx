@@ -124,13 +124,12 @@ const Member_Savings = () => {
   const [avatarUrl, setAvatarUrl] = useState('');
 
   const menuItems = [
-      { name: "Dashboard", icon: LayoutDashboard },
-      { name: "Apply for Loan", icon: Scroll },
-      { name: "Member Loans", icon: Activity },
-      { name: "Statement of Account", icon: Receipt },
-      { name: "Loan Lifecycle", icon: History },
-      { name: "Member Savings", icon: CreditCard },
-       { name: "Member Profile", icon: Users },
+      { name: "Dashboard", label: "Dashboard", icon: LayoutDashboard },
+      { name: "Apply for Loan", label: "Apply", icon: Scroll },
+      { name: "Member Loans", label: "Loans", icon: Activity },
+      { name: "Statement of Account", label: "Statement", icon: Receipt },
+      { name: "Loan Lifecycle", label: "Lifecycle", icon: History },
+      { name: "Member Profile", label: "Profile", icon: Users },
     ];
 
   const handleSignOut = async (e) => {
@@ -318,10 +317,10 @@ const Member_Savings = () => {
   // Helper function to render the correct icon per transaction type
   const renderTransactionIcon = (type) => {
     switch(type) {
-      case 'plus': return <PlusCircle className="w-4 h-4 text-green-600" />;
-      case 'trend': return <TrendingUp className="w-4 h-4 text-green-600" />;
-      case 'minus': return <MinusCircle className="w-4 h-4 text-red-500" />;
-      default: return <PlusCircle className="w-4 h-4 text-gray-400" />;
+      case 'plus': return <PlusCircle className="w-4 h-4 text-green-600 dark:text-green-400" />;
+      case 'trend': return <TrendingUp className="w-4 h-4 text-green-600 dark:text-green-400" />;
+      case 'minus': return <MinusCircle className="w-4 h-4 text-red-500 dark:text-red-400" />;
+      default: return <PlusCircle className="w-4 h-4 text-gray-400 dark:text-gray-500" />;
     }
   };
 
@@ -471,7 +470,7 @@ const Member_Savings = () => {
           </div>
 
           {savingsError ? (
-            <div className="mb-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+            <div className="mb-6 rounded-xl border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/30 px-4 py-3 text-sm font-medium text-red-700 dark:text-red-400">
               {savingsError}
             </div>
           ) : null}
@@ -511,7 +510,7 @@ const Member_Savings = () => {
                       <td colSpan={4} className="p-6 text-center text-sm text-gray-500">No savings transactions yet.</td>
                     </tr>
                   ) : ledgerData.map((row) => (
-                    <tr key={row.id} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
+                    <tr key={row.id} className="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50/50 dark:hover:bg-gray-800/50 transition-colors">
                       <td className="p-5 text-sm text-gray-500 dark:text-gray-400 font-medium whitespace-nowrap">{row.date}</td>
                       <td className="p-5 text-sm font-bold text-gray-700 dark:text-gray-200 flex items-center gap-3">
                         {renderTransactionIcon(row.typeIcon)}
@@ -539,50 +538,6 @@ const Member_Savings = () => {
           
         </main>
 
-        {/* Bottom Navigation - Mobile Only */}
-        <nav className="fixed bottom-0 left-0 right-0 lg:hidden bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800 px-2 py-2">
-          <div className="max-w-lg mx-auto">
-            <div className="flex items-center justify-around gap-1">
-              {(() => {
-                const routeMap = {
-                  "Dashboard": "/member-dashboard",
-                  "Apply for Loan": "/member-apply-loans",
-                  "Member Loans": "/member-loans",
-                  "Statement of Account": "/member-statement-of-account",
-                  "Loan Lifecycle": "/member-lifecycle",
-                  "Member Profile": "/members-profile",
-                  "Member Savings": "/member-savings"
-                };
-
-                return menuItems.map((item) => {
-                  const Icon = item.icon;
-                  const to = routeMap[item.name] || `/${item.name.toLowerCase().replace(/\s+/g, '-')}`;
-
-                  return (
-                    <NavLink
-                      key={item.name}
-                      to={to}
-                      className={({ isActive }) =>
-                        `flex flex-col items-center justify-center px-2.5 py-2 rounded-full transition-all ${
-                          isActive
-                            ? 'bg-[#1D6021] text-white'
-                            : 'text-gray-600 dark:text-gray-400 hover:text-[#1D6021] dark:hover:text-green-400'
-                        }`
-                      }
-                    >
-                      {({ isActive }) => (
-                        <>
-                          <Icon size={20} strokeWidth={isActive ? 2.5 : 2} className="mb-1" />
-                          <span className="text-[10px] font-semibold">{item.name.split(' ')[0]}</span>
-                        </>
-                      )}
-                    </NavLink>
-                  );
-                });
-              })()}
-            </div>
-          </div>
-        </nav>
       </div>
     </div>
   );
