@@ -64,7 +64,7 @@ const Manager_Audit_Log = () => {
             );
           })}
         </nav>
-        <button onClick={handleSignOut} className="mt-auto w-full rounded p-2 text-xs bg-green-600 hover:bg-green-700 text-white font-bold transition-colors">Sign out</button>
+        <button onClick={handleSignOut} className="mt-auto w-full rounded-lg p-2 text-xs bg-green-600 hover:bg-green-700 text-white font-bold transition-colors">Sign out</button>
       </aside>
 
       <div className="flex-1 flex flex-col h-screen overflow-y-auto">
@@ -75,6 +75,16 @@ const Manager_Audit_Log = () => {
         </header>
 
         <main className="p-8">
+          {/* TITLE */}
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">Audit Log</h1>
+              <p className="text-sm text-gray-500 mt-0.5">
+                A record of your recent actions across the system.
+              </p>
+            </div>
+          </div>
+
           <AuditLogViewer showActorRoleFilter={false} onError={(msg) => addNotification(msg, "error")} />
         </main>
       </div>

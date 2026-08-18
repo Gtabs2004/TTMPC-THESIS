@@ -276,11 +276,11 @@ const CreditRiskPage = ({ portal = "bookkeeper" }) => {
         <main className="p-8">
           <div className="flex items-start justify-between mb-6 gap-3 flex-wrap">
             <div>
-              <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
+              <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
                 <Brain className="text-indigo-500" size={26} />
                 Credit Risk Assessment
               </h2>
-              <p className="text-sm text-gray-500 mt-1">
+              <p className="text-sm text-gray-500 mt-0.5">
                 Model-scored loan applications currently under review. Higher probability = higher predicted default risk.
               </p>
               <p className="text-xs text-gray-500 mt-2 inline-flex items-center gap-1.5 bg-indigo-50 border border-indigo-200 rounded-md px-2 py-1">

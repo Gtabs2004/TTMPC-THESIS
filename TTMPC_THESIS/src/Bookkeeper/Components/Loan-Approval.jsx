@@ -189,6 +189,17 @@ const BookkeeperLoanApproval = () => {
     return "bg-slate-100 text-slate-600";
   };
 
+  // "revision_requested" -> "Revision Requested"; "pending" -> "Pending"
+  const formatLoanStatus = (status) => {
+    if (!status) return "Pending";
+    return status
+      .replace(/_/g, " ")
+      .split(" ")
+      .filter(Boolean)
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(" ");
+  };
+
   const displayLoans = loans.map((loan) => {
     const isKoica = loan.source === "koica";
     const firstName = loan.member?.first_name || "";
@@ -509,9 +520,9 @@ const BookkeeperLoanApproval = () => {
                         <td className="p-3 text-sm">
                           <span
                             className={`inline-block max-w-[11rem] truncate px-3 py-1.5 rounded-full text-[11px] font-bold tracking-wider ${getLoanStatusBadge(loan.loanStatus)}`}
-                            title={loan.loanStatus ? loan.loanStatus.replace(/_/g, " ") : "pending"}
+                            title={formatLoanStatus(loan.loanStatus)}
                           >
-                            {loan.loanStatus ? loan.loanStatus.replace(/_/g, " ") : "pending"}
+                            {formatLoanStatus(loan.loanStatus)}
                           </span>
                         </td>
                         <td className="p-3 text-sm text-gray-500 whitespace-nowrap" title={loan.submittedAt || loan.date}>{loan.date}</td>

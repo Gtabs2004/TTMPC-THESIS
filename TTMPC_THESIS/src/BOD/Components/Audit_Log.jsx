@@ -14,6 +14,7 @@ import {
   FileText,
   AlertTriangle,
   History,
+  ShieldCheck
 } from "lucide-react";
 import NotificationBell from "./NotificationBell";
 import { usePortalRole } from "../../utils/usePortalRole";
@@ -28,7 +29,7 @@ const Audit_Log = () => {
     { section: "BOD", items: [
       { name: "Dashboard", icon: LayoutDashboard },
       { name: "Member Approvals", icon: Users },
-      { name: "Loan Approvals", icon: CreditCard },
+      { name: "Loan Approvals", icon: ShieldCheck },
       { name: "Loan Ledger", icon: CreditCard },
       { name: "Manage Member", icon: Users },
       { name: "Audit Log", icon: History },
@@ -106,7 +107,7 @@ const Audit_Log = () => {
         <button onClick= {handleSignOut} className="mt-auto w-full rounded p-2 text-xs bg-green-600 hover:bg-green-700 text-white font-bold transition-colors">Sign out</button>
       </aside>
 
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 min-w-0 flex flex-col h-screen overflow-hidden">
         <header className="bg-white h-16 shadow-sm flex items-center justify-end px-8 border-b border-gray-100">
           <NotificationBell />
           <div className="flex items-center ml-4 gap-2 border-l border-gray-200 pl-4">

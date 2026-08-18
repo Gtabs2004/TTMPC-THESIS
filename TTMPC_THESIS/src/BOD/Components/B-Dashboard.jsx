@@ -401,14 +401,7 @@ const Dashboard_BOD = () => {
               <h1 className="font-bold text-2xl text-gray-800">Analytical Dashboard</h1>
               <p className="text-sm text-gray-500 mt-1">Real-time cooperative performance metrics</p>
             </div>
-            <div className="flex gap-3">
-              <button className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors shadow-sm">
-                <Calendar className="w-4 h-4" /> YTD 2026
-              </button>
-              <button className="flex items-center gap-2 px-4 py-2 bg-[#2C7A3F] hover:bg-[#236332] text-white rounded-lg text-sm font-medium transition-colors shadow-sm">
-                <Download className="w-4 h-4" /> Export PDF
-              </button>
-            </div>
+
           </div>
 
           {/* ROW 1: QUICK INSIGHTS (KPIs) */}

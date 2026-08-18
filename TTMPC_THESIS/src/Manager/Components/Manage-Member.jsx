@@ -140,7 +140,7 @@ const Manager_Manage_Member = () => {
     
             <button
               onClick={handleSignOut}
-              className="mt-auto w-full rounded p-2 text-xs bg-green-600 hover:bg-green-700 text-white font-bold transition-colors"
+              className="mt-auto w-full rounded-lg p-2 text-xs bg-green-600 hover:bg-green-700 text-white font-bold transition-colors"
             >
               Sign out
             </button>
@@ -164,7 +164,16 @@ const Manager_Manage_Member = () => {
             </header>
     
         <main className="p-8">
-          <h1 className="font-bold text-2xl mb-6">Manage Member</h1>
+          {/* TITLE */}
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">Manage Member</h1>
+              <p className="text-sm text-gray-500 mt-0.5">
+                Browse personal datasheets for cooperative members.
+              </p>
+            </div>
+          </div>
+
           <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
             {!loading ? (
               <table className="w-full text-left border-collapse">
