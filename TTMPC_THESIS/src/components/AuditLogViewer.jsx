@@ -432,7 +432,7 @@ const AuditLogViewer = ({ showActorRoleFilter = true, onError }) => {
 
         {/* Table */}
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse whitespace-nowrap">
+          <table className="w-full text-left border-collapse whitespace-nowrap text-sm">
             <thead>
               <tr className="bg-green-700 text-[10px] uppercase tracking-wider text-white font-extrabold">
                 <th className="p-5 font-bold">Log ID</th>
@@ -458,7 +458,7 @@ const AuditLogViewer = ({ showActorRoleFilter = true, onError }) => {
                   <tr key={r.id} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
                     <td className="p-5 font-medium text-gray-900">{formatLogId(r.id)}</td>
                     <td className="p-5 text-gray-500">{formatAuditTimestamp(r.occurred_at)}</td>
-                    <td className="p-5 font-bold text-gray-900">{r.actor_email || "—"}</td>
+                    <td className="p-5 font-medium text-gray-700">{r.actor_email || "—"}</td>
                     <td className="p-5 text-gray-500">{formatRole(r.actor_role)}</td>
                     <td className="p-5">
                       <span className={`px-2.5 py-1 rounded-md text-[10px] font-bold tracking-wide ${moduleInfo.className}`}>

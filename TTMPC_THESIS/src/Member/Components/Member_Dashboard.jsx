@@ -24,7 +24,6 @@ import {
   PiggyBank,
   Calendar,
   ArrowUpRight,
-  CheckCircle2,
   History,
   User,
   Receipt,
@@ -161,13 +160,6 @@ const MemberDashboard = () => {
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) return 'N/A';
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-  };
-
-  const formatDateTime = (value) => {
-    if (!value) return 'N/A';
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return 'N/A';
-    return date.toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
   };
 
   const resolveAvatarDisplayUrl = async (storedAvatarValue, userId) => {
@@ -764,16 +756,6 @@ const MemberDashboard = () => {
     return Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
   }, [nextDueDate]);
 
-  const recentActivities = useMemo(
-    () => recentTransactions.slice(0, 3).map((tx) => ({
-      id: tx.id,
-      title: tx.desc,
-      subtitle: `${tx.amount} • ${formatDateTime(tx.timestamp)}`,
-      type: tx.type,
-    })),
-    [recentTransactions]
-  );
-
   // Show loading skeleton while dashboard data is loading
   if (loadingProfile) {
     return <MemberDashboardLoading />;
@@ -1114,11 +1096,10 @@ const MemberDashboard = () => {
             </div>
           </div>
 
-          {/* Bottom Section: Transactions & Activity */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
-            
+          {/* Bottom Section: Transactions */}
+          <div>
             {/* Recent Transactions Table */}
-            <div className="lg:col-span-2">
+            <div>
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center">
                   <History className="w-5 h-5 mr-2 text-[#1D6021] dark:text-green-400" /> Recent Transactions
@@ -1161,39 +1142,6 @@ const MemberDashboard = () => {
                 </div>
               </div>
             </div>
-
-            {/* Recent Activity Timeline */}
-            <div>
-              <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4 invisible lg:visible">Activity</h3>
-              <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 p-5 sm:p-6 h-auto lg:h-[calc(100%-2.5rem)] flex flex-col">
-                <h4 className="font-bold text-gray-900 dark:text-white mb-6">Recent Activity</h4>
-                
-                <div className="space-y-6 flex-1">
-                  {recentActivities.length ? recentActivities.map((activity) => (
-                    <div key={activity.id} className="flex items-start gap-4">
-                      <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 ${activity.type === 'loan' ? 'bg-blue-50 dark:bg-blue-900/30' : activity.type === 'savings' ? 'bg-green-50 dark:bg-green-900/30' : 'bg-orange-50 dark:bg-orange-900/30'}`}>
-                        {activity.type === 'loan' ? (
-                          <CheckCircle2 className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                        ) : (
-                          <ArrowUpRight className={`w-4 h-4 ${activity.type === 'savings' ? 'text-green-600 dark:text-green-400' : 'text-orange-600 dark:text-orange-400'}`} />
-                        )}
-                      </div>
-                      <div>
-                        <p className="text-sm font-bold text-gray-900 dark:text-white">{activity.title}</p>
-                        <p className="text-xs text-gray-500 dark:text-gray-400 font-medium mt-0.5">{activity.subtitle}</p>
-                      </div>
-                    </div>
-                  )) : (
-                    <p className="text-sm text-gray-500 dark:text-gray-400">No recent activity yet.</p>
-                  )}
-                </div>
-
-                <button className="w-full mt-6 bg-[#F8F9FA] dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 font-bold text-sm py-2.5 rounded-lg transition-colors">
-                  View Transaction History
-                </button>
-              </div>
-            </div>
-
           </div>
 
         </main>

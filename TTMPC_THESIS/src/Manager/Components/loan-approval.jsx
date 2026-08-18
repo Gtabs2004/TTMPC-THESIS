@@ -229,7 +229,7 @@ const Loan_Approval = () => {
    
            <button
              onClick={handleSignOut}
-             className="mt-auto w-full rounded p-2 text-xs bg-green-600 hover:bg-green-700 text-white font-bold transition-colors"
+             className="mt-auto w-full rounded-lg p-2 text-xs bg-green-600 hover:bg-green-700 text-white font-bold transition-colors"
            >
              Sign out
            </button>
@@ -252,6 +252,16 @@ const Loan_Approval = () => {
         
 
         <main className="p-8 flex-1">
+          {/* TITLE */}
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">Loan Approval</h1>
+              <p className="text-sm text-gray-500 mt-0.5">
+                Loans recommended by the Bookkeeper, awaiting your review and decision.
+              </p>
+            </div>
+          </div>
+
           {/* Top Stats Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
             <div className="bg-white border border-gray-100 rounded-xl p-5 flex items-center gap-4 shadow-sm">

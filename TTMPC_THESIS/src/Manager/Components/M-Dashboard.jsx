@@ -45,7 +45,11 @@ const formatDate = (value) => {
   return d.toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' });
 };
 
-const TYPE_COLORS = ['#166534', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'];
+const TYPE_COLORS = ['#166534', '#3b82f6', '#f59e0b', '#8b5cf6', '#06b6d4'];
+// Emergency loans always render in red, regardless of their rank in the distribution.
+// Matched by substring since loan_types.name varies between seeds ("Emergency" vs "Emergency Loan").
+const getLoanTypeColor = (name, i) =>
+  /emergency/i.test(name) ? '#dc2626' : TYPE_COLORS[i % TYPE_COLORS.length];
 
 const M_Dashboard = () => {
   const { session, signOut } = UserAuth();
@@ -181,7 +185,7 @@ const M_Dashboard = () => {
             name,
             value: Math.round((count / total) * 100),
             count,
-            color: TYPE_COLORS[i % TYPE_COLORS.length],
+            color: getLoanTypeColor(name, i),
           }));
         setDistributionData(distRows);
 
@@ -327,7 +331,7 @@ const M_Dashboard = () => {
 
         <button
           onClick={handleSignOut}
-          className="mt-auto w-full rounded p-2 text-xs bg-green-600 hover:bg-green-700 text-white font-bold transition-colors"
+          className="mt-auto w-full rounded-lg p-2 text-xs bg-green-600 hover:bg-green-700 text-white font-bold transition-colors"
         >
           Sign out
         </button>
@@ -352,7 +356,16 @@ const M_Dashboard = () => {
 
         {/* PAGE CONTENT */}
         <main className="p-8">
-          
+          {/* TITLE */}
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
+              <p className="text-sm text-gray-500 mt-0.5">
+                Overview of loan approvals, portfolio health, and credit risk for your review.
+              </p>
+            </div>
+          </div>
+
           {/* KPI CARDS (CSS Grid is much better here than fixed widths) */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
             
@@ -588,7 +601,7 @@ const M_Dashboard = () => {
               </button>
             </div>
             <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
+              <table className="w-full text-left border-collapse text-sm">
                 <thead>
                   <tr className="bg-green-700 text-[10px] uppercase tracking-wider text-white font-extrabold">
                     <th className="p-5 font-bold">MEMBER NAME</th>
@@ -620,7 +633,7 @@ const M_Dashboard = () => {
                         <td className="p-5 font-bold text-gray-800">{req.name}</td>
                         <td className="p-5 text-gray-500">{req.type}</td>
                         <td className="p-5 font-bold text-gray-800">{req.amount}</td>
-                        <td className="p-5 text-gray-500 text-xs">{req.date}</td>
+                        <td className="p-5 text-gray-500">{req.date}</td>
                         <td className="p-5">
                           <span className="px-2.5 py-1 rounded-md text-[10px] font-bold tracking-wider bg-orange-100 text-orange-600">
                             {req.status}

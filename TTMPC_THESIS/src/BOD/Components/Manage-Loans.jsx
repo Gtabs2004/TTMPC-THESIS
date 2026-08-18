@@ -303,14 +303,7 @@ const BOD_Manage_Loans = () => {
             <div className="mb-8">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-2">
                 <h1 className="text-3xl font-bold text-gray-900">Loan Ledger</h1>
-                <button
-                  onClick={fetchManageLoans}
-                  className="flex items-center justify-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 shadow-sm transition-colors"
-                  disabled={loading}
-                >
-                  <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
-                  {loading ? "Refreshing..." : "Refresh"}
-                </button>
+               
               </div>
               <p className="text-sm text-gray-600">Overview of approved, disbursed, paid, and pending loans</p>
             </div>

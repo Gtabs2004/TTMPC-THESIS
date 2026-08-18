@@ -45,7 +45,7 @@ const formatCurrency = (value, opts = {}) => {
 };
 
 const TYPE_COLORS = ["#166534", "#3b82f6", "#f59e0b", "#ef4444", "#8b5cf6", "#06b6d4"];
-const MIGS_COLORS = { migs: "#16A34A", nonMigs: "#dc2626", unscored: "#9ca3af" };
+const MIGS_COLORS = { migs: "#166534", nonMigs: "#dc2626",  };
 
 const Manager_Reports = () => {
   const { signOut } = UserAuth();
@@ -219,7 +219,7 @@ const Manager_Reports = () => {
         setMigsBreakdown([
           { name: "MIGS Qualified", value: migsCount, color: MIGS_COLORS.migs },
           { name: "Non-MIGS", value: nonMigsCount, color: MIGS_COLORS.nonMigs },
-          { name: "Unscored", value: unscored, color: MIGS_COLORS.unscored },
+          
         ]);
 
         // Monthly approvals (12-month bar chart)
@@ -345,7 +345,7 @@ const Manager_Reports = () => {
 
         <button
           onClick={handleSignOut}
-          className="mt-auto w-full rounded p-2 text-xs bg-green-600 hover:bg-green-700 text-white font-bold transition-colors"
+          className="mt-auto w-full rounded-lg p-2 text-xs bg-green-600 hover:bg-green-700 text-white font-bold transition-colors"
         >
           Sign out
         </button>
@@ -474,7 +474,7 @@ const Manager_Reports = () => {
             <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
               <div className="flex items-center gap-2 mb-4">
                 <Award className="w-4 h-4 text-gray-500" />
-                <h3 className="text-gray-800 font-bold text-sm">MIGS Distribution</h3>
+                <h3 className="text-gray-800 font-bold text-sm">Member Classification</h3>
               </div>
               <div className="relative h-44 flex items-center justify-center">
                 <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={1}>
