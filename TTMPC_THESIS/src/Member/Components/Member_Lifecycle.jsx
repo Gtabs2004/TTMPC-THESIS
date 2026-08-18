@@ -608,161 +608,279 @@ const Member_Lifecycle = () => {
           {selectedLoan ? (
             <>
               {/* Loan Summary Card */}
-              <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm p-5 sm:p-6 mb-6 animate-fade-in-up">
-                <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-5">
-                  <div>
-                    <p className="text-[11px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-1">{selectedLoan.loan_type}</p>
-                    <h2 className="text-xl sm:text-2xl font-extrabold text-gray-900 dark:text-white">{formatCurrency(selectedLoan.principal)}</h2>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 font-mono">Loan ID: {selectedLoan.loan_id}</p>
-                  </div>
-                  {selectedStatus ? (
-                    <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold border ${toneStyles[selectedStatus.tone]}`}>
-                      <CheckCircle2 className="w-3.5 h-3.5" /> {selectedStatus.text}
-                    </span>
-                  ) : null}
-                </div>
+              {(() => {
+                const isFullyPaid = String(selectedLoan.loan_status || '').toLowerCase() === 'fully paid';
+                return (
+                  <div className={`rounded-2xl border shadow-sm p-5 sm:p-6 mb-6 animate-fade-in-up ${
+                    isFullyPaid
+                      ? 'bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-950/40 dark:to-emerald-950/40 border-green-200 dark:border-green-800'
+                      : 'bg-white dark:bg-gray-900 border-gray-100 dark:border-gray-800'
+                  }`}>
+                    <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-5">
+                      <div className="flex items-start gap-3">
+                        {isFullyPaid ? (
+                          <div className="shrink-0 w-11 h-11 rounded-full bg-[#1D6021] flex items-center justify-center shadow-sm">
+                            <Trophy className="w-5 h-5 text-white" />
+                          </div>
+                        ) : null}
+                        <div>
+                          <p className="text-[11px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-1">{selectedLoan.loan_type}</p>
+                          <h2 className="text-xl sm:text-2xl font-extrabold text-gray-900 dark:text-white">{formatCurrency(selectedLoan.principal)}</h2>
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 font-mono">Loan ID: {selectedLoan.loan_id}</p>
+                        </div>
+                      </div>
+                      {selectedStatus ? (
+                        <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold border ${toneStyles[selectedStatus.tone]}`}>
+                          {isFullyPaid ? <Trophy className="w-3.5 h-3.5" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
+                          {selectedStatus.text}
+                        </span>
+                      ) : null}
+                    </div>
 
-                {/* Payment Progress */}
-                <div className="mb-5">
-                  <div className="flex items-center justify-between mb-2">
-                    <p className="text-xs font-bold text-gray-600 dark:text-gray-400 uppercase tracking-wider">Payment Progress</p>
-                    <p className="text-sm font-extrabold text-[#1D6021]">{selectedLoan.progress_percent}%</p>
-                  </div>
-                  <div className="h-2.5 w-full rounded-full bg-gray-100 dark:bg-gray-700 overflow-hidden">
-                    <div
-                      className="h-full bg-gradient-to-r from-[#1D6021] to-[#66B53B] transition-all duration-500"
-                      style={{ width: `${selectedLoan.progress_percent}%` }}
-                    />
-                  </div>
-                  <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1.5 font-medium">
-                    {formatCurrency(selectedLoan.amount_paid)} paid of {formatCurrency(selectedLoan.total_payable)} total
-                  </p>
-                </div>
+                    {/* Closure message for fully paid loans */}
+                    {isFullyPaid ? (
+                      <div className="mb-5 rounded-xl bg-[#1D6021]/10 border border-[#1D6021]/20 px-4 py-3 flex items-center gap-3">
+                        <CheckCircle2 className="w-5 h-5 text-[#1D6021] shrink-0" />
+                        <div>
+                          <p className="text-sm font-extrabold text-[#1a4a2f] dark:text-green-300">Loan fully settled</p>
+                          <p className="text-xs text-[#2d6a38] dark:text-green-400 mt-0.5">All payments have been received and validated. This loan is now closed.</p>
+                        </div>
+                      </div>
+                    ) : null}
 
-                {/* Key numbers */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  <div className="rounded-xl border border-gray-100 dark:border-gray-700 bg-[#FAF9FB] dark:bg-gray-800 p-3">
-                    <p className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Total Payable</p>
-                    <p className="text-sm font-extrabold text-gray-900 dark:text-white">{formatCurrency(selectedLoan.total_payable)}</p>
+                    {/* Payment Progress — hidden for fully paid (it's always 100%, redundant) */}
+                    {!isFullyPaid ? (
+                      <div className="mb-5">
+                        <div className="flex items-center justify-between mb-2">
+                          <p className="text-xs font-bold text-gray-600 dark:text-gray-400 uppercase tracking-wider">Payment Progress</p>
+                          <p className="text-sm font-extrabold text-[#1D6021]">{selectedLoan.progress_percent}%</p>
+                        </div>
+                        <div className="h-2.5 w-full rounded-full bg-gray-100 dark:bg-gray-700 overflow-hidden">
+                          <div
+                            className="h-full bg-gradient-to-r from-[#1D6021] to-[#66B53B] transition-all duration-500"
+                            style={{ width: `${selectedLoan.progress_percent}%` }}
+                          />
+                        </div>
+                        <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1.5 font-medium">
+                          {formatCurrency(selectedLoan.amount_paid)} paid of {formatCurrency(selectedLoan.total_payable)} total
+                        </p>
+                      </div>
+                    ) : null}
+
+                    {/* Key numbers — context-aware for fully paid vs active */}
+                    {isFullyPaid ? (
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="rounded-xl border border-green-100 dark:border-green-900 bg-white dark:bg-gray-900 p-3">
+                          <p className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Total Paid</p>
+                          <p className="text-sm font-extrabold text-[#1D6021]">{formatCurrency(selectedLoan.amount_paid)}</p>
+                        </div>
+                        <div className="rounded-xl border border-green-100 dark:border-green-900 bg-white dark:bg-gray-900 p-3">
+                          <p className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Total Payable</p>
+                          <p className="text-sm font-extrabold text-gray-900 dark:text-white">{formatCurrency(selectedLoan.total_payable)}</p>
+                        </div>
+                        <div className="rounded-xl border border-green-100 dark:border-green-900 bg-white dark:bg-gray-900 p-3">
+                          <p className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Loan Term</p>
+                          <p className="text-sm font-extrabold text-gray-900 dark:text-white">{selectedLoan.term} months</p>
+                        </div>
+                        <div className="rounded-xl border border-green-100 dark:border-green-900 bg-white dark:bg-gray-900 p-3">
+                          <p className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Disbursed On</p>
+                          <p className="text-sm font-extrabold text-gray-900 dark:text-white">{formatShortDate(selectedLoan.disbursal_date)}</p>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                        <div className="rounded-xl border border-gray-100 dark:border-gray-700 bg-[#FAF9FB] dark:bg-gray-800 p-3">
+                          <p className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Total Payable</p>
+                          <p className="text-sm font-extrabold text-gray-900 dark:text-white">{formatCurrency(selectedLoan.total_payable)}</p>
+                        </div>
+                        <div className="rounded-xl border border-gray-100 dark:border-gray-700 bg-[#FAF9FB] dark:bg-gray-800 p-3">
+                          <p className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Remaining Balance</p>
+                          <p className="text-sm font-extrabold text-[#1D6021]">{formatCurrency(selectedLoan.remaining_balance)}</p>
+                        </div>
+                        <div className="rounded-xl border border-gray-100 dark:border-gray-700 bg-[#FAF9FB] dark:bg-gray-800 p-3">
+                          <p className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Next Due Date</p>
+                          <p className="text-sm font-extrabold text-gray-900 dark:text-white">{formatShortDate(selectedLoan.next_due_schedule?.due_date)}</p>
+                        </div>
+                        <div className="rounded-xl border border-gray-100 dark:border-gray-700 bg-[#FAF9FB] dark:bg-gray-800 p-3">
+                          <p className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Monthly Amortization</p>
+                          <p className="text-sm font-extrabold text-gray-900 dark:text-white">{formatCurrency(selectedLoan.monthly_amortization)}</p>
+                        </div>
+                      </div>
+                    )}
                   </div>
-                  <div className="rounded-xl border border-gray-100 dark:border-gray-700 bg-[#FAF9FB] dark:bg-gray-800 p-3">
-                    <p className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Remaining Balance</p>
-                    <p className="text-sm font-extrabold text-[#1D6021]">{formatCurrency(selectedLoan.remaining_balance)}</p>
-                  </div>
-                  <div className="rounded-xl border border-gray-100 dark:border-gray-700 bg-[#FAF9FB] dark:bg-gray-800 p-3">
-                    <p className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Next Due Date</p>
-                    <p className="text-sm font-extrabold text-gray-900 dark:text-white">{formatShortDate(selectedLoan.next_due_schedule?.due_date)}</p>
-                  </div>
-                  <div className="rounded-xl border border-gray-100 dark:border-gray-700 bg-[#FAF9FB] dark:bg-gray-800 p-3">
-                    <p className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Monthly Amortization</p>
-                    <p className="text-sm font-extrabold text-gray-900 dark:text-white">{formatCurrency(selectedLoan.monthly_amortization)}</p>
-                  </div>
-                </div>
-              </div>
+                );
+              })()}
 
               {/* Stepper Timeline */}
-              <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm p-5 sm:p-6 mb-6 animate-fade-in-up">
-                <div className="flex items-center gap-2 mb-5">
-                  <CalendarClock className="w-5 h-5 text-[#1D6021]" />
-                  <h3 className="font-extrabold text-gray-900 dark:text-white">Loan Journey</h3>
-                </div>
+              {(() => {
+                const isFullyPaid = String(selectedLoan.loan_status || '').toLowerCase() === 'fully paid';
+                const lastIdx = LIFECYCLE_STAGES.length - 1;
+                return (
+                  <div className={`rounded-2xl border shadow-sm p-5 sm:p-6 mb-6 animate-fade-in-up ${
+                    isFullyPaid
+                      ? 'bg-white dark:bg-gray-900 border-green-100 dark:border-green-900'
+                      : 'bg-white dark:bg-gray-900 border-gray-100 dark:border-gray-800'
+                  }`}>
+                    <div className="flex items-center gap-2 mb-5">
+                      <CalendarClock className="w-5 h-5 text-[#1D6021]" />
+                      <h3 className="font-extrabold text-gray-900 dark:text-white">Loan Journey</h3>
+                      {isFullyPaid ? (
+                        <span className="ml-auto inline-flex items-center gap-1 rounded-full bg-green-100 dark:bg-green-900/40 border border-green-200 dark:border-green-800 px-2.5 py-1 text-[10px] font-bold text-green-700 dark:text-green-400 uppercase tracking-wider">
+                          <CheckCircle2 className="w-3 h-3" /> Complete
+                        </span>
+                      ) : null}
+                    </div>
 
-                {/* Desktop: horizontal stepper */}
-                <div className="hidden md:block">
-                  <div className="flex items-start justify-between gap-2">
-                    {LIFECYCLE_STAGES.map((stage, idx) => {
-                      const isComplete = idx < selectedStageIndex;
-                      const isActive = idx === selectedStageIndex;
-                      const StageIcon = stage.icon;
-                      return (
-                        <React.Fragment key={stage.id}>
-                          <div className="flex flex-col items-center text-center min-w-0 flex-1">
-                            <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-all ${
-                              isComplete
-                                ? 'bg-[#1D6021] text-white'
-                                : isActive
-                                  ? 'bg-[#66B53B] text-white ring-4 ring-[#66B53B]/20'
-                                  : 'bg-gray-100 dark:bg-gray-700 text-gray-400'
+                    {/* Desktop: horizontal stepper */}
+                    <div className="hidden md:block">
+                      <div className="flex items-start justify-between gap-2">
+                        {LIFECYCLE_STAGES.map((stage, idx) => {
+                          const isComplete = isFullyPaid ? true : idx < selectedStageIndex;
+                          const isActive = isFullyPaid ? idx === lastIdx : idx === selectedStageIndex;
+                          const isFinalTrophy = isFullyPaid && idx === lastIdx;
+                          const StageIcon = stage.icon;
+                          return (
+                            <React.Fragment key={stage.id}>
+                              <div className="flex flex-col items-center text-center min-w-0 flex-1">
+                                <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-all ${
+                                  isFinalTrophy
+                                    ? 'bg-[#1D6021] text-white ring-4 ring-[#1D6021]/20'
+                                    : isComplete && !isActive
+                                      ? 'bg-[#1D6021] text-white'
+                                      : isActive
+                                        ? 'bg-[#66B53B] text-white ring-4 ring-[#66B53B]/20'
+                                        : 'bg-gray-100 dark:bg-gray-700 text-gray-400'
+                                }`}>
+                                  {isFinalTrophy
+                                    ? <Trophy className="w-4 h-4" />
+                                    : (isComplete && !isActive)
+                                      ? <CheckCircle2 className="w-5 h-5" />
+                                      : <StageIcon className="w-4 h-4" />}
+                                </div>
+                                <p className={`mt-2 text-[11px] font-bold leading-tight ${
+                                  isFinalTrophy
+                                    ? 'text-[#1D6021]'
+                                    : isActive
+                                      ? 'text-[#1D6021]'
+                                      : isComplete
+                                        ? 'text-gray-700 dark:text-gray-300'
+                                        : 'text-gray-400'
+                                }`}>
+                                  {stage.label}
+                                </p>
+                              </div>
+                              {idx < lastIdx ? (
+                                <div className={`flex-1 h-0.5 mt-5 ${
+                                  isFullyPaid || idx < selectedStageIndex
+                                    ? 'bg-[#1D6021]'
+                                    : 'bg-gray-200 dark:bg-gray-700'
+                                }`} />
+                              ) : null}
+                            </React.Fragment>
+                          );
+                        })}
+                      </div>
+                      <p className="mt-5 text-sm text-gray-600 dark:text-gray-400 font-medium">
+                        <span className="font-bold text-[#1D6021]">{isFullyPaid ? 'Status:' : 'Current step:'}</span>{' '}
+                        {isFullyPaid
+                          ? 'All payments received and validated. This loan is fully closed.'
+                          : LIFECYCLE_STAGES[selectedStageIndex]?.description}
+                      </p>
+                    </div>
+
+                    {/* Mobile: vertical stepper */}
+                    <ol className="md:hidden space-y-3">
+                      {LIFECYCLE_STAGES.map((stage, idx) => {
+                        const isComplete = isFullyPaid ? true : idx < selectedStageIndex;
+                        const isActive = isFullyPaid ? idx === lastIdx : idx === selectedStageIndex;
+                        const isFinalTrophy = isFullyPaid && idx === lastIdx;
+                        const StageIcon = stage.icon;
+                        return (
+                          <li key={stage.id} className="flex items-start gap-3">
+                            <div className={`shrink-0 w-9 h-9 rounded-full flex items-center justify-center ${
+                              isFinalTrophy
+                                ? 'bg-[#1D6021] text-white ring-4 ring-[#1D6021]/20'
+                                : isComplete && !isActive
+                                  ? 'bg-[#1D6021] text-white'
+                                  : isActive
+                                    ? 'bg-[#66B53B] text-white ring-4 ring-[#66B53B]/20'
+                                    : 'bg-gray-100 dark:bg-gray-700 text-gray-400'
                             }`}>
-                              {isComplete ? <CheckCircle2 className="w-5 h-5" /> : <StageIcon className="w-4 h-4" />}
+                              {isFinalTrophy
+                                ? <Trophy className="w-4 h-4" />
+                                : (isComplete && !isActive)
+                                  ? <CheckCircle2 className="w-4 h-4" />
+                                  : <StageIcon className="w-4 h-4" />}
                             </div>
-                            <p className={`mt-2 text-[11px] font-bold leading-tight ${isActive ? 'text-[#1D6021]' : isComplete ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400'}`}>
-                              {stage.label}
-                            </p>
-                          </div>
-                          {idx < LIFECYCLE_STAGES.length - 1 ? (
-                            <div className={`flex-1 h-0.5 mt-5 ${idx < selectedStageIndex ? 'bg-[#1D6021]' : 'bg-gray-200 dark:bg-gray-700'}`} />
-                          ) : null}
-                        </React.Fragment>
-                      );
-                    })}
+                            <div className="pt-1">
+                              <p className={`text-sm font-bold ${
+                                isFinalTrophy
+                                  ? 'text-[#1D6021]'
+                                  : isActive
+                                    ? 'text-[#1D6021]'
+                                    : isComplete
+                                      ? 'text-gray-800 dark:text-gray-200'
+                                      : 'text-gray-400'
+                              }`}>
+                                {stage.label}
+                              </p>
+                              {(isActive || isFinalTrophy) ? (
+                                <p className="text-xs text-gray-500 dark:text-gray-400 font-medium mt-0.5">
+                                  {isFinalTrophy ? 'All payments received and validated.' : stage.description}
+                                </p>
+                              ) : null}
+                            </div>
+                          </li>
+                        );
+                      })}
+                    </ol>
                   </div>
-                  <p className="mt-5 text-sm text-gray-600 dark:text-gray-400 font-medium">
-                    <span className="font-bold text-[#1D6021]">Current step:</span>{' '}
-                    {LIFECYCLE_STAGES[selectedStageIndex]?.description}
-                  </p>
-                </div>
+                );
+              })()}
 
-                {/* Mobile: vertical stepper */}
-                <ol className="md:hidden space-y-3">
-                  {LIFECYCLE_STAGES.map((stage, idx) => {
-                    const isComplete = idx < selectedStageIndex;
-                    const isActive = idx === selectedStageIndex;
-                    const StageIcon = stage.icon;
-                    return (
-                      <li key={stage.id} className="flex items-start gap-3">
-                        <div className={`shrink-0 w-9 h-9 rounded-full flex items-center justify-center ${
-                          isComplete
-                            ? 'bg-[#1D6021] text-white'
-                            : isActive
-                              ? 'bg-[#66B53B] text-white ring-4 ring-[#66B53B]/20'
-                              : 'bg-gray-100 dark:bg-gray-700 text-gray-400'
-                        }`}>
-                          {isComplete ? <CheckCircle2 className="w-4 h-4" /> : <StageIcon className="w-4 h-4" />}
-                        </div>
-                        <div className="pt-1">
-                          <p className={`text-sm font-bold ${isActive ? 'text-[#1D6021]' : isComplete ? 'text-gray-800 dark:text-gray-200' : 'text-gray-400'}`}>
-                            {stage.label}
-                          </p>
-                          {isActive ? (
-                            <p className="text-xs text-gray-500 dark:text-gray-400 font-medium mt-0.5">{stage.description}</p>
-                          ) : null}
-                        </div>
-                      </li>
-                    );
-                  })}
-                </ol>
-              </div>
-
-              {/* Recent Payments (simplified) */}
-              <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm mb-6 animate-fade-in-up overflow-hidden">
-                <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-800 flex items-center gap-2">
-                  <Wallet className="w-4 h-4 text-[#1D6021]" />
-                  <h3 className="font-extrabold text-gray-900 dark:text-white">Recent Payments</h3>
-                </div>
-                {recentPayments.length === 0 ? (
-                  <div className="p-8 text-center text-sm text-gray-500 dark:text-gray-400">
-                    No payments recorded for this loan yet.
+              {/* Recent Payments / Payment History */}
+              {(() => {
+                const isFullyPaid = String(selectedLoan.loan_status || '').toLowerCase() === 'fully paid';
+                const allLoanPayments = payments.filter((p) => p.loan_id === selectedLoan.loan_id);
+                const displayPayments = isFullyPaid ? allLoanPayments : recentPayments;
+                return (
+                  <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm mb-6 animate-fade-in-up overflow-hidden">
+                    <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-800 flex items-center gap-2">
+                      <Wallet className="w-4 h-4 text-[#1D6021]" />
+                      <h3 className="font-extrabold text-gray-900 dark:text-white">
+                        {isFullyPaid ? 'Payment History' : 'Recent Payments'}
+                      </h3>
+                      {isFullyPaid && allLoanPayments.length > 0 ? (
+                        <span className="ml-auto text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
+                          {allLoanPayments.length} payment{allLoanPayments.length !== 1 ? 's' : ''}
+                        </span>
+                      ) : null}
+                    </div>
+                    {displayPayments.length === 0 ? (
+                      <div className="p-8 text-center text-sm text-gray-500 dark:text-gray-400">
+                        No payments recorded for this loan yet.
+                      </div>
+                    ) : (
+                      <ul className="divide-y divide-gray-100 dark:divide-gray-800">
+                        {displayPayments.map((row, idx) => {
+                          const status = paymentStatusLabel(row.confirmation_status);
+                          return (
+                            <li key={`${row.payment_id}-${idx}`} className="px-5 py-3.5 flex items-center justify-between gap-3">
+                              <div>
+                                <p className="text-sm font-bold text-gray-900 dark:text-white">{formatCurrency(row.amount_paid)}</p>
+                                <p className="text-[11px] text-gray-500 dark:text-gray-400 font-medium">{formatShortDate(row.payment_date)}</p>
+                              </div>
+                              <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider border ${toneStyles[status.tone]}`}>
+                                {status.text}
+                              </span>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    )}
                   </div>
-                ) : (
-                  <ul className="divide-y divide-gray-100 dark:divide-gray-800">
-                    {recentPayments.map((row, idx) => {
-                      const status = paymentStatusLabel(row.confirmation_status);
-                      return (
-                        <li key={`${row.payment_id}-${idx}`} className="px-5 py-3.5 flex items-center justify-between gap-3">
-                          <div>
-                            <p className="text-sm font-bold text-gray-900 dark:text-white">{formatCurrency(row.amount_paid)}</p>
-                            <p className="text-[11px] text-gray-500 dark:text-gray-400 font-medium">{formatShortDate(row.payment_date)}</p>
-                          </div>
-                          <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider border ${toneStyles[status.tone]}`}>
-                            {status.text}
-                          </span>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                )}
-              </div>
+                );
+              })()}
 
               {/* Expandable: Loan Details */}
               <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm mb-4 overflow-hidden">
@@ -778,11 +896,39 @@ const Member_Lifecycle = () => {
                   {showDetails ? <ChevronUp className="w-4 h-4 text-gray-500 dark:text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-500 dark:text-gray-400" />}
                 </button>
                 {showDetails ? (
-                  <div className="px-5 py-4 border-t border-gray-100 dark:border-gray-800 grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
-                    <p><span className="text-gray-500 dark:text-gray-400 font-medium">Applied on:</span> <span className="font-bold text-gray-900 dark:text-white">{formatShortDate(selectedLoan.application_date)}</span></p>
-                    <p><span className="text-gray-500 dark:text-gray-400 font-medium">Disbursed on:</span> <span className="font-bold text-gray-900 dark:text-white">{formatShortDate(selectedLoan.disbursal_date)}</span></p>
-                    <p><span className="text-gray-500 dark:text-gray-400 font-medium">Term:</span> <span className="font-bold text-gray-900 dark:text-white">{selectedLoan.term} months</span></p>
-                    <p><span className="text-gray-500 dark:text-gray-400 font-medium">Total Interest:</span> <span className="font-bold text-gray-900 dark:text-white">{formatCurrency(selectedLoan.total_interest)}</span></p>
+                  <div className="px-5 py-4 border-t border-gray-100 dark:border-gray-800 space-y-4 text-sm">
+                    {/* Basic info */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <p><span className="text-gray-500 dark:text-gray-400 font-medium">Applied on:</span> <span className="font-bold text-gray-900 dark:text-white">{formatShortDate(selectedLoan.application_date)}</span></p>
+                      <p><span className="text-gray-500 dark:text-gray-400 font-medium">Disbursed on:</span> <span className="font-bold text-gray-900 dark:text-white">{formatShortDate(selectedLoan.disbursal_date)}</span></p>
+                      <p><span className="text-gray-500 dark:text-gray-400 font-medium">Term:</span> <span className="font-bold text-gray-900 dark:text-white">{selectedLoan.term} months</span></p>
+                      <p><span className="text-gray-500 dark:text-gray-400 font-medium">Monthly Amortization:</span> <span className="font-bold text-gray-900 dark:text-white">{formatCurrency(selectedLoan.monthly_amortization)}</span></p>
+                    </div>
+
+                    {/* Interest breakdown */}
+                    <div className="rounded-xl border border-gray-100 dark:border-gray-700 bg-[#FAF9FB] dark:bg-gray-800 p-4">
+                      <p className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">How Total Interest is Computed</p>
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-gray-500 dark:text-gray-400">Monthly Amortization × Term</span>
+                          <span className="font-bold text-gray-900 dark:text-white font-mono">
+                            {formatCurrency(selectedLoan.monthly_amortization)} × {selectedLoan.term} mo
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-gray-500 dark:text-gray-400">= Total Payable</span>
+                          <span className="font-bold text-gray-900 dark:text-white">{formatCurrency(selectedLoan.total_payable)}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-gray-500 dark:text-gray-400">− Principal (Loan Amount)</span>
+                          <span className="font-bold text-gray-900 dark:text-white">− {formatCurrency(selectedLoan.principal)}</span>
+                        </div>
+                        <div className="border-t border-gray-200 dark:border-gray-600 pt-2 flex items-center justify-between">
+                          <span className="text-xs font-bold text-gray-700 dark:text-gray-300">= Total Interest</span>
+                          <span className="text-sm font-extrabold text-[#1D6021]">{formatCurrency(selectedLoan.total_interest)}</span>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 ) : null}
               </div>
@@ -803,7 +949,7 @@ const Member_Lifecycle = () => {
                   </button>
                   {showSchedule ? (
                     <div className="border-t border-gray-100 dark:border-gray-800">
-                      <div className="px-5 py-3 bg-[#FAF9FB] dark:bg-gray-800 grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
+                      <div className="px-5 py-3 bg-[#FAF9FB] dark:bg-gray-800 grid grid-cols-2 gap-3 text-xs">
                         <div>
                           <p className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Monthly Amortization</p>
                           <p className="text-sm font-extrabold text-[#1D6021]">{formatCurrency(selectedLoan.monthly_amortization)}</p>
@@ -811,10 +957,6 @@ const Member_Lifecycle = () => {
                         <div>
                           <p className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Term</p>
                           <p className="text-sm font-extrabold text-gray-900 dark:text-white">{selectedLoan.term} months</p>
-                        </div>
-                        <div className="col-span-2 sm:col-span-1">
-                          <p className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Total Payable</p>
-                          <p className="text-sm font-extrabold text-gray-900 dark:text-white">{formatCurrency(selectedLoan.total_payable)}</p>
                         </div>
                       </div>
                       <ul className="divide-y divide-gray-100 dark:divide-gray-800">
