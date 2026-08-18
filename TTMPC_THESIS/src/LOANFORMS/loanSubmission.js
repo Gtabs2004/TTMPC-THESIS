@@ -24,6 +24,29 @@ const dispatchMemberSubmittedNotification = async ({ loanId, memberId, memberNam
   }
 };
 
+// Fire-and-forget bookkeeper bell notification on new loan submission.
+// Writes directly to Supabase so it works on Vercel (no FastAPI dependency). Never throws.
+const dispatchBookkeeperNewLoanNotification = async ({ loanId, memberName, loanType, actorUserId }) => {
+  if (!loanId) return;
+  try {
+    const safeMember = memberName || 'A member';
+    const safeLoanType = loanType || 'loan';
+    await supabase.from('loan_notifications').insert({
+      recipient_role: 'bookkeeper',
+      notification_type: 'new_application',
+      severity: 'info',
+      loan_id: loanId,
+      title: 'New loan application submitted',
+      message: `${safeMember} submitted a new ${safeLoanType} application. Please review and process it.`,
+      redirect_url: `/bookkeeper-loan-approval/${loanId}`,
+      is_read: false,
+      created_by: actorUserId || null,
+    });
+  } catch (_err) {
+    // Notifications must never block submission.
+  }
+};
+
 const toInt = (value) => {
   if (value === null || value === undefined || value === '') return null;
   const parsed = parseInt(value, 10);
@@ -714,6 +737,12 @@ export async function submitUnifiedLoan({
   dispatchMemberSubmittedNotification({
     loanId: controlNumber,
     memberId: memberId,
+    actorUserId: user?.id || null,
+  });
+
+  // Non-blocking: notify the bookkeeper of the new pending application.
+  dispatchBookkeeperNewLoanNotification({
+    loanId: controlNumber,
     actorUserId: user?.id || null,
   });
 
