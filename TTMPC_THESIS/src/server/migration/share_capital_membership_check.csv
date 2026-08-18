@@ -1,4 +1,0 @@
-file,total_rows,distinct_persons,in_share_capital_by_name,not_in_share_capital_by_name,in_share_capital_by_uuid,not_in_share_capital_by_uuid
-Normalized_Loan_Applications_v1.csv,743,203,182,21,569,28
-Normalized_Profiles.csv,264,263,217,46,0,264
-Cleaned_Members.csv,241,226,203,23,205,11

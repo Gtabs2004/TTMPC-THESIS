@@ -1,0 +1,18 @@
+# Local environment files
+TTMPC_THESIS/.env
+TTMPC_THESIS/.env.*
+
+# Frontend build and dependency folders
+TTMPC_THESIS/node_modules/
+TTMPC_THESIS/dist/
+TTMPC_THESIS/.vite/
+TTMPC_THESIS/.vscode/
+
+# Python virtual environment and cache
+TTMPC_THESIS/src/server/.venv/
+TTMPC_THESIS/src/server/__pycache__/
+TTMPC_THESIS/src/server/**/__pycache__/
+
+# Exclude migration scripts and generated data dump from GitHub
+TTMPC_THESIS/src/server/migration/
+TTMPC_THESIS/src/server/schema_dump.json
