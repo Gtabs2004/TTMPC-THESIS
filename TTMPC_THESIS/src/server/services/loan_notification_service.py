@@ -32,6 +32,7 @@ logger = logging.getLogger("ttmpc.notify.inapp")
 
 Role = Literal["manager", "treasurer", "bookkeeper", "member"]
 NotificationType = Literal[
+    "new_application",      # member submitted a loan (bookkeeper inbox)
     "recommend",            # bookkeeper -> manager (loan recommended for approval)
     "decline",              # bookkeeper -> manager (loan declined at bookkeeper stage)
     "approve",              # manager -> treasurer (loan approved, ready for disbursement)
@@ -50,6 +51,7 @@ NotificationType = Literal[
 ]
 
 _SEVERITY_BY_TYPE: dict[str, str] = {
+    "new_application": "info",
     "recommend": "success",
     "approve": "success",
     "decline": "danger",
@@ -106,7 +108,13 @@ def _build_message(
 ) -> tuple[str, str]:
     safe_member = member_name or "A member"
     safe_loan_type = loan_type or "loan"
-    if notification_type == "recommend":
+    if notification_type == "new_application":
+        title = "New loan application submitted"
+        message = (
+            f"{safe_member} submitted a new {safe_loan_type} application. "
+            f"Please review and process it."
+        )
+    elif notification_type == "recommend":
         title = "Loan recommended for your approval"
         message = (
             f"The loan application of {safe_member} for {safe_loan_type} has been "
