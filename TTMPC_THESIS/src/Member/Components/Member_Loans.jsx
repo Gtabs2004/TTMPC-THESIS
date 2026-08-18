@@ -151,13 +151,12 @@ const Member_Loans = () => {
   const LOANS_PAGE_SIZE = 5;
 
   const menuItems = [
-      { name: "Dashboard", icon: LayoutDashboard },
-      { name: "Apply for Loan", icon: Scroll },
-      { name: "Member Loans", icon: Activity },
-      { name: "Statement of Account", icon: Receipt },
-      { name: "Loan Lifecycle", icon: History },
-      
-       { name: "Member Profile", icon: Users },
+      { name: "Dashboard", label: "Dashboard", icon: LayoutDashboard },
+      { name: "Apply for Loan", label: "Apply", icon: Scroll },
+      { name: "Member Loans", label: "Loans", icon: Activity },
+      { name: "Statement of Account", label: "Statement", icon: Receipt },
+      { name: "Loan Lifecycle", label: "Lifecycle", icon: History },
+      { name: "Member Profile", label: "Profile", icon: Users },
     ];
 
   const handleSignOut = async (e) => {
@@ -453,7 +452,7 @@ const Member_Loans = () => {
 
           <div className="mb-6 rounded-xl border border-green-200 dark:border-green-900 bg-green-50 dark:bg-green-900/20 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div>
-              <p className="text-sm font-bold text-[#1D6021]">Need the full loan lifecycle?</p>
+              <p className="text-sm font-bold text-[#1D6021] dark:text-green-400">Need the full loan lifecycle?</p>
               <p className="text-xs text-gray-600 dark:text-gray-400">View approvals, status transitions, and real-time recorded payments in one screen.</p>
             </div>
             <button
@@ -471,7 +470,7 @@ const Member_Loans = () => {
             {/* Balance Card */}
             <div className="bg-white dark:bg-gray-900 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col relative overflow-hidden">
               <div className="w-8 h-8 rounded-lg bg-gray-50 dark:bg-gray-800 flex items-center justify-center mb-4 border border-gray-200 dark:border-gray-700">
-                <Banknote className="w-4 h-4 text-gray-600" />
+                <Banknote className="w-4 h-4 text-gray-600 dark:text-gray-400" />
               </div>
               <p className="text-xs font-bold text-gray-500 dark:text-gray-400 mb-1">Total Outstanding Balance</p>
               <h3 className="text-2xl sm:text-3xl font-black text-gray-900 dark:text-white mb-2">{formatCurrency(totalOutstanding)}</h3>
@@ -486,7 +485,7 @@ const Member_Loans = () => {
                 Auto-Debit Active
               </div>
               <div className="w-8 h-8 rounded-lg bg-gray-50 dark:bg-gray-800 flex items-center justify-center mb-4 border border-gray-200 dark:border-gray-700">
-                <CalendarClock className="w-4 h-4 text-[#1D6021]" />
+                <CalendarClock className="w-4 h-4 text-[#1D6021] dark:text-green-400" />
               </div>
               <p className="text-xs font-bold text-gray-500 dark:text-gray-400 mb-1">Monthly Commitment</p>
               <h3 className="text-2xl sm:text-3xl font-black text-gray-900 dark:text-white mb-2">{formatCurrency(totalMonthly)}</h3>
@@ -498,7 +497,7 @@ const Member_Loans = () => {
             {/* Active Loans Card */}
             <div className="bg-white dark:bg-gray-900 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col relative overflow-hidden">
               <div className="w-8 h-8 rounded-lg bg-gray-50 dark:bg-gray-800 flex items-center justify-center mb-4 border border-gray-200 dark:border-gray-700">
-                <FileText className="w-4 h-4 text-gray-600" />
+                <FileText className="w-4 h-4 text-gray-600 dark:text-gray-400" />
               </div>
               <p className="text-xs font-bold text-gray-500 dark:text-gray-400 mb-1">Active Loans</p>
               <h3 className="text-2xl sm:text-3xl font-black text-gray-900 dark:text-white mb-2">{loans.length}</h3>
@@ -546,7 +545,7 @@ const Member_Loans = () => {
                   </tr>
                 ) : loanError ? (
                   <tr>
-                    <td colSpan="7" className="p-5 text-sm text-red-600">{loanError}</td>
+                    <td colSpan="7" className="p-5 text-sm text-red-600 dark:text-red-400">{loanError}</td>
                   </tr>
                 ) : loans.length === 0 ? (
                   <tr>
@@ -555,7 +554,7 @@ const Member_Loans = () => {
                 ) : loans
                     .slice((loansPage - 1) * LOANS_PAGE_SIZE, loansPage * LOANS_PAGE_SIZE)
                     .map((loan, idx) => (
-                  <tr key={idx} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
+                  <tr key={idx} className="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50/50 dark:hover:bg-gray-800/50 transition-colors">
                     <td className="p-5">
                       <p className="text-sm font-bold text-gray-900 dark:text-white">{loan.type}</p>
                       <p className="text-[10px] text-gray-400 dark:text-gray-500 font-medium">ID: {loan.id}</p>
@@ -563,11 +562,11 @@ const Member_Loans = () => {
                     <td className="p-5 text-sm font-bold text-gray-600 dark:text-gray-400">{loan.originalAmount}</td>
                     <td className="p-5 text-sm font-black text-gray-900 dark:text-white">{loan.balance}</td>
                     <td className="p-5 text-sm font-bold text-gray-700 dark:text-gray-200">{loan.interestRate}</td>
-                    <td className="p-5 text-sm font-bold text-[#1D6021]">{loan.payment}</td>
+                    <td className="p-5 text-sm font-bold text-[#1D6021] dark:text-green-400">{loan.payment}</td>
                     <td className="p-5 text-sm font-medium text-gray-500 dark:text-gray-400">{loan.nextDue}</td>
                     <td className="p-5">
                       <span className={`badge-animated px-2.5 py-1 rounded text-[10px] font-extrabold tracking-wider ${
-                        loan.status === 'Active' ? 'bg-[#EAF1EB] text-[#1D6021]' : loan.status === 'Rejected' ? 'bg-red-100 text-red-700' : 'bg-[#FEF08A] text-[#854D0E]'
+                        loan.status === 'Active' ? 'bg-[#EAF1EB] text-[#1D6021] dark:bg-green-900/30 dark:text-green-400' : loan.status === 'Rejected' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' : 'bg-[#FEF08A] text-[#854D0E] dark:bg-amber-900/30 dark:text-amber-400'
                       }`}>
                         {loan.status}
                       </span>
@@ -687,15 +686,15 @@ const Member_Loans = () => {
 
               <div className="flex justify-between items-center mt-8 pt-6 border-t border-gray-100 dark:border-gray-800">
                 <span className="font-bold text-gray-900 dark:text-white">Total Monthly Amortization</span>
-                <span className="text-xl font-black text-[#1D6021]">{latestLoan?.payment || 'N/A'}</span>
+                <span className="text-xl font-black text-[#1D6021] dark:text-green-400">{latestLoan?.payment || 'N/A'}</span>
               </div>
             </div>
 
             {/* Loan Eligibility Tool */}
             <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 p-5 sm:p-8 flex flex-col">
               <div className="flex items-center gap-3 mb-4">
-                <div className="w-8 h-8 rounded-lg bg-[#EAF1EB] flex items-center justify-center border border-green-100">
-                  <Calculator className="w-4 h-4 text-[#1D6021]" />
+                <div className="w-8 h-8 rounded-lg bg-[#EAF1EB] dark:bg-green-900/30 flex items-center justify-center border border-green-100 dark:border-green-800">
+                  <Calculator className="w-4 h-4 text-[#1D6021] dark:text-green-400" />
                 </div>
                 <h3 className="text-lg font-bold text-gray-900 dark:text-white">Loan Eligibility</h3>
               </div>
@@ -707,7 +706,7 @@ const Member_Loans = () => {
               <div className="bg-[#FAF9FB] dark:bg-gray-800 rounded-xl p-5 mb-8 border border-gray-100 dark:border-gray-700">
                 <div className="flex justify-between items-start mb-4">
                   <p className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Quick<br/>Status</p>
-                  <p className="text-[10px] font-extrabold text-[#1D6021] uppercase tracking-wider text-right">Ready To<br/>Calculate</p>
+                  <p className="text-[10px] font-extrabold text-[#1D6021] dark:text-green-400 uppercase tracking-wider text-right">Ready To<br/>Calculate</p>
                 </div>
                 <p className="text-[10px] text-gray-400 dark:text-gray-500 font-medium italic">
                   Last payroll data synced:<br/>10/28/2023
@@ -731,50 +730,6 @@ const Member_Loans = () => {
           
         </main>
 
-        {/* Bottom Navigation - Mobile Only */}
-        <nav className="fixed bottom-0 left-0 right-0 lg:hidden bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800 px-2 py-2">
-          <div className="max-w-lg mx-auto">
-            <div className="flex items-center justify-around gap-1">
-              {(() => {
-                const routeMap = {
-                  "Dashboard": "/member-dashboard",
-                  "Apply for Loan": "/member-apply-loans",
-                  "Member Loans": "/member-loans",
-                  "Statement of Account": "/member-statement-of-account",
-                  "Loan Lifecycle": "/member-lifecycle",
-                  "Member Profile": "/members-profile",
-                  "Member Savings": "/member-savings"
-                };
-
-                return menuItems.map((item) => {
-                  const Icon = item.icon;
-                  const to = routeMap[item.name] || `/${item.name.toLowerCase().replace(/\s+/g, '-')}`;
-
-                  return (
-                    <NavLink
-                      key={item.name}
-                      to={to}
-                      className={({ isActive }) =>
-                        `flex flex-col items-center justify-center px-2.5 py-2 rounded-full transition-all ${
-                          isActive
-                            ? 'bg-[#1D6021] text-white'
-                            : 'text-gray-600 hover:text-[#1D6021] dark:text-gray-400 dark:hover:text-green-400'
-                        }`
-                      }
-                    >
-                      {({ isActive }) => (
-                        <>
-                          <Icon size={20} strokeWidth={isActive ? 2.5 : 2} className="mb-1" />
-                          <span className="text-[10px] font-semibold">{item.name.split(' ')[0]}</span>
-                        </>
-                      )}
-                    </NavLink>
-                  );
-                });
-              })()}
-            </div>
-          </div>
-        </nav>
       </div>
 
       <LoanCalculatorModal open={isCalculatorOpen} onClose={() => setIsCalculatorOpen(false)} />

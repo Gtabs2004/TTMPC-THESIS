@@ -126,12 +126,12 @@ const MemberDashboard = () => {
   const [memberLabel, setMemberLabel] = useState('Member');
 
   const menuItems = [
-    { name: "Dashboard", icon: LayoutDashboard },
-    { name: "Apply for Loan", icon: Scroll },
-    { name: "Member Loans", icon: Activity },
-    { name: "Statement of Account", icon: Receipt },
-    { name: "Loan Lifecycle", icon: History },
-     { name: "Member Profile", icon: Users },
+    { name: "Dashboard", label: "Dashboard", icon: LayoutDashboard },
+    { name: "Apply for Loan", label: "Apply", icon: Scroll },
+    { name: "Member Loans", label: "Loans", icon: Activity },
+    { name: "Statement of Account", label: "Statement", icon: Receipt },
+    { name: "Loan Lifecycle", label: "Lifecycle", icon: History },
+    { name: "Member Profile", label: "Profile", icon: Users },
   ];
 
   const handleSignOut = async (e) => {
@@ -820,10 +820,10 @@ const MemberDashboard = () => {
             const routeMap = {
               "Dashboard": "/member-dashboard",
               "Apply for Loan": "/member-apply-loans",
-              "Member Loans": "/member-loans",
+              " Loans": "/member-loans",
               "Statement of Account": "/member-statement-of-account",
               "Loan Lifecycle": "/member-lifecycle",
-              "Member Profile": "/members-profile", 
+              " Profile": "/members-profile", 
               
             };
        
@@ -969,7 +969,7 @@ const MemberDashboard = () => {
                 ) : null}
 
                 <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
-                  <button onClick={() => navigate('/members-profile')} className="flex items-center justify-center gap-2 border border-[#1D6021] text-[#1D6021] hover:bg-[#EAF1EB] dark:hover:bg-green-900/30 transition-colors font-bold rounded-lg px-4 py-2 text-sm">
+                  <button onClick={() => navigate('/members-profile')} className="flex items-center justify-center gap-2 border border-[#1D6021] text-[#1D6021] hover:bg-[#EAF1EB] dark:border-green-500 dark:text-green-400 dark:hover:bg-green-900/30 transition-colors font-bold rounded-lg px-4 py-2 text-sm">
                   <Pencil className="w-4 h-4" /> Edit Profile
                   </button>
                 </div>
@@ -996,7 +996,7 @@ const MemberDashboard = () => {
 
                 const badgeClasses = isUnscored
                   ? 'bg-gray-100 text-gray-500 border-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-700'
-                  : (isMigs ? 'bg-green-50 text-[#1D6021] border-green-200' : 'bg-rose-50 text-rose-700 border-rose-200');
+                  : (isMigs ? 'bg-green-50 text-[#1D6021] border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800' : 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-900/30 dark:text-rose-400 dark:border-rose-800');
 
                 // Loading State
                 if (migsLabelStatus === 'loading') {
@@ -1042,7 +1042,7 @@ const MemberDashboard = () => {
                     <div className="mt-1">
                       <div className="flex justify-between items-center text-xs font-bold mb-2">
                         <span className="text-gray-500 dark:text-gray-400"> Progress</span>
-                        <span className={isMigs ? "text-[#1D6021]" : (isUnscored ? "text-gray-400" : "text-rose-600")}>
+                        <span className={isMigs ? "text-[#1D6021] dark:text-green-400" : (isUnscored ? "text-gray-400 dark:text-gray-500" : "text-rose-600 dark:text-rose-400")}>
                           {percentage}%
                         </span>
                       </div>
@@ -1065,11 +1065,11 @@ const MemberDashboard = () => {
             {/* Share Capital */}
             <div className="bg-white dark:bg-gray-900 p-5 sm:p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col">
               <div className="w-8 h-8 rounded-lg bg-[#EAF1EB] dark:bg-green-900/30 flex items-center justify-center mb-4">
-                <Wallet className="w-4 h-4 text-[#1D6021]" />
+                <Wallet className="w-4 h-4 text-[#1D6021] dark:text-green-400" />
               </div>
               <p className="text-xs font-bold text-gray-500 dark:text-gray-400 mb-1">Share Capital</p>
               <h3 className="text-xl sm:text-2xl font-black text-gray-900 dark:text-white mb-2">{formatCurrency(profile?.shareCapital || 0)}</h3>
-              <p className="text-[10px] font-bold text-green-600 flex items-center mt-auto">
+              <p className="text-[10px] font-bold text-green-600 dark:text-green-400 flex items-center mt-auto">
                 <ArrowUpRight className="w-3 h-3 mr-0.5" /> +5.2% from last month
               </p>
             </div>
@@ -1077,7 +1077,7 @@ const MemberDashboard = () => {
             {/* Total Savings */}
             <div className="bg-white dark:bg-gray-900 p-5 sm:p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col">
               <div className="w-8 h-8 rounded-lg bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center mb-4">
-                <PiggyBank className="w-4 h-4 text-blue-600" />
+                <PiggyBank className="w-4 h-4 text-blue-600 dark:text-blue-400" />
               </div>
               <p className="text-xs font-bold text-gray-500 dark:text-gray-400 mb-1">Total Savings</p>
               <h3 className="text-xl sm:text-2xl font-black text-gray-900 dark:text-white mb-2">{formatCurrency(totalSavings)}</h3>
@@ -1089,7 +1089,7 @@ const MemberDashboard = () => {
             {/* Active Loan Balance */}
             <div className="bg-white dark:bg-gray-900 p-5 sm:p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col">
               <div className="w-8 h-8 rounded-lg bg-red-50 dark:bg-red-900/30 flex items-center justify-center mb-4">
-                <CreditCard className="w-4 h-4 text-red-500" />
+                <CreditCard className="w-4 h-4 text-red-500 dark:text-red-400" />
               </div>
               <p className="text-xs font-bold text-gray-500 dark:text-gray-400 mb-1">Active Loan Balance</p>
               <h3 className="text-xl sm:text-2xl font-black text-gray-900 dark:text-white mb-2">{formatCurrency(activeLoanBalance)}</h3>
@@ -1121,9 +1121,9 @@ const MemberDashboard = () => {
             <div className="lg:col-span-2">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center">
-                  <History className="w-5 h-5 mr-2 text-[#1D6021]" /> Recent Transactions
+                  <History className="w-5 h-5 mr-2 text-[#1D6021] dark:text-green-400" /> Recent Transactions
                 </h3>
-                <button className="text-sm font-bold text-[#1D6021] hover:underline">View All</button>
+                <button className="text-sm font-bold text-[#1D6021] dark:text-green-400 hover:underline">View All</button>
               </div>
               
               <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 overflow-hidden">
@@ -1139,7 +1139,7 @@ const MemberDashboard = () => {
                   </thead>
                   <tbody>
                     {recentTransactions.length ? recentTransactions.map((tx) => (
-                      <tr key={tx.id} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
+                      <tr key={tx.id} className="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50/50 dark:hover:bg-gray-800/50 transition-colors">
                         <td className="p-5 text-xs text-gray-500 dark:text-gray-400 font-medium">{tx.date}</td>
                         <td className="p-5 text-sm font-bold text-gray-800 dark:text-gray-200">{tx.desc}</td>
                         <td className="p-5">
@@ -1147,7 +1147,7 @@ const MemberDashboard = () => {
                             {tx.category}
                           </span>
                         </td>
-                        <td className={`p-5 text-sm font-bold text-right ${tx.highlight ? 'text-[#1D6021]' : 'text-gray-900 dark:text-white'}`}>
+                        <td className={`p-5 text-sm font-bold text-right ${tx.highlight ? 'text-[#1D6021] dark:text-green-400' : 'text-gray-900 dark:text-white'}`}>
                           {tx.amount}
                         </td>
                       </tr>
@@ -1173,9 +1173,9 @@ const MemberDashboard = () => {
                     <div key={activity.id} className="flex items-start gap-4">
                       <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 ${activity.type === 'loan' ? 'bg-blue-50 dark:bg-blue-900/30' : activity.type === 'savings' ? 'bg-green-50 dark:bg-green-900/30' : 'bg-orange-50 dark:bg-orange-900/30'}`}>
                         {activity.type === 'loan' ? (
-                          <CheckCircle2 className="w-4 h-4 text-blue-600" />
+                          <CheckCircle2 className="w-4 h-4 text-blue-600 dark:text-blue-400" />
                         ) : (
-                          <ArrowUpRight className={`w-4 h-4 ${activity.type === 'savings' ? 'text-green-600' : 'text-orange-600'}`} />
+                          <ArrowUpRight className={`w-4 h-4 ${activity.type === 'savings' ? 'text-green-600 dark:text-green-400' : 'text-orange-600 dark:text-orange-400'}`} />
                         )}
                       </div>
                       <div>
@@ -1198,50 +1198,6 @@ const MemberDashboard = () => {
 
         </main>
 
-        {/* Bottom Navigation - Mobile Only */}
-        <nav className="fixed bottom-0 left-0 right-0 lg:hidden bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800 px-2 py-2">
-          <div className="max-w-lg mx-auto">
-            <div className="flex items-center justify-around gap-1">
-              {(() => {
-                const routeMap = {
-                  "Dashboard": "/member-dashboard",
-                  "Apply for Loan": "/member-apply-loans",
-                  "Member Loans": "/member-loans",
-                  "Statement of Account": "/member-statement-of-account",
-                  "Loan Lifecycle": "/member-lifecycle",
-                  "Member Profile": "/members-profile",
-                  "Member Savings": "/member-savings"
-                };
-
-                return menuItems.map((item) => {
-                  const Icon = item.icon;
-                  const to = routeMap[item.name] || `/${item.name.toLowerCase().replace(/\s+/g, '-')}`;
-
-                  return (
-                    <NavLink
-                      key={item.name}
-                      to={to}
-                      className={({ isActive }) =>
-                        `flex flex-col items-center justify-center px-2.5 py-2 rounded-full transition-all ${
-                          isActive
-                            ? 'bg-[#1D6021] text-white'
-                            : 'text-gray-600 hover:text-[#1D6021] dark:text-gray-400 dark:hover:text-green-400'
-                        }`
-                      }
-                    >
-                      {({ isActive }) => (
-                        <>
-                          <Icon size={20} strokeWidth={isActive ? 2.5 : 2} className="mb-1" />
-                          <span className="text-[10px] font-semibold">{item.name.split(' ')[0]}</span>
-                        </>
-                      )}
-                    </NavLink>
-                  );
-                });
-              })()}
-            </div>
-          </div>
-        </nav>
       </div>
 
       <LoanCalculatorModal open={isCalculatorOpen} onClose={() => setIsCalculatorOpen(false)} />

@@ -112,13 +112,12 @@ const Member_StatementOfAccount = () => {
   const [cbuRows, setCbuRows] = useState([]);
 
   const menuItems = [
-      { name: "Dashboard", icon: LayoutDashboard },
-      { name: "Apply for Loan", icon: Scroll },
-      { name: "Member Loans", icon: Activity },
-      { name: "Statement of Account", icon: Receipt },
-      { name: "Loan Lifecycle", icon: History },
-      
-       { name: "Member Profile", icon: Users },
+      { name: "Dashboard", label: "Dashboard", icon: LayoutDashboard },
+      { name: "Apply for Loan", label: "Apply", icon: Scroll },
+      { name: "Member Loans", label: "Loans", icon: Activity },
+      { name: "Statement of Account", label: "Statement", icon: Receipt },
+      { name: "Loan Lifecycle", label: "Lifecycle", icon: History },
+      { name: "Member Profile", label: "Profile", icon: Users },
     ];
 
   const routeMap = {
@@ -618,9 +617,9 @@ const Member_StatementOfAccount = () => {
   };
 
   const kindStyles = {
-    consolidated: { ring: "border-green-200", bg: "bg-green-50", text: "text-green-700", chip: "bg-green-100 text-green-700" },
-    emergency: { ring: "border-red-200", bg: "bg-red-50", text: "text-red-700", chip: "bg-red-100 text-red-700" },
-    bonus: { ring: "border-amber-200", bg: "bg-amber-50", text: "text-amber-700", chip: "bg-amber-100 text-amber-700" },
+    consolidated: { ring: "border-green-200 dark:border-green-800", bg: "bg-green-50 dark:bg-green-900/20", text: "text-green-700 dark:text-green-400", chip: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" },
+    emergency: { ring: "border-red-200 dark:border-red-800", bg: "bg-red-50 dark:bg-red-900/20", text: "text-red-700 dark:text-red-400", chip: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" },
+    bonus: { ring: "border-amber-200 dark:border-amber-800", bg: "bg-amber-50 dark:bg-amber-900/20", text: "text-amber-700 dark:text-amber-400", chip: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" },
   };
 
   return (
@@ -795,14 +794,14 @@ const Member_StatementOfAccount = () => {
                         </div>
                         <div className="flex justify-between text-sm mb-4">
                           <span className="text-gray-500 dark:text-gray-400 font-medium">Monthly</span>
-                          <span className="font-bold text-[#1D6021]">{formatCurrency(loan.monthly)}</span>
+                          <span className="font-bold text-[#1D6021] dark:text-green-400">{formatCurrency(loan.monthly)}</span>
                         </div>
 
                         <div className="mt-auto pt-4 border-t border-gray-100 dark:border-gray-800 flex items-center justify-between">
                           <span className="text-[10px] uppercase tracking-wider font-bold text-gray-400 dark:text-gray-500">
                             Applied {formatDate(loan.applicationDate)}
                           </span>
-                          <span className="inline-flex items-center gap-1 text-xs font-bold text-[#1D6021]">
+                          <span className="inline-flex items-center gap-1 text-xs font-bold text-[#1D6021] dark:text-green-400">
                             View Summary <ChevronRight className="w-4 h-4" />
                           </span>
                         </div>
@@ -841,19 +840,19 @@ const Member_StatementOfAccount = () => {
               <div className="mb-6 rounded-xl border border-green-200 dark:border-green-900 bg-green-50 dark:bg-green-900/20 p-4 grid grid-cols-1 sm:grid-cols-4 gap-4">
                 <div>
                   <p className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Member Name</p>
-                  <p className="text-sm font-bold text-[#1D6021]">{memberLabel}</p>
+                  <p className="text-sm font-bold text-[#1D6021] dark:text-green-400">{memberLabel}</p>
                 </div>
                 <div>
                   <p className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Account Number</p>
-                  <p className="text-sm font-bold text-[#1D6021]">{accountNumber}</p>
+                  <p className="text-sm font-bold text-[#1D6021] dark:text-green-400">{accountNumber}</p>
                 </div>
                 <div>
                   <p className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Loan Principal</p>
-                  <p className="text-sm font-bold text-[#1D6021]">{formatCurrency(selectedLoan.principal)}</p>
+                  <p className="text-sm font-bold text-[#1D6021] dark:text-green-400">{formatCurrency(selectedLoan.principal)}</p>
                 </div>
                 <div>
                   <p className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Generated On</p>
-                  <p className="text-sm font-bold text-[#1D6021]">
+                  <p className="text-sm font-bold text-[#1D6021] dark:text-green-400">
                     {new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "2-digit" })}
                   </p>
                 </div>
@@ -888,7 +887,7 @@ const Member_StatementOfAccount = () => {
                         </tr>
                       ) : rowsError ? (
                         <tr>
-                          <td colSpan="8" className="p-5 text-sm text-red-600">{rowsError}</td>
+                          <td colSpan="8" className="p-5 text-sm text-red-600 dark:text-red-400">{rowsError}</td>
                         </tr>
                       ) : rows.length === 0 ? (
                         <tr>
@@ -896,14 +895,14 @@ const Member_StatementOfAccount = () => {
                         </tr>
                       ) : (
                         rows.map((r) => (
-                          <tr key={r.payment_id} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
+                          <tr key={r.payment_id} className="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50/50 dark:hover:bg-gray-800/50 transition-colors">
                             <td className="p-5 text-sm font-medium text-gray-700 dark:text-gray-200">{formatDate(r.payment_date)}</td>
                             <td className="p-5 text-xs font-mono text-gray-600 dark:text-gray-400 break-all">{r.reference_id || "—"}</td>
                             <td className="p-5 text-sm font-bold text-gray-700 dark:text-gray-200 text-right">{formatCurrency(r.principal_paid)}</td>
                             <td className="p-5 text-sm font-bold text-gray-700 dark:text-gray-200 text-right">{formatCurrency(r.interest_paid)}</td>
                             <td className="p-5 text-sm font-medium text-gray-600 dark:text-gray-400 text-right">{formatCurrency(r.deficiency)}</td>
                             <td className="p-5 text-sm font-medium text-red-400 text-right">{formatCurrency(r.penalty)}</td>
-                            <td className="p-5 text-sm font-black text-[#1D6021] text-right">{formatCurrency(r.total_amount_paid)}</td>
+                            <td className="p-5 text-sm font-black text-[#1D6021] dark:text-green-400 text-right">{formatCurrency(r.total_amount_paid)}</td>
                             <td className="p-5 text-sm font-bold text-gray-900 dark:text-white text-right">{formatCurrency(r.outstanding_balance)}</td>
                           </tr>
                         ))
@@ -984,7 +983,7 @@ const Member_StatementOfAccount = () => {
                         </tr>
                       ) : savingsError ? (
                         <tr>
-                          <td colSpan="5" className="p-5 text-sm text-red-600">{savingsError}</td>
+                          <td colSpan="5" className="p-5 text-sm text-red-600 dark:text-red-400">{savingsError}</td>
                         </tr>
                       ) : savingsRows.length === 0 ? (
                         <tr>
@@ -995,11 +994,11 @@ const Member_StatementOfAccount = () => {
                           const isCredit = String(r?.entry_type || "").toLowerCase() === "credit";
                           const amount = Number(r?.amount || 0);
                           return (
-                            <tr key={r.id} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
+                            <tr key={r.id} className="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50/50 dark:hover:bg-gray-800/50 transition-colors">
                               <td className="p-5 text-sm font-medium text-gray-700 dark:text-gray-200">{formatDate(r.posted_at)}</td>
                               <td className="p-5 text-sm font-bold text-gray-700 dark:text-gray-200">{r.remarks || (isCredit ? "Savings Deposit" : "Savings Withdrawal")}</td>
                               <td className="p-5 text-xs font-mono text-gray-600 dark:text-gray-400 break-all">{r.reference || "—"}</td>
-                              <td className={`p-5 text-sm font-bold text-right ${isCredit ? "text-green-600" : "text-red-500"}`}>
+                              <td className={`p-5 text-sm font-bold text-right ${isCredit ? "text-green-600 dark:text-green-400" : "text-red-500 dark:text-red-400"}`}>
                                 {isCredit ? "+" : "-"}{formatCurrency(amount)}
                               </td>
                               <td className="p-5 text-sm font-black text-gray-900 dark:text-white text-right">{formatCurrency(r.running_balance)}</td>
@@ -1077,7 +1076,7 @@ const Member_StatementOfAccount = () => {
                         </tr>
                       ) : cbuError ? (
                         <tr>
-                          <td colSpan="5" className="p-5 text-sm text-red-600">{cbuError}</td>
+                          <td colSpan="5" className="p-5 text-sm text-red-600 dark:text-red-400">{cbuError}</td>
                         </tr>
                       ) : cbuRows.length === 0 ? (
                         <tr>
@@ -1113,37 +1112,6 @@ const Member_StatementOfAccount = () => {
           )}
         </main>
 
-        {/* Bottom Navigation - Mobile Only */}
-        <nav className="fixed bottom-0 left-0 right-0 lg:hidden bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800 px-2 py-2">
-          <div className="max-w-lg mx-auto">
-            <div className="flex items-center justify-around gap-1">
-              {menuItems.map((item) => {
-                const Icon = item.icon;
-                const to = routeMap[item.name];
-                return (
-                  <NavLink
-                    key={item.name}
-                    to={to}
-                    className={({ isActive }) =>
-                      `flex flex-col items-center justify-center px-2.5 py-2 rounded-full transition-all ${
-                        isActive
-                          ? 'bg-[#1D6021] text-white'
-                          : 'text-gray-600 hover:text-[#1D6021] dark:text-gray-400 dark:hover:text-green-400'
-                      }`
-                    }
-                  >
-                    {({ isActive }) => (
-                      <>
-                        <Icon size={20} strokeWidth={isActive ? 2.5 : 2} className="mb-1" />
-                        <span className="text-[10px] font-semibold">{item.name.split(' ')[0]}</span>
-                      </>
-                    )}
-                  </NavLink>
-                );
-              })}
-            </div>
-          </div>
-        </nav>
       </div>
     </div>
   );

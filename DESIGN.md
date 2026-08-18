@@ -6,6 +6,8 @@ colors:
   primary-deep: "#2E7A2A"
   system-green: "#16A34A"
   system-green-deep: "#15803D"
+  member-green: "#1D6021"
+  member-green-dark: "#4ADE80"
   neutral-bg: "#F8FAFC"
   surface-white: "#FFFFFF"
   neutral-border: "#E5E7EB"
@@ -118,6 +120,9 @@ A cooperative green anchors a mostly neutral, white-and-slate system; color else
 ### Secondary
 - **System Green** (`#16A34A`, Tailwind `green-600`, deepening to `#15803D` on hover/`green-700`): the interactive green used for sidebar nav active/hover states, the "Sign out" button, table header bands, and chart strokes across every portal. It is functionally the same hue family as Cooperative Green and should be treated as its sibling, not a competing brand color — new sidebar/nav work should keep using it exactly as built rather than swapping in the primary hex.
 
+### Member Portal Accent
+- **Member Green** (`#1D6021`): a third, deliberately scoped dark green — the Member self-service portal's (`src/Member/Components/`) own accent for real text and icons: currency amounts, status labels, stepper text, outlined-button text/border, and icon fills across Dashboard, Apply, Loans, Statement, Lifecycle, Profile, and Savings. Predates this documentation pass; recorded here rather than migrated because it's used consistently across an entire portal (150+ call sites), not a one-off. **In dark mode it must pair with Member Green — Dark (`#4ADE80`, Tailwind `green-400`)** — the bare `#1D6021` value measures 1.9–2.6:1 against the portal's dark surfaces (`gray-950`/`gray-800`), well under the 4.5:1 text minimum; paired with `#4ADE80` it clears 11.6:1. Any element using `#1D6021` for text or an icon must carry a `dark:` override to the Dark step — never ship it bare.
+
 ### Neutral
 - **Cooperative Slate** (`#F8FAFC`): the canonical page background. This is the newer, more polished treatment (seen in Disbursement, Payments) and is the direction the rest of the app should converge toward.
 - **Surface White** (`#FFFFFF`): all cards, tables, modals, the sidebar, and the topbar.
@@ -134,7 +139,7 @@ A cooperative green anchors a mostly neutral, white-and-slate system; color else
 - Extended priority-rank tones (orange, amber, yellow, emerald, sky, violet, all at the `-50` background / `-700` text / `-200` ring step) are used only in the Disbursement priority-rank system — don't introduce new hues elsewhere without a matching semantic reason.
 
 ### Named Rules
-**The One Green Rule.** Cooperative Green (`#389734`) and System Green (`#16A34A`) are the only two greens in the system, and they're close enough in hue to read as one brand color at a glance. Any third green value (see Don'ts) is drift, not a variant to keep.
+**The One Green Rule.** Cooperative Green (`#389734`) and System Green (`#16A34A`) are the two shell-level greens shared by every portal, close enough in hue to read as one brand color at a glance. Member Green (`#1D6021`) is the single sanctioned exception — scoped entirely to the Member self-service portal, never used elsewhere. Any other green value (see Don'ts) is drift, not a variant to keep.
 
 ## Typography
 
@@ -240,9 +245,11 @@ Canonical style is **outlined, not solid**: `bg-{tone}-50 text-{tone}-700 ring-1
 - **Do** give every table an explicit empty state and loading state.
 - **Do** use the outlined/ring badge style (`bg-{tone}-50 text-{tone}-700 ring-1 ring-{tone}-200`) for new status and rank badges.
 - **Do** canonicalize new page backgrounds on `#F8FAFC`.
+- **Do** use Member Green (`#1D6021`) for Member-portal text/icon accents, always paired with `dark:` Member Green — Dark (`#4ADE80`) — never ship the bare hex without its dark-mode partner.
 
 ### Don't:
-- **Don't** introduce a third green. The login page's `#66B538` is drift, not a variant — new work should use Cooperative Green (`#389734`/`#2E7A2A`) instead, and existing occurrences should migrate to it when touched. The public landing page (`App.jsx`) previously had the same drift (`#66B539`/`#529E2E`) and has been migrated to the canonical tokens.
+- **Don't** introduce a fourth green, or use Member Green (`#1D6021`) outside the Member portal. The login page's `#66B538` is drift, not a variant — new work should use Cooperative Green (`#389734`/`#2E7A2A`) instead, and existing occurrences should migrate to it when touched. The public landing page (`App.jsx`) previously had the same drift (`#66B539`/`#529E2E`) and has been migrated to the canonical tokens.
+- **Don't** use Member Green (`#1D6021`) for text or an icon without its `dark:text-green-400` (`#4ADE80`) pairing — bare, it drops to 1.9–2.6:1 contrast on the portal's dark surfaces.
 - **Don't** use base Primary (`#389734`) for real text under the large-text threshold or for button fills — it fails 4.5:1 body-text contrast. Use Deep (`#2E7A2A`) there (see the Text-on-Green Rule).
 - **Don't** mix `bg-gray-50`/`bg-gray-100` page backgrounds into new screens — `#F8FAFC` is canonical; treat gray-50/100 pages as legacy to migrate, not a pattern to repeat.
 - **Don't** add new solid-pill badges (`bg-{tone}-100 text-{tone}-700`) — the ringed/outlined style is canonical going forward.
