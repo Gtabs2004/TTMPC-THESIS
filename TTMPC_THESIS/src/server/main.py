@@ -8927,7 +8927,7 @@ async def predict_loan_risk(payload: RiskPredictRequest):
     )
 
     try:
-        result = risk_score(
+        result = risk_score_with_drivers(
             loan_amount=loan_amount,
             occupation=occupation,
             annual_income=annual_income,
@@ -8938,12 +8938,16 @@ async def predict_loan_risk(payload: RiskPredictRequest):
     except ModelNotAvailableError as e:
         raise HTTPException(status_code=503, detail=str(e))
 
+    # score_with_drivers returns {probability, risk_label, model_version, drivers}.
+    # Re-derive risk_class from the probability so insert_row stays consistent.
+    risk_class = 1 if result["probability"] >= 0.5 else 0
+
     insert_row = {
         "loan_control_number": payload.loan_control_number,
         "member_id": member_id,
-        "risk_class": result["risk_class"],
-        "risk_probability": round(result["risk_probability"], 4),
-        "features_used": result["features_used"],
+        "risk_class": risk_class,
+        "risk_probability": round(result["probability"], 4),
+        "features_used": {d["feature"]: d["value"] for d in result["drivers"]},
         "model_version": result.get("model_version"),
         "scored_by": payload.scored_by,
     }
@@ -8954,7 +8958,12 @@ async def predict_loan_risk(payload: RiskPredictRequest):
         .execute()
     )
     saved = (upsert_resp.data or [insert_row])[0]
-    return {"cached": False, **saved, "risk_label": result["risk_label"]}
+    return {
+        "cached": False,
+        **saved,
+        "risk_label": result["risk_label"],
+        "drivers": result["drivers"],
+    }
 
 
 # ============================================================================
