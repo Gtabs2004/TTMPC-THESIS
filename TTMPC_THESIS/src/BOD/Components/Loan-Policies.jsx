@@ -65,14 +65,7 @@ const Loan_Policies = () => {
           { name: "Loan Policies", icon: FileText },
         ],
       },
-      {
-        section: "SECRETARY",
-        items: [
-          { name: "Training Attendance", icon: CalendarCheck },
-          { name: "General Assembly", icon: CalendarDays },
-          { name: "Membership Records", icon: Archive },
-        ],
-      },
+     
     ];
 
   const handleSignOut = async (e) => {
@@ -265,9 +258,7 @@ const Loan_Policies = () => {
                   "Manage Member": "/bod-manage-member",
                   "Audit Log": "/bod-audit-log",
                   "Loan Policies": "/bod-loan-policies",
-                  "Training Attendance": "/Secretary_Attendance",
-                  "General Assembly": "/Secretary_Assembly", // Added this fallback
-                  "Membership Records": "/Secretary_Records",
+                 
                 };
                 const to = routeMap[item.name] || `/${item.name.toLowerCase().replace(/\s+/g, '-')}`;
                 if (!isAccessible) {
