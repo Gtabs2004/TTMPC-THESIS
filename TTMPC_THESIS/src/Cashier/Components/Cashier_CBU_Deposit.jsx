@@ -187,7 +187,7 @@ const Cashier_CBU_Deposit = () => {
         <div className="flex flex-row items-start gap-2 mb-6">
           <img src={logo} alt="Logo" className="h-12 w-auto" />
           <div className="flex flex-col">
-            <h1 className="text-xl font-bold text-[#389734]">TTMPC</h1>
+            <h1 className="text-xl font-bold text-primary">TTMPC</h1>
             <PortalSidebarIdentity
               className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold"
               fallbackPortal="Cashier Portal"
@@ -273,7 +273,7 @@ const Cashier_CBU_Deposit = () => {
             <input
               type="text"
               placeholder="Search..."
-              className="bg-gray-50 w-52 h-10 rounded-lg border border-gray-300 px-4 pl-9 py-1 focus:outline-none focus:ring-2 focus:ring-[#389734]"
+              className="bg-gray-50 w-52 h-10 rounded-lg border border-gray-300 px-4 pl-9 py-1 focus:outline-none focus:ring-2 focus:ring-primary"
             />
           </div>
           <button className="ml-6 relative p-1 rounded-full text-gray-500 hover:bg-gray-100 transition-colors">
@@ -350,7 +350,7 @@ const Cashier_CBU_Deposit = () => {
                   step="0.01"
                   value={depositAmount}
                   onChange={(event) => setDepositAmount(event.target.value)}
-                  className="w-full rounded-lg border border-gray-300 bg-gray-50 h-11 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#389734]"
+                  className="w-full rounded-lg border border-gray-300 bg-gray-50 h-11 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                   placeholder="0.00"
                 />
               </div>
@@ -360,7 +360,7 @@ const Cashier_CBU_Deposit = () => {
                 <select
                   value={paymentMode}
                   onChange={(event) => setPaymentMode(event.target.value)}
-                  className="w-full rounded-lg border border-gray-300 bg-gray-50 h-11 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#389734]"
+                  className="w-full rounded-lg border border-gray-300 bg-gray-50 h-11 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                 >
                   <option value="Cash">Cash</option>
                   <option value="GCash">GCash</option>
@@ -381,7 +381,7 @@ const Cashier_CBU_Deposit = () => {
                   type="date"
                   value={transactionDate}
                   onChange={(event) => setTransactionDate(event.target.value)}
-                  className="w-full rounded-lg border border-gray-300 bg-gray-50 h-11 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#389734]"
+                  className="w-full rounded-lg border border-gray-300 bg-gray-50 h-11 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                 />
               </div>
 
@@ -390,7 +390,7 @@ const Cashier_CBU_Deposit = () => {
             
 
             <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 mb-5 text-sm text-gray-700 flex items-start gap-2">
-              <Calculator className="w-4 h-4 mt-0.5 text-[#389734]" />
+              <Calculator className="w-4 h-4 mt-0.5 text-primary" />
               <span>{statusMessage}</span>
             </div>
 
@@ -398,7 +398,7 @@ const Cashier_CBU_Deposit = () => {
               <button
                 type="button"
                 onClick={handleSubmit}
-                className="bg-[#2E7A2A] hover:bg-[#1D6021] text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-colors"
+                className="bg-primary-deep hover:bg-member-green text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-colors"
               >
                 <ReceiptText className="w-4 h-4" /> Submit CBU Deposit
               </button>

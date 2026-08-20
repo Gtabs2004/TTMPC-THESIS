@@ -4,15 +4,14 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 @theme {
-  --color-primary: #1d6021;
-  --color-primary-deep: #154718;
-  --color-primary-dark: #1a4a2f;
-  --color-primary-mid: #2c7a3f;
-  --color-primary-medium: #389734;
-  --color-primary-accent: #66b538;
-  --color-primary-soft: #a0d284;
-  --color-primary-surface: #e9f7de;
-  --color-primary-muted: #eaf1eb;
+  /* Cooperative Green — the app-wide brand primary (DESIGN.md "Primary"/"Primary — Deep"). */
+  --color-primary: #389734;
+  --color-primary-deep: #2e7a2a;
+  /* Member Green — scoped to the Member self-service portal only (DESIGN.md
+   * "Member Portal Accent"). Always pair with member-green-dark in dark mode;
+   * never use bare for text/icons on dark surfaces (1.9–2.6:1 contrast). */
+  --color-member-green: #1d6021;
+  --color-member-green-dark: #4ade80;
 }
 
 html{

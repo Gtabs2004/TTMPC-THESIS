@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useMemo, useState } from 'react';
+﻿import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useNavigate } from 'react-router-dom';
 import { createUniqueControlNumber, fetchLoanPrefill, submitUnifiedLoan } from './loanSubmission';
@@ -6,6 +6,7 @@ import { buildBonusPayload, computeLoan } from './loanComputeApi';
 import { formatTinNumber, TIN_FORMATTED_MAX_LENGTH } from './tinFormat';
 import { useLoanEligibility } from '../hooks/useLoanEligibility';
 import { useNotification } from '../contex/NotificationContext';
+import MobileFormStepper from '../components/MobileFormStepper';
 
 const numberToWords = (num) => {
   if (num === '' || num === undefined || num === null) return '';
@@ -71,6 +72,14 @@ function Bonus_Loan() {
 
   const [loading, setLoading] = useState(false);
   const [borrowerMemberId, setBorrowerMemberId] = useState(null);
+  const [mobileStep, setMobileStep] = useState(0);
+  const formRef = useRef(null);
+  const mobileSteps = [
+    { id: 'borrower', label: "Borrower's Information" },
+    { id: 'agreement', label: 'Loan Agreement' },
+    { id: 'authorization', label: 'Authorization & Deed' },
+    { id: 'review', label: 'Review & Submit' },
+  ];
   const { data: eligibility, status: eligibilityStatus } = useLoanEligibility(borrowerMemberId, { loanType: 'bonus' });
   const canApplyNew = eligibility ? Boolean(eligibility.can_apply_new) : true;
   const canRenew = eligibility ? Boolean(eligibility.can_renew) : true;
@@ -290,8 +299,36 @@ function Bonus_Loan() {
   const bonusWindowMessage =
     'Bonus loan applications are accepted only during Mid-year (May) and Year-end (November).';
 
+  const validateMobileStep = (step) => {
+    const fields = formRef.current?.querySelectorAll(`[data-mobile-step="${step}"] input, [data-mobile-step="${step}"] select, [data-mobile-step="${step}"] textarea`) || [];
+    const invalidField = Array.from(fields).find((field) => !field.checkValidity());
+    if (!invalidField) return true;
+    invalidField.reportValidity();
+    return false;
+  };
+
+  const validateAllMobileSteps = () => {
+    for (let step = 0; step < mobileSteps.length - 1; step += 1) {
+      if (!validateMobileStep(step)) {
+        setMobileStep(step);
+        return false;
+      }
+    }
+    return true;
+  };
+
+  const goToNextMobileStep = () => {
+    if (validateMobileStep(mobileStep)) setMobileStep((step) => Math.min(step + 1, mobileSteps.length - 1));
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    if (window.matchMedia('(max-width: 767px)').matches && mobileStep < mobileSteps.length - 1) {
+      goToNextMobileStep();
+      return;
+    }
+    if (window.matchMedia('(max-width: 767px)').matches && !validateAllMobileSteps()) return;
 
     if (!bonusWindowOpen) {
       addNotification(bonusWindowMessage, 'error');
@@ -356,31 +393,31 @@ function Bonus_Loan() {
 
   return (
     <div className="flex flex-col min-h-screen bg-gray-100 pb-20">
-      <header className="w-full bg-[#E9F7DE] h-20 shadow-lg flex text-col px-6">
-        <div className="flex flex-row items-center justify-between w-full gap-4">
-          <div className="flex flex-row items-center gap-4">
+      <header className="w-full bg-[#E9F7DE] min-h-20 shadow-lg flex px-4 py-3 sm:px-6">
+        <div className="flex w-full flex-col items-start justify-between gap-3 sm:flex-row sm:items-center sm:gap-4">
+          <div className="flex min-w-0 flex-row items-center gap-3 sm:gap-4">
           <img src="/img/ttmpc logo.png" alt="Logo" className="h-12 w-auto" />
-          <div className="flex flex-col">
-            <h1 className="text-sm font-bold text-[#66B538]">Tubungan Teacher's Multi-Purpose Cooperative</h1>
+          <div className="min-w-0 flex flex-col">
+            <h1 className="break-words text-xs font-bold text-[#66B538] sm:text-sm">Tubungan Teacher's Multi-Purpose Cooperative</h1>
             <p className="text-[#A0D284] text-xs">Loan Application Kiosk</p>
           </div>
           </div>
           <button
             type="button"
             onClick={() => navigate('/member-apply-loans')}
-            className="rounded-lg bg-white px-4 py-2 text-xs font-bold text-[#1D6021] shadow-sm border border-[#D5EDB9] hover:bg-[#F4FBF0]"
+            className="w-full rounded-lg bg-white px-4 py-2 text-xs font-bold text-member-green shadow-sm border border-[#D5EDB9] hover:bg-[#F4FBF0] sm:w-auto"
           >
             Back to Member Portal
           </button>
         </div>
       </header>
 
-      <form onSubmit={handleSubmit}>
-        <section className="grid gap-8 px-4">
-          <h1 className="text-center text-xl font-bold mt-12 text-[#66B538]">BONUS LOAN APPLICATION</h1>
+      <form ref={formRef} noValidate={window.matchMedia('(max-width: 767px)').matches} onSubmit={handleSubmit} className="px-3 sm:px-4">
+        <section className="grid gap-6 px-3 sm:gap-8 sm:px-4">
+          <h1 className="mt-8 text-center text-xl font-bold text-[#66B538] sm:mt-12">BONUS LOAN APPLICATION</h1>
           <div className="max-w-6xl mx-auto w-full">
-            <div className="bg-[#EEF6F1] rounded-xl p-6 border-2 border-[#66B538] flex flex-wrap items-center justify-between gap-6">
-              <div className="flex gap-8">
+            <div className="bg-[#EEF6F1] rounded-xl p-4 border-2 border-[#66B538] flex flex-col items-start justify-between gap-4 sm:p-6 md:flex-row md:items-center md:gap-6">
+              <div className="flex flex-wrap gap-4 sm:gap-8">
                 <label
                   className={`flex items-center space-x-2 ${canApplyNew ? 'cursor-pointer' : 'cursor-not-allowed opacity-50 grayscale'}`}
                   title={canApplyNew ? '' : (eligibility?.reason || 'Active loan on record — new applications are disabled.')}
@@ -413,7 +450,7 @@ function Bonus_Loan() {
           </div>
         </section>
 
-        <div className="mt-10 bg-white rounded-lg shadow-md overflow-hidden max-w-6xl mx-auto w-full">
+        <div data-mobile-step="0" className={`${mobileStep === 0 ? 'block' : 'hidden'} md:block mt-10 bg-white rounded-lg shadow-md overflow-hidden max-w-6xl mx-auto w-full`}>
           <div className={sectionHeader}><span className="bg-white text-[#66B538] rounded-full w-6 h-6 flex items-center justify-center text-sm">1</span> BORROWER'S INFORMATION</div>
           <div className="p-4 sm:p-6 lg:p-8 grid grid-cols-1 md:grid-cols-3 gap-6">
             <div><label className={labelStyles}>Surname *</label><input name="surname" value={formData.surname} onChange={handleChange} className={inputStyles} required /></div>
@@ -444,7 +481,7 @@ function Bonus_Loan() {
         </div>
 
         {/* Section 2: LOAN AGREEMENT */}
-        <div className="mt-8 bg-white rounded-lg shadow-md overflow-hidden max-w-6xl mx-auto w-full">
+        <div data-mobile-step="1" className={`${mobileStep === 1 ? 'block' : 'hidden'} md:block mt-8 bg-white rounded-lg shadow-md overflow-hidden max-w-6xl mx-auto w-full`}>
           <div className={sectionHeader}>
             <span className="bg-white text-[#66B538] rounded-full w-6 h-6 flex items-center justify-center text-sm">2</span>
             LOAN AGREEMENT
@@ -531,7 +568,7 @@ function Bonus_Loan() {
           </div>
         </div>
        {/* Section 3: APPLICANTS AUTHORIZATION FOR SALARY DEDUCTION */}
-        <div className="mt-8 bg-white rounded-lg shadow-md overflow-hidden max-w-6xl mx-auto w-full mb-8">
+        <div data-mobile-step="2" className={`${mobileStep === 2 ? 'block' : 'hidden'} md:block mt-8 bg-white rounded-lg shadow-md overflow-hidden max-w-6xl mx-auto w-full mb-8`}>
           <div className={sectionHeader}>
             <span className="bg-white text-[#66B538] rounded-full w-6 h-6 flex items-center justify-center text-sm">3</span>
             APPLICANTS AUTHORIZATION FOR SALARY DEDUCTION
@@ -572,7 +609,7 @@ function Bonus_Loan() {
           </div>
         </div>
        {/* Section 4: DEED OF ASSIGNMENT */}
-        <div className="mt-8 bg-white rounded-lg shadow-md overflow-hidden max-w-6xl mx-auto w-full mb-8">
+        <div data-mobile-step="2" className={`${mobileStep === 2 ? 'block' : 'hidden'} md:block mt-8 bg-white rounded-lg shadow-md overflow-hidden max-w-6xl mx-auto w-full mb-8`}>
           <div className={sectionHeader}>
             <span className="bg-white text-[#66B538] rounded-full w-6 h-6 flex items-center justify-center text-sm">4</span>
             DEED OF ASSIGNMENT
@@ -632,20 +669,90 @@ function Bonus_Loan() {
             </div>
 
           </div>
-          <div className="p-4 sm:p-6 lg:p-8 pt-0 flex flex-wrap gap-3 justify-end">
-            <button type="button" onClick={handlePrintPdf} disabled={printing || loading} className="bg-white border border-[#66B538] text-[#66B538] px-5 py-2 rounded hover:bg-[#EEF6F1] transition-colors text-sm font-semibold disabled:opacity-50">
+          <div className="hidden md:flex p-3 sm:p-6 lg:p-8 pt-0 flex-col-reverse gap-3 justify-end sm:flex-row">
+            <button type="button" onClick={handlePrintPdf} disabled={printing || loading} className="w-full bg-white border border-[#66B538] text-[#66B538] px-5 py-2 rounded hover:bg-[#EEF6F1] transition-colors text-sm font-semibold disabled:opacity-50 sm:w-auto">
               {printing ? 'Printing...' : 'Print PDF'}
             </button>
             <button
               type="submit"
               disabled={loading || printing || !bonusWindowOpen}
               title={bonusWindowOpen ? '' : bonusWindowMessage}
-              className="bg-[#66B538] text-white px-5 py-2 rounded hover:bg-[#5aa12b] transition-colors text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full bg-[#66B538] text-white px-5 py-2 rounded hover:bg-[#5aa12b] transition-colors text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed sm:w-auto"
             >
               {loading ? 'Processing...' : 'Submit Application'}
             </button>
           </div>
         </div>
+
+        <div data-mobile-step="3" className={`${mobileStep === 3 ? 'block' : 'hidden'} md:hidden mt-8 rounded-lg border border-gray-200 bg-white p-4 shadow-sm`}>
+          <h2 className="text-base font-bold text-gray-900">Review your application</h2>
+          <p className="mt-1 text-xs text-gray-500">Check each section below before submitting your bonus loan application. Tap Edit to go back and make changes.</p>
+
+          {[
+            {
+              step: 0,
+              title: "Borrower's Information",
+              rows: [
+                ['Name', `${formData.first_name} ${formData.middle_name} ${formData.surname}`.trim()],
+                ['Contact No.', formData.contact_no],
+                ['Employer', formData.employer_name],
+                ['Email', formData.user_email],
+              ],
+            },
+            {
+              step: 1,
+              title: 'Loan Agreement',
+              rows: [
+                ['Loan Amount', formData.loan_amount_numeric],
+                ['Purpose', formData.loan_purpose === 'Others' ? formData.loan_purpose_other : formData.loan_purpose],
+                ['Term', formData.loan_term_months ? `${formData.loan_term_months} months` : ''],
+                ['Monthly Amortization', formData.monthly_amortization],
+              ],
+            },
+            {
+              step: 2,
+              title: 'Authorization & Deed',
+              rows: [
+                ['Bonus Deduction Amount', formData.bonus_amount_numeric],
+              ],
+            },
+          ].map((section) => {
+            const missingCount = formRef.current?.querySelectorAll(`[data-mobile-step="${section.step}"] :invalid`).length || 0;
+            return (
+              <div key={section.step} className="mt-4 rounded-lg border border-gray-200 overflow-hidden">
+                <div className="flex items-center justify-between gap-2 bg-gray-50 px-3 py-2 border-b border-gray-200">
+                  <span className="text-[11px] font-bold uppercase tracking-wide text-gray-500">{section.title}</span>
+                  <div className="flex items-center gap-2">
+                    {missingCount > 0 && (
+                      <span className="text-[10px] font-bold text-red-600">{missingCount} to fix</span>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setMobileStep(section.step)}
+                      className="text-xs font-semibold text-member-green hover:underline"
+                    >
+                      Edit
+                    </button>
+                  </div>
+                </div>
+                <dl className="px-3 py-3 space-y-2 text-sm">
+                  {section.rows.map(([label, value]) => (
+                    <div key={label} className="flex justify-between gap-3">
+                      <dt className="text-gray-500">{label}</dt>
+                      <dd className="text-right font-semibold text-gray-900">{value || '—'}</dd>
+                    </div>
+                  ))}
+                </dl>
+              </div>
+            );
+          })}
+
+          <button type="submit" disabled={loading || printing || !bonusWindowOpen} className="mt-5 w-full rounded bg-[#66B538] px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-[#5aa12b] disabled:cursor-not-allowed disabled:opacity-50">
+            {loading ? 'Processing...' : 'Submit Application'}
+          </button>
+        </div>
+
+        <MobileFormStepper steps={mobileSteps} currentStep={mobileStep} onStepChange={setMobileStep} onNext={goToNextMobileStep} onPrevious={() => setMobileStep((step) => Math.max(step - 1, 0))} />
       </form>
     </div>
   );

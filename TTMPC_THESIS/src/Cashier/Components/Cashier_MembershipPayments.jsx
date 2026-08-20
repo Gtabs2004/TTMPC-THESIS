@@ -293,7 +293,7 @@ const Cashier_MembershipPayments = () => {
 
   const renderStatusBadge = (paid) =>
     paid ? (
-      <span className="inline-flex items-center gap-1 rounded-full bg-green-50 text-[#1D6021] px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wider">
+      <span className="inline-flex items-center gap-1 rounded-full bg-green-50 text-member-green px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wider">
         <CheckCircle2 size={12} /> Paid
       </span>
     ) : (
@@ -304,7 +304,7 @@ const Cashier_MembershipPayments = () => {
 
   const renderPaidUpBadge = (paid, amount, satisfied) =>
     paid && satisfied ? (
-      <span className="inline-flex items-center gap-1 rounded-full bg-green-50 text-[#1D6021] px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wider">
+      <span className="inline-flex items-center gap-1 rounded-full bg-green-50 text-member-green px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wider">
         <CheckCircle2 size={12} /> Paid {amount ? `(${formatCurrency(amount)})` : ""}
       </span>
     ) : (
@@ -320,7 +320,7 @@ const Cashier_MembershipPayments = () => {
               <div className="flex flex-row items-start gap-2 mb-6">
                 <img src={logo} alt="Logo" className="h-12 w-auto" />
                 <div className="flex flex-col">
-                  <h1 className="text-xl font-bold text-[#389734]">TTMPC</h1>
+                  <h1 className="text-xl font-bold text-primary">TTMPC</h1>
                   <PortalSidebarIdentity
                     className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold"
                     fallbackPortal="Cashier Portal"
@@ -470,7 +470,7 @@ const Cashier_MembershipPayments = () => {
               onClick={() => setActiveTab("applicants")}
               className={`px-4 py-2 text-sm font-semibold rounded-lg transition-colors ${
                 activeTab === "applicants"
-                  ? "bg-[#1D6021] text-white"
+                  ? "bg-member-green text-white"
                   : "bg-white border border-gray-200 text-gray-700 hover:bg-gray-50"
               }`}
             >
@@ -480,7 +480,7 @@ const Cashier_MembershipPayments = () => {
               onClick={() => setActiveTab("transactions")}
               className={`px-4 py-2 text-sm font-semibold rounded-lg transition-colors ${
                 activeTab === "transactions"
-                  ? "bg-[#1D6021] text-white"
+                  ? "bg-member-green text-white"
                   : "bg-white border border-gray-200 text-gray-700 hover:bg-gray-50"
               }`}
             >
@@ -501,14 +501,14 @@ const Cashier_MembershipPayments = () => {
                     ? "Search by applicant name, email, or application ID"
                     : "Search by name, payment ID, or reference number"
                 }
-                className="w-full rounded-lg border border-gray-300 bg-gray-50 h-11 pl-10 pr-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#389734]"
+                className="w-full rounded-lg border border-gray-300 bg-gray-50 h-11 pl-10 pr-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
               />
             </div>
             {activeTab === "applicants" && (
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
-                className="h-11 rounded-lg border border-gray-300 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#389734]"
+                className="h-11 rounded-lg border border-gray-300 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
               >
                 <option value="all">All Applicants</option>
                 <option value="unpaid">Unpaid Only</option>
@@ -573,7 +573,7 @@ const Cashier_MembershipPayments = () => {
                           ) : (
                             <button
                               onClick={() => openModal(row, "MEMBERSHIP_FEE")}
-                              className="inline-flex items-center gap-1.5 rounded-md bg-[#1D6021] text-white px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider hover:bg-[#164a18] transition-colors w-full justify-center"
+                              className="inline-flex items-center gap-1.5 rounded-md bg-member-green text-white px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider hover:bg-[#164a18] transition-colors w-full justify-center"
                             >
                               <Banknote size={12} /> Record Fee
                             </button>
@@ -637,7 +637,7 @@ const Cashier_MembershipPayments = () => {
                         {row.payment_id}
                       </td>
                       <td className="p-5 text-sm text-gray-700">{row.applicant_name}</td>
-                      <td className="p-5 text-sm font-bold text-[#1D6021] text-right">
+                      <td className="p-5 text-sm font-bold text-member-green text-right">
                         {formatCurrency(row.amount)}
                       </td>
                       <td className="p-5 text-sm text-gray-700 capitalize">
@@ -650,7 +650,7 @@ const Cashier_MembershipPayments = () => {
                         <span
                           className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wider ${
                             row.payment_status === "paid"
-                              ? "bg-green-50 text-[#1D6021]"
+                              ? "bg-green-50 text-member-green"
                               : row.payment_status === "voided"
                               ? "bg-red-50 text-red-700"
                               : "bg-amber-50 text-amber-700"
@@ -737,7 +737,7 @@ const Cashier_MembershipPayments = () => {
                 value={amountInput}
                 onChange={(e) => setAmountInput(e.target.value)}
                 disabled={submitting}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#389734]"
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
               />
               <p className="text-[10px] text-gray-500 mt-1">
                 Minimum: ₱
@@ -753,7 +753,7 @@ const Cashier_MembershipPayments = () => {
                 value={paymentMethod}
                 onChange={(e) => setPaymentMethod(e.target.value)}
                 disabled={submitting}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#389734]"
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
               >
                 <option value="cash">Cash</option>
                 <option value="gcash">GCash</option>
@@ -774,7 +774,7 @@ const Cashier_MembershipPayments = () => {
                 onChange={(e) => setReferenceNumber(e.target.value)}
                 disabled={submitting}
                 placeholder="e.g., OR-001234, GCash ref"
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#389734]"
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
               />
             </div>
 
@@ -787,7 +787,7 @@ const Cashier_MembershipPayments = () => {
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
                 disabled={submitting}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#389734]"
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
               />
             </div>
           </div>

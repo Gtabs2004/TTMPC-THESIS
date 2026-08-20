@@ -75,7 +75,7 @@ const CustomCheckbox = ({ checked, onChange, label }) => (
       type="checkbox"
       checked={checked}
       onChange={onChange}
-      className="w-4 h-4 rounded border-gray-300 text-[#1D6021] focus:ring-[#1D6021] cursor-pointer"
+      className="w-4 h-4 rounded border-gray-300 text-member-green focus:ring-member-green cursor-pointer"
     />
     <span>{label}</span>
   </label>
@@ -84,11 +84,11 @@ const CustomCheckbox = ({ checked, onChange, label }) => (
 const QuickStat = ({ label, value, accent = false }) => (
   <div
     className={`rounded-lg border px-3 py-2 ${
-      accent ? 'border-[#1D6021]/30 bg-[#1D6021]/5' : 'border-gray-200 bg-white'
+      accent ? 'border-member-green/30 bg-member-green/5' : 'border-gray-200 bg-white'
     }`}
   >
     <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider">{label}</p>
-    <p className={`text-sm font-bold ${accent ? 'text-[#1D6021]' : 'text-gray-800'} truncate`}>
+    <p className={`text-sm font-bold ${accent ? 'text-member-green' : 'text-gray-800'} truncate`}>
       {value}
     </p>
   </div>
@@ -658,7 +658,7 @@ const Treasurer_ApprovalDetails = () => {
       <div className="p-8 bg-gray-50 min-h-screen">
         <button 
           onClick={() => navigate(backRoute)}
-          className="flex items-center text-sm text-[#1D6021] font-semibold mb-6 hover:underline"
+          className="flex items-center text-sm text-member-green font-semibold mb-6 hover:underline"
         >
           <ArrowLeft className="w-4 h-4 mr-2" /> Back to Loan Queue
         </button>
@@ -672,7 +672,7 @@ const Treasurer_ApprovalDetails = () => {
       <div className="p-8 bg-gray-50 min-h-screen">
         <button 
           onClick={() => navigate(backRoute)}
-          className="flex items-center text-sm text-[#1D6021] font-semibold mb-6 hover:underline"
+          className="flex items-center text-sm text-member-green font-semibold mb-6 hover:underline"
         >
           <ArrowLeft className="w-4 h-4 mr-2" /> Back to Loan Queue
         </button>
@@ -719,7 +719,7 @@ const Treasurer_ApprovalDetails = () => {
         <div className="px-8 pt-4 pb-3">
           <button
             onClick={() => navigate(backRoute)}
-            className="flex items-center text-xs text-[#1D6021] font-semibold mb-2 hover:underline"
+            className="flex items-center text-xs text-member-green font-semibold mb-2 hover:underline"
           >
             <ArrowLeft className="w-3.5 h-3.5 mr-1.5" /> Back to Loan Queue
           </button>
@@ -731,7 +731,7 @@ const Treasurer_ApprovalDetails = () => {
               </h1>
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-500 mt-0.5">
                 <span>
-                  Control # <span className="font-mono font-bold text-[#1D6021]">{loanDetails.id}</span>
+                  Control # <span className="font-mono font-bold text-member-green">{loanDetails.id}</span>
                 </span>
                 <span className="text-gray-300">\u00B7</span>
                 <span>{loanDetails.summary.loanType}</span>
@@ -756,9 +756,9 @@ const Treasurer_ApprovalDetails = () => {
                   <div
                     className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold whitespace-nowrap ${
                       active
-                        ? 'bg-[#1D6021] text-white'
+                        ? 'bg-member-green text-white'
                         : done
-                        ? 'bg-green-50 text-[#1D6021]'
+                        ? 'bg-green-50 text-member-green'
                         : 'bg-gray-100 text-gray-400'
                     }`}
                   >
@@ -766,7 +766,7 @@ const Treasurer_ApprovalDetails = () => {
                     {step.label}
                   </div>
                   {idx < workflowSteps.length - 1 && (
-                    <span className={`w-4 h-px ${done ? 'bg-[#1D6021]' : 'bg-gray-200'}`} />
+                    <span className={`w-4 h-px ${done ? 'bg-member-green' : 'bg-gray-200'}`} />
                   )}
                 </React.Fragment>
               );
@@ -790,7 +790,7 @@ const Treasurer_ApprovalDetails = () => {
                   key={tab.id}
                   type="button"
                   onClick={() => scrollToSection(tab.id)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold text-gray-600 hover:bg-[#1D6021]/10 hover:text-[#1D6021] transition-colors whitespace-nowrap"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold text-gray-600 hover:bg-member-green/10 hover:text-member-green transition-colors whitespace-nowrap"
                 >
                   <Icon className="w-3.5 h-3.5" />
                   {tab.label}
@@ -816,7 +816,7 @@ const Treasurer_ApprovalDetails = () => {
             {/* Member & Loan Summary */}
             <div id="section-summary" className="scroll-mt-44">
               <h2 className="flex items-center text-lg font-bold text-gray-800 mb-4">
-                <User className="w-5 h-5 mr-2 text-[#1D6021]" /> Member & Loan Summary
+                <User className="w-5 h-5 mr-2 text-member-green" /> Member & Loan Summary
               </h2>
               <div className="bg-[#FAF9FB] rounded-xl p-6 grid grid-cols-2 gap-y-6">
                 <div>
@@ -825,7 +825,7 @@ const Treasurer_ApprovalDetails = () => {
                 </div>
                 <div>
                   <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Recommended Amount</p>
-                  <p className="font-bold text-[#1D6021] text-xl">{loanDetails.summary.recommendedAmount}</p>
+                  <p className="font-bold text-member-green text-xl">{loanDetails.summary.recommendedAmount}</p>
                 </div>
                 <div>
                   <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Term</p>
@@ -869,7 +869,7 @@ const Treasurer_ApprovalDetails = () => {
             {/* Treasurer's Disbursement Assessment */}
             <div id="section-assessment" className="scroll-mt-44">
               <h2 className="flex items-center text-lg font-bold text-gray-800 mb-4">
-                <BarChart2 className="w-5 h-5 mr-2 text-[#1D6021]" /> Treasurer's Disbursement Assessment
+                <BarChart2 className="w-5 h-5 mr-2 text-member-green" /> Treasurer's Disbursement Assessment
               </h2>
               <div className="bg-white rounded-xl border border-gray-200 p-6">
                 {(() => {
@@ -883,7 +883,7 @@ const Treasurer_ApprovalDetails = () => {
                   if (loading) {
                     fundLabel = 'Loading\u2026'; fundColor = 'text-gray-500'; barColor = 'bg-gray-300';
                   } else if (coverage >= 1.5) {
-                    fundLabel = 'Sufficient'; fundColor = 'text-green-700'; barColor = 'bg-[#1D6021]';
+                    fundLabel = 'Sufficient'; fundColor = 'text-green-700'; barColor = 'bg-member-green';
                   } else if (coverage >= 1) {
                     fundLabel = 'Adequate'; fundColor = 'text-amber-700'; barColor = 'bg-amber-500';
                   } else {
@@ -947,7 +947,7 @@ const Treasurer_ApprovalDetails = () => {
           <div className="flex flex-col gap-8">
             <div id="section-computation" className="scroll-mt-44">
               <h2 className="flex items-center text-lg font-bold text-gray-800 mb-4">
-                <Calculator className="w-5 h-5 mr-2 text-[#1D6021]" /> Loan Computation Summary
+                <Calculator className="w-5 h-5 mr-2 text-member-green" /> Loan Computation Summary
               </h2>
               {Array.isArray(loanDetails.computation.emergencySchedule)
                 && loanDetails.computation.emergencySchedule.length > 0 ? null : (
@@ -972,10 +972,10 @@ const Treasurer_ApprovalDetails = () => {
                   </div>
                   <div className="border-t border-gray-300 pt-4 flex justify-between items-center">
                     <div>
-                      <p className="text-[10px] font-bold text-[#1D6021] uppercase tracking-wider">Monthly Amortization</p>
+                      <p className="text-[10px] font-bold text-member-green uppercase tracking-wider">Monthly Amortization</p>
                       <p className="text-[9px] text-gray-500">Payable per month</p>
                     </div>
-                    <span className="text-2xl font-black text-[#1D6021]">{loanDetails.computation.monthlyAmortization}</span>
+                    <span className="text-2xl font-black text-member-green">{loanDetails.computation.monthlyAmortization}</span>
                   </div>
                 </div>
               )}
@@ -983,7 +983,7 @@ const Treasurer_ApprovalDetails = () => {
               {Array.isArray(loanDetails.computation.emergencySchedule)
                 && loanDetails.computation.emergencySchedule.length > 0 ? (
                 <div className="bg-white border border-gray-200 rounded-xl p-4">
-                  <h3 className="text-sm font-bold text-[#1D6021] text-center mb-3">
+                  <h3 className="text-sm font-bold text-member-green text-center mb-3">
                     {loanDetails.computation.termMonths}-Month Amortization Schedule
                   </h3>
                   <div className="overflow-x-auto">
@@ -1002,11 +1002,11 @@ const Treasurer_ApprovalDetails = () => {
                         {loanDetails.computation.emergencySchedule.map((row) => (
                           <tr key={row.month} className="border-b border-gray-100 last:border-b-0">
                             <td className="py-2 px-2 font-semibold text-gray-700">{row.month}</td>
-                            <td className="py-2 px-2 text-right text-[#1D6021]">{formatCurrency(row.startingBalance)}</td>
+                            <td className="py-2 px-2 text-right text-member-green">{formatCurrency(row.startingBalance)}</td>
                             <td className="py-2 px-2 text-right text-gray-800">{formatCurrency(row.principal)}</td>
                             <td className="py-2 px-2 text-right text-red-600">{formatCurrency(row.interest)}</td>
                             <td className="py-2 px-2 text-right font-bold text-gray-900">{formatCurrency(row.totalPayment)}</td>
-                            <td className="py-2 px-2 text-right text-[#1D6021]">{formatCurrency(row.remainingBalance)}</td>
+                            <td className="py-2 px-2 text-right text-member-green">{formatCurrency(row.remainingBalance)}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -1019,7 +1019,7 @@ const Treasurer_ApprovalDetails = () => {
             {/* Supporting Documents */}
             <div id="section-documents" className="scroll-mt-44">
               <h2 className="flex items-center text-lg font-bold text-gray-800 mb-4">
-                <Paperclip className="w-5 h-5 mr-2 text-[#1D6021]" /> Supporting Documents
+                <Paperclip className="w-5 h-5 mr-2 text-member-green" /> Supporting Documents
               </h2>
               {supportingDocs.length === 0 ? (
                 <div className="rounded-xl border border-dashed border-gray-300 bg-[#F8F9FA] p-6 text-sm text-gray-500">
@@ -1049,7 +1049,7 @@ const Treasurer_ApprovalDetails = () => {
                             href={previewUrl}
                             target="_blank"
                             rel="noreferrer"
-                            className="mt-2 inline-flex items-center gap-1 text-xs font-bold text-[#1D6021] hover:underline"
+                            className="mt-2 inline-flex items-center gap-1 text-xs font-bold text-member-green hover:underline"
                           >
                             <ExternalLink className="w-3.5 h-3.5" /> Open
                           </a>
@@ -1066,7 +1066,7 @@ const Treasurer_ApprovalDetails = () => {
         {/* Bookkeeper Internal Review (full-width row) */}
         <div id="section-notes" className="scroll-mt-44 px-8 pb-8">
           <h2 className="flex items-center text-lg font-bold text-gray-800 mb-4">
-            <FileEdit className="w-5 h-5 mr-2 text-[#1D6021]" /> Bookkeeper Internal Review
+            <FileEdit className="w-5 h-5 mr-2 text-member-green" /> Bookkeeper Internal Review
           </h2>
           <div className="bg-[#F8F9FA] border border-gray-200 rounded-xl p-5 space-y-4">
             <div>
@@ -1125,13 +1125,13 @@ const Treasurer_ApprovalDetails = () => {
           <div className="text-xs text-gray-500 hidden md:block">
             <span className="font-semibold text-gray-700">{loanDetails.memberName}</span> \u00B7
             <span className="ml-1 font-mono">{loanDetails.id}</span> \u00B7
-            <span className="ml-1 font-bold text-[#1D6021]">{loanDetails.computation.monthlyAmortization}/mo</span>
+            <span className="ml-1 font-bold text-member-green">{loanDetails.computation.monthlyAmortization}/mo</span>
           </div>
           <div className="flex flex-wrap items-center gap-2 ml-auto">
             {isBookkeeperFlow ? (
               <button
                 onClick={() => setActiveModal('recommend')}
-                className="flex items-center px-5 py-2 rounded-lg bg-[#1D6021] text-white hover:bg-[#154718] font-bold text-sm transition-colors"
+                className="flex items-center px-5 py-2 rounded-lg bg-member-green text-white hover:bg-[#154718] font-bold text-sm transition-colors"
               >
                 <Check className="w-4 h-4 mr-2" /> Recommend for Approval
               </button>
@@ -1145,7 +1145,7 @@ const Treasurer_ApprovalDetails = () => {
                 </button>
                 <button
                   onClick={() => setActiveModal('disburse')}
-                  className="flex items-center px-5 py-2 rounded-lg bg-[#1D6021] text-white hover:bg-[#154718] font-bold text-sm transition-colors"
+                  className="flex items-center px-5 py-2 rounded-lg bg-member-green text-white hover:bg-[#154718] font-bold text-sm transition-colors"
                 >
                   <Check className="w-4 h-4 mr-2" /> Approve for Disbursement
                 </button>
@@ -1180,7 +1180,7 @@ const Treasurer_ApprovalDetails = () => {
               </label>
               <textarea
                 rows="4"
-                className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-[#1D6021] focus:border-[#1D6021] outline-none"
+                className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-member-green focus:border-member-green outline-none"
                 placeholder="Provide a detailed reason for board's decision..."
                 value={remarks}
                 onChange={(e) => setRemarks(e.target.value)}
@@ -1202,7 +1202,7 @@ const Treasurer_ApprovalDetails = () => {
               </label>
               <textarea
                 rows="4"
-                className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-[#1D6021] focus:border-[#1D6021] outline-none"
+                className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-member-green focus:border-member-green outline-none"
                 placeholder="Enter the detailed reason for revision or specific instructions for the user..."
                 value={remarks}
                 onChange={(e) => setRemarks(e.target.value)}

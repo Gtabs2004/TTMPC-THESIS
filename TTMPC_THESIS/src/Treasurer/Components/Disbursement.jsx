@@ -214,7 +214,7 @@ const Disbursements = () => {
               <div className="flex items-center gap-2 text-sm text-gray-500 font-medium mb-1">
                 <span>Treasurer</span>
                 <ChevronRight className="w-4 h-4 text-gray-300" />
-                <span className="text-[#389734]">Disbursement Audit</span>
+                <span className="text-primary">Disbursement Audit</span>
               </div>
               <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">Released Loans</h1>
               <p className="text-sm text-gray-500 mt-1 font-medium">Audit view of loans successfully disbursed by the Cashier.</p>
@@ -227,7 +227,7 @@ const Disbursements = () => {
               <button
                 onClick={fetchReleasedLoans}
                 disabled={isLoading}
-                className="flex items-center gap-2 px-5 py-2 rounded-lg bg-[#2E7A2A] text-white text-sm font-semibold hover:bg-[#1D6021] disabled:bg-gray-300 transition-colors shadow-sm"
+                className="flex items-center gap-2 px-5 py-2 rounded-lg bg-primary-deep text-white text-sm font-semibold hover:bg-member-green disabled:bg-gray-300 transition-colors shadow-sm"
               >
                 <RefreshCw className={`w-4 h-4 ${isLoading ? "animate-spin" : ""}`} />
                 Refresh Data
@@ -278,13 +278,13 @@ const Disbursements = () => {
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     placeholder="Search member or ID"
-                    className="bg-white w-64 h-9 rounded-lg border border-gray-300 pl-9 pr-3 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#389734]/50 focus:border-[#389734] transition-all shadow-sm"
+                    className="bg-white w-64 h-9 rounded-lg border border-gray-300 pl-9 pr-3 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all shadow-sm"
                   />
                 </div>
                 <select
                   value={typeFilter}
                   onChange={(e) => setTypeFilter(e.target.value)}
-                  className="bg-white h-9 rounded-lg border border-gray-300 px-3 py-0 text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#389734]/50 focus:border-[#389734] transition-all shadow-sm cursor-pointer"
+                  className="bg-white h-9 rounded-lg border border-gray-300 px-3 py-0 text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all shadow-sm cursor-pointer"
                 >
                   <option>All Types</option>
                   <option>Emergency</option>
@@ -309,7 +309,7 @@ const Disbursements = () => {
             <div className="overflow-x-auto">
               {isLoading ? (
                 <div className="flex flex-col items-center justify-center py-20 text-gray-500 bg-gray-50/30">
-                  <div className="w-8 h-8 border-2 border-gray-200 border-t-[#389734] rounded-full animate-spin mb-4"></div>
+                  <div className="w-8 h-8 border-2 border-gray-200 border-t-primary rounded-full animate-spin mb-4"></div>
                   <p className="text-sm font-semibold text-gray-600">Syncing ledger records...</p>
                 </div>
               ) : visibleRows.length === 0 ? (
@@ -478,7 +478,7 @@ const Disbursements = () => {
                   { label: "Loan Approved", detail: "Manager authorization", icon: Check, tone: "bg-gray-800 text-white" },
                   { label: "Bookkeeper Verifies", detail: "Compliance check", icon: Check, tone: "bg-gray-800 text-white" },
                   { label: "Cashier Releases", detail: "Funds disbursed", icon: Wallet, tone: "bg-gray-800 text-white" },
-                  { label: "Treasury Logs", detail: "Ledger updated", icon: CheckCircle2, tone: "bg-[#2E7A2A] text-white ring-4 ring-green-50" },
+                  { label: "Treasury Logs", detail: "Ledger updated", icon: CheckCircle2, tone: "bg-primary-deep text-white ring-4 ring-green-50" },
                 ].map((step, idx) => {
                   const StepIcon = step.icon;
                   return (

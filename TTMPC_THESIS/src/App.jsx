@@ -21,8 +21,8 @@ import {
 function Button({ children, variant = 'primary', className = '', to, ...props }) {
   const baseStyles = 'inline-block text-center px-7 py-3 rounded-full font-semibold transition-all duration-200 shadow-sm';
   const variants = {
-    primary: 'bg-[#2E7A2A] text-white hover:brightness-90 hover:shadow-md hover:-translate-y-0.5',
-    secondary: 'bg-white text-[#2E7A2A] hover:bg-gray-50 border border-gray-100 hover:shadow-md',
+    primary: 'bg-primary-deep text-white hover:brightness-90 hover:shadow-md hover:-translate-y-0.5',
+    secondary: 'bg-white text-primary-deep hover:bg-gray-50 border border-gray-100 hover:shadow-md',
     outline: 'border-2 border-white text-white hover:bg-white/10',
   };
   
@@ -44,11 +44,11 @@ function Button({ children, variant = 'primary', className = '', to, ...props })
 function FeatureCard({ icon, title, description }) {
   return (
     <div className="bg-white p-8 rounded-3xl shadow-sm hover:shadow-xl hover:shadow-green-900/5 transition-all duration-300 border border-gray-100 group relative overflow-hidden flex flex-col h-full transform hover:-translate-y-1 cursor-default">
-      <div className="absolute top-0 left-0 w-full h-1 bg-[#389734] opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-      <div className="w-14 h-14 bg-gradient-to-br from-[#E9F7DE] to-white border border-green-100 text-[#389734] rounded-xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300 shadow-sm">
+      <div className="absolute top-0 left-0 w-full h-1 bg-primary opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+      <div className="w-14 h-14 bg-gradient-to-br from-[#E9F7DE] to-white border border-green-100 text-primary rounded-xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300 shadow-sm">
         {icon}
       </div>
-      <h3 className="text-xl font-bold text-gray-900 mb-3 group-hover:text-[#389734] transition-colors duration-300">
+      <h3 className="text-xl font-bold text-gray-900 mb-3 group-hover:text-primary transition-colors duration-300">
         {title}
       </h3>
       <p className="text-gray-600 leading-relaxed text-sm md:text-base flex-grow">
@@ -61,7 +61,7 @@ function FeatureCard({ icon, title, description }) {
 function StatCard({ value, label }) {
   return (
     <div className="text-center p-6">
-      <div className="text-4xl md:text-5xl font-extrabold text-[#389734] mb-2 tracking-tight">{value}</div>
+      <div className="text-4xl md:text-5xl font-extrabold text-primary mb-2 tracking-tight">{value}</div>
       <div className="text-gray-600 font-medium">{label}</div>
     </div>
   );
@@ -192,14 +192,14 @@ function AboutImageCarousel() {
       <div className="absolute inset-0 flex items-center justify-between p-4 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity duration-300 pointer-events-none">
         <button 
           onClick={goToPrev} 
-          className="pointer-events-auto p-2.5 rounded-full bg-white/70 text-gray-800 hover:bg-white hover:text-[#389734] backdrop-blur-md shadow-lg transition-all focus:outline-none transform hover:scale-110"
+          className="pointer-events-auto p-2.5 rounded-full bg-white/70 text-gray-800 hover:bg-white hover:text-primary backdrop-blur-md shadow-lg transition-all focus:outline-none transform hover:scale-110"
           aria-label="Previous image"
         >
           <ChevronLeft className="w-6 h-6" strokeWidth={2.5} />
         </button>
         <button 
           onClick={goToNext} 
-          className="pointer-events-auto p-2.5 rounded-full bg-white/70 text-gray-800 hover:bg-white hover:text-[#389734] backdrop-blur-md shadow-lg transition-all focus:outline-none transform hover:scale-110"
+          className="pointer-events-auto p-2.5 rounded-full bg-white/70 text-gray-800 hover:bg-white hover:text-primary backdrop-blur-md shadow-lg transition-all focus:outline-none transform hover:scale-110"
           aria-label="Next image"
         >
           <ChevronRight className="w-6 h-6" strokeWidth={2.5} />
@@ -215,7 +215,7 @@ function AboutImageCarousel() {
           >
             <span
               className={`block h-2 rounded-full transition-all duration-300 shadow-sm ${
-                currentIndex === idx ? "bg-[#389734] w-8" : "bg-gray-300/80 hover:bg-gray-400 w-2"
+                currentIndex === idx ? "bg-primary w-8" : "bg-gray-300/80 hover:bg-gray-400 w-2"
               }`}
             />
           </button>
@@ -229,7 +229,7 @@ function App() {
   const [menuOpen, setMenuOpen] = useState(false);
 
   return (
-    <div className="min-h-screen bg-white font-['Poppins'] text-gray-900 selection:bg-[#E9F7DE] selection:text-[#389734]">
+    <div className="min-h-screen bg-white font-['Poppins'] text-gray-900 selection:bg-[#E9F7DE] selection:text-primary">
       <header className="bg-white/80 backdrop-blur-md h-20 flex items-center shadow-sm border-b border-gray-100 sticky top-0 z-50 px-6 lg:px-12">
         <div className="w-full flex items-center justify-between">
           <Link to="/" className="flex-shrink-0">
@@ -241,13 +241,13 @@ function App() {
           </Link>
           <nav className="hidden md:flex items-center">
             <ul className="flex items-center gap-8 text-sm font-semibold text-gray-600">
-              <li><Link to="/" className="hover:text-[#2E7A2A] transition-colors">Home</Link></li>
-              <li><a href="#about" className="hover:text-[#2E7A2A] transition-colors">About</a></li>
-              <li><Link to="loan_services" className="hover:text-[#2E7A2A] transition-colors">Features</Link></li>
-              <li><a href="#contact" className="hover:text-[#2E7A2A] transition-colors">Contact</a></li>
+              <li><Link to="/" className="hover:text-primary-deep transition-colors">Home</Link></li>
+              <li><a href="#about" className="hover:text-primary-deep transition-colors">About</a></li>
+              <li><Link to="loan_services" className="hover:text-primary-deep transition-colors">Features</Link></li>
+              <li><a href="#contact" className="hover:text-primary-deep transition-colors">Contact</a></li>
             </ul>
             <div className="flex items-center gap-6 ml-8 pl-8 border-l border-gray-200 h-8">
-              <Link to="/membership_form" className="text-sm font-semibold text-[#2E7A2A] hover:brightness-90 transition-colors">
+              <Link to="/membership_form" className="text-sm font-semibold text-primary-deep hover:brightness-90 transition-colors">
                 Become a Member
               </Link>
               <Button to="/role_selection" variant="primary" className="py-2 px-6 text-sm">
@@ -289,7 +289,7 @@ function App() {
           <div className="flex-1 text-center lg:text-left z-10">
             <h1 className="text-3xl md:text-5xl lg:text-6xl font-extrabold text-gray-900 mb-6 leading-[1.15] tracking-tight">
               Tubungan <br className="hidden lg:block" />
-              <span className="text-[#389734]"> Teachers' Multi-Purpose Cooperative</span>
+              <span className="text-primary"> Teachers' Multi-Purpose Cooperative</span>
             </h1>
             <p className="text-gray-600 text-lg md:text-xl mb-10 max-w-xl mx-auto lg:mx-0 leading-relaxed">
              Empowering our community through intelligent financial management since 1995.  
@@ -299,7 +299,7 @@ function App() {
             </div>
           </div>
           <div className="flex-1 w-full max-w-2xl lg:max-w-none relative z-10">
-            <div className="absolute inset-0 bg-gradient-to-tr from-[#389734]/20 to-transparent rounded-3xl transform translate-x-4 translate-y-4 -z-10 blur-xl"></div>
+            <div className="absolute inset-0 bg-gradient-to-tr from-primary/20 to-transparent rounded-3xl transform translate-x-4 translate-y-4 -z-10 blur-xl"></div>
             <img
               src="/img/landing page.png"
               alt="System Dashboard Preview"
@@ -315,7 +315,7 @@ function App() {
         <div className="max-w-7xl mx-auto">
           <div className="flex flex-col lg:flex-row items-center gap-12 lg:gap-20 mb-24">
             <div className="flex-1 lg:pr-8 text-center lg:text-left">
-              <span className="text-[#389734] font-bold tracking-wider uppercase mb-4 block text-2xl">Our Legacy</span>
+              <span className="text-primary font-bold tracking-wider uppercase mb-4 block text-2xl">Our Legacy</span>
               <h2 className="text-3xl md:text-4xl font-extrabold text-gray-900 mb-6 tracking-tight">
                 Empowering the Community Since 1995.
               </h2>
@@ -338,7 +338,7 @@ function App() {
 
           <div className="grid md:grid-cols-3 gap-6 items-center text-left max-w-6xl mx-auto">
             <div className="bg-white p-8 md:p-10 rounded-3xl border border-gray-100 shadow-xl shadow-gray-200/40 hover:-translate-y-2 transition-transform duration-300 relative z-0">
-              <div className="w-14 h-14 bg-gradient-to-br from-[#E9F7DE] to-white border border-green-100 rounded-2xl flex items-center justify-center text-[#389734] mb-8 shadow-sm">
+              <div className="w-14 h-14 bg-gradient-to-br from-[#E9F7DE] to-white border border-green-100 rounded-2xl flex items-center justify-center text-primary mb-8 shadow-sm">
                 <Wallet strokeWidth={2} className="w-7 h-7" />
               </div>
               <h4 className="text-xl font-bold text-gray-900 mb-4">Savings & Deposits</h4>
@@ -347,9 +347,9 @@ function App() {
               </p>
             </div>
 
-            <div className="bg-gradient-to-b from-[#2E7A2A] to-[#1B4A18] p-10 md:p-12 rounded-3xl shadow-2xl shadow-green-900/30 transform md:-translate-y-6 hover:-translate-y-8 transition-transform duration-300 relative z-10 border border-[#389734]/40">
+            <div className="bg-gradient-to-b from-primary-deep to-[#1B4A18] p-10 md:p-12 rounded-3xl shadow-2xl shadow-green-900/30 transform md:-translate-y-6 hover:-translate-y-8 transition-transform duration-300 relative z-10 border border-primary/40">
               <div className="flex justify-between items-start mb-8">
-                <div className="w-14 h-14 bg-white rounded-2xl flex items-center justify-center text-[#389734] shadow-lg">
+                <div className="w-14 h-14 bg-white rounded-2xl flex items-center justify-center text-primary shadow-lg">
                   <Landmark strokeWidth={2} className="w-7 h-7" />
                 </div>
                 <span className="bg-black/25 text-white text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider backdrop-blur-sm">
@@ -368,7 +368,7 @@ function App() {
             </div>
 
             <div className="bg-white p-8 md:p-10 rounded-3xl border border-gray-100 shadow-xl shadow-gray-200/40 hover:-translate-y-2 transition-transform duration-300 relative z-0">
-              <div className="w-14 h-14 bg-gradient-to-br from-[#E9F7DE] to-white border border-green-100 rounded-2xl flex items-center justify-center text-[#389734] mb-8 shadow-sm">
+              <div className="w-14 h-14 bg-gradient-to-br from-[#E9F7DE] to-white border border-green-100 rounded-2xl flex items-center justify-center text-primary mb-8 shadow-sm">
                 <HeartHandshake strokeWidth={2} className="w-7 h-7" />
               </div>
               <h4 className="text-xl font-bold text-gray-900 mb-4">Member Benefits</h4>
@@ -394,14 +394,14 @@ function App() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="md:col-span-2 bg-gray-900 rounded-3xl p-8 md:p-12 shadow-lg border border-gray-800 flex flex-col md:flex-row items-center gap-8 group hover:-translate-y-1 transition-transform duration-300">
               <div className="flex-1 text-left">
-                <div className="w-14 h-14 bg-gray-800 border border-gray-700 text-[#389734] rounded-xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300">
+                <div className="w-14 h-14 bg-gray-800 border border-gray-700 text-primary rounded-xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300">
                   <Brain strokeWidth={2} className="w-7 h-7" />
                 </div>
                 <h3 className="text-2xl font-bold text-white mb-4">Predictive Risk Analytics</h3>
                 <p className="text-gray-400 leading-relaxed md:text-lg mb-6">
                   Evaluate member debt capacity and flag high-risk accounts instantly using historical payment data. Don't guess on loan approvals—let the data decide.
                 </p>
-                <div className="inline-flex items-center text-[#2E7A2A] font-medium text-sm">
+                <div className="inline-flex items-center text-primary-deep font-medium text-sm">
                   <Sparkles className="w-4 h-4 mr-2" /> Powered by AI Data Models
                 </div>
               </div>
@@ -411,7 +411,7 @@ function App() {
                   <div className="relative z-10 flex items-end gap-2 h-16" aria-hidden="true">
                     <div className="w-3 rounded-t bg-gray-700 h-6"></div>
                     <div className="w-3 rounded-t bg-gray-700 h-10"></div>
-                    <div className="w-3 rounded-t bg-[#389734] h-16"></div>
+                    <div className="w-3 rounded-t bg-primary h-16"></div>
                     <div className="w-3 rounded-t bg-gray-700 h-8"></div>
                     <div className="w-3 rounded-t bg-gray-700 h-12"></div>
                   </div>
@@ -448,11 +448,11 @@ function App() {
               />
             </div>
             <div className="md:col-span-3 bg-white rounded-3xl p-8 md:p-10 shadow-sm border border-gray-100 flex flex-col md:flex-row items-center gap-8 group hover:shadow-xl hover:shadow-green-900/5 hover:-translate-y-1 transition-all duration-300">
-              <div className="w-16 h-16 shrink-0 bg-gradient-to-br from-[#E9F7DE] to-white border border-green-100 text-[#389734] rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
+              <div className="w-16 h-16 shrink-0 bg-gradient-to-br from-[#E9F7DE] to-white border border-green-100 text-primary rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
                 <FileText strokeWidth={2} className="w-8 h-8" />
               </div>
               <div className="flex-1 text-center md:text-left">
-                <h3 className="text-2xl font-bold text-gray-900 mb-3 group-hover:text-[#389734] transition-colors duration-300">One-Click Board Reports</h3>
+                <h3 className="text-2xl font-bold text-gray-900 mb-3 group-hover:text-primary transition-colors duration-300">One-Click Board Reports</h3>
                 <p className="text-gray-600 leading-relaxed md:text-lg max-w-4xl">
                   Generate flawless, board-ready financial reports instantly. Spend less time formatting paperwork and more time building financial strategy.
                 </p>
@@ -465,7 +465,7 @@ function App() {
         </div>
       </section>
 
-      <section className="py-24 px-4 bg-[#2E7A2A] relative overflow-hidden">
+      <section className="py-24 px-4 bg-primary-deep relative overflow-hidden">
         <div className="absolute top-0 right-0 -mt-20 -mr-20 w-80 h-80 bg-white opacity-10 rounded-full blur-3xl"></div>
         <div className="absolute bottom-0 left-0 -mb-20 -ml-20 w-80 h-80 bg-black opacity-10 rounded-full blur-3xl"></div>
         <div className="max-w-4xl mx-auto text-center text-white relative z-10">
@@ -486,7 +486,7 @@ function App() {
         </div>
       </section>
 
-      <footer className="bg-gray-900 text-white py-16 px-4 border-t-4 border-[#389734]">
+      <footer className="bg-gray-900 text-white py-16 px-4 border-t-4 border-primary">
         <div className="max-w-7xl mx-auto">
           <div className="grid md:grid-cols-4 gap-12 mb-12">
             <div className="col-span-1 md:col-span-1">
@@ -513,7 +513,7 @@ function App() {
               <h4 className="text-lg font-bold mb-6 text-white">Contact</h4>
               <ul className="space-y-4 text-gray-400 text-sm font-medium">
                 <li className="flex items-start gap-3">
-                  <MapPin className="w-5 h-5 text-[#389734] shrink-0" />
+                  <MapPin className="w-5 h-5 text-primary shrink-0" />
                   <span>Tubungan, Iloilo, Philippines</span>
                 </li>
               </ul>

@@ -216,7 +216,7 @@ const Schedule = () => {
                 <div className="flex items-center gap-2 text-sm text-gray-500 font-medium mb-1">
                 <span>Treasurer</span>
                 <ChevronRight className="w-4 h-4 text-gray-300" />
-                <span className="text-[#389734]">Schedule</span>
+                <span className="text-primary">Schedule</span>
               </div>
               <h1 className="font-bold text-2xl text-gray-800">Salary Schedule</h1>
               <p className="text-sm text-gray-500 mt-1">

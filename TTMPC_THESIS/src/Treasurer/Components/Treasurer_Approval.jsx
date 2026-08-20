@@ -302,7 +302,7 @@ const Treasurer_Approval = () => {
                         <td className="p-5 text-sm text-right pr-8">
                           <button
                             onClick={() => navigate(`/treasurer-approval/${loan.id}?source=${loan.source}`)}
-                            className="btn-enhanced text-[#1D6021] font-bold hover:text-green-800 transition-all"
+                            className="btn-enhanced text-member-green font-bold hover:text-green-800 transition-all"
                           >
                             {loan.actions}
                           </button>

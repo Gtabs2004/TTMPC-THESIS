@@ -143,8 +143,8 @@ export default function ChangeEmail() {
 
       <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl shadow-sm p-6 sm:p-8">
         <div className="flex items-center gap-3 mb-2">
-          <div className="w-10 h-10 rounded-full bg-[#1D6021]/10 dark:bg-green-900/30 flex items-center justify-center">
-            <Mail className="w-5 h-5 text-[#1D6021] dark:text-green-400" />
+          <div className="w-10 h-10 rounded-full bg-member-green/10 dark:bg-green-900/30 flex items-center justify-center">
+            <Mail className="w-5 h-5 text-member-green dark:text-green-400" />
           </div>
           <div>
             <h1 className="text-lg font-bold text-gray-900 dark:text-white">Change Email</h1>
@@ -158,8 +158,8 @@ export default function ChangeEmail() {
 
         {/* Stepper */}
         <div className="flex items-center gap-2 my-6 text-xs">
-          <div className={`flex-1 h-1 rounded-full ${step >= 1 ? "bg-[#1D6021]" : "bg-gray-200 dark:bg-gray-700"}`} />
-          <div className={`flex-1 h-1 rounded-full ${step >= 2 ? "bg-[#1D6021]" : "bg-gray-200 dark:bg-gray-700"}`} />
+          <div className={`flex-1 h-1 rounded-full ${step >= 1 ? "bg-member-green" : "bg-gray-200 dark:bg-gray-700"}`} />
+          <div className={`flex-1 h-1 rounded-full ${step >= 2 ? "bg-member-green" : "bg-gray-200 dark:bg-gray-700"}`} />
         </div>
 
         {step === 1 && (
@@ -184,7 +184,7 @@ export default function ChangeEmail() {
                 autoComplete="email"
                 required
                 disabled={submitting}
-                className="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1D6021]"
+                className="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-member-green"
               />
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                 We'll send a 6-digit code to this address to verify you own it.
@@ -196,7 +196,7 @@ export default function ChangeEmail() {
             <button
               type="submit"
               disabled={submitting}
-              className="w-full bg-[#1D6021] text-white font-bold rounded-lg px-4 py-2.5 text-sm hover:bg-[#154718] disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+              className="w-full bg-member-green text-white font-bold rounded-lg px-4 py-2.5 text-sm hover:bg-[#154718] disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
             >
               {submitting ? "Sending code…" : "Send verification code"}
             </button>
@@ -223,7 +223,7 @@ export default function ChangeEmail() {
                 onChange={(e) => { setCode(e.target.value.replace(/\D/g, "").slice(0, 6)); setError(""); }}
                 required
                 disabled={submitting}
-                className="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 rounded-lg px-3 py-2 text-lg tracking-[0.5em] text-center font-bold focus:outline-none focus:ring-2 focus:ring-[#1D6021]"
+                className="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 rounded-lg px-3 py-2 text-lg tracking-[0.5em] text-center font-bold focus:outline-none focus:ring-2 focus:ring-member-green"
               />
             </div>
 
@@ -233,7 +233,7 @@ export default function ChangeEmail() {
               <button
                 type="submit"
                 disabled={submitting}
-                className="flex-1 bg-[#1D6021] text-white font-bold rounded-lg px-4 py-2.5 text-sm hover:bg-[#154718] disabled:opacity-60 transition-colors"
+                className="flex-1 bg-member-green text-white font-bold rounded-lg px-4 py-2.5 text-sm hover:bg-[#154718] disabled:opacity-60 transition-colors"
               >
                 {submitting ? "Verifying…" : "Verify & update email"}
               </button>

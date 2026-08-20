@@ -253,7 +253,7 @@ const ManageLoans = () => {
             <div className="flex flex-row items-start gap-2 mb-6">
               <img src="/img/ttmpc logo.png" alt="Logo" className="h-12 w-auto" />
               <div className="flex flex-col">
-                <h1 className="text-xl font-bold text-[#389734]">TTMPC</h1>
+                <h1 className="text-xl font-bold text-primary">TTMPC</h1>
                  <PortalSidebarIdentity className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold" fallbackPortal="Bookkeeper Portal" fallbackRole="Bookkeeper" />
               </div>
             </div>
@@ -351,7 +351,7 @@ const ManageLoans = () => {
             <div className="flex items-center gap-2 text-sm text-gray-500 font-medium mb-1">
                               <span>Bookkeeper</span>
                               <ChevronRight className="w-4 h-4 text-gray-300" />
-                              <span className="text-[#389734]">Manage loans</span>
+                              <span className="text-primary">Manage loans</span>
                             </div>
 
               <p className="text-base text-gray-600 mt-2">Track loan status, monitor balances, and manage member ledger records in real-time.</p>

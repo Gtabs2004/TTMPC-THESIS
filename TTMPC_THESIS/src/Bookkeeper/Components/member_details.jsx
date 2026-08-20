@@ -545,7 +545,7 @@ const DebtCapacityPanel = ({ membershipId }) => {
         <div className="overflow-x-auto rounded-lg border border-gray-100">
           <table className="w-full text-left border-collapse text-sm">
             <thead>
-              <tr className="bg-[#1D6021] text-xs uppercase tracking-wider text-white font-extrabold">
+              <tr className="bg-member-green text-xs uppercase tracking-wider text-white font-extrabold">
                 <th className="p-3 font-bold">Type</th>
                 <th className="p-3 font-bold">Control No.</th>
                 <th className="p-3 font-bold">Status</th>

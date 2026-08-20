@@ -8,8 +8,8 @@ const Toggle = ({ enabled, onToggle }) => (
   <button
     onClick={onToggle}
     aria-pressed={enabled}
-    className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors duration-300 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1D6021] focus-visible:ring-offset-2 ${
-      enabled ? 'bg-[#1D6021]' : 'bg-gray-200 dark:bg-gray-700'
+    className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors duration-300 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-member-green focus-visible:ring-offset-2 ${
+      enabled ? 'bg-member-green' : 'bg-gray-200 dark:bg-gray-700'
     }`}
   >
     <span
@@ -132,7 +132,7 @@ const SettingsDrawer = ({ isOpen, onClose }) => {
               <div className="flex items-center justify-between p-4 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
                 <div className="flex items-center gap-4">
                   <div className="w-10 h-10 rounded-xl bg-green-50 dark:bg-green-900/30 flex items-center justify-center flex-shrink-0 border border-green-100 dark:border-green-800/50">
-                    <Bell className="w-5 h-5 text-[#1D6021] dark:text-green-400" />
+                    <Bell className="w-5 h-5 text-member-green dark:text-green-400" />
                   </div>
                   <div>
                     <p className="text-sm font-bold text-gray-900 dark:text-white">Due Date Reminders</p>

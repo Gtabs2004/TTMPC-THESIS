@@ -14,7 +14,7 @@ import { TrendingUp, Loader2, AlertCircle, Info } from "lucide-react";
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 
 const LOAN_TYPES = [
-  { value: "consolidated", label: "Consolidated", color: "#1D6021" },
+  { value: "consolidated", label: "Consolidated", color: "var(--color-member-green)" },
   { value: "emergency",    label: "Emergency",    color: "#B45309" },
 ];
 
@@ -325,7 +325,7 @@ const LoanDemandForecastCard = ({ className = "" }) => {
       <div className="flex flex-wrap items-start justify-between gap-3 mb-5">
         <div>
           <h2 className="flex items-center text-lg font-bold text-[#1F3E35]">
-            <TrendingUp className="w-5 h-5 mr-2 text-[#1D6021]" />
+            <TrendingUp className="w-5 h-5 mr-2 text-member-green" />
             Loan Demand Forecast — {currentYear ?? "…"}
           </h2>
           <p className="text-xs text-gray-500 mt-1">
