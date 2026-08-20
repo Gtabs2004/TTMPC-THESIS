@@ -4159,12 +4159,16 @@ async def get_bookkeeper_manage_loans():
             else:
                 repayment_status = "Unpaid"
 
+            loan_schedules = schedules_by_loan.get(loan_id, [])
             active_due = None
-            for schedule in schedules_by_loan.get(loan_id, []):
+            for schedule in loan_schedules:
                 status = str(schedule.get("schedule_status") or "").strip().lower()
-                if status in {"unpaid", "pending", "overdue", ""}:
+                if status not in {"paid", "validated", "cancelled"}:
                     active_due = schedule
                     break
+            # Fallback: if every schedule is paid/validated, use the last one
+            if not active_due and loan_schedules:
+                active_due = loan_schedules[-1]
 
             due_date = active_due.get("due_date") if active_due else None
 
