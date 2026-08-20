@@ -66,14 +66,14 @@ const BookkeeperSavingsTransactions = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [activeTab, setActiveTab] = useState("pending_verification");
   const [workingId, setWorkingId] = useState("");
-  const [isSavingsOpen, setIsSavingsOpen] = useState(true);
+  const [isSavingsOpen, setIsSavingsOpen] = useState(false);
 
   const menuItems = [
       { name: "Dashboard", icon: LayoutDashboard },
       { name: "Manage Member", icon: Users },
       { name: "Loan Approval", icon: FileText },
       { name: "Manage Loans", icon: Briefcase },
-      { name: "Delinquency", icon: ShieldAlert },
+    
       { name: "Credit Risk", icon: Brain },
       { name: "Payments", icon: Wallet },
       {
@@ -90,7 +90,7 @@ const BookkeeperSavingsTransactions = () => {
       { name: "Reports", icon: BarChart3 },
       { name: "Audit Trail", icon: History },
       { name: "Grocery", icon: Coins },
-      { name: "Legacy Member Validation", icon: Search },
+      
     ];
 
   const routeMap = {

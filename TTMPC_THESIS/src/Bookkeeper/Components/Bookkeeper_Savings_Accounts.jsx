@@ -109,7 +109,7 @@ const Bookkeeper_Savings_Accounts = () => {
   const [kindFilter, setKindFilter] = useState("all");
   const [sortBy, setSortBy] = useState("balance");
   const [showFilters, setShowFilters] = useState(false);
-  const [isSavingsOpen, setIsSavingsOpen] = useState(true);
+  const [isSavingsOpen, setIsSavingsOpen] = useState(false);
   const [page, setPage] = useState(1);
 
   const menuItems = [

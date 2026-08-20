@@ -25,6 +25,7 @@ import {
   ShieldAlert,
   AlertTriangle,
   ChevronRight,
+  ChevronDown,
   Brain,
 } from "lucide-react";
 import {
@@ -100,22 +101,31 @@ const Dashboard = () => {
   const [loadError, setLoadError] = useState("");
   const [creditRiskQueue, setCreditRiskQueue] = useState([]);
   const [creditRiskModelVersion, setCreditRiskModelVersion] = useState(null);
+  const [isSavingsOpen, setIsSavingsOpen] = useState(false);
 
    const menuItems = [
        { name: "Dashboard", icon: LayoutDashboard },
        { name: "Manage Member", icon: Users },
        { name: "Loan Approval", icon: FileText },
        { name: "Manage Loans", icon: Briefcase },
-      { name: "Delinquency", icon: ShieldAlert },
+
       { name: "Credit Risk", icon: Brain },
        { name: "Payments", icon: Wallet },
-       { name: "Savings Withdrawals", icon: CreditCard },
+       {
+         name: "Savings Accounts",
+         icon: PiggyBank,
+         isDropdown: true,
+         subItems: [
+           { name: "All Accounts", path: "/bookkeeper-savings-accounts" },
+           { name: "Savings Withdrawals", path: "/bookkeeper-savings-transactions" },
+         ],
+       },
        { name: "Accounting", icon: Calculator },
        { name: "MIGS Scoring", icon: Activity },
        { name: "Reports", icon: BarChart3 },
        { name: "Audit Trail", icon: History },
        { name: "Grocery", icon: Coins },
-       { name: "Legacy Member Validation", icon: Search },
+       
      ];
 
  const routeMap = {
@@ -123,7 +133,7 @@ const Dashboard = () => {
     "Manage Member": "/manage-member",
     "Loan Approval": "/bookkeeper-loan-approval",
     "Manage Loans": "/manage-loans",
-    Delinquency: "/delinquency",
+ 
     "Credit Risk": "/bookkeeper-credit-risk",
     Payments: "/payments",
     "Savings Withdrawals": "/bookkeeper-savings-transactions",
@@ -132,7 +142,7 @@ const Dashboard = () => {
     Reports: "/reports",
     "Audit Trail": "/audit-trail",
     Grocery: "/grocery",
-    "Legacy Member Validation": "/legacy-member-validation",
+    
   }
 
   const handleSignOut = async (e) => {
@@ -501,6 +511,41 @@ const Dashboard = () => {
         <nav className="flex flex-col gap-2 text-sm flex-grow">
           {menuItems.map((item) => {
             const Icon = item.icon;
+            if (item.isDropdown) {
+              return (
+                <div key={item.name} className="flex flex-col">
+                  <button
+                    onClick={() => setIsSavingsOpen(!isSavingsOpen)}
+                    className="flex items-center justify-between p-2 rounded-md text-gray-700 hover:bg-green-50 hover:text-green-700 transition-colors w-full"
+                  >
+                    <div className="flex items-center gap-3">
+                      <Icon size={20} />
+                      <span>{item.name}</span>
+                    </div>
+                    {isSavingsOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                  </button>
+                  {isSavingsOpen && (
+                    <div className="flex flex-col mt-1 space-y-1">
+                      {item.subItems.map((subItem) => (
+                        <NavLink
+                          key={subItem.name}
+                          to={subItem.path}
+                          className={({ isActive }) =>
+                            `block pl-11 pr-4 py-2 rounded-md transition-colors text-[13px] ${
+                              isActive
+                                ? "text-green-700 font-semibold"
+                                : "text-gray-500 hover:text-green-700 hover:bg-green-50"
+                            }`
+                          }
+                        >
+                          {subItem.name}
+                        </NavLink>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            }
             const to = routeMap[item.name] || `/${item.name.toLowerCase().replace(/\s+/g, "-")}`;
 
             return (
