@@ -788,7 +788,7 @@ const MemberDashboard = () => {
         <div className="flex flex-row items-start gap-2 mb-6">
           <img src="/img/ttmpc logo.png" alt="Logo" className="h-12 w-auto" />
           <div className="flex flex-col">
-            <h1 className="text-xl font-bold text-[#389734]">TTMPC</h1>
+            <h1 className="text-xl font-bold text-primary">TTMPC</h1>
             <p className="text-[10px] uppercase tracking-wider text-gray-500 dark:text-gray-400 font-bold">
               Members Portal
             </p>
@@ -820,8 +820,8 @@ const MemberDashboard = () => {
                   className={({ isActive }) =>
                     `flex items-center gap-3 p-2.5 rounded-lg transition-colors ${
                       isActive
-                        ? 'bg-[#EAF1EB] text-[#1D6021] font-bold dark:bg-green-900/30 dark:text-green-400'
-                        : 'text-gray-600 hover:bg-gray-50 hover:text-[#1D6021] font-medium dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-green-400'
+                        ? 'bg-[#EAF1EB] text-member-green font-bold dark:bg-green-900/30 dark:text-green-400'
+                        : 'text-gray-600 hover:bg-gray-50 hover:text-member-green font-medium dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-green-400'
                     }`
                   }
                 >
@@ -839,7 +839,7 @@ const MemberDashboard = () => {
    
         <button
           onClick={handleSignOut}
-          className="mt-auto w-full rounded-lg p-2.5 text-sm bg-[#1D6021] hover:bg-[#154718] text-white font-bold transition-colors"
+          className="mt-auto w-full rounded-lg p-2.5 text-sm bg-member-green hover:bg-[#154718] text-white font-bold transition-colors"
         >
           Sign out
         </button>
@@ -862,7 +862,7 @@ const MemberDashboard = () => {
 
                 <div className="flex items-center gap-2 sm:gap-4">
                   
-                  <LoanNotificationBell role="member" accentClass="bg-[#1D6021]" />
+                  <LoanNotificationBell role="member" accentClass="bg-member-green" />
                   <button
                     onClick={() => setIsSettingsOpen(true)}
                     className="p-2 rounded-md text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
@@ -882,14 +882,14 @@ const MemberDashboard = () => {
               <button
                 type="button"
                 onClick={() => navigate('/member-apply-loans')}
-                className="inline-flex items-center gap-2 rounded-lg bg-[#1D6021] hover:bg-[#154718] text-white text-xs font-bold px-4 py-2 shadow-sm cursor-pointer"
+                className="inline-flex items-center gap-2 rounded-lg bg-member-green hover:bg-[#154718] text-white text-xs font-bold px-4 py-2 shadow-sm cursor-pointer"
               >
                 <FileText className="w-4 h-4" /> Apply for Loans
               </button>
               <button
                 type="button"
                 onClick={() => setIsCalculatorOpen(true)}
-                className="inline-flex items-center gap-2 rounded-lg bg-[#1D6021] hover:bg-[#154718] text-white text-xs font-bold px-4 py-2 shadow-sm cursor-pointer"
+                className="inline-flex items-center gap-2 rounded-lg bg-member-green hover:bg-[#154718] text-white text-xs font-bold px-4 py-2 shadow-sm cursor-pointer"
               >
                 <Calculator className="w-4 h-4" /> Loan Calculator
               </button>
@@ -930,7 +930,7 @@ const MemberDashboard = () => {
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
                   <div className="flex items-center justify-center sm:justify-start gap-3">
                     <h2 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white">{profile?.fullName || 'Loading...'}</h2>
-                    <span className={`${profile?.isActive ? 'bg-[#1D6021]' : 'bg-gray-500'} text-white px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wider uppercase`}>
+                    <span className={`${profile?.isActive ? 'bg-member-green' : 'bg-gray-500'} text-white px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wider uppercase`}>
                       {profile?.isActive ? 'Active' : 'Inactive'}
                     </span>
                   </div>
@@ -951,7 +951,7 @@ const MemberDashboard = () => {
                 ) : null}
 
                 <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
-                  <button onClick={() => navigate('/members-profile')} className="flex items-center justify-center gap-2 border border-[#1D6021] text-[#1D6021] hover:bg-[#EAF1EB] dark:border-green-500 dark:text-green-400 dark:hover:bg-green-900/30 transition-colors font-bold rounded-lg px-4 py-2 text-sm">
+                  <button onClick={() => navigate('/members-profile')} className="flex items-center justify-center gap-2 border border-member-green text-member-green hover:bg-[#EAF1EB] dark:border-green-500 dark:text-green-400 dark:hover:bg-green-900/30 transition-colors font-bold rounded-lg px-4 py-2 text-sm">
                   <Pencil className="w-4 h-4" /> Edit Profile
                   </button>
                 </div>
@@ -974,11 +974,11 @@ const MemberDashboard = () => {
                 // Dynamic styling based on status
                 const barColor = isUnscored
                   ? 'bg-gray-300 dark:bg-gray-700'
-                  : (isMigs ? 'bg-[#1D6021]' : 'bg-rose-500');
+                  : (isMigs ? 'bg-member-green' : 'bg-rose-500');
 
                 const badgeClasses = isUnscored
                   ? 'bg-gray-100 text-gray-500 border-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-700'
-                  : (isMigs ? 'bg-green-50 text-[#1D6021] border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800' : 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-900/30 dark:text-rose-400 dark:border-rose-800');
+                  : (isMigs ? 'bg-green-50 text-member-green border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800' : 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-900/30 dark:text-rose-400 dark:border-rose-800');
 
                 // Loading State
                 if (migsLabelStatus === 'loading') {
@@ -1024,7 +1024,7 @@ const MemberDashboard = () => {
                     <div className="mt-1">
                       <div className="flex justify-between items-center text-xs font-bold mb-2">
                         <span className="text-gray-500 dark:text-gray-400"> Progress</span>
-                        <span className={isMigs ? "text-[#1D6021] dark:text-green-400" : (isUnscored ? "text-gray-400 dark:text-gray-500" : "text-rose-600 dark:text-rose-400")}>
+                        <span className={isMigs ? "text-member-green dark:text-green-400" : (isUnscored ? "text-gray-400 dark:text-gray-500" : "text-rose-600 dark:text-rose-400")}>
                           {percentage}%
                         </span>
                       </div>
@@ -1047,7 +1047,7 @@ const MemberDashboard = () => {
             {/* Share Capital */}
             <div className="bg-white dark:bg-gray-900 p-5 sm:p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col">
               <div className="w-8 h-8 rounded-lg bg-[#EAF1EB] dark:bg-green-900/30 flex items-center justify-center mb-4">
-                <Wallet className="w-4 h-4 text-[#1D6021] dark:text-green-400" />
+                <Wallet className="w-4 h-4 text-member-green dark:text-green-400" />
               </div>
               <p className="text-xs font-bold text-gray-500 dark:text-gray-400 mb-1">Share Capital</p>
               <h3 className="text-xl sm:text-2xl font-black text-gray-900 dark:text-white mb-2">{formatCurrency(profile?.shareCapital || 0)}</h3>
@@ -1102,14 +1102,14 @@ const MemberDashboard = () => {
             <div>
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center">
-                  <History className="w-5 h-5 mr-2 text-[#1D6021] dark:text-green-400" /> Recent Transactions
+                  <History className="w-5 h-5 mr-2 text-member-green dark:text-green-400" /> Recent Transactions
                 </h3>
-                <button className="text-sm font-bold text-[#1D6021] dark:text-green-400 hover:underline">View All</button>
+                <button className="text-sm font-bold text-member-green dark:text-green-400 hover:underline">View All</button>
               </div>
               
               <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 overflow-hidden">
-                <div className="overflow-x-auto">
-                <table className="w-full min-w-[640px] text-left border-collapse">
+                <div className="hidden md:block overflow-x-auto">
+                <table className="w-full text-left border-collapse">
                   <thead>
                     <tr className="bg-green-700 text-[10px] uppercase tracking-wider text-white font-extrabold">
                       <th className="p-5">Date</th>
@@ -1128,7 +1128,7 @@ const MemberDashboard = () => {
                             {tx.category}
                           </span>
                         </td>
-                        <td className={`p-5 text-sm font-bold text-right ${tx.highlight ? 'text-[#1D6021] dark:text-green-400' : 'text-gray-900 dark:text-white'}`}>
+                        <td className={`p-5 text-sm font-bold text-right ${tx.highlight ? 'text-member-green dark:text-green-400' : 'text-gray-900 dark:text-white'}`}>
                           {tx.amount}
                         </td>
                       </tr>
@@ -1139,6 +1139,29 @@ const MemberDashboard = () => {
                     )}
                   </tbody>
                 </table>
+                </div>
+
+                <div className="divide-y divide-gray-100 dark:divide-gray-800 md:hidden">
+                  {recentTransactions.length ? recentTransactions.map((tx) => (
+                    <div key={tx.id} className="px-4 py-3.5 hover:bg-gray-50/50 dark:hover:bg-gray-800/50 transition-colors">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-bold text-gray-800 dark:text-gray-200">{tx.desc}</p>
+                          <div className="mt-1 flex items-center gap-2">
+                            <span className={`badge-animated inline-flex px-2 py-0.5 rounded text-[9px] font-extrabold tracking-wider ${getCategoryStyle(tx.type)}`}>
+                              {tx.category}
+                            </span>
+                            <span className="text-xs text-gray-500 dark:text-gray-400">{tx.date}</span>
+                          </div>
+                        </div>
+                        <span className={`shrink-0 text-sm font-bold ${tx.highlight ? 'text-member-green dark:text-green-400' : 'text-gray-900 dark:text-white'}`}>
+                          {tx.amount}
+                        </span>
+                      </div>
+                    </div>
+                  )) : (
+                    <p className="p-6 text-sm text-gray-500 dark:text-gray-400 text-center">No transactions yet.</p>
+                  )}
                 </div>
               </div>
             </div>

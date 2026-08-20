@@ -23,7 +23,7 @@ import {
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 const FORECAST_LOAN_TYPES = [
-  { value: "consolidated", label: "Consolidated", color: "#1D6021" },
+  { value: "consolidated", label: "Consolidated", color: "var(--color-member-green)" },
   { value: "emergency",    label: "Emergency",    color: "#B45309" },
 ];
 
@@ -214,7 +214,7 @@ const Vault = () => {
                  <div className="flex items-center gap-2 text-sm text-gray-500 font-medium mb-1">
                 <span>Treasurer</span>
                 <ChevronRight className="w-4 h-4 text-gray-300" />
-                <span className="text-[#389734]">Cooperative Vault</span>
+                <span className="text-primary">Cooperative Vault</span>
               </div>
               <h1 className="text-3xl font-bold text-gray-900">Vault</h1>
               <p className="text-sm text-gray-600 mt-1">

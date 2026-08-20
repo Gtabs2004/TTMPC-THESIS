@@ -8,6 +8,7 @@ import { resolveAccountFromSessionUser } from '../utils/sessionIdentity';
 import { useMigsLabel } from '../hooks/useMigsLabel';
 import { useNotification } from '../contex/NotificationContext';
 import { Loader2, ShieldCheck, Trash2, Plus, CheckCircle2, ImagePlus } from 'lucide-react';
+import MobileFormStepper from '../components/MobileFormStepper';
 
 // Function to generate control number: CL-YYYYMMDD-XXXX
 const generateControlNumber = () => {
@@ -86,6 +87,14 @@ function Consolidated_Up() {
   const [loading, setLoading] = useState(false);
   const [printing, setPrinting] = useState(false);
   const [showSummary, setShowSummary] = useState(false);
+  const [mobileStep, setMobileStep] = useState(0);
+  const formRef = useRef(null);
+  const mobileSteps = [
+    { id: 'borrower', label: "Borrower's Information" },
+    { id: 'agreement', label: 'Loan Agreement' },
+    { id: 'requirements', label: 'Requirements & Details' },
+    { id: 'review', label: 'Review & Submit' },
+  ];
   const [lockedFields, setLockedFields] = useState(() => new Set());
 
   const isLockedField = (name) => lockedFields.has(name);
@@ -892,8 +901,35 @@ function Consolidated_Up() {
     }
   };
 
+  const validateMobileStep = (step) => {
+    const fields = formRef.current?.querySelectorAll(`[data-mobile-step="${step}"] input, [data-mobile-step="${step}"] select, [data-mobile-step="${step}"] textarea`) || [];
+    const invalidField = Array.from(fields).find((field) => !field.checkValidity());
+    if (!invalidField) return true;
+    invalidField.reportValidity();
+    return false;
+  };
+
+  const validateAllMobileSteps = () => {
+    for (let step = 0; step < mobileSteps.length - 1; step += 1) {
+      if (!validateMobileStep(step)) {
+        setMobileStep(step);
+        return false;
+      }
+    }
+    return true;
+  };
+
+  const goToNextMobileStep = () => {
+    if (validateMobileStep(mobileStep)) setMobileStep((step) => Math.min(step + 1, mobileSteps.length - 1));
+  };
+
   const handleFormSubmit = (e) => {
     e.preventDefault();
+    if (window.matchMedia('(max-width: 767px)').matches && mobileStep < mobileSteps.length - 1) {
+      goToNextMobileStep();
+      return;
+    }
+    if (window.matchMedia('(max-width: 767px)').matches && !validateAllMobileSteps()) return;
     if (loading || printing || exceedsCeiling || renewalBlocked || eligibilityFailed || stressIndexExceeded || !isPolicyCompliant) return;
     setShowSummary(true);
   };
@@ -906,19 +942,19 @@ function Consolidated_Up() {
   return (
     <div className="flex flex-col min-h-screen bg-gray-100 pb-20">
       {/* Header */}
-      <header className="w-full bg-[#E9F7DE] h-20 shadow-lg flex text-col px-6">
-        <div className="flex flex-row items-center justify-between w-full gap-4">
-          <div className="flex flex-row items-center gap-4">
+      <header className="w-full bg-[#E9F7DE] min-h-20 shadow-lg flex px-4 py-3 sm:px-6">
+          <div className="flex w-full flex-col items-start justify-between gap-3 sm:flex-row sm:items-center sm:gap-4">
+            <div className="flex min-w-0 flex-row items-center gap-3 sm:gap-4">
           <img src="/img/ttmpc logo.png" alt="Logo" className="h-12 w-auto" />
-          <div className="flex flex-col">
-            <h1 className="text-sm font-bold text-[#66B538]">Tubungan Teacher's Multi‑Purpose Cooperative</h1>
+            <div className="min-w-0 flex flex-col">
+              <h1 className="break-words text-xs font-bold text-[#66B538] sm:text-sm">Tubungan Teacher's Multi‑Purpose Cooperative</h1>
             <p className="text-[#A0D284] text-xs">Loan Application Kiosk</p>
           </div>
           </div>
           <button
             type="button"
             onClick={() => navigate('/member-apply-loans')}
-            className="rounded-lg bg-white px-4 py-2 text-xs font-bold text-[#1D6021] shadow-sm border border-[#D5EDB9] hover:bg-[#F4FBF0]"
+            className="w-full rounded-lg bg-white px-4 py-2 text-xs font-bold text-member-green shadow-sm border border-[#D5EDB9] hover:bg-[#F4FBF0] sm:w-auto"
           >
             Back to Member Portal
           </button>
@@ -926,12 +962,12 @@ function Consolidated_Up() {
       </header>
 
       {/* Main Form Wrapping everything */}
-      <form onSubmit={handleFormSubmit}>
-        <section className="grid gap-8 px-4">
-          <h1 className="text-center text-2xl font-bold mt-12 text-[#66B538]">CONSOLIDATED LOAN APPLICATION (Over ₱500,000)</h1>
+      <form ref={formRef} noValidate={window.matchMedia('(max-width: 767px)').matches} onSubmit={handleFormSubmit} className="px-3 sm:px-4">
+        <section className="grid gap-6 px-3 sm:gap-8 sm:px-4">
+          <h1 className="mt-8 text-center text-xl font-bold text-[#66B538] sm:mt-12 sm:text-2xl">CONSOLIDATED LOAN APPLICATION (Over ₱500,000)</h1>
           <div className="max-w-6xl mx-auto w-full">
-            <div className="bg-[#EEF6F1] rounded-xl p-6 border-2 border-[#66B538] flex flex-wrap items-center justify-between gap-6">
-              <div className="flex gap-8">
+            <div className="bg-[#EEF6F1] rounded-xl p-4 border-2 border-[#66B538] flex flex-col items-start justify-between gap-4 sm:p-6 md:flex-row md:items-center md:gap-6">
+              <div className="flex flex-wrap gap-4 sm:gap-8">
                 <label className="flex items-center space-x-2 cursor-pointer">
                   <input type="radio" name="application_type" value="New" checked={formData.application_type === 'New'} onChange={handleChange} className="h-4 w-4 accent-[#66B538]" />
                   <span className="font-semibold text-gray-700">New</span>
@@ -946,7 +982,7 @@ function Consolidated_Up() {
                   )}
                 </label>
               </div>
-              <div className="flex flex-wrap gap-4">
+              <div className="grid w-full grid-cols-1 gap-3 sm:flex sm:flex-wrap sm:gap-4 md:w-auto">
                 <div>
                   <label className="block text-[10px] uppercase font-bold text-gray-500">Control No.</label>
                   <input type="text" name="control_no" value={formData.control_no} readOnly tabIndex={-1} aria-readonly title="System-generated control number." className="border border-gray-200 rounded px-3 py-1.5 w-full sm:w-48 bg-gray-100 text-gray-600 cursor-not-allowed select-text" />
@@ -987,7 +1023,7 @@ function Consolidated_Up() {
         )}
 
         {/* Section 1: BORROWER'S INFORMATION */}
-        <div className="mt-10 bg-white rounded-lg shadow-md overflow-hidden max-w-6xl mx-auto w-full">
+        <div data-mobile-step="0" className={`${mobileStep === 0 ? 'block' : 'hidden'} md:block mt-10 bg-white rounded-lg shadow-md overflow-hidden max-w-6xl mx-auto w-full`}>
           <div className={sectionHeader}>
             <span className="bg-white text-[#66B538] rounded-full w-6 h-6 flex items-center justify-center text-sm">1</span>
             BORROWER'S INFORMATION
@@ -1031,7 +1067,7 @@ function Consolidated_Up() {
         </div>
 
        {/* Section 2: LOAN AGREEMENT */}
-        <div className="mt-8 bg-white rounded-lg shadow-md overflow-hidden max-w-6xl mx-auto w-full">
+        <div data-mobile-step="1" className={`${mobileStep === 1 ? 'block' : 'hidden'} md:block mt-8 bg-white rounded-lg shadow-md overflow-hidden max-w-6xl mx-auto w-full`}>
           <div className={sectionHeader}>
             <span className="bg-white text-[#66B538] rounded-full w-6 h-6 flex items-center justify-center text-sm">2</span>
             LOAN AGREEMENT
@@ -1059,7 +1095,7 @@ function Consolidated_Up() {
               </div>
             )}
             
-            <div className="leading-[3.5rem]">
+            <div className="leading-relaxed sm:leading-[3.5rem]">
               I hereby apply for a loan in the amount of
               <input
                 type="text"
@@ -1069,7 +1105,7 @@ function Consolidated_Up() {
                 tabIndex={-1}
                 aria-readonly
                 title="Auto-generated from the selected loan amount."
-                className="border border-gray-200 rounded-md px-3 py-1.5 outline-none bg-gray-100 text-gray-600 text-sm mx-2 w-full sm:w-[22rem] inline-block align-middle cursor-not-allowed select-text"
+                className="border border-gray-200 rounded-md px-3 py-1.5 outline-none bg-gray-100 text-gray-600 text-sm mx-0 my-2 w-full sm:mx-2 sm:my-0 sm:w-[22rem] inline-block align-middle cursor-not-allowed select-text"
               />
               <div className="inline-flex items-center relative mr-2 align-middle leading-none">
                 <select
@@ -1100,7 +1136,7 @@ function Consolidated_Up() {
                 name="loan_purpose" 
                 value={formData.loan_purpose} 
                 onChange={handleChange} 
-                className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-[#66B538] outline-none bg-white text-sm transition-all mx-2 w-full sm:w-64 inline-block align-middle" 
+                className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-[#66B538] outline-none bg-white text-sm transition-all mx-0 my-2 w-full sm:mx-2 sm:my-0 sm:w-64 inline-block align-middle"
               >
                 <option value="">Select Purpose</option>
                 <option value="Emergency Needs">Emergency Needs</option>
@@ -1154,7 +1190,7 @@ function Consolidated_Up() {
                 tabIndex={-1}
                 aria-readonly
                 title="System-computed from principal, term and interest rate."
-                className={`border rounded-md px-3 py-1.5 outline-none text-sm transition-all mx-2 w-48 inline-block align-middle cursor-not-allowed select-text ${
+                className={`border rounded-md px-3 py-1.5 outline-none text-sm transition-all mx-0 my-2 w-full sm:mx-2 sm:my-0 sm:w-48 inline-block align-middle cursor-not-allowed select-text ${
                   hasComputedAmortization
                     ? 'border-[#66B538] bg-[#E9F7DE] text-[#2E7D32] font-semibold'
                     : 'border-gray-200 bg-gray-100 text-gray-600'
@@ -1172,7 +1208,7 @@ function Consolidated_Up() {
           </div>
         </div>
         {/* Section 2.5: COLLATERAL */}
-        <div className="mt-8 bg-white rounded-xl shadow-sm ring-1 ring-gray-200 overflow-hidden max-w-6xl mx-auto w-full">
+        <div data-mobile-step="2" className={`${mobileStep === 2 ? 'block' : 'hidden'} md:block mt-8 bg-white rounded-xl shadow-sm ring-1 ring-gray-200 overflow-hidden max-w-6xl mx-auto w-full`}>
           <div className="bg-[#66B538] text-white px-5 py-4 flex items-center gap-3">
             <span className="bg-white/15 ring-1 ring-white/25 rounded-lg w-9 h-9 flex items-center justify-center">
               <ShieldCheck className="h-5 w-5" aria-hidden="true" />
@@ -1345,7 +1381,7 @@ function Consolidated_Up() {
         </div>
 
         {/* Section 3: LOAN CONTRACT */}
-        <div className="mt-8 bg-white rounded-lg shadow-md overflow-hidden max-w-6xl mx-auto w-full">
+        <div data-mobile-step="2" className={`${mobileStep === 2 ? 'block' : 'hidden'} md:block mt-8 bg-white rounded-lg shadow-md overflow-hidden max-w-6xl mx-auto w-full`}>
           <div className={sectionHeader}>
             <span className="bg-white text-[#66B538] rounded-full w-6 h-6 flex items-center justify-center text-sm">3</span>
             LOAN CONTRACT
@@ -1439,7 +1475,7 @@ function Consolidated_Up() {
         </div>
 
         {/* Section 4: ADDITIONAL INFORMATION */}
-        <div className="mt-8 bg-white rounded-lg shadow-md overflow-hidden max-w-6xl mx-auto w-full">
+        <div data-mobile-step="2" className={`${mobileStep === 2 ? 'block' : 'hidden'} md:block mt-8 bg-white rounded-lg shadow-md overflow-hidden max-w-6xl mx-auto w-full`}>
           <div className={sectionHeader}>
             <span className="bg-white text-[#66B538] rounded-full w-6 h-6 flex items-center justify-center text-sm">4</span>
             BORROWER'S ADDITIONAL INFORMATION
@@ -1450,13 +1486,86 @@ function Consolidated_Up() {
           </div>
         </div>
 
-        <div className="mt-8 max-w-6xl mx-auto w-full mb-8">
-          <div className="flex justify-end">
+        <div data-mobile-step="3" className={`${mobileStep === 3 ? 'block' : 'hidden'} md:hidden mt-8 rounded-lg border border-gray-200 bg-white p-4 shadow-sm`}>
+          <h2 className="text-base font-bold text-gray-900">Review your application</h2>
+          <p className="mt-1 text-xs text-gray-500">Check each section below before submitting this high-value loan application. Tap Edit to go back and make changes.</p>
+
+          {[
+            {
+              step: 0,
+              title: "Borrower's Information",
+              rows: [
+                ['Name', `${formData.first_name} ${formData.middle_name} ${formData.surname}`.trim()],
+                ['Contact No.', formData.contact_no],
+                ['Employer', formData.employer_name],
+                ['Civil Status', formData.civil_status],
+              ],
+            },
+            {
+              step: 1,
+              title: 'Loan Agreement',
+              rows: [
+                ['Loan Amount', formData.loan_amount_numeric ? formatCurrency(formData.loan_amount_numeric) : ''],
+                ['Purpose', formData.loan_purpose === 'Others' ? formData.loan_purpose_other : formData.loan_purpose],
+                ['Term', formData.loan_term_months ? `${formData.loan_term_months} months` : ''],
+                ['Monthly Amortization', formData.monthly_amortization ? formatCurrency(formData.monthly_amortization) : ''],
+              ],
+            },
+            {
+              step: 2,
+              title: 'Requirements & Details',
+              rows: [
+                ['Valid ID', formData.borrower_id_type],
+                ['ID Number', formData.borrower_id_number],
+                ['Email', formData.user_email],
+                ['Mobile / Tel No.', formData.mobile_tel_no],
+              ],
+            },
+          ].map((section) => {
+            const missingCount = formRef.current?.querySelectorAll(`[data-mobile-step="${section.step}"] :invalid`).length || 0;
+            return (
+              <div key={section.step} className="mt-4 rounded-lg border border-gray-200 overflow-hidden">
+                <div className="flex items-center justify-between gap-2 bg-gray-50 px-3 py-2 border-b border-gray-200">
+                  <span className="text-[11px] font-bold uppercase tracking-wide text-gray-500">{section.title}</span>
+                  <div className="flex items-center gap-2">
+                    {missingCount > 0 && (
+                      <span className="text-[10px] font-bold text-red-600">{missingCount} to fix</span>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setMobileStep(section.step)}
+                      className="text-xs font-semibold text-member-green hover:underline"
+                    >
+                      Edit
+                    </button>
+                  </div>
+                </div>
+                <dl className="px-3 py-3 space-y-2 text-sm">
+                  {section.rows.map(([label, value]) => (
+                    <div key={label} className="flex justify-between gap-3">
+                      <dt className="text-gray-500">{label}</dt>
+                      <dd className="text-right font-semibold text-gray-900">{value || '—'}</dd>
+                    </div>
+                  ))}
+                </dl>
+              </div>
+            );
+          })}
+
+          <button type="submit" disabled={loading || printing || exceedsCeiling || renewalBlocked || eligibilityFailed || stressIndexExceeded || !isPolicyCompliant} className="mt-5 w-full rounded bg-[#66B538] px-6 py-2.5 text-sm font-bold text-white transition-colors hover:bg-[#5aa12b] disabled:cursor-not-allowed disabled:opacity-50">
+            Continue to confirmation
+          </button>
+        </div>
+
+        <MobileFormStepper steps={mobileSteps} currentStep={mobileStep} onStepChange={setMobileStep} onNext={goToNextMobileStep} onPrevious={() => setMobileStep((step) => Math.max(step - 1, 0))} />
+
+        <div className="hidden md:block mt-8 max-w-6xl mx-auto w-full mb-8 px-3 sm:px-0">
+          <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
           <button 
             type="button" 
             onClick={handlePrintPdf}
             disabled={printing || loading}
-            className="mr-3 border border-[#66B538] text-[#66B538] px-6 py-2 rounded hover:bg-[#E9F7DE] transition-colors font-bold disabled:opacity-50 cursor-pointer"
+            className="w-full border border-[#66B538] text-[#66B538] px-6 py-2 rounded hover:bg-[#E9F7DE] transition-colors font-bold disabled:opacity-50 cursor-pointer sm:w-auto"
           >
             {printing ? "Preparing PDF..." : "Print PDF"}
           </button>
@@ -1464,7 +1573,7 @@ function Consolidated_Up() {
             type="submit"
             disabled={loading || printing || exceedsCeiling || renewalBlocked || eligibilityFailed || stressIndexExceeded || !isPolicyCompliant}
             title={submissionBlockMessage}
-            className="bg-[#66B538] text-white px-6 py-2 rounded hover:bg-[#5aa12b] transition-colors font-bold disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+            className="w-full bg-[#66B538] text-white px-6 py-2 rounded hover:bg-[#5aa12b] transition-colors font-bold disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer sm:w-auto"
           >
             {loading ? "Processing..." : "Submit Application"}
           </button>

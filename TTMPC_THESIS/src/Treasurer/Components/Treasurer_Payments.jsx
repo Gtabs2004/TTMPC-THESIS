@@ -166,7 +166,7 @@ const Treasurer_Payments = () => {
             <div className="flex items-center gap-2 text-sm text-gray-500 font-medium mb-1">
               <span>Treasurer</span>
               <ChevronRightIcon className="w-4 h-4 text-gray-300" />
-              <span className="text-[#389734]">Cash Ledger</span>
+              <span className="text-primary">Cash Ledger</span>
             </div>
             <h1 className="font-bold text-2xl text-gray-800">Cash Ledger</h1>
             <p className="text-sm text-gray-500 mt-1">

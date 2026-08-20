@@ -378,7 +378,7 @@ const MemberApprovalDetails = () => {
 
   const CustomCheckbox = ({ checked, onChange, label }) => (
     <div onClick={onChange} className="flex items-center gap-2 cursor-pointer mb-2 w-fit">
-      <div className={`w-4 h-4 rounded flex items-center justify-center transition-colors ${checked ? 'bg-[#1D6021]' : 'border border-gray-300 bg-white'}`}>
+      <div className={`w-4 h-4 rounded flex items-center justify-center transition-colors ${checked ? 'bg-member-green' : 'border border-gray-300 bg-white'}`}>
         {checked && <Check className="w-3 h-3 text-white" strokeWidth={3} />}
       </div>
       <span className="text-sm text-gray-700">{label}</span>
@@ -628,7 +628,7 @@ const MemberApprovalDetails = () => {
                   </label>
                   <textarea 
                     rows="4"
-                    className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-[#1D6021] focus:border-[#1D6021] outline-none"
+                    className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-member-green focus:border-member-green outline-none"
                     placeholder="Enter the detailed reason for revision or specific instructions for the user..."
                     value={remarks}
                     onChange={(e) => setRemarks(e.target.value)}

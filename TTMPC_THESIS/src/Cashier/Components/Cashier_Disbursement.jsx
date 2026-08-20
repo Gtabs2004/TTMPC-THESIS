@@ -327,7 +327,7 @@ const Cashier_Disbursement = () => {
                  <div className="flex flex-row items-start gap-2 mb-6">
                    <img src={logo} alt="Logo" className="h-12 w-auto" />
                    <div className="flex flex-col">
-                     <h1 className="text-xl font-bold text-[#389734]">TTMPC</h1>
+                     <h1 className="text-xl font-bold text-primary">TTMPC</h1>
                      <PortalSidebarIdentity
                        className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold"
                        fallbackPortal="Cashier Portal"
@@ -696,7 +696,7 @@ const Cashier_Disbursement = () => {
       {confirmation && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm px-4">
           <div className="w-full max-w-lg rounded-2xl bg-white shadow-2xl border border-gray-200 overflow-hidden">
-            <div className="flex items-start justify-between gap-4 px-6 py-5 bg-gradient-to-r from-[#389734] to-[#66B538] text-white">
+            <div className="flex items-start justify-between gap-4 px-6 py-5 bg-gradient-to-r from-primary to-[#66B538] text-white">
               <div className="flex items-start gap-3">
                 <div className="rounded-full bg-white/20 p-2">
                   <CheckCircle2 size={22} />
@@ -748,7 +748,7 @@ const Cashier_Disbursement = () => {
                 </div>
                 <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5">
                   <p className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold">Loan Status</p>
-                  <p className="font-semibold text-[#389734] mt-0.5 capitalize">{confirmation.loan_status}</p>
+                  <p className="font-semibold text-primary mt-0.5 capitalize">{confirmation.loan_status}</p>
                 </div>
               </div>
 
@@ -766,7 +766,7 @@ const Cashier_Disbursement = () => {
                     </div>
                     <div className="flex justify-between">
                       <span>Capital Build-Up (2%)</span>
-                      <span className="font-mono font-semibold text-[#389734]">
+                      <span className="font-mono font-semibold text-primary">
                         {formatCurrency(confirmation.deductions?.deductions?.cbu_deduction)}
                       </span>
                     </div>
@@ -790,7 +790,7 @@ const Cashier_Disbursement = () => {
                     </div>
                     <div className="flex justify-between">
                       <span className="font-semibold">Net Proceeds Released</span>
-                      <span className="font-mono font-bold text-[#389734]">
+                      <span className="font-mono font-bold text-primary">
                         {formatCurrency(confirmation.deductions?.net_proceeds)}
                       </span>
                     </div>
@@ -828,7 +828,7 @@ const Cashier_Disbursement = () => {
               <button
                 type="button"
                 onClick={() => setConfirmation(null)}
-                className="rounded-lg bg-[#2E7A2A] hover:bg-[#1D6021] text-white text-sm font-semibold px-5 py-2 transition"
+                className="rounded-lg bg-primary-deep hover:bg-member-green text-white text-sm font-semibold px-5 py-2 transition"
               >
                 Done
               </button>
@@ -840,7 +840,7 @@ const Cashier_Disbursement = () => {
       {previewLoan && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm px-4">
           <div className="w-full max-w-lg rounded-2xl bg-white shadow-2xl border border-gray-200 overflow-hidden">
-            <div className="flex items-start justify-between gap-4 px-6 py-5 bg-gradient-to-r from-[#389734] to-[#66B538] text-white">
+            <div className="flex items-start justify-between gap-4 px-6 py-5 bg-gradient-to-r from-primary to-[#66B538] text-white">
               <div className="flex items-start gap-3">
                 <div className="rounded-full bg-white/20 p-2">
                   <Banknote size={22} />
@@ -915,7 +915,7 @@ const Cashier_Disbursement = () => {
                     </div>
                     <div className="flex justify-between">
                       <span>Capital Build-Up <span className="text-gray-500">(2% of principal)</span></span>
-                      <span className="font-mono font-semibold text-[#389734]">
+                      <span className="font-mono font-semibold text-primary">
                         {formatCurrency(previewDeductions?.deductions?.cbu_deduction)}
                       </span>
                     </div>
@@ -939,7 +939,7 @@ const Cashier_Disbursement = () => {
                     </div>
                     <div className="flex justify-between text-sm pt-1">
                       <span className="font-bold">Net Proceeds to Release</span>
-                      <span className="font-mono font-bold text-[#389734]">
+                      <span className="font-mono font-bold text-primary">
                         {formatCurrency(previewDeductions?.net_proceeds)}
                       </span>
                     </div>
@@ -969,7 +969,7 @@ const Cashier_Disbursement = () => {
                   !!previewError ||
                   !previewDeductions
                 }
-                className="rounded-lg bg-[#2E7A2A] hover:bg-[#1D6021] text-white text-sm font-semibold px-5 py-2 transition disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500"
+                className="rounded-lg bg-primary-deep hover:bg-member-green text-white text-sm font-semibold px-5 py-2 transition disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500"
               >
                 {disbursingLoanId === previewLoan.loan_id ? "Releasing..." : "Confirm & Release"}
               </button>

@@ -62,7 +62,7 @@ const RecentActivityCard = ({ to, limit = 5, title = "Recent Activity" }) => {
           </div>
           <h3 className="text-sm font-bold text-gray-800">{title}</h3>
         </div>
-        <span className="flex items-center gap-1 text-xs text-[#1D6021] font-bold hover:underline">
+        <span className="flex items-center gap-1 text-xs text-member-green font-bold hover:underline">
           View all <ArrowRight className="w-3 h-3" />
         </span>
       </div>

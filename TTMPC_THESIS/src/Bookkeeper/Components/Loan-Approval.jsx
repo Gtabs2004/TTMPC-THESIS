@@ -295,7 +295,7 @@ const BookkeeperLoanApproval = () => {
         <div className="flex flex-row items-start gap-2 mb-6">
           <img src="/img/ttmpc logo.png" alt="Logo" className="h-12 w-auto" />
           <div className="flex flex-col">
-            <h1 className="text-xl font-bold text-[#389734]">TTMPC</h1>
+            <h1 className="text-xl font-bold text-primary">TTMPC</h1>
             <PortalSidebarIdentity className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold" fallbackPortal="Bookkeeper Portal" fallbackRole="Bookkeeper" />
           </div>
         </div>
@@ -411,7 +411,7 @@ const BookkeeperLoanApproval = () => {
             <div className="flex items-center gap-2 text-sm text-gray-500 font-medium mb-1">
                           <span>Bookkeeper</span>
                            <ChevronRight className="w-4 h-4 text-gray-300" />
-                            <span className="text-[#389734]">Loan Approvals</span>
+                            <span className="text-primary">Loan Approvals</span>
             </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
@@ -458,7 +458,7 @@ const BookkeeperLoanApproval = () => {
                   onClick={() => setActiveTab("all")}
                   className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-colors ${
                     activeTab === "all"
-                      ? "bg-[#1D6021] text-white border-[#1D6021]"
+                      ? "bg-member-green text-white border-member-green"
                       : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
                   }`}
                 >
@@ -469,7 +469,7 @@ const BookkeeperLoanApproval = () => {
                   onClick={() => setActiveTab("pending")}
                   className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-colors ${
                     activeTab === "pending"
-                      ? "bg-[#1D6021] text-white border-[#1D6021]"
+                      ? "bg-member-green text-white border-member-green"
                       : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
                   }`}
                 >
@@ -575,7 +575,7 @@ const BookkeeperLoanApproval = () => {
                         <td className="p-3 text-sm text-right pr-8">
                           <button
                             onClick={() => navigate(`/bookkeeper-loan-approval/${loan.id}?source=${loan.source}`)}
-                            className="text-[#1D6021] font-bold hover:underline transition-all"
+                            className="text-member-green font-bold hover:underline transition-all"
                           >
                             {loan.actions}
                           </button>

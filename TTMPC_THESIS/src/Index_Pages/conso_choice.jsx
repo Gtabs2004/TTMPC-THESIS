@@ -34,7 +34,7 @@ const Conso_Choice = () => {
       </header>
 
     
-      <main className="flex flex-col justify-center items-center flex-grow py-10 px-4 text-center">
+      <main className="flex flex-col justify-center items-center flex-grow py-8 px-3 text-center sm:py-10 sm:px-4">
         
         
         <div className="mb-8 flex flex-col items-center">
@@ -42,7 +42,7 @@ const Conso_Choice = () => {
           <h2 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">
             Consolidated Loan Application
           </h2>
-          <h1 className="text-2xl md:text-3xl font-extrabold text-gray-900 tracking-tight">
+          <h1 className="text-xl md:text-3xl font-extrabold text-gray-900 tracking-tight">
             Preferred Loan Amount
           </h1>
           <p className="mt-3 text-gray-500 text-sm md:text-base font-medium max-w-md">
@@ -51,12 +51,12 @@ const Conso_Choice = () => {
         </div>
 
       
-        <div className="flex flex-col sm:flex-row gap-6 mt-2 w-full max-w-2xl justify-center items-stretch px-4">
+        <div className="flex w-full max-w-2xl flex-col items-stretch justify-center gap-3 px-0 mt-2 sm:flex-row sm:gap-6 sm:px-4">
           
           
           <Link
             to="/Consolidated_Loan"
-            className="bg-white p-8 w-full sm:w-64 rounded-3xl flex flex-col items-center justify-center cursor-pointer shadow-sm border border-gray-200 "
+            className="bg-white p-5 w-full sm:w-64 rounded-3xl flex flex-col items-center justify-center cursor-pointer shadow-sm border border-gray-200 sm:p-8"
           >
             <div className="bg-blue-50 p-5 rounded-2xl mb-6 ">
               <Wallet size={40} className="text-blue-600" strokeWidth={2} />
@@ -68,7 +68,7 @@ const Conso_Choice = () => {
           
           <Link
             to="/Consolidated_Up"
-            className="bg-white p-8 w-full sm:w-64 rounded-3xl flex flex-col items-center justify-center cursor-pointer shadow-sm border border-gray-200 "
+            className="bg-white p-5 w-full sm:w-64 rounded-3xl flex flex-col items-center justify-center cursor-pointer shadow-sm border border-gray-200 sm:p-8"
           >
             <div className="bg-indigo-50 p-5 rounded-2xl mb-6 ">
               <Landmark size={40} className="text-indigo-600" strokeWidth={2} />

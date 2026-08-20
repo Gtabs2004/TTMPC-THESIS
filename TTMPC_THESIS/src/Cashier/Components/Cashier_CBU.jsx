@@ -182,7 +182,7 @@ const Cashier_CBU = () => {
               <div className="flex flex-row items-start gap-2 mb-6">
                 <img src={logo} alt="Logo" className="h-12 w-auto" />
                 <div className="flex flex-col">
-                  <h1 className="text-xl font-bold text-[#389734]">TTMPC</h1>
+                  <h1 className="text-xl font-bold text-primary">TTMPC</h1>
                   <PortalSidebarIdentity
                     className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold"
                     fallbackPortal="Cashier Portal"
@@ -309,7 +309,7 @@ const Cashier_CBU = () => {
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 mb-8">
             <div className="flex items-center justify-between mb-5">
               <h3 className="text-lg font-bold text-[#1F3E35]">Member Accounts</h3>
-              <span className="text-[10px] uppercase tracking-wider font-bold text-[#389734] bg-green-50 px-2 py-1 rounded">
+              <span className="text-[10px] uppercase tracking-wider font-bold text-primary bg-green-50 px-2 py-1 rounded">
                 Live Data
               </span>
             </div>
@@ -333,7 +333,7 @@ const Cashier_CBU = () => {
                 value={memberSearch}
                 onChange={(event) => setMemberSearch(event.target.value)}
                 placeholder="Search by Member ID or Name"
-                className="w-full rounded-lg border border-gray-300 bg-gray-50 h-11 pl-10 pr-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#389734]"
+                className="w-full rounded-lg border border-gray-300 bg-gray-50 h-11 pl-10 pr-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
               />
             </div>
 

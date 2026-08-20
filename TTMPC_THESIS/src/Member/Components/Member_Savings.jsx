@@ -351,7 +351,7 @@ const Member_Savings = () => {
         <div className="flex flex-row items-start gap-2 mb-6">
           <img src="/img/ttmpc logo.png" alt="Logo" className="h-12 w-auto" />
           <div className="flex flex-col">
-            <h1 className="text-xl font-bold text-[#389734]">TTMPC</h1>
+            <h1 className="text-xl font-bold text-primary">TTMPC</h1>
             <p className="text-[10px] uppercase tracking-wider text-gray-500 dark:text-gray-400 font-bold">
               Members Portal
             </p>
@@ -383,8 +383,8 @@ const Member_Savings = () => {
                   className={({ isActive }) =>
                     `flex items-center gap-3 p-2.5 rounded-lg transition-colors ${
                       isActive
-                        ? 'bg-[#EAF1EB] text-[#1D6021] font-bold dark:bg-green-900/30 dark:text-green-400'
-                        : 'text-gray-600 hover:bg-gray-50 hover:text-[#1D6021] font-medium dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-green-400'
+                        ? 'bg-[#EAF1EB] text-member-green font-bold dark:bg-green-900/30 dark:text-green-400'
+                        : 'text-gray-600 hover:bg-gray-50 hover:text-member-green font-medium dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-green-400'
                     }`
                   }
                 >
@@ -402,7 +402,7 @@ const Member_Savings = () => {
    
         <button
           onClick={handleSignOut}
-          className="mt-auto w-full rounded-lg p-2.5 text-sm bg-[#1D6021] hover:bg-[#154718] text-white font-bold transition-colors"
+          className="mt-auto w-full rounded-lg p-2.5 text-sm bg-member-green hover:bg-[#154718] text-white font-bold transition-colors"
         >
           Sign out
         </button>
@@ -425,7 +425,7 @@ const Member_Savings = () => {
 
           <div className="flex items-center gap-2 sm:gap-4">
            
-            <LoanNotificationBell role="member" accentClass="bg-[#1D6021]" />
+            <LoanNotificationBell role="member" accentClass="bg-member-green" />
             <button
               onClick={() => setIsSettingsOpen(true)}
               className="p-2 rounded-md text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
@@ -444,7 +444,7 @@ const Member_Savings = () => {
             {/* Regular Savings Card */}
             <div className="bg-white dark:bg-gray-900 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col">
               <div className="w-10 h-10 rounded-lg bg-[#EAF1EB] dark:bg-green-900/30 flex items-center justify-center mb-6">
-                <Wallet className="w-5 h-5 text-[#1D6021] dark:text-green-400" />
+                <Wallet className="w-5 h-5 text-member-green dark:text-green-400" />
               </div>
               <p className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-1">Regular Savings</p>
               <h3 className="text-2xl sm:text-3xl font-black text-gray-900 dark:text-white">{formatCurrency(regularSavings)}</h3>
@@ -453,7 +453,7 @@ const Member_Savings = () => {
             {/* Time Deposit Card */}
             <div className="bg-white dark:bg-gray-900 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col">
               <div className="w-10 h-10 rounded-lg bg-[#EAF1EB] dark:bg-green-900/30 flex items-center justify-center mb-6">
-                <CalendarDays className="w-5 h-5 text-[#1D6021] dark:text-green-400" />
+                <CalendarDays className="w-5 h-5 text-member-green dark:text-green-400" />
               </div>
               <p className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-1">Time Deposit</p>
               <h3 className="text-2xl sm:text-3xl font-black text-gray-900 dark:text-white">{formatCurrency(timeDeposit)}</h3>
@@ -462,7 +462,7 @@ const Member_Savings = () => {
             {/* Total Savings Card */}
             <div className="bg-white dark:bg-gray-900 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col">
               <div className="w-10 h-10 rounded-lg bg-[#EAF1EB] flex items-center justify-center mb-6">
-                <Banknote className="w-5 h-5 text-[#1D6021] dark:text-green-400" />
+                <Banknote className="w-5 h-5 text-member-green dark:text-green-400" />
               </div>
               <p className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-1">Total Savings</p>
               <h3 className="text-2xl sm:text-3xl font-black text-gray-900 dark:text-white">{formatCurrency(totalSavings)}</h3>
@@ -484,7 +484,7 @@ const Member_Savings = () => {
                  <h3 className="text-xl font-bold text-gray-900 dark:text-white">Savings Ledger</h3>
                  <p className="text-xs text-gray-400 dark:text-gray-500 font-medium mt-1">Detailed history of all savings transactions</p>
                </div>
-               <button className="flex items-center gap-2 bg-[#EAF1EB] dark:bg-green-900/30 text-[#1D6021] dark:text-green-400 hover:bg-[#d8e6da] dark:hover:bg-green-900/50 transition-colors px-4 py-2 rounded-lg text-xs font-bold">
+               <button className="flex items-center gap-2 bg-[#EAF1EB] dark:bg-green-900/30 text-member-green dark:text-green-400 hover:bg-[#d8e6da] dark:hover:bg-green-900/50 transition-colors px-4 py-2 rounded-lg text-xs font-bold">
                  <Download className="w-3.5 h-3.5" /> Export Statement
                </button>
             </div>

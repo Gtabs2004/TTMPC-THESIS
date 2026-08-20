@@ -434,7 +434,7 @@ const BookkeeperPayments = () => {
         <div className="flex flex-row items-start gap-2 mb-6">
           <img src={logo} alt="Logo" className="h-12 w-auto" />
           <div className="flex flex-col">
-            <h1 className="text-xl font-bold text-[#389734]">TTMPC</h1>
+            <h1 className="text-xl font-bold text-primary">TTMPC</h1>
              <PortalSidebarIdentity className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold" fallbackPortal="Bookkeeper Portal" fallbackRole="Bookkeeper" />
           </div>
         </div>
@@ -534,7 +534,7 @@ const BookkeeperPayments = () => {
                       <div className="flex items-center gap-2 text-sm text-gray-500 font-medium mb-1">
                           <span>Bookkeeper</span>
                            <ChevronRight className="w-4 h-4 text-gray-300" />
-                            <span className="text-[#389734]">Payments Confirmation</span>
+                            <span className="text-primary">Payments Confirmation</span>
             </div>
             <button
               type="button"

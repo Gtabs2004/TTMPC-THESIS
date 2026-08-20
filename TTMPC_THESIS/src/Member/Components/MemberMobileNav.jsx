@@ -34,7 +34,7 @@ const MemberMobileNav = () => {
   const hasPlacedRef = useRef(false);
 
   const glow = isDark ? 'rgba(74, 222, 128, 0.65)' : 'rgba(29, 96, 33, 0.5)';
-  const indicatorColor = isDark ? '#4ADE80' : '#1D6021';
+  const indicatorColor = isDark ? 'var(--color-member-green-dark)' : 'var(--color-member-green)';
 
   // Index of the item matching the current route, or -1 when the visitor is
   // somewhere the bottom nav doesn't track (e.g. Savings) — the line fades
@@ -130,8 +130,8 @@ const MemberMobileNav = () => {
                 className={({ isActive }) =>
                   `flex flex-col items-center justify-center px-2.5 py-2 transition-colors duration-300 ${
                     isActive
-                      ? 'text-[#1D6021] dark:text-green-400'
-                      : 'text-gray-600 hover:text-[#1D6021] dark:text-gray-400 dark:hover:text-green-400'
+                      ? 'text-member-green dark:text-green-400'
+                      : 'text-gray-600 hover:text-member-green dark:text-gray-400 dark:hover:text-green-400'
                   }`
                 }
                 style={{ transitionTimingFunction: EASE }}

@@ -324,7 +324,7 @@ const Members_Profile = () => {
   const ToggleSwitch = ({ isOn, onToggle }) => (
     <div 
       onClick={onToggle}
-      className={`w-11 h-6 flex items-center rounded-full p-1 cursor-pointer transition-colors ${isOn ? 'bg-[#1D6021]' : 'bg-gray-300'}`}
+      className={`w-11 h-6 flex items-center rounded-full p-1 cursor-pointer transition-colors ${isOn ? 'bg-member-green' : 'bg-gray-300'}`}
     >
       <div className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform ${isOn ? 'translate-x-5' : 'translate-x-0'}`} />
     </div>
@@ -898,7 +898,7 @@ const Members_Profile = () => {
         <div className="flex flex-row items-start gap-2 mb-6">
           <img src="/img/ttmpc logo.png" alt="Logo" className="h-12 w-auto" />
           <div className="flex flex-col">
-            <h1 className="text-xl font-bold text-[#389734]">TTMPC</h1>
+            <h1 className="text-xl font-bold text-primary">TTMPC</h1>
             <p className="text-[10px] uppercase tracking-wider text-gray-500 dark:text-gray-400 font-bold">
               Members Portal
             </p>
@@ -930,8 +930,8 @@ const Members_Profile = () => {
                   className={({ isActive }) =>
                     `flex items-center gap-3 p-2.5 rounded-lg transition-colors ${
                       isActive
-                        ? 'bg-[#EAF1EB] text-[#1D6021] font-bold dark:bg-green-900/30 dark:text-green-400'
-                        : 'text-gray-600 hover:bg-gray-50 hover:text-[#1D6021] font-medium dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-green-400'
+                        ? 'bg-[#EAF1EB] text-member-green font-bold dark:bg-green-900/30 dark:text-green-400'
+                        : 'text-gray-600 hover:bg-gray-50 hover:text-member-green font-medium dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-green-400'
                     }`
                   }
                 >
@@ -949,7 +949,7 @@ const Members_Profile = () => {
    
         <button
           onClick={handleSignOut}
-          className="mt-auto w-full rounded-lg p-2.5 text-sm bg-[#1D6021] hover:bg-[#154718] text-white font-bold transition-colors"
+          className="mt-auto w-full rounded-lg p-2.5 text-sm bg-member-green hover:bg-[#154718] text-white font-bold transition-colors"
         >
           Sign out
         </button>
@@ -972,7 +972,7 @@ const Members_Profile = () => {
 
           <div className="flex items-center gap-2 sm:gap-4">
            
-            <LoanNotificationBell role="member" accentClass="bg-[#1D6021]" />
+            <LoanNotificationBell role="member" accentClass="bg-member-green" />
             <button
               onClick={() => setIsSettingsOpen(true)}
               className="p-2 rounded-md text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
@@ -1000,7 +1000,7 @@ const Members_Profile = () => {
               <div>
                 <h1 className="text-xl sm:text-2xl font-black text-gray-900 dark:text-white mb-2">{profile?.fullName || 'Loading...'}</h1>
                 <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 text-sm">
-                  <span className="bg-[#EAF1EB] text-[#1D6021] dark:bg-green-900/30 dark:text-green-400 px-2.5 py-1 rounded text-[10px] font-extrabold tracking-widest uppercase">
+                  <span className="bg-[#EAF1EB] text-member-green dark:bg-green-900/30 dark:text-green-400 px-2.5 py-1 rounded text-[10px] font-extrabold tracking-widest uppercase">
                     {profile?.memberType || 'Member'}
                   </span>
                   <span className="text-gray-400 dark:text-gray-500 font-medium">Joined {profile?.joinedDate || 'N/A'}</span>
@@ -1011,11 +1011,11 @@ const Members_Profile = () => {
               <button
                 onClick={handleOpenFilePicker}
                 disabled={uploadingAvatar}
-                className="flex items-center justify-center gap-2 border border-[#1D6021] text-[#1D6021] hover:bg-[#1D6021]/10 dark:border-green-500 dark:text-green-400 dark:hover:bg-green-900/30 transition-colors font-bold rounded-lg px-5 py-2.5 text-sm disabled:opacity-60 disabled:cursor-not-allowed"
+                className="flex items-center justify-center gap-2 border border-member-green text-member-green hover:bg-member-green/10 dark:border-green-500 dark:text-green-400 dark:hover:bg-green-900/30 transition-colors font-bold rounded-lg px-5 py-2.5 text-sm disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 {uploadingAvatar ? (
                   <>
-                    <span className="inline-block h-4 w-4 rounded-full border-2 border-[#1D6021] border-t-transparent animate-spin" />
+                    <span className="inline-block h-4 w-4 rounded-full border-2 border-member-green border-t-transparent animate-spin" />
                     Uploading...
                   </>
                 ) : (
@@ -1026,7 +1026,7 @@ const Members_Profile = () => {
               </button>
               <button
                 onClick={handleOpenChangeEmail}
-                className="flex items-center justify-center gap-2 border border-[#1D6021] text-[#1D6021] hover:bg-[#1D6021]/10 dark:border-green-500 dark:text-green-400 dark:hover:bg-green-900/30 transition-colors font-bold rounded-lg px-5 py-2.5 text-sm"
+                className="flex items-center justify-center gap-2 border border-member-green text-member-green hover:bg-member-green/10 dark:border-green-500 dark:text-green-400 dark:hover:bg-green-900/30 transition-colors font-bold rounded-lg px-5 py-2.5 text-sm"
               >
                 <Pencil className="w-4 h-4" /> Change Email
               </button>
@@ -1080,11 +1080,11 @@ const Members_Profile = () => {
             <div className="flex-1">
               <div className="flex items-center justify-between mb-2">
                 <p className="text-sm font-bold text-gray-900 dark:text-white">Profile Completion</p>
-                <p className="text-sm font-extrabold text-[#1D6021] dark:text-green-400">{completionPercent}%</p>
+                <p className="text-sm font-extrabold text-member-green dark:text-green-400">{completionPercent}%</p>
               </div>
               <div className="h-2 w-full rounded-full bg-gray-100 dark:bg-gray-700 overflow-hidden">
                 <div
-                  className="h-full bg-[#1D6021] transition-all duration-500"
+                  className="h-full bg-member-green transition-all duration-500"
                   style={{ width: `${completionPercent}%` }}
                 />
               </div>
@@ -1135,14 +1135,14 @@ const Members_Profile = () => {
                       }`}
                     >
                       <div className="flex items-center gap-3">
-                        <Icon className={`w-5 h-5 ${isActive ? "text-[#1D6021] dark:text-green-400" : "text-gray-500"}`} />
-                        <span className={`text-sm font-bold ${isActive ? "text-[#1D6021] dark:text-green-400" : "text-gray-700 dark:text-gray-300"}`}>
+                        <Icon className={`w-5 h-5 ${isActive ? "text-member-green dark:text-green-400" : "text-gray-500"}`} />
+                        <span className={`text-sm font-bold ${isActive ? "text-member-green dark:text-green-400" : "text-gray-700 dark:text-gray-300"}`}>
                           {section.label}
                         </span>
                       </div>
                       <div className="flex items-center gap-4">
                         <span className={`text-[10px] font-bold rounded-full px-2 py-0.5 ${
-                          isActive ? 'bg-white dark:bg-gray-800 text-[#1D6021] dark:text-green-400' : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400'
+                          isActive ? 'bg-white dark:bg-gray-800 text-member-green dark:text-green-400' : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400'
                         }`}>
                           {sectionFilled}/{section.fields.length}
                         </span>
@@ -1164,7 +1164,7 @@ const Members_Profile = () => {
                             ) : !isEditing ? (
                               <button
                                 onClick={(e) => { e.stopPropagation(); setEditingSection(section.id); }}
-                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#1D6021] text-[#1D6021] hover:bg-[#EAF1EB] dark:border-green-500 dark:text-green-400 dark:hover:bg-green-900/30 transition-colors text-xs font-bold"
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-member-green text-member-green hover:bg-[#EAF1EB] dark:border-green-500 dark:text-green-400 dark:hover:bg-green-900/30 transition-colors text-xs font-bold"
                               >
                                 <Pencil className="w-3.5 h-3.5" /> Edit Section
                               </button>
@@ -1178,7 +1178,7 @@ const Members_Profile = () => {
                             const error = fieldErrors[field.key];
                             const value = formData[field.key] ?? '';
                             const inputClass = `w-full rounded-lg border ${
-                              error ? 'border-red-300 focus:ring-red-200' : 'border-gray-200 dark:border-gray-700 focus:ring-[#1D6021]/30 focus:border-[#1D6021]'
+                              error ? 'border-red-300 focus:ring-red-200' : 'border-gray-200 dark:border-gray-700 focus:ring-member-green/30 focus:border-member-green'
                             } bg-white dark:bg-gray-800 px-3 py-2.5 text-sm text-gray-900 dark:text-gray-100 outline-none focus:ring-2 transition disabled:bg-gray-50 dark:disabled:bg-gray-700 disabled:text-gray-500 dark:disabled:text-gray-500 disabled:cursor-not-allowed`;
                             const disabled = section.readOnly || loadingProfile;
                             const isFull = field.fullWidth;
@@ -1262,7 +1262,7 @@ const Members_Profile = () => {
                               type="button"
                               onClick={handleRequestSave}
                               disabled={!isDirty || savingProfile}
-                              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[#1D6021] text-white text-sm font-semibold hover:bg-[#154718] disabled:opacity-40 disabled:cursor-not-allowed"
+                              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-member-green text-white text-sm font-semibold hover:bg-[#154718] disabled:opacity-40 disabled:cursor-not-allowed"
                             >
                               <Save className="w-4 h-4" /> Save Changes
                             </button>
@@ -1316,7 +1316,7 @@ const Members_Profile = () => {
 
           {/* Notification preferences */}
           <div className="mt-6 w-full bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-800 bg-[#FAF9FB] dark:bg-gray-800 flex items-center gap-2 text-[#1D6021] dark:text-green-400">
+            <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-800 bg-[#FAF9FB] dark:bg-gray-800 flex items-center gap-2 text-member-green dark:text-green-400">
               <ShieldCheck className="w-5 h-5" />
               <h2 className="font-extrabold text-gray-900 dark:text-white text-base">Notification Preferences</h2>
             </div>
@@ -1374,13 +1374,13 @@ const Members_Profile = () => {
                           onChange={(e) => setCurrentPasswordInput(e.target.value)}
                           autoComplete="current-password"
                           toggleClassName="text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
-                          className="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 rounded-lg pl-3 pr-10 py-2 text-sm focus:ring-2 focus:ring-[#1D6021] outline-none"
+                          className="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 rounded-lg pl-3 pr-10 py-2 text-sm focus:ring-2 focus:ring-member-green outline-none"
                           placeholder="Enter your current password"
                         />
                         <button
                           type="button"
                           onClick={() => { setPasswordRecoveryMode(true); setCurrentPasswordInput(''); setNewPassword(''); setConfirmPassword(''); setPasswordError(''); }}
-                          className="mt-2 text-xs text-[#1D6021] dark:text-green-400 hover:underline"
+                          className="mt-2 text-xs text-member-green dark:text-green-400 hover:underline"
                         >
                           Forgot your current password?
                         </button>
@@ -1393,7 +1393,7 @@ const Members_Profile = () => {
                           onChange={(e) => setNewPassword(e.target.value)}
                           autoComplete="new-password"
                           toggleClassName="text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
-                          className="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 rounded-lg pl-3 pr-10 py-2 text-sm focus:ring-2 focus:ring-[#1D6021] outline-none"
+                          className="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 rounded-lg pl-3 pr-10 py-2 text-sm focus:ring-2 focus:ring-member-green outline-none"
                           placeholder="At least 8 characters"
                         />
                         <PasswordRequirements password={newPassword} />
@@ -1406,7 +1406,7 @@ const Members_Profile = () => {
                           onChange={(e) => setConfirmPassword(e.target.value)}
                           autoComplete="new-password"
                           toggleClassName="text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
-                          className="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 rounded-lg pl-3 pr-10 py-2 text-sm focus:ring-2 focus:ring-[#1D6021] outline-none"
+                          className="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 rounded-lg pl-3 pr-10 py-2 text-sm focus:ring-2 focus:ring-member-green outline-none"
                           placeholder="Repeat new password"
                         />
                       </div>
@@ -1419,7 +1419,7 @@ const Members_Profile = () => {
                       <button
                         type="button"
                         onClick={() => { setPasswordRecoveryMode(false); setPasswordError(''); }}
-                        className="block mt-1 text-[#1D6021] dark:text-green-400 hover:underline"
+                        className="block mt-1 text-member-green dark:text-green-400 hover:underline"
                       >
                         I remember my current password
                       </button>
@@ -1437,14 +1437,14 @@ const Members_Profile = () => {
                       maxLength={6}
                       value={passwordOtp}
                       onChange={(e) => setPasswordOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                      className="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 rounded-lg px-3 py-2 text-lg tracking-[0.5em] text-center font-bold focus:ring-2 focus:ring-[#1D6021] outline-none"
+                      className="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 rounded-lg px-3 py-2 text-lg tracking-[0.5em] text-center font-bold focus:ring-2 focus:ring-member-green outline-none"
                       placeholder="000000"
                     />
                     <button
                       type="button"
                       onClick={handleRequestPasswordOtp}
                       disabled={passwordOtpCooldown > 0 || updatingPassword}
-                      className="mt-2 text-xs text-[#1D6021] dark:text-green-400 hover:underline disabled:text-gray-400 disabled:no-underline"
+                      className="mt-2 text-xs text-member-green dark:text-green-400 hover:underline disabled:text-gray-400 disabled:no-underline"
                     >
                       {passwordOtpCooldown > 0 ? `Resend code in ${passwordOtpCooldown}s` : 'Resend code'}
                     </button>
@@ -1457,7 +1457,7 @@ const Members_Profile = () => {
                       onChange={(e) => setNewPassword(e.target.value)}
                       autoComplete="new-password"
                       toggleClassName="text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
-                      className="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 rounded-lg pl-3 pr-10 py-2 text-sm focus:ring-2 focus:ring-[#1D6021] outline-none"
+                      className="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 rounded-lg pl-3 pr-10 py-2 text-sm focus:ring-2 focus:ring-member-green outline-none"
                       placeholder="At least 8 characters"
                     />
                     <PasswordRequirements password={newPassword} />
@@ -1470,7 +1470,7 @@ const Members_Profile = () => {
                       onChange={(e) => setConfirmPassword(e.target.value)}
                       autoComplete="new-password"
                       toggleClassName="text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
-                      className="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 rounded-lg pl-3 pr-10 py-2 text-sm focus:ring-2 focus:ring-[#1D6021] outline-none"
+                      className="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 rounded-lg pl-3 pr-10 py-2 text-sm focus:ring-2 focus:ring-member-green outline-none"
                       placeholder="Repeat new password"
                     />
                   </div>
@@ -1504,7 +1504,7 @@ const Members_Profile = () => {
                 <button
                   type="submit"
                   disabled={updatingPassword}
-                  className="px-4 py-2 rounded-lg bg-[#1D6021] text-white text-sm font-semibold hover:bg-[#154718] disabled:opacity-50"
+                  className="px-4 py-2 rounded-lg bg-member-green text-white text-sm font-semibold hover:bg-[#154718] disabled:opacity-50"
                 >
                   {updatingPassword
                     ? (passwordStep === 2

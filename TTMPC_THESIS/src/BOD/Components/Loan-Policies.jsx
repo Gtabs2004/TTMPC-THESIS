@@ -235,7 +235,7 @@ const Loan_Policies = () => {
         <div className="flex flex-row items-start gap-2 mb-6">
           <img src="/img/ttmpc logo.png" alt="Logo" className="h-12 w-auto" />
           <div className="flex flex-col">
-            <h1 className="text-xl font-bold text-[#389734]">TTMPC</h1>
+            <h1 className="text-xl font-bold text-primary">TTMPC</h1>
             <PortalSidebarIdentity className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold" fallbackPortal="BOD Portal" fallbackRole="BOD" />
           </div>
         </div>
@@ -369,7 +369,7 @@ const Loan_Policies = () => {
               {/* Editor */}
               <div className="lg:col-span-2 bg-white rounded-xl border border-gray-200 shadow-sm p-6">
                 <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
-                  <Banknote size={18} className="text-[#389734]" />
+                  <Banknote size={18} className="text-primary" />
                   {activeCode} — Policy Values
                 </h2>
 
@@ -546,11 +546,11 @@ const Loan_Policies = () => {
                 {preview ? (
                   <div className="space-y-1.5 text-sm">
                     <div className="flex justify-between"><span className="text-gray-600">Service Fee</span><span className="font-mono">₱{formatNumber(preview.serviceFee, { maxDecimals: 2 })}</span></div>
-                    <div className="flex justify-between"><span className="text-gray-600">CBU ({(Number(draft.cbu_rate || 0) * 100).toFixed(2)}%)</span><span className="font-mono text-[#389734]">₱{formatNumber(preview.cbu, { maxDecimals: 2 })}</span></div>
+                    <div className="flex justify-between"><span className="text-gray-600">CBU ({(Number(draft.cbu_rate || 0) * 100).toFixed(2)}%)</span><span className="font-mono text-primary">₱{formatNumber(preview.cbu, { maxDecimals: 2 })}</span></div>
                     <div className="flex justify-between"><span className="text-gray-600">Insurance</span><span className="font-mono">₱{formatNumber(preview.insurance, { maxDecimals: 2 })}</span></div>
                     <div className="flex justify-between"><span className="text-gray-600">Notarial</span><span className="font-mono">₱{formatNumber(preview.notarial, { maxDecimals: 2 })}</span></div>
                     <div className="flex justify-between border-t border-gray-200 pt-1.5 mt-1.5 font-semibold"><span>Total Deductions</span><span className="font-mono">₱{formatNumber(preview.total, { maxDecimals: 2 })}</span></div>
-                    <div className="flex justify-between font-bold"><span>Net Proceeds</span><span className="font-mono text-[#389734]">₱{formatNumber(preview.net, { maxDecimals: 2 })}</span></div>
+                    <div className="flex justify-between font-bold"><span>Net Proceeds</span><span className="font-mono text-primary">₱{formatNumber(preview.net, { maxDecimals: 2 })}</span></div>
                   </div>
                 ) : (
                   <p className="text-xs text-gray-500">Enter a principal to see the preview.</p>

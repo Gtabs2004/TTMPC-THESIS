@@ -3,8 +3,8 @@ import { X, AlertTriangle } from 'lucide-react';
 
 const TONE_STYLES = {
   default: {
-    confirmClass: 'bg-[#1D6021] hover:bg-[#154718] text-white',
-    iconClass: 'text-[#1D6021]',
+    confirmClass: 'bg-member-green hover:bg-[#154718] text-white',
+    iconClass: 'text-member-green',
   },
   destructive: {
     confirmClass: 'bg-[#DC2626] hover:bg-red-700 text-white',

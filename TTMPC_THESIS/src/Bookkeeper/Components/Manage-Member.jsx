@@ -185,7 +185,7 @@ const Manage_Member = () => {
         <div className="flex flex-row items-start gap-2 mb-6">
           <img src="/img/ttmpc logo.png" alt="Logo" className="h-12 w-auto" />
           <div className="flex flex-col">
-            <h1 className="text-xl font-bold text-[#389734]">TTMPC</h1>
+            <h1 className="text-xl font-bold text-primary">TTMPC</h1>
              <PortalSidebarIdentity className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold" fallbackPortal="Bookkeeper Portal" fallbackRole="Bookkeeper" />
           </div>
         </div>
@@ -260,7 +260,7 @@ const Manage_Member = () => {
         <div className="flex items-center gap-2 text-sm text-gray-500 font-medium mb-1">
               <span>Bookkeeper</span>
               <ChevronRight className="w-4 h-4 text-gray-300" />
-              <span className="text-[#389734]">Members Profile</span>
+              <span className="text-primary">Members Profile</span>
           </div>
           <div className="flex items-end justify-between mb-6">
             <div>
@@ -337,7 +337,7 @@ const Manage_Member = () => {
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse">
                   <thead>
-                    <tr className="bg-[#1D6021] text-xs uppercase tracking-wider text-white font-extrabold">
+                    <tr className="bg-member-green text-xs uppercase tracking-wider text-white font-extrabold">
                       <th className="p-5 font-bold">Member ID</th>
                       <th className="p-5 font-bold">Name</th>
                       <th className="p-5 font-bold">Email</th>
@@ -363,7 +363,7 @@ const Manage_Member = () => {
                           <td className="p-5 text-sm text-right">
                             <button
                               onClick={() => navigate(`/member_details?member_id=${encodeURIComponent(String(r.member_id || ""))}&portal=bookkeeper`, { state: { member: r, portal: "bookkeeper" } })}
-                              className="inline-flex items-center px-4 py-1.5 rounded-md text-[#1D6021] font-bold border border-[#1D6021]/30 bg-[#1D6021]/5 hover:bg-[#1D6021] hover:text-white active:scale-95 transition-all duration-200"
+                              className="inline-flex items-center px-4 py-1.5 rounded-md text-member-green font-bold border border-member-green/30 bg-member-green/5 hover:bg-member-green hover:text-white active:scale-95 transition-all duration-200"
                             >
                               View
                             </button>
@@ -395,7 +395,7 @@ const Manage_Member = () => {
                 onClick={() => setCurrentPage(page)}
                 className={`w-8 h-8 flex items-center justify-center rounded-full border text-xs font-bold transition-colors ${
                   page === currentPage
-                    ? "bg-[#1D6021] text-white border-[#1D6021]"
+                    ? "bg-member-green text-white border-member-green"
                     : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"
                 }`}
               >

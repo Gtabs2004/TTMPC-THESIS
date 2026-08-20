@@ -141,7 +141,7 @@ const PwaInstallPrompt = () => {
     >
       <div className="flex items-start gap-3">
         <div className="w-10 h-10 rounded-xl bg-[#EAF1EB] flex items-center justify-center shrink-0">
-          <Download className="w-5 h-5 text-[#1D6021]" />
+          <Download className="w-5 h-5 text-member-green" />
         </div>
         <div className="flex-1 min-w-0">
           <h4 className="font-bold text-gray-900 dark:text-white text-sm">Install TTMPC</h4>
@@ -169,7 +169,7 @@ const PwaInstallPrompt = () => {
               <button
                 type="button"
                 onClick={handleInstall}
-                className="flex-1 rounded-lg bg-[#1D6021] px-3 py-2 text-xs font-bold text-white hover:bg-[#154718] transition-colors"
+                className="flex-1 rounded-lg bg-member-green px-3 py-2 text-xs font-bold text-white hover:bg-[#154718] transition-colors"
               >
                 {deferredPrompt ? "Install" : "How to install"}
               </button>

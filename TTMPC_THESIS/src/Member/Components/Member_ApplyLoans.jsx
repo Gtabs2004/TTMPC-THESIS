@@ -220,7 +220,7 @@ const Member_ApplyLoans = () => {
         <div className="flex flex-row items-start gap-2 mb-6">
           <img src="/img/ttmpc logo.png" alt="Logo" className="h-12 w-auto" />
           <div className="flex flex-col">
-            <h1 className="text-xl font-bold text-[#389734]">TTMPC</h1>
+            <h1 className="text-xl font-bold text-primary">TTMPC</h1>
             <p className="text-[10px] uppercase tracking-wider text-gray-500 dark:text-gray-400 font-bold">
               Members Portal
             </p>
@@ -252,8 +252,8 @@ const Member_ApplyLoans = () => {
                   className={({ isActive }) =>
                     `flex items-center gap-3 p-2.5 rounded-lg transition-colors ${
                       isActive
-                        ? 'bg-[#EAF1EB] text-[#1D6021] font-bold dark:bg-green-900/30 dark:text-green-400'
-                        : 'text-gray-600 hover:bg-gray-50 hover:text-[#1D6021] font-medium dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-green-400'
+                        ? 'bg-[#EAF1EB] text-member-green font-bold dark:bg-green-900/30 dark:text-green-400'
+                        : 'text-gray-600 hover:bg-gray-50 hover:text-member-green font-medium dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-green-400'
                     }`
                   }
                 >
@@ -271,7 +271,7 @@ const Member_ApplyLoans = () => {
    
         <button
           onClick={handleSignOut}
-          className="mt-auto w-full rounded-lg p-2.5 text-sm bg-[#1D6021] hover:bg-[#154718] text-white font-bold transition-colors"
+          className="mt-auto w-full rounded-lg p-2.5 text-sm bg-member-green hover:bg-[#154718] text-white font-bold transition-colors"
         >
           Sign out
         </button>
@@ -279,7 +279,7 @@ const Member_ApplyLoans = () => {
 
    
       {/* Main Content */}
-      <div className="flex-1 flex flex-col overflow-hidden lg:ml-64">
+      <div className="min-w-0 flex-1 flex flex-col overflow-hidden lg:ml-64">
         {/* Header */}
         <header className="bg-white dark:bg-gray-900 h-16 shrink-0 shadow-sm flex items-center justify-between px-4 sm:px-6 lg:px-8 z-10 border-b border-gray-100 dark:border-gray-800">
           <div className="flex items-center gap-2 sm:gap-3">
@@ -295,7 +295,7 @@ const Member_ApplyLoans = () => {
 
           <div className="flex items-center gap-2 sm:gap-4">
             
-            <LoanNotificationBell role="member" accentClass="bg-[#1D6021]" />
+            <LoanNotificationBell role="member" accentClass="bg-member-green" />
             <button
               onClick={() => setIsSettingsOpen(true)}
               className="p-2 rounded-md text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
@@ -307,20 +307,20 @@ const Member_ApplyLoans = () => {
         </header>
 
         {/* Scrollable Page Content */}
-        <main className="p-4 sm:p-6 lg:p-8 overflow-y-auto pb-28 lg:pb-0">
-          <h1 className="hidden lg:block font-extrabold text-[#1a4a2f] dark:text-green-400 text-2xl mb-8">Apply for Loans</h1>
+        <main className="p-3 sm:p-6 lg:p-8 overflow-y-auto pb-28 lg:pb-0">
+          <h1 className="hidden lg:block font-extrabold text-[#1a4a2f] dark:text-green-400 text-2xl mb-6 lg:mb-8">Apply for Loans</h1>
 
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 sm:p-6 dark:bg-gray-900 dark:border-gray-800">
-            <div className="flex items-center justify-between gap-3 mb-5 flex-wrap">
-              <div>
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 sm:p-6 dark:bg-gray-900 dark:border-gray-800">
+            <div className="flex flex-col gap-3 mb-5 sm:flex-row sm:items-center sm:justify-between">
+              <div className="min-w-0">
                 <h3 className="text-lg font-bold text-gray-900 dark:text-white">Choose Loan Type</h3>
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Select your loan type to continue with the application form.</p>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="w-full sm:w-auto">
                 <button
                   type="button"
                   onClick={() => setIsCalculatorOpen(true)}
-                  className="inline-flex items-center gap-1.5 rounded-full border border-[#1D6021] px-3 py-1 text-[11px] font-bold text-[#1D6021] hover:bg-[#EAF1EB] dark:border-green-500 dark:text-green-400 dark:hover:bg-green-900/30"
+                  className="inline-flex w-full items-center justify-center gap-1.5 rounded-full border border-member-green px-3 py-2 text-[11px] font-bold text-member-green hover:bg-[#EAF1EB] dark:border-green-500 dark:text-green-400 dark:hover:bg-green-900/30 sm:w-auto sm:py-1"
                 >
                   <Calculator className="w-3.5 h-3.5" /> Simulate Before Applying
                 </button>
@@ -330,7 +330,7 @@ const Member_ApplyLoans = () => {
 
             {anyRestriction && (
               <div
-                className={`mb-4 rounded-xl border p-4 flex items-start gap-3 ${
+                className={`mb-4 rounded-xl border p-3 sm:p-4 flex items-start gap-3 ${
                   anyFullyBlocked
                     ? "border-red-200 bg-red-50 text-red-800"
                     : "border-amber-200 bg-amber-50 text-amber-800"
@@ -338,7 +338,7 @@ const Member_ApplyLoans = () => {
                 role="alert"
               >
                 <AlertCircle className="w-5 h-5 mt-0.5 flex-shrink-0" />
-                <div className="text-sm">
+                <div className="min-w-0 text-sm">
                   <p className="font-bold">
                     {anyFullyBlocked
                       ? "Some loan types are locked because you have an active loan of that type."
@@ -365,7 +365,7 @@ const Member_ApplyLoans = () => {
               </div>
             )}
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
               {selectorOptions.map((item) => {
                 const Icon = item.icon;
                 const disabled = isLocked(item.key);
@@ -385,14 +385,14 @@ const Member_ApplyLoans = () => {
                     disabled={disabled}
                     aria-disabled={disabled}
                     title={disabled ? disabledReason : ""}
-                    className={`bg-white rounded-2xl flex flex-col items-center justify-center shadow-sm border border-slate-100 transition-all group p-6 dark:bg-gray-800 dark:border-gray-700 ${
+                    className={`min-h-36 bg-white rounded-2xl flex flex-col items-center justify-center shadow-sm border border-slate-100 transition-all group p-4 sm:p-6 dark:bg-gray-800 dark:border-gray-700 ${
                       disabled
                         ? "opacity-50 grayscale cursor-not-allowed"
                         : "cursor-pointer hover:shadow-lg hover:border-[#A0D284]"
                     }`}
                   >
-                    <div className={`${item.tone} p-4 rounded-full mb-3 ${disabled ? "" : "group-hover:scale-110"} transition-transform duration-300`}>
-                      <Icon size={32} strokeWidth={2} />
+                    <div className={`${item.tone} p-3 sm:p-4 rounded-full mb-2 sm:mb-3 ${disabled ? "" : "group-hover:scale-110"} transition-transform duration-300`}>
+                      <Icon size={28} strokeWidth={2} className="sm:h-8 sm:w-8" />
                     </div>
                     <h1 className="font-bold text-slate-800 text-sm text-center dark:text-gray-200">{item.label}</h1>
                     {disabled && (

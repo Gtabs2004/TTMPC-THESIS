@@ -650,7 +650,7 @@ const Member_StatementOfAccount = () => {
         <div className="flex flex-row items-start gap-2 mb-6">
           <img src="/img/ttmpc logo.png" alt="Logo" className="h-12 w-auto" />
           <div className="flex flex-col">
-            <h1 className="text-xl font-bold text-[#389734]">TTMPC</h1>
+            <h1 className="text-xl font-bold text-primary">TTMPC</h1>
             <p className="text-[10px] uppercase tracking-wider text-gray-500 dark:text-gray-400 font-bold">Members Portal</p>
           </div>
         </div>
@@ -668,8 +668,8 @@ const Member_StatementOfAccount = () => {
                 className={({ isActive }) =>
                   `flex items-center gap-3 p-2.5 rounded-lg transition-colors ${
                     isActive
-                      ? "bg-[#EAF1EB] text-[#1D6021] font-bold dark:bg-green-900/30 dark:text-green-400"
-                      : "text-gray-600 hover:bg-gray-50 hover:text-[#1D6021] font-medium dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-green-400"
+                      ? "bg-[#EAF1EB] text-member-green font-bold dark:bg-green-900/30 dark:text-green-400"
+                      : "text-gray-600 hover:bg-gray-50 hover:text-member-green font-medium dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-green-400"
                   }`
                 }
               >
@@ -686,7 +686,7 @@ const Member_StatementOfAccount = () => {
 
         <button
           onClick={handleSignOut}
-          className="mt-auto w-full rounded-lg p-2.5 text-sm bg-[#1D6021] hover:bg-[#154718] text-white font-bold transition-colors"
+          className="mt-auto w-full rounded-lg p-2.5 text-sm bg-member-green hover:bg-[#154718] text-white font-bold transition-colors"
         >
           Sign out
         </button>
@@ -707,7 +707,7 @@ const Member_StatementOfAccount = () => {
 
           <div className="flex items-center gap-2 sm:gap-4">
             
-            <LoanNotificationBell role="member" accentClass="bg-[#1D6021]" />
+            <LoanNotificationBell role="member" accentClass="bg-member-green" />
             <button
               onClick={() => setIsSettingsOpen(true)}
               className="p-2 rounded-md text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
@@ -733,7 +733,7 @@ const Member_StatementOfAccount = () => {
                 onClick={() => setActiveTab(tab.key)}
                 className={`pb-3 -mb-px text-sm font-bold border-b-2 transition-colors ${
                   activeTab === tab.key
-                    ? "border-[#1D6021] text-[#1D6021] dark:text-green-400"
+                    ? "border-member-green text-member-green dark:text-green-400"
                     : "border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
                 }`}
               >
@@ -794,14 +794,14 @@ const Member_StatementOfAccount = () => {
                         </div>
                         <div className="flex justify-between text-sm mb-4">
                           <span className="text-gray-500 dark:text-gray-400 font-medium">Monthly</span>
-                          <span className="font-bold text-[#1D6021] dark:text-green-400">{formatCurrency(loan.monthly)}</span>
+                          <span className="font-bold text-member-green dark:text-green-400">{formatCurrency(loan.monthly)}</span>
                         </div>
 
                         <div className="mt-auto pt-4 border-t border-gray-100 dark:border-gray-800 flex items-center justify-between">
                           <span className="text-[10px] uppercase tracking-wider font-bold text-gray-400 dark:text-gray-500">
                             Applied {formatDate(loan.applicationDate)}
                           </span>
-                          <span className="inline-flex items-center gap-1 text-xs font-bold text-[#1D6021] dark:text-green-400">
+                          <span className="inline-flex items-center gap-1 text-xs font-bold text-member-green dark:text-green-400">
                             View Summary <ChevronRight className="w-4 h-4" />
                           </span>
                         </div>
@@ -831,7 +831,7 @@ const Member_StatementOfAccount = () => {
                   type="button"
                   onClick={handleDownloadPdf}
                   disabled={loadingRows || rows.length === 0}
-                  className="inline-flex items-center gap-2 rounded-lg bg-[#1D6021] px-4 py-2.5 text-xs font-bold text-white hover:bg-[#154718] disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+                  className="inline-flex items-center gap-2 rounded-lg bg-member-green px-4 py-2.5 text-xs font-bold text-white hover:bg-[#154718] disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
                 >
                   <Download className="w-4 h-4" /> Download as PDF
                 </button>
@@ -840,19 +840,19 @@ const Member_StatementOfAccount = () => {
               <div className="mb-6 rounded-xl border border-green-200 dark:border-green-900 bg-green-50 dark:bg-green-900/20 p-4 grid grid-cols-1 sm:grid-cols-4 gap-4">
                 <div>
                   <p className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Member Name</p>
-                  <p className="text-sm font-bold text-[#1D6021] dark:text-green-400">{memberLabel}</p>
+                  <p className="text-sm font-bold text-member-green dark:text-green-400">{memberLabel}</p>
                 </div>
                 <div>
                   <p className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Account Number</p>
-                  <p className="text-sm font-bold text-[#1D6021] dark:text-green-400">{accountNumber}</p>
+                  <p className="text-sm font-bold text-member-green dark:text-green-400">{accountNumber}</p>
                 </div>
                 <div>
                   <p className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Loan Principal</p>
-                  <p className="text-sm font-bold text-[#1D6021] dark:text-green-400">{formatCurrency(selectedLoan.principal)}</p>
+                  <p className="text-sm font-bold text-member-green dark:text-green-400">{formatCurrency(selectedLoan.principal)}</p>
                 </div>
                 <div>
                   <p className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Generated On</p>
-                  <p className="text-sm font-bold text-[#1D6021] dark:text-green-400">
+                  <p className="text-sm font-bold text-member-green dark:text-green-400">
                     {new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "2-digit" })}
                   </p>
                 </div>
@@ -902,7 +902,7 @@ const Member_StatementOfAccount = () => {
                             <td className="p-5 text-sm font-bold text-gray-700 dark:text-gray-200 text-right">{formatCurrency(r.interest_paid)}</td>
                             <td className="p-5 text-sm font-medium text-gray-600 dark:text-gray-400 text-right">{formatCurrency(r.deficiency)}</td>
                             <td className="p-5 text-sm font-medium text-red-400 text-right">{formatCurrency(r.penalty)}</td>
-                            <td className="p-5 text-sm font-black text-[#1D6021] dark:text-green-400 text-right">{formatCurrency(r.total_amount_paid)}</td>
+                            <td className="p-5 text-sm font-black text-member-green dark:text-green-400 text-right">{formatCurrency(r.total_amount_paid)}</td>
                             <td className="p-5 text-sm font-bold text-gray-900 dark:text-white text-right">{formatCurrency(r.outstanding_balance)}</td>
                           </tr>
                         ))
@@ -910,7 +910,7 @@ const Member_StatementOfAccount = () => {
                     </tbody>
                     {!loadingRows && !rowsError && rows.length > 0 ? (
                       <tfoot>
-                        <tr className="bg-[#EAF1EB] text-[#1D6021] dark:bg-green-900/30 dark:text-green-400">
+                        <tr className="bg-[#EAF1EB] text-member-green dark:bg-green-900/30 dark:text-green-400">
                           <td className="p-5 text-xs font-extrabold uppercase tracking-wider" colSpan="2">Totals</td>
                           <td className="p-5 text-sm font-black text-right">{formatCurrency(totals.principal)}</td>
                           <td className="p-5 text-sm font-black text-right">{formatCurrency(totals.interest)}</td>
@@ -938,13 +938,13 @@ const Member_StatementOfAccount = () => {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 mb-8">
                 <div className="bg-white dark:bg-gray-900 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col">
                   <div className="w-10 h-10 rounded-lg bg-[#EAF1EB] dark:bg-green-900/30 flex items-center justify-center mb-6">
-                    <Wallet className="w-5 h-5 text-[#1D6021] dark:text-green-400" />
+                    <Wallet className="w-5 h-5 text-member-green dark:text-green-400" />
                   </div>
                   <p className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-1">Current Balance</p>
                   <h3 className="text-2xl sm:text-3xl font-black text-gray-900 dark:text-white">{formatCurrency(regularSavings)}</h3>
                 </div>
                 <div className="bg-white dark:bg-gray-900 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col">
-                  <div className="w-10 h-10 rounded-lg bg-[#1D6021] flex items-center justify-center mb-6">
+                  <div className="w-10 h-10 rounded-lg bg-member-green flex items-center justify-center mb-6">
                     <Banknote className="w-5 h-5 text-white" />
                   </div>
                   <p className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-1">Entries</p>
@@ -959,7 +959,7 @@ const Member_StatementOfAccount = () => {
                     type="button"
                     onClick={handleDownloadSavingsPdf}
                     disabled={loadingSavings || savingsRows.length === 0}
-                    className="inline-flex items-center gap-2 rounded-lg bg-[#1D6021] px-4 py-2.5 text-xs font-bold text-white hover:bg-[#154718] disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+                    className="inline-flex items-center gap-2 rounded-lg bg-member-green px-4 py-2.5 text-xs font-bold text-white hover:bg-[#154718] disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
                   >
                     <Download className="w-4 h-4" /> Download as PDF
                   </button>
@@ -1009,7 +1009,7 @@ const Member_StatementOfAccount = () => {
                     </tbody>
                     {!loadingSavings && !savingsError && savingsRows.length > 0 ? (
                       <tfoot>
-                        <tr className="bg-[#EAF1EB] text-[#1D6021] dark:bg-green-900/30 dark:text-green-400">
+                        <tr className="bg-[#EAF1EB] text-member-green dark:bg-green-900/30 dark:text-green-400">
                           <td className="p-5 text-xs font-extrabold uppercase tracking-wider" colSpan="3">Totals</td>
                           <td className="p-5 text-sm font-black text-right">
                             +{formatCurrency(savingsTotals.credits)} / -{formatCurrency(savingsTotals.debits)}
@@ -1029,7 +1029,7 @@ const Member_StatementOfAccount = () => {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 mb-8">
                 <div className="bg-white dark:bg-gray-900 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col">
                   <div className="w-10 h-10 rounded-lg bg-[#EAF1EB] dark:bg-green-900/30 flex items-center justify-center mb-6">
-                    <PiggyBank className="w-5 h-5 text-[#1D6021] dark:text-green-400" />
+                    <PiggyBank className="w-5 h-5 text-member-green dark:text-green-400" />
                   </div>
                   <p className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-1">Ending Share Capital</p>
                   <h3 className="text-2xl sm:text-3xl font-black text-gray-900 dark:text-white">
@@ -1037,7 +1037,7 @@ const Member_StatementOfAccount = () => {
                   </h3>
                 </div>
                 <div className="bg-white dark:bg-gray-900 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col">
-                  <div className="w-10 h-10 rounded-lg bg-[#1D6021] flex items-center justify-center mb-6">
+                  <div className="w-10 h-10 rounded-lg bg-member-green flex items-center justify-center mb-6">
                     <Banknote className="w-5 h-5 text-white" />
                   </div>
                   <p className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-1">Total Capital Added</p>
@@ -1052,7 +1052,7 @@ const Member_StatementOfAccount = () => {
                     type="button"
                     onClick={handleDownloadCbuPdf}
                     disabled={loadingCbu || cbuRows.length === 0}
-                    className="inline-flex items-center gap-2 rounded-lg bg-[#1D6021] px-4 py-2.5 text-xs font-bold text-white hover:bg-[#154718] disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+                    className="inline-flex items-center gap-2 rounded-lg bg-member-green px-4 py-2.5 text-xs font-bold text-white hover:bg-[#154718] disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
                   >
                     <Download className="w-4 h-4" /> Download as PDF
                   </button>
@@ -1096,7 +1096,7 @@ const Member_StatementOfAccount = () => {
                     </tbody>
                     {!loadingCbu && !cbuError && cbuRows.length > 0 ? (
                       <tfoot>
-                        <tr className="bg-[#EAF1EB] text-[#1D6021] dark:bg-green-900/30 dark:text-green-400">
+                        <tr className="bg-[#EAF1EB] text-member-green dark:bg-green-900/30 dark:text-green-400">
                           <td className="p-5 text-xs font-extrabold uppercase tracking-wider" colSpan="3">Totals</td>
                           <td className="p-5 text-sm font-black text-right">+{formatCurrency(cbuTotals.added)}</td>
                           <td className="p-5 text-sm font-black text-right">

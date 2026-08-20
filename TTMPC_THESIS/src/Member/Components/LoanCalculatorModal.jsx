@@ -195,7 +195,7 @@ export default function LoanCalculatorModal({ open, onClose }) {
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 dark:border-gray-800 bg-gradient-to-r from-[#F3F9F1] to-white dark:from-green-950/40 dark:to-gray-900 rounded-t-2xl shrink-0">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-[#1D6021] flex items-center justify-center shadow-sm">
+            <div className="w-9 h-9 rounded-xl bg-member-green flex items-center justify-center shadow-sm">
               <Calculator className="w-4 h-4 text-white" />
             </div>
             <div>
@@ -242,7 +242,7 @@ export default function LoanCalculatorModal({ open, onClose }) {
             <div>
               <div className="flex items-center justify-between mb-1.5">
                 <label className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Loan Amount</label>
-                <span className="text-lg font-extrabold text-[#1D6021] dark:text-green-400">{formatPHP(amountNum)}</span>
+                <span className="text-lg font-extrabold text-member-green dark:text-green-400">{formatPHP(amountNum)}</span>
               </div>
 
               {/* Slider */}
@@ -256,7 +256,7 @@ export default function LoanCalculatorModal({ open, onClose }) {
                   onChange={(e) => setLoanAmount(Number(e.target.value))}
                   className="w-full h-2 rounded-full appearance-none cursor-pointer"
                   style={{
-                    background: `linear-gradient(to right, ${isDark ? "#4ADE80" : "#1D6021"} ${sliderPct}%, ${isDark ? "#374151" : "#E5E7EB"} ${sliderPct}%)`,
+                    background: `linear-gradient(to right, ${isDark ? "var(--color-member-green-dark)" : "var(--color-member-green)"} ${sliderPct}%, ${isDark ? "#374151" : "#E5E7EB"} ${sliderPct}%)`,
                   }}
                 />
                 <div className="flex justify-between text-[10px] text-gray-400 dark:text-gray-500 font-medium mt-1">
@@ -274,8 +274,8 @@ export default function LoanCalculatorModal({ open, onClose }) {
                     onClick={() => setLoanAmount(v)}
                     className={`text-xs font-bold px-3 py-1.5 rounded-lg border transition-colors ${
                       amountNum === v
-                        ? "bg-[#1D6021] text-white border-[#1D6021]"
-                        : "bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:border-[#66B538] dark:hover:border-green-500 hover:text-[#1D6021] dark:hover:text-green-400"
+                        ? "bg-member-green text-white border-member-green"
+                        : "bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:border-[#66B538] dark:hover:border-green-500 hover:text-member-green dark:hover:text-green-400"
                     }`}
                   >
                     {formatPHPCompact(v)}
@@ -303,8 +303,8 @@ export default function LoanCalculatorModal({ open, onClose }) {
                   onClick={() => setTerm(t)}
                   className={`text-xs font-bold py-2 rounded-xl border transition-colors ${
                     Number(term) === t
-                      ? "bg-[#1D6021] text-white border-[#1D6021] shadow-sm"
-                      : "bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:border-[#66B538] dark:hover:border-green-500 hover:text-[#1D6021] dark:hover:text-green-400"
+                      ? "bg-member-green text-white border-member-green shadow-sm"
+                      : "bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:border-[#66B538] dark:hover:border-green-500 hover:text-member-green dark:hover:text-green-400"
                   }`}
                 >
                   {t} mo
@@ -344,7 +344,7 @@ export default function LoanCalculatorModal({ open, onClose }) {
           {result ? (
             <div className="rounded-2xl border border-[#D8EBD3] dark:border-green-900 bg-[#F3F9F1] dark:bg-green-950/30 overflow-hidden">
               {/* Primary stat — monthly amortization */}
-              <div className="px-5 py-4 bg-[#1D6021] text-white text-center">
+              <div className="px-5 py-4 bg-member-green text-white text-center">
                 <p className="text-[10px] font-bold uppercase tracking-widest text-green-200 mb-1">Monthly Amortization</p>
                 <p className="text-3xl font-extrabold tracking-tight">{formatPHP(result.monthly)}</p>
                 <p className="text-[11px] text-green-200 mt-1">per month for {result.term} months</p>
@@ -354,14 +354,14 @@ export default function LoanCalculatorModal({ open, onClose }) {
               <div className="grid grid-cols-2 divide-x divide-[#D8EBD3] dark:divide-green-900 border-b border-[#D8EBD3] dark:border-green-900">
                 <div className="px-4 py-3 text-center">
                   <div className="flex items-center justify-center gap-1 mb-0.5">
-                    <TrendingUp className="w-3 h-3 text-[#1D6021] dark:text-green-400" />
+                    <TrendingUp className="w-3 h-3 text-member-green dark:text-green-400" />
                     <p className="text-[10px] font-bold text-[#2d6a38] dark:text-green-400 uppercase tracking-wider">Total Interest</p>
                   </div>
                   <p className="text-base font-extrabold text-gray-900 dark:text-white">{formatPHP(result.totalInterest)}</p>
                 </div>
                 <div className="px-4 py-3 text-center">
                   <div className="flex items-center justify-center gap-1 mb-0.5">
-                    <Wallet className="w-3 h-3 text-[#1D6021] dark:text-green-400" />
+                    <Wallet className="w-3 h-3 text-member-green dark:text-green-400" />
                     <p className="text-[10px] font-bold text-[#2d6a38] dark:text-green-400 uppercase tracking-wider">Total Repayment</p>
                   </div>
                   <p className="text-base font-extrabold text-gray-900 dark:text-white">{formatPHP(result.totalRepayment)}</p>
@@ -375,10 +375,10 @@ export default function LoanCalculatorModal({ open, onClose }) {
                   onClick={() => setShowFormula((v) => !v)}
                   className="w-full flex items-center justify-between px-4 py-2.5 text-left hover:bg-[#eaf5e4] dark:hover:bg-green-900/30 transition-colors"
                 >
-                  <span className="flex items-center gap-1.5 text-[11px] font-bold text-[#1D6021] dark:text-green-400">
+                  <span className="flex items-center gap-1.5 text-[11px] font-bold text-member-green dark:text-green-400">
                     <Info className="w-3.5 h-3.5" /> How is this computed?
                   </span>
-                  <ChevronDown className={`w-3.5 h-3.5 text-[#1D6021] dark:text-green-400 transition-transform ${showFormula ? "rotate-180" : ""}`} />
+                  <ChevronDown className={`w-3.5 h-3.5 text-member-green dark:text-green-400 transition-transform ${showFormula ? "rotate-180" : ""}`} />
                 </button>
                 {showFormula && (
                   <div className="px-4 pb-3 space-y-1.5 text-xs">
@@ -410,7 +410,7 @@ export default function LoanCalculatorModal({ open, onClose }) {
               {/* Renewal breakdown */}
               {result.renewalActive && (
                 <div className="border-t border-[#D8EBD3] dark:border-green-900 bg-white dark:bg-gray-900 mx-0 p-4 space-y-2">
-                  <p className="text-[10px] font-extrabold text-[#1D6021] dark:text-green-400 uppercase tracking-wider mb-2">Renewal Breakdown</p>
+                  <p className="text-[10px] font-extrabold text-member-green dark:text-green-400 uppercase tracking-wider mb-2">Renewal Breakdown</p>
                   <FormulaRow label="New gross loan" value={formatPHP(result.principal)} />
                   <FormulaRow label="Less: remaining balance" value={`− ${formatPHP(result.remainingBalance)}`} />
                   <div className="border-t border-dashed border-gray-200 dark:border-gray-700 pt-2">
@@ -428,7 +428,7 @@ export default function LoanCalculatorModal({ open, onClose }) {
           ) : (
             <div className="rounded-2xl border border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/60 py-8 text-center">
               <div className="w-12 h-12 rounded-full bg-[#EAF1EB] dark:bg-green-900/30 flex items-center justify-center mx-auto mb-3">
-                <Calculator className="w-5 h-5 text-[#1D6021] dark:text-green-400" />
+                <Calculator className="w-5 h-5 text-member-green dark:text-green-400" />
               </div>
               <p className="text-sm font-bold text-gray-500 dark:text-gray-400">Adjust the amount and term</p>
               <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Your monthly amortization will appear here.</p>
@@ -437,10 +437,10 @@ export default function LoanCalculatorModal({ open, onClose }) {
 
           {/* Renewal toggle */}
           <div className={`rounded-xl border p-3.5 transition-colors ${
-            renewalEnabled ? "border-[#1D6021]/30 dark:border-green-800 bg-[#F3F9F1] dark:bg-green-950/30" : "border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800"
+            renewalEnabled ? "border-member-green/30 dark:border-green-800 bg-[#F3F9F1] dark:bg-green-950/30" : "border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800"
           }`}>
             <div className="flex items-start gap-3">
-              <RefreshCw className={`w-4 h-4 mt-0.5 shrink-0 ${renewalEnabled ? "text-[#1D6021] dark:text-green-400" : "text-gray-400 dark:text-gray-500"}`} />
+              <RefreshCw className={`w-4 h-4 mt-0.5 shrink-0 ${renewalEnabled ? "text-member-green dark:text-green-400" : "text-gray-400 dark:text-gray-500"}`} />
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between gap-2">
                   <p className="text-xs font-bold text-gray-800 dark:text-gray-100">Simulate Loan Renewal</p>
@@ -452,7 +452,7 @@ export default function LoanCalculatorModal({ open, onClose }) {
                       onChange={(e) => setRenewalEnabled(e.target.checked)}
                       disabled={!activeLoan}
                     />
-                    <span className="w-9 h-5 bg-gray-300 dark:bg-gray-600 rounded-full peer-checked:bg-[#1D6021] transition-colors relative">
+                    <span className="w-9 h-5 bg-gray-300 dark:bg-gray-600 rounded-full peer-checked:bg-member-green transition-colors relative">
                       <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${renewalEnabled ? "translate-x-4" : ""}`} />
                     </span>
                   </label>
@@ -464,7 +464,7 @@ export default function LoanCalculatorModal({ open, onClose }) {
                 ) : activeLoan ? (
                   <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1">
                     Active loan <span className="font-semibold text-gray-700 dark:text-gray-200">{activeLoan.controlNumber}</span> — remaining{" "}
-                    <span className="font-semibold text-[#1D6021] dark:text-green-400">{formatPHP(activeLoan.remaining)}</span>
+                    <span className="font-semibold text-member-green dark:text-green-400">{formatPHP(activeLoan.remaining)}</span>
                   </p>
                 ) : (
                   <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-1">No active loan found — renewal simulation unavailable.</p>
@@ -482,7 +482,7 @@ export default function LoanCalculatorModal({ open, onClose }) {
           <button
             type="button"
             onClick={onClose}
-            className="bg-[#1D6021] hover:bg-[#154718] text-white text-sm font-bold px-5 py-2 rounded-xl transition-colors"
+            className="bg-member-green hover:bg-[#154718] text-white text-sm font-bold px-5 py-2 rounded-xl transition-colors"
           >
             Close
           </button>
@@ -496,7 +496,7 @@ function FormulaRow({ label, value, highlight = false }) {
   return (
     <div className="flex items-center justify-between gap-3">
       <span className="text-gray-500 dark:text-gray-400 text-xs">{label}</span>
-      <span className={`font-bold text-xs ${highlight ? "text-[#1D6021] dark:text-green-400" : "text-gray-800 dark:text-gray-100"}`}>{value}</span>
+      <span className={`font-bold text-xs ${highlight ? "text-member-green dark:text-green-400" : "text-gray-800 dark:text-gray-100"}`}>{value}</span>
     </div>
   );
 }

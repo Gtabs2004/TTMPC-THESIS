@@ -118,7 +118,7 @@ const BOD_Loan_Approval = () => {
         <div className="flex flex-row items-start gap-2 mb-6">
           <img src="/img/ttmpc logo.png" alt="Logo" className="h-12 w-auto" />
           <div className="flex flex-col">
-            <h1 className="text-xl font-bold text-[#389734]">TTMPC</h1>
+            <h1 className="text-xl font-bold text-primary">TTMPC</h1>
             <PortalSidebarIdentity className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold" fallbackPortal="BOD Portal" fallbackRole="BOD" />
           </div>
         </div>
@@ -244,7 +244,7 @@ const BOD_Loan_Approval = () => {
                       <td className="p-5 text-sm text-right pr-8">
                         <button
                           onClick={() => navigate(`/bod-loan-approval/${encodeURIComponent(loan.control_number)}`)}
-                          className="text-[#1D6021] font-bold hover:underline transition-all"
+                          className="text-member-green font-bold hover:underline transition-all"
                         >
                           Review
                         </button>
