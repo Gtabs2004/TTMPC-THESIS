@@ -106,19 +106,22 @@ const Manager_Manage_Loans = () => {
   const tabs = useMemo(() => {
     const active = loans.filter((l) => l.remaining_balance > 0).length;
     const fullyPaid = loans.filter((l) => l.remaining_balance <= 0).length;
+    const restructured = loans.filter((l) => pendingRequestIds.has(l.loan_id)).length;
     return [
       { key: "active", label: "Active Loans", count: active },
       { key: "fully_paid", label: "Fully Paid", count: fullyPaid },
+      { key: "restructured", label: "Restructure Request", count: restructured },
     ];
-  }, [loans]);
+  }, [loans, pendingRequestIds]);
 
   const filteredLoans = useMemo(() => {
     const text = searchTerm.trim().toLowerCase();
     return loans.filter((item) => {
-      const tabMatch =
-        activeTab === "active"
-          ? item.remaining_balance > 0
-          : item.remaining_balance <= 0;
+      let tabMatch;
+      if (activeTab === "active") tabMatch = item.remaining_balance > 0;
+      else if (activeTab === "fully_paid") tabMatch = item.remaining_balance <= 0;
+      else if (activeTab === "restructured") tabMatch = pendingRequestIds.has(item.loan_id);
+      else tabMatch = true;
       if (!tabMatch) return false;
       if (loanTypeFilter !== "all" && item.loan_type_code !== loanTypeFilter)
         return false;
@@ -305,12 +308,6 @@ const Manager_Manage_Loans = () => {
                 <ChevronRight className="w-4 h-4 text-gray-300" />
                 <span className="text-[#389734]">Manage Loans</span>
               </div>
-              <p className="text-base text-gray-600 mt-2">
-                View loan status, outstanding balances, and member ledger records.
-              </p>
-              <p className="text-xs text-amber-700 font-medium mt-1 bg-amber-50 border border-amber-200 rounded-md px-3 py-1 inline-block">
-                View only — edits and updates are handled by the Bookkeeper.
-              </p>
             </div>
             <button
               type="button"
@@ -376,34 +373,47 @@ const Manager_Manage_Loans = () => {
 
           {/* Filters + tabs */}
           <div className="rounded-xl bg-white border border-gray-200 shadow-sm mb-6 p-5">
-            <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-              <div className="flex flex-wrap items-center gap-2">
-                {tabs.map((tab) => (
-                  <button
-                    key={tab.key}
-                    type="button"
-                    onClick={() => setActiveTab(tab.key)}
-                    className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
-                      activeTab === tab.key
-                        ? "bg-green-600 text-white"
-                        : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                    }`}
-                  >
-                    <span>{tab.label}</span>
-                    <span
-                      className={`inline-flex items-center justify-center min-w-6 h-6 rounded-full text-xs font-semibold ${
-                        activeTab === tab.key
-                          ? "bg-white/30"
-                          : "bg-gray-300 text-gray-700"
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              {/* Tabs */}
+              <div className="flex items-center gap-2">
+                {tabs.map((tab) => {
+                  const isActive = activeTab === tab.key;
+                  const isRestructured = tab.key === "restructured";
+                  return (
+                    <button
+                      key={tab.key}
+                      type="button"
+                      onClick={() => setActiveTab(tab.key)}
+                      className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
+                        isActive
+                          ? isRestructured
+                            ? "bg-amber-500 text-white"
+                            : "bg-green-600 text-white"
+                          : isRestructured && tab.count > 0
+                          ? "bg-amber-50 text-amber-700 border border-amber-300 hover:bg-amber-100"
+                          : "bg-gray-100 text-gray-700 hover:bg-gray-200"
                       }`}
                     >
-                      {tab.count}
-                    </span>
-                  </button>
-                ))}
+                      {isRestructured && <RefreshCw size={11} />}
+                      <span>{tab.label}</span>
+                      <span
+                        className={`inline-flex items-center justify-center min-w-5 h-5 rounded-full text-xs font-bold ${
+                          isActive
+                            ? "bg-white/30 text-white"
+                            : isRestructured && tab.count > 0
+                            ? "bg-amber-200 text-amber-800"
+                            : "bg-gray-300 text-gray-700"
+                        }`}
+                      >
+                        {tab.count}
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
 
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end xl:ml-auto">
+              {/* Filters */}
+              <div className="flex flex-wrap items-center gap-2">
                 <div className="flex flex-wrap items-center gap-3">
                   <select
                     value={loanTypeFilter}
@@ -582,25 +592,17 @@ const Manager_Manage_Loans = () => {
                           {formatDate(parent.due_date)}
                         </td>
                         <td className="px-3 py-4 text-center align-top">
-                          <div className="flex flex-col items-center gap-1">
-                            <button
-                              type="button"
-                              onClick={() =>
-                                navigate(`/manager-loan-ledger/${parent.loan_id}`, {
-                                  state: { loan: parent, readOnly: true },
-                                })
-                              }
-                              className="inline-flex items-center gap-1 rounded-lg bg-gray-100 px-2 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-200 border border-gray-200 transition-colors"
-                            >
-                              <Eye size={12} /> View
-                            </button>
-                            {pendingRequestIds.has(parent.loan_id) && (
-                              <span className="inline-flex items-center gap-1 rounded-md bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-700 border border-amber-200 whitespace-nowrap">
-                                <RefreshCw size={10} className="shrink-0" />
-                                Restructure Request
-                              </span>
-                            )}
-                          </div>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              navigate(`/manager-loan-ledger/${parent.loan_id}`, {
+                                state: { loan: parent, readOnly: true },
+                              })
+                            }
+                            className="inline-flex items-center gap-1 rounded-lg bg-gray-100 px-2 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-200 border border-gray-200 transition-colors"
+                          >
+                            <Eye size={12} /> View
+                          </button>
                         </td>
                       </tr>
 
@@ -672,25 +674,17 @@ const Manager_Manage_Loans = () => {
                                 {formatDate(r.application_date)}
                               </td>
                               <td className="px-3 py-2.5 text-center align-top">
-                                <div className="flex flex-col items-center gap-1">
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      navigate(`/manager-loan-ledger/${r.loan_id}`, {
-                                        state: { loan: r, readOnly: true },
-                                      })
-                                    }
-                                    className="inline-flex items-center gap-1 rounded-md border border-gray-200 bg-white px-2 py-1 text-xs font-semibold text-gray-600 hover:bg-gray-50"
-                                  >
-                                    <Eye size={11} /> View
-                                  </button>
-                                  {pendingRequestIds.has(r.loan_id) && (
-                                    <span className="inline-flex items-center gap-1 rounded-md bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-700 border border-amber-200 whitespace-nowrap">
-                                      <RefreshCw size={10} className="shrink-0" />
-                                      Restructure Request
-                                    </span>
-                                  )}
-                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    navigate(`/manager-loan-ledger/${r.loan_id}`, {
+                                      state: { loan: r, readOnly: true },
+                                    })
+                                  }
+                                  className="inline-flex items-center gap-1 rounded-md border border-gray-200 bg-white px-2 py-1 text-xs font-semibold text-gray-600 hover:bg-gray-50"
+                                >
+                                  <Eye size={11} /> View
+                                </button>
                               </td>
                             </tr>
                           );
