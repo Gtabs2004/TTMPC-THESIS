@@ -6,7 +6,10 @@ const MobileFormStepper = ({ steps, currentStep, onStepChange, onNext, onPreviou
   const isLast = currentStep === steps.length - 1;
 
   return (
-    <div className="mb-5 md:hidden" aria-label="Loan application progress">
+    <div
+      className="fixed inset-x-0 bottom-0 z-20 border-t border-gray-200 bg-white px-4 py-3 md:hidden"
+      aria-label="Loan application progress"
+    >
       <div className="flex items-center justify-between gap-2">
         <button
           type="button"
