@@ -67,7 +67,6 @@ const ManageLoans = () => {
   const [currentPage, setCurrentPage] = useState(1);
   // Which renewal groups have their history expanded. Keyed by the parent
   // (current active) loan_id — flipping a chevron toggles its entry here.
-  const [expandedGroups, setExpandedGroups] = useState(() => new Set());
   const [isSavingsOpen, setIsSavingsOpen] = useState(false);
 
   const menuItems = [
@@ -227,15 +226,6 @@ const ManageLoans = () => {
     const start = (currentPage - 1) * ITEMS_PER_PAGE;
     return groupedLoans.slice(start, start + ITEMS_PER_PAGE);
   }, [groupedLoans, currentPage]);
-
-  const toggleGroup = (loanId) => {
-    setExpandedGroups((prev) => {
-      const next = new Set(prev);
-      if (next.has(loanId)) next.delete(loanId);
-      else next.add(loanId);
-      return next;
-    });
-  };
 
   const handleSignOut = async (event) => {
     event.preventDefault();
@@ -531,54 +521,13 @@ const ManageLoans = () => {
                 )}
 
                 {paginatedGroups.map(({ parent, renewals }) => {
-                  const expanded = expandedGroups.has(parent.loan_id);
                   const hasRenewals = renewals.length > 0;
                   return (
                     <React.Fragment key={parent.loan_id}>
-                      <tr
-                        className={`border-b border-gray-100 transition-colors ${
-                          expanded ? "bg-green-50/40 hover:bg-green-50/60" : "hover:bg-green-50/40"
-                        }`}
-                      >
+                      <tr className="border-b border-gray-100 transition-colors hover:bg-green-50/40">
                         <td className="px-3 py-4 text-sm font-mono font-bold text-green-700 align-middle">
-                          <div className="flex min-h-[44px] flex-col items-start justify-center gap-1.5">
-                            <div className="flex flex-wrap items-center gap-1.5">
-                              <span className="truncate">{parent.loan_id}</span>
-                              {hasRenewals ? (
-                                <span
-                                  title={`This is the latest renewal in a chain of ${renewals.length + 1} loans. The member renewed their previous loan — old balance was rolled into this one.`}
-                                  className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-blue-700"
-                                >
-                                  Renewed
-                                </span>
-                              ) : (
-                                <span
-                                  title="First loan of this type for this member — no prior renewals."
-                                  className="inline-flex items-center rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-700"
-                                >
-                                  Original
-                                </span>
-                              )}
-                            </div>
-                            <button
-                              type="button"
-                              onClick={hasRenewals ? () => toggleGroup(parent.loan_id) : undefined}
-                              disabled={!hasRenewals}
-                              aria-hidden={!hasRenewals}
-                              tabIndex={hasRenewals ? 0 : -1}
-                              title={hasRenewals ? `${renewals.length} previous version${renewals.length > 1 ? "s" : ""} in chain — click to ${expanded ? "collapse" : "expand"}` : undefined}
-                              className={`inline-flex w-fit items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide transition-colors ${
-                                !hasRenewals
-                                  ? "invisible pointer-events-none"
-                                  : expanded
-                                  ? "bg-green-600 text-white hover:bg-green-700"
-                                  : "bg-green-100 text-green-700 hover:bg-green-200"
-                              }`}
-                            >
-                              <RefreshCw size={9} />
-                              {hasRenewals ? `${renewals.length} prior version${renewals.length > 1 ? "s" : ""}` : "0 renewals"}
-                              {hasRenewals && (expanded ? " ▲" : " ▼")}
-                            </button>
+                          <div className="flex flex-col items-start gap-1">
+                            <span className="truncate">{parent.loan_id}</span>
                           </div>
                         </td>
                         <td className="px-3 py-4 text-sm text-gray-800 font-semibold align-top">{parent.member_name}</td>
@@ -594,7 +543,12 @@ const ManageLoans = () => {
                             {formatCurrency(parent.remaining_balance)}
                           </span>
                         </td>
-                        <td className="px-3 py-4 text-sm text-gray-700 font-medium whitespace-nowrap align-top">{formatDate(parent.due_date)}</td>
+                        <td className="px-3 py-4 text-sm font-medium whitespace-nowrap align-top">
+                          {parent.due_date
+                            ? <span className="text-gray-700">{formatDate(parent.due_date)}</span>
+                            : <span className="text-xs text-gray-400 italic capitalize">{parent.source_loan_status || "No schedule"}</span>
+                          }
+                        </td>
                         <td className="px-3 py-4 text-center align-top">
                           <button
                             type="button"
@@ -606,69 +560,6 @@ const ManageLoans = () => {
                         </td>
                       </tr>
 
-                      {expanded && renewals.map((r, i) => {
-                        const isLast = i === renewals.length - 1;
-                        return (
-                          <tr
-                            key={r.loan_id}
-                            className={`bg-green-50/30 hover:bg-green-50/60 transition-colors ${
-                              isLast ? "border-b border-gray-100" : "border-b border-green-100/70"
-                            }`}
-                          >
-                            <td className="pl-9 pr-3 py-2.5 text-sm font-mono align-top">
-                              <div className="flex items-start gap-1.5">
-                                <span className="text-green-400 leading-none">└</span>
-                                <div className="min-w-0 flex-1">
-                                  <div className="flex flex-wrap items-center gap-1.5">
-                                    <span className="text-gray-500 break-all">{r.loan_id}</span>
-                                    <span
-                                      title={`This loan was renewed into ${parent.loan_id} on ${formatDate(parent.application_date)}. Its remaining balance was rolled into the successor.`}
-                                      className="inline-flex items-center rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-800"
-                                    >
-                                      Closed → Renewed
-                                    </span>
-                                  </div>
-                                  <p className="mt-0.5 text-[11px] font-sans font-normal text-gray-500 normal-case">
-                                    Superseded by <span className="font-semibold text-gray-700">{parent.loan_id}</span> on {formatDate(parent.application_date)}
-                                  </p>
-                                </div>
-                              </div>
-                            </td>
-                            <td className="px-3 py-2.5 text-sm text-gray-500 align-top">{r.member_name}</td>
-                            <td className="px-3 py-2.5 align-top">
-                              <span className={`inline-block whitespace-nowrap px-2 py-0.5 rounded-full text-[11px] font-semibold ${getLoanTypeStyle(r.loan_type_code)}`}>
-                                {r.loan_type}
-                              </span>
-                            </td>
-                            <td className="px-3 py-2.5 text-sm text-gray-600 font-medium text-right whitespace-nowrap align-top">{formatCurrency(r.loan_amount)}</td>
-                            <td className="px-3 py-2.5 text-sm text-gray-500 text-left whitespace-nowrap align-top">{formatCurrency(r.amortization)}</td>
-                            <td className="px-3 py-2.5 text-sm text-left font-semibold align-top">
-                              <div className="flex flex-col gap-0.5">
-                                <span className={`whitespace-nowrap ${r.remaining_balance > 0 ? "text-gray-500 line-through" : "text-gray-400"}`}>
-                                  {formatCurrency(r.remaining_balance)}
-                                </span>
-                                {r.remaining_balance > 0 && (
-                                  <span className="text-[11px] font-normal italic text-amber-700 whitespace-nowrap">
-                                    Rolled into {parent.loan_id}
-                                  </span>
-                                )}
-                              </div>
-                            </td>
-                            <td className="px-3 py-2.5 text-sm text-gray-500 whitespace-nowrap align-top">
-                              {formatDate(r.application_date)}
-                            </td>
-                            <td className="px-3 py-2.5 text-center align-top">
-                              <button
-                                type="button"
-                                onClick={() => navigate(`/bookkeeper-loan-ledger/${r.loan_id}`, { state: { loan: r } })}
-                                className="inline-flex items-center gap-1 rounded-md border border-green-200 bg-white px-2 py-1 text-xs font-semibold text-green-700 hover:bg-green-50"
-                              >
-                                <Eye size={11} /> View
-                              </button>
-                            </td>
-                          </tr>
-                        );
-                      })}
                     </React.Fragment>
                   );
                 })}
