@@ -198,9 +198,7 @@ const BOD_Manage_Loans = () => {
     "Manage Member": "/bod-manage-member",
     "Audit Log": "/bod-audit-log",
     "Loan Policies": "/bod-loan-policies",
-    "Training Attendance": "/Secretary_Attendance",
-    "General Assembly": "/Secretary_General_Assembly",
-    "Membership Records": "/Secretary_Records",
+    
   };
   const handleSignOut = async (e) => {
     e.preventDefault();

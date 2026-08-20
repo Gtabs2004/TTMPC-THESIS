@@ -61,13 +61,13 @@ const memberGuarded = (el) => <MemberOnboardingGuard>{el}</MemberOnboardingGuard
 
 // Per-portal role guards. Anyone without an authenticated session is sent to
 // /Login; anyone whose account.role does not match is sent to the landing page.
-// Secretary is folded into the BOD portal because BOD sidebars host both
-// (see usePortalRole usage).
+// Secretary has its own portal, separate from BOD.
 const bookkeeperGuarded = (el) => <RequireRole allow="bookkeeper">{el}</RequireRole>;
 const managerGuarded    = (el) => <RequireRole allow="manager">{el}</RequireRole>;
 const treasurerGuarded  = (el) => <RequireRole allow="treasurer">{el}</RequireRole>;
 const cashierGuarded    = (el) => <RequireRole allow="cashier">{el}</RequireRole>;
-const bodGuarded        = (el) => <RequireRole allow={["bod", "secretary"]}>{el}</RequireRole>;
+const bodGuarded        = (el) => <RequireRole allow="bod">{el}</RequireRole>;
+const secretaryGuarded  = (el) => <RequireRole allow="secretary">{el}</RequireRole>;
 import Member_Savings from "./Member/Components/Member_Savings";
 import Member_Lifecycle from "./Member/Components/Member_Lifecycle";
 import Member_StatementOfAccount from "./Member/Components/Member_StatementOfAccount";
@@ -89,9 +89,10 @@ import Cashier_Dashboard from "./Cashier/Components/Cashier_Dashboard";
 import Cashier_Savings from "./Cashier/Components/Cashier_Savings";
 import Savings_Details from "./Cashier/Components/Savings_Details";
 import Add_Savings from "./Cashier/Components/Add_Savings";
-import Secretary_Attendance from "./BOD/Components/Secretary_Attendance";
-import Secretary_General_Assembly from "./BOD/Components/Secretary_General_Assembly";
-import Secretary_Records from "./BOD/Components/Secretary_Records";
+import Secretary_Attendance from "./secretary/Secretary_Attendance";
+import Secretary_General_Assembly from "./secretary/Secretary_General_Assembly";
+import Secretary_Records from "./secretary/Secretary_Records";
+import BOD_Secretary_Records from "./BOD/Components/Secretary_Records";
 import Record_Details from "./BOD/Components/Record_Details";
 import BOD_Manage_Member from "./BOD/Components/Manage-Member";
 import Treasurer_Approval from "./Treasurer/Components/Treasurer_Approval";
@@ -199,9 +200,9 @@ export const router = createBrowserRouter([
     {path: "/Cashier_Savings", element: cashierGuarded(<Cashier_Savings/>)},
     {path: "/add_savings", element: cashierGuarded(<Add_Savings/>)},
     {path: "/Savings_Details/:id", element: cashierGuarded(<Savings_Details/>)},
-    {path: "/Secretary_Attendance", element: bodGuarded(<Secretary_Attendance/>)},
-    {path: "/Secretary_General_Assembly", element: bodGuarded(<Secretary_General_Assembly/>)},
-    {path: "/Secretary_Records", element: bodGuarded(<Secretary_Records/>)},
+    {path: "/Secretary_Attendance", element: secretaryGuarded(<Secretary_Attendance/>)},
+    {path: "/Secretary_General_Assembly", element: secretaryGuarded(<Secretary_General_Assembly/>)},
+    {path: "/Secretary_Records", element: secretaryGuarded(<Secretary_Records/>)},
     {path: "/bod-manage-member", element: bodGuarded(<BOD_Manage_Member/>)},
     {path: "/bod-loan-approvals", element: bodGuarded(<BOD_Loan_Approval/>)},
     {path: "/bod-loan-approval/:id", element: bodGuarded(<LoanApprovalDetails/>)},
@@ -211,8 +212,8 @@ export const router = createBrowserRouter([
     {path: "/cashier-audit-log", element: cashierGuarded(<Cashier_Audit_Log/>)},
     {path: "/bod-manage-loans", element: bodGuarded(<BOD_Manage_Loans/>)},
     {path: "/bod-loan-policies", element: bodGuarded(<BOD_Loan_Policies/>)},
-    {path: "/secretary-records", element: bodGuarded(<Secretary_Records/>)},
-    {path: "/membership-records", element: bodGuarded(<Secretary_Records/>)},
+    {path: "/secretary-records", element: bodGuarded(<BOD_Secretary_Records/>)},
+    {path: "/membership-records", element: bodGuarded(<BOD_Secretary_Records/>)},
     {path: "/record-details/:id", element: bodGuarded(<Record_Details/>)},
     {path: "/treasurer-approval", element: treasurerGuarded(<Treasurer_Approval/>)},
     {path:"/treasurer-approval/:id", element: treasurerGuarded(<Treasurer_ApprovalDetails/>)},

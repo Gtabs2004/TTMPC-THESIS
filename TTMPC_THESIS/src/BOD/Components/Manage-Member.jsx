@@ -49,14 +49,7 @@ const BOD_Manage_Member = () => {
         { name: "Loan Policies", icon: FileText },
       ],
     },
-    {
-      section: "SECRETARY",
-      items: [
-        { name: "Training Attendance", icon: CalendarCheck },
-        { name: "General Assembly", icon: CalendarDays },
-        { name: "Membership Records", icon: Archive },
-      ],
-    },
+   
   ];
 
    const routeMap = {
@@ -67,9 +60,7 @@ const BOD_Manage_Member = () => {
     "Manage Member": "/bod-manage-member",
     "Audit Log": "/bod-audit-log",
     "Loan Policies": "/bod-loan-policies",
-    "Training Attendance": "/Secretary_Attendance",
-    "General Assembly": "/Secretary_General_Assembly",
-    "Membership Records": "/Secretary_Records",
+   
   };
 
   useEffect(() => {

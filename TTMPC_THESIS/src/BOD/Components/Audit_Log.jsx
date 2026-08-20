@@ -35,12 +35,7 @@ const Audit_Log = () => {
       { name: "Audit Log", icon: History },
       { name: "Loan Policies", icon: FileText },
     ]},
-    { section: "SECRETARY", items: [
-      { name: "Training Attendance", icon: CalendarCheck },
-      { name: "General Assembly", icon: CalendarDays },
-      { name: "Membership Records", icon: Archive },
-      
-    ]},
+    
   ];
 
   const routeMap = {
@@ -51,9 +46,7 @@ const Audit_Log = () => {
     "Manage Member": "/bod-manage-member",
     "Audit Log": "/bod-audit-log",
     "Loan Policies": "/bod-loan-policies",
-    "Training Attendance": "/Secretary_Attendance",
-    "Membership Records": "/Secretary_Records",
-    "General Assembly": "/Secretary_General_Assembly",
+    
   };
 
   const handleSignOut = async (e) => {
