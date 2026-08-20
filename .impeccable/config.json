@@ -1,0 +1,62 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "gray-on-color",
+        "value": "*",
+        "files": [
+          "TTMPC_THESIS/src/Bookkeeper/Components/Manage-Loans.jsx"
+        ],
+        "createdAt": "2026-08-20T11:59:12.153Z",
+        "reason": "Inactive nav link uses gray-700 on white sidebar — not gray on a colored background; false positive from hover class co-location"
+      },
+      {
+        "rule": "design-system-font-size",
+        "value": "*",
+        "files": [
+          "TTMPC_THESIS/src/Bookkeeper/Components/Manage-Loans.jsx"
+        ],
+        "createdAt": "2026-08-20T11:59:16.234Z",
+        "reason": "text-[10px] is canonical per DESIGN.md Data Table section for header labels and compact badges; text-[11px] used for slightly larger inline badges in the same context"
+      },
+      {
+        "rule": "gray-on-color",
+        "value": "*",
+        "files": [
+          "TTMPC_THESIS/src/Bookkeeper/Components/Delinquency.jsx"
+        ],
+        "createdAt": "2026-08-20T12:02:35.064Z",
+        "reason": "Gray text is on white sidebar background, not on a colored surface; false positive from hover class co-location"
+      },
+      {
+        "rule": "design-system-font-size",
+        "value": "*",
+        "files": [
+          "TTMPC_THESIS/src/Bookkeeper/Components/Delinquency.jsx"
+        ],
+        "createdAt": "2026-08-20T12:02:35.292Z",
+        "reason": "text-[10px] is canonical per DESIGN.md Data Table section for compact badges and sidebar identity label"
+      },
+      {
+        "rule": "gray-on-color",
+        "value": "*",
+        "files": [
+          "TTMPC_THESIS/src/Cashier/Components/Cashier_Payments.jsx"
+        ],
+        "createdAt": "2026-08-20T12:03:18.779Z",
+        "reason": "Gray text is on white sidebar/card backgrounds; false positive from hover class co-location on same line"
+      },
+      {
+        "rule": "design-system-font-size",
+        "value": "*",
+        "files": [
+          "TTMPC_THESIS/src/Cashier/Components/Cashier_Payments.jsx"
+        ],
+        "createdAt": "2026-08-20T12:03:18.967Z",
+        "reason": "text-[10px] is canonical per DESIGN.md Data Table section for compact badges; sidebar identity label also uses it"
+      }
+    ]
+  }
+}

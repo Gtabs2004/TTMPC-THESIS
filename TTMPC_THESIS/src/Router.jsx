@@ -105,6 +105,7 @@ import Cashier_Disbursement from "./Cashier/Components/Cashier_Disbursement";
 import Cashier_MembershipPayments from "./Cashier/Components/Cashier_MembershipPayments";
 import Manage_Member from "./Bookkeeper/Components/Manage-Member";
 import Manager_Manage_Member from "./Manager/Components/Manage-Member";
+import Manager_Manage_Loans from "./Manager/Components/Manager_Manage_Loans";
 import Savings_Forms from "./LOANFORMS/Savings_Forms";
 import Grocery from "./Bookkeeper/Components/Grocery";
 import PosSimulator from "./Bookkeeper/Components/PosSimulator";
@@ -157,6 +158,8 @@ export const router = createBrowserRouter([
     {path: "/member-approvals/:id", element: bodGuarded(<MemberApprovalDetails/>)},
     {path: "/manager-dashboard", element: managerGuarded(<M_Dashboard/>)},
     {path: "/manager-manage-member", element: managerGuarded(<Manager_Manage_Member/>)},
+    {path: "/manager-manage-loans", element: managerGuarded(<Manager_Manage_Loans/>)},
+    {path: "/manager-loan-ledger/:loanId", element: managerGuarded(<LoanLedger/>)},
     {path: "/loan-approval", element: managerGuarded(<Loan_Approval/>)},
     {path: "/manager-reports", element: managerGuarded(<Manager_Reports/>)},
     {path: "/role_selection", element:<Role_Selection/>},

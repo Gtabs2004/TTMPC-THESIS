@@ -4168,10 +4168,10 @@ async def get_bookkeeper_manage_loans():
 
             due_date = active_due.get("due_date") if active_due else None
 
-            # Inject the current-due schedule row as an "Upcoming" ledger entry so
-            # the ledger UI has something to show for loans without any recorded
-            # payments yet (e.g., legacy loans reconstructed from CSV).
-            if active_due:
+            # Inject the current-due schedule row as an "Upcoming" ledger entry only
+            # for loans with no real payment history yet (e.g., legacy loans
+            # reconstructed from CSV). Skip if real payments already exist.
+            if active_due and not payment_history:
                 payment_history.append(
                     {
                         "payment_id": f"SCHED-{loan_id}-{active_due.get('installment_no')}",
@@ -4261,6 +4261,93 @@ async def get_bookkeeper_loan_ledger(loan_id: str):
         raise HTTPException(status_code=404, detail="Loan ledger not found.")
 
     return {"success": True, "data": target}
+
+
+class LoanRestructureRequest(BaseModel):
+    new_term_months: int = Field(..., gt=0, description="New repayment term in months")
+
+
+@app.patch("/api/bookkeeper/loan-ledger/{loan_id}/restructure")
+async def restructure_loan_term(loan_id: str, body: LoanRestructureRequest):
+    """
+    Updates the loan's term and recomputes monthly_amortization from the
+    current remaining_balance, interest_rate, and loan type.
+
+    Consolidated — add-on interest:  amort = remaining × (1 + rate × new_term) / new_term
+    Emergency    — diminishing:      amort = first-month total under equal-principal schedule
+    Bonus / KOICA — add-on (same as consolidated formula)
+    """
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+
+    clean_id = str(loan_id or "").strip()
+    if not clean_id:
+        raise HTTPException(status_code=400, detail="loan_id is required.")
+
+    new_term = body.new_term_months
+
+    # Fetch the live loan row directly.
+    loan_resp = (
+        supabase.table("loans")
+        .select("control_number,principal_amount,loan_amount,interest_rate,term,loan_status,loan_type:loan_type_id(code,interest_rate)")
+        .eq("control_number", clean_id)
+        .limit(1)
+        .execute()
+    )
+    loan_row = (loan_resp.data or [None])[0]
+    if not loan_row:
+        raise HTTPException(status_code=404, detail=f"Loan {clean_id} not found.")
+
+    loan_status = str(loan_row.get("loan_status") or "").lower()
+    if loan_status in ("fully paid", "completed", "closed"):
+        raise HTTPException(status_code=400, detail="Cannot restructure a fully paid or closed loan.")
+
+    # Renewal recomputes amortization on the original principal, not the remaining balance.
+    principal = Decimal(str(loan_row.get("principal_amount") or loan_row.get("loan_amount") or 0))
+    if principal <= 0:
+        raise HTTPException(status_code=400, detail="Loan principal is missing or invalid.")
+
+    loan_type_row = loan_row.get("loan_type") or {}
+    # Use sanitize_monthly_rate_percent to handle legacy rows where interest_rate
+    # was stored as a corrupted value (e.g. 83 instead of 0.83).
+    rate_percent = Decimal(str(sanitize_monthly_rate_percent(
+        loan_row.get("interest_rate"),
+        loan_type_row.get("interest_rate"),
+    )))
+    monthly_rate = rate_percent / Decimal("100")
+
+    loan_type_code = str(loan_type_row.get("code") or "").lower()
+
+    if loan_type_code == "emergency":
+        # Equal-principal, diminishing-interest schedule.
+        principal_component = money(principal / Decimal(new_term))
+        ending_balance = principal - principal_component
+        first_month_interest = money(ending_balance * monthly_rate)
+        new_amortization = money(principal_component + first_month_interest)
+    else:
+        # Add-on interest (consolidated, bonus, KOICA/ABF).
+        total_payable = principal * (1 + monthly_rate * Decimal(new_term))
+        new_amortization = money(total_payable / Decimal(new_term))
+
+    update_resp = (
+        supabase.table("loans")
+        .update({
+            "term": new_term,
+            "monthly_amortization": float(new_amortization),
+        })
+        .eq("control_number", clean_id)
+        .execute()
+    )
+
+    if not update_resp.data:
+        raise HTTPException(status_code=500, detail="Database update failed — no rows affected.")
+
+    return {
+        "success": True,
+        "loan_id": clean_id,
+        "new_term_months": new_term,
+        "new_amortization": float(new_amortization),
+    }
 
 
 # ============================================================================

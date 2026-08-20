@@ -548,14 +548,14 @@ const ManageLoans = () => {
                               <span className="truncate">{parent.loan_id}</span>
                               {hasRenewals ? (
                                 <span
-                                  title={`This loan is the current active version of a restructured chain (${renewals.length} previous version${renewals.length > 1 ? "s" : ""}).`}
+                                  title={`This is the latest renewal in a chain of ${renewals.length + 1} loans. The member renewed their previous loan — old balance was rolled into this one.`}
                                   className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-blue-700"
                                 >
-                                  Restructured
+                                  Renewed
                                 </span>
                               ) : (
                                 <span
-                                  title="First loan of this type for this member."
+                                  title="First loan of this type for this member — no prior renewals."
                                   className="inline-flex items-center rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-700"
                                 >
                                   Original
@@ -625,10 +625,10 @@ const ManageLoans = () => {
                                   <div className="flex flex-wrap items-center gap-1.5">
                                     <span className="text-gray-500 break-all">{r.loan_id}</span>
                                     <span
-                                      title={`This loan was closed and restructured into ${parent.loan_id} on ${formatDate(parent.application_date)}. Its remaining balance was rolled into the successor.`}
+                                      title={`This loan was renewed into ${parent.loan_id} on ${formatDate(parent.application_date)}. Its remaining balance was rolled into the successor.`}
                                       className="inline-flex items-center rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-800"
                                     >
-                                      Closed → Restructured
+                                      Closed → Renewed
                                     </span>
                                   </div>
                                   <p className="mt-0.5 text-[11px] font-sans font-normal text-gray-500 normal-case">
