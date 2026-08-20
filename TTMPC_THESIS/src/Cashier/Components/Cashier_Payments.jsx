@@ -761,7 +761,7 @@ const Cashier_Payments = () => {
                 </div>
                 <button
                   type="button"
-                  onClick={fetchCashierData}
+                  onClick={fetchLoans}
                   className="rounded-md border border-red-300 bg-white px-3 py-1 text-xs font-medium text-red-700 hover:bg-red-100 transition"
                 >
                   Retry
@@ -980,14 +980,14 @@ const Cashier_Payments = () => {
                             <span>{loan.member_name}</span>
                             {(loan.prior_versions || 0) > 0 ? (
                               <span
-                                title={`This loan is the current version of a restructured chain (${loan.prior_versions} prior version${loan.prior_versions > 1 ? "s" : ""}). Payment goes to this loan only — predecessors were rolled into it.`}
+                                title={`Renewal chain: this loan supersedes ${loan.prior_versions} prior version${loan.prior_versions > 1 ? "s" : ""}. Payment goes to this loan only — old balance was rolled into it.`}
                                 className="inline-flex items-center rounded-full bg-blue-100 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-blue-700"
                               >
-                                Restructured
+                                Renewed
                               </span>
                             ) : (
                               <span
-                                title="First loan of this type for this member."
+                                title="First loan of this type for this member — no prior renewals."
                                 className="inline-flex items-center rounded-full bg-emerald-100 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-700"
                               >
                                 Original

@@ -20,6 +20,7 @@ import {
   History,
   BarChart3,
   Brain,
+  Briefcase,
   ChevronRight,
 } from "lucide-react";
 import {
@@ -76,6 +77,7 @@ const M_Dashboard = () => {
     { name: "Dashboard", icon: LayoutDashboard },
     { name: "Loan Approval", icon: ClipboardCheck },
     { name: "Credit Risk", icon: Brain },
+    { name: "Manage Loans", icon: Briefcase },
     { name: "Manage Member", icon: Users },
     { name: "Reports", icon: BarChart3 },
     { name: "Audit Log", icon: History },
@@ -300,6 +302,7 @@ const M_Dashboard = () => {
               "Dashboard": "/manager-dashboard",
               "Loan Approval": "/loan-approval",
               "Credit Risk": "/manager-credit-risk",
+              "Manage Loans": "/manager-manage-loans",
               "Manage Member": "/manager-manage-member",
               "Reports": "/manager-reports",
               "Audit Log": "/manager-audit-log",

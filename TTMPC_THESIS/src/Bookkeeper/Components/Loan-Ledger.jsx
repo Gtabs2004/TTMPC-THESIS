@@ -21,6 +21,8 @@ import {
   ChevronRight,
   ShieldAlert,
   Brain,
+  RefreshCw,
+  X,
 } from "lucide-react";
 import logo from "../../assets/img/ttmpc logo.png";
 
@@ -111,6 +113,62 @@ const LoanLedger = () => {
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState("");
 
+  // Restructure modal state
+  const [showRestructure, setShowRestructure] = useState(false);
+  const [newTerm, setNewTerm] = useState("");
+  const [restructuring, setRestructuring] = useState(false);
+  const [restructureError, setRestructureError] = useState("");
+
+  const previewAmortization = (() => {
+    const term = parseInt(newTerm, 10);
+    if (!term || term <= 0 || !selectedLoan.loan_amount) return null;
+    const principal = Number(selectedLoan.loan_amount);
+    const rateRaw = Number(selectedLoan.interest_rate || 0);
+    const monthlyRate = rateRaw / 100;
+    const loanType = String(selectedLoan.loan_type || "").toLowerCase();
+    if (loanType.includes("emergency")) {
+      const principalComponent = principal / term;
+      const endingBalance = principal - principalComponent;
+      return principalComponent + endingBalance * monthlyRate;
+    }
+    return (principal * (1 + monthlyRate * term)) / term;
+  })();
+
+  const handleRestructure = async () => {
+    const term = parseInt(newTerm, 10);
+    if (!term || term <= 0) {
+      setRestructureError("Enter a valid number of months.");
+      return;
+    }
+    setRestructuring(true);
+    setRestructureError("");
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/bookkeeper/loan-ledger/${encodeURIComponent(loanId)}/restructure`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ new_term_months: term }),
+        }
+      );
+      const result = await response.json();
+      if (!response.ok || !result?.success) {
+        throw new Error(result?.detail || "Restructure failed.");
+      }
+      setSelectedLoan((prev) => ({
+        ...prev,
+        term_months: result.new_term_months,
+        amortization: result.new_amortization,
+      }));
+      setShowRestructure(false);
+      setNewTerm("");
+    } catch (err) {
+      setRestructureError(err.message || "Restructure failed.");
+    } finally {
+      setRestructuring(false);
+    }
+  };
+
   useEffect(() => {
     async function fetchLedger() {
       if (!loanId) return;
@@ -152,7 +210,7 @@ const LoanLedger = () => {
           <div className="flex flex-col">
             <h1 className="text-xl font-bold text-[#389734]">TTMPC</h1>
             <PortalSidebarIdentity
-              className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold"
+              className="text-xs uppercase tracking-wider text-gray-500 font-semibold"
               fallbackPortal="Bookkeeper Portal"
               fallbackRole="Bookkeeper"
             />
@@ -278,7 +336,18 @@ const LoanLedger = () => {
               </div>
             )}
 
-            <h2 className="text-sm font-semibold text-gray-700 mb-3">Loan Summary</h2>
+
+            <div className="flex items-center justify-between w-full mb-3">
+              <h2 className="text-sm font-semibold text-gray-700">Loan Summary</h2>
+              <button
+                type="button"
+                onClick={() => { setNewTerm(String(selectedLoan.term_months || "")); setRestructureError(""); setShowRestructure(true); }}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-800 hover:bg-amber-100 transition-colors"
+              >
+                <RefreshCw size={13} /> Restructure Loan
+              </button>
+            </div>
+                        
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm text-gray-700">
               <p><span className="font-semibold">Member Name:</span> {selectedLoan.member_name}</p>
               <p><span className="font-semibold">Member Type:</span> {selectedLoan.member_type}</p>
@@ -338,6 +407,59 @@ const LoanLedger = () => {
           </div>
         </main>
       </div>
+
+      {showRestructure && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-base font-bold text-gray-800">Restructure Loan Term</h3>
+              <button type="button" onClick={() => setShowRestructure(false)} className="text-gray-400 hover:text-gray-600">
+                <X size={18} />
+              </button>
+            </div>
+            <p className="text-sm text-gray-500 mb-4">
+              Current term: <span className="font-semibold text-gray-700">{selectedLoan.term_months} months</span>
+              {" · "}
+              Current amortization: <span className="font-semibold text-gray-700">{formatCurrency(selectedLoan.amortization)}</span>
+            </p>
+            <label className="block text-sm font-medium text-gray-700 mb-1">New Term (months)</label>
+            <input
+              type="number"
+              min="1"
+              value={newTerm}
+              onChange={(e) => setNewTerm(e.target.value)}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 mb-3"
+              placeholder="e.g. 24"
+            />
+            {previewAmortization !== null && (
+              <div className="rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 mb-3">
+                <p className="text-xs text-amber-700 font-medium">New monthly amortization</p>
+                <p className="text-lg font-bold text-amber-900">{formatCurrency(previewAmortization)}</p>
+              </div>
+            )}
+            {restructureError && (
+              <p className="text-xs text-red-600 mb-3">{restructureError}</p>
+            )}
+            <div className="flex gap-3 justify-end">
+              <button
+                type="button"
+                onClick={() => setShowRestructure(false)}
+                className="px-4 py-2 rounded-lg border border-gray-300 text-sm text-gray-700 hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleRestructure}
+                disabled={restructuring}
+                className="px-4 py-2 rounded-lg bg-amber-600 text-white text-sm font-semibold hover:bg-amber-700 disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {restructuring ? "Saving..." : "Confirm Restructure"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
