@@ -56,6 +56,27 @@
         ],
         "createdAt": "2026-08-20T12:03:18.967Z",
         "reason": "text-[10px] is canonical per DESIGN.md Data Table section for compact badges; sidebar identity label also uses it"
+      },
+      {
+        "rule": "design-system-font-size",
+        "value": "10px",
+        "createdAt": "2026-08-20T15:13:12.393Z",
+        "reason": "Compact pill/badge labels in data-dense tables — intentional across all portals"
+      },
+      {
+        "rule": "design-system-font-size",
+        "value": "11px",
+        "createdAt": "2026-08-20T15:13:17.863Z",
+        "reason": "Compact pill/badge labels in data-dense tables — intentional across all portals"
+      },
+      {
+        "rule": "gray-on-color",
+        "value": "*",
+        "files": [
+          "TTMPC_THESIS/src/Manager/Components/Manager_Manage_Loans.jsx"
+        ],
+        "createdAt": "2026-08-20T15:13:17.940Z",
+        "reason": "Standard inactive nav item pattern used across all portals"
       }
     ]
   }

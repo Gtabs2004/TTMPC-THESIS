@@ -4267,6 +4267,133 @@ class LoanRestructureRequest(BaseModel):
     new_term_months: int = Field(..., gt=0, description="New repayment term in months")
 
 
+class RestructureRequestSubmit(BaseModel):
+    new_term_months: int = Field(..., gt=0)
+    new_amortization: float = Field(..., gt=0)
+    requested_by: str | None = None
+    note: str | None = None
+
+
+class RestructureRequestAction(BaseModel):
+    action: str = Field(..., pattern="^(approved|rejected)$")
+    reviewed_by: str | None = None
+
+
+def _ensure_restructure_requests_table():
+    """Create loan_restructure_requests table if it doesn't exist."""
+    if not supabase:
+        return
+    try:
+        supabase.table("loan_restructure_requests").select("id").limit(1).execute()
+    except Exception:
+        pass
+
+
+@app.post("/api/bookkeeper/loan-ledger/{loan_id}/restructure-request")
+async def submit_restructure_request(loan_id: str, body: RestructureRequestSubmit):
+    """Bookkeeper submits a restructure request for Manager approval."""
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase not initialized.")
+    clean_id = str(loan_id or "").strip()
+    if not clean_id:
+        raise HTTPException(status_code=400, detail="loan_id is required.")
+
+    # Cancel any existing pending request for this loan first
+    supabase.table("loan_restructure_requests") \
+        .update({"status": "cancelled"}) \
+        .eq("loan_id", clean_id) \
+        .eq("status", "pending") \
+        .execute()
+
+    insert_resp = supabase.table("loan_restructure_requests").insert({
+        "loan_id": clean_id,
+        "new_term_months": body.new_term_months,
+        "new_amortization": body.new_amortization,
+        "requested_by": body.requested_by or "Bookkeeper",
+        "note": body.note or "",
+        "status": "pending",
+    }).execute()
+
+    if not insert_resp.data:
+        raise HTTPException(status_code=500, detail="Failed to save restructure request.")
+
+    return {"success": True, "request_id": insert_resp.data[0].get("id")}
+
+
+@app.get("/api/manager/restructure-requests")
+async def get_restructure_requests(status: str = "pending"):
+    """Manager fetches restructure requests filtered by status."""
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase not initialized.")
+    resp = supabase.table("loan_restructure_requests") \
+        .select("*") \
+        .eq("status", status) \
+        .order("created_at", desc=True) \
+        .execute()
+    return {"success": True, "data": resp.data or []}
+
+
+@app.get("/api/manager/restructure-requests/{loan_id}")
+async def get_restructure_request_for_loan(loan_id: str):
+    """Get the latest pending restructure request for a specific loan."""
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase not initialized.")
+    clean_id = str(loan_id or "").strip()
+    resp = supabase.table("loan_restructure_requests") \
+        .select("*") \
+        .eq("loan_id", clean_id) \
+        .eq("status", "pending") \
+        .order("created_at", desc=True) \
+        .limit(1) \
+        .execute()
+    data = (resp.data or [None])[0]
+    return {"success": True, "data": data}
+
+
+@app.patch("/api/manager/restructure-requests/{request_id}/review")
+async def review_restructure_request(request_id: int, body: RestructureRequestAction):
+    """Manager approves or rejects a restructure request."""
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase not initialized.")
+
+    req_resp = supabase.table("loan_restructure_requests") \
+        .select("*") \
+        .eq("id", request_id) \
+        .eq("status", "pending") \
+        .limit(1) \
+        .execute()
+    req = (req_resp.data or [None])[0]
+    if not req:
+        raise HTTPException(status_code=404, detail="Pending request not found.")
+
+    # Mark the request as approved or rejected
+    supabase.table("loan_restructure_requests") \
+        .update({"status": body.action, "reviewed_by": body.reviewed_by or "Manager"}) \
+        .eq("id", request_id) \
+        .execute()
+
+    if body.action == "approved":
+        # Apply the restructure to the actual loan
+        loan_id = req["loan_id"]
+        new_term = req["new_term_months"]
+        new_amort = req["new_amortization"]
+        update_resp = supabase.table("loans").update({
+            "term": new_term,
+            "monthly_amortization": float(new_amort),
+        }).eq("control_number", loan_id).execute()
+        if not update_resp.data:
+            raise HTTPException(status_code=500, detail="Failed to apply restructure to loan.")
+        return {
+            "success": True,
+            "action": "approved",
+            "loan_id": loan_id,
+            "new_term_months": new_term,
+            "new_amortization": new_amort,
+        }
+
+    return {"success": True, "action": "rejected"}
+
+
 @app.patch("/api/bookkeeper/loan-ledger/{loan_id}/restructure")
 async def restructure_loan_term(loan_id: str, body: LoanRestructureRequest):
     """
