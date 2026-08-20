@@ -1659,6 +1659,68 @@ const LoanApprovalDetails = () => {
                       </div>
                     </div>
 
+                    {/* Feature importance drivers — why the model scored this way */}
+                    {Array.isArray(riskAssessment.drivers) && riskAssessment.drivers.length > 0 && (() => {
+                      const drivers = riskAssessment.drivers;
+                      const maxAbs = Math.max(...drivers.map(d => Math.abs(d.contribution)), 1e-9);
+                      const FEATURE_LABELS = {
+                        LoanAmount: 'Loan Amount',
+                        Stability_Score: 'Occupation Stability',
+                        Advance_Payment_Count: 'Advance Payments',
+                        Income_Is_Missing: 'Income Data Missing',
+                        Repayment_Stress_Index: 'Repayment Stress Index',
+                      };
+                      return (
+                        <div className="border border-gray-200 rounded-xl p-4">
+                          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-1">
+                            <Info className="w-3.5 h-3.5" /> Score Drivers — Why This Classification
+                          </p>
+                          <p className="text-[10px] text-gray-400 mb-3 italic">
+                            Bar width shows each feature's relative contribution to the risk score. Ranked top to bottom by impact.
+                          </p>
+                          <div className="space-y-2.5">
+                            {drivers.map((d) => {
+                              const pct = maxAbs > 0 ? (Math.abs(d.contribution) / maxAbs) * 100 : 0;
+                              const isUp = d.direction === 'up';
+                              const isNeutral = d.direction === 'neutral';
+                              const barColor = isNeutral
+                                ? 'bg-gray-300'
+                                : isUp
+                                ? 'bg-red-400'
+                                : 'bg-green-500';
+                              const label = FEATURE_LABELS[d.feature] || d.feature;
+                              const aboveMedian = d.value > d.cohort_median;
+                              return (
+                                <div key={d.feature}>
+                                  <div className="flex items-center justify-between mb-0.5">
+                                    <span className="text-xs text-gray-700 font-medium">{label}</span>
+                                    <span className={`text-[10px] font-bold uppercase tracking-wider ${isNeutral ? 'text-gray-400' : isUp ? 'text-red-600' : 'text-green-700'}`}>
+                                      {isNeutral ? 'Neutral' : isUp ? '↑ Increases Risk' : '↓ Reduces Risk'}
+                                    </span>
+                                  </div>
+                                  <div className="w-full bg-gray-100 rounded-full h-2">
+                                    <div
+                                      className={`${barColor} h-2 rounded-full transition-all`}
+                                      style={{ width: `${pct.toFixed(1)}%` }}
+                                    />
+                                  </div>
+                                  <p className="text-[10px] text-gray-400 mt-0.5">
+                                    Value: <span className="font-semibold text-gray-600">{Number.isFinite(d.value) ? d.value.toFixed(2) : '—'}</span>
+                                    {' · '}Cohort median: <span className="font-semibold text-gray-600">{Number.isFinite(d.cohort_median) ? d.cohort_median.toFixed(2) : '—'}</span>
+                                    {d.cohort_median !== undefined && (
+                                      <span className={`ml-1 font-semibold ${aboveMedian ? 'text-red-500' : 'text-green-600'}`}>
+                                        ({aboveMedian ? 'above' : 'below'} avg)
+                                      </span>
+                                    )}
+                                  </p>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })()}
+
                     {/* Footer: model version + scored_at */}
                     <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[10px] text-gray-400 uppercase tracking-wider">
                       {riskAssessment.scored_at && (
