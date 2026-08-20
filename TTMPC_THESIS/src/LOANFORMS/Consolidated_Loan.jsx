@@ -76,10 +76,10 @@ function Consolidated_Loan() {
   const navigate = useNavigate();
   const { addNotification } = useNotification();
 
-  const inputStyles = "border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-[#66B538] outline-none w-full bg-white text-sm transition-all";
+  const inputStyles = "border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-primary outline-none w-full bg-white text-sm transition-all";
   const labelStyles = "block text-xs font-bold text-gray-700 mb-1";
   const lockedInputStyles = "border border-gray-200 rounded-md px-3 py-2 outline-none w-full bg-gray-100 text-gray-600 text-sm cursor-not-allowed select-text";
-  const sectionHeader = "bg-[#66B538] text-white px-4 py-2 rounded-t-lg flex items-center gap-2 font-bold uppercase tracking-wide";
+  const sectionHeader = "bg-primary-deep text-white px-4 py-2 rounded-t-lg flex items-center gap-2 font-bold uppercase tracking-wide";
   const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000';
   const PDF_PREVIEW_WINDOW_NAME = 'consolidated-loan-preview';
 
@@ -1080,7 +1080,7 @@ function Consolidated_Loan() {
           <div className="flex min-w-0 flex-row items-center gap-3 sm:gap-4">
           <img src="/img/ttmpc logo.png" alt="Logo" className="h-12 w-auto" />
           <div className="min-w-0 flex flex-col">
-            <h1 className="break-words text-xs font-bold text-[#66B538] sm:text-sm">Tubungan Teacher's Multi‑Purpose Cooperative</h1>
+            <h1 className="break-words text-xs font-bold text-primary-deep sm:text-sm">Tubungan Teacher's Multi‑Purpose Cooperative</h1>
             <p className="text-[#A0D284] text-xs">Loan Application Kiosk</p>
           </div>
           </div>
@@ -1097,9 +1097,9 @@ function Consolidated_Loan() {
       {/* Main Form Wrapping everything */}
       <form ref={formRef} noValidate={window.matchMedia('(max-width: 767px)').matches} onSubmit={handleFormSubmit} className="px-3 sm:px-4">
         <section className="grid gap-6 px-3 sm:gap-8 sm:px-4">
-          <h1 className="mt-8 text-center text-xl font-bold text-[#66B538] sm:mt-12 sm:text-2xl">CONSOLIDATED LOAN APPLICATION</h1>
+          <h1 className="mt-8 text-center text-xl font-bold text-primary sm:mt-12 sm:text-2xl">CONSOLIDATED LOAN APPLICATION</h1>
           <div className="max-w-6xl mx-auto w-full">
-            <div className="bg-[#EEF6F1] rounded-xl p-4 border-2 border-[#66B538] flex flex-col items-start justify-between gap-4 sm:p-6 md:flex-row md:items-center md:gap-6">
+            <div className="bg-[#EEF6F1] rounded-xl p-4 border-2 border-primary flex flex-col items-start justify-between gap-4 sm:p-6 md:flex-row md:items-center md:gap-6">
               <div className="flex flex-wrap gap-4 sm:gap-8">
                 <label
                   className={`flex items-center space-x-2 ${canApplyNew ? 'cursor-pointer' : 'cursor-not-allowed opacity-50 grayscale'}`}
@@ -1112,7 +1112,7 @@ function Consolidated_Loan() {
                     checked={formData.application_type === 'New'}
                     onChange={handleChange}
                     disabled={!canApplyNew}
-                    className="h-4 w-4 accent-[#66B538] disabled:cursor-not-allowed"
+                    className="h-4 w-4 accent-primary disabled:cursor-not-allowed"
                   />
                   <span className="font-semibold text-gray-700">New</span>
                 </label>
@@ -1127,7 +1127,7 @@ function Consolidated_Loan() {
                     checked={formData.application_type === 'Renewal'}
                     onChange={handleChange}
                     disabled={!canRenew}
-                    className="h-4 w-4 accent-[#66B538] disabled:cursor-not-allowed"
+                    className="h-4 w-4 accent-primary disabled:cursor-not-allowed"
                   />
                   <span className="font-semibold text-gray-700">Renewal</span>
                   {isRenewal && existingLoan && (
@@ -1165,7 +1165,7 @@ function Consolidated_Loan() {
               <button
                 type="button"
                 onClick={overrideSixMonthsPaid}
-                className="text-xs border border-[#66B538] text-[#66B538] hover:bg-[#E9F7DE] font-bold px-3 py-1 rounded-md"
+                className="text-xs border border-primary text-primary-deep hover:bg-[#E9F7DE] font-bold px-3 py-1 rounded-md"
               >
                 Simulate: Mark 6 months as paid
               </button>
@@ -1174,9 +1174,9 @@ function Consolidated_Loan() {
         )}
 
         {/* Section 1: BORROWER'S INFORMATION */}
-        <div data-mobile-step="0" className={`${mobileStep === 0 ? 'block' : 'hidden'} md:block mt-10 bg-white rounded-lg shadow-md overflow-hidden max-w-6xl mx-auto w-full`}>
+        <div data-mobile-step="0" className={`${mobileStep === 0 ? 'block' : 'hidden'} mobile-step-transition md:block mt-10 bg-white rounded-lg shadow-md overflow-hidden max-w-6xl mx-auto w-full`}>
           <div className={sectionHeader}>
-            <span className="bg-white text-[#66B538] rounded-full w-6 h-6 flex items-center justify-center text-sm">1</span>
+            <span className="bg-white text-primary-deep rounded-full w-6 h-6 flex items-center justify-center text-sm">1</span>
             BORROWER'S INFORMATION
           </div>
 
@@ -1188,11 +1188,11 @@ function Consolidated_Loan() {
             <div><label className={labelStyles}>Contact No. <span className="text-red-500">*</span></label><input type="text" name="contact_no" value={formData.contact_no} onChange={handleChange} className={inputClassFor('contact_no')} required {...lockedInputProps('contact_no')} /></div>
             <div>
               <label className={labelStyles}>Latest Net Pay <span className="text-red-500">*</span></label>
-              <div className="relative"><span className="absolute left-3 top-2 text-gray-400 text-xs">₱</span><input type="number" name="latest_net_pay" value={formData.latest_net_pay} onChange={handleChange} className={`${inputClassFor('latest_net_pay')} pl-7 ${!isLockedField('latest_net_pay') && previewNetPay > 0 && eligibilityCardData.eligibilityPass ? 'bg-[#E9F7DE] border-[#66B538]' : ''}`} required {...lockedInputProps('latest_net_pay')} /></div>
+              <div className="relative"><span className="absolute left-3 top-2 text-gray-400 text-xs">₱</span><input type="number" name="latest_net_pay" value={formData.latest_net_pay} onChange={handleChange} className={`${inputClassFor('latest_net_pay')} pl-7 ${!isLockedField('latest_net_pay') && previewNetPay > 0 && eligibilityCardData.eligibilityPass ? 'bg-[#E9F7DE] border-primary' : ''}`} required {...lockedInputProps('latest_net_pay')} /></div>
             </div>
             <div>
               <label className={labelStyles}>Share Capital <span className="text-red-500">*</span></label>
-              <div className="relative"><span className="absolute left-3 top-2 text-gray-400 text-xs">₱</span><input type="number" name="share_capital" value={formData.share_capital} onChange={handleChange} className={`${inputClassFor('share_capital')} pl-7 ${!isLockedField('share_capital') && previewShareCapital > 0 && Number.isFinite(dropdownLoanCapacity) ? 'bg-[#E9F7DE] border-[#66B538]' : ''}`} required {...lockedInputProps('share_capital')} /></div>
+              <div className="relative"><span className="absolute left-3 top-2 text-gray-400 text-xs">₱</span><input type="number" name="share_capital" value={formData.share_capital} onChange={handleChange} className={`${inputClassFor('share_capital')} pl-7 ${!isLockedField('share_capital') && previewShareCapital > 0 && Number.isFinite(dropdownLoanCapacity) ? 'bg-[#E9F7DE] border-primary' : ''}`} required {...lockedInputProps('share_capital')} /></div>
             </div>
             <div className="md:col-span-3"><label className={labelStyles}>Residence Address <span className="text-red-500">*</span></label><input type="text" name="residence_address" value={formData.residence_address} onChange={handleChange} className={inputClassFor('residence_address')} required {...lockedInputProps('residence_address')} /></div>
             <div><label className={labelStyles}>Date of Birth <span className="text-red-500">*</span></label><input type="date" name="date_of_birth" value={formData.date_of_birth} onChange={handleChange} className={inputClassFor('date_of_birth')} required {...lockedInputProps('date_of_birth')} /></div>
@@ -1219,9 +1219,9 @@ function Consolidated_Loan() {
         </div>
 
        {/* Section 2: LOAN AGREEMENT */}
-        <div data-mobile-step="1" className={`${mobileStep === 1 ? 'block' : 'hidden'} md:block mt-8 bg-white rounded-lg shadow-md overflow-hidden max-w-6xl mx-auto w-full`}>
+        <div data-mobile-step="1" className={`${mobileStep === 1 ? 'block' : 'hidden'} mobile-step-transition md:block mt-8 bg-white rounded-lg shadow-md overflow-hidden max-w-6xl mx-auto w-full`}>
           <div className={sectionHeader}>
-            <span className="bg-white text-[#66B538] rounded-full w-6 h-6 flex items-center justify-center text-sm">2</span>
+            <span className="bg-white text-primary-deep rounded-full w-6 h-6 flex items-center justify-center text-sm">2</span>
             LOAN AGREEMENT
           </div>
           <div className="p-4 sm:p-6 lg:p-8 text-sm text-gray-800">
@@ -1264,7 +1264,7 @@ function Consolidated_Loan() {
                   name="loan_amount_numeric"
                   value={formData.loan_amount_numeric}
                   onChange={handleChange}
-                  className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-[#66B538] outline-none bg-white text-sm transition-all w-full sm:w-48"
+                  className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-primary outline-none bg-white text-sm transition-all w-full sm:w-48"
                   required
                 >
                   <option value="">Select Amount</option>
@@ -1288,7 +1288,7 @@ function Consolidated_Loan() {
                 name="loan_purpose" 
                 value={formData.loan_purpose} 
                 onChange={handleChange} 
-                className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-[#66B538] outline-none bg-white text-sm transition-all mx-2 w-full sm:w-64 inline-block align-middle" 
+                className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-primary outline-none bg-white text-sm transition-all mx-2 w-full sm:w-64 inline-block align-middle" 
               >
                 <option value="">Select Purpose</option>
                 <option value="Emergency Needs">Emergency Needs</option>
@@ -1307,7 +1307,7 @@ function Consolidated_Loan() {
                   value={formData.loan_purpose_other} 
                   onChange={handleChange} 
                   placeholder="Please specify..."
-                  className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-[#66B538] outline-none bg-white text-sm transition-all mx-2 w-full sm:w-56 inline-block align-middle" 
+                  className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-primary outline-none bg-white text-sm transition-all mx-2 w-full sm:w-56 inline-block align-middle" 
                 />
               )}
               <br className="hidden md:block" />
@@ -1323,7 +1323,7 @@ function Consolidated_Loan() {
                   max={60}
                   step={1}
                   placeholder="e.g. 15"
-                  className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-[#66B538] outline-none bg-white text-sm transition-all w-full sm:w-32 text-gray-600"
+                  className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-primary outline-none bg-white text-sm transition-all w-full sm:w-32 text-gray-600"
                 />
               </span>
               months with a monthly amortization of
@@ -1344,7 +1344,7 @@ function Consolidated_Loan() {
                 title="System-computed from principal, term and interest rate."
                 className={`border rounded-md px-3 py-1.5 outline-none text-sm transition-all mx-2 w-48 inline-block align-middle cursor-not-allowed select-text ${
                   hasComputedAmortization
-                    ? 'border-[#66B538] bg-[#E9F7DE] text-[#2E7D32] font-semibold'
+                    ? 'border-primary bg-[#E9F7DE] text-[#2E7D32] font-semibold'
                     : 'border-gray-200 bg-gray-100 text-gray-600'
                 }`}
               />
@@ -1360,8 +1360,8 @@ function Consolidated_Loan() {
           </div>
         </div>
         {/* Section 2.5: COLLATERAL */}
-        <div data-mobile-step="2" className={`${mobileStep === 2 ? 'block' : 'hidden'} md:block mt-8 bg-white rounded-xl shadow-sm ring-1 ring-gray-200 overflow-hidden max-w-6xl mx-auto w-full`}>
-          <div className="bg-[#66B538] text-white px-5 py-4 flex items-center gap-3">
+        <div data-mobile-step="2" className={`${mobileStep === 2 ? 'block' : 'hidden'} mobile-step-transition md:block mt-8 bg-white rounded-xl shadow-sm ring-1 ring-gray-200 overflow-hidden max-w-6xl mx-auto w-full`}>
+          <div className="bg-primary-deep text-white px-5 py-4 flex items-center gap-3">
             <span className="bg-white/15 ring-1 ring-white/25 rounded-lg w-9 h-9 flex items-center justify-center">
               <ShieldCheck className="h-5 w-5" aria-hidden="true" />
             </span>
@@ -1453,7 +1453,7 @@ function Consolidated_Loan() {
                           <button
                             type="button"
                             onClick={() => collateralFileInputRefs.current[index]?.click()}
-                            className="group relative h-28 w-28 shrink-0 overflow-hidden rounded-lg border border-green-200 bg-green-50 transition-colors hover:border-[#66B538]"
+                            className="group relative h-28 w-28 shrink-0 overflow-hidden rounded-lg border border-green-200 bg-green-50 transition-colors hover:border-primary"
                             title="Click to change photo"
                             aria-label="Change collateral photo"
                           >
@@ -1489,7 +1489,7 @@ function Consolidated_Loan() {
                           <button
                             type="button"
                             onClick={() => collateralFileInputRefs.current[index]?.click()}
-                            className="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-2.5 py-2 text-xs font-semibold text-gray-700 hover:border-[#66B538] hover:text-member-green transition-colors"
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-2.5 py-2 text-xs font-semibold text-gray-700 hover:border-primary hover:text-member-green transition-colors"
                             title="Upload a photo of this collateral"
                           >
                             {collateralUploadingIndex === index ? (
@@ -1523,7 +1523,7 @@ function Consolidated_Loan() {
                 <button
                   type="button"
                   onClick={addCollateral}
-                  className="w-full inline-flex items-center justify-center gap-1.5 rounded-lg border-2 border-dashed border-gray-300 bg-white px-4 py-3 text-xs font-bold text-gray-600 hover:border-[#66B538] hover:text-member-green hover:bg-[#F5FBF0] transition-colors"
+                  className="w-full inline-flex items-center justify-center gap-1.5 rounded-lg border-2 border-dashed border-gray-300 bg-white px-4 py-3 text-xs font-bold text-gray-600 hover:border-primary hover:text-member-green hover:bg-[#F5FBF0] transition-colors"
                 >
                   <Plus className="h-4 w-4" aria-hidden="true" /> Add another collateral
                 </button>
@@ -1533,9 +1533,9 @@ function Consolidated_Loan() {
         </div>
 
         {/* Section 3: LOAN CONTRACT */}
-        <div data-mobile-step="2" className={`${mobileStep === 2 ? 'block' : 'hidden'} md:block mt-8 bg-white rounded-lg shadow-md overflow-hidden max-w-6xl mx-auto w-full`}>
+        <div data-mobile-step="2" className={`${mobileStep === 2 ? 'block' : 'hidden'} mobile-step-transition md:block mt-8 bg-white rounded-lg shadow-md overflow-hidden max-w-6xl mx-auto w-full`}>
           <div className={sectionHeader}>
-            <span className="bg-white text-[#66B538] rounded-full w-6 h-6 flex items-center justify-center text-sm">3</span>
+            <span className="bg-white text-primary-deep rounded-full w-6 h-6 flex items-center justify-center text-sm">3</span>
             LOAN CONTRACT
           </div>
           <div className="p-4 sm:p-6 lg:p-8 text-sm text-gray-800">
@@ -1572,7 +1572,7 @@ function Consolidated_Loan() {
                   name="loan_amount_numeric"
                   value={formData.loan_amount_numeric}
                   onChange={handleChange}
-                  className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-[#66B538] outline-none bg-white text-sm transition-all w-full sm:w-48"
+                  className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-primary outline-none bg-white text-sm transition-all w-full sm:w-48"
                   required
                 >
                   <option value="">Select Amount</option>
@@ -1603,7 +1603,7 @@ function Consolidated_Loan() {
                   name="employer_name" 
                   value={formData.employer_name} 
                   onChange={handleChange} 
-                  className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-[#66B538] outline-none bg-white text-sm transition-all mx-2 w-full sm:w-[22rem] inline-block align-middle" 
+                  className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-primary outline-none bg-white text-sm transition-all mx-2 w-full sm:w-[22rem] inline-block align-middle" 
                 />
                 the outstanding balance of my loan shall be paid
               </span>
@@ -1630,9 +1630,9 @@ function Consolidated_Loan() {
           </div>
         </div>
         {/* Section 4: ADDITIONAL INFORMATION */}
-        <div data-mobile-step="2" className={`${mobileStep === 2 ? 'block' : 'hidden'} md:block mt-8 bg-white rounded-lg shadow-md overflow-hidden max-w-6xl mx-auto w-full`}>
+        <div data-mobile-step="2" className={`${mobileStep === 2 ? 'block' : 'hidden'} mobile-step-transition md:block mt-8 bg-white rounded-lg shadow-md overflow-hidden max-w-6xl mx-auto w-full`}>
           <div className={sectionHeader}>
-            <span className="bg-white text-[#66B538] rounded-full w-6 h-6 flex items-center justify-center text-sm">4</span>
+            <span className="bg-white text-primary-deep rounded-full w-6 h-6 flex items-center justify-center text-sm">4</span>
             BORROWER'S ADDITIONAL INFORMATION
           </div>
           <div className="p-4 sm:p-6 lg:p-8 grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -1641,7 +1641,7 @@ function Consolidated_Loan() {
           </div>
         </div>
 
-        <div data-mobile-step="3" className={`${mobileStep === 3 ? 'block' : 'hidden'} md:hidden mt-8 max-w-6xl mx-auto w-full rounded-lg border border-gray-200 bg-white p-4 shadow-sm`}>
+        <div data-mobile-step="3" className={`${mobileStep === 3 ? 'block' : 'hidden'} mobile-step-transition md:hidden mt-8 max-w-6xl mx-auto w-full rounded-lg border border-gray-200 bg-white p-4 shadow-sm`}>
           <h2 className="text-base font-bold text-gray-900">Review your application</h2>
           <p className="mt-1 text-xs text-gray-500">Check each section below before submitting. Tap Edit to go back and make changes.</p>
 
@@ -1681,15 +1681,15 @@ function Consolidated_Loan() {
             return (
               <div key={section.step} className="mt-4 rounded-lg border border-gray-200 overflow-hidden">
                 <div className="flex items-center justify-between gap-2 bg-gray-50 px-3 py-2 border-b border-gray-200">
-                  <span className="text-[11px] font-bold uppercase tracking-wide text-gray-500">{section.title}</span>
+                  <span className="text-xs font-bold uppercase tracking-wide text-gray-500">{section.title}</span>
                   <div className="flex items-center gap-2">
                     {missingCount > 0 && (
-                      <span className="text-[10px] font-bold text-red-600">{missingCount} to fix</span>
+                      <span className="text-xs font-bold text-red-600">{missingCount} to fix</span>
                     )}
                     <button
                       type="button"
                       onClick={() => setMobileStep(section.step)}
-                      className="text-xs font-semibold text-member-green hover:underline"
+                      className="-mr-1 rounded px-2 py-1 text-xs font-semibold text-member-green hover:underline"
                     >
                       Edit
                     </button>
@@ -1710,7 +1710,7 @@ function Consolidated_Loan() {
           <button
             type="submit"
             disabled={loading || printing || exceedsCeiling || renewalBlocked || eligibilityFailed || stressIndexExceeded}
-            className="mt-5 w-full rounded bg-[#66B538] px-6 py-2.5 text-sm font-bold text-white transition-colors hover:bg-[#5aa12b] disabled:cursor-not-allowed disabled:opacity-50"
+            className="mt-5 w-full rounded bg-primary-deep px-6 py-2.5 text-sm font-bold text-white transition-colors hover:bg-member-green disabled:cursor-not-allowed disabled:opacity-50"
           >
             {loading ? "Processing..." : "Submit Application"}
           </button>
@@ -1724,7 +1724,7 @@ function Consolidated_Loan() {
             type="button" 
             onClick={handlePrintPdf}
             disabled={printing || loading}
-            className="w-full border border-[#66B538] text-[#66B538] px-6 py-2 rounded hover:bg-[#E9F7DE] transition-colors font-bold disabled:opacity-50 cursor-pointer sm:w-auto"
+            className="w-full border border-primary text-primary-deep px-6 py-2 rounded hover:bg-[#E9F7DE] transition-colors font-bold disabled:opacity-50 cursor-pointer sm:w-auto"
           >
             {printing ? "Preparing PDF..." : "Print PDF"}
           </button>
@@ -1734,7 +1734,7 @@ function Consolidated_Loan() {
             title={
               submissionBlockMessage
             }
-            className="w-full bg-[#66B538] text-white px-6 py-2 rounded hover:bg-[#5aa12b] transition-colors font-bold disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer sm:w-auto"
+            className="w-full bg-primary-deep text-white px-6 py-2 rounded hover:bg-member-green transition-colors font-bold disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer sm:w-auto"
           >
             {loading ? "Processing..." : "Submit Application"}
           </button>
@@ -1787,7 +1787,7 @@ function Consolidated_Loan() {
                   type="button"
                   onClick={handleConfirmSubmit}
                   disabled={loading}
-                  className="bg-[#66B538] text-white px-5 py-2 rounded hover:bg-[#5aa12b] transition-colors font-bold disabled:opacity-50"
+                  className="bg-primary-deep text-white px-5 py-2 rounded hover:bg-member-green transition-colors font-bold disabled:opacity-50"
                 >
                   {loading ? 'Submitting...' : 'Confirm Submit'}
                 </button>

@@ -60,6 +60,29 @@ body {
   }
 }
 
+/* Mobile loan-form stepper: a quick, subtle fade when a step becomes active.
+ * CSS animations restart automatically when an element goes from
+ * display:none to visible, so this needs no JS — the class just sits on
+ * every step container and replays on its own each time `hidden` is
+ * toggled off. Scoped to mobile only; desktop shows every section at once
+ * via md:block and should stay exactly as it already is. */
+@keyframes stepFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 767px) {
+  .mobile-step-transition {
+    animation: stepFadeIn 220ms ease-out;
+  }
+}
+
 @keyframes fadeInDown {
   from {
     opacity: 0;

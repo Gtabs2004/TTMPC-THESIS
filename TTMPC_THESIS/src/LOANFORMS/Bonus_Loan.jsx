@@ -66,9 +66,9 @@ function Bonus_Loan() {
 
   const resolvedLoanTypeCode = isNonMemberBonus ? 'NONMEMBER_BONUS' : 'BONUS';
 
-  const inputStyles = 'border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-[#66B538] outline-none w-full bg-white text-sm';
+  const inputStyles = 'border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-primary outline-none w-full bg-white text-sm';
   const labelStyles = 'block text-xs font-bold text-gray-700 mb-1';
-  const sectionHeader = 'bg-[#66B538] text-white px-4 py-2 rounded-t-lg flex items-center gap-2 font-bold uppercase tracking-wide';
+  const sectionHeader = 'bg-primary-deep text-white px-4 py-2 rounded-t-lg flex items-center gap-2 font-bold uppercase tracking-wide';
 
   const [loading, setLoading] = useState(false);
   const [borrowerMemberId, setBorrowerMemberId] = useState(null);
@@ -398,7 +398,7 @@ function Bonus_Loan() {
           <div className="flex min-w-0 flex-row items-center gap-3 sm:gap-4">
           <img src="/img/ttmpc logo.png" alt="Logo" className="h-12 w-auto" />
           <div className="min-w-0 flex flex-col">
-            <h1 className="break-words text-xs font-bold text-[#66B538] sm:text-sm">Tubungan Teacher's Multi-Purpose Cooperative</h1>
+            <h1 className="break-words text-xs font-bold text-primary-deep sm:text-sm">Tubungan Teacher's Multi-Purpose Cooperative</h1>
             <p className="text-[#A0D284] text-xs">Loan Application Kiosk</p>
           </div>
           </div>
@@ -414,22 +414,22 @@ function Bonus_Loan() {
 
       <form ref={formRef} noValidate={window.matchMedia('(max-width: 767px)').matches} onSubmit={handleSubmit} className="px-3 sm:px-4">
         <section className="grid gap-6 px-3 sm:gap-8 sm:px-4">
-          <h1 className="mt-8 text-center text-xl font-bold text-[#66B538] sm:mt-12">BONUS LOAN APPLICATION</h1>
+          <h1 className="mt-8 text-center text-xl font-bold text-primary sm:mt-12">BONUS LOAN APPLICATION</h1>
           <div className="max-w-6xl mx-auto w-full">
-            <div className="bg-[#EEF6F1] rounded-xl p-4 border-2 border-[#66B538] flex flex-col items-start justify-between gap-4 sm:p-6 md:flex-row md:items-center md:gap-6">
+            <div className="bg-[#EEF6F1] rounded-xl p-4 border-2 border-primary flex flex-col items-start justify-between gap-4 sm:p-6 md:flex-row md:items-center md:gap-6">
               <div className="flex flex-wrap gap-4 sm:gap-8">
                 <label
                   className={`flex items-center space-x-2 ${canApplyNew ? 'cursor-pointer' : 'cursor-not-allowed opacity-50 grayscale'}`}
                   title={canApplyNew ? '' : (eligibility?.reason || 'Active loan on record — new applications are disabled.')}
                 >
-                  <input type="radio" name="application_type" value="New" checked={formData.application_type === 'New'} onChange={handleChange} disabled={!canApplyNew} className="h-4 w-4 accent-[#66B538] disabled:cursor-not-allowed" />
+                  <input type="radio" name="application_type" value="New" checked={formData.application_type === 'New'} onChange={handleChange} disabled={!canApplyNew} className="h-4 w-4 accent-primary disabled:cursor-not-allowed" />
                   <span className="font-semibold text-gray-700">New</span>
                 </label>
                 <label
                   className={`flex items-center space-x-2 ${canRenew ? 'cursor-pointer' : 'cursor-not-allowed opacity-50 grayscale'}`}
                   title={canRenew ? '' : (eligibility?.reason || 'Renewal requires 6 recorded monthly payments.')}
                 >
-                  <input type="radio" name="application_type" value="Renewal" checked={formData.application_type === 'Renewal'} onChange={handleChange} disabled={!canRenew} className="h-4 w-4 accent-[#66B538] disabled:cursor-not-allowed" />
+                  <input type="radio" name="application_type" value="Renewal" checked={formData.application_type === 'Renewal'} onChange={handleChange} disabled={!canRenew} className="h-4 w-4 accent-primary disabled:cursor-not-allowed" />
                   <span className="font-semibold text-gray-700">Renewal</span>
                 </label>
                 {eligibility?.simulation_active && (
@@ -450,8 +450,8 @@ function Bonus_Loan() {
           </div>
         </section>
 
-        <div data-mobile-step="0" className={`${mobileStep === 0 ? 'block' : 'hidden'} md:block mt-10 bg-white rounded-lg shadow-md overflow-hidden max-w-6xl mx-auto w-full`}>
-          <div className={sectionHeader}><span className="bg-white text-[#66B538] rounded-full w-6 h-6 flex items-center justify-center text-sm">1</span> BORROWER'S INFORMATION</div>
+        <div data-mobile-step="0" className={`${mobileStep === 0 ? 'block' : 'hidden'} mobile-step-transition md:block mt-10 bg-white rounded-lg shadow-md overflow-hidden max-w-6xl mx-auto w-full`}>
+          <div className={sectionHeader}><span className="bg-white text-primary-deep rounded-full w-6 h-6 flex items-center justify-center text-sm">1</span> BORROWER'S INFORMATION</div>
           <div className="p-4 sm:p-6 lg:p-8 grid grid-cols-1 md:grid-cols-3 gap-6">
             <div><label className={labelStyles}>Surname *</label><input name="surname" value={formData.surname} onChange={handleChange} className={inputStyles} required /></div>
             <div><label className={labelStyles}>First Name *</label><input name="first_name" value={formData.first_name} onChange={handleChange} className={inputStyles} required /></div>
@@ -481,9 +481,9 @@ function Bonus_Loan() {
         </div>
 
         {/* Section 2: LOAN AGREEMENT */}
-        <div data-mobile-step="1" className={`${mobileStep === 1 ? 'block' : 'hidden'} md:block mt-8 bg-white rounded-lg shadow-md overflow-hidden max-w-6xl mx-auto w-full`}>
+        <div data-mobile-step="1" className={`${mobileStep === 1 ? 'block' : 'hidden'} mobile-step-transition md:block mt-8 bg-white rounded-lg shadow-md overflow-hidden max-w-6xl mx-auto w-full`}>
           <div className={sectionHeader}>
-            <span className="bg-white text-[#66B538] rounded-full w-6 h-6 flex items-center justify-center text-sm">2</span>
+            <span className="bg-white text-primary-deep rounded-full w-6 h-6 flex items-center justify-center text-sm">2</span>
             LOAN AGREEMENT
           </div>
           <div className="p-4 sm:p-6 lg:p-8 text-sm text-gray-800">
@@ -495,7 +495,7 @@ function Bonus_Loan() {
                 name="loan_amount_words" 
                 value={formData.loan_amount_words} 
                 onChange={handleChange} 
-                className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-[#66B538] outline-none bg-white text-sm transition-all mx-2 w-full sm:w-[22rem] inline-block align-middle" 
+                className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-primary outline-none bg-white text-sm transition-all mx-2 w-full sm:w-[22rem] inline-block align-middle" 
               />
               <div className="inline-flex items-center relative mr-2 align-middle">
                 <span className="absolute left-3 text-gray-400 text-xs font-medium">Php</span>
@@ -504,7 +504,7 @@ function Bonus_Loan() {
                   name="loan_amount_numeric" 
                   value={formData.loan_amount_numeric} 
                   onChange={handleChange}
-                  className="border border-gray-300 rounded-md pl-10 pr-3 py-1.5 focus:ring-2 focus:ring-[#66B538] outline-none bg-white text-sm transition-all w-full sm:w-40" 
+                  className="border border-gray-300 rounded-md pl-10 pr-3 py-1.5 focus:ring-2 focus:ring-primary outline-none bg-white text-sm transition-all w-full sm:w-40" 
                 />
               </div>
               for the purpose of
@@ -512,7 +512,7 @@ function Bonus_Loan() {
                 name="loan_purpose" 
                 value={formData.loan_purpose} 
                 onChange={handleChange} 
-                className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-[#66B538] outline-none bg-white text-sm transition-all mx-2 w-full sm:w-64 inline-block align-middle" 
+                className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-primary outline-none bg-white text-sm transition-all mx-2 w-full sm:w-64 inline-block align-middle" 
               >
                 <option value="">Select Purpose</option>
                 <option value="Emergency Needs">Emergency Needs</option>
@@ -531,7 +531,7 @@ function Bonus_Loan() {
                   value={formData.loan_purpose_other} 
                   onChange={handleChange} 
                   placeholder="Please specify..."
-                  className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-[#66B538] outline-none bg-white text-sm transition-all mx-2 w-full sm:w-56 inline-block align-middle" 
+                  className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-primary outline-none bg-white text-sm transition-all mx-2 w-full sm:w-56 inline-block align-middle" 
                 />
               )}
               
@@ -542,7 +542,7 @@ function Bonus_Loan() {
                 name="loan_term_months" 
                 value={formData.loan_term_months} 
                 onChange={handleChange} 
-                className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-[#66B538] outline-none bg-white text-sm transition-all mx-2 w-full sm:w-72 inline-block align-middle text-gray-600 truncate"
+                className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-primary outline-none bg-white text-sm transition-all mx-2 w-full sm:w-72 inline-block align-middle text-gray-600 truncate"
               >
                 <option value="">Select Bonus Cycle</option>
                 <option value="5">May Midyear Bonus (5 months)</option>
@@ -568,9 +568,9 @@ function Bonus_Loan() {
           </div>
         </div>
        {/* Section 3: APPLICANTS AUTHORIZATION FOR SALARY DEDUCTION */}
-        <div data-mobile-step="2" className={`${mobileStep === 2 ? 'block' : 'hidden'} md:block mt-8 bg-white rounded-lg shadow-md overflow-hidden max-w-6xl mx-auto w-full mb-8`}>
+        <div data-mobile-step="2" className={`${mobileStep === 2 ? 'block' : 'hidden'} mobile-step-transition md:block mt-8 bg-white rounded-lg shadow-md overflow-hidden max-w-6xl mx-auto w-full mb-8`}>
           <div className={sectionHeader}>
-            <span className="bg-white text-[#66B538] rounded-full w-6 h-6 flex items-center justify-center text-sm">3</span>
+            <span className="bg-white text-primary-deep rounded-full w-6 h-6 flex items-center justify-center text-sm">3</span>
             APPLICANTS AUTHORIZATION FOR SALARY DEDUCTION
           </div>
           <div className="p-4 sm:p-6 lg:p-8 text-sm text-gray-800">
@@ -587,7 +587,7 @@ function Bonus_Loan() {
                 name="bonus_amount_words" 
                 value={formData.bonus_amount_words} 
                 onChange={handleChange} 
-                className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-[#66B538] outline-none bg-white text-sm transition-all mx-2 w-full sm:w-80 inline-block align-middle" 
+                className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-primary outline-none bg-white text-sm transition-all mx-2 w-full sm:w-80 inline-block align-middle" 
               />
               
               <div className="inline-flex items-center relative mr-2 align-middle">
@@ -597,7 +597,7 @@ function Bonus_Loan() {
                   name="bonus_amount_numeric" 
                   value={formData.bonus_amount_numeric} 
                   onChange={handleChange} 
-                  className="border border-gray-300 rounded-md pl-10 pr-3 py-1.5 focus:ring-2 focus:ring-[#66B538] outline-none bg-white text-sm transition-all w-full sm:w-48" 
+                  className="border border-gray-300 rounded-md pl-10 pr-3 py-1.5 focus:ring-2 focus:ring-primary outline-none bg-white text-sm transition-all w-full sm:w-48" 
                 />
               </div>
             </div>
@@ -609,9 +609,9 @@ function Bonus_Loan() {
           </div>
         </div>
        {/* Section 4: DEED OF ASSIGNMENT */}
-        <div data-mobile-step="2" className={`${mobileStep === 2 ? 'block' : 'hidden'} md:block mt-8 bg-white rounded-lg shadow-md overflow-hidden max-w-6xl mx-auto w-full mb-8`}>
+        <div data-mobile-step="2" className={`${mobileStep === 2 ? 'block' : 'hidden'} mobile-step-transition md:block mt-8 bg-white rounded-lg shadow-md overflow-hidden max-w-6xl mx-auto w-full mb-8`}>
           <div className={sectionHeader}>
-            <span className="bg-white text-[#66B538] rounded-full w-6 h-6 flex items-center justify-center text-sm">4</span>
+            <span className="bg-white text-primary-deep rounded-full w-6 h-6 flex items-center justify-center text-sm">4</span>
             DEED OF ASSIGNMENT
           </div>
           <div className="p-4 sm:p-6 lg:p-8 text-sm text-gray-800">
@@ -627,7 +627,7 @@ function Bonus_Loan() {
                 name="borrower_name" 
                 value={`${formData.first_name || ''} ${formData.middle_name || ''} ${formData.surname || ''}`.trim()} 
                 readOnly 
-                className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-[#66B538] outline-none bg-gray-50 text-sm transition-all mx-2 w-full sm:w-[22rem] inline-block align-middle" 
+                className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-primary outline-none bg-gray-50 text-sm transition-all mx-2 w-full sm:w-[22rem] inline-block align-middle" 
               />
               of legal age, and an employee of
               <input 
@@ -635,7 +635,7 @@ function Bonus_Loan() {
                 name="employer_name" 
                 value={formData.employer_name} 
                 onChange={handleChange} 
-                className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-[#66B538] outline-none bg-white text-sm transition-all mx-2 w-full sm:w-96 inline-block align-middle" 
+                className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-primary outline-none bg-white text-sm transition-all mx-2 w-full sm:w-96 inline-block align-middle" 
               />
               Tubungan, Iloilo.
               
@@ -650,7 +650,7 @@ function Bonus_Loan() {
                   name="loan_amount_words" 
                   value={formData.loan_amount_words} 
                   onChange={handleChange} 
-                  className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-[#66B538] outline-none bg-white text-sm transition-all mx-2 w-full sm:w-64 inline-block align-middle" 
+                  className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-primary outline-none bg-white text-sm transition-all mx-2 w-full sm:w-64 inline-block align-middle" 
                 />
                 
                 <div className="inline-flex items-center relative mr-2 align-middle">
@@ -660,7 +660,7 @@ function Bonus_Loan() {
                     name="loan_amount_numeric" 
                     value={formData.loan_amount_numeric} 
                     onChange={handleChange} 
-                    className="border border-gray-300 rounded-md pl-10 pr-3 py-1.5 focus:ring-2 focus:ring-[#66B538] outline-none bg-white text-sm transition-all w-full sm:w-40" 
+                    className="border border-gray-300 rounded-md pl-10 pr-3 py-1.5 focus:ring-2 focus:ring-primary outline-none bg-white text-sm transition-all w-full sm:w-40" 
                   />
                 </div>
                 
@@ -670,21 +670,21 @@ function Bonus_Loan() {
 
           </div>
           <div className="hidden md:flex p-3 sm:p-6 lg:p-8 pt-0 flex-col-reverse gap-3 justify-end sm:flex-row">
-            <button type="button" onClick={handlePrintPdf} disabled={printing || loading} className="w-full bg-white border border-[#66B538] text-[#66B538] px-5 py-2 rounded hover:bg-[#EEF6F1] transition-colors text-sm font-semibold disabled:opacity-50 sm:w-auto">
+            <button type="button" onClick={handlePrintPdf} disabled={printing || loading} className="w-full bg-white border border-primary text-primary-deep px-5 py-2 rounded hover:bg-[#EEF6F1] transition-colors text-sm font-semibold disabled:opacity-50 sm:w-auto">
               {printing ? 'Printing...' : 'Print PDF'}
             </button>
             <button
               type="submit"
               disabled={loading || printing || !bonusWindowOpen}
               title={bonusWindowOpen ? '' : bonusWindowMessage}
-              className="w-full bg-[#66B538] text-white px-5 py-2 rounded hover:bg-[#5aa12b] transition-colors text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed sm:w-auto"
+              className="w-full bg-primary-deep text-white px-5 py-2 rounded hover:bg-member-green transition-colors text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed sm:w-auto"
             >
               {loading ? 'Processing...' : 'Submit Application'}
             </button>
           </div>
         </div>
 
-        <div data-mobile-step="3" className={`${mobileStep === 3 ? 'block' : 'hidden'} md:hidden mt-8 rounded-lg border border-gray-200 bg-white p-4 shadow-sm`}>
+        <div data-mobile-step="3" className={`${mobileStep === 3 ? 'block' : 'hidden'} mobile-step-transition md:hidden mt-8 rounded-lg border border-gray-200 bg-white p-4 shadow-sm`}>
           <h2 className="text-base font-bold text-gray-900">Review your application</h2>
           <p className="mt-1 text-xs text-gray-500">Check each section below before submitting your bonus loan application. Tap Edit to go back and make changes.</p>
 
@@ -721,15 +721,15 @@ function Bonus_Loan() {
             return (
               <div key={section.step} className="mt-4 rounded-lg border border-gray-200 overflow-hidden">
                 <div className="flex items-center justify-between gap-2 bg-gray-50 px-3 py-2 border-b border-gray-200">
-                  <span className="text-[11px] font-bold uppercase tracking-wide text-gray-500">{section.title}</span>
+                  <span className="text-xs font-bold uppercase tracking-wide text-gray-500">{section.title}</span>
                   <div className="flex items-center gap-2">
                     {missingCount > 0 && (
-                      <span className="text-[10px] font-bold text-red-600">{missingCount} to fix</span>
+                      <span className="text-xs font-bold text-red-600">{missingCount} to fix</span>
                     )}
                     <button
                       type="button"
                       onClick={() => setMobileStep(section.step)}
-                      className="text-xs font-semibold text-member-green hover:underline"
+                      className="-mr-1 rounded px-2 py-1 text-xs font-semibold text-member-green hover:underline"
                     >
                       Edit
                     </button>
@@ -747,7 +747,7 @@ function Bonus_Loan() {
             );
           })}
 
-          <button type="submit" disabled={loading || printing || !bonusWindowOpen} className="mt-5 w-full rounded bg-[#66B538] px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-[#5aa12b] disabled:cursor-not-allowed disabled:opacity-50">
+          <button type="submit" disabled={loading || printing || !bonusWindowOpen} className="mt-5 w-full rounded bg-primary-deep px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-member-green disabled:cursor-not-allowed disabled:opacity-50">
             {loading ? 'Processing...' : 'Submit Application'}
           </button>
         </div>
