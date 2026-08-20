@@ -87,6 +87,7 @@ const Manager_Manage_Loans = () => {
   const [loadError, setLoadError] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [expandedGroups, setExpandedGroups] = useState(() => new Set());
+  const [pendingRequestIds, setPendingRequestIds] = useState(new Set());
 
   const dashboardStats = useMemo(() => {
     const totalActiveLoans = loans.filter((l) => l.remaining_balance > 0).length;
@@ -195,6 +196,15 @@ const Manager_Manage_Loans = () => {
 
   useEffect(() => {
     fetchLoans();
+    // Fetch all pending restructure requests so we can badge affected loans
+    fetch(`${API_BASE_URL}/api/manager/restructure-requests?status=pending`)
+      .then((r) => r.json())
+      .then((res) => {
+        if (res?.success && Array.isArray(res.data)) {
+          setPendingRequestIds(new Set(res.data.map((r) => r.loan_id)));
+        }
+      })
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -461,8 +471,7 @@ const Manager_Manage_Loans = () => {
                 <col style={{ width: "16%" }} />
                 <col style={{ width: "14%" }} />
                 <col style={{ width: "10%" }} />
-                <col style={{ width: "10%" }} />
-                <col style={{ width: "6%" }} />
+                <col style={{ width: "16%" }} />
                 <col style={{ width: "12%" }} />
                 <col style={{ width: "12%" }} />
                 <col style={{ width: "12%" }} />
@@ -474,7 +483,6 @@ const Manager_Manage_Loans = () => {
                   <th className="px-3 py-4 font-bold">Member Name</th>
                   <th className="px-3 py-4 font-bold">Loan Type</th>
                   <th className="px-3 py-4 font-bold text-right">Loan Amt</th>
-                  <th className="px-3 py-4 font-bold text-right">Int</th>
                   <th className="px-3 py-4 font-bold text-right">Amortization</th>
                   <th className="px-3 py-4 font-bold text-right">Remaining</th>
                   <th className="px-3 py-4 font-bold">Due Date</th>
@@ -484,7 +492,7 @@ const Manager_Manage_Loans = () => {
               <tbody>
                 {groupedLoans.length === 0 && (
                   <tr>
-                    <td colSpan={9} className="p-5 text-center">
+                    <td colSpan={8} className="p-5 text-center">
                       <div className="flex flex-col items-center gap-2">
                         <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center">
                           <Eye size={24} className="text-gray-300" />
@@ -562,9 +570,6 @@ const Manager_Manage_Loans = () => {
                         <td className="px-3 py-4 text-sm text-gray-800 font-semibold text-right whitespace-nowrap align-top">
                           {formatCurrency(parent.loan_amount)}
                         </td>
-                        <td className="px-3 py-4 text-sm text-gray-700 text-right font-medium whitespace-nowrap align-top">
-                          {parent.interest_rate}%
-                        </td>
                         <td className="px-3 py-4 text-sm text-gray-700 text-left font-medium whitespace-nowrap align-top">
                           {formatCurrency(parent.amortization)}
                         </td>
@@ -576,19 +581,26 @@ const Manager_Manage_Loans = () => {
                         <td className="px-3 py-4 text-sm text-gray-700 font-medium whitespace-nowrap align-top">
                           {formatDate(parent.due_date)}
                         </td>
-                        {/* View-only: navigates to the same ledger detail but manager cannot edit */}
                         <td className="px-3 py-4 text-center align-top">
-                          <button
-                            type="button"
-                            onClick={() =>
-                              navigate(`/manager-loan-ledger/${parent.loan_id}`, {
-                                state: { loan: parent, readOnly: true },
-                              })
-                            }
-                            className="inline-flex items-center gap-1 rounded-lg bg-gray-100 px-2 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-200 border border-gray-200 transition-colors"
-                          >
-                            <Eye size={12} /> View
-                          </button>
+                          <div className="flex flex-col items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                navigate(`/manager-loan-ledger/${parent.loan_id}`, {
+                                  state: { loan: parent, readOnly: true },
+                                })
+                              }
+                              className="inline-flex items-center gap-1 rounded-lg bg-gray-100 px-2 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-200 border border-gray-200 transition-colors"
+                            >
+                              <Eye size={12} /> View
+                            </button>
+                            {pendingRequestIds.has(parent.loan_id) && (
+                              <span className="inline-flex items-center gap-1 rounded-md bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-700 border border-amber-200 whitespace-nowrap">
+                                <RefreshCw size={10} className="shrink-0" />
+                                Restructure Request
+                              </span>
+                            )}
+                          </div>
                         </td>
                       </tr>
 
@@ -635,9 +647,6 @@ const Manager_Manage_Loans = () => {
                               <td className="px-3 py-2.5 text-sm text-gray-600 font-medium text-right whitespace-nowrap align-top">
                                 {formatCurrency(r.loan_amount)}
                               </td>
-                              <td className="px-3 py-2.5 text-sm text-gray-500 text-right whitespace-nowrap align-top">
-                                {r.interest_rate}%
-                              </td>
                               <td className="px-3 py-2.5 text-sm text-gray-500 text-left whitespace-nowrap align-top">
                                 {formatCurrency(r.amortization)}
                               </td>
@@ -663,17 +672,25 @@ const Manager_Manage_Loans = () => {
                                 {formatDate(r.application_date)}
                               </td>
                               <td className="px-3 py-2.5 text-center align-top">
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    navigate(`/manager-loan-ledger/${r.loan_id}`, {
-                                      state: { loan: r, readOnly: true },
-                                    })
-                                  }
-                                  className="inline-flex items-center gap-1 rounded-md border border-gray-200 bg-white px-2 py-1 text-xs font-semibold text-gray-600 hover:bg-gray-50"
-                                >
-                                  <Eye size={11} /> View
-                                </button>
+                                <div className="flex flex-col items-center gap-1">
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      navigate(`/manager-loan-ledger/${r.loan_id}`, {
+                                        state: { loan: r, readOnly: true },
+                                      })
+                                    }
+                                    className="inline-flex items-center gap-1 rounded-md border border-gray-200 bg-white px-2 py-1 text-xs font-semibold text-gray-600 hover:bg-gray-50"
+                                  >
+                                    <Eye size={11} /> View
+                                  </button>
+                                  {pendingRequestIds.has(r.loan_id) && (
+                                    <span className="inline-flex items-center gap-1 rounded-md bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-700 border border-amber-200 whitespace-nowrap">
+                                      <RefreshCw size={10} className="shrink-0" />
+                                      Restructure Request
+                                    </span>
+                                  )}
+                                </div>
                               </td>
                             </tr>
                           );

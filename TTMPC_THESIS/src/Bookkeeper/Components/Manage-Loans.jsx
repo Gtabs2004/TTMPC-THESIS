@@ -498,7 +498,6 @@ const ManageLoans = () => {
                 <col style={{ width: "14%" }} />
                 <col style={{ width: "10%" }} />
                 <col style={{ width: "10%" }} />
-                <col style={{ width: "6%" }} />
                 <col style={{ width: "12%" }} />
                 <col style={{ width: "12%" }} />
                 <col style={{ width: "12%" }} />
@@ -510,7 +509,6 @@ const ManageLoans = () => {
                   <th className="px-3 py-4 font-bold">Member Name</th>
                   <th className="px-3 py-4 font-bold">Loan Type</th>
                   <th className="px-3 py-4 font-bold text-right">Loan Amt</th>
-                  <th className="px-3 py-4 font-bold text-right">Int</th>
                   <th className="px-3 py-4 font-bold text-right">Amortization</th>
                   <th className="px-3 py-4 font-bold text-right">Remaining</th>
                   <th className="px-3 py-4 font-bold">Due Date</th>
@@ -520,7 +518,7 @@ const ManageLoans = () => {
               <tbody>
                 {groupedLoans.length === 0 && (
                   <tr>
-                    <td colSpan={9} className="p-5 text-center">
+                    <td colSpan={8} className="p-5 text-center">
                       <div className="flex flex-col items-center gap-2">
                         <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center">
                           <Eye size={24} className="text-gray-300" />
@@ -590,7 +588,6 @@ const ManageLoans = () => {
                           </span>
                         </td>
                         <td className="px-3 py-4 text-sm text-gray-800 font-semibold text-right whitespace-nowrap align-top">{formatCurrency(parent.loan_amount)}</td>
-                        <td className="px-3 py-4 text-sm text-gray-700 text-right font-medium whitespace-nowrap align-top">{parent.interest_rate}%</td>
                         <td className="px-3 py-4 text-sm text-gray-700 text-left font-medium whitespace-nowrap align-top">{formatCurrency(parent.amortization)}</td>
                         <td className="px-3 py-4 text-sm text-left font-bold whitespace-nowrap align-top">
                           <span className={parent.remaining_balance > 0 ? 'text-amber-600' : 'text-green-600'}>
@@ -644,7 +641,6 @@ const ManageLoans = () => {
                               </span>
                             </td>
                             <td className="px-3 py-2.5 text-sm text-gray-600 font-medium text-right whitespace-nowrap align-top">{formatCurrency(r.loan_amount)}</td>
-                            <td className="px-3 py-2.5 text-sm text-gray-500 text-right whitespace-nowrap align-top">{r.interest_rate}%</td>
                             <td className="px-3 py-2.5 text-sm text-gray-500 text-left whitespace-nowrap align-top">{formatCurrency(r.amortization)}</td>
                             <td className="px-3 py-2.5 text-sm text-left font-semibold align-top">
                               <div className="flex flex-col gap-0.5">

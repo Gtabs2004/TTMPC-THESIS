@@ -50,6 +50,7 @@ const LoanLedger = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { loanId } = useParams();
+  const isManagerView = location.state?.readOnly === true;
   const [isSavingsOpen, setIsSavingsOpen] = useState(false);
 
   const menuItems = [
@@ -118,6 +119,52 @@ const LoanLedger = () => {
   const [newTerm, setNewTerm] = useState("");
   const [restructuring, setRestructuring] = useState(false);
   const [restructureError, setRestructureError] = useState("");
+  const [restructureSubmitted, setRestructureSubmitted] = useState(false);
+
+  // Manager-side: pending restructure request for this loan
+  const [pendingRequest, setPendingRequest] = useState(null);
+  const [reviewLoading, setReviewLoading] = useState(false);
+  const [reviewError, setReviewError] = useState("");
+  const [reviewDone, setReviewDone] = useState("");
+
+  useEffect(() => {
+    if (!isManagerView || !loanId) return;
+    fetch(`${API_BASE_URL}/api/manager/restructure-requests/${encodeURIComponent(loanId)}`)
+      .then((r) => r.json())
+      .then((res) => { if (res?.success) setPendingRequest(res.data || null); })
+      .catch(() => {});
+  }, [isManagerView, loanId]);
+
+  const handleReview = async (action) => {
+    if (!pendingRequest?.id) return;
+    setReviewLoading(true);
+    setReviewError("");
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/manager/restructure-requests/${pendingRequest.id}/review`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action, reviewed_by: "Manager" }),
+        }
+      );
+      const result = await response.json();
+      if (!response.ok || !result?.success) throw new Error(result?.detail || "Action failed.");
+      setReviewDone(action);
+      setPendingRequest(null);
+      if (action === "approved") {
+        setSelectedLoan((prev) => ({
+          ...prev,
+          term_months: result.new_term_months,
+          amortization: result.new_amortization,
+        }));
+      }
+    } catch (err) {
+      setReviewError(err.message || "Action failed.");
+    } finally {
+      setReviewLoading(false);
+    }
+  };
 
   const previewAmortization = (() => {
     const term = parseInt(newTerm, 10);
@@ -140,30 +187,34 @@ const LoanLedger = () => {
       setRestructureError("Enter a valid number of months.");
       return;
     }
+    if (previewAmortization === null || previewAmortization <= 0) {
+      setRestructureError("Unable to compute new amortization.");
+      return;
+    }
     setRestructuring(true);
     setRestructureError("");
     try {
       const response = await fetch(
-        `${API_BASE_URL}/api/bookkeeper/loan-ledger/${encodeURIComponent(loanId)}/restructure`,
+        `${API_BASE_URL}/api/bookkeeper/loan-ledger/${encodeURIComponent(loanId)}/restructure-request`,
         {
-          method: "PATCH",
+          method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ new_term_months: term }),
+          body: JSON.stringify({
+            new_term_months: term,
+            new_amortization: previewAmortization,
+            requested_by: "Bookkeeper",
+          }),
         }
       );
       const result = await response.json();
       if (!response.ok || !result?.success) {
-        throw new Error(result?.detail || "Restructure failed.");
+        throw new Error(result?.detail || "Failed to submit request.");
       }
-      setSelectedLoan((prev) => ({
-        ...prev,
-        term_months: result.new_term_months,
-        amortization: result.new_amortization,
-      }));
+      setRestructureSubmitted(true);
       setShowRestructure(false);
       setNewTerm("");
     } catch (err) {
-      setRestructureError(err.message || "Restructure failed.");
+      setRestructureError(err.message || "Failed to submit request.");
     } finally {
       setRestructuring(false);
     }
@@ -336,16 +387,65 @@ const LoanLedger = () => {
               </div>
             )}
 
+            {restructureSubmitted && (
+              <div className="mb-3 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-700">
+                Restructure request sent to Manager for approval. The loan will be updated once approved.
+              </div>
+            )}
+
+            {/* Manager: pending restructure request notice + approve/reject */}
+            {isManagerView && pendingRequest && !reviewDone && (
+              <div className="mb-4 rounded-lg border border-amber-300 bg-amber-50 p-4">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-amber-800">Restructure Request — Pending Approval</p>
+                    <p className="text-xs text-amber-700 mt-0.5">
+                      Bookkeeper requests changing term to{" "}
+                      <span className="font-bold">{pendingRequest.new_term_months} months</span>
+                      {" "}with new amortization of{" "}
+                      <span className="font-bold">{formatCurrency(pendingRequest.new_amortization)}</span>.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    {reviewError && <span className="text-xs text-red-600">{reviewError}</span>}
+                    <button
+                      type="button"
+                      disabled={reviewLoading}
+                      onClick={() => handleReview("rejected")}
+                      className="px-3 py-1.5 rounded-lg border border-red-300 bg-white text-xs font-semibold text-red-700 hover:bg-red-50 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+                    >
+                      {reviewLoading ? "..." : "Reject"}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={reviewLoading}
+                      onClick={() => handleReview("approved")}
+                      className="px-3 py-1.5 rounded-lg bg-green-600 text-white text-xs font-semibold hover:bg-green-700 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+                    >
+                      {reviewLoading ? "Saving..." : "Approve"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {isManagerView && reviewDone && (
+              <div className={`mb-3 rounded-md border px-3 py-2 text-xs font-semibold ${reviewDone === "approved" ? "border-green-200 bg-green-50 text-green-700" : "border-red-200 bg-red-50 text-red-700"}`}>
+                Restructure request {reviewDone === "approved" ? "approved — loan updated." : "rejected."}
+              </div>
+            )}
 
             <div className="flex items-center justify-between w-full mb-3">
               <h2 className="text-sm font-semibold text-gray-700">Loan Summary</h2>
-              <button
-                type="button"
-                onClick={() => { setNewTerm(String(selectedLoan.term_months || "")); setRestructureError(""); setShowRestructure(true); }}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-800 hover:bg-amber-100 transition-colors"
-              >
-                <RefreshCw size={13} /> Restructure Loan
-              </button>
+              {!isManagerView && (
+                <button
+                  type="button"
+                  onClick={() => { setNewTerm(String(selectedLoan.term_months || "")); setRestructureError(""); setRestructureSubmitted(false); setShowRestructure(true); }}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-800 hover:bg-amber-100 transition-colors"
+                >
+                  <RefreshCw size={13} /> Restructure Loan
+                </button>
+              )}
             </div>
                         
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm text-gray-700">
@@ -454,7 +554,7 @@ const LoanLedger = () => {
                 disabled={restructuring}
                 className="px-4 py-2 rounded-lg bg-amber-600 text-white text-sm font-semibold hover:bg-amber-700 disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                {restructuring ? "Saving..." : "Confirm Restructure"}
+                {restructuring ? "Submitting..." : "Send to Manager"}
               </button>
             </div>
           </div>
