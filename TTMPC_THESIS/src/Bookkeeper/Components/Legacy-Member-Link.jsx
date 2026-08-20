@@ -19,6 +19,9 @@ import {
   Link2,
   CheckCircle2,
   XCircle,
+  PiggyBank,
+  ChevronDown,
+  ChevronRight,
   ShieldAlert,
   Brain,
 } from "lucide-react";
@@ -38,6 +41,7 @@ const LegacyMemberLink = () => {
   const [candidates, setCandidates] = useState([]);
   const [actionMsg, setActionMsg] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [isSavingsOpen, setIsSavingsOpen] = useState(false);
 
   const menuItems = [
     { name: "Dashboard", icon: LayoutDashboard },
@@ -47,7 +51,15 @@ const LegacyMemberLink = () => {
       { name: "Delinquency", icon: ShieldAlert },
       { name: "Credit Risk", icon: Brain },
     { name: "Payments", icon: Wallet },
-    { name: "Savings Withdrawals", icon: CreditCard },
+    {
+      name: "Savings Accounts",
+      icon: PiggyBank,
+      isDropdown: true,
+      subItems: [
+        { name: "All Accounts", path: "/bookkeeper-savings-accounts" },
+        { name: "Savings Withdrawals", path: "/bookkeeper-savings-transactions" },
+      ],
+    },
     { name: "Accounting", icon: Calculator },
     { name: "MIGS Scoring", icon: Activity },
     { name: "Reports", icon: BarChart3 },
@@ -203,8 +215,43 @@ const LegacyMemberLink = () => {
            <nav className="flex flex-col gap-2 text-sm flex-grow">
              {menuItems.map((item) => {
                const Icon = item.icon;
+               if (item.isDropdown) {
+                 return (
+                   <div key={item.name} className="flex flex-col">
+                     <button
+                       onClick={() => setIsSavingsOpen(!isSavingsOpen)}
+                       className="flex items-center justify-between p-2 rounded-md text-gray-700 hover:bg-green-50 hover:text-green-700 transition-colors w-full"
+                     >
+                       <div className="flex items-center gap-3">
+                         <Icon size={20} />
+                         <span>{item.name}</span>
+                       </div>
+                       {isSavingsOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                     </button>
+                     {isSavingsOpen && (
+                       <div className="flex flex-col mt-1 space-y-1">
+                         {item.subItems.map((subItem) => (
+                           <NavLink
+                             key={subItem.name}
+                             to={subItem.path}
+                             className={({ isActive }) =>
+                               `block pl-11 pr-4 py-2 rounded-md transition-colors text-[13px] ${
+                                 isActive
+                                   ? "text-green-700 font-semibold"
+                                   : "text-gray-500 hover:text-green-700 hover:bg-green-50"
+                               }`
+                             }
+                           >
+                             {subItem.name}
+                           </NavLink>
+                         ))}
+                       </div>
+                     )}
+                   </div>
+                 );
+               }
                const to = routeMap[item.name] || `/${item.name.toLowerCase().replace(/\s+/g, "-")}`;
-   
+
                return (
                  <NavLink
                    key={item.name}

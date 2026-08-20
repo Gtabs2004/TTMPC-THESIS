@@ -71,7 +71,7 @@ const BOOKKEEPER_MENU = [
   { name: "Manage Member", icon: Users, route: "/manage-member" },
   { name: "Loan Approval", icon: FileText, route: "/bookkeeper-loan-approval" },
   { name: "Manage Loans", icon: Briefcase, route: "/manage-loans" },
-  { name: "Delinquency", icon: ShieldAlert, route: "/delinquency" },
+ 
   { name: "Credit Risk", icon: Brain, route: "/bookkeeper-credit-risk" },
   { name: "Payments", icon: Wallet, route: "/payments" },
   { name: "Savings Withdrawals", icon: CreditCard, route: "/bookkeeper-savings-transactions" },
@@ -80,7 +80,7 @@ const BOOKKEEPER_MENU = [
   { name: "Reports", icon: BarChart3, route: "/reports" },
   { name: "Audit Trail", icon: History, route: "/audit-trail" },
   { name: "Grocery", icon: Coins, route: "/grocery" },
-  { name: "Legacy Member Validation", icon: Search, route: "/legacy-member-validation" },
+  
 ];
 
 const MANAGER_MENU = [
