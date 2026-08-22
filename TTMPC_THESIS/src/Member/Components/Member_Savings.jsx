@@ -2,6 +2,7 @@
 import { useNavigate, NavLink } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
 import { useNotification } from "../../contex/NotificationContext";
+import { useTheme } from "../../contex/ThemeContext";
 import { supabase } from "../../supabaseClient";
 import { resolveMemberContextFromSessionUser } from "../../utils/sessionIdentity";
 import { loadMemberAvatarSignedUrl } from "../../utils/memberAvatar";
@@ -26,10 +27,10 @@ import {
   MinusCircle,
   User,
   Receipt,
-  Settings,
+  Moon,
+  Sun,
   Scroll
 } from 'lucide-react';
-import SettingsDrawer from './SettingsDrawer';
 
 const styles = `
   @keyframes fadeInUp {
@@ -114,7 +115,7 @@ const Member_Savings = () => {
   const navigate = useNavigate();
   const { addNotification } = useNotification();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const { isDark, toggleTheme } = useTheme();
   const [loadingSavings, setLoadingSavings] = useState(true);
   const [savingsError, setSavingsError] = useState('');
   const [regularSavings, setRegularSavings] = useState(0);
@@ -327,7 +328,6 @@ const Member_Savings = () => {
   return (
     <div className="relative flex h-screen overflow-hidden bg-[#F8F9FA] dark:bg-gray-950">
       <style>{styles}</style>
-      <SettingsDrawer isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
       {isSidebarOpen ? (
         <button
           aria-label="Close sidebar overlay"
@@ -427,11 +427,11 @@ const Member_Savings = () => {
            
             <LoanNotificationBell role="member" accentClass="bg-member-green" />
             <button
-              onClick={() => setIsSettingsOpen(true)}
+              onClick={toggleTheme}
               className="p-2 rounded-md text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-              aria-label="Open settings"
+              aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
             >
-              <Settings className="w-5 h-5" />
+              {isDark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
             </button>
           </div>
         </header>
