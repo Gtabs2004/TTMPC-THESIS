@@ -866,7 +866,7 @@ const Member_StatementOfAccount = () => {
                   </span>
                 </div>
 
-                <div className="overflow-x-auto">
+                <div className="hidden md:block overflow-x-auto">
                   <table className="w-full min-w-[1100px] text-left border-collapse">
                     <thead>
                       <tr className="bg-green-700 text-[10px] uppercase tracking-wider text-white font-extrabold">
@@ -929,6 +929,68 @@ const Member_StatementOfAccount = () => {
                     ) : null}
                   </table>
                 </div>
+
+                <div className="divide-y divide-gray-100 dark:divide-gray-800 md:hidden">
+                  {loadingRows ? (
+                    <p className="p-6 text-sm text-gray-500 dark:text-gray-400 text-center">Loading payment history…</p>
+                  ) : rowsError ? (
+                    <p className="p-6 text-sm text-red-600 dark:text-red-400 text-center">{rowsError}</p>
+                  ) : rows.length === 0 ? (
+                    <p className="p-6 text-sm text-gray-500 dark:text-gray-400 text-center">No validated payments found for this loan.</p>
+                  ) : (
+                    rows.map((r) => (
+                      <div key={r.payment_id} className="px-4 py-3.5 hover:bg-gray-50/50 dark:hover:bg-gray-800/50 transition-colors">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="text-sm font-bold text-gray-700 dark:text-gray-200">{formatDate(r.payment_date)}</p>
+                            <p className="truncate text-[10px] font-mono text-gray-500 dark:text-gray-400">{r.reference_id || "—"}</p>
+                          </div>
+                          <span className="shrink-0 text-sm font-black text-member-green dark:text-green-400">{formatCurrency(r.total_amount_paid)}</span>
+                        </div>
+                        <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 text-xs">
+                          <div>
+                            <p className="text-gray-400 dark:text-gray-500 font-medium">Principal Paid</p>
+                            <p className="font-bold text-gray-700 dark:text-gray-200">{formatCurrency(r.principal_paid)}</p>
+                          </div>
+                          <div>
+                            <p className="text-gray-400 dark:text-gray-500 font-medium">Interest Paid</p>
+                            <p className="font-bold text-gray-700 dark:text-gray-200">{formatCurrency(r.interest_paid)}</p>
+                          </div>
+                          <div>
+                            <p className="text-gray-400 dark:text-gray-500 font-medium">Deficiency</p>
+                            <p className="font-medium text-gray-600 dark:text-gray-400">{formatCurrency(r.deficiency)}</p>
+                          </div>
+                          <div>
+                            <p className="text-gray-400 dark:text-gray-500 font-medium">Penalty</p>
+                            <p className="font-medium text-red-400">{formatCurrency(r.penalty)}</p>
+                          </div>
+                        </div>
+                        <p className="mt-2.5 text-[11px] text-gray-500 dark:text-gray-400">
+                          Outstanding Balance: <span className="font-bold text-gray-900 dark:text-white">{formatCurrency(r.outstanding_balance)}</span>
+                        </p>
+                      </div>
+                    ))
+                  )}
+                  {!loadingRows && !rowsError && rows.length > 0 ? (
+                    <div className="px-4 py-3.5 bg-[#EAF1EB] dark:bg-green-900/30 text-member-green dark:text-green-400">
+                      <p className="text-[10px] font-extrabold uppercase tracking-wider mb-2">Totals</p>
+                      <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-xs font-black">
+                        <span>Principal: {formatCurrency(totals.principal)}</span>
+                        <span>Interest: {formatCurrency(totals.interest)}</span>
+                        <span>Deficiency: {formatCurrency(totals.deficiency)}</span>
+                        <span>Penalty: {formatCurrency(totals.penalty)}</span>
+                        <span>Total Paid: {formatCurrency(totals.paid)}</span>
+                        <span>
+                          Outstanding: {formatCurrency(
+                            [...rows].sort((a, b) =>
+                              String(a.payment_date).localeCompare(String(b.payment_date))
+                            )[rows.length - 1]?.outstanding_balance || 0
+                          )}
+                        </span>
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
               </div>
             </>
           ))}
@@ -965,7 +1027,7 @@ const Member_StatementOfAccount = () => {
                   </button>
                 </div>
 
-                <div className="overflow-x-auto">
+                <div className="hidden md:block overflow-x-auto">
                   <table className="w-full min-w-[720px] text-left border-collapse">
                     <thead>
                       <tr className="bg-green-700 text-[10px] uppercase tracking-wider text-white font-extrabold">
@@ -1020,6 +1082,44 @@ const Member_StatementOfAccount = () => {
                     ) : null}
                   </table>
                 </div>
+
+                <div className="divide-y divide-gray-100 dark:divide-gray-800 md:hidden">
+                  {loadingSavings ? (
+                    <p className="p-6 text-sm text-gray-500 dark:text-gray-400 text-center">Loading savings statement…</p>
+                  ) : savingsError ? (
+                    <p className="p-6 text-sm text-red-600 dark:text-red-400 text-center">{savingsError}</p>
+                  ) : savingsRows.length === 0 ? (
+                    <p className="p-6 text-sm text-gray-500 dark:text-gray-400 text-center">No savings transactions found.</p>
+                  ) : (
+                    savingsRows.map((r) => {
+                      const isCredit = String(r?.entry_type || "").toLowerCase() === "credit";
+                      const amount = Number(r?.amount || 0);
+                      return (
+                        <div key={r.id} className="px-4 py-3.5 hover:bg-gray-50/50 dark:hover:bg-gray-800/50 transition-colors">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <p className="truncate text-sm font-bold text-gray-700 dark:text-gray-200">{r.remarks || (isCredit ? "Savings Deposit" : "Savings Withdrawal")}</p>
+                              <p className="text-xs text-gray-500 dark:text-gray-400">{formatDate(r.posted_at)}</p>
+                            </div>
+                            <span className={`shrink-0 text-sm font-bold ${isCredit ? "text-green-600 dark:text-green-400" : "text-red-500 dark:text-red-400"}`}>
+                              {isCredit ? "+" : "-"}{formatCurrency(amount)}
+                            </span>
+                          </div>
+                          <div className="mt-2 flex items-center justify-between text-[11px] text-gray-500 dark:text-gray-400">
+                            <span className="truncate font-mono">{r.reference || "—"}</span>
+                            <span>Balance: <span className="font-black text-gray-900 dark:text-white">{formatCurrency(r.running_balance)}</span></span>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                  {!loadingSavings && !savingsError && savingsRows.length > 0 ? (
+                    <div className="px-4 py-3.5 bg-[#EAF1EB] dark:bg-green-900/30 text-member-green dark:text-green-400 flex items-center justify-between text-xs font-black">
+                      <span>Totals: +{formatCurrency(savingsTotals.credits)} / -{formatCurrency(savingsTotals.debits)}</span>
+                      <span>{formatCurrency(regularSavings)}</span>
+                    </div>
+                  ) : null}
+                </div>
               </div>
             </>
           )}
@@ -1058,7 +1158,7 @@ const Member_StatementOfAccount = () => {
                   </button>
                 </div>
 
-                <div className="overflow-x-auto">
+                <div className="hidden md:block overflow-x-auto">
                   <table className="w-full min-w-[760px] text-left border-collapse">
                     <thead>
                       <tr className="bg-green-700 text-[10px] uppercase tracking-wider text-white font-extrabold">
@@ -1106,6 +1206,38 @@ const Member_StatementOfAccount = () => {
                       </tfoot>
                     ) : null}
                   </table>
+                </div>
+
+                <div className="divide-y divide-gray-100 dark:divide-gray-800 md:hidden">
+                  {loadingCbu ? (
+                    <p className="p-6 text-sm text-gray-500 dark:text-gray-400 text-center">Loading capital build-up statement…</p>
+                  ) : cbuError ? (
+                    <p className="p-6 text-sm text-red-600 dark:text-red-400 text-center">{cbuError}</p>
+                  ) : cbuRows.length === 0 ? (
+                    <p className="p-6 text-sm text-gray-500 dark:text-gray-400 text-center">No capital build-up transactions found.</p>
+                  ) : (
+                    cbuRows.map((r) => (
+                      <div key={r.id} className="px-4 py-3.5 hover:bg-gray-50/50 dark:hover:bg-gray-800/50 transition-colors">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-bold text-gray-700 dark:text-gray-200">{humanizeSource(r.deposit_account)}</p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400">{formatDate(r.transaction_date)}</p>
+                          </div>
+                          <span className="shrink-0 text-sm font-bold text-green-600">+{formatCurrency(r.capital_added)}</span>
+                        </div>
+                        <div className="mt-2 flex items-center justify-between text-[11px] text-gray-500 dark:text-gray-400">
+                          <span>Starting: {formatCurrency(r.starting_share_capital)}</span>
+                          <span>Ending: <span className="font-black text-gray-900 dark:text-white">{formatCurrency(r.ending_share_capital)}</span></span>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                  {!loadingCbu && !cbuError && cbuRows.length > 0 ? (
+                    <div className="px-4 py-3.5 bg-[#EAF1EB] dark:bg-green-900/30 text-member-green dark:text-green-400 flex items-center justify-between text-xs font-black">
+                      <span>Totals: +{formatCurrency(cbuTotals.added)}</span>
+                      <span>{formatCurrency(cbuRows[cbuRows.length - 1]?.ending_share_capital || 0)}</span>
+                    </div>
+                  ) : null}
                 </div>
               </div>
             </>
