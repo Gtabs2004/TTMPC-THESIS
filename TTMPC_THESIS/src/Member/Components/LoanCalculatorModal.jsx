@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   X,
   Calculator,
@@ -13,7 +13,8 @@ import {
 } from "lucide-react";
 import { supabase } from "../../supabaseClient";
 import { resolveAccountFromSessionUser } from "../../utils/sessionIdentity";
-import { useTheme } from "../../contex/ThemeContext";
+import { fetchLoanPrefill } from "../../LOANFORMS/loanSubmission";
+import { useMigsLabel } from "../../hooks/useMigsLabel";
 
 /*
   LoanCalculatorModal
@@ -67,9 +68,9 @@ const formatPHPCompact = (value) => {
 };
 
 export default function LoanCalculatorModal({ open, onClose }) {
-  const { isDark } = useTheme();
   const [loanType, setLoanType] = useState("CONSOLIDATED");
   const [loanAmount, setLoanAmount] = useState(100000);
+  const [isCustomAmount, setIsCustomAmount] = useState(false);
   const [term, setTerm] = useState(24);
   const [showFormula, setShowFormula] = useState(false);
 
@@ -78,14 +79,46 @@ export default function LoanCalculatorModal({ open, onClose }) {
   const [activeLoanError, setActiveLoanError] = useState("");
   const [renewalEnabled, setRenewalEnabled] = useState(false);
 
+  // Personalized eligibility ceiling — same source data and formula the real
+  // application forms use (share capital × MIGS multiplier), so the
+  // calculator's max stops silently disagreeing with what a member could
+  // actually apply for. Falls back to the flat product range if this can't
+  // be resolved (e.g. not signed in) rather than breaking the simulation.
+  const [memberId, setMemberId] = useState(null);
+  const [shareCapital, setShareCapital] = useState(0);
+  const { data: migsLabel } = useMigsLabel(memberId);
+
   useEffect(() => {
     if (!open) {
       setLoanAmount(100000);
+      setIsCustomAmount(false);
       setTerm(24);
       setRenewalEnabled(false);
       setActiveLoanError("");
       setShowFormula(false);
+      setMemberId(null);
+      setShareCapital(0);
     }
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const { profile } = await fetchLoanPrefill();
+        if (cancelled || !profile) return;
+        setMemberId(profile.member_id || null);
+        setShareCapital(Number(profile.share_capital || 0));
+      } catch {
+        // Not signed in, or the lookup failed — leave the calculator on the
+        // flat product-wide range rather than surfacing an error for what's
+        // a read-only simulation tool.
+      }
+    })();
+
+    return () => { cancelled = true; };
   }, [open]);
 
   useEffect(() => {
@@ -165,6 +198,28 @@ export default function LoanCalculatorModal({ open, onClose }) {
 
   const selectedType = LOAN_TYPES.find((t) => t.code === loanType) || LOAN_TYPES[0];
 
+  // Same formula the real application forms use to gray out amounts a member
+  // can't actually take: share capital × MIGS multiplier (5× MIGS, 3×
+  // otherwise). Only applied once fetchLoanPrefill has actually resolved —
+  // memberId stays null before that (or if the lookup failed), so the
+  // calculator doesn't flash a wrong ₱0 ceiling before real data arrives.
+  const migsMultiplier = Number(migsLabel?.loan_multiplier) || 3;
+  const eligibleCapacity = shareCapital * migsMultiplier;
+  const hasEligibilityData = memberId != null;
+  const effectiveMax = hasEligibilityData
+    ? Math.max(selectedType.min, Math.min(selectedType.max, eligibleCapacity))
+    : selectedType.max;
+  const isCappedByEligibility = hasEligibilityData && effectiveMax < selectedType.max;
+
+  // If eligibility data arrives (or the member switches loan type) and the
+  // currently selected amount is now above what they actually qualify for,
+  // pull it back down instead of silently simulating an amount they can't
+  // borrow.
+  useEffect(() => {
+    if (loanAmount === "") return;
+    if (Number(loanAmount) > effectiveMax) setLoanAmount(effectiveMax);
+  }, [effectiveMax, loanAmount]);
+
   const result = useMemo(() => {
     const principal = Number(loanAmount || 0);
     const t = Number(term || 0);
@@ -184,9 +239,6 @@ export default function LoanCalculatorModal({ open, onClose }) {
   if (!open) return null;
 
   const amountNum = Number(loanAmount || 0);
-  const sliderPct = selectedType.available
-    ? ((amountNum - selectedType.min) / (selectedType.max - selectedType.min)) * 100
-    : 0;
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 sm:px-4 sm:py-6 overflow-y-auto">
@@ -245,42 +297,74 @@ export default function LoanCalculatorModal({ open, onClose }) {
                 <span className="text-lg font-extrabold text-member-green dark:text-green-400">{formatPHP(amountNum)}</span>
               </div>
 
-              {/* Slider */}
-              <div className="relative mb-3">
-                <input
-                  type="range"
-                  min={selectedType.min}
-                  max={selectedType.max}
-                  step={AMOUNT_STEP}
-                  value={amountNum || selectedType.min}
-                  onChange={(e) => setLoanAmount(Number(e.target.value))}
-                  className="w-full h-2 rounded-full appearance-none cursor-pointer"
-                  style={{
-                    background: `linear-gradient(to right, ${isDark ? "var(--color-member-green-dark)" : "var(--color-member-green)"} ${sliderPct}%, ${isDark ? "#374151" : "#E5E7EB"} ${sliderPct}%)`,
-                  }}
-                />
-                <div className="flex justify-between text-[10px] text-gray-400 dark:text-gray-500 font-medium mt-1">
-                  <span>{formatPHPCompact(selectedType.min)}</span>
-                  <span>{formatPHPCompact(selectedType.max)}</span>
-                </div>
-              </div>
-
-              {/* Quick picks */}
-              <div className="flex flex-wrap gap-1.5">
-                {AMOUNT_QUICK_PICKS.filter((v) => v >= selectedType.min && v <= selectedType.max).map((v) => (
-                  <button
-                    key={v}
-                    type="button"
-                    onClick={() => setLoanAmount(v)}
-                    className={`text-xs font-bold px-3 py-1.5 rounded-lg border transition-colors ${
-                      amountNum === v
-                        ? "bg-member-green text-white border-member-green"
-                        : "bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:border-[#66B538] dark:hover:border-green-500 hover:text-member-green dark:hover:text-green-400"
-                    }`}
+              {/* Amount: preset dropdown, or a direct number entry for a custom amount */}
+              <div className="mb-3">
+                <div className="relative">
+                  <select
+                    value={isCustomAmount ? "custom" : String(amountNum)}
+                    onChange={(e) => {
+                      if (e.target.value === "custom") {
+                        setIsCustomAmount(true);
+                        return;
+                      }
+                      setIsCustomAmount(false);
+                      setLoanAmount(Number(e.target.value));
+                    }}
+                    className="w-full appearance-none border border-gray-200 dark:border-gray-700 rounded-xl px-4 py-2.5 text-sm font-semibold bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100 focus:ring-2 focus:ring-primary outline-none pr-9"
                   >
-                    {formatPHPCompact(v)}
-                  </button>
-                ))}
+                    {AMOUNT_QUICK_PICKS.filter((v) => v >= selectedType.min && v <= effectiveMax).map((v) => (
+                      <option key={v} value={v}>{formatPHP(v)}</option>
+                    ))}
+                    <option value="custom">Custom amount…</option>
+                  </select>
+                  <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-500 pointer-events-none" />
+                </div>
+
+                {isCustomAmount && (
+                  <div className="relative mt-2">
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-semibold text-gray-400 dark:text-gray-500">₱</span>
+                    <input
+                      type="number"
+                      min={selectedType.min}
+                      max={effectiveMax}
+                      step={AMOUNT_STEP}
+                      value={loanAmount === "" ? "" : loanAmount}
+                      onChange={(e) => {
+                        const raw = e.target.value;
+                        // Let the field go genuinely empty while typing instead of
+                        // snapping to 0 — Number("") is 0, and re-rendering the
+                        // input with value=0 leaves a "0" the user can never
+                        // actually clear (every backspace just recreates it).
+                        setLoanAmount(raw === "" ? "" : Number(raw));
+                      }}
+                      onBlur={(e) => {
+                        // min/max on a number input only affect the spinner
+                        // arrows and :invalid styling — they never actually stop
+                        // someone from typing an out-of-range value. Snap it back
+                        // into range once they're done editing, not mid-keystroke
+                        // (that would fight every digit typed while building up
+                        // a larger number, e.g. typing "1" of "150000").
+                        const raw = e.target.value;
+                        if (raw === "") return;
+                        const clamped = Math.min(Math.max(Number(raw), selectedType.min), effectiveMax);
+                        if (clamped !== Number(raw)) setLoanAmount(clamped);
+                      }}
+                      className="w-full border border-gray-200 dark:border-gray-700 rounded-xl pl-8 pr-4 py-2.5 text-sm font-semibold bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100 focus:ring-2 focus:ring-primary outline-none invalid:border-red-300 invalid:text-red-700 dark:invalid:border-red-500 dark:invalid:text-red-400 invalid:focus:ring-red-400"
+                      placeholder={`Between ${formatPHPCompact(selectedType.min)} and ${formatPHPCompact(effectiveMax)}`}
+                    />
+                  </div>
+                )}
+
+                <div className="flex justify-between text-[10px] text-gray-400 dark:text-gray-500 font-medium mt-1.5">
+                  <span>Min {formatPHPCompact(selectedType.min)}</span>
+                  <span>Max {formatPHPCompact(effectiveMax)}</span>
+                </div>
+
+                {isCappedByEligibility && (
+                  <p className="text-[11px] text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/60 rounded-lg px-2.5 py-1.5 mt-2 leading-snug">
+                    Your maximum here is based on your share capital and MIGS multiplier, not the product-wide {formatPHPCompact(selectedType.max)} ceiling.
+                  </p>
+                )}
               </div>
             </div>
           ) : (

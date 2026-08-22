@@ -525,7 +525,7 @@ const Member_Loans = () => {
                </span>
             </div>
             
-            <div className="overflow-x-auto">
+            <div className="hidden md:block overflow-x-auto">
             <table className="w-full min-w-[900px] text-left border-collapse">
               <thead>
                 <tr className="bg-green-700 text-[10px] uppercase tracking-wider text-white font-extrabold">
@@ -575,6 +575,53 @@ const Member_Loans = () => {
                 ))}
               </tbody>
             </table>
+            </div>
+
+            <div className="divide-y divide-gray-100 dark:divide-gray-800 md:hidden">
+              {loadingLoans ? (
+                <p className="p-6 text-sm text-gray-500 dark:text-gray-400 text-center">Loading loans...</p>
+              ) : loanError ? (
+                <p className="p-6 text-sm text-red-600 dark:text-red-400 text-center">{loanError}</p>
+              ) : loans.length === 0 ? (
+                <p className="p-6 text-sm text-gray-500 dark:text-gray-400 text-center">No loan records found.</p>
+              ) : loans
+                  .slice((loansPage - 1) * LOANS_PAGE_SIZE, loansPage * LOANS_PAGE_SIZE)
+                  .map((loan, idx) => (
+                <div key={idx} className="px-4 py-3.5 hover:bg-gray-50/50 dark:hover:bg-gray-800/50 transition-colors">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-bold text-gray-900 dark:text-white">{loan.type}</p>
+                      <p className="text-[10px] text-gray-400 dark:text-gray-500 font-medium">ID: {loan.id}</p>
+                    </div>
+                    <span className={`shrink-0 badge-animated px-2.5 py-1 rounded text-[10px] font-extrabold tracking-wider ${
+                      loan.status === 'Active' ? 'bg-[#EAF1EB] text-member-green dark:bg-green-900/30 dark:text-green-400' : loan.status === 'Rejected' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' : 'bg-[#FEF08A] text-[#854D0E] dark:bg-amber-900/30 dark:text-amber-400'
+                    }`}>
+                      {loan.status}
+                    </span>
+                  </div>
+                  <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 text-xs">
+                    <div>
+                      <p className="text-gray-400 dark:text-gray-500 font-medium">Original Amount</p>
+                      <p className="font-bold text-gray-600 dark:text-gray-400">{loan.originalAmount}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-400 dark:text-gray-500 font-medium">Remaining Balance</p>
+                      <p className="font-black text-gray-900 dark:text-white">{loan.balance}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-400 dark:text-gray-500 font-medium">Interest Rate</p>
+                      <p className="font-bold text-gray-700 dark:text-gray-200">{loan.interestRate}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-400 dark:text-gray-500 font-medium">Monthly Payment</p>
+                      <p className="font-bold text-member-green dark:text-green-400">{loan.payment}</p>
+                    </div>
+                  </div>
+                  <p className="mt-2.5 text-[11px] text-gray-500 dark:text-gray-400">
+                    Next Due: <span className="font-semibold text-gray-700 dark:text-gray-300">{loan.nextDue}</span>
+                  </p>
+                </div>
+              ))}
             </div>
 
             {/* Pagination — matches the pattern from Cashier_Payments /

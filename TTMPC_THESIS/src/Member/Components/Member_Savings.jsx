@@ -490,7 +490,7 @@ const Member_Savings = () => {
             </div>
             
             {/* Ledger Table */}
-            <div className="overflow-x-auto">
+            <div className="hidden md:block overflow-x-auto">
               <table className="w-full min-w-[640px] text-left border-collapse">
                 <thead>
                   <tr className="bg-green-700 text-[10px] uppercase tracking-wider text-white font-extrabold">
@@ -526,6 +526,30 @@ const Member_Savings = () => {
                   ))}
                 </tbody>
               </table>
+            </div>
+
+            <div className="divide-y divide-gray-100 dark:divide-gray-800 md:hidden">
+              {loadingSavings ? (
+                <p className="p-6 text-center text-sm text-gray-500 dark:text-gray-400">Loading savings ledger...</p>
+              ) : ledgerData.length === 0 ? (
+                <p className="p-6 text-center text-sm text-gray-500 dark:text-gray-400">No savings transactions yet.</p>
+              ) : ledgerData.map((row) => (
+                <div key={row.id} className="px-4 py-3.5 hover:bg-gray-50/50 dark:hover:bg-gray-800/50 transition-colors">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0 flex items-center gap-2.5">
+                      {renderTransactionIcon(row.typeIcon)}
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-bold text-gray-700 dark:text-gray-200">{row.type}</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">{row.date}</p>
+                      </div>
+                    </div>
+                    <span className={`shrink-0 text-sm font-bold ${row.amountColor}`}>{row.amount}</span>
+                  </div>
+                  <p className="mt-2 text-right text-xs text-gray-500 dark:text-gray-400">
+                    Balance: <span className="font-black text-gray-900 dark:text-white">{row.balance}</span>
+                  </p>
+                </div>
+              ))}
             </div>
 
             {/* Footer */}
