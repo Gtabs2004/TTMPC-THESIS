@@ -1020,6 +1020,24 @@ function Consolidated_Loan() {
     }
   };
 
+  // Tapping a step circle jumps directly to that step — going back is always
+  // fine, but jumping ahead has to pass through the same required-field
+  // check as Next, one step at a time, so you can't skip a section with
+  // missing answers. Lands on the first step that actually needs attention.
+  const handleMobileStepChange = (targetStep) => {
+    if (targetStep <= mobileStep) {
+      setMobileStep(targetStep);
+      return;
+    }
+    for (let step = mobileStep; step < targetStep; step += 1) {
+      if (!validateMobileStep(step)) {
+        setMobileStep(step);
+        return;
+      }
+    }
+    setMobileStep(targetStep);
+  };
+
   const handleFormSubmit = (e) => {
     e.preventDefault();
 
@@ -1073,7 +1091,7 @@ function Consolidated_Loan() {
   };
 
   return (
-    <div className="flex flex-col min-h-screen bg-gray-100 pb-20">
+    <div className="flex flex-col min-h-screen bg-gray-100 pb-44">
       {/* Header (Unchanged) */}
       <header className="w-full bg-[#E9F7DE] min-h-20 shadow-lg flex px-4 py-3 sm:px-6">
         <div className="flex w-full flex-col items-start justify-between gap-3 sm:flex-row sm:items-center sm:gap-4">
@@ -1181,7 +1199,7 @@ function Consolidated_Loan() {
           </div>
 
 
-          <div className="p-4 sm:p-6 lg:p-8 grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="p-4 sm:p-6 lg:p-8 grid grid-cols-1 md:grid-cols-3 gap-y-8 gap-x-6 md:gap-6">
             <div><label className={labelStyles}>Surname <span className="text-red-500">*</span></label><input type="text" name="surname" value={formData.surname} onChange={handleChange} className={inputClassFor('surname')} required {...lockedInputProps('surname')} /></div>
             <div><label className={labelStyles}>First Name <span className="text-red-500">*</span></label><input type="text" name="first_name" value={formData.first_name} onChange={handleChange} className={inputClassFor('first_name')} required {...lockedInputProps('first_name')} /></div>
             <div><label className={labelStyles}>Middle Name</label><input type="text" name="middle_name" value={formData.middle_name} onChange={handleChange} className={inputClassFor('middle_name')} {...lockedInputProps('middle_name')} /></div>
@@ -1635,11 +1653,23 @@ function Consolidated_Loan() {
             <span className="bg-white text-primary-deep rounded-full w-6 h-6 flex items-center justify-center text-sm">4</span>
             BORROWER'S ADDITIONAL INFORMATION
           </div>
-          <div className="p-4 sm:p-6 lg:p-8 grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="p-4 sm:p-6 lg:p-8 grid grid-cols-1 md:grid-cols-2 gap-y-8 gap-x-6 md:gap-6">
             <div><label className={labelStyles}>Email Address <span className="text-red-500">*</span></label><input type="email" name="user_email" value={formData.user_email} onChange={handleChange} className={inputStyles} required /></div>
             <div><label className={labelStyles}>Mobile / Tel No. <span className="text-red-500">*</span></label><input type="text" name="mobile_tel_no" value={formData.contact_no} onChange={handleChange} className={inputStyles} /></div>
           </div>
         </div>
+
+        {mobileStep < mobileSteps.length - 1 && (
+          <div className="mt-6 max-w-6xl mx-auto w-full md:hidden">
+            <button
+              type="button"
+              onClick={goToNextMobileStep}
+              className="w-full rounded bg-primary-deep px-6 py-2.5 text-sm font-bold text-white transition-colors hover:bg-member-green"
+            >
+              Next: {mobileSteps[mobileStep + 1]?.label}
+            </button>
+          </div>
+        )}
 
         <div data-mobile-step="3" className={`${mobileStep === 3 ? 'block' : 'hidden'} mobile-step-transition md:hidden mt-8 max-w-6xl mx-auto w-full rounded-lg border border-gray-200 bg-white p-4 shadow-sm`}>
           <h2 className="text-base font-bold text-gray-900">Review your application</h2>
@@ -1716,7 +1746,7 @@ function Consolidated_Loan() {
           </button>
         </div>
 
-        <MobileFormStepper steps={mobileSteps} currentStep={mobileStep} onStepChange={setMobileStep} onNext={goToNextMobileStep} onPrevious={() => setMobileStep((step) => Math.max(step - 1, 0))} />
+        <MobileFormStepper steps={mobileSteps} currentStep={mobileStep} onStepChange={handleMobileStepChange} onNext={goToNextMobileStep} onPrevious={() => setMobileStep((step) => Math.max(step - 1, 0))} />
 
         <div className="hidden md:block mt-8 max-w-6xl mx-auto w-full mb-8 px-3 sm:px-0">
           <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">

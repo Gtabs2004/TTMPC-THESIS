@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
+import { useTheme } from "../../contex/ThemeContext";
 import { supabase } from "../../supabaseClient";
 import { resolveMemberContextFromSessionUser } from "../../utils/sessionIdentity";
 import { loadMemberAvatarSignedUrl } from "../../utils/memberAvatar";
@@ -21,11 +22,11 @@ import {
   AlertCircle,
   Gift,
   Calculator,
-  Settings,
+  Moon,
+  Sun,
   Scroll
 } from "lucide-react";
 import LoanCalculatorModal from "./LoanCalculatorModal";
-import SettingsDrawer from './SettingsDrawer';
 import { useLoanEligibility } from "../../hooks/useLoanEligibility";
 
 const selectorOptions = [
@@ -120,7 +121,7 @@ const Member_ApplyLoans = () => {
   const [avatarUrl, setAvatarUrl] = useState("");
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isCalculatorOpen, setIsCalculatorOpen] = useState(false);
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const { isDark, toggleTheme } = useTheme();
   const [memberId, setMemberId] = useState(null);
   const { data: eligibility, status: eligibilityStatus } = useLoanEligibility(memberId);
   const eligibilityReady = eligibilityStatus === "ready";
@@ -196,7 +197,6 @@ const Member_ApplyLoans = () => {
   return (
     <div className="relative flex h-screen overflow-hidden bg-[#F8F9FA] dark:bg-gray-950">
       <style>{styles}</style>
-      <SettingsDrawer isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
       {isSidebarOpen ? (
         <button
           aria-label="Close sidebar overlay"
@@ -297,11 +297,11 @@ const Member_ApplyLoans = () => {
             
             <LoanNotificationBell role="member" accentClass="bg-member-green" />
             <button
-              onClick={() => setIsSettingsOpen(true)}
+              onClick={toggleTheme}
               className="p-2 rounded-md text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-              aria-label="Open settings"
+              aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
             >
-              <Settings className="w-5 h-5" />
+              {isDark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
             </button>
           </div>
         </header>

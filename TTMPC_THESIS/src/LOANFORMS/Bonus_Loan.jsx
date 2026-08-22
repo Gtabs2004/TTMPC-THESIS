@@ -321,6 +321,24 @@ function Bonus_Loan() {
     if (validateMobileStep(mobileStep)) setMobileStep((step) => Math.min(step + 1, mobileSteps.length - 1));
   };
 
+  // Tapping a step circle jumps directly to that step — going back is always
+  // fine, but jumping ahead has to pass through the same required-field
+  // check as Next, one step at a time, so you can't skip a section with
+  // missing answers. Lands on the first step that actually needs attention.
+  const handleMobileStepChange = (targetStep) => {
+    if (targetStep <= mobileStep) {
+      setMobileStep(targetStep);
+      return;
+    }
+    for (let step = mobileStep; step < targetStep; step += 1) {
+      if (!validateMobileStep(step)) {
+        setMobileStep(step);
+        return;
+      }
+    }
+    setMobileStep(targetStep);
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -392,7 +410,7 @@ function Bonus_Loan() {
   };
 
   return (
-    <div className="flex flex-col min-h-screen bg-gray-100 pb-20">
+    <div className="flex flex-col min-h-screen bg-gray-100 pb-44">
       <header className="w-full bg-[#E9F7DE] min-h-20 shadow-lg flex px-4 py-3 sm:px-6">
         <div className="flex w-full flex-col items-start justify-between gap-3 sm:flex-row sm:items-center sm:gap-4">
           <div className="flex min-w-0 flex-row items-center gap-3 sm:gap-4">
@@ -452,7 +470,7 @@ function Bonus_Loan() {
 
         <div data-mobile-step="0" className={`${mobileStep === 0 ? 'block' : 'hidden'} mobile-step-transition md:block mt-10 bg-white rounded-lg shadow-md overflow-hidden max-w-6xl mx-auto w-full`}>
           <div className={sectionHeader}><span className="bg-white text-primary-deep rounded-full w-6 h-6 flex items-center justify-center text-sm">1</span> BORROWER'S INFORMATION</div>
-          <div className="p-4 sm:p-6 lg:p-8 grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="p-4 sm:p-6 lg:p-8 grid grid-cols-1 md:grid-cols-3 gap-y-8 gap-x-6 md:gap-6">
             <div><label className={labelStyles}>Surname *</label><input name="surname" value={formData.surname} onChange={handleChange} className={inputStyles} required /></div>
             <div><label className={labelStyles}>First Name *</label><input name="first_name" value={formData.first_name} onChange={handleChange} className={inputStyles} required /></div>
             <div><label className={labelStyles}>Middle Name</label><input name="middle_name" value={formData.middle_name} onChange={handleChange} className={inputStyles} /></div>
@@ -684,6 +702,18 @@ function Bonus_Loan() {
           </div>
         </div>
 
+        {mobileStep < mobileSteps.length - 1 && (
+          <div className="mt-6 max-w-6xl mx-auto w-full md:hidden">
+            <button
+              type="button"
+              onClick={goToNextMobileStep}
+              className="w-full rounded bg-primary-deep px-6 py-2.5 text-sm font-bold text-white transition-colors hover:bg-member-green"
+            >
+              Next: {mobileSteps[mobileStep + 1]?.label}
+            </button>
+          </div>
+        )}
+
         <div data-mobile-step="3" className={`${mobileStep === 3 ? 'block' : 'hidden'} mobile-step-transition md:hidden mt-8 rounded-lg border border-gray-200 bg-white p-4 shadow-sm`}>
           <h2 className="text-base font-bold text-gray-900">Review your application</h2>
           <p className="mt-1 text-xs text-gray-500">Check each section below before submitting your bonus loan application. Tap Edit to go back and make changes.</p>
@@ -752,7 +782,7 @@ function Bonus_Loan() {
           </button>
         </div>
 
-        <MobileFormStepper steps={mobileSteps} currentStep={mobileStep} onStepChange={setMobileStep} onNext={goToNextMobileStep} onPrevious={() => setMobileStep((step) => Math.max(step - 1, 0))} />
+        <MobileFormStepper steps={mobileSteps} currentStep={mobileStep} onStepChange={handleMobileStepChange} onNext={goToNextMobileStep} onPrevious={() => setMobileStep((step) => Math.max(step - 1, 0))} />
       </form>
     </div>
   );

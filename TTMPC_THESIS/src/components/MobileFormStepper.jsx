@@ -7,7 +7,7 @@ const MobileFormStepper = ({ steps, currentStep, onStepChange, onNext, onPreviou
 
   return (
     <div
-      className="fixed inset-x-0 bottom-0 z-20 border-t border-gray-200 bg-white px-4 py-3 md:hidden"
+      className="fixed inset-x-0 bottom-0 z-20 border-t border-gray-200 bg-white px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3 shadow-[0_-4px_16px_-4px_rgba(15,23,42,0.12)] md:hidden"
       aria-label="Loan application progress"
     >
       <div className="flex items-center justify-between gap-2">
@@ -21,10 +21,25 @@ const MobileFormStepper = ({ steps, currentStep, onStepChange, onNext, onPreviou
           <ChevronLeft className="h-4 w-4" />
         </button>
 
-        <div className="flex min-w-0 flex-1 items-center justify-center gap-1.5">
-          {steps.map((step, index) => (
-            <React.Fragment key={step.id}>
+        <div className="relative flex min-w-0 flex-1 items-center">
+          {/* Continuous track behind the circles — the fill's width animates on
+           * every step change, so progress visibly slides/grows instead of the
+           * old per-segment color snap. left-4/right-4 line the track up with
+           * the center of the first/last circle (h-8 = 32px, half = 16px = 4). */}
+          <div
+            className="absolute left-4 right-4 top-1/2 h-0.5 -translate-y-1/2 overflow-hidden rounded-full bg-gray-200"
+            aria-hidden="true"
+          >
+            <div
+              className="h-full rounded-full bg-[#16A34A] transition-[width] duration-500 ease-out"
+              style={{ width: steps.length > 1 ? `${(currentStep / (steps.length - 1)) * 100}%` : "0%" }}
+            />
+          </div>
+
+          <div className="relative flex w-full items-center justify-between">
+            {steps.map((step, index) => (
               <button
+                key={step.id}
                 type="button"
                 onClick={() => onStepChange(index)}
                 className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full border text-xs font-semibold transition-colors ${
@@ -39,9 +54,8 @@ const MobileFormStepper = ({ steps, currentStep, onStepChange, onNext, onPreviou
               >
                 {index + 1}
               </button>
-              {index < steps.length - 1 ? <span className="h-px min-w-2 flex-1 bg-gray-200" /> : null}
-            </React.Fragment>
-          ))}
+            ))}
+          </div>
         </div>
 
         <button

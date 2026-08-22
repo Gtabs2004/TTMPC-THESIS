@@ -2,6 +2,7 @@
 import { NavLink, useNavigate } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
 import { useNotification } from "../../contex/NotificationContext";
+import { useTheme } from "../../contex/ThemeContext";
 import { supabase } from "../../supabaseClient";
 import { resolveMemberContextFromSessionUser } from "../../utils/sessionIdentity";
 import { loadMemberAvatarSignedUrl } from "../../utils/memberAvatar";
@@ -19,7 +20,8 @@ import {
   X,
   RefreshCw,
   Search,
-  Settings,
+  Moon,
+  Sun,
   ShieldCheck,
   User,
   Users,
@@ -36,7 +38,6 @@ import {
   Trophy,
   Scroll
 } from "lucide-react";
-import SettingsDrawer from './SettingsDrawer';
 
 // 7 member-facing stages, in order.
 const LIFECYCLE_STAGES = [
@@ -239,7 +240,7 @@ const Member_Lifecycle = () => {
   const [memberLabel, setMemberLabel] = useState('Member');
   const [avatarUrl, setAvatarUrl] = useState('');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const { isDark, toggleTheme } = useTheme();
   const [selectedLoanId, setSelectedLoanId] = useState('');
   const [showDetails, setShowDetails] = useState(false);
   const [showSchedule, setShowSchedule] = useState(false);
@@ -464,7 +465,6 @@ const Member_Lifecycle = () => {
   return (
     <div className="relative flex h-screen overflow-hidden bg-[#F8F9FA] dark:bg-gray-950">
       <style>{styles}</style>
-      <SettingsDrawer isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
       {isSidebarOpen ? (
         <button
           aria-label="Close sidebar overlay"
@@ -546,11 +546,11 @@ const Member_Lifecycle = () => {
             
             <LoanNotificationBell role="member" accentClass="bg-member-green" />
             <button
-              onClick={() => setIsSettingsOpen(true)}
+              onClick={toggleTheme}
               className="p-2 rounded-md text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-              aria-label="Open settings"
+              aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
             >
-              <Settings className="w-5 h-5" />
+              {isDark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
             </button>
           </div>
         </header>
