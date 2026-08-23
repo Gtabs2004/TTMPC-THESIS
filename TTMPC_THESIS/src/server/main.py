@@ -3932,7 +3932,7 @@ async def get_bookkeeper_manage_loans():
         loans_response = (
             supabase.table("loans")
             .select(
-                "control_number,member_id,loan_amount,principal_amount,interest_rate,term,loan_status,application_status,monthly_amortization,total_interest,application_date," \
+                "control_number,member_id,loan_amount,principal_amount,interest_rate,term,loan_status,application_status,monthly_amortization,total_interest,application_date,application_type," \
                 "member:member_id(membership_id,first_name,last_name,is_bona_fide),loan_type:loan_type_id(code,name,interest_rate)"
             )
             .order("application_date", desc=True)
@@ -4216,6 +4216,7 @@ async def get_bookkeeper_manage_loans():
                     "source_loan_status": row.get("loan_status"),
                     "source_application_status": row.get("application_status"),
                     "application_date": row.get("application_date"),
+                    "application_type": str(row.get("application_type") or "new").strip().lower(),
                     "payment_history": payment_history,
                     "prior_versions": prior_versions_by_loan.get(loan_id, 0),
                     # Legacy = loan whose schedule was reconstructed by the
@@ -4257,14 +4258,190 @@ async def get_bookkeeper_loan_ledger(loan_id: str):
     if not clean_loan_id:
         raise HTTPException(status_code=400, detail="loan_id is required.")
 
-    payload = await get_bookkeeper_manage_loans()
-    rows = (payload.get("data") or {}).get("rows") or []
-    target = next((item for item in rows if str(item.get("loan_id") or "") == clean_loan_id), None)
+    # Query only the single loan directly — avoids loading all 700+ loans.
+    try:
+        loan_resp = (
+            supabase.table("loans")
+            .select(
+                "control_number,member_id,loan_amount,principal_amount,interest_rate,term,loan_status,application_status,monthly_amortization,total_interest,application_date,application_type,"
+                "member:member_id(membership_id,first_name,last_name,is_bona_fide),loan_type:loan_type_id(code,name,interest_rate)"
+            )
+            .eq("control_number", clean_loan_id)
+            .limit(1)
+            .execute()
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch loan: {e}")
 
-    if not target:
+    row = (loan_resp.data or [None])[0]
+    if not row:
         raise HTTPException(status_code=404, detail="Loan ledger not found.")
 
-    return {"success": True, "data": target}
+    # Fetch live payments for this loan.
+    try:
+        pay_resp = (
+            supabase.table("loan_payments")
+            .select("id,loan_id,amount_paid,penalties,payment_date,confirmation_status,payment_reference,transaction_reference")
+            .eq("loan_id", clean_loan_id)
+            .order("payment_date")
+            .execute()
+        )
+        payment_rows = pay_resp.data or []
+    except Exception:
+        payment_rows = []
+
+    # Fetch legacy payments for this loan.
+    try:
+        leg_resp = (
+            supabase.table("loan_payments_legacy")
+            .select("id,loan_id,amount_paid,payment_date,payment_code,or_cdv_no,is_overpayment")
+            .eq("loan_id", clean_loan_id)
+            .order("payment_date")
+            .execute()
+        )
+        for legacy in (leg_resp.data or []):
+            payment_rows.append({
+                "id": legacy.get("id"),
+                "loan_id": legacy.get("loan_id"),
+                "amount_paid": legacy.get("amount_paid"),
+                "penalties": 0,
+                "payment_date": legacy.get("payment_date"),
+                "confirmation_status": "validated",
+                "payment_reference": legacy.get("payment_code") or legacy.get("or_cdv_no"),
+                "transaction_reference": legacy.get("or_cdv_no") or legacy.get("payment_code"),
+                "_is_legacy": True,
+            })
+        payment_rows.sort(key=lambda p: str(p.get("payment_date") or ""))
+    except Exception:
+        pass
+
+    # Fetch schedules for this loan.
+    try:
+        sched_resp = (
+            supabase.table("loan_schedules")
+            .select("loan_id,schedule_id,due_date,schedule_status,expected_amount,installment_no")
+            .eq("loan_id", clean_loan_id)
+            .order("due_date")
+            .execute()
+        )
+        schedule_rows = sched_resp.data or []
+    except Exception:
+        schedule_rows = []
+
+    # Map using same logic as manage-loans.
+    member = row.get("member") or {}
+    member_name = f"{member.get('first_name') or ''} {member.get('last_name') or ''}".strip() or "Unknown Member"
+    member_type = "Member" if bool(member.get("is_bona_fide")) else "Non-Member"
+    membership_id = str(member.get("membership_id") or "").strip()
+
+    loan_type = row.get("loan_type") or {}
+    loan_type_name = loan_type.get("name") or "N/A"
+    loan_type_code = str(loan_type.get("code") or normalize_cashier_loan_type(loan_type_name)).upper()
+
+    principal_amount = Decimal(str(row.get("principal_amount") or row.get("loan_amount") or 0))
+    total_interest_amount = Decimal(str(row.get("total_interest") or 0))
+    if total_interest_amount <= 0:
+        term_months_val = int(row.get("term") or 0)
+        monthly_amort_val = Decimal(str(row.get("monthly_amortization") or 0))
+        if term_months_val > 0 and monthly_amort_val > 0:
+            total_interest_amount = max(monthly_amort_val * term_months_val - principal_amount, Decimal("0"))
+    total_payable_amount = principal_amount + total_interest_amount
+
+    _due_dates = []
+    for _s in schedule_rows:
+        d = parse_date_value(_s.get("due_date"))
+        if d:
+            _due_dates.append(d)
+    _due_dates.sort()
+
+    total_validated = Decimal("0")
+    payment_history = []
+    for payment in payment_rows:
+        amount_paid = Decimal(str(payment.get("amount_paid") or 0))
+        if is_validated_payment_status(payment.get("confirmation_status")):
+            total_validated += amount_paid
+        running_remaining = max(total_payable_amount - total_validated, Decimal("0"))
+
+        days_offset = None
+        _paid_on = parse_date_value(payment.get("payment_date"))
+        if _paid_on and _due_dates:
+            nearest = min(_due_dates, key=lambda d: abs((_paid_on - d).days))
+            days_offset = (_paid_on - nearest).days
+
+        payment_history.append({
+            "payment_id": payment.get("payment_reference") or payment.get("id"),
+            "date_paid": payment.get("payment_date"),
+            "reference_no": payment.get("transaction_reference") or payment.get("payment_reference") or payment.get("id"),
+            "amount_paid": decimal_to_float(amount_paid),
+            "penalties": decimal_to_float(payment.get("penalties") or 0),
+            "remaining_after": decimal_to_float(running_remaining),
+            "confirmation_status": payment.get("confirmation_status") or "pending_bookkeeper",
+            "days_offset": days_offset,
+        })
+
+    remaining_balance = max(total_payable_amount - total_validated, Decimal("0"))
+    if remaining_balance <= 0:
+        repayment_status = "Fully Paid"
+    elif total_validated > 0:
+        repayment_status = "Partially Paid"
+    else:
+        repayment_status = "Unpaid"
+
+    active_due = None
+    for schedule in schedule_rows:
+        status = str(schedule.get("schedule_status") or "").strip().lower()
+        if status not in {"paid", "validated", "cancelled"}:
+            active_due = schedule
+            break
+    if not active_due and schedule_rows:
+        active_due = schedule_rows[-1]
+
+    due_date = active_due.get("due_date") if active_due else None
+
+    if active_due and not payment_history:
+        payment_history.append({
+            "payment_id": f"SCHED-{clean_loan_id}-{active_due.get('installment_no')}",
+            "date_paid": active_due.get("due_date"),
+            "reference_no": f"Installment #{active_due.get('installment_no')}",
+            "amount_paid": decimal_to_float(active_due.get("expected_amount") or 0),
+            "penalties": 0.0,
+            "remaining_after": decimal_to_float(remaining_balance),
+            "confirmation_status": "upcoming",
+        })
+
+    is_legacy = any(
+        str(s.get("schedule_id") or "").startswith("LEGACY_")
+        for s in schedule_rows
+    )
+
+    result = {
+        "loan_id": clean_loan_id,
+        "membership_id": membership_id,
+        "member_name": member_name,
+        "member_type": member_type,
+        "loan_type": loan_type_name,
+        "loan_type_code": loan_type_code,
+        "loan_amount": decimal_to_float(principal_amount),
+        "interest_rate": sanitize_monthly_rate_percent(
+            row.get("interest_rate"),
+            (row.get("loan_type") or {}).get("interest_rate"),
+        ),
+        "term_months": int(row.get("term") or 0),
+        "amortization": decimal_to_float(row.get("monthly_amortization") or 0),
+        "remaining_balance": decimal_to_float(remaining_balance),
+        "total_payable": decimal_to_float(total_payable_amount),
+        "total_interest": decimal_to_float(total_interest_amount),
+        "due_date": due_date,
+        "status": repayment_status,
+        "source_loan_status": row.get("loan_status"),
+        "source_application_status": row.get("application_status"),
+        "application_date": row.get("application_date"),
+        "application_type": str(row.get("application_type") or "new").strip().lower(),
+        "payment_history": payment_history,
+        "is_legacy": is_legacy,
+    }
+
+    return {"success": True, "data": result}
 
 
 class LoanRestructureRequest(BaseModel):

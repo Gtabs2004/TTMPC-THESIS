@@ -23,7 +23,10 @@ import {
   Brain,
   RefreshCw,
   X,
+  Download,
 } from "lucide-react";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 import logo from "../../assets/img/ttmpc logo.png";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
@@ -93,6 +96,108 @@ const LoanLedger = () => {
     "Audit Trail": "/audit-trail",
     Grocery: "/grocery",
     "Legacy Member Validation": "/legacy-member-validation",
+  };
+
+  const renewalHistory = location.state?.renewals || [];
+  // True when this ledger was opened by clicking a renewal history row.
+  // The successor's application_date is passed as closingDate so we can
+  // show "Closing Date" instead of "Due Date".
+  const isRenewed = !!location.state?.isRenewed;
+  const closingDate = location.state?.closingDate || null;
+  const [downloadingId, setDownloadingId] = useState(null);
+
+  const handleDownloadSOA = async (loan, prefetchedHistory = null) => {
+    const loanId = loan.loan_id;
+    setDownloadingId(loanId);
+
+    let paymentHistory = prefetchedHistory;
+    if (!paymentHistory) {
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/bookkeeper/loan-ledger/${encodeURIComponent(loanId)}`);
+        const result = await res.json();
+        paymentHistory = result?.data?.payment_history || [];
+      } catch {
+        paymentHistory = [];
+      }
+    }
+
+    const doc = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const generatedOn = new Date().toLocaleString("en-US", {
+      year: "numeric", month: "long", day: "2-digit", hour: "2-digit", minute: "2-digit",
+    });
+
+    // Header
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(16);
+    doc.setTextColor(29, 96, 33);
+    doc.text("TTMPC - Statement of Account", 40, 50);
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    doc.setTextColor(80, 80, 80);
+    doc.text(`Member Name: ${loan.member_name || "—"}`, 40, 72);
+    doc.text(`Loan ID: ${loan.loan_id}`, 40, 88);
+    doc.text(`Loan Type: ${loan.loan_type || "—"}`, 40, 104);
+    const fmtHeader = (v) => "PHP " + new Intl.NumberFormat("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(v || 0));
+    doc.text(`Loan Amount: ${fmtHeader(loan.loan_amount)}`, 40, 120);
+    doc.text(`Term: ${loan.term_months ?? "—"} months`, pageWidth / 2, 72);
+    doc.text(`Interest Rate: ${loan.interest_rate ?? "—"}%`, pageWidth / 2, 88);
+    doc.text(`Amortization: ${fmtHeader(loan.amortization)}`, pageWidth / 2, 104);
+    doc.text(`Status: ${loan.status || "—"}`, pageWidth / 2, 120);
+    doc.text(`Generated On: ${generatedOn}`, pageWidth - 40, 50, { align: "right" });
+
+    doc.setDrawColor(220, 220, 220);
+    doc.line(40, 132, pageWidth - 40, 132);
+
+    const fmt = (v) => "PHP " + new Intl.NumberFormat("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(v || 0));
+
+    autoTable(doc, {
+      startY: 145,
+      head: [["Date", "Reference No.", "Payment Amount", "Penalty", "Remaining Balance", "Status"]],
+      body: paymentHistory.map((e) => [
+        e.date_paid ? new Date(e.date_paid).toLocaleDateString("en-PH", { year: "numeric", month: "short", day: "numeric" }) : "—",
+        e.reference_no || e.payment_id || "—",
+        fmt(e.payment_amount || e.amount_paid),
+        fmt(e.penalty || e.penalties),
+        fmt(e.remaining_after),
+        e.status || e.confirmation_status || "—",
+      ]),
+      styles: { fontSize: 9, cellPadding: 6, valign: "middle" },
+      headStyles: { fillColor: [29, 96, 33], textColor: 255, fontStyle: "bold" },
+      alternateRowStyles: { fillColor: [250, 249, 251] },
+      columnStyles: {
+        2: { halign: "right" },
+        3: { halign: "right" },
+        4: { halign: "right" },
+      },
+      margin: { left: 40, right: 40 },
+    });
+
+    // Totals
+    const totalPaid = paymentHistory.reduce((s, e) => s + Number(e.payment_amount || e.amount_paid || 0), 0);
+    const totalPenalty = paymentHistory.reduce((s, e) => s + Number(e.penalty || e.penalties || 0), 0);
+    const ruleY = doc.lastAutoTable.finalY + 18;
+    doc.setDrawColor(180, 180, 180);
+    doc.setLineWidth(0.75);
+    doc.line(40, ruleY, pageWidth - 40, ruleY);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
+    doc.setTextColor(29, 96, 33);
+    doc.text("TOTALS", 50, ruleY + 16);
+    const totalsLines = [
+      `Total Amount Paid: ${fmt(totalPaid)}`,
+      `Total Penalty: ${fmt(totalPenalty)}`,
+      `Remaining Balance: ${fmt(loan.remaining_balance)}`,
+    ];
+    totalsLines.forEach((line, i) => {
+      doc.text(line, pageWidth - 50, ruleY + 16 + i * 16, { align: "right" });
+    });
+
+    const safeName = (loan.member_name || "member").replace(/[^a-z0-9]+/gi, "_");
+    const safeLoan = (loan.loan_id || "loan").replace(/[^a-z0-9]+/gi, "_");
+    doc.save(`SOA_${safeName}_${safeLoan}_${new Date().toISOString().slice(0, 10)}.pdf`);
+    setDownloadingId(null);
   };
 
   const initialLoan = location.state?.loan || {
@@ -436,16 +541,35 @@ const LoanLedger = () => {
             )}
 
             <div className="flex items-center justify-between w-full mb-3">
-              <h2 className="text-sm font-semibold text-gray-700">Loan Summary</h2>
-              {!isManagerView && (
+              <div className="flex items-center gap-2">
+                <h2 className="text-sm font-semibold text-gray-700">Loan Summary</h2>
+                {isRenewed
+                  ? <span className="inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold bg-blue-100 text-blue-700">Renewed</span>
+                  : renewalHistory.length > 0
+                    ? <span className="inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold bg-green-100 text-green-700">Active Loan</span>
+                    : null
+                }
+              </div>
+              <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => { setNewTerm(String(selectedLoan.term_months || "")); setRestructureError(""); setRestructureSubmitted(false); setShowRestructure(true); }}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-800 hover:bg-amber-100 transition-colors"
+                  disabled={downloadingId === selectedLoan.loan_id}
+                  onClick={() => handleDownloadSOA(selectedLoan, selectedLoan.payment_history)}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-green-300 bg-green-50 px-3 py-1.5 text-xs font-semibold text-green-800 hover:bg-green-100 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
                 >
-                  <RefreshCw size={13} /> Restructure Loan
+                  <Download size={13} />
+                  {downloadingId === selectedLoan.loan_id ? "Generating..." : "Download SOA"}
                 </button>
-              )}
+                {!isManagerView && !isRenewed && (
+                  <button
+                    type="button"
+                    onClick={() => { setNewTerm(String(selectedLoan.term_months || "")); setRestructureError(""); setRestructureSubmitted(false); setShowRestructure(true); }}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-800 hover:bg-amber-100 transition-colors"
+                  >
+                    <RefreshCw size={13} /> Restructure Loan
+                  </button>
+                )}
+              </div>
             </div>
                         
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm text-gray-700">
@@ -455,14 +579,25 @@ const LoanLedger = () => {
               <p><span className="font-semibold">Loan Amount:</span> {formatCurrency(selectedLoan.loan_amount)}</p>
               <p><span className="font-semibold">Interest:</span> {selectedLoan.interest_rate}%</p>
               <p><span className="font-semibold">Term:</span> {selectedLoan.term_months} months</p>
-              <p><span className="font-semibold">Amortization:</span> {formatCurrency(selectedLoan.amortization)}</p>
-              <p><span className="font-semibold">Remaining Balance:</span> {formatCurrency(selectedLoan.remaining_balance)}</p>
-              <p><span className="font-semibold">Due Date:</span> {selectedLoan.due_date}</p>
+              {!isRenewed && (
+                <p><span className="font-semibold">Amortization:</span> {formatCurrency(selectedLoan.amortization)}</p>
+              )}
+              {!isRenewed && (
+                <p><span className="font-semibold">Remaining Balance:</span> {formatCurrency(selectedLoan.remaining_balance)}</p>
+              )}
+              <p>
+                <span className="font-semibold">{isRenewed ? "Closing Date:" : "Due Date:"}</span>{" "}
+                {isRenewed
+                  ? (closingDate ? new Date(closingDate).toLocaleDateString("en-PH", { year: "numeric", month: "short", day: "numeric" }) : "—")
+                  : (selectedLoan.due_date || "—")
+                }
+              </p>
               <p>
                 <span className="font-semibold">Status:</span>{" "}
-                <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${getStatusStyle(selectedLoan.status)}`}>
-                  {selectedLoan.status}
-                </span>
+                {isRenewed
+                  ? <span className="inline-flex rounded-full px-3 py-1 text-xs font-semibold bg-blue-100 text-blue-700">Renewed</span>
+                  : <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${getStatusStyle(selectedLoan.status)}`}>{selectedLoan.status}</span>
+                }
               </p>
             </div>
           </div>
@@ -505,6 +640,68 @@ const LoanLedger = () => {
               </tbody>
             </table>
           </div>
+
+          {renewalHistory.length > 0 && (
+            <div className="mt-5 rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+              <div className="px-4 py-3 border-b border-gray-100 bg-gray-50">
+                <h2 className="text-sm font-semibold text-gray-700">Renewal History ({renewalHistory.length})</h2>
+                <p className="text-xs text-gray-500 mt-0.5">Previous loans of the same type by this member, newest first</p>
+              </div>
+              <table className="min-w-full text-sm">
+                <thead className="bg-gray-50 text-gray-700">
+                  <tr>
+                    <th className="px-4 py-3 text-left font-semibold">Loan ID</th>
+                    <th className="px-4 py-3 text-left font-semibold">Loan Amount</th>
+                    <th className="px-4 py-3 text-left font-semibold">Term</th>
+                    <th className="px-4 py-3 text-left font-semibold">Amortization</th>
+                    <th className="px-4 py-3 text-left font-semibold">Last Payment</th>
+                    <th className="px-4 py-3 text-left font-semibold">Status</th>
+                    <th className="px-4 py-3 text-left font-semibold">Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {renewalHistory.map((r, idx) => {
+                    // Closing date = the date this loan was superseded.
+                    // Best signal: last payment date on this loan (payments stopped when renewed).
+                    // Fallback: successor's application_date (works for system loans).
+                    const lastPay = (r.payment_history || [])
+                      .map((p) => p.date_paid)
+                      .filter(Boolean)
+                      .sort()
+                      .at(-1) || null;
+                    const successor = idx === 0 ? selectedLoan : renewalHistory[idx - 1];
+                    const closingDateVal = lastPay || successor?.application_date || null;
+                    return (
+                    <tr key={r.loan_id} className="border-t border-gray-100 hover:bg-gray-50">
+                      <td className="px-4 py-3 font-mono font-bold text-green-700 cursor-pointer" onClick={() => navigate(`/bookkeeper-loan-ledger/${r.loan_id}`, { state: { loan: r, isRenewed: true, closingDate: closingDateVal } })}>{r.loan_id}</td>
+                      <td className="px-4 py-3 text-gray-700">{formatCurrency(r.loan_amount)}</td>
+                      <td className="px-4 py-3 text-gray-700">{r.term_months ?? "—"} mo</td>
+                      <td className="px-4 py-3 text-gray-700">{formatCurrency(r.amortization)}</td>
+                      <td className="px-4 py-3 text-gray-500 text-sm">
+                        {closingDateVal ? new Date(closingDateVal).toLocaleDateString("en-PH", { year: "numeric", month: "short", day: "numeric" }) : "—"}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="inline-flex rounded-full px-3 py-1 text-xs font-semibold bg-blue-100 text-blue-700">
+                          Renewed
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <button
+                          type="button"
+                          disabled={downloadingId === r.loan_id}
+                          onClick={() => handleDownloadSOA(r)}
+                          className="inline-flex items-center gap-1 rounded-lg border border-green-300 bg-green-50 px-2.5 py-1.5 text-xs font-semibold text-green-800 hover:bg-green-100 transition-colors disabled:opacity-60 disabled:cursor-not-allowed whitespace-nowrap"
+                        >
+                          <Download size={12} />
+                          {downloadingId === r.loan_id ? "..." : "SOA"}
+                        </button>
+                      </td>
+                    </tr>
+                  ); })}
+                </tbody>
+              </table>
+            </div>
+          )}
         </main>
       </div>
 

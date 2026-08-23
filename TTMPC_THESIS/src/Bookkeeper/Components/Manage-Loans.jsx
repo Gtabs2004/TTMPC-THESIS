@@ -65,8 +65,6 @@ const ManageLoans = () => {
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
-  // Which renewal groups have their history expanded. Keyed by the parent
-  // (current active) loan_id — flipping a chevron toggles its entry here.
   const [isSavingsOpen, setIsSavingsOpen] = useState(false);
 
   const menuItems = [
@@ -195,24 +193,105 @@ const ManageLoans = () => {
   // renewals folded underneath as a "Previous renewals (N)" toggle.
   // Purely a UI grouping — the underlying rows aren't merged.
   const groupedLoans = useMemo(() => {
-    const chains = new Map();
+    const SIX_MONTHS_MS = 6 * 30 * 24 * 60 * 60 * 1000;
+
+    // For a legacy loan, get its last payment date from payment_history.
+    const lastPaymentDate = (loan) => {
+      const history = loan.payment_history || [];
+      if (!history.length) return null;
+      const dates = history.map((p) => new Date(p.date_paid || 0).getTime()).filter(Boolean);
+      return dates.length ? Math.max(...dates) : null;
+    };
+
+    // Group all loans by member + loan type, sorted oldest → newest.
+    const buckets = new Map();
     for (const loan of filteredLoans) {
       const key = `${loan.member_name || ""}::${loan.loan_type_code || loan.loan_type || ""}`;
-      if (!chains.has(key)) chains.set(key, []);
-      chains.get(key).push(loan);
+      if (!buckets.has(key)) buckets.set(key, []);
+      buckets.get(key).push(loan);
     }
+
+    // Extract trailing numeric suffix from a loan ID for ordering legacy loans
+    // that lack application_date (e.g. "TTMPCL-419" → 419).
+    const loanSeq = (id) => {
+      const m = String(id || "").match(/(\d+)\s*$/);
+      return m ? parseInt(m[1], 10) : 0;
+    };
+
     const results = [];
-    for (const items of chains.values()) {
+
+    for (const items of buckets.values()) {
       const sorted = [...items].sort((a, b) => {
         const da = new Date(a.application_date || 0).getTime();
         const db = new Date(b.application_date || 0).getTime();
-        if (db !== da) return db - da;
-        return String(b.loan_id || "").localeCompare(String(a.loan_id || ""));
+        if (da !== db) return da - db; // oldest first for chain building
+        // Fallback: use loan ID numeric suffix (works for legacy loans without dates)
+        return loanSeq(a.loan_id) - loanSeq(b.loan_id);
       });
-      const [parent, ...renewals] = sorted;
-      results.push({ parent, renewals });
+
+      // Build chains: walk oldest→newest, decide if each loan is a renewal
+      // of the previous one or a standalone new loan.
+      // Rules:
+      //   System loans: use application_type field ("renewal" = chains onto prev).
+      //   Legacy loans (is_legacy=true, application_type null/new): treat as
+      //   renewal if the loan's application_date is within 6 months after the
+      //   predecessor's last payment date.
+      const chains = []; // each chain = [root, ...renewals] oldest→newest
+
+      for (const loan of sorted) {
+        const appType = String(loan.application_type || "").toLowerCase();
+        const isLegacy = !!loan.is_legacy;
+        const appDate = new Date(loan.application_date || 0).getTime();
+
+        let attachedToChain = false;
+
+        if (chains.length > 0) {
+          const prevChain = chains[chains.length - 1];
+          const prevLoan = prevChain[prevChain.length - 1];
+          const prevAppDate = new Date(prevLoan.application_date || 0).getTime();
+
+          if (!isLegacy && appType === "renewal") {
+            // System loan explicitly marked renewal.
+            prevChain.push(loan);
+            attachedToChain = true;
+          } else if (isLegacy) {
+            // Legacy loan: TTMPC policy forbids two simultaneous consolidated
+            // loans, so any subsequent loan of the same type for the same
+            // member in the CSV must be a renewal of the prior one.
+            //
+            // Ordering is already oldest→newest (by date then loan ID suffix),
+            // so "coming after in sorted order" == is a renewal.
+            // If payment history exists on the predecessor, also verify the
+            // new application came within 6 months of the last payment.
+            const prevLastPay = lastPaymentDate(prevLoan);
+            // "Is this loan sequentially after the previous one?"
+            // Use date first; fall back to loan ID numeric order.
+            const isAfterPrev = appDate !== prevAppDate
+              ? appDate > prevAppDate
+              : loanSeq(loan.loan_id) > loanSeq(prevLoan.loan_id);
+            const withinSixMonths = prevLastPay
+              ? appDate - prevLastPay <= SIX_MONTHS_MS && appDate >= prevLastPay
+              : isAfterPrev;
+            if (withinSixMonths) {
+              prevChain.push(loan);
+              attachedToChain = true;
+            }
+          }
+        }
+
+        if (!attachedToChain) {
+          chains.push([loan]);
+        }
+      }
+
+      // Each chain: newest = parent (shown in table), rest = renewals (shown in ledger).
+      for (const chain of chains) {
+        const reversed = [...chain].reverse(); // newest first
+        const [parent, ...renewals] = reversed;
+        results.push({ parent, renewals });
+      }
     }
-    // Keep parent ordering stable (newest activity first).
+
     results.sort((a, b) => {
       const da = new Date(a.parent.application_date || 0).getTime();
       const db = new Date(b.parent.application_date || 0).getTime();
@@ -521,7 +600,6 @@ const ManageLoans = () => {
                 )}
 
                 {paginatedGroups.map(({ parent, renewals }) => {
-                  const hasRenewals = renewals.length > 0;
                   return (
                     <React.Fragment key={parent.loan_id}>
                       <tr className="border-b border-gray-100 transition-colors hover:bg-green-50/40">
@@ -552,14 +630,13 @@ const ManageLoans = () => {
                         <td className="px-3 py-4 text-center align-top">
                           <button
                             type="button"
-                            onClick={() => navigate(`/bookkeeper-loan-ledger/${parent.loan_id}`, { state: { loan: parent } })}
+                            onClick={() => navigate(`/bookkeeper-loan-ledger/${parent.loan_id}`, { state: { loan: parent, renewals } })}
                             className="btn-enhanced inline-flex items-center gap-1 rounded-lg bg-green-600 px-2 py-1.5 text-xs font-semibold text-white hover:bg-green-700"
                           >
                             <Eye size={12} /> View
                           </button>
                         </td>
                       </tr>
-
                     </React.Fragment>
                   );
                 })}
