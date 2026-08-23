@@ -77,6 +77,15 @@
         ],
         "createdAt": "2026-08-20T15:13:17.940Z",
         "reason": "Standard inactive nav item pattern used across all portals"
+      },
+      {
+        "rule": "gray-on-color",
+        "value": "*",
+        "files": [
+          "TTMPC_THESIS/src/Bookkeeper/Components/Reports.jsx"
+        ],
+        "createdAt": "2026-08-23T11:06:59.439Z",
+        "reason": "Tailwind coupled hover: hover:bg-green-50 and hover:text-green-700 fire simultaneously; gray text never renders on green background"
       }
     ]
   }

@@ -1146,7 +1146,7 @@ async def get_cashier_loans_for_payments():
             loans_response = (
                 supabase.table("loans")
                 .select(
-                    "control_number,loan_amount,principal_amount,interest_rate,term,loan_status,application_date,disbursal_date,monthly_amortization,total_interest," \
+                    "control_number,member_id,loan_amount,principal_amount,interest_rate,term,loan_status,application_date,disbursal_date,monthly_amortization,total_interest," \
                     "member:member_id(first_name,last_name,is_bona_fide),loan_type:loan_type_id(name,interest_rate)"
                 )
                 .order("application_date", desc=True)
@@ -1156,7 +1156,7 @@ async def get_cashier_loans_for_payments():
             loans_response = (
                 supabase.table("loans")
                 .select(
-                    "control_number,loan_amount,principal_amount,interest_rate,term,loan_status,application_date,disbursal_date,total_interest," \
+                    "control_number,member_id,loan_amount,principal_amount,interest_rate,term,loan_status,application_date,disbursal_date,total_interest," \
                     "member:member_id(first_name,last_name,is_bona_fide),loan_type:loan_type_id(name,interest_rate)"
                 )
                 .order("application_date", desc=True)
@@ -1218,6 +1218,25 @@ async def get_cashier_loans_for_payments():
                 row for row in loans_rows
                 if str(row.get("control_number") or "") in _active_loan_ids
             ]
+
+        # Renewal deduplication — a member can only have one active loan per type
+        # at a time. When a member renews, the new loan's disbursement should close
+        # the predecessor (marking its schedules Paid). If a predecessor still has
+        # Unpaid schedules it's a processing gap, not a separate obligation the
+        # cashier should collect on. Keep only the LATEST loan per (member_id, loan_type).
+        # loans_rows is already ordered by application_date DESC so first occurrence
+        # per (member_id, loan_type) is the latest.
+        _seen_member_type: set[tuple] = set()
+        _deduped: list[dict] = []
+        for row in loans_rows:
+            mid = str(row.get("member_id") or "")
+            lt = str((row.get("loan_type") or {}).get("name") or "")
+            key = (mid, lt)
+            if key in _seen_member_type:
+                continue
+            _seen_member_type.add(key)
+            _deduped.append(row)
+        loans_rows = _deduped
 
         # Page through loan_schedules — 6,080+ LEGACY rows plus live means a
         # single .execute() silently caps at 1000 and starves most loans of
@@ -6921,6 +6940,44 @@ async def get_migs_member_detail(member_key: str, year: int | None = None):
         )
         scored = result_to_dict(result)
 
+        # --- Persist snapshot into member_classification_temporal --------
+        # Snap to the most recent Saturday (same keying as recompute-all).
+        _snap_today = datetime.utcnow().date()
+        _days_since_sat = (_snap_today.weekday() - 5) % 7
+        _accrual_date = (_snap_today - timedelta(days=_days_since_sat)).isoformat()
+
+        try:
+            levels_resp = (
+                supabase.table("classification_level")
+                .select("classification_level_id,code")
+                .in_("code", ["migs", "non_migs"])
+                .execute()
+            )
+            levels = {row["code"]: row["classification_level_id"] for row in levels_resp.data or []}
+            if levels:
+                bp = {c["criterion"]: c["score"] for c in (scored.get("breakdown") or [])}
+                _in_first_week = _snap_today.day <= 7
+                _payload = {
+                    "membership_number_id": mid,
+                    "classification_level_id": levels.get("migs" if result.status == "MIGS Qualified" else "non_migs"),
+                    "accrual_date": _accrual_date,
+                    "cbu_points":        bp.get("Capital Build-Up", 0),
+                    "loan_points":       bp.get("Loan Availed", 0),
+                    "savings_points":    bp.get("Savings / Time Deposit", 0),
+                    "payment_points":    bp.get("Payment Record (late count)", 0),
+                    "grocery_points":    bp.get("Groceries Availed", 0),
+                    "pli_points":        bp.get("Loans from Other PLIs", 0),
+                    "attendance_points": bp.get("Assembly Attendance", 0),
+                    "final_status": result.status if _in_first_week else None,
+                }
+                # Delete existing row for this member+week, then insert fresh.
+                supabase.table("member_classification_temporal").delete().eq(
+                    "membership_number_id", mid
+                ).eq("accrual_date", _accrual_date).execute()
+                supabase.table("member_classification_temporal").insert(_payload).execute()
+        except Exception as _persist_err:
+            print(f"[migs detail] snapshot persist failed (non-fatal): {_persist_err}")
+
         return {
             "success": True,
             "data": {
@@ -6940,6 +6997,7 @@ async def get_migs_member_detail(member_key: str, year: int | None = None):
                 "loan_multiplier": scored["loan_multiplier"],
                 "can_vote": scored["can_vote"],
                 "scoring_breakdown": scored["breakdown"],
+                "snapshot_recorded": _accrual_date,
             },
         }
     except HTTPException as err:
@@ -11595,6 +11653,322 @@ def dev_simulate_pos_event(req: PosSimulateRequest):
         "webhook_status": status_code,
         "webhook_response": response_body,
         "payload_sent": payload,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Bookkeeper Reports — aggregated dashboard data
+# ---------------------------------------------------------------------------
+
+@app.get("/api/bookkeeper/reports")
+async def get_bookkeeper_reports():
+    """Aggregate all data needed for the Bookkeeper Reports page.
+
+    Returns:
+      - kpi: total_loan_portfolio, total_share_capital, total_savings, active_members,
+             fully_paid_count, active_loan_count, delinquency_rate, total_penalties_collected
+      - loan_type_distribution: count & portfolio value per loan type
+      - monthly_collections: last 12 months of validated payment totals
+      - membership_growth: last 12 months of new member registrations
+      - payment_status_breakdown: validated / pending / rejected counts
+      - migs_distribution: MIGS vs Non-MIGS member counts
+    """
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+
+    today = date.today()
+
+    # ── 1. Loans ────────────────────────────────────────────────────────────
+    # loan_status on the loans table is unreliable for legacy loans (many are
+    # marked 'fully paid' even though outstanding schedule rows remain).
+    # Use loan_schedules as the source of truth — same approach as the cashier.
+    try:
+        loans_resp = (
+            supabase.table("loans")
+            .select(
+                "control_number,member_id,loan_amount,principal_amount,loan_status,application_date,"
+                "loan_type:loan_type_id(code,name)"
+            )
+            .execute()
+        )
+        all_loans = loans_resp.data or []
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Failed to load loans: {exc}")
+
+    # Collect loan_ids that have at least one outstanding schedule row (paginated).
+    _active_schedule_ids: set[str] = set()
+    try:
+        _offset = 0
+        _page = 1000
+        while True:
+            _batch = (
+                supabase.table("loan_schedules")
+                .select("loan_id")
+                .in_("schedule_status", ["Unpaid", "unpaid", "Pending", "pending", "Overdue", "overdue"])
+                .range(_offset, _offset + _page - 1)
+                .execute()
+            ).data or []
+            for _r in _batch:
+                if _r.get("loan_id"):
+                    _active_schedule_ids.add(str(_r["loan_id"]))
+            if len(_batch) < _page:
+                break
+            _offset += _page
+    except Exception:
+        _active_schedule_ids = set()
+
+    # Also include loans whose loan_status marks them as in-pipeline (not yet
+    # on a schedule but not cancelled/rejected either).
+    _pipeline_statuses = {"pending", "approved", "revision_requested", "ready for disbursement", "to be disbursed"}
+    _excluded_statuses = {"rejected", "cancelled"}
+
+    _raw_active = [
+        r for r in all_loans
+        if str(r.get("control_number") or "") in _active_schedule_ids
+        or (
+            str(r.get("loan_status") or "").strip().lower() in _pipeline_statuses
+            and str(r.get("loan_status") or "").strip().lower() not in _excluded_statuses
+        )
+    ]
+
+    # Members renew the same loan type every ~6 months — each renewal is a new
+    # loan record. Only the LATEST loan per (member, loan_type) is the current
+    # active obligation; predecessors are historical and should not inflate counts.
+    # Keep only the most recent loan per (member_id, loan_type_name).
+    _latest_by_member_type: dict[tuple, dict] = {}
+    for r in sorted(_raw_active, key=lambda x: str(x.get("application_date") or "")):
+        mid = str(r.get("member_id") or "")
+        lt_name = str((r.get("loan_type") or {}).get("name") or (r.get("loan_type") or {}).get("code") or "Unknown")
+        key = (mid, lt_name)
+        _latest_by_member_type[key] = r  # later date overwrites earlier
+
+    active_loans = list(_latest_by_member_type.values())
+
+    fully_paid_loans = [
+        r for r in all_loans
+        if str(r.get("control_number") or "") not in _active_schedule_ids
+        and str(r.get("loan_status") or "").strip().lower() not in _pipeline_statuses
+        and str(r.get("loan_status") or "").strip().lower() not in _excluded_statuses
+    ]
+
+    total_loan_portfolio = sum(
+        float(r.get("principal_amount") or r.get("loan_amount") or 0)
+        for r in active_loans
+    )
+
+    # Loan type distribution (active loans only — deduplicated to latest per member+type)
+    type_map: dict[str, dict] = {}
+    for r in active_loans:
+        lt = (r.get("loan_type") or {})
+        name = str(lt.get("name") or lt.get("code") or "Unknown").strip()
+        if name not in type_map:
+            type_map[name] = {"name": name, "count": 0, "total_amount": 0.0}
+        type_map[name]["count"] += 1
+        type_map[name]["total_amount"] += float(r.get("principal_amount") or r.get("loan_amount") or 0)
+
+    loan_type_distribution = list(type_map.values())
+
+    # ── 2. Payments ─────────────────────────────────────────────────────────
+    try:
+        payments_resp = (
+            supabase.table("loan_payments")
+            .select("id,loan_id,amount_paid,penalties,payment_date,confirmation_status")
+            .execute()
+        )
+        all_payments = payments_resp.data or []
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Failed to load payments: {exc}")
+
+    validated_payments = [p for p in all_payments if str(p.get("confirmation_status") or "").strip().lower() == "validated"]
+    pending_payments = [p for p in all_payments if str(p.get("confirmation_status") or "").strip().lower() in {"pending_bookkeeper", "pending_verification", "pending"}]
+    rejected_payments = [p for p in all_payments if str(p.get("confirmation_status") or "").strip().lower() == "rejected"]
+
+    total_penalties = sum(float(p.get("penalties") or 0) for p in validated_payments)
+
+    # Monthly collections — last 12 months of validated payments
+    monthly_collections: dict[str, float] = {}
+    for i in range(11, -1, -1):
+        ref = date(today.year, today.month, 1) - timedelta(days=i * 30)
+        label = ref.strftime("%b %Y")
+        monthly_collections[label] = 0.0
+
+    for p in validated_payments:
+        raw_date = str(p.get("payment_date") or "").strip()
+        if not raw_date:
+            continue
+        try:
+            pd_date = datetime.fromisoformat(raw_date).date()
+        except ValueError:
+            continue
+        label = pd_date.strftime("%b %Y")
+        if label in monthly_collections:
+            monthly_collections[label] += float(p.get("amount_paid") or 0)
+
+    monthly_collections_list = [
+        {"month": k, "collections": round(v, 2)}
+        for k, v in monthly_collections.items()
+    ]
+
+    # Payment status breakdown
+    payment_status_breakdown = {
+        "validated": len(validated_payments),
+        "pending": len(pending_payments),
+        "rejected": len(rejected_payments),
+    }
+
+    # Delinquency — loans with no validated payment in last 90 days and still active
+    active_loan_ids = {str(r.get("control_number") or "") for r in active_loans}
+    recent_cutoff = today - timedelta(days=90)
+    recently_paid_ids: set[str] = set()
+    for p in validated_payments:
+        raw_date = str(p.get("payment_date") or "").strip()
+        if not raw_date:
+            continue
+        try:
+            pd_date = datetime.fromisoformat(raw_date).date()
+        except ValueError:
+            continue
+        if pd_date >= recent_cutoff:
+            recently_paid_ids.add(str(p.get("loan_id") or "").strip())
+
+    delinquent_ids = active_loan_ids - recently_paid_ids
+    delinquency_rate = (len(delinquent_ids) / len(active_loan_ids) * 100) if active_loan_ids else 0.0
+
+    # ── 3. Members ──────────────────────────────────────────────────────────
+    try:
+        member_table = _resolve_member_table(supabase)
+        members_resp = (
+            supabase.table(member_table)
+            .select("id,membership_id,is_bona_fide,created_at")
+            .execute()
+        )
+        all_members = members_resp.data or []
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Failed to load members: {exc}")
+
+    active_members = [m for m in all_members if m.get("is_bona_fide")]
+    total_members = len(all_members)
+
+    # MIGS distribution — read latest snapshot per member from member_classification_temporal.
+    # Only counts members who have been scored at least once (by detail view or recompute-all).
+    migs_count = 0
+    non_migs_count = 0
+    unscored_count = 0
+    try:
+        snap_resp = (
+            supabase.table("member_classification_temporal")
+            .select("membership_number_id,classification_level_id,accrual_date")
+            .order("accrual_date", desc=True)
+            .execute()
+        )
+        # Resolve classification_level_id → code once
+        level_ids_resp = (
+            supabase.table("classification_level")
+            .select("classification_level_id,code")
+            .execute()
+        )
+        level_code_by_id = {
+            str(r["classification_level_id"]): str(r.get("code") or "").lower()
+            for r in (level_ids_resp.data or [])
+        }
+        # Keep only the most recent snapshot per member
+        seen_snap: set[str] = set()
+        for row in (snap_resp.data or []):
+            mid = str(row.get("membership_number_id") or "").strip()
+            if not mid or mid in seen_snap:
+                continue
+            seen_snap.add(mid)
+            code = level_code_by_id.get(str(row.get("classification_level_id") or ""), "")
+            if code == "migs":
+                migs_count += 1
+            else:
+                non_migs_count += 1
+        # Members with no snapshot yet
+        unscored_count = max(0, total_members - len(seen_snap))
+    except Exception:
+        # Fallback: approximate with bona-fide status
+        migs_count = len(active_members)
+        non_migs_count = total_members - migs_count
+        unscored_count = 0
+
+    # Membership growth — new registrations last 12 months
+    membership_growth: dict[str, int] = {}
+    for i in range(11, -1, -1):
+        ref = date(today.year, today.month, 1) - timedelta(days=i * 30)
+        label = ref.strftime("%b %Y")
+        membership_growth[label] = 0
+
+    for m in all_members:
+        raw_date = str(m.get("created_at") or "").strip()
+        if not raw_date:
+            continue
+        try:
+            m_date = datetime.fromisoformat(raw_date).date()
+        except ValueError:
+            continue
+        label = m_date.strftime("%b %Y")
+        if label in membership_growth:
+            membership_growth[label] += 1
+
+    membership_growth_list = [
+        {"month": k, "new_members": v}
+        for k, v in membership_growth.items()
+    ]
+
+    # ── 4. Share Capital ────────────────────────────────────────────────────
+    total_share_capital = 0.0
+    try:
+        cbu_resp = (
+            supabase.table("capital_build_up")
+            .select("ending_share_capital,member_id")
+            .order("transaction_date", desc=True)
+            .execute()
+        )
+        seen_cbu_members: set[str] = set()
+        for row in (cbu_resp.data or []):
+            mid = str(row.get("member_id") or "").strip()
+            if mid and mid not in seen_cbu_members:
+                seen_cbu_members.add(mid)
+                total_share_capital += float(row.get("ending_share_capital") or 0)
+    except Exception:
+        total_share_capital = 0.0
+
+    # ── 5. Savings ──────────────────────────────────────────────────────────
+    total_savings = 0.0
+    try:
+        savings_resp = (
+            supabase.table("savings_accounts")
+            .select("balance")
+            .execute()
+        )
+        total_savings = sum(float(r.get("balance") or 0) for r in (savings_resp.data or []))
+    except Exception:
+        total_savings = 0.0
+
+    return {
+        "success": True,
+        "generated_at": datetime.utcnow().isoformat(),
+        "kpi": {
+            "total_loan_portfolio": round(total_loan_portfolio, 2),
+            "total_share_capital": round(total_share_capital, 2),
+            "total_savings": round(total_savings, 2),
+            "active_members": len(active_members),
+            "total_members": total_members,
+            "active_loan_count": len(active_loans),
+            "active_borrower_count": len({str(r.get("member_id") or "") for r in active_loans if r.get("member_id")}),
+            "fully_paid_count": len(fully_paid_loans),
+            "delinquency_rate": round(delinquency_rate, 2),
+            "total_penalties_collected": round(total_penalties, 2),
+        },
+        "loan_type_distribution": loan_type_distribution,
+        "monthly_collections": monthly_collections_list,
+        "membership_growth": membership_growth_list,
+        "payment_status_breakdown": payment_status_breakdown,
+        "migs_distribution": {
+            "migs": migs_count,
+            "non_migs": non_migs_count,
+            "unscored": unscored_count,
+        },
     }
 
     return {"success": True, "data": {"legacy_master_uuid": legacy_uuid}}
