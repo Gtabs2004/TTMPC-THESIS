@@ -136,23 +136,81 @@ const Manager_Manage_Loans = () => {
   }, [loans, searchTerm, activeTab, loanTypeFilter, memberTypeFilter]);
 
   const groupedLoans = useMemo(() => {
-    const chains = new Map();
+    const SIX_MONTHS_MS = 6 * 30 * 24 * 60 * 60 * 1000;
+
+    const lastPaymentDate = (loan) => {
+      const history = loan.payment_history || [];
+      if (!history.length) return null;
+      const dates = history.map((p) => new Date(p.date_paid || 0).getTime()).filter(Boolean);
+      return dates.length ? Math.max(...dates) : null;
+    };
+
+    const buckets = new Map();
     for (const loan of filteredLoans) {
       const key = `${loan.member_name || ""}::${loan.loan_type_code || loan.loan_type || ""}`;
-      if (!chains.has(key)) chains.set(key, []);
-      chains.get(key).push(loan);
+      if (!buckets.has(key)) buckets.set(key, []);
+      buckets.get(key).push(loan);
     }
+
+    const loanSeq = (id) => {
+      const m = String(id || "").match(/(\d+)\s*$/);
+      return m ? parseInt(m[1], 10) : 0;
+    };
+
     const results = [];
-    for (const items of chains.values()) {
+
+    for (const items of buckets.values()) {
       const sorted = [...items].sort((a, b) => {
         const da = new Date(a.application_date || 0).getTime();
         const db = new Date(b.application_date || 0).getTime();
-        if (db !== da) return db - da;
-        return String(b.loan_id || "").localeCompare(String(a.loan_id || ""));
+        if (da !== db) return da - db;
+        return loanSeq(a.loan_id) - loanSeq(b.loan_id);
       });
-      const [parent, ...renewals] = sorted;
-      results.push({ parent, renewals });
+
+      const chains = [];
+
+      for (const loan of sorted) {
+        const appType = String(loan.application_type || "").toLowerCase();
+        const isLegacy = !!loan.is_legacy;
+        const appDate = new Date(loan.application_date || 0).getTime();
+
+        let attachedToChain = false;
+
+        if (chains.length > 0) {
+          const prevChain = chains[chains.length - 1];
+          const prevLoan = prevChain[prevChain.length - 1];
+          const prevAppDate = new Date(prevLoan.application_date || 0).getTime();
+
+          if (!isLegacy && appType === "renewal") {
+            prevChain.push(loan);
+            attachedToChain = true;
+          } else if (isLegacy) {
+            const prevLastPay = lastPaymentDate(prevLoan);
+            const isAfterPrev = appDate !== prevAppDate
+              ? appDate > prevAppDate
+              : loanSeq(loan.loan_id) > loanSeq(prevLoan.loan_id);
+            const withinSixMonths = prevLastPay
+              ? appDate - prevLastPay <= SIX_MONTHS_MS && appDate >= prevLastPay
+              : isAfterPrev;
+            if (withinSixMonths) {
+              prevChain.push(loan);
+              attachedToChain = true;
+            }
+          }
+        }
+
+        if (!attachedToChain) {
+          chains.push([loan]);
+        }
+      }
+
+      for (const chain of chains) {
+        const reversed = [...chain].reverse();
+        const [parent, ...renewals] = reversed;
+        results.push({ parent, renewals });
+      }
     }
+
     results.sort((a, b) => {
       const da = new Date(a.parent.application_date || 0).getTime();
       const db = new Date(b.parent.application_date || 0).getTime();
@@ -505,7 +563,6 @@ const Manager_Manage_Loans = () => {
                 )}
 
                 {paginatedGroups.map(({ parent, renewals }) => {
-                  const hasRenewals = renewals.length > 0;
                   return (
                     <React.Fragment key={parent.loan_id}>
                       <tr className="border-b border-gray-100 transition-colors hover:bg-green-50/40">
@@ -518,9 +575,7 @@ const Manager_Manage_Loans = () => {
                           {parent.member_name}
                         </td>
                         <td className="px-3 py-4 align-top">
-                          <span
-                            className={`inline-block whitespace-nowrap px-2 py-0.5 rounded-full text-[11px] font-semibold ${getLoanTypeStyle(parent.loan_type_code)}`}
-                          >
+                          <span className={`inline-block whitespace-nowrap px-2 py-0.5 rounded-full text-[11px] font-semibold ${getLoanTypeStyle(parent.loan_type_code)}`}>
                             {parent.loan_type}
                           </span>
                         </td>
@@ -546,7 +601,7 @@ const Manager_Manage_Loans = () => {
                             type="button"
                             onClick={() =>
                               navigate(`/manager-loan-ledger/${parent.loan_id}`, {
-                                state: { loan: parent, readOnly: true },
+                                state: { loan: parent, readOnly: true, renewals },
                               })
                             }
                             className="inline-flex items-center gap-1 rounded-lg bg-gray-100 px-2 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-200 border border-gray-200 transition-colors"
@@ -555,7 +610,6 @@ const Manager_Manage_Loans = () => {
                           </button>
                         </td>
                       </tr>
-
                     </React.Fragment>
                   );
                 })}
