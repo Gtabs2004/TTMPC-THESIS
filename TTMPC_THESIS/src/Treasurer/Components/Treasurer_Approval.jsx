@@ -13,6 +13,7 @@ import {
   BadgeCheck,
   ChevronLeft,
   ChevronRight,
+  User,
 } from "lucide-react";
 
 const Treasurer_Approval = () => {
@@ -183,7 +184,7 @@ const Treasurer_Approval = () => {
       <StaffSidebar portal="Treasurer" items={treasurerNav} />
 
       <div className="flex-1 flex flex-col h-screen overflow-y-auto">
-        <header className="bg-white h-16 shadow-sm flex items-center justify-end px-8 border-b border-gray-100">
+        <header className="bg-white h-16 shrink-0 shadow-sm flex items-center justify-end px-8 border-b border-gray-100">
           <div className="relative">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400" />
             <input
@@ -197,7 +198,9 @@ const Treasurer_Approval = () => {
             <span className="absolute top-1 right-1 block h-2 w-2 rounded-full bg-red-500 ring-2 ring-white"></span>
           </button>
           <div className="flex items-center ml-4 gap-2 border-l border-gray-200 pl-4">
-            <img src="/img/bookkeeper-profile.png" alt="Profile" className="w-8 h-8 rounded-full bg-gray-200" />
+            <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 shrink-0">
+              <User className="w-4.5 h-4.5" />
+            </div>
             <PortalTopbarIdentity className="text-sm font-medium text-gray-700" fallbackRole="Treasurer" />
           </div>
         </header>

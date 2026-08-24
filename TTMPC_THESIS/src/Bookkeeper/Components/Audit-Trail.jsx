@@ -224,7 +224,7 @@ const AuditTrail = () => {
       </aside>
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col h-screen overflow-hidden">
+    <div className="flex-1 flex flex-col h-screen overflow-hidden">
         {/* Top Header */}
         <header className="bg-white h-16 border-b border-gray-200 flex items-center justify-end px-8 shrink-0">
           <div className="relative">

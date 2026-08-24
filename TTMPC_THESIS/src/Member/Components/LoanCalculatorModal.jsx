@@ -35,7 +35,6 @@ const TERM_MAX = 60;
 const TERM_QUICK_PICKS = [12, 24, 36, 48, 60];
 const AMOUNT_MIN = 10000;
 const AMOUNT_MAX = 470000;
-const AMOUNT_STEP = 5000;
 
 const LOAN_TYPES = [
   { code: "CONSOLIDATED", label: "Consolidated Loan", available: true, min: AMOUNT_MIN, max: AMOUNT_MAX },
@@ -327,7 +326,7 @@ export default function LoanCalculatorModal({ open, onClose }) {
                       type="number"
                       min={selectedType.min}
                       max={effectiveMax}
-                      step={AMOUNT_STEP}
+                      step={1}
                       value={loanAmount === "" ? "" : loanAmount}
                       onChange={(e) => {
                         const raw = e.target.value;

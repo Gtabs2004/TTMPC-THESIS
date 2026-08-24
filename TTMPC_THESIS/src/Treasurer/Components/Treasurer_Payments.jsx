@@ -13,6 +13,7 @@ import {
   ArrowUpCircle,
   Filter,
   Info,
+  User,
 } from "lucide-react";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
@@ -144,7 +145,7 @@ const Treasurer_Payments = () => {
 
       {/* MAIN */}
       <div className="flex-1 flex flex-col h-screen overflow-y-auto">
-        <header className="bg-white h-16 shadow-sm flex items-center justify-end px-8 shrink-0">
+        <header className="bg-white h-16 shrink-0 shadow-sm flex items-center justify-end px-8 border-b border-gray-100">
           <div className="relative">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400" />
             <input
@@ -156,7 +157,9 @@ const Treasurer_Payments = () => {
             />
           </div>
           <LoanNotificationBell role="treasurer" />
-          <img src="/img/treasurer-profile.png" alt="Treasurer Profile" className="ml-4 w-8 h-8 rounded-full bg-gray-200" />
+          <div className="ml-4 w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 shrink-0">
+            <User className="w-4.5 h-4.5" />
+          </div>
           <PortalTopbarIdentity className="text-sm font-medium text-gray-700" fallbackRole="Treasurer" />
         </header>
 

@@ -22,6 +22,7 @@ import {
   Coins,
   ShieldAlert,
   Brain,
+  User,
 } from "lucide-react";
 import { PortalSidebarIdentity, PortalTopbarIdentity } from "../../components/PortalIdentity";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
@@ -248,11 +249,13 @@ const Manage_Member = () => {
       </aside>
 
       <div className="flex-1 flex flex-col h-screen overflow-y-auto">
-        <header className="bg-white h-16 shadow-sm flex items-center justify-end px-8 border-b border-gray-100">
+        <header className="bg-white h-16 shrink-0 shadow-sm flex items-center justify-end px-8 border-b border-gray-100">
           <LoanNotificationBell role="bookkeeper" />
           <div className="flex items-center ml-4 gap-2 border-l border-gray-200 pl-4">
-            <img src="/img/bookkeeper-profile.png" alt="Profile" className="w-8 h-8 rounded-full bg-gray-200"></img>
-            <PortalTopbarIdentity className="text-sm font-medium text-gray-700" fallbackRole="BOD" />
+            <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 shrink-0">
+              <User className="w-4.5 h-4.5" />
+            </div>
+            <PortalTopbarIdentity className="text-sm font-medium text-gray-700" fallbackRole="Bookkeeper" />
           </div>
         </header>
               

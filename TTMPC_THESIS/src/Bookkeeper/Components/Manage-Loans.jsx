@@ -25,6 +25,7 @@ import {
   RefreshCw,
   ShieldAlert,
   Brain,
+  User,
 } from "lucide-react";
 import logo from "../../assets/img/ttmpc logo.png";
 
@@ -384,7 +385,7 @@ const ManageLoans = () => {
             <button onClick={handleSignOut} className="mt-auto w-full rounded-md p-2 text-xs bg-green-600 hover:bg-green-700 active:scale-[0.98] text-white font-bold transition-all duration-150 ease-in-out shadow-sm hover:shadow">Sign out</button>
           </aside>
           <div className="flex-1 flex flex-col h-screen overflow-y-auto">
-        <header className="bg-white h-16 shadow-sm flex items-center justify-between px-8 border-b border-gray-100">
+        <header className="bg-white h-16 shrink-0 shadow-sm flex items-center justify-between px-8 border-b border-gray-100">
           <div className="flex-1 max-w-2xl">
             <div className="relative">
               <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
@@ -403,11 +404,9 @@ const ManageLoans = () => {
               <span className="absolute top-1 right-1 block h-2 w-2 rounded-full bg-red-500 ring-2 ring-white"></span>
             </button>
             <div className="flex items-center gap-3 pl-4 border-l border-gray-200">
-              <img
-                src="/img/bookkeeper-profile.png"
-                alt="Bookkeeper Profile"
-                className="w-8 h-8 rounded-full shadow-sm"
-              />
+              <div className="w-8 h-8 rounded-full shadow-sm bg-gray-100 flex items-center justify-center text-gray-500 shrink-0">
+                <User className="w-4.5 h-4.5" />
+              </div>
               <PortalTopbarIdentity className="text-sm font-semibold text-gray-700 hidden sm:block" fallbackRole="Bookkeeper" />
             </div>
           </div>
@@ -623,7 +622,7 @@ const ManageLoans = () => {
                         </td>
                         <td className="px-3 py-4 text-sm font-medium whitespace-nowrap align-top">
                           {parent.due_date
-                            ? <span className="text-gray-700">{formatDate(parent.due_date)}</span>
+                            ? <span className="text-gray-700 text-center ">{formatDate(parent.due_date)}</span>
                             : <span className="text-xs text-gray-400 italic capitalize">{parent.source_loan_status || "No schedule"}</span>
                           }
                         </td>

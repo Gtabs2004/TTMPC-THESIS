@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+﻿import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
 import { useNotification } from "../../contex/NotificationContext";
@@ -66,6 +66,17 @@ const PIE_COLORS = ["#166534", "#16a34a", "#22c55e", "#4ade80", "#86efac", "#bbf
 function fmt(n) {
   if (n === undefined || n === null) return "—";
   return "₱" + Number(n).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+// jsPDF's built-in Helvetica font has no ₱ (U+20B1) glyph — it silently
+// substitutes a fallback character instead of throwing, which is why the
+// exported PDF showed "±" everywhere a peso amount should be. Use "PHP "
+// for anything written into the PDF; `fmt()` above stays ₱ for on-screen
+// rendering, which renders fine in the browser. Same pattern already used
+// in Loan-Ledger.jsx and Member_StatementOfAccount.jsx's PDF exports.
+function fmtPdf(n) {
+  if (n === undefined || n === null) return "—";
+  return "PHP " + Number(n).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 function pct(n) {
@@ -155,15 +166,15 @@ function generateExecutivePDF(data, generatedAt) {
 
   const kpi = data.kpi || {};
   const kpiRows = [
-    ["Total Loan Portfolio", fmt(kpi.total_loan_portfolio)],
-    ["Total Share Capital (CBU)", fmt(kpi.total_share_capital)],
-    ["Total Savings Balance", fmt(kpi.total_savings)],
+    ["Total Loan Portfolio", fmtPdf(kpi.total_loan_portfolio)],
+    ["Total Share Capital (CBU)", fmtPdf(kpi.total_share_capital)],
+    ["Total Savings Balance", fmtPdf(kpi.total_savings)],
     ["Active Members", (kpi.active_members ?? "—").toString()],
     ["Total Members", (kpi.total_members ?? "—").toString()],
     ["Active Loans", (kpi.active_loan_count ?? "—").toString()],
     ["Fully Paid Loans", (kpi.fully_paid_count ?? "—").toString()],
     ["Delinquency Rate", pct(kpi.delinquency_rate)],
-    ["Total Penalties Collected", fmt(kpi.total_penalties_collected)],
+    ["Total Penalties Collected", fmtPdf(kpi.total_penalties_collected)],
   ];
 
   autoTable(doc, {
@@ -190,7 +201,7 @@ function generateExecutivePDF(data, generatedAt) {
   const distRows = (data.loan_type_distribution || []).map((d) => [
     d.name,
     d.count.toString(),
-    fmt(d.total_amount),
+    fmtPdf(d.total_amount),
     d.count > 0 && kpi.active_loan_count
       ? pct((d.count / kpi.active_loan_count) * 100)
       : "0.00%",
@@ -274,7 +285,7 @@ function generateExecutivePDF(data, generatedAt) {
 
   const mcRows = (data.monthly_collections || []).map((m) => [
     m.month,
-    fmt(m.collections),
+    fmtPdf(m.collections),
   ]);
 
   autoTable(doc, {
@@ -847,28 +858,6 @@ const Reports = () => {
                 </div>
               </div>
 
-              {/* Summary Stats Footer */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-                {[
-                  { label: "Fully Paid Loans", value: kpi.fully_paid_count ?? 0, icon: CheckCircle2, color: "text-green-600 bg-green-50" },
-                  { label: "Total Members", value: kpi.total_members ?? 0, icon: Users, color: "text-blue-600 bg-blue-50" },
-                  { label: "Penalties Collected", value: fmt(kpi.total_penalties_collected), icon: AlertTriangle, color: "text-amber-600 bg-amber-50" },
-                  { label: "Delinquency Rate", value: pct(kpi.delinquency_rate), icon: AlertTriangle, color: (kpi.delinquency_rate || 0) > 10 ? "text-red-600 bg-red-50" : "text-green-600 bg-green-50" },
-                ].map((s, i) => {
-                  const SIcon = s.icon;
-                  return (
-                    <div key={i} className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 flex items-center gap-3">
-                      <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${s.color}`}>
-                        <SIcon size={16} />
-                      </div>
-                      <div>
-                        <p className="text-[10px] text-gray-400 font-medium uppercase tracking-wide">{s.label}</p>
-                        <p className="text-sm font-black text-gray-900">{typeof s.value === "number" ? s.value.toLocaleString() : s.value}</p>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
             </>
           )}
         </main>
