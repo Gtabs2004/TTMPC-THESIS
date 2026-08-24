@@ -1,5 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { supabase } from "../supabaseClient";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 import {
   Search,
   ChevronLeft,
@@ -251,21 +253,17 @@ const AuditLogViewer = ({ showActorRoleFilter = true, onError }) => {
     setTimeout(loadRows, 0);
   };
 
-  const exportCsv = async () => {
-    // Fetch up to 5000 rows for export with current filters.
+  // Shared by both export buttons — fetches up to 5000 rows respecting the
+  // current filters and shapes them into the same 8 columns the on-screen
+  // table and both exports use.
+  const fetchExportRows = async () => {
     let q = supabase.from("audit_log").select("*").order("occurred_at", { ascending: false }).limit(5000);
     q = applyQueryFilters(q);
     const { data, error } = await q;
-    if (error) {
-      if (onError) onError(error.message || "Export failed.");
-      return;
-    }
-    const header = ["Log ID", "Date & Time", "User", "Role", "Module", "Action Type", "Record", "Status"];
-    const lines = [header.join(",")];
-    (data || []).forEach((r) => {
+    if (error) throw error;
+    return (data || []).map((r) => {
       const moduleInfo = MODULE_BY_ENTITY[r.entity_type] || { label: r.entity_type };
-      const status = FLAGGED_ACTIONS.has(r.action) ? "Flagged" : "Success";
-      const cells = [
+      return [
         formatLogId(r.id),
         formatAuditTimestamp(r.occurred_at),
         r.actor_email || "—",
@@ -273,19 +271,92 @@ const AuditLogViewer = ({ showActorRoleFilter = true, onError }) => {
         moduleInfo.label,
         ACTION_LABEL[r.action] || r.action,
         describeAuditContext(r),
-        status,
-      ].map((v) => `"${String(v).replace(/"/g, '""')}"`);
-      lines.push(cells.join(","));
+        FLAGGED_ACTIONS.has(r.action) ? "Flagged" : "Success",
+      ];
     });
-    const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `audit_log_${new Date().toISOString().slice(0, 10)}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 5000);
+  };
+
+  const [exporting, setExporting] = useState("");
+
+  const exportCsv = async () => {
+    setExporting("csv");
+    try {
+      const bodyRows = await fetchExportRows();
+      const header = ["Log ID", "Date & Time", "User", "Role", "Module", "Action Type", "Record", "Status"];
+      const lines = [header, ...bodyRows].map((cells) =>
+        cells.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(",")
+      );
+      // Prefix a UTF-8 BOM — without it, Excel on Windows opens this CSV
+      // using the system's default ANSI codepage instead of UTF-8 and
+      // garbles any non-ASCII character (accented names, etc.). The
+      // text/csv;charset=utf-8 MIME type alone doesn't fix this: Excel
+      // ignores it for a locally opened file.
+      const BOM = "﻿";
+      const blob = new Blob([BOM + lines.join("\r\n")], { type: "text/csv;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `audit_log_${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+    } catch (err) {
+      if (onError) onError(err?.message || "Export failed.");
+    } finally {
+      setExporting("");
+    }
+  };
+
+  const exportPdf = async () => {
+    setExporting("pdf");
+    try {
+      const bodyRows = await fetchExportRows();
+      const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+      const pageW = doc.internal.pageSize.getWidth();
+
+      doc.setFillColor(22, 101, 52);
+      doc.rect(0, 0, pageW, 24, "F");
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(15);
+      doc.setFont("helvetica", "bold");
+      doc.text("TTMPC — Audit Trail Report", pageW / 2, 11, { align: "center" });
+      doc.setFontSize(9);
+      doc.setFont("helvetica", "normal");
+      doc.text("Tubungan Teachers' Multi-Purpose Cooperative", pageW / 2, 17, { align: "center" });
+      doc.text(`Generated: ${new Date().toLocaleString("en-PH")}`, pageW / 2, 22, { align: "center" });
+
+      autoTable(doc, {
+        startY: 30,
+        head: [["Log ID", "Date & Time", "User", "Role", "Module", "Action Type", "Record", "Status"]],
+        body: bodyRows.length ? bodyRows : [["No data", "", "", "", "", "", "", ""]],
+        theme: "grid",
+        headStyles: { fillColor: [22, 101, 52], textColor: 255, fontStyle: "bold", fontSize: 9 },
+        bodyStyles: { fontSize: 8.5, textColor: [30, 41, 59] },
+        alternateRowStyles: { fillColor: [240, 253, 244] },
+        margin: { left: 12, right: 12 },
+      });
+
+      const totalPages = doc.internal.getNumberOfPages();
+      for (let i = 1; i <= totalPages; i++) {
+        doc.setPage(i);
+        doc.setFontSize(8);
+        doc.setTextColor(150);
+        doc.setFont("helvetica", "normal");
+        doc.text(
+          `TTMPC Audit Trail Report  •  Page ${i} of ${totalPages}  •  CONFIDENTIAL`,
+          pageW / 2,
+          doc.internal.pageSize.getHeight() - 8,
+          { align: "center" }
+        );
+      }
+
+      doc.save(`audit_log_${new Date().toISOString().slice(0, 10)}.pdf`);
+    } catch (err) {
+      if (onError) onError(err?.message || "Export failed.");
+    } finally {
+      setExporting("");
+    }
   };
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
@@ -413,19 +484,21 @@ const AuditLogViewer = ({ showActorRoleFilter = true, onError }) => {
           <div className="flex items-center gap-3">
             <button
               type="button"
-              onClick={() => window.print()}
-              className="flex items-center gap-2 h-10 px-4 text-sm font-bold text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+              onClick={exportPdf}
+              disabled={exporting !== ""}
+              className="flex items-center gap-2 h-10 px-4 text-sm font-bold text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <FileDown size={16} />
-              PDF
+              {exporting === "pdf" ? "Exporting…" : "PDF"}
             </button>
             <button
               type="button"
               onClick={exportCsv}
-              className="flex items-center gap-2 h-10 px-4 text-sm font-bold text-white bg-[#166534] hover:bg-green-800 rounded-lg transition-colors shadow-sm"
+              disabled={exporting !== ""}
+              className="flex items-center gap-2 h-10 px-4 text-sm font-bold text-white bg-[#166534] hover:bg-green-800 rounded-lg transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <FileSpreadsheet size={16} />
-              Excel
+              {exporting === "csv" ? "Exporting…" : "Excel"}
             </button>
           </div>
         </div>

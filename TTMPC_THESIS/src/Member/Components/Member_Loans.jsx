@@ -310,7 +310,7 @@ const Member_Loans = () => {
           setLoanError(err.message || 'Unable to load loan records.');
           setMemberLabel('Member');
           setAvatarUrl('');
-        }
+        } 
       } finally {
         if (isMounted) setLoadingLoans(false);
       }

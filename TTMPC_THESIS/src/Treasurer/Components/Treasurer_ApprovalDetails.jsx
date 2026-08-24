@@ -922,7 +922,7 @@ const Treasurer_ApprovalDetails = () => {
                         </div>
                       </div>
                       <div className="flex items-center justify-between">
-                        <span className="text-sm font-semibold text-gray-700">Vault On Hand</span>
+                        <span className="text-sm font-semibold text-gray-700">Cash On Hand</span>
                         <span className="text-xs font-bold text-gray-800 tabular-nums">{loading ? '\u2026' : PHP(vault)}</span>
                       </div>
                       <div className="flex items-center justify-between">

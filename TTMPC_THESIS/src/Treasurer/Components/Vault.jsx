@@ -19,11 +19,16 @@ import {
   CheckCircle2,
   AlertTriangle,
   ChevronRight,
+  User,
 } from "lucide-react";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
+// System Green (#16A34A) / Warning (#B45309) — matches the same Consolidated
+// vs. Emergency color pairing used on the Treasurer dashboard's forecast
+// cards. Previously used Member Green (var(--color-member-green)), which
+// DESIGN.md scopes to the Member self-service portal only.
 const FORECAST_LOAN_TYPES = [
-  { value: "consolidated", label: "Consolidated", color: "var(--color-member-green)" },
+  { value: "consolidated", label: "Consolidated", color: "#16A34A" },
   { value: "emergency",    label: "Emergency",    color: "#B45309" },
 ];
 
@@ -185,8 +190,8 @@ const Vault = () => {
       <StaffSidebar portal="Treasurer" items={treasurerNav} />
 
       {/* MAIN */}
-      <div className="flex-1 flex flex-col">
-        <header className="bg-white h-16 shadow-sm flex items-center justify-between px-8 border-b border-gray-100">
+      <div className="flex-1 flex flex-col h-screen overflow-y-auto">
+        <header className="bg-white h-16 shrink-0 shadow-sm flex items-center justify-between px-8 border-b border-gray-100">
           <div className="flex-1 max-w-2xl">
             <div className="relative">
               <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
@@ -201,7 +206,9 @@ const Vault = () => {
           <div className="flex items-center gap-4 ml-6">
             <LoanNotificationBell role="treasurer" />
             <div className="flex items-center gap-3 pl-4 border-l border-gray-200">
-              <img src="/img/treasurer-profile.png" alt="Treasurer" className="w-8 h-8 rounded-full shadow-sm" />
+              <div className="w-8 h-8 rounded-full shadow-sm bg-gray-100 flex items-center justify-center text-gray-500 shrink-0">
+                <User className="w-4.5 h-4.5" />
+              </div>
               <PortalTopbarIdentity className="text-sm font-semibold text-gray-700 hidden sm:block" fallbackRole="Treasurer" />
             </div>
           </div>
