@@ -1,6 +1,5 @@
 ﻿import React, { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { supabase } from "../../supabaseClient";
 import { UserAuth } from "../../contex/AuthContext";
 import { useNotification } from "../../contex/NotificationContext";
 import { PortalTopbarIdentity } from "../../components/PortalIdentity";
@@ -13,7 +12,6 @@ import { treasurerNav } from "../../components/StaffSidebar/configs/treasurer";
 import {
   Search,
   ClipboardList,
-  Wallet,
   TrendingUp,
   User,
 } from 'lucide-react';
@@ -30,15 +28,20 @@ const PHP_COMPACT = (v) => {
 const PHP_FULL = (v) =>
   new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP", minimumFractionDigits: 0 }).format(Number(v || 0));
 
+// Bonus loans have no demand-forecasting model yet (SARIMAX is only trained
+// for Consolidated and Emergency — see demand_model.py), so this card shows
+// a hardcoded placeholder instead of a live fetch until that model exists.
+const BONUS_FORECAST_PLACEHOLDER = 40000;
+
 const Treasurer_Dashboard = () => {
   const { session, signOut } = UserAuth();
   const navigate = useNavigate();
 
-  // Live KPI state. All four cards refresh together on mount + on demand.
-  // Each fetch is independent so a partial failure (e.g. forecast API down)
-  // doesn't blank out the vault or pending numbers.
+  // Live KPI state. Cards refresh together on mount + on demand. Each fetch
+  // is independent so a partial failure (e.g. forecast API down) doesn't
+  // blank out the other numbers. (Bonus forecast isn't fetched — see
+  // BONUS_FORECAST_PLACEHOLDER above.)
   const [kpis, setKpis] = useState({
-    vault: { value: null, loading: true, error: "" },
     pending: { count: null, amount: null, loading: true, error: "" },
     forecastConsolidated: { value: null, loading: true, error: "" },
     forecastEmergency: { value: null, loading: true, error: "" },
@@ -53,25 +56,13 @@ const Treasurer_Dashboard = () => {
     const targetLabel = next.toLocaleDateString("en-PH", { year: "numeric", month: "long" });
 
     setKpis((k) => ({
-      vault: { ...k.vault, loading: true, error: "" },
       pending: { ...k.pending, loading: true, error: "" },
       forecastConsolidated: { ...k.forecastConsolidated, loading: true, error: "" },
       forecastEmergency: { ...k.forecastEmergency, loading: true, error: "" },
       nextMonthLabel: targetLabel,
     }));
 
-    // 1) Vault balance — direct Supabase, RLS enforced via user session.
-    (async () => {
-      try {
-        const { data, error } = await supabase.from("vault_balance_v").select("current_balance").maybeSingle();
-        if (error) throw error;
-        setKpis((k) => ({ ...k, vault: { value: Number(data?.current_balance || 0), loading: false, error: "" } }));
-      } catch (e) {
-        setKpis((k) => ({ ...k, vault: { value: null, loading: false, error: e?.message || "Failed" } }));
-      }
-    })();
-
-    // 2) Pending release — reuse the priority-queue summary (already ranked).
+    // 1) Pending release — reuse the priority-queue summary (already ranked).
     (async () => {
       try {
         const res = await fetch(`${API_BASE_URL}/api/treasurer/disbursements/priority-queue?limit=1`, {
@@ -93,7 +84,8 @@ const Treasurer_Dashboard = () => {
       }
     })();
 
-    // 3 & 4) Forecast per loan type — pull enough periods to reach next month.
+    // 2 & 3) Forecast per loan type — pull enough periods to reach next month.
+    // (Bonus has no model yet — its card uses BONUS_FORECAST_PLACEHOLDER.)
     const forecastFetch = async (loanType, key) => {
       try {
         const res = await fetch(
@@ -151,33 +143,67 @@ const Treasurer_Dashboard = () => {
         {/* DASHBOARD CONTENT */}
         <main className="p-8">
           
-          {/* Top KPI Cards \u2014 live data. Each card gracefully shows "\u2014" while
-              loading or on error so a slow/failed sub-fetch doesn't blank
-              the whole strip. */}
+          {/* Top KPI Cards - Consolidated/Emergency forecasts and Pending
+              Release are live data; each gracefully shows "-" while loading
+              or on error so a slow/failed sub-fetch doesn't blank the whole
+              strip. Bonus forecast is a hardcoded placeholder (no model
+              yet) \u2014 see BONUS_FORECAST_PLACEHOLDER. */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
-            {/* Card 1 \u2014 Cash in Vault (from vault_balance_v) */}
-            <button
-              type="button"
-              onClick={() => navigate("/treasurer-vault")}
-              className="bg-white rounded-xl p-5 shadow-sm border border-gray-100 flex flex-col justify-between text-left hover:border-green-300 hover:shadow-md transition"
-            >
+            {/* Card 1 - Forecast: Consolidated (next month) */}
+            <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100 flex flex-col justify-between">
               <div className="flex justify-between items-start">
-                <span className="text-gray-500 text-sm font-medium">Cash in Vault</span>
-                <div className="p-2 bg-emerald-50 text-emerald-600 rounded-lg">
-                  <Wallet size={18} />
+                <span className="text-gray-500 text-sm font-medium">Forecast - Consolidated</span>
+                <div className="p-2 bg-green-50 text-green-600 rounded-lg">
+                  <TrendingUp size={18} />
                 </div>
               </div>
               <div className="mt-4">
                 <h3 className="text-3xl font-bold text-gray-800 tabular-nums">
-                  {kpis.vault.loading ? "\u2026" : kpis.vault.error ? "\u2014" : PHP_COMPACT(kpis.vault.value)}
+                  {kpis.forecastConsolidated.loading ? "…" : kpis.forecastConsolidated.value == null ? "—" : PHP_COMPACT(kpis.forecastConsolidated.value)}
                 </h3>
                 <div className="flex items-center mt-2 text-xs">
-                  <span className="text-gray-400">Manage in Vault →</span>
+                  <span className="text-gray-400">expected in {kpis.nextMonthLabel || "next month"}</span>
                 </div>
               </div>
-            </button>
+            </div>
 
-            {/* Card 2 \u2014 Pending Release (count + total) */}
+            {/* Card 2 - Forecast: Emergency (next month) */}
+            <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100 flex flex-col justify-between">
+              <div className="flex justify-between items-start">
+                <span className="text-gray-500 text-sm font-medium">Forecast - Emergency</span>
+                <div className="p-2 bg-amber-50 text-amber-700 rounded-lg">
+                  <TrendingUp size={18} />
+                </div>
+              </div>
+              <div className="mt-4">
+                <h3 className="text-3xl font-bold text-gray-800 tabular-nums">
+                  {kpis.forecastEmergency.loading ? "…" : kpis.forecastEmergency.value == null ? "—" : PHP_COMPACT(kpis.forecastEmergency.value)}
+                </h3>
+                <div className="flex items-center mt-2 text-xs">
+                  <span className="text-gray-400">expected in {kpis.nextMonthLabel || "next month"}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Card 3 - Forecast: Bonus (next month) - hardcoded, no model yet */}
+            <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100 flex flex-col justify-between">
+              <div className="flex justify-between items-start">
+                <span className="text-gray-500 text-sm font-medium">Forecast - Bonus</span>
+                <div className="p-2 bg-violet-50 text-violet-600 rounded-lg">
+                  <TrendingUp size={18} />
+                </div>
+              </div>
+              <div className="mt-4">
+                <h3 className="text-3xl font-bold text-gray-800 tabular-nums">
+                  {PHP_COMPACT(BONUS_FORECAST_PLACEHOLDER)}
+                </h3>
+                <div className="flex items-center mt-2 text-xs">
+                  <span className="text-gray-400">expected in {kpis.nextMonthLabel || "next month"}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Card 4 - Pending Release (count + total) */}
             <button
               type="button"
               onClick={() => navigate("/treasurer-approval")}
@@ -191,7 +217,7 @@ const Treasurer_Dashboard = () => {
               </div>
               <div className="mt-4">
                 <h3 className="text-3xl font-bold text-gray-800 tabular-nums">
-                  {kpis.pending.loading ? "\u2026" : kpis.pending.error ? "\u2014" : (kpis.pending.count ?? 0)}
+                  {kpis.pending.loading ? "…" : kpis.pending.error ? "—" : (kpis.pending.count ?? 0)}
                 </h3>
                 <div className="flex items-center mt-2 text-xs">
                   <span className="text-gray-500 font-medium tabular-nums">
@@ -201,42 +227,6 @@ const Treasurer_Dashboard = () => {
                 </div>
               </div>
             </button>
-
-            {/* Card 3 - Forecast: Consolidated (next month) */}
-            <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100 flex flex-col justify-between">
-              <div className="flex justify-between items-start">
-                <span className="text-gray-500 text-sm font-medium">Forecast - Consolidated</span>
-                <div className="p-2 bg-green-50 text-green-600 rounded-lg">
-                  <TrendingUp size={18} />
-                </div>
-              </div>
-              <div className="mt-4">
-                <h3 className="text-3xl font-bold text-gray-800 tabular-nums">
-                  {kpis.forecastConsolidated.loading ? "\u2026" : kpis.forecastConsolidated.value == null ? "\u2014" : PHP_COMPACT(kpis.forecastConsolidated.value)}
-                </h3>
-                <div className="flex items-center mt-2 text-xs">
-                  <span className="text-gray-400">expected in {kpis.nextMonthLabel || "next month"}</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Card 4 - Forecast: Emergency (next month) */}
-            <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100 flex flex-col justify-between">
-              <div className="flex justify-between items-start">
-                <span className="text-gray-500 text-sm font-medium">Forecast - Emergency</span>
-                <div className="p-2 bg-amber-50 text-amber-700 rounded-lg">
-                  <TrendingUp size={18} />
-                </div>
-              </div>
-              <div className="mt-4">
-                <h3 className="text-3xl font-bold text-gray-800 tabular-nums">
-                  {kpis.forecastEmergency.loading ? "\u2026" : kpis.forecastEmergency.value == null ? "\u2014" : PHP_COMPACT(kpis.forecastEmergency.value)}
-                </h3>
-                <div className="flex items-center mt-2 text-xs">
-                  <span className="text-gray-400">expected in {kpis.nextMonthLabel || "next month"}</span>
-                </div>
-              </div>
-            </div>
           </div>
 
           {/* Priority Queue — full width. The Monthly Disbursement Trend

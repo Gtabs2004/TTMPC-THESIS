@@ -87,6 +87,7 @@ const MANAGER_MENU = [
   { name: "Dashboard", icon: LayoutDashboard, route: "/manager-dashboard" },
   { name: "Loan Approval", icon: ClipboardCheck, route: "/loan-approval" },
   { name: "Credit Risk", icon: Brain, route: "/manager-credit-risk" },
+  { name: "Manage Loans", icon: Briefcase, route: "/manager-manage-loans" },
   { name: "Manage Member", icon: Users, route: "/manager-manage-member" },
   { name: "Reports", icon: BarChart3, route: "/manager-reports" },
   { name: "Audit Log", icon: History, route: "/manager-audit-log" },

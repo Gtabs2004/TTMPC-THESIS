@@ -129,17 +129,16 @@ const Treasurer_Approval = () => {
     }
   };
 
+  // loan_types.name stores the full product name ("Bonus Loan",
+  // "Consolidated Loan", "Emergency Loan" — see loan_form_policies.sql), not
+  // the bare word this used to switch on exactly, so the match never hit and
+  // every badge silently fell through to gray. Match on keyword instead.
   const getLoanTypeStyle = (type) => {
-    switch (type) {
-      case "Bonus":
-        return "bg-blue-100 text-blue-700";
-      case "Emergency":
-        return "bg-red-100 text-red-700";
-      case "Consolidated":
-        return "bg-purple-100 text-purple-700";
-      default:
-        return "bg-gray-100 text-gray-700";
-    }
+    const t = String(type || "").toLowerCase();
+    if (t.includes("bonus")) return "bg-blue-100 text-blue-700";
+    if (t.includes("emergency")) return "bg-red-100 text-red-700";
+    if (t.includes("consolidated")) return "bg-purple-100 text-purple-700";
+    return "bg-gray-100 text-gray-700";
   };
 
   const getMigsStyle = (status) => {
@@ -285,7 +284,10 @@ const Treasurer_Approval = () => {
                         <td className="p-5 text-sm text-gray-500 font-medium">{loan.id}</td>
                         <td className="p-5 text-sm font-bold text-gray-800">{loan.name}</td>
                         <td className="p-5 text-sm">
-                          <span className={`badge-animated px-3 py-1.5 rounded-full text-xs font-bold ${getLoanTypeStyle(loan.type)}`}>
+                          <span
+                            className={`inline-block max-w-[12rem] truncate px-3 py-1.5 rounded-full text-xs font-bold ${getLoanTypeStyle(loan.type)}`}
+                            title={loan.type}
+                          >
                             {loan.type}
                           </span>
                         </td>

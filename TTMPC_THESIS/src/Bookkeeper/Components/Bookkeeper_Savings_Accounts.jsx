@@ -39,16 +39,16 @@ const PAGE_SIZE = 5;
 
 const formatCurrency = (value) => {
   const amount = Number(value || 0);
-  return `â‚±${amount.toLocaleString(undefined, {
+  return `₱${amount.toLocaleString(undefined, {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })}`;
 };
 
 const formatDate = (value) => {
-  if (!value) return "â€”";
+  if (!value) return "—";
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "â€”";
+  if (Number.isNaN(date.getTime())) return "—";
   return date.toLocaleDateString("en-US", {
     year: "numeric",
     month: "short",
