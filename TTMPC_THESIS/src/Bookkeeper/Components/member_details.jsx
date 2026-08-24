@@ -152,7 +152,7 @@ const StaffAccountPanel = ({ membershipId, viewerRole }) => {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
           <div>
             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Current Role</p>
-            <p className="font-bold text-gray-800 capitalize">{account?.role || 'â€”'}</p>
+            <p className="font-bold text-gray-800 capitalize">{account?.role || '—'}</p>
           </div>
           <div>
             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Account Status</p>
@@ -162,7 +162,7 @@ const StaffAccountPanel = ({ membershipId, viewerRole }) => {
           </div>
           <div>
             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Account Email</p>
-            <p className="font-medium text-gray-800 break-all">{account?.email || 'â€”'}</p>
+            <p className="font-medium text-gray-800 break-all">{account?.email || '—'}</p>
           </div>
         </div>
 
@@ -175,7 +175,7 @@ const StaffAccountPanel = ({ membershipId, viewerRole }) => {
                 className="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
                 disabled={busy}
               >
-                <option value="">â€” Select role â€”</option>
+                <option value="">— Select role —</option>
                 {ROLE_OPTIONS.map((r) => (
                   <option key={r.value} value={r.value}>{r.label}</option>
                 ))}
@@ -274,7 +274,7 @@ const StaffAccountPanel = ({ membershipId, viewerRole }) => {
                 disabled={busy || !termReason.trim()}
                 className="text-sm font-bold rounded-md px-4 py-2 bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
               >
-                {busy ? 'Terminatingâ€¦' : 'Confirm Termination'}
+                {busy ? 'Terminating…' : 'Confirm Termination'}
               </button>
             </div>
           </div>
@@ -286,8 +286,8 @@ const StaffAccountPanel = ({ membershipId, viewerRole }) => {
 
 const formatPeso = (n) => {
   const v = Number(n);
-  if (!Number.isFinite(v)) return 'â€”';
-  return `â‚±${v.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  if (!Number.isFinite(v)) return '—';
+  return `₱${v.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 };
 
 const DebtCapacityPanel = ({ membershipId }) => {
@@ -383,7 +383,7 @@ const DebtCapacityPanel = ({ membershipId }) => {
   const overallPrescription = (() => {
     if (!data) return null;
     if (shareCapital <= 0) {
-      return { tone: 'danger', text: 'Member has â‚±0 share capital on file. Consolidated loans cannot be approved until Capital Build-Up is established.' };
+      return { tone: 'danger', text: 'Member has ₱0 share capital on file. Consolidated loans cannot be approved until Capital Build-Up is established.' };
     }
     if (!isMigs) {
       const upliftGain = shareCapital * (5 - multiplier);
@@ -436,7 +436,7 @@ const DebtCapacityPanel = ({ membershipId }) => {
 
       {loading ? (
         <div className="rounded-xl border border-gray-100 bg-gray-50 p-6 text-sm text-gray-500">
-          Computing capacityâ€¦
+          Computing capacity…
         </div>
       ) : error ? (
         <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 flex items-start gap-2">
@@ -465,7 +465,7 @@ const DebtCapacityPanel = ({ membershipId }) => {
               </div>
               <p className="text-xs text-gray-700 mb-1">Maximum Approvable Loan Amount</p>
               <p className="text-2xl font-extrabold text-[#1a4a2f]">
-                {c.max === null || c.max === undefined ? 'â€”' : formatPeso(c.max)}
+                {c.max === null || c.max === undefined ? '—' : formatPeso(c.max)}
               </p>
               <p className="text-xs text-gray-700 mb-3">Headroom remaining after existing obligations</p>
 
@@ -535,7 +535,7 @@ const DebtCapacityPanel = ({ membershipId }) => {
 
       {loading ? (
         <div className="rounded-xl border border-gray-100 bg-gray-50 p-6 text-sm text-gray-500">
-          Loading loansâ€¦
+          Loading loans…
         </div>
       ) : error ? null : activeLoans.length === 0 ? (
         <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 p-6 text-sm text-gray-500 text-center">
@@ -585,11 +585,11 @@ const DebtCapacityPanel = ({ membershipId }) => {
                   <td className="p-3 text-right text-gray-700">{formatPeso(loan.paid)}</td>
                   <td className="p-3 text-right text-gray-800">{formatPeso(loan.remaining_balance)}</td>
                   <td className={`p-3 text-right ${penalty > 0 ? 'text-red-700 font-semibold' : 'text-gray-500'}`}>
-                    {loan.is_legacy ? 'â€”' : formatPeso(penalty)}
+                    {loan.is_legacy ? '—' : formatPeso(penalty)}
                   </td>
                   <td className="p-3 text-right font-bold text-[#1a4a2f]">{formatPeso(totalOwed)}</td>
                   <td className="p-3 text-right text-gray-700">{formatPeso(loan.monthly_amortization)}</td>
-                  <td className="p-3 text-xs text-gray-600">{loan.disbursal_date || loan.application_date || 'â€”'}</td>
+                  <td className="p-3 text-xs text-gray-600">{loan.disbursal_date || loan.application_date || '—'}</td>
                 </tr>
                 );
               })}

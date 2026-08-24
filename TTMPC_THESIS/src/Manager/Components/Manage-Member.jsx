@@ -15,6 +15,7 @@ import {
   BarChart3,
   History,
   Brain,
+  Briefcase,
 } from "lucide-react";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
@@ -33,6 +34,7 @@ const Manager_Manage_Member = () => {
       { name: "Dashboard", icon: LayoutDashboard },
       { name: "Loan Approval", icon: ClipboardCheck },
     { name: "Credit Risk", icon: Brain },
+      { name: "Manage Loans", icon: Briefcase },
       { name: "Manage Member", icon: Users },
       { name: "Reports", icon: BarChart3 },
       { name: "Audit Log", icon: History },
@@ -42,6 +44,7 @@ const Manager_Manage_Member = () => {
     "Dashboard": "/manager-dashboard",
     "Loan Approval": "/loan-approval",
               "Credit Risk": "/manager-credit-risk",
+    "Manage Loans": "/manager-manage-loans",
     "Manage Member": "/manager-manage-member",
     "Reports": "/manager-reports",
     "Audit Log": "/manager-audit-log",

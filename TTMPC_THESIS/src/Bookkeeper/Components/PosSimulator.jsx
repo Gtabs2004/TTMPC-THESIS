@@ -91,10 +91,10 @@ export default function PosSimulator() {
               onChange={(e) => setMembershipId(e.target.value)}
               className="w-full border border-gray-300 rounded-md p-2 text-sm"
             >
-              <option value="">Select a memberâ€¦</option>
+              <option value="">Select a member…</option>
               {members.map((m) => (
                 <option key={m.id} value={m.membership_id}>
-                  {m.membership_id} â€” {m.last_name}, {m.first_name}
+                  {m.membership_id} — {m.last_name}, {m.first_name}
                 </option>
               ))}
             </select>
@@ -134,7 +134,7 @@ export default function PosSimulator() {
             disabled={busy}
             className="bg-green-600 hover:bg-green-700 text-white font-semibold px-4 py-2 rounded-md disabled:opacity-50"
           >
-            {busy ? "Sendingâ€¦" : "Send POS event"}
+            {busy ? "Sending…" : "Send POS event"}
           </button>
 
           {error && (
@@ -150,7 +150,7 @@ export default function PosSimulator() {
                   <div>
                     <p className="font-semibold">Grocery transaction successful</p>
                     <p className="text-xs text-green-700 mt-0.5">
-                      Recorded â‚±{Number(amount).toLocaleString()} for {membershipId} ({status}).
+                      Recorded ₱{Number(amount).toLocaleString()} for {membershipId} ({status}).
                     </p>
                   </div>
                 </div>
@@ -194,9 +194,9 @@ export default function PosSimulator() {
                 recent.map((r) => (
                   <tr key={r.GroceryID} className="border-t border-gray-100">
                     <td className="p-3 font-mono text-xs">{r.GroceryID}</td>
-                    <td className="p-3">{r.pos_member_ref || "â€”"}</td>
+                    <td className="p-3">{r.pos_member_ref || "—"}</td>
                     <td className="p-3">
-                      â‚±{Number(r.GroceryAmount).toLocaleString()}
+                      ₱{Number(r.GroceryAmount).toLocaleString()}
                     </td>
                     <td className="p-3">{r.Status}</td>
                     <td className="p-3 text-gray-500">

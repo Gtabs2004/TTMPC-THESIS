@@ -12,6 +12,7 @@ import {
   History,
   ClipboardCheck,
   Brain,
+  Briefcase,
 } from "lucide-react";
 
 const Manager_Audit_Log = () => {
@@ -23,6 +24,7 @@ const Manager_Audit_Log = () => {
     { name: "Dashboard", icon: LayoutDashboard },
     { name: "Loan Approval", icon: ClipboardCheck },
     { name: "Credit Risk", icon: Brain },
+    { name: "Manage Loans", icon: Briefcase },
     { name: "Manage Member", icon: Users },
     { name: "Reports", icon: BarChart3 },
     { name: "Audit Log", icon: History },
@@ -32,6 +34,7 @@ const Manager_Audit_Log = () => {
     "Dashboard": "/manager-dashboard",
     "Loan Approval": "/loan-approval",
               "Credit Risk": "/manager-credit-risk",
+    "Manage Loans": "/manager-manage-loans",
     "Manage Member": "/manager-manage-member",
     "Reports": "/manager-reports",
     "Audit Log": "/manager-audit-log",

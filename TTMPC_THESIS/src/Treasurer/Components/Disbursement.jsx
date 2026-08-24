@@ -133,6 +133,22 @@ const Disbursements = () => {
     return d.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "2-digit" });
   };
 
+  // Same loan-type badge colors used in Loan-Approval.jsx (Bookkeeper),
+  // loan-approval.jsx (Manager), and Treasurer_Approval.jsx — keep this in
+  // sync with those if the palette ever changes.
+  const getLoanTypeStyle = (type) => {
+    switch (type) {
+      case "Bonus":
+        return "bg-blue-100 text-blue-700";
+      case "Emergency":
+        return "bg-red-100 text-red-700";
+      case "Consolidated":
+        return "bg-purple-100 text-purple-700";
+      default:
+        return "bg-gray-100 text-gray-700";
+    }
+  };
+
   const rankedRows = useMemo(() => {
     const enriched = rows.map((r) => ({ ...r, rank: computeRank(r) }));
     return enriched.sort((a, b) => {
@@ -356,7 +372,7 @@ const Disbursements = () => {
                           </div>
                         </td>
                         <td className="p-5 max-w-[12rem]">
-                          <span className="inline-flex items-center max-w-full truncate px-2.5 py-1 rounded-md text-xs font-bold bg-gray-100 text-gray-800 border border-gray-200" title={row.type}>
+                          <span className={`inline-flex items-center max-w-full truncate px-2.5 py-1 rounded-xl text-xs font-bold ${getLoanTypeStyle(row.type)}`} title={row.type}>
                             {row.type}
                           </span>
                           <div className="text-xs font-medium text-gray-500 mt-1.5 ml-1">{row.migs}</div>

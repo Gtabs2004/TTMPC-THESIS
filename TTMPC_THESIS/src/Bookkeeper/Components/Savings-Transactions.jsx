@@ -449,7 +449,7 @@ const BookkeeperSavingsTransactions = () => {
                             <button
                               onClick={() =>
                                 addNotification(
-                                  `Print withdrawal slip for ${row.transaction_id} â€” coming soon.`,
+                                  `Print withdrawal slip for ${row.transaction_id} — coming soon.`,
                                   "info"
                                 )
                               }
