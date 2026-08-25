@@ -313,7 +313,7 @@ const Secretary_General_Assembly = () => {
              <img src="/img/ttmpc logo.png" alt="Logo" className="h-12 w-auto" />
              <div className="flex flex-col">
                <h1 className="text-xl font-bold text-primary">TTMPC</h1>
-               <PortalSidebarIdentity className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold" fallbackPortal="BOD Portal" fallbackRole="BOD" />
+               <PortalSidebarIdentity className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold" fallbackPortal="Secretary Portal" fallbackRole="Secretary" />
              </div>
            </div>
            <hr className="w-full border-gray-200 mb-6" />
