@@ -111,7 +111,11 @@ const ManageLoans = () => {
   };
 
   const dashboardStats = useMemo(() => {
-    const totalActiveLoans = loans.filter((loan) => loan.remaining_balance > 0).length;
+    const activeLoans = loans.filter((loan) => loan.remaining_balance > 0);
+    const totalActiveLoans = activeLoans.length;
+    const uniqueActiveMembers = new Set(
+      activeLoans.map((loan) => `${loan.member_id || loan.member_name}::${loan.loan_type_code || loan.loan_type}`)
+    ).size;
     const totalOutstanding = loans.reduce((sum, loan) => sum + Number(loan.remaining_balance || 0), 0);
     const currentMonthKey = new Date().toISOString().slice(0, 7);
     const collectedThisMonth = loans
@@ -121,6 +125,7 @@ const ManageLoans = () => {
 
     return {
       totalActiveLoans,
+      uniqueActiveMembers,
       totalOutstanding,
       collectedThisMonth,
     };
@@ -434,60 +439,72 @@ const ManageLoans = () => {
             </button>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-            <div className="rounded-xl bg-white border border-gray-200 shadow-sm hover:shadow-md transition-shadow p-6">
-              <div className="flex items-start justify-between">
-                <div className="flex-1">
-                  <p className="text-sm uppercase tracking-wider text-gray-600 font-semibold">Total Active Loans</p>
-                  <h2 className="mt-3 text-3xl font-bold text-gray-900">{dashboardStats.totalActiveLoans}</h2>
-                </div>
-                <div className="bg-blue-100 rounded-lg p-3">
-                  <CreditCard size={20} className="text-blue-600" />
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5 mb-8">
+            {/* Card 1 — Total Loan Records */}
+            <div className="rounded-xl bg-white border border-gray-200 shadow-sm hover:shadow-md transition-shadow p-5">
+              <div className="flex items-center justify-between mb-4">
+                <p className="text-xs uppercase tracking-wider text-gray-500 font-semibold">Total Loan Records</p>
+                <div className="bg-blue-50 rounded-lg p-2">
+                  <FileText size={16} className="text-blue-500" />
                 </div>
               </div>
+              <h2 className="text-3xl font-bold text-gray-900">{dashboardStats.totalActiveLoans}</h2>
+              <p className="mt-1.5 text-xs text-gray-400">All records with an outstanding balance</p>
             </div>
 
-            <div className="rounded-xl bg-white border border-gray-200 shadow-sm hover:shadow-md transition-shadow p-6">
-              <div className="flex items-start justify-between">
-                <div className="flex-1">
-                  <p className="text-sm uppercase tracking-wider text-gray-600 font-semibold">Outstanding Balance</p>
-                  <h2 className="mt-3 text-3xl font-bold text-gray-900">{formatCurrency(dashboardStats.totalOutstanding)}</h2>
-                </div>
-                <div className="bg-amber-100 rounded-lg p-3">
-                  <Wallet size={20} className="text-amber-600" />
+            {/* Card 2 — Active Member Loans */}
+            <div className="rounded-xl bg-white border border-gray-200 shadow-sm hover:shadow-md transition-shadow p-5">
+              <div className="flex items-center justify-between mb-4">
+                <p className="text-xs uppercase tracking-wider text-gray-500 font-semibold">Active Member Loans</p>
+                <div className="bg-purple-50 rounded-lg p-2">
+                  <CreditCard size={16} className="text-purple-500" />
                 </div>
               </div>
+              <h2 className="text-3xl font-bold text-gray-900">{dashboardStats.uniqueActiveMembers}</h2>
+              <p className="mt-1.5 text-xs text-gray-400">Latest obligation per member &amp; loan type</p>
             </div>
 
-            <div className="rounded-xl bg-white border border-gray-200 shadow-sm hover:shadow-md transition-shadow p-6">
-              <div className="flex items-start justify-between">
-                <div className="flex-1">
-                  <p className="text-sm uppercase tracking-wider text-gray-600 font-semibold">Collected This Month</p>
-                  <h2 className="mt-3 text-3xl font-bold text-gray-900">{formatCurrency(dashboardStats.collectedThisMonth)}</h2>
-                </div>
-                <div className="bg-green-100 rounded-lg p-3">
-                  <Coins size={20} className="text-green-600" />
+            {/* Card 3 — Outstanding Balance */}
+            <div className="rounded-xl bg-white border border-gray-200 shadow-sm hover:shadow-md transition-shadow p-5">
+              <div className="flex items-center justify-between mb-4">
+                <p className="text-xs uppercase tracking-wider text-gray-500 font-semibold">Outstanding Balance</p>
+                <div className="bg-amber-50 rounded-lg p-2">
+                  <Wallet size={16} className="text-amber-500" />
                 </div>
               </div>
+              <h2 className="text-2xl font-bold text-gray-900 leading-tight">{formatCurrency(dashboardStats.totalOutstanding)}</h2>
+              <p className="mt-1.5 text-xs text-gray-400">Total remaining across all active loans</p>
+            </div>
+
+            {/* Card 4 — Collected This Month */}
+            <div className="rounded-xl bg-white border border-gray-200 shadow-sm hover:shadow-md transition-shadow p-5">
+              <div className="flex items-center justify-between mb-4">
+                <p className="text-xs uppercase tracking-wider text-gray-500 font-semibold">Collected This Month</p>
+                <div className="bg-green-50 rounded-lg p-2">
+                  <Coins size={16} className="text-green-500" />
+                </div>
+              </div>
+              <h2 className="text-2xl font-bold text-gray-900 leading-tight">{formatCurrency(dashboardStats.collectedThisMonth)}</h2>
+              <p className="mt-1.5 text-xs text-gray-400">Payments received in {new Date().toLocaleString("en-PH", { month: "long", year: "numeric" })}</p>
             </div>
           </div>
 
           <div className="rounded-xl bg-white border border-gray-200 shadow-sm mb-6 p-5">
             <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-              <div className="flex flex-wrap items-center gap-2">
+              <div className="flex flex-wrap items-center gap-1.5">
                 {tabs.map((tab) => (
                   <button
                     key={tab.key}
                     type="button"
                     onClick={() => setActiveTab(tab.key)}
-                    className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+                    className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
                       activeTab === tab.key
                         ? "bg-green-600 text-white"
                         : "bg-gray-100 text-gray-700 hover:bg-gray-200"
                     }`}
                   >
                     <span>{tab.label}</span>
-                    <span className={`inline-flex items-center justify-center min-w-6 h-6 rounded-full text-xs font-semibold ${
+                    <span className={`inline-flex items-center justify-center min-w-5 h-5 rounded-full text-[11px] font-semibold px-1 ${
                       activeTab === tab.key
                         ? "bg-white/30"
                         : "bg-gray-300 text-gray-700"
@@ -498,12 +515,12 @@ const ManageLoans = () => {
                 ))}
               </div>
 
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end xl:ml-auto">
-                <div className="flex flex-wrap items-center gap-3">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end xl:ml-auto">
+                <div className="flex flex-wrap items-center gap-2">
                   <select
                     value={loanTypeFilter}
                     onChange={(event) => setLoanTypeFilter(event.target.value)}
-                    className="h-10 rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                    className="h-8 rounded-md border border-gray-300 bg-white px-2.5 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
                   >
                     <option value="all">All Loan Types</option>
                     <option value="CONSOLIDATED">Consolidated</option>
@@ -516,7 +533,7 @@ const ManageLoans = () => {
                   <select
                     value={memberTypeFilter}
                     onChange={(event) => setMemberTypeFilter(event.target.value)}
-                    className="h-10 rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                    className="h-8 rounded-md border border-gray-300 bg-white px-2.5 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
                   >
                     <option value="all">All Member Types</option>
                     <option value="Member">Member</option>
@@ -525,13 +542,13 @@ const ManageLoans = () => {
                   </select>
                 </div>
 
-                <div className="relative w-full sm:w-80">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <div className="relative w-full sm:w-64">
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
                   <input
                     type="text"
                     value={searchTerm}
                     onChange={(event) => setSearchTerm(event.target.value)}
-                    className="bg-white w-full h-10 rounded-lg border border-gray-300 pl-9 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                    className="bg-white w-full h-8 rounded-md border border-gray-300 pl-8 pr-3 text-xs focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
                     placeholder="Search by loan ID, member name..."
                   />
                 </div>
@@ -572,15 +589,15 @@ const ManageLoans = () => {
                 <col style={{ width: "8%" }} />
               </colgroup>
               <thead>
-                <tr className="bg-green-700 text-xs uppercase tracking-wider text-white font-extrabold">
-                  <th className="px-3 py-4 font-bold">Loan ID</th>
-                  <th className="px-3 py-4 font-bold">Member Name</th>
-                  <th className="px-3 py-4 font-bold">Loan Type</th>
-                  <th className="px-3 py-4 font-bold text-right">Loan Amt</th>
-                  <th className="px-3 py-4 font-bold text-right">Amortization</th>
-                  <th className="px-3 py-4 font-bold text-right">Remaining</th>
-                  <th className="px-3 py-4 font-bold">Due Date</th>
-                  <th className="px-3 py-4 font-bold text-center">Action</th>
+                <tr className="bg-green-700 text-[11px] uppercase tracking-wider text-white font-extrabold">
+                  <th className="px-3 py-2.5 font-bold">Loan ID</th>
+                  <th className="px-3 py-2.5 font-bold">Member Name</th>
+                  <th className="px-3 py-2.5 font-bold">Loan Type</th>
+                  <th className="px-3 py-2.5 font-bold text-right">Loan Amt</th>
+                  <th className="px-3 py-2.5 font-bold text-right">Amortization</th>
+                  <th className="px-3 py-2.5 font-bold text-right">Remaining</th>
+                  <th className="px-3 py-2.5 font-bold">Due Date</th>
+                  <th className="px-3 py-2.5 font-bold text-center">Action</th>
                 </tr>
               </thead>
               <tbody>
@@ -588,11 +605,11 @@ const ManageLoans = () => {
                   <tr>
                     <td colSpan={8} className="p-5 text-center">
                       <div className="flex flex-col items-center gap-2">
-                        <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center">
-                          <Eye size={24} className="text-gray-300" />
+                        <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center">
+                          <Eye size={20} className="text-gray-300" />
                         </div>
-                        <p className="text-gray-500 font-medium">No loans found</p>
-                        <p className="text-gray-400 text-sm">Try adjusting your filters</p>
+                        <p className="text-gray-500 text-sm font-medium">No loans found</p>
+                        <p className="text-gray-400 text-xs">Try adjusting your filters</p>
                       </div>
                     </td>
                   </tr>
@@ -602,37 +619,35 @@ const ManageLoans = () => {
                   return (
                     <React.Fragment key={parent.loan_id}>
                       <tr className="border-b border-gray-100 transition-colors hover:bg-green-50/40">
-                        <td className="px-3 py-4 text-sm font-mono font-bold text-green-700 align-middle">
-                          <div className="flex flex-col items-start gap-1">
-                            <span className="truncate">{parent.loan_id}</span>
-                          </div>
+                        <td className="px-3 py-2.5 text-xs font-mono font-bold text-green-700 align-middle">
+                          <span className="truncate">{parent.loan_id}</span>
                         </td>
-                        <td className="px-3 py-4 text-sm text-gray-800 font-semibold align-top">{parent.member_name}</td>
-                        <td className="px-3 py-4 align-top">
-                          <span className={`inline-block whitespace-nowrap px-2 py-0.5 rounded-full text-[11px] font-semibold ${getLoanTypeStyle(parent.loan_type_code)}`}>
+                        <td className="px-3 py-2.5 text-xs text-gray-800 font-semibold align-middle">{parent.member_name}</td>
+                        <td className="px-3 py-2.5 align-middle">
+                          <span className={`inline-block whitespace-nowrap px-2 py-0.5 rounded-full text-[10px] font-semibold ${getLoanTypeStyle(parent.loan_type_code)}`}>
                             {parent.loan_type}
                           </span>
                         </td>
-                        <td className="px-3 py-4 text-sm text-gray-800 font-semibold text-right whitespace-nowrap align-top">{formatCurrency(parent.loan_amount)}</td>
-                        <td className="px-3 py-4 text-sm text-gray-700 text-left font-medium whitespace-nowrap align-top">{formatCurrency(parent.amortization)}</td>
-                        <td className="px-3 py-4 text-sm text-left font-bold whitespace-nowrap align-top">
+                        <td className="px-3 py-2.5 text-xs text-gray-800 font-semibold text-right whitespace-nowrap align-middle">{formatCurrency(parent.loan_amount)}</td>
+                        <td className="px-3 py-2.5 text-xs text-gray-700 text-right font-medium whitespace-nowrap align-middle">{formatCurrency(parent.amortization)}</td>
+                        <td className="px-3 py-2.5 text-xs text-right font-bold whitespace-nowrap align-middle">
                           <span className={parent.remaining_balance > 0 ? 'text-amber-600' : 'text-green-600'}>
                             {formatCurrency(parent.remaining_balance)}
                           </span>
                         </td>
-                        <td className="px-3 py-4 text-sm font-medium whitespace-nowrap align-top">
+                        <td className="px-3 py-2.5 text-xs font-medium whitespace-nowrap align-middle">
                           {parent.due_date
-                            ? <span className="text-gray-700 text-center ">{formatDate(parent.due_date)}</span>
-                            : <span className="text-xs text-gray-400 italic capitalize">{parent.source_loan_status || "No schedule"}</span>
+                            ? <span className="text-gray-700">{formatDate(parent.due_date)}</span>
+                            : <span className="text-[11px] text-gray-400 italic capitalize">{parent.source_loan_status || "No schedule"}</span>
                           }
                         </td>
-                        <td className="px-3 py-4 text-center align-top">
+                        <td className="px-3 py-2.5 text-center align-middle">
                           <button
                             type="button"
                             onClick={() => navigate(`/bookkeeper-loan-ledger/${parent.loan_id}`, { state: { loan: parent, renewals } })}
-                            className="btn-enhanced inline-flex items-center gap-1 rounded-lg bg-green-600 px-2 py-1.5 text-xs font-semibold text-white hover:bg-green-700"
+                            className="btn-enhanced inline-flex items-center gap-1 rounded-md bg-green-600 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-green-700"
                           >
-                            <Eye size={12} /> View
+                            <Eye size={11} /> View
                           </button>
                         </td>
                       </tr>
