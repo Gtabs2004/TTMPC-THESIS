@@ -403,27 +403,10 @@ const Disbursements = () => {
                             >
                               View
                             </button>
-                            <button
-                              onClick={() => setOpenMenuId(openMenuId === row.id ? null : row.id)}
-                              className="p-1.5 rounded-lg border border-gray-200 text-gray-500 bg-white hover:bg-gray-50 transition-colors shadow-sm"
-                            >
-                              <MoreHorizontal className="w-4 h-4" />
-                            </button>
+                          
                             
-                            {/* Action Menu Dropdown */}
-                            {openMenuId === row.id && (
-                              <div className="absolute right-0 top-full mt-2 w-48 bg-white border border-gray-200 rounded-xl shadow-xl z-20 py-1.5 text-sm overflow-hidden">
-                                <div className="px-3 py-2 text-xs font-bold text-gray-400 uppercase tracking-wider border-b border-gray-100 mb-1">
-                                  Actions
-                                </div>
-                                <button className="w-full flex items-center gap-2.5 px-4 py-2 text-gray-700 font-medium hover:bg-green-50 hover:text-green-700 transition-colors">
-                                  <Receipt className="w-4 h-4" /> Issue Receipt
-                                </button>
-                                <button className="w-full flex items-center gap-2.5 px-4 py-2 text-gray-700 font-medium hover:bg-green-50 hover:text-green-700 transition-colors">
-                                  <History className="w-4 h-4" /> Full Audit Trail
-                                </button>
-                              </div>
-                            )}
+                          
+                           
                           </div>
                         </td>
                       </tr>

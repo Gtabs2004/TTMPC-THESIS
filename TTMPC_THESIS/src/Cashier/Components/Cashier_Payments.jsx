@@ -137,10 +137,10 @@ const formatDelayLabel = (key, missedCount) => {
 };
 
 const DELAY_STATUS_META = {
-  on_time:    { className: "bg-green-100 text-green-700"  },
-  past_due:   { className: "bg-gray-100 text-gray-700"    },
-  no_payment: { className: "bg-yellow-100 text-yellow-800" },
-  overdue:    { className: "bg-red-100 text-red-700"      },
+  on_time:    { className: "bg-green-50 text-green-700 ring-1 ring-green-200"    },
+  past_due:   { className: "bg-gray-50 text-gray-700 ring-1 ring-gray-200"       },
+  no_payment: { className: "bg-yellow-50 text-yellow-800 ring-1 ring-yellow-200" },
+  overdue:    { className: "bg-red-50 text-red-700 ring-1 ring-red-200"         },
 };
 
 // Penalty policy (updated):
@@ -900,9 +900,7 @@ const Cashier_Payments = () => {
                         <ArrowUpDown size={14} className="opacity-0 group-hover:opacity-100 transition" />
                       </button>
                     </th>
-                    <th className="px-3 py-3 font-bold whitespace-nowrap">
-                      Interest Rate
-                    </th>
+                   
                     <th className="px-3 py-3 font-bold whitespace-nowrap">
                       <button
                         onClick={() => handleSort("term_months")}
@@ -915,24 +913,12 @@ const Cashier_Payments = () => {
                     <th className="px-3 py-3 font-bold whitespace-nowrap">
                       Amortization
                     </th>
-                    <th className="px-3 py-3 font-bold whitespace-nowrap">
-                      Disbursal Date
-                    </th>
-                    <th className="px-3 py-3 font-bold whitespace-nowrap">
-                      <button
-                        onClick={() => handleSort("due_date")}
-                        className="flex items-center gap-2 font-semibold hover:text-green-100 transition group"
-                        title="The due date of the next unpaid installment (not the loan maturity date)"
-                      >
-                        Next Unpaid Due
-                        <ArrowUpDown size={14} className="opacity-0 group-hover:opacity-100 transition" />
-                      </button>
-                    </th>
+                  
                     <th className="px-3 py-3 font-bold whitespace-nowrap">
                       Delay Status
                     </th>
-                    <th className="px-3 py-3 font-bold whitespace-nowrap">Principal Bal.</th>
-                    <th className="px-3 py-3 font-bold whitespace-nowrap">Interest Bal.</th>
+                   
+                   
                     <th className="px-3 py-3 font-bold whitespace-nowrap">
                       <button
                         onClick={() => handleSort("remaining_balance")}
@@ -998,26 +984,15 @@ const Cashier_Payments = () => {
                         <td className="px-3 py-3 text-xs text-gray-700 font-semibold whitespace-nowrap">
                           {formatCurrency(loan.loan_amount)}
                         </td>
-                        <td className="px-3 py-3 text-xs text-gray-700 whitespace-nowrap">
-                          {getDisplayedInterestRate(loan)}
-                        </td>
+                      
                         <td className="px-3 py-3 text-xs text-gray-700 whitespace-nowrap">
                           {loan.term_months} mo
                         </td>
                         <td className="px-3 py-3 text-xs text-gray-700 whitespace-nowrap">
                           {formatCurrency(loan.amortization)}
                         </td>
-                        <td className="px-3 py-3 text-xs text-gray-700 whitespace-nowrap">
-                          {loan.disbursal_date ? new Date(loan.disbursal_date).toLocaleDateString() : "—"}
-                        </td>
-                        <td className="px-3 py-3 text-xs text-gray-700 whitespace-nowrap">
-                          <div>{new Date(loan.due_date).toLocaleDateString()}</div>
-                          {(loan.missed_count || 0) > 0 && (
-                            <div className="text-[10px] text-red-600 font-medium mt-0.5">
-                              · {loan.missed_count} missed
-                            </div>
-                          )}
-                        </td>
+                       
+                      
                         <td className="px-3 py-3 whitespace-nowrap">
                           {(() => {
                             const key = resolveDelayStatus(loan);
@@ -1031,12 +1006,7 @@ const Cashier_Payments = () => {
                             );
                           })()}
                         </td>
-                        <td className="px-3 py-3 text-xs text-gray-700 whitespace-nowrap">
-                          {formatCurrency(loan.outstanding_principal)}
-                        </td>
-                        <td className="px-3 py-3 text-xs text-amber-700 font-medium whitespace-nowrap" title={`Interest paid so far: ${formatCurrency(loan.interest_paid || 0)}`}>
-                          {formatCurrency(loan.outstanding_interest)}
-                        </td>
+                       
                         <td className="px-3 py-3 text-xs font-semibold text-gray-900 whitespace-nowrap">
                           {formatCurrency(loan.remaining_balance)}
                         </td>
@@ -1066,9 +1036,7 @@ const Cashier_Payments = () => {
                       </tr>
                     ))
                   )}
-                  {/* Pad last page with blank rows so the table height stays constant
-                      across pagination clicks — prevents the layout from "collapsing"
-                      when the final page has fewer than PAGE_SIZE loans. */}
+                  
                   {paginatedLoans.length > 0 && paginatedLoans.length < PAGE_SIZE &&
                     Array.from({ length: PAGE_SIZE - paginatedLoans.length }).map((_, idx) => (
                       <tr key={`spacer-${idx}`} className="border-b border-gray-100">

@@ -402,7 +402,7 @@ const CreditRiskPage = ({ portal = "bookkeeper" }) => {
                         Risk Score <ArrowUpDown size={12} />
                       </div>
                     </th>
-                    <th className="text-left px-6 py-3 font-semibold">Top Drivers</th>
+                  
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
@@ -457,27 +457,7 @@ const CreditRiskPage = ({ portal = "bookkeeper" }) => {
                               {band.label}
                             </p>
                           </td>
-                          <td className="px-6 py-4">
-                            {topDrivers.length === 0 ? (
-                              <span className="text-xs text-gray-400 italic">no attribution</span>
-                            ) : (
-                              <ul className="flex flex-col gap-1">
-                                {topDrivers.map((d) => {
-                                  const arrow = d.direction === "up" ? TrendingUp : d.direction === "down" ? TrendingDown : null;
-                                  const color = d.direction === "up" ? "text-red-600" : d.direction === "down" ? "text-emerald-600" : "text-gray-500";
-                                  return (
-                                    <li key={d.feature} className="flex items-center gap-1.5 text-xs">
-                                      {arrow ? React.createElement(arrow, { size: 12, className: color }) : <span className="w-3" />}
-                                      <span className="font-medium text-gray-700">{featureLabel(d.feature)}</span>
-                                      <span className="text-gray-400">·</span>
-                                      <span className="text-gray-500">{Number(d.value).toLocaleString("en-PH", { maximumFractionDigits: 1 })}</span>
-                                      <span className="text-gray-300">(median {Number(d.cohort_median).toLocaleString("en-PH", { maximumFractionDigits: 1 })})</span>
-                                    </li>
-                                  );
-                                })}
-                              </ul>
-                            )}
-                          </td>
+                        
                         </tr>
                       );
                     })
