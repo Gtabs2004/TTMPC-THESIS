@@ -65,7 +65,15 @@ DECLARE
   next_number integer;
 BEGIN
   IF NEW.cbu_deposit_id IS NULL OR btrim(NEW.cbu_deposit_id) = '' THEN
-    SELECT coalesce(count(*), 0) + 1 INTO next_number FROM public.capital_build_up;
+    -- Use MAX of existing numeric suffixes, not COUNT(*), so deleted rows or
+    -- any gap in the sequence never causes a duplicate key collision.
+    SELECT coalesce(
+      max(
+        nullif(regexp_replace(cbu_deposit_id, '^CBUD_0*', ''), '')::integer
+      ), 0
+    ) + 1
+    INTO next_number
+    FROM public.capital_build_up;
     NEW.cbu_deposit_id := 'CBUD_' || lpad(next_number::text, 3, '0');
   END IF;
   RETURN NEW;

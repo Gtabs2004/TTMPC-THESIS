@@ -746,6 +746,72 @@ def upsert_personal_data_sheet(
 	return None
 
 
+def seed_initial_cbu_from_membership_payment(
+	supabase: Client,
+	auth_user_id: str,
+	application_id: str,
+	membership_date: str,
+) -> dict[str, Any]:
+	"""Seed a capital_build_up row from the paid INITIAL_PAID_UP_CAPITAL membership payment.
+
+	Called at BOD confirmation so the loan-form prefill immediately has a CBU
+	balance to read. Skips gracefully if a CBU row already exists for this member.
+	"""
+	try:
+		existing = (
+			supabase.table("capital_build_up")
+			.select("id")
+			.eq("member_id", auth_user_id)
+			.limit(1)
+			.execute()
+		)
+		if existing.data:
+			return {"seeded": False, "reason": "CBU row already exists."}
+	except Exception:
+		return {"seeded": False, "reason": "Could not check capital_build_up for existing rows."}
+
+	paid_up_amount = None
+	try:
+		payment_resp = (
+			supabase.table("membership_payments")
+			.select("amount, payment_status")
+			.eq("application_id", application_id)
+			.eq("payment_type", "INITIAL_PAID_UP_CAPITAL")
+			.eq("payment_status", "paid")
+			.limit(1)
+			.execute()
+		)
+		if payment_resp.data:
+			paid_up_amount = payment_resp.data[0].get("amount")
+	except Exception:
+		pass
+
+	if paid_up_amount is None:
+		return {"seeded": False, "reason": "No paid INITIAL_PAID_UP_CAPITAL payment found for this application."}
+
+	try:
+		amount = float(paid_up_amount)
+	except (TypeError, ValueError):
+		return {"seeded": False, "reason": "Invalid payment amount."}
+
+	insert_payload = {
+		"member_id": auth_user_id,
+		"transaction_date": membership_date,
+		"starting_share_capital": 0.0,
+		"capital_added": amount,
+		"ending_share_capital": amount,
+		"deposit_account": "Initial Paid-Up Capital",
+	}
+
+	try:
+		insert_resp = supabase.table("capital_build_up").insert(insert_payload).execute()
+		if insert_resp.data:
+			return {"seeded": True, "row": insert_resp.data[0]}
+		return {"seeded": False, "reason": "Insert returned no data."}
+	except Exception as err:
+		return {"seeded": False, "reason": str(err)}
+
+
 def update_confirmed_account_role_to_member(
 	supabase: Client,
 	auth_user_id: str,
@@ -822,10 +888,213 @@ def update_confirmed_account_role_to_member(
 	}
 
 
+def send_pmes_invitation_email(
+	to_email: str,
+	first_name: str,
+	last_name: str,
+	application_id: str,
+	training_schedule: str,
+	resend_api_key: str,
+	resend_from_email: str,
+	venue: str | None = None,
+	additional_notes: str | None = None,
+) -> dict[str, Any]:
+	"""Send a PMES training invitation email to an applicant."""
+	if not resend_api_key:
+		return {"sent": False, "reason": "RESEND_API_KEY is not configured."}
+	if not to_email:
+		return {"sent": False, "reason": "No recipient email found."}
+
+	safe_first_name = str(first_name or "Applicant").strip() or "Applicant"
+	safe_last_name = str(last_name or "").strip()
+	safe_full_name = f"{safe_last_name}, {safe_first_name}".strip(", ") if safe_last_name else safe_first_name
+	safe_app_id = str(application_id or "—").strip()
+	safe_schedule = str(training_schedule or "—").strip()
+	safe_venue = str(venue or "").strip()
+	safe_email = str(to_email).strip()
+
+	venue_row = ""
+	if safe_venue:
+		venue_row = f"""
+			<tr>
+			  <td style="padding:8px 0 0 0;font-size:13px;color:#64748B;font-weight:600;">Venue</td>
+			  <td style="padding:8px 0 0 0;font-size:13px;color:#111827;">{safe_venue}</td>
+			</tr>
+		"""
+
+	notes_block = ""
+	if additional_notes:
+		safe_notes = str(additional_notes).replace("\n", "<br/>")
+		notes_block = f"""
+		<tr>
+		  <td style="padding:0 32px 24px 32px;">
+			<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#FFF7ED;border-left:4px solid #B45309;border-radius:6px;">
+			  <tr>
+				<td style="padding:14px 18px;">
+				  <p style="margin:0 0 4px 0;font-size:11px;font-weight:700;color:#B45309;text-transform:uppercase;letter-spacing:0.08em;">Additional Notes</p>
+				  <p style="margin:0;font-size:13px;color:#78350F;line-height:1.55;">{safe_notes}</p>
+				</td>
+			  </tr>
+			</table>
+		  </td>
+		</tr>
+		"""
+
+	subject = f"Invitation: Pre-Membership Education Seminar (PMES) — Ref. {safe_app_id}"
+
+	html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="color-scheme" content="light" />
+<title>{subject}</title>
+</head>
+<body style="margin:0;padding:0;background-color:#F8FAFC;font-family:Arial,Helvetica,sans-serif;color:#111827;">
+  <div style="display:none;max-height:0;overflow:hidden;opacity:0;">
+    You are invited to attend the Pre-Membership Education Seminar (PMES) — a required step toward your TTMPC membership.
+  </div>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#F8FAFC;padding:24px 12px;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;width:100%;background-color:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(15,23,42,0.06);border:1px solid #E2E8F0;">
+
+          <!-- Header -->
+          <tr>
+            <td style="background-color:#389734;padding:28px 32px;text-align:center;">
+              <h1 style="margin:0;color:#ffffff;font-size:20px;font-weight:700;letter-spacing:0.5px;font-family:Arial,Helvetica,sans-serif;">
+                Tubungan Teachers' Multi-Purpose Cooperative
+              </h1>
+              <p style="margin:6px 0 0 0;color:#D3ECD2;font-size:12px;letter-spacing:2px;text-transform:uppercase;">
+                Membership Application — Training Invitation
+              </p>
+            </td>
+          </tr>
+
+          <!-- Greeting -->
+          <tr>
+            <td style="padding:32px 32px 16px 32px;">
+              <p style="margin:0 0 12px 0;font-size:16px;color:#111827;">Dear <strong>{safe_full_name}</strong>,</p>
+              <p style="margin:0 0 12px 0;font-size:14px;line-height:1.65;color:#334155;">
+                Congratulations! We are pleased to inform you that your membership application
+                (<strong>Ref. No. {safe_app_id}</strong>) has successfully passed the initial
+                evaluation of our Membership Committee.
+              </p>
+              <p style="margin:0 0 0 0;font-size:14px;line-height:1.65;color:#334155;">
+                As mandated by cooperative guidelines and the Cooperative Development Authority (CDA),
+                the next essential step to complete your regular membership is attending the
+                <strong>Pre-Membership Education Seminar (PMES)</strong>.
+              </p>
+            </td>
+          </tr>
+
+          <!-- Schedule card -->
+          <tr>
+            <td style="padding:0 32px 24px 32px;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#F0FDF4;border:1px solid #BBF7D0;border-radius:8px;">
+                <tr>
+                  <td style="padding:16px 20px 4px 20px;">
+                    <p style="margin:0;font-size:11px;color:#2E7A2A;text-transform:uppercase;letter-spacing:0.08em;font-weight:700;">
+                      Seminar Details
+                    </p>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:4px 20px 18px 20px;">
+                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                      <tr>
+                        <td style="padding:8px 0 0 0;font-size:13px;color:#64748B;font-weight:600;width:40%;">Schedule</td>
+                        <td style="padding:8px 0 0 0;font-size:14px;color:#111827;font-weight:700;">{safe_schedule}</td>
+                      </tr>
+                      {venue_row}
+                    </table>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          {notes_block}
+
+          <!-- What to bring -->
+          <tr>
+            <td style="padding:0 32px 8px 32px;">
+              <p style="margin:0 0 8px 0;font-size:14px;color:#111827;font-weight:700;">What to bring</p>
+              <ul style="margin:0 0 8px 20px;padding:0;color:#334155;font-size:14px;line-height:1.7;">
+                <li style="margin-bottom:4px;">Valid government-issued ID.</li>
+                <li style="margin-bottom:4px;">One (1) recent 2×2 ID photo.</li>
+                <li style="margin-bottom:4px;">Signed membership application form.</li>
+              </ul>
+              <p style="margin:8px 0 0 0;font-size:13px;color:#475569;line-height:1.6;">
+                Please arrive on time. Completion of the PMES is a mandatory requirement before your membership can be finalized by the Board of Directors.
+              </p>
+            </td>
+          </tr>
+
+          <!-- CTA -->
+          <tr>
+            <td align="center" style="padding:20px 32px 32px 32px;">
+              <a href="{FRONTEND_BASE_URL}/login"
+                 style="background-color:#389734;color:#ffffff;text-decoration:none;padding:12px 28px;border-radius:8px;font-weight:700;font-size:14px;display:inline-block;font-family:Arial,Helvetica,sans-serif;">
+                View Application Status
+              </a>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="background-color:#F8FAFC;border-top:1px solid #E2E8F0;padding:18px 24px;text-align:center;">
+              <p style="margin:0;font-size:12px;color:#64748B;">
+                This invitation was sent by TTMPC to <strong>{safe_email}</strong> because your membership application passed initial evaluation.
+              </p>
+              <p style="margin:4px 0 0 0;font-size:12px;color:#94A3B8;">
+                &copy; 2026 Tubungan Teachers' Multi-Purpose Cooperative. All rights reserved.
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>"""
+
+	payload = {
+		"from": resend_from_email,
+		"to": [to_email],
+		"subject": subject,
+		"html": html,
+	}
+	req = urlrequest.Request(
+		"https://api.resend.com/emails",
+		data=json.dumps(payload).encode("utf-8"),
+		headers={
+			"Authorization": f"Bearer {resend_api_key}",
+			"Content-Type": "application/json",
+			"Accept": "application/json",
+			"User-Agent": "TTMPC-BOD-Portal/1.0",
+		},
+		method="POST",
+	)
+	try:
+		with urlrequest.urlopen(req, timeout=12) as response:
+			body = response.read().decode("utf-8")
+			return {"sent": True, "data": json.loads(body) if body else {}}
+	except TimeoutError:
+		return {"sent": False, "reason": "Email service timeout."}
+	except HTTPError as err:
+		error_body = err.read().decode("utf-8") if err.fp else ""
+		return {"sent": False, "reason": error_body or f"HTTP {err.code}"}
+	except URLError as err:
+		return {"sent": False, "reason": f"Email service unreachable: {err.reason}"}
+
+
 def send_confirmation_email(
 	to_email: str,
 	first_name: str,
 	membership_id: str,
+	last_name: str,
 	default_password: str | None,
 	resend_api_key: str,
 	resend_from_email: str,
@@ -849,17 +1118,20 @@ def send_confirmation_email(
                 </tr>
 		"""
 
+	safe_last_name = str(last_name or "").strip()
+	safe_full_name = f"{safe_last_name}, {safe_first_name}".strip(", ") if safe_last_name else safe_first_name
+
 	training_section = ""
 	if training_schedule:
 		training_section = f"""
         <tr>
           <td style="padding:0 32px 24px 32px;">
-            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#F1F8EC;border-left:4px solid #66B538;border-radius:6px;">
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#F0FDF4;border-left:4px solid #389734;border-radius:6px;">
               <tr>
                 <td style="padding:16px 20px;">
-                  <p style="margin:0 0 4px 0;font-size:12px;color:#3F6B22;text-transform:uppercase;letter-spacing:0.08em;font-weight:700;">Upcoming Training Schedule</p>
-                  <p style="margin:0;font-size:15px;color:#0f172a;font-weight:600;">{training_schedule}</p>
-                  <p style="margin:6px 0 0 0;font-size:13px;color:#475569;">Please mark your calendar and arrive on time.</p>
+                  <p style="margin:0 0 4px 0;font-size:11px;color:#2E7A2A;text-transform:uppercase;letter-spacing:0.08em;font-weight:700;">Upcoming PMES Schedule</p>
+                  <p style="margin:0 0 6px 0;font-size:15px;color:#111827;font-weight:600;">{training_schedule}</p>
+                  <p style="margin:0;font-size:13px;color:#475569;">Please mark your calendar and arrive on time.</p>
                 </td>
               </tr>
             </table>
@@ -887,11 +1159,11 @@ def send_confirmation_email(
         <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;width:100%;background-color:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(15,23,42,0.06);">
 
           <tr>
-            <td style="background-color:#66B538;padding:28px 32px;text-align:center;">
+            <td style="background-color:#389734;padding:28px 32px;text-align:center;">
               <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:700;letter-spacing:0.5px;font-family:Arial,Helvetica,sans-serif;">
                 Tubungan Teachers' Multi-Purpose Cooperative
               </h1>
-              <p style="margin:6px 0 0 0;color:#EAF6DF;font-size:13px;letter-spacing:2px;text-transform:uppercase;">
+              <p style="margin:6px 0 0 0;color:#D3ECD2;font-size:13px;letter-spacing:2px;text-transform:uppercase;">
                 Membership Activated
               </p>
             </td>
@@ -904,7 +1176,7 @@ def send_confirmation_email(
                 Congratulations! You have successfully completed the required training and your application has been approved by the Board of Directors.
               </p>
               <p style="margin:0 0 20px 0;font-size:15px;line-height:1.6;color:#334155;">
-                You are now recognized as a <strong style="color:#3F6B22;">Bona Fide Member</strong> of TTMPC, with full access to member services including savings, loans, and cooperative programs.
+                You are now recognized as a <strong style="color:#2E7A2A;">Bona Fide Member</strong> of TTMPC, with full access to member services including savings, loans, and cooperative programs.
               </p>
             </td>
           </tr>
@@ -953,7 +1225,7 @@ def send_confirmation_email(
           <tr>
             <td align="center" style="padding:20px 32px 32px 32px;">
               <a href="{FRONTEND_BASE_URL}/memberlogin"
-                 style="background-color:#66B538;color:#ffffff;text-decoration:none;padding:12px 28px;border-radius:6px;font-weight:700;font-size:15px;display:inline-block;font-family:Arial,Helvetica,sans-serif;">
+                 style="background-color:#389734;color:#ffffff;text-decoration:none;padding:12px 28px;border-radius:8px;font-weight:700;font-size:15px;display:inline-block;font-family:Arial,Helvetica,sans-serif;">
                 Sign in to Member Portal
               </a>
             </td>
@@ -998,7 +1270,7 @@ def send_confirmation_email(
 	try:
 		with urlrequest.urlopen(req, timeout=12) as response:
 			body = response.read().decode("utf-8")
-			return {"sent": True, "data": json.loads(body) if body else {}}
+			confirmation_result = {"sent": True, "data": json.loads(body) if body else {}}
 	except TimeoutError:
 		return {"sent": False, "reason": "Email service timeout."}
 	except HTTPError as err:
@@ -1006,6 +1278,22 @@ def send_confirmation_email(
 		return {"sent": False, "reason": error_body or f"HTTP {err.code}"}
 	except URLError as err:
 		return {"sent": False, "reason": f"Email service unreachable: {err.reason}"}
+
+	# If a training schedule is provided, also send a separate PMES invitation
+	# email with the official format required by the cooperative.
+	pmes_result = None
+	if training_schedule:
+		pmes_result = send_pmes_invitation_email(
+			to_email=to_email,
+			first_name=safe_first_name,
+			last_name=safe_last_name,
+			application_id=membership_id,
+			training_schedule=training_schedule,
+			resend_api_key=resend_api_key,
+			resend_from_email=resend_from_email,
+		)
+
+	return {**confirmation_result, "pmes_invitation": pmes_result}
 
 
 def confirm_membership(
@@ -1102,6 +1390,13 @@ def confirm_membership(
 				f"Membership confirmation finished but no member row found for user {auth_user_id} in '{member_table}'."
 			)
 
+		cbu_seed_result = seed_initial_cbu_from_membership_payment(
+			supabase,
+			auth_user_id,
+			row_application_id,
+			membership_date,
+		)
+
 		personal_data_sheet = upsert_personal_data_sheet(
 			supabase,
 			application_data,
@@ -1114,6 +1409,7 @@ def confirm_membership(
 			email_result = send_confirmation_email(
 				to_email=application_data.get("email") or "",
 				first_name=application_data.get("first_name") or "Applicant",
+				last_name=application_data.get("last_name") or application_data.get("surname") or "",
 				membership_id=membership_id,
 				default_password=temp_password_for_email,
 				resend_api_key=resend_api_key,
@@ -1138,6 +1434,7 @@ def confirm_membership(
 			"account_role_update": role_update_result,
 			"member": persisted_member,
 			"personal_data_sheet": personal_data_sheet,
+			"cbu_seed": cbu_seed_result,
 			"email": email_result,
 		}
 	except MembershipConfirmationError:

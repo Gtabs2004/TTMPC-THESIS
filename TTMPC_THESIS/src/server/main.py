@@ -121,6 +121,7 @@ class StatusEmailRequest(BaseModel):
     member_name: str
     status: str
     remarks: str | None = None
+    application_id: str | None = None
 
 
 class LoanStatusEmailRequest(BaseModel):
@@ -8161,6 +8162,144 @@ async def send_status_email(payload: StatusEmailRequest):
     is_revision = "revision" in status_lower
     is_approved = "approved" in status_lower or "official" in status_lower or "member" == status_lower
     is_rejected = "reject" in status_lower or "denied" in status_lower
+    is_training = status_lower in {"training", "1st training", "first training"}
+
+    if is_training:
+        safe_app_id = str(payload.application_id or "—").strip()
+        safe_member_name = member_name
+
+        training_subject = f"Invitation: Pre-Membership Education Seminar (PMES)"
+
+        training_html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="color-scheme" content="light" />
+<title>{training_subject}</title>
+</head>
+<body style="margin:0;padding:0;background-color:#F8FAFC;font-family:Arial,Helvetica,sans-serif;color:#111827;">
+  <div style="display:none;max-height:0;overflow:hidden;opacity:0;">
+    You are invited to attend the Pre-Membership Education Seminar (PMES) — a required step toward your TTMPC membership.
+  </div>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#F8FAFC;padding:24px 12px;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0"
+               style="max-width:600px;width:100%;background-color:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(15,23,42,0.06);border:1px solid #E2E8F0;">
+
+          <tr>
+            <td style="background-color:#389734;padding:28px 32px;text-align:center;">
+              <h1 style="margin:0;color:#ffffff;font-size:20px;font-weight:700;letter-spacing:0.5px;font-family:Arial,Helvetica,sans-serif;">
+                Tubungan Teachers' Multi-Purpose Cooperative
+              </h1>
+              <p style="margin:6px 0 0 0;color:#D3ECD2;font-size:12px;letter-spacing:2px;text-transform:uppercase;">
+                Membership Application — Training Invitation
+              </p>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="padding:32px 32px 16px 32px;">
+              <p style="margin:0 0 12px 0;font-size:16px;color:#111827;">Dear <strong>{safe_member_name}</strong>,</p>
+              <p style="margin:0 0 12px 0;font-size:14px;line-height:1.65;color:#334155;">
+                Congratulations! We are pleased to inform you that your membership application
+                (<strong>Ref. No. {safe_app_id}</strong>) has successfully passed the initial
+                evaluation of our Membership Committee.
+              </p>
+              <p style="margin:0 0 0 0;font-size:14px;line-height:1.65;color:#334155;">
+                As mandated by cooperative guidelines and the Cooperative Development Authority (CDA),
+                the next essential step to complete your regular membership is attending the
+                <strong>Pre-Membership Education Seminar (PMES)</strong>.
+              </p>
+            </td>
+          </tr>
+
+          {"" if not payload.remarks else f'''
+          <tr>
+            <td style="padding:0 32px 24px 32px;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+                     style="background:#FFF7ED;border-left:4px solid #B45309;border-radius:6px;">
+                <tr>
+                  <td style="padding:14px 18px;">
+                    <p style="margin:0 0 4px 0;font-size:11px;font-weight:700;color:#B45309;text-transform:uppercase;letter-spacing:0.08em;">Schedule &amp; Details</p>
+                    <p style="margin:0;font-size:13px;color:#78350F;line-height:1.55;white-space:pre-wrap;">{payload.remarks}</p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          '''}
+
+          <tr>
+            <td style="padding:0 32px 8px 32px;">
+              <p style="margin:0 0 8px 0;font-size:14px;color:#111827;font-weight:700;">What to bring</p>
+              <ul style="margin:0 0 8px 20px;padding:0;color:#334155;font-size:14px;line-height:1.7;">
+                <li style="margin-bottom:4px;">Valid government-issued ID.</li>
+                <li style="margin-bottom:4px;">One (1) recent 2×2 ID photo.</li>
+                <li style="margin-bottom:4px;">Signed membership application form.</li>
+              </ul>
+              <p style="margin:8px 0 0 0;font-size:13px;color:#475569;line-height:1.6;">
+                Please arrive on time. Completion of the PMES is a mandatory requirement before your membership can be finalized by the Board of Directors.
+              </p>
+            </td>
+          </tr>
+
+          <tr>
+            <td align="center" style="padding:20px 32px 32px 32px;">
+              <a href="{FRONTEND_BASE_URL}/login"
+                 style="background-color:#389734;color:#ffffff;text-decoration:none;padding:12px 28px;border-radius:8px;font-weight:700;font-size:14px;display:inline-block;font-family:Arial,Helvetica,sans-serif;">
+                View Application Status
+              </a>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="background-color:#F8FAFC;border-top:1px solid #E2E8F0;padding:18px 24px;text-align:center;">
+              <p style="margin:0;font-size:12px;color:#64748B;">
+                This invitation was sent by TTMPC to <strong>{payload.to_email}</strong> because your membership application passed initial evaluation.
+              </p>
+              <p style="margin:4px 0 0 0;font-size:12px;color:#94A3B8;">
+                &copy; 2026 Tubungan Teachers' Multi-Purpose Cooperative. All rights reserved.
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>"""
+
+        resend_payload = {
+            "from": runtime_resend_from_email,
+            "to": [payload.to_email],
+            "subject": training_subject,
+            "html": training_html,
+        }
+        req = urlrequest.Request(
+            "https://api.resend.com/emails",
+            data=json.dumps(resend_payload).encode("utf-8"),
+            headers={
+                "Authorization": f"Bearer {runtime_resend_api_key}",
+                "Content-Type": "application/json",
+                "Accept": "application/json",
+                "User-Agent": "TTMPC-BOD-Portal/1.0",
+            },
+            method="POST",
+        )
+        try:
+            with urlrequest.urlopen(req, timeout=12) as resp:
+                body = resp.read().decode("utf-8")
+                return {"sent": True, "data": json.loads(body) if body else {}}
+        except TimeoutError:
+            raise HTTPException(status_code=504, detail="Email service timeout.")
+        except HTTPError as err:
+            error_body = err.read().decode("utf-8") if err.fp else ""
+            raise HTTPException(status_code=502, detail=error_body or f"HTTP {err.code}")
+        except URLError as err:
+            raise HTTPException(status_code=502, detail=f"Email service unreachable: {err.reason}")
 
     if is_revision:
         accent_color = "#D97706"
@@ -11972,3 +12111,171 @@ async def get_bookkeeper_reports():
     }
 
     return {"success": True, "data": {"legacy_master_uuid": legacy_uuid}}
+
+
+# ============================================================================
+# SECTION: Admin — CBU Initial Paid-Up Capital Backfill
+# One-time utility to seed capital_build_up rows for members whose initial
+# paid-up capital was recorded in membership_payments before the auto-seed
+# logic was added to confirm_membership.
+# ============================================================================
+
+@app.post("/api/admin/backfill-cbu-initial-capital")
+async def backfill_cbu_initial_capital(dry_run: bool = False):
+    """Seed capital_build_up rows for confirmed members missing a CBU entry.
+
+    For every member that has a paid INITIAL_PAID_UP_CAPITAL row in
+    membership_payments but no row at all in capital_build_up, inserts one
+    CBU row using the paid amount as both capital_added and ending_share_capital.
+
+    Query params:
+      - dry_run=true  → returns the candidate list without writing anything.
+      - dry_run=false → performs the inserts (default).
+    """
+    if not supabase:
+        raise HTTPException(status_code=503, detail="Supabase client is not initialized.")
+
+    # 1. Load all paid INITIAL_PAID_UP_CAPITAL payments.
+    try:
+        mp_resp = (
+            supabase.table("membership_payments")
+            .select("application_id, membership_number_id, amount, payment_date")
+            .eq("payment_type", "INITIAL_PAID_UP_CAPITAL")
+            .eq("payment_status", "paid")
+            .limit(2000)
+            .execute()
+        )
+        payment_rows = mp_resp.data or []
+    except Exception as err:
+        raise HTTPException(status_code=500, detail=f"Failed to load membership_payments: {err}")
+
+    if not payment_rows:
+        return {"dry_run": dry_run, "seeded": 0, "skipped": 0, "details": [], "message": "No paid INITIAL_PAID_UP_CAPITAL payments found."}
+
+    membership_ids = list({str(r["membership_number_id"]).strip() for r in payment_rows if r.get("membership_number_id")})
+    application_ids = list({str(r["application_id"]).strip() for r in payment_rows if r.get("application_id")})
+
+    # 2. Load member UUIDs keyed by membership_id.
+    member_by_membership: dict[str, str] = {}
+    if membership_ids:
+        try:
+            member_resp = (
+                supabase.table("member")
+                .select("id, membership_id")
+                .in_("membership_id", membership_ids)
+                .limit(2000)
+                .execute()
+            )
+            for row in (member_resp.data or []):
+                mid = str(row.get("membership_id") or "").strip()
+                uuid = str(row.get("id") or "").strip()
+                if mid and uuid:
+                    member_by_membership[mid] = uuid
+        except Exception:
+            pass
+
+    # 3. For any payment lacking membership_number_id, resolve via member_applications.
+    app_membership: dict[str, str] = {}
+    if application_ids:
+        try:
+            app_resp = (
+                supabase.table("member_applications")
+                .select("application_id, membership_id")
+                .in_("application_id", application_ids)
+                .limit(2000)
+                .execute()
+            )
+            for row in (app_resp.data or []):
+                app_id = str(row.get("application_id") or "").strip()
+                mem_id = str(row.get("membership_id") or "").strip()
+                if app_id and mem_id:
+                    app_membership[app_id] = mem_id
+
+            extra_mids = [m for m in app_membership.values() if m not in member_by_membership]
+            if extra_mids:
+                extra_resp = (
+                    supabase.table("member")
+                    .select("id, membership_id")
+                    .in_("membership_id", extra_mids)
+                    .limit(2000)
+                    .execute()
+                )
+                for row in (extra_resp.data or []):
+                    mid = str(row.get("membership_id") or "").strip()
+                    uuid = str(row.get("id") or "").strip()
+                    if mid and uuid:
+                        member_by_membership[mid] = uuid
+        except Exception:
+            pass
+
+    # 4. Load the set of member UUIDs that already have at least one CBU row.
+    existing_cbu_members: set[str] = set()
+    try:
+        cbu_resp = (
+            supabase.table("capital_build_up")
+            .select("member_id")
+            .limit(5000)
+            .execute()
+        )
+        for row in (cbu_resp.data or []):
+            uid = str(row.get("member_id") or "").strip()
+            if uid:
+                existing_cbu_members.add(uid)
+    except Exception as err:
+        raise HTTPException(status_code=500, detail=f"Failed to load capital_build_up: {err}")
+
+    # 5. Process candidates.
+    seeded = 0
+    skipped = 0
+    details = []
+
+    for payment in payment_rows:
+        mem_number = str(payment.get("membership_number_id") or "").strip()
+        app_id = str(payment.get("application_id") or "").strip()
+
+        member_uuid = member_by_membership.get(mem_number)
+        if not member_uuid and app_id:
+            resolved_mid = app_membership.get(app_id, "")
+            member_uuid = member_by_membership.get(resolved_mid)
+
+        if not member_uuid:
+            details.append({"application_id": app_id, "membership_number_id": mem_number, "status": "skipped", "reason": "No confirmed member row found."})
+            skipped += 1
+            continue
+
+        if member_uuid in existing_cbu_members:
+            details.append({"application_id": app_id, "membership_number_id": mem_number, "member_uuid": member_uuid, "status": "skipped", "reason": "CBU row already exists."})
+            skipped += 1
+            continue
+
+        amount = float(payment.get("amount") or 0)
+        tx_date = payment.get("payment_date") or datetime.utcnow().date().isoformat()
+
+        if dry_run:
+            details.append({"application_id": app_id, "membership_number_id": mem_number, "member_uuid": member_uuid, "amount": amount, "status": "would_seed"})
+            seeded += 1
+            continue
+
+        insert_payload = {
+            "member_id": member_uuid,
+            "transaction_date": tx_date,
+            "starting_share_capital": 0.0,
+            "capital_added": amount,
+            "ending_share_capital": amount,
+            "deposit_account": "Initial Paid-Up Capital",
+        }
+        try:
+            supabase.table("capital_build_up").insert(insert_payload).execute()
+            existing_cbu_members.add(member_uuid)
+            details.append({"application_id": app_id, "membership_number_id": mem_number, "member_uuid": member_uuid, "amount": amount, "status": "seeded"})
+            seeded += 1
+        except Exception as err:
+            details.append({"application_id": app_id, "membership_number_id": mem_number, "member_uuid": member_uuid, "amount": amount, "status": "error", "reason": str(err)})
+            skipped += 1
+
+    return {
+        "dry_run": dry_run,
+        "seeded": seeded,
+        "skipped": skipped,
+        "details": details,
+    }
