@@ -68,6 +68,16 @@ const Loan_Policies = () => {
      
     ];
 
+  const routeMap = {
+    "Dashboard": "/BOD-dashboard",
+    "Member Approvals": "/member-approvals",
+    "Loan Approvals": "/bod-loan-approvals",
+    "Loan Ledger": "/bod-manage-loans",
+    "Manage Member": "/bod-manage-member",
+    "Audit Log": "/bod-audit-log",
+    "Loan Policies": "/bod-loan-policies",
+  };
+
   const handleSignOut = async (e) => {
     e.preventDefault();
     try { await signOut(); navigate("/"); }
@@ -231,77 +241,68 @@ const Loan_Policies = () => {
 
   return (
     <div className="flex min-h-screen bg-gray-50">
-      <aside className="bg-white w-64 p-4 flex flex-col border-r border-gray-200 shrink-0">
-        <div className="flex flex-row items-start gap-2 mb-6">
-          <img src="/img/ttmpc logo.png" alt="Logo" className="h-12 w-auto" />
-          <div className="flex flex-col">
-            <h1 className="text-xl font-bold text-primary">TTMPC</h1>
-            <PortalSidebarIdentity className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold" fallbackPortal="BOD Portal" fallbackRole="BOD" />
-          </div>
-        </div>
-        <hr className="w-full border-gray-200 mb-6" />
-
-        <nav className="flex flex-col gap-2 text-sm flex-grow">
-          {menuItems.map((group) => {
-            const sectionRole = group.section.toLowerCase();
-            const isAccessible = !portalRole || sectionRole === portalRole;
-            return (
-            <div key={group.section} className="mb-4 flex flex-col gap-2">
-              <p className="text-xs font-bold text-gray-400 px-2 uppercase tracking-wider">{group.section}</p>
-              {group.items.map((item) => {
-                const Icon = item.icon;
-                const routeMap = {
-                  "Dashboard": "/BOD-dashboard",
-                  "Member Approvals": "/member-approvals",
-                  "Loan Approvals": "/bod-loan-approvals",
-                  "Loan Ledger": "/bod-manage-loans",
-                  "Manage Member": "/bod-manage-member",
-                  "Audit Log": "/bod-audit-log",
-                  "Loan Policies": "/bod-loan-policies",
-                 
-                };
-                const to = routeMap[item.name] || `/${item.name.toLowerCase().replace(/\s+/g, '-')}`;
-                if (!isAccessible) {
-                  return (
-                    <div
-                      key={item.name}
-                      title={`Only ${group.section} accounts can access this`}
-                      className="flex items-center gap-3 p-2 rounded-md text-gray-400 cursor-not-allowed select-none opacity-60"
-                    >
-                      <Icon size={20} /><span>{item.name}</span>
-                    </div>
-                  );
-                }
+     <aside className="fixed inset-y-0 left-0 z-30 bg-white w-64 shrink-0 p-4 flex flex-col border-r border-gray-200">
+            <div className="flex flex-row items-start gap-2 mb-6">
+              <img src="/img/ttmpc logo.png" alt="Logo" className="h-12 w-auto" />
+              <div className="flex flex-col">
+                <h1 className="text-xl font-bold text-primary">TTMPC</h1>
+                <PortalSidebarIdentity className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold" fallbackPortal="BOD Portal" fallbackRole="BOD" />
+              </div>
+            </div>
+    
+            <hr className="w-full border-gray-200 mb-6" />
+    
+            <nav className="flex flex-col gap-2 text-sm flex-grow">
+              {menuItems.map((section) => {
+                const sectionRole = section.section.toLowerCase();
+                const isAccessible = !portalRole || sectionRole === portalRole;
                 return (
-                  <NavLink
-                    key={item.name}
-                    to={to} // FIX: Changed from item.to to to
-                    className={({ isActive }) =>
-                      `flex items-center gap-3 p-2 rounded-md transition-colors ${
-                        isActive
-                          ? "bg-green-50 text-green-700 font-semibold"
-                          : "text-gray-700 hover:bg-green-50 hover:text-green-700"
-                      }`
+                <div key={section.section} className="mb-4 flex flex-col gap-2">
+                  <p className="text-xs font-bold text-gray-400 px-2 uppercase tracking-wider">{section.section}</p>
+                  {section.items.map((item) => {
+                    const Icon = item.icon;
+                    if (!isAccessible) {
+                      return (
+                        <div
+                          key={item.name}
+                          title={`Only ${section.section} accounts can access this`}
+                          className="flex items-center gap-3 p-2 rounded-md text-gray-400 cursor-not-allowed select-none opacity-60"
+                        >
+                          <Icon size={20} /><span>{item.name}</span>
+                        </div>
+                      );
                     }
-                  >
-                    <Icon size={20} /><span>{item.name}</span>
-                  </NavLink>
+                    return (
+                      <NavLink
+                        key={item.name}
+                        to={routeMap[item.name]}
+                        className={({ isActive }) =>
+                          `flex items-center gap-3 p-2 rounded-md transition-colors ${
+                            isActive
+                              ? "bg-[#EAF5EC] text-[#2C7A3F] font-semibold"
+                              : "text-gray-700 hover:bg-[#EAF5EC] hover:text-[#2C7A3F]"
+                          }`
+                        }
+                      >
+                        <Icon size={20} />
+                        <span>{item.name}</span>
+                      </NavLink>
+                    );
+                  })}
+                </div>
                 );
               })}
-            </div>
-            );
-          })}
-        </nav>
+            </nav>
+    
+            <button
+              onClick={handleSignOut}
+              className="mt-auto w-full rounded p-2 text-xs bg-[#2C7A3F] hover:bg-green-800 text-white font-bold transition-colors"
+            >
+              Sign out
+            </button>
+          </aside>
 
-        <button
-          onClick={handleSignOut}
-          className="mt-auto w-full rounded p-2 text-xs bg-green-600 hover:bg-green-700 text-white font-bold transition-colors"
-        >
-          Sign out
-        </button>
-      </aside>
-
-      <div className="flex-1 min-w-0 flex flex-col">
+      <div className="flex-1 min-w-0 flex flex-col ml-64">
         <header className="bg-white h-16 shadow-sm flex items-center justify-end px-8 border-b border-gray-100 shrink-0 gap-4">
           <NotificationBell />
           <p className="font-medium text-gray-700">BOD</p>

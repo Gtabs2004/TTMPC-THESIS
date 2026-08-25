@@ -24,9 +24,11 @@ import {
   X,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   AlertCircle,
   TrendingUp,
   TrendingDown,
+  PiggyBank
 } from "lucide-react";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
@@ -74,7 +76,15 @@ const BOOKKEEPER_MENU = [
  
   { name: "Credit Risk", icon: Brain, route: "/bookkeeper-credit-risk" },
   { name: "Payments", icon: Wallet, route: "/payments" },
-  { name: "Savings Withdrawals", icon: CreditCard, route: "/bookkeeper-savings-transactions" },
+   {
+         name: "Savings Accounts",
+         icon: PiggyBank,
+         isDropdown: true,
+         subItems: [
+           { name: "All Accounts", path: "/bookkeeper-savings-accounts" },
+           { name: "Savings Withdrawals", path: "/bookkeeper-savings-transactions" },
+         ],
+       },
   { name: "Accounting", icon: Calculator, route: "/accounting" },
   { name: "MIGS Scoring", icon: Activity, route: "/migs" },
   { name: "Reports", icon: BarChart3, route: "/reports" },
@@ -115,6 +125,7 @@ const CreditRiskPage = ({ portal = "bookkeeper" }) => {
   const [sortKey, setSortKey] = useState("risk_desc");
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedLoan, setSelectedLoan] = useState(null);
+  const [isSavingsOpen, setIsSavingsOpen] = useState(false);
 
   const handleSignOut = async (e) => {
     e.preventDefault();
@@ -231,6 +242,42 @@ const CreditRiskPage = ({ portal = "bookkeeper" }) => {
         <nav className="flex flex-col gap-2 text-sm flex-grow">
           {menuItems.map((item) => {
             const Icon = item.icon;
+            if (item.isDropdown) {
+              return (
+                <div key={item.name}>
+                  <button
+                    type="button"
+                    onClick={() => setIsSavingsOpen((isOpen) => !isOpen)}
+                    className="flex items-center justify-between p-2 rounded-md text-gray-700 hover:bg-green-50 hover:text-green-700 transition-colors w-full"
+                  >
+                    <span className="flex items-center gap-3">
+                      <Icon size={20} />
+                      <span>{item.name}</span>
+                    </span>
+                    {isSavingsOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                  </button>
+                  {isSavingsOpen ? (
+                    <div className="flex flex-col mt-1 space-y-1">
+                      {item.subItems.map((subItem) => (
+                        <NavLink
+                          key={subItem.name}
+                          to={subItem.path}
+                          className={({ isActive }) =>
+                            `block pl-11 pr-4 py-2 rounded-md transition-colors text-[13px] ${
+                              isActive
+                                ? "text-green-700 font-semibold"
+                                : "text-gray-500 hover:text-green-700 hover:bg-green-50"
+                            }`
+                          }
+                        >
+                          {subItem.name}
+                        </NavLink>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+              );
+            }
             return (
               <NavLink
                 key={item.name}

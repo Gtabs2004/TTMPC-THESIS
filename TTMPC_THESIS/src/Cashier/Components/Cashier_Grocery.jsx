@@ -245,23 +245,7 @@ const Cashier_Grocery = () => {
         <main className="p-8 max-w-7xl mx-auto w-full">
           
           {/* Page Title & Actions */}
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
-            <h1 className="font-bold text-3xl text-[#1a3b47]">Grocery Transactions</h1>
-            <div className="flex items-center gap-3">
-              <span className="inline-flex items-center gap-2 bg-green-50 text-green-700 px-4 py-2 rounded-lg text-sm font-medium">
-                <Wifi className="w-4 h-4" />
-                POS Connected - 1:27 PM
-              </span>
-              <button className="inline-flex items-center gap-2 bg-white border border-gray-200 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors shadow-sm">
-                <RefreshCw className="w-4 h-4" />
-                Sync POS
-              </button>
-              <Link to="/" className="inline-flex items-center gap-2 bg-white border border-gray-200 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors shadow-sm">
-                <BookOpen className="w-4 h-4" />
-                View Ledger
-              </Link>
-            </div>
-          </div>
+         
 
           {/* Summary Cards */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">

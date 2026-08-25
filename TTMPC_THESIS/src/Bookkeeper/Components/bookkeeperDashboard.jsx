@@ -414,7 +414,7 @@ const Dashboard = () => {
     <div className="flex min-h-screen bg-gray-50">
       {/* SIDEBAR */}
       <aside className="bg-white w-64 p-4 flex flex-col border-r border-gray-200">
-        <div className="flex flex-row items-start gap-2 mb-6">
+        <div className="flex flex-row item s-start gap-2 mb-6">
           <img src="/img/ttmpc logo.png" alt="Logo" className="h-12 w-auto" />
           <div className="flex flex-col">
             <h1 className="text-xl font-bold text-primary">TTMPC</h1>
