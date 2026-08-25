@@ -433,7 +433,7 @@ const Member_Approvals = () => {
 
   return (
     <div className="flex min-h-screen bg-[#F8FAFC]">
-      <aside className="bg-white w-64 p-4 flex flex-col border-r border-gray-200">
+      <aside className="bg-white w-64 shrink-0 p-4 flex flex-col border-r border-gray-200">
         <div className="flex flex-row items-start gap-2 mb-6">
           <img src={logo} alt="Logo" className="h-12 w-auto" />
           <div className="flex flex-col">
@@ -477,7 +477,7 @@ const Member_Approvals = () => {
                   );
                 }
                 return (
-                  <NavLink key={item.name} to={to} className={({ isActive }) => `flex items-center gap-3 p-2 rounded-md transition-colors ${isActive ? 'bg-green-50 text-green-700 font-semibold' : 'text-gray-700 hover:bg-green-50 hover:text-green-700'}`}>
+                  <NavLink key={item.name} to={to} className={({ isActive }) => `flex items-center gap-3 p-2 rounded-md transition-colors ${isActive ? 'bg-[#EAF5EC] text-[#2C7A3F] font-semibold' : 'text-gray-700 hover:bg-[#EAF5EC] hover:text-[#2C7A3F]'}`}>
                     <Icon size={20} />
                     <span>{item.name}</span>
                   </NavLink>

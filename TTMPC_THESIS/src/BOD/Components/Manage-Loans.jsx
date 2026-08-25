@@ -180,14 +180,7 @@ const BOD_Manage_Loans = () => {
           { name: "Loan Policies", icon: FileText },
         ],
       },
-      {
-        section: "SECRETARY",
-        items: [
-          { name: "Training Attendance", icon: CalendarCheck },
-          { name: "General Assembly", icon: CalendarDays },
-          { name: "Membership Records", icon: Archive },
-        ],
-      },
+    
     ];
 
   const routeMap = {
@@ -212,9 +205,9 @@ const BOD_Manage_Loans = () => {
 
   return (
     <div className="flex min-h-screen bg-gray-50">
-      <aside className="fixed inset-y-0 left-0 bg-white w-64 p-4 flex flex-col border-r border-gray-200 z-30">
+      <aside className="fixed inset-y-0 left-0 z-30 bg-white w-64 shrink-0 p-4 flex flex-col border-r border-gray-200">
         <div className="flex flex-row items-start gap-2 mb-6">
-          <img src="src/assets/img/ttmpc logo.png" alt="Logo" className="h-12 w-auto" />
+          <img src="/img/ttmpc logo.png" alt="Logo" className="h-12 w-auto" />
           <div className="flex flex-col">
             <h1 className="text-xl font-bold text-primary">TTMPC</h1>
             <PortalSidebarIdentity className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold" fallbackPortal="BOD Portal" fallbackRole="BOD" />
@@ -250,8 +243,8 @@ const BOD_Manage_Loans = () => {
                     className={({ isActive }) =>
                       `flex items-center gap-3 p-2 rounded-md transition-colors ${
                         isActive
-                          ? "bg-green-50 text-green-700 font-semibold"
-                          : "text-gray-700 hover:bg-green-50 hover:text-green-700"
+                          ? "bg-[#EAF5EC] text-[#2C7A3F] font-semibold"
+                          : "text-gray-700 hover:bg-[#EAF5EC] hover:text-[#2C7A3F]"
                       }`
                     }
                   >
@@ -267,7 +260,7 @@ const BOD_Manage_Loans = () => {
 
         <button
           onClick={handleSignOut}
-          className="mt-auto w-full rounded p-2 text-xs bg-green-600 hover:bg-green-700 text-white font-bold transition-colors"
+          className="mt-auto w-full rounded p-2 text-xs bg-[#2C7A3F] hover:bg-green-800 text-white font-bold transition-colors"
         >
           Sign out
         </button>
