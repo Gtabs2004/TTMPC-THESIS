@@ -129,6 +129,21 @@ const Treasurer_Approval = () => {
     }
   };
 
+  const queueStats = (() => {
+    const now = Date.now();
+    const ageDays = loans
+      .map((l) => {
+        const t = new Date(l.application_date || l.submittedAt).getTime();
+        return Number.isFinite(t) ? (now - t) / (1000 * 60 * 60 * 24) : null;
+      })
+      .filter((d) => d !== null && d >= 0);
+    return {
+      pendingCount: loans.length,
+      avgDaysWaiting: ageDays.length ? ageDays.reduce((a, b) => a + b, 0) / ageDays.length : 0,
+      oldestDays: ageDays.length ? Math.max(...ageDays) : 0,
+    };
+  })();
+
   // loan_types.name stores the full product name ("Bonus Loan",
   // "Consolidated Loan", "Emergency Loan" — see loan_form_policies.sql), not
   // the bare word this used to switch on exactly, so the match never hit and
@@ -210,9 +225,12 @@ const Treasurer_Approval = () => {
               <div className="w-12 h-12 rounded-lg bg-[#EAF5EC] flex items-center justify-center flex-shrink-0">
                 <UserPlus className="text-[#2C7A3F] w-6 h-6" />
               </div>
-              <div className="flex flex-col">
-                <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">New This Month</h3>
-                <p className="text-2xl font-extrabold text-slate-800 mt-0.5">45</p>
+
+
+
+               <div className="flex flex-col">
+                <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Pending Review</h3>
+                <p className="text-2xl font-extrabold text-slate-800 mt-0.5">{queueStats.pendingCount}</p>
               </div>
             </div>
 
@@ -221,8 +239,10 @@ const Treasurer_Approval = () => {
                 <ClipboardList className="text-[#D97706] w-6 h-6" />
               </div>
               <div className="flex flex-col">
-                <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Avg Process Time</h3>
-                <p className="text-2xl font-extrabold text-slate-800 mt-0.5">2.4 Days</p>
+                <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Avg Days Waiting</h3>
+                <p className="text-2xl font-extrabold text-slate-800 mt-0.5">
+                  {queueStats.avgDaysWaiting.toFixed(1)} {queueStats.avgDaysWaiting === 1 ? "Day" : "Days"}
+                </p>
               </div>
             </div>
 
@@ -231,8 +251,10 @@ const Treasurer_Approval = () => {
                 <BadgeCheck className="text-[#2C7A3F] w-6 h-6" />
               </div>
               <div className="flex flex-col">
-                <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Approval Rate</h3>
-                <p className="text-2xl font-extrabold text-slate-800 mt-0.5">94.2%</p>
+                <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Oldest In Queue</h3>
+                <p className="text-2xl font-extrabold text-slate-800 mt-0.5">
+                  {queueStats.oldestDays.toFixed(0)} {queueStats.oldestDays === 1 ? "Day" : "Days"}
+                </p>
               </div>
             </div>
           </div>
