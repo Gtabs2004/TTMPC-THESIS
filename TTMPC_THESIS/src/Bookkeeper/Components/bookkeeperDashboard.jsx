@@ -142,56 +142,52 @@ const Dashboard = () => {
   useEffect(() => {
     let cancelled = false;
 
+    async function fetchShareCapital() {
+      try {
+        const capRes = await fetch(`${API_BASE_URL}/api/secretary/membership-records`);
+        const capJson = await capRes.json();
+        const records = Array.isArray(capJson)
+          ? capJson
+          : Array.isArray(capJson?.data)
+            ? capJson.data
+            : Array.isArray(capJson?.records)
+              ? capJson.records
+              : [];
+        return records.reduce((sum, r) => sum + Number(r?.paid_up_capital || 0), 0);
+      } catch {
+        console.warn("Share capital API failed, falling back to CBU query");
+        const { data: cbuRows } = await supabase
+          .from("capital_build_up")
+          .select("member_id, ending_share_capital, transaction_date")
+          .order("transaction_date", { ascending: false })
+          .limit(2000);
+        const latestByMember = new Map();
+        (cbuRows || []).forEach((row) => {
+          if (!row?.member_id) return;
+          if (!latestByMember.has(row.member_id)) {
+            latestByMember.set(row.member_id, Number(row.ending_share_capital || 0));
+          }
+        });
+        return Array.from(latestByMember.values()).reduce((s, v) => s + v, 0);
+      }
+    }
+
     async function fetchData() {
       try {
-        const loansRes = await fetch(`${API_BASE_URL}/api/bookkeeper/manage-loans`);
+        // Fire both requests in parallel — share capital no longer waits for loans
+        const [loansRes, totalCapital] = await Promise.all([
+          fetch(`${API_BASE_URL}/api/bookkeeper/manage-loans`),
+          fetchShareCapital(),
+        ]);
+
         const loansJson = await loansRes.json();
         if (!loansRes.ok || !loansJson?.success) {
           throw new Error(loansJson?.detail || "Failed to load loans data.");
         }
         const rows = Array.isArray(loansJson?.data?.rows) ? loansJson.data.rows : [];
-        // Include all loans (delinquent + on-track) so the Total Loans KPI is a
-        // true portfolio count and Yearly Collections / Repayment Speed span the
-        // full history including migrated legacy payments.
-        const filtered = rows;
-
-        // Total share capital: backend aggregates from member.share_capital_amount
-        // (falling back to latest capital_build_up.ending_share_capital, then PDS
-        // initial_paid_up_capital). Going through the API bypasses RLS that
-        // would otherwise hide other members' rows from the browser client.
-        let totalCapital = 0;
-        try {
-          const capRes = await fetch(`${API_BASE_URL}/api/secretary/membership-records`);
-          const capJson = await capRes.json();
-          const records = Array.isArray(capJson)
-            ? capJson
-            : Array.isArray(capJson?.data)
-              ? capJson.data
-              : Array.isArray(capJson?.records)
-                ? capJson.records
-                : [];
-          totalCapital = records.reduce(
-            (sum, r) => sum + Number(r?.paid_up_capital || 0),
-            0
-          );
-        } catch (capErr) {
-          console.warn("Share capital aggregation failed, falling back to client-side CBU query:", capErr);
-          const { data: cbuRows } = await supabase
-            .from("capital_build_up")
-            .select("member_id, ending_share_capital, transaction_date")
-            .order("transaction_date", { ascending: false });
-          const latestByMember = new Map();
-          (cbuRows || []).forEach((row) => {
-            if (!row?.member_id) return;
-            if (!latestByMember.has(row.member_id)) {
-              latestByMember.set(row.member_id, Number(row.ending_share_capital || 0));
-            }
-          });
-          totalCapital = Array.from(latestByMember.values()).reduce((s, v) => s + v, 0);
-        }
 
         if (cancelled) return;
-        setLoans(filtered);
+        setLoans(rows);
         setShareCapitalTotal(totalCapital);
         setLoadError("");
       } catch (err) {
