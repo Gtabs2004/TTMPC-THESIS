@@ -234,11 +234,11 @@ const Member_ApplyLoans = () => {
              const routeMap = {
               "Dashboard": "/member-dashboard",
               "Apply for Loan": "/member-apply-loans",
-              " Loans": "/member-loans",
+              "Member Loans": "/member-loans",
               "Statement of Account": "/member-statement-of-account",
               "Loan Lifecycle": "/member-lifecycle",
            
-              " Profile": "/members-profile", 
+              "Member Profile": "/members-profile", 
             };
        
             return menuItems.map((item) => {
