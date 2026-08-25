@@ -452,7 +452,7 @@ const Cashier_Disbursement = () => {
               </div>
               <div className="flex items-center gap-3">
                 <div className="flex items-center gap-2 px-3 py-1 bg-blue-50 border border-blue-200 rounded-lg text-xs text-blue-600 font-medium">
-                  {readyLoans.length} ready for disbursement
+                  {readyLoans.length} ready for release
                 </div>
                 <button
                   type="button"
@@ -469,7 +469,7 @@ const Cashier_Disbursement = () => {
             {loading && (
               <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700 flex items-center gap-2">
                 <Clock size={16} />
-                Loading loans ready for disbursement...
+                Loading loans ready for release...
               </div>
             )}
 
@@ -597,7 +597,7 @@ const Cashier_Disbursement = () => {
                           <Banknote size={40} className="text-gray-300" />
                           <p className="text-sm text-gray-500">
                             {readyLoans.length === 0
-                              ? "No loans are currently ready for disbursement"
+                              ? "No loans are currently ready for release"
                               : "No loans match your search criteria"}
                           </p>
                           <p className="text-xs text-gray-400">

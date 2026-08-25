@@ -223,6 +223,8 @@ const LoanApprovalDetails = () => {
   const formatStatus = (value) => {
     const raw = String(value || '').trim().toLowerCase();
     if (!raw) return 'Pending Review';
+    if (raw === 'to be disbursed') return 'Approved for Disbursement';
+    if (raw === 'ready for disbursement') return 'Ready for Release';
     return raw
       .split(/[_\s-]+/)
       .filter(Boolean)
