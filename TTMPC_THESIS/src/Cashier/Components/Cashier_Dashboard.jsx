@@ -591,7 +591,7 @@ const Cashier_Dashboard = () => {
                 {/* Preset chips */}
                 <div className="flex flex-wrap gap-2">
                   {[
-                    {key: "yesterday", label: "Yesterday",   iso: yesterdayIso },
+                      {key: "yesterday", label: "Yesterday",   iso: yesterdayIso },
                     { key: "today",     label: "Today",       iso: todayIso },
                     { key: "week",      label: "7 days ago",  iso: weekAgoIso },
                     { key: "month",     label: "30 days ago", iso: monthAgoIso },
