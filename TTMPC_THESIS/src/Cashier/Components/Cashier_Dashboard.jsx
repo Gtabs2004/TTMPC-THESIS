@@ -546,7 +546,7 @@ const Cashier_Dashboard = () => {
                 <h3 className="text-gray-500 text-sm font-medium">Cash Released</h3>
                 <p className="font-bold text-3xl text-gray-800 mt-1">{loading ? "—" : PHP(kpis.cashReleased)}</p>
                 <p className="text-xs font-medium text-gray-400 mt-2">
-                  <span className="text-orange-500">{kpis.pendingPayouts}</span> loans ready for disbursement
+                  <span className="text-orange-500">{kpis.pendingPayouts}</span> loans ready for release
                 </p>
               </div>
             </div>

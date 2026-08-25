@@ -44,6 +44,13 @@ const formatDate = (value) =>
     ? new Date(value).toLocaleDateString("en-PH", { year: "numeric", month: "short", day: "numeric" })
     : "—";
 
+const formatLoanStatus = (value) => {
+  const raw = String(value || "").trim().toLowerCase();
+  if (raw === "to be disbursed") return "Approved for Disbursement";
+  if (raw === "ready for disbursement") return "Ready for Release";
+  return value || "No schedule";
+};
+
 const getLoanTypeStyle = (code) => {
   const key = String(code || "").toUpperCase();
   if (key === "CONSOLIDATED") return "bg-blue-100 text-blue-700";
@@ -638,7 +645,7 @@ const ManageLoans = () => {
                         <td className="px-3 py-2.5 text-xs font-medium whitespace-nowrap align-middle">
                           {parent.due_date
                             ? <span className="text-gray-700">{formatDate(parent.due_date)}</span>
-                            : <span className="text-[11px] text-gray-400 italic capitalize">{parent.source_loan_status || "No schedule"}</span>
+                            : <span className="text-[11px] text-gray-400 italic">{formatLoanStatus(parent.source_loan_status)}</span>
                           }
                         </td>
                         <td className="px-3 py-2.5 text-center align-middle">

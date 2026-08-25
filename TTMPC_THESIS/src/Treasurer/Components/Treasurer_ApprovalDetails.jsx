@@ -140,6 +140,8 @@ const Treasurer_ApprovalDetails = () => {
   const formatStatus = (value) => {
     const raw = String(value || '').trim().toLowerCase();
     if (!raw) return 'Pending Review';
+    if (raw === 'to be disbursed') return 'Approved for Disbursement';
+    if (raw === 'ready for disbursement') return 'Ready for Release';
     return raw
       .split(/[_\s-]+/)
       .filter(Boolean)
@@ -563,7 +565,7 @@ const Treasurer_ApprovalDetails = () => {
                 loan_amount: loanAmount,
                 term: term,
                 monthly_amortization: monthlyAmortization,
-                status: 'Ready for Disbursement'
+                status: 'Ready for Release'
               }
             ]);
           if (error) throw error;
@@ -1282,7 +1284,7 @@ const Treasurer_ApprovalDetails = () => {
                 </div>
                 <div className="border-t border-green-300 pt-3 flex justify-between text-sm">
                   <span className="text-gray-700 font-semibold">Status:</span>
-                  <span className="font-bold text-green-700">Ready for Disbursement</span>
+                  <span className="font-bold text-green-700">Ready for Release</span>
                 </div>
                 {loanDetails.disbursement_confirmation && (
                   <div className="border-t border-green-300 pt-3 flex justify-between text-sm">
