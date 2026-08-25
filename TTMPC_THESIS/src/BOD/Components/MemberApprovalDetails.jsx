@@ -203,6 +203,7 @@ const MemberApprovalDetails = () => {
           member_name: member.name,
           status: nextStatus,
           remarks: remarks.trim() || null,
+          application_id: memberRow?.application_id || null,
         }),
       });
     } catch (_networkError) {

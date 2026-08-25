@@ -565,7 +565,67 @@ export async function fetchLoanPrefill() {
     );
   }
 
-  // Force share capital from CBU when available, otherwise provide UI fallback label.
+  // Fallback: if no CBU row exists, try membership_payments for INITIAL_PAID_UP_CAPITAL.
+  // This covers members confirmed before the CBU-seeding fix was deployed.
+  if ((latestShareCapital === null || latestShareCapital === undefined || latestShareCapital === '') && user?.email) {
+    try {
+      const { data: mpRows, error: mpError } = await supabase
+        .from('membership_payments')
+        .select('amount, payment_status')
+        .eq('payment_type', 'INITIAL_PAID_UP_CAPITAL')
+        .eq('payment_status', 'paid')
+        .limit(50);
+
+      if (!mpError && Array.isArray(mpRows) && mpRows.length) {
+        // membership_payments links to member_applications by application_id.
+        // We need to cross-reference via the application rows we already fetched.
+        // Try matching via membership_number_id against memberRow.membership_id.
+        let matchedAmount = null;
+        if (memberRow?.membership_id) {
+          const { data: mpByMembership } = await supabase
+            .from('membership_payments')
+            .select('amount, payment_status')
+            .eq('membership_number_id', memberRow.membership_id)
+            .eq('payment_type', 'INITIAL_PAID_UP_CAPITAL')
+            .eq('payment_status', 'paid')
+            .limit(1)
+            .maybeSingle();
+          if (mpByMembership?.amount != null) {
+            matchedAmount = Number(mpByMembership.amount);
+          }
+        }
+        if (matchedAmount == null) {
+          // Fallback: match via member_applications email → application_id.
+          const { data: appForEmail } = await supabase
+            .from('member_applications')
+            .select('application_id')
+            .ilike('email', user.email)
+            .limit(1)
+            .maybeSingle();
+          if (appForEmail?.application_id) {
+            const { data: mpByApp } = await supabase
+              .from('membership_payments')
+              .select('amount, payment_status')
+              .eq('application_id', appForEmail.application_id)
+              .eq('payment_type', 'INITIAL_PAID_UP_CAPITAL')
+              .eq('payment_status', 'paid')
+              .limit(1)
+              .maybeSingle();
+            if (mpByApp?.amount != null) {
+              matchedAmount = Number(mpByApp.amount);
+            }
+          }
+        }
+        if (matchedAmount != null && !Number.isNaN(matchedAmount)) {
+          latestShareCapital = matchedAmount;
+        }
+      }
+    } catch (_err) {
+      // Keep prefill resilient.
+    }
+  }
+
+  // Force share capital from CBU (or membership payment fallback) when available.
   if (latestShareCapital !== null && latestShareCapital !== undefined && latestShareCapital !== '') {
     profile = mergeProfile(profile, { share_capital: latestShareCapital });
   } else {

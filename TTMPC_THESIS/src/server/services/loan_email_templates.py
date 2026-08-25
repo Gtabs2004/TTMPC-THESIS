@@ -68,12 +68,12 @@ def _resolve_status_label(stage: Stage, action: Action) -> str:
 
 def _color_for(action: Action) -> str:
     if action in ("recommend", "approve", "proceed", "released", "disburse"):
-        return "#059669"   # green
+        return "#2E7A2A"   # Cooperative Green Deep
     if action in ("reject",):
-        return "#dc2626"   # red
+        return "#DC2626"   # Danger
     if action in ("revise",):
-        return "#d97706"   # amber
-    return "#2563eb"
+        return "#B45309"   # Warning
+    return "#2563EB"       # Info
 
 
 def member_email_subject(stage: Stage, action: Action, loan_id: str) -> str:
@@ -106,8 +106,8 @@ def render_member_email(ctx: LoanEmailContext) -> tuple[str, str]:
     html = f"""
     <div style="background:#f8fafc;padding:32px 12px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
         <div style="max-width:600px;margin:0 auto;background:#ffffff;border-radius:14px;overflow:hidden;border:1px solid #e2e8f0;box-shadow:0 2px 12px rgba(0,0,0,0.03);">
-            <div style="background:#0f172a;padding:24px 32px;">
-                <p style="color:#60a5fa;font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;margin:0 0 6px 0;">TTMPC Loan Portal</p>
+            <div style="background:#389734;padding:24px 32px;">
+                <p style="color:#D3ECD2;font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;margin:0 0 6px 0;">TTMPC Loan Portal</p>
                 <h1 style="color:#ffffff;margin:0;font-size:20px;font-weight:700;">{safe_stage}</h1>
             </div>
             <div style="padding:32px;">
@@ -157,7 +157,7 @@ def render_next_approver_email(ctx: LoanEmailContext, approver_role: str) -> tup
     html = f"""
     <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;padding:24px;background:#f8fafc;">
         <div style="max-width:560px;margin:0 auto;background:#ffffff;border:1px solid #e2e8f0;border-radius:12px;padding:28px;">
-            <p style="margin:0 0 4px 0;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#1d6021;font-weight:700;">TTMPC Loan Workflow</p>
+            <p style="margin:0 0 4px 0;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#2E7A2A;font-weight:700;">TTMPC Loan Workflow</p>
             <h2 style="margin:0 0 16px 0;font-size:18px;color:#0f172a;">A loan application is ready for {safe_role} review</h2>
             <p style="font-size:14px;color:#475569;margin:0 0 18px 0;line-height:1.55;">
                 Status transitioned to <strong>{safe_status}</strong>. Please review the application in the portal.
