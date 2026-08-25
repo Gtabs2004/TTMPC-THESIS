@@ -384,7 +384,7 @@ const Dashboard = () => {
     return sorted.slice(0, 5).map((p, idx) => {
       const isLate = Number(p.penalties || 0) > 0;
       return {
-        id: p.payment_id || `${p.loan?.loan_id || "loan"}-${idx}`,
+        id: `${p.payment_id || p.loan?.loan_id || "payment"}-${idx}`,
         title: isLate ? "Late payment received" : "Payment received",
         name: p.loan?.member_name || "Member",
         amount: formatPeso(p.amount_paid),
