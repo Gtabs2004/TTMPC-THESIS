@@ -239,7 +239,7 @@ const Vault = () => {
               <button
                 type="button"
                 onClick={() => setShowModal(true)}
-                className="inline-flex items-center gap-2 px-5 py-2 rounded-lg bg-green-600 text-white text-sm font-semibold hover:bg-green-700"
+                className="inline-flex items-center gap-2 px-4 py-1 rounded-lg bg-[#1D6021] text-white text-xs font-semibold hover:bg-green-700"
               >
                 <Plus size={16} /> Update Balance
               </button>
@@ -256,7 +256,7 @@ const Vault = () => {
               #1D6021 forecast card) so it stays consistent with the rest of
               the TTMPC identity. */}
           <div
-            className="rounded-2xl text-white p-8 shadow-lg"
+            className="rounded-2xl text-white p-8 shadow-lg bg-[#1D6021]"
           >
             <p className="text-sm uppercase tracking-wider font-semibold text-white/90">Current Vault Balance</p>
             <p className="mt-2 text-5xl font-extrabold tabular-nums text-white">{PHP(balance.current_balance)}</p>
