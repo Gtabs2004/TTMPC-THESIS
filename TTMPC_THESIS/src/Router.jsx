@@ -13,7 +13,6 @@ import Dashboard from "./Bookkeeper/Components/bookkeeperDashboard";
 import Records from "./Bookkeeper/Components/Member-Records";
 import BookkeeperAccounting from "./Bookkeeper/Components/Accounting";
 import AuditTrail from "./Bookkeeper/Components/Audit_Log";
-import LegacyMemberLink from "./Bookkeeper/Components/Legacy-Member-Link";
 import LoanApplication from "./Bookkeeper/Components/Loan-Application";
 import MIGS from "./Bookkeeper/Components/MIGS";
 import BookkeeperPayments from "./Bookkeeper/Components/Payments";
@@ -27,7 +26,6 @@ import Verification from "./Index_Pages/verification";
 import Member_Services from "./Index_Pages/member_services";
 import Non_Member from "./Index_Pages/non_member";
 import Manage_Loans from "./Bookkeeper/Components/Manage-Loans";
-import Delinquency from "./Bookkeeper/Components/Delinquency";
 import BookkeeperCreditRisk from "./Bookkeeper/Components/CreditRisk";
 import ManagerCreditRisk from "./Manager/Components/CreditRisk";
 import Member_Details from "./Bookkeeper/Components/member_details";
@@ -132,7 +130,6 @@ export const router = createBrowserRouter([
     {path: "/records", element: bookkeeperGuarded(<Records/>)},
     {path: "/accounting", element: bookkeeperGuarded(<BookkeeperAccounting/>)},
     {path: "/audit-trail", element: bookkeeperGuarded(<AuditTrail/>)},
-    {path: "/legacy-member-validation", element: bookkeeperGuarded(<LegacyMemberLink/>)},
     {path: "/loan-application", element: bookkeeperGuarded(<LoanApplication/>)},
     {path: "/bookkeeper-loan-approval", element: bookkeeperGuarded(<BookkeeperLoanApproval/>)},
     {path: "/bookkeeper-loan-ledger/:loanId", element: bookkeeperGuarded(<LoanLedger/>)},
@@ -147,7 +144,6 @@ export const router = createBrowserRouter([
     {path: "/Member_Services", element: <Member_Services/>},
     {path: "/Non_Member", element: <Non_Member/>},
     {path: "/manage-loans", element: bookkeeperGuarded(<Manage_Loans/>)},
-    {path: "/delinquency", element: bookkeeperGuarded(<Delinquency/>)},
     {path: "/bookkeeper-credit-risk", element: bookkeeperGuarded(<BookkeeperCreditRisk/>)},
     {path: "/manager-credit-risk", element: managerGuarded(<ManagerCreditRisk/>)},
     {path: "/manage-member", element: bookkeeperGuarded(<Manage_Member/>)},

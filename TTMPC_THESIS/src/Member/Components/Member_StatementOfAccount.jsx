@@ -997,20 +997,20 @@ const Member_StatementOfAccount = () => {
 
           {activeTab === "savings" && (
             <>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 mb-8">
-                <div className="bg-white dark:bg-gray-900 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col">
-                  <div className="w-10 h-10 rounded-lg bg-[#EAF1EB] dark:bg-green-900/30 flex items-center justify-center mb-6">
-                    <Wallet className="w-5 h-5 text-member-green dark:text-green-400" />
+              <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:gap-6 mb-8">
+                <div className="bg-white dark:bg-gray-900 p-3.5 sm:p-5 lg:p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col">
+                  <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-[#EAF1EB] dark:bg-green-900/30 flex items-center justify-center mb-2.5 sm:mb-6">
+                    <Wallet className="w-4 h-4 sm:w-5 sm:h-5 text-member-green dark:text-green-400" />
                   </div>
                   <p className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-1">Current Balance</p>
-                  <h3 className="text-2xl sm:text-3xl font-black text-gray-900 dark:text-white">{formatCurrency(regularSavings)}</h3>
+                  <h3 className="text-base sm:text-2xl lg:text-3xl font-black text-gray-900 dark:text-white break-words">{formatCurrency(regularSavings)}</h3>
                 </div>
-                <div className="bg-white dark:bg-gray-900 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col">
-                  <div className="w-10 h-10 rounded-lg bg-member-green flex items-center justify-center mb-6">
-                    <Banknote className="w-5 h-5 text-white" />
+                <div className="bg-white dark:bg-gray-900 p-3.5 sm:p-5 lg:p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col">
+                  <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-member-green flex items-center justify-center mb-2.5 sm:mb-6">
+                    <Banknote className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
                   </div>
                   <p className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-1">Entries</p>
-                  <h3 className="text-2xl sm:text-3xl font-black text-gray-900 dark:text-white">{savingsRows.length}</h3>
+                  <h3 className="text-base sm:text-2xl lg:text-3xl font-black text-gray-900 dark:text-white">{savingsRows.length}</h3>
                 </div>
               </div>
 
@@ -1126,22 +1126,22 @@ const Member_StatementOfAccount = () => {
 
           {activeTab === "cbu" && (
             <>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 mb-8">
-                <div className="bg-white dark:bg-gray-900 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col">
-                  <div className="w-10 h-10 rounded-lg bg-[#EAF1EB] dark:bg-green-900/30 flex items-center justify-center mb-6">
-                    <PiggyBank className="w-5 h-5 text-member-green dark:text-green-400" />
+              <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:gap-6 mb-8">
+                <div className="bg-white dark:bg-gray-900 p-3.5 sm:p-5 lg:p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col">
+                  <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-[#EAF1EB] dark:bg-green-900/30 flex items-center justify-center mb-2.5 sm:mb-6">
+                    <PiggyBank className="w-4 h-4 sm:w-5 sm:h-5 text-member-green dark:text-green-400" />
                   </div>
                   <p className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-1">Ending Share Capital</p>
-                  <h3 className="text-2xl sm:text-3xl font-black text-gray-900 dark:text-white">
+                  <h3 className="text-base sm:text-2xl lg:text-3xl font-black text-gray-900 dark:text-white break-words">
                     {formatCurrency(cbuRows[cbuRows.length - 1]?.ending_share_capital || 0)}
                   </h3>
                 </div>
-                <div className="bg-white dark:bg-gray-900 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col">
-                  <div className="w-10 h-10 rounded-lg bg-member-green flex items-center justify-center mb-6">
-                    <Banknote className="w-5 h-5 text-white" />
+                <div className="bg-white dark:bg-gray-900 p-3.5 sm:p-5 lg:p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col">
+                  <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-member-green flex items-center justify-center mb-2.5 sm:mb-6">
+                    <Banknote className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
                   </div>
                   <p className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-1">Total Capital Added</p>
-                  <h3 className="text-2xl sm:text-3xl font-black text-gray-900 dark:text-white">{formatCurrency(cbuTotals.added)}</h3>
+                  <h3 className="text-base sm:text-2xl lg:text-3xl font-black text-gray-900 dark:text-white break-words">{formatCurrency(cbuTotals.added)}</h3>
                 </div>
               </div>
 

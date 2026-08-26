@@ -464,44 +464,45 @@ const Member_Loans = () => {
             </button>
           </div>
           
-          {/* Top Summary Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6 mb-8">
-            
+          {/* Top Summary Cards — 2-up on phones, 3-up from md, matching the
+              compact tile grid used on the dashboard. */}
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4 lg:gap-6 mb-8">
+
             {/* Balance Card */}
-            <div className="bg-white dark:bg-gray-900 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col relative overflow-hidden">
-              <div className="w-8 h-8 rounded-lg bg-gray-50 dark:bg-gray-800 flex items-center justify-center mb-4 border border-gray-200 dark:border-gray-700">
+            <div className="bg-white dark:bg-gray-900 p-3.5 sm:p-5 lg:p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col relative overflow-hidden">
+              <div className="w-8 h-8 rounded-lg bg-gray-50 dark:bg-gray-800 flex items-center justify-center mb-2.5 sm:mb-4 border border-gray-200 dark:border-gray-700">
                 <Banknote className="w-4 h-4 text-gray-600 dark:text-gray-400" />
               </div>
-              <p className="text-xs font-bold text-gray-500 dark:text-gray-400 mb-1">Total Outstanding Balance</p>
-              <h3 className="text-2xl sm:text-3xl font-black text-gray-900 dark:text-white mb-2">{formatCurrency(totalOutstanding)}</h3>
+              <p className="text-[11px] sm:text-xs font-bold text-gray-500 dark:text-gray-400 mb-1">Total Outstanding Balance</p>
+              <h3 className="text-base sm:text-2xl lg:text-3xl font-black text-gray-900 dark:text-white mb-1.5 sm:mb-2 break-words">{formatCurrency(totalOutstanding)}</h3>
               <p className="text-[9px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider mt-auto flex items-center">
-                <CalendarClock className="w-3 h-3 mr-1" /> Last Updated: {latestLoan?.nextDue || 'N/A'}
+                <CalendarClock className="w-3 h-3 mr-1 shrink-0" /> Last Updated: {latestLoan?.nextDue || 'N/A'}
               </p>
             </div>
 
             {/* Commitment Card */}
-            <div className="bg-white dark:bg-gray-900 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col relative overflow-hidden">
-               <div className="absolute top-6 right-6 bg-[#EAF1EB] text-member-green dark:bg-green-900/30 dark:text-green-400 px-2 py-1 rounded text-[9px] font-extrabold tracking-wider uppercase">
+            <div className="bg-white dark:bg-gray-900 p-3.5 sm:p-5 lg:p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col relative overflow-hidden">
+               <div className="absolute top-3 right-3 sm:top-6 sm:right-6 bg-[#EAF1EB] text-member-green dark:bg-green-900/30 dark:text-green-400 px-1.5 py-0.5 sm:px-2 sm:py-1 rounded text-[8px] sm:text-[9px] font-extrabold tracking-wider uppercase text-right">
                 Auto-Debit Active
               </div>
-              <div className="w-8 h-8 rounded-lg bg-gray-50 dark:bg-gray-800 flex items-center justify-center mb-4 border border-gray-200 dark:border-gray-700">
+              <div className="w-8 h-8 rounded-lg bg-gray-50 dark:bg-gray-800 flex items-center justify-center mb-2.5 sm:mb-4 border border-gray-200 dark:border-gray-700">
                 <CalendarClock className="w-4 h-4 text-member-green dark:text-green-400" />
               </div>
-              <p className="text-xs font-bold text-gray-500 dark:text-gray-400 mb-1">Monthly Commitment</p>
-              <h3 className="text-2xl sm:text-3xl font-black text-gray-900 dark:text-white mb-2">{formatCurrency(totalMonthly)}</h3>
+              <p className="text-[11px] sm:text-xs font-bold text-gray-500 dark:text-gray-400 mb-1">Monthly Commitment</p>
+              <h3 className="text-base sm:text-2xl lg:text-3xl font-black text-gray-900 dark:text-white mb-1.5 sm:mb-2 break-words">{formatCurrency(totalMonthly)}</h3>
               <p className="text-[10px] font-bold text-gray-600 dark:text-gray-400 mt-auto">
                 Next Deduction: {latestLoan?.nextDue || 'N/A'}
               </p>
             </div>
 
             {/* Active Loans Card */}
-            <div className="bg-white dark:bg-gray-900 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col relative overflow-hidden">
-              <div className="w-8 h-8 rounded-lg bg-gray-50 dark:bg-gray-800 flex items-center justify-center mb-4 border border-gray-200 dark:border-gray-700">
+            <div className="col-span-2 md:col-span-1 bg-white dark:bg-gray-900 p-3.5 sm:p-5 lg:p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col relative overflow-hidden">
+              <div className="w-8 h-8 rounded-lg bg-gray-50 dark:bg-gray-800 flex items-center justify-center mb-2.5 sm:mb-4 border border-gray-200 dark:border-gray-700">
                 <FileText className="w-4 h-4 text-gray-600 dark:text-gray-400" />
               </div>
-              <p className="text-xs font-bold text-gray-500 dark:text-gray-400 mb-1">Active Loans</p>
-              <h3 className="text-2xl sm:text-3xl font-black text-gray-900 dark:text-white mb-2">{loans.length}</h3>
-              
+              <p className="text-[11px] sm:text-xs font-bold text-gray-500 dark:text-gray-400 mb-1">Active Loans</p>
+              <h3 className="text-base sm:text-2xl lg:text-3xl font-black text-gray-900 dark:text-white mb-1.5 sm:mb-2">{loans.length}</h3>
+
               <div className="flex items-center gap-2 mt-auto">
                 <div className="flex -space-x-1.5">
                   {loanTypeBadges.map((type, idx) => (

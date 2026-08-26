@@ -1,4 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import StaffSidebar from "../components/StaffSidebar";
+import { secretaryNav } from "../components/StaffSidebar/configs/secretary";
 import { NavLink, useNavigate } from "react-router-dom";
 import {
   AlertCircle,
@@ -24,23 +26,18 @@ import {
 
 import { UserAuth } from "../contex/AuthContext";
 import { useNotification } from "../contex/NotificationContext";
-import {
-  PortalSidebarIdentity,
-  PortalTopbarIdentity,
-} from "../components/PortalIdentity";
+import { PortalTopbarIdentity } from "../components/PortalIdentity";
 import ConfirmDialog from "../components/ConfirmDialog";
 import logo from "../assets/img/ttmpc logo.png";
 import NotificationBell from "../BOD/Components/NotificationBell";
-import { usePortalRole } from "../utils/usePortalRole";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 const PAGE_SIZE = 10;
 const SCORING_YEAR = 2026;
 
 const Secretary_General_Assembly = () => {
-  const { session, signOut } = UserAuth();
+  const { session } = UserAuth();
   const navigate = useNavigate();
-  const portalRole = usePortalRole();
   const { addNotification } = useNotification();
 
   const [rows, setRows] = useState([]);
@@ -58,24 +55,7 @@ const Secretary_General_Assembly = () => {
   const [confirmationMode, setConfirmationMode] = useState(null); // 'bulk' or null
   const [bulkStatus, setBulkStatus] = useState("Present"); // status to apply on bulk action
 
-  const menuItems = [
-      
-      {
-        section: "SECRETARY",
-        items: [
-          { name: "Training Attendance", icon: CalendarCheck },
-          { name: "General Assembly", icon: CalendarDays },
-          { name: "Membership Records", icon: Archive },
-        ],
-      },
-    ];
 
-   const routeMap = {
-    
-    "Training Attendance": "/Secretary_Attendance",
-    "General Assembly": "/Secretary_General_Assembly",
-    "Membership Records": "/Secretary_Records",
-  };
 
   const fetchRoster = useCallback(async () => {
     setLoading(true);
@@ -293,64 +273,13 @@ const Secretary_General_Assembly = () => {
     }
   };
 
-  const handleSignOut = async (event) => {
-    event.preventDefault();
-    try {
-      await signOut();
-      navigate("/");
-    } catch (err) {
-      console.error(err);
-    }
-  };
 
   const dirtyCount = Object.keys(edits).length;
 
   return (
     <div className="flex min-h-screen bg-gray-50">
          {/* SIDEBAR */}
-         <aside className="bg-white w-64 p-4 flex flex-col border-r border-gray-200">
-           <div className="flex flex-row items-start gap-2 mb-6">
-             <img src="/img/ttmpc logo.png" alt="Logo" className="h-12 w-auto" />
-             <div className="flex flex-col">
-               <h1 className="text-xl font-bold text-primary">TTMPC</h1>
-               <PortalSidebarIdentity className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold" fallbackPortal="Secretary Portal" fallbackRole="Secretary" />
-             </div>
-           </div>
-           <hr className="w-full border-gray-200 mb-6" />
-           
-           <nav className="flex flex-col gap-2 text-sm flex-grow">
-             {menuItems.map((sectionGroup) => {
-               const sectionRole = sectionGroup.section.toLowerCase();
-               const isAccessible = !portalRole || sectionRole === portalRole;
-               return (
-               <div key={sectionGroup.section} className="mb-4 flex flex-col gap-2">
-                 <p className="text-xs font-bold text-gray-400 px-2 uppercase tracking-wider">{sectionGroup.section}</p>
-                 {sectionGroup.items.map((item) => {
-                   const Icon = item.icon;
-                   const to = routeMap[item.name];
-                   if (!isAccessible) {
-                     return (
-                       <div
-                         key={item.name}
-                         title={`Only ${sectionGroup.section} accounts can access this`}
-                         className="flex items-center gap-3 p-2 rounded-md text-gray-400 cursor-not-allowed select-none opacity-60"
-                       >
-                         <Icon size={20} /><span>{item.name}</span>
-                       </div>
-                     );
-                   }
-                   return (
-                     <NavLink key={item.name} to={to} className={({ isActive }) => `flex items-center gap-3 p-2 rounded-md transition-colors ${isActive ? 'bg-green-50 text-green-700 font-semibold' : 'text-gray-700 hover:bg-green-50 hover:text-green-700'}`}>
-                       <Icon size={20} /><span>{item.name}</span>
-                     </NavLink>
-                   );
-                 })}
-               </div>
-               );
-             })}
-           </nav>
-           <button onClick={handleSignOut} className="mt-auto w-full rounded p-2 text-xs bg-green-600 hover:bg-green-700 text-white font-bold transition-colors">Sign out</button>
-         </aside>
+         <StaffSidebar portal="Secretary" items={secretaryNav} />
    
          {/* MAIN CONTENT AREA */}
          <div className="flex-1 min-w-0 flex flex-col h-screen overflow-hidden">

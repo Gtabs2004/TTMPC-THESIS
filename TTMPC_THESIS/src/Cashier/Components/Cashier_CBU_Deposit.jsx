@@ -1,8 +1,10 @@
 ﻿import React, { useEffect, useState } from "react";
 import { useNavigate, NavLink, useParams } from "react-router-dom";
+import StaffSidebar from "../../components/StaffSidebar";
+import { cashierNav } from "../../components/StaffSidebar/configs/cashier";
 import { UserAuth } from "../../contex/AuthContext";
 import { useConfirm } from "../../contex/ConfirmContext";
-import { PortalSidebarIdentity, PortalTopbarIdentity } from "../../components/PortalIdentity";
+import { PortalTopbarIdentity } from "../../components/PortalIdentity";
 import {
   LayoutDashboard,
   Search,
@@ -23,7 +25,6 @@ import {
   History,
 } from "lucide-react";
 
-import logo from "../../assets/img/ttmpc logo.png";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 const SHARE_VALUE = 1000;
@@ -36,11 +37,9 @@ const formatCurrency = (value) =>
   })}`;
 
 const Cashier_CBU_Deposit = () => {
-  const { signOut } = UserAuth();
-  const confirm = useConfirm();
+    const confirm = useConfirm();
   const navigate = useNavigate();
   const { memberId } = useParams();
-  const [isDepositsOpen, setIsDepositsOpen] = useState(true);
   const [selectedMember, setSelectedMember] = useState(null);
   const [loadingMember, setLoadingMember] = useState(false);
   const [loadError, setLoadError] = useState("");
@@ -51,34 +50,7 @@ const Cashier_CBU_Deposit = () => {
   const [cbuDepositId, setCbuDepositId] = useState("CBUD_001");
   const [statusMessage, setStatusMessage] = useState("Fill in all required fields before submitting.");
 
-  const menuItems = [
-    { name: "Dashboard", icon: LayoutDashboard, path: "/Cashier_Dashboard" },
-    { name: "Payments", icon: ArrowUpRight, path: "/Cashier_Payments" },
-    { name: "Disbursement", icon: Send, path: "/Cashier_Disbursement" },
-    { name: "Membership Payments", icon: UserPlus, path: "/Cashier_MembershipPayments" },
-    {
-      name: "Deposits",
-      icon: PiggyBank,
-      isDropdown: true,
-      subItems: [
-        { name: "Savings", path: "/Cashier_Savings" },
-        { name: "Capital Build-Up", path: "/Cashier_CBU" },
-      ],
-    },
-    { name: "Withdrawals", icon: ArrowDownLeft, path: "/Cashier_Withdrawals" },
-    { name: "Grocery", icon: ShoppingCart, path: "/Cashier_Grocery" },
-    { name: "Audit Log", icon: History, path: "/cashier-audit-log" },
-  ];
 
-  const handleSignOut = async (e) => {
-    e.preventDefault();
-    try {
-      await signOut();
-      navigate("/");
-    } catch (err) {
-      console.error("Failed to sign out:", err);
-    }
-  };
 
   const currentBalance = selectedMember
     ? selectedMember.is_new_member
@@ -183,90 +155,9 @@ const Cashier_CBU_Deposit = () => {
 
   return (
     <div className="flex min-h-screen bg-[#F8FAFC]">
-      <aside className="fixed left-0 top-0 h-screen bg-white w-64 p-4 flex flex-col border-r border-gray-200 overflow-y-auto z-50">
-        <div className="flex flex-row items-start gap-2 mb-6">
-          <img src={logo} alt="Logo" className="h-12 w-auto" />
-          <div className="flex flex-col">
-            <h1 className="text-xl font-bold text-primary">TTMPC</h1>
-            <PortalSidebarIdentity
-              className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold"
-              fallbackPortal="Cashier Portal"
-              fallbackRole="Cashier"
-            />
-          </div>
-        </div>
+      <StaffSidebar portal="Cashier" items={cashierNav} />
 
-        <hr className="w-full border-gray-200 mb-6" />
-
-        <nav className="flex flex-col gap-2 text-sm grow">
-          {menuItems.map((item) => {
-            const Icon = item.icon;
-
-            if (item.isDropdown) {
-              return (
-                <div key={item.name} className="flex flex-col">
-                  <button
-                    onClick={() => setIsDepositsOpen(!isDepositsOpen)}
-                    className="flex items-center justify-between p-2 rounded-md text-gray-700 hover:bg-green-50 hover:text-green-700 transition-colors w-full"
-                  >
-                    <div className="flex items-center gap-3">
-                      <Icon size={20} />
-                      <span className="font-medium">{item.name}</span>
-                    </div>
-                    {isDepositsOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-                  </button>
-
-                  {isDepositsOpen && (
-                    <div className="flex flex-col mt-1 space-y-1">
-                      {item.subItems.map((subItem) => (
-                        <NavLink
-                          key={subItem.name}
-                          to={subItem.path}
-                          className={({ isActive }) =>
-                            `block pl-11 pr-4 py-2 rounded-md transition-colors ${
-                              isActive
-                                ? "text-green-700 font-semibold"
-                                : "text-gray-500 hover:text-green-700 hover:bg-green-50"
-                            }`
-                          }
-                        >
-                          {subItem.name}
-                        </NavLink>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              );
-            }
-
-            return (
-              <NavLink
-                key={item.name}
-                to={item.path}
-                className={({ isActive }) =>
-                  `flex items-center gap-3 p-2 rounded-md transition-colors ${
-                    isActive
-                      ? "bg-green-50 text-green-700 font-semibold"
-                      : "text-gray-700 hover:bg-green-50 hover:text-green-700"
-                  }`
-                }
-              >
-                <Icon size={20} />
-                <span className="font-medium">{item.name}</span>
-              </NavLink>
-            );
-          })}
-        </nav>
-
-        <button
-          onClick={handleSignOut}
-          className="mt-auto w-full rounded p-2 text-xs bg-green-600 hover:bg-green-700 text-white font-bold transition-colors"
-        >
-          Sign out
-        </button>
-      </aside>
-
-      <div className="flex-1 ml-64 flex flex-col min-w-0">
+      <div className="flex-1 flex flex-col min-w-0">
         <header className="bg-white h-16 shadow-sm flex items-center justify-end px-8 shrink-0">
           <div className="relative">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400" />

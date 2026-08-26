@@ -439,33 +439,34 @@ const Member_Savings = () => {
         {/* Scrollable Main */}
         <main className="p-4 sm:p-6 lg:p-8 overflow-y-auto pb-28 lg:pb-0">
           
-          {/* Top Summary Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6 mb-8">
+          {/* Top Summary Cards — 2-up on phones, 3-up from md, matching the
+              compact tile grid used on the dashboard. */}
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4 lg:gap-6 mb-8">
             {/* Regular Savings Card */}
-            <div className="bg-white dark:bg-gray-900 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col">
-              <div className="w-10 h-10 rounded-lg bg-[#EAF1EB] dark:bg-green-900/30 flex items-center justify-center mb-6">
-                <Wallet className="w-5 h-5 text-member-green dark:text-green-400" />
+            <div className="bg-white dark:bg-gray-900 p-3.5 sm:p-5 lg:p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col">
+              <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-[#EAF1EB] dark:bg-green-900/30 flex items-center justify-center mb-2.5 sm:mb-6">
+                <Wallet className="w-4 h-4 sm:w-5 sm:h-5 text-member-green dark:text-green-400" />
               </div>
               <p className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-1">Regular Savings</p>
-              <h3 className="text-2xl sm:text-3xl font-black text-gray-900 dark:text-white">{formatCurrency(regularSavings)}</h3>
+              <h3 className="text-base sm:text-2xl lg:text-3xl font-black text-gray-900 dark:text-white break-words">{formatCurrency(regularSavings)}</h3>
             </div>
 
             {/* Time Deposit Card */}
-            <div className="bg-white dark:bg-gray-900 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col">
-              <div className="w-10 h-10 rounded-lg bg-[#EAF1EB] dark:bg-green-900/30 flex items-center justify-center mb-6">
-                <CalendarDays className="w-5 h-5 text-member-green dark:text-green-400" />
+            <div className="bg-white dark:bg-gray-900 p-3.5 sm:p-5 lg:p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col">
+              <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-[#EAF1EB] dark:bg-green-900/30 flex items-center justify-center mb-2.5 sm:mb-6">
+                <CalendarDays className="w-4 h-4 sm:w-5 sm:h-5 text-member-green dark:text-green-400" />
               </div>
               <p className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-1">Time Deposit</p>
-              <h3 className="text-2xl sm:text-3xl font-black text-gray-900 dark:text-white">{formatCurrency(timeDeposit)}</h3>
+              <h3 className="text-base sm:text-2xl lg:text-3xl font-black text-gray-900 dark:text-white break-words">{formatCurrency(timeDeposit)}</h3>
             </div>
 
             {/* Total Savings Card */}
-            <div className="bg-white dark:bg-gray-900 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col">
-              <div className="w-10 h-10 rounded-lg bg-[#EAF1EB] flex items-center justify-center mb-6">
-                <Banknote className="w-5 h-5 text-member-green dark:text-green-400" />
+            <div className="col-span-2 md:col-span-1 bg-white dark:bg-gray-900 p-3.5 sm:p-5 lg:p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col">
+              <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-[#EAF1EB] flex items-center justify-center mb-2.5 sm:mb-6">
+                <Banknote className="w-4 h-4 sm:w-5 sm:h-5 text-member-green dark:text-green-400" />
               </div>
               <p className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-1">Total Savings</p>
-              <h3 className="text-2xl sm:text-3xl font-black text-gray-900 dark:text-white">{formatCurrency(totalSavings)}</h3>
+              <h3 className="text-base sm:text-2xl lg:text-3xl font-black text-gray-900 dark:text-white break-words">{formatCurrency(totalSavings)}</h3>
             </div>
           </div>
 

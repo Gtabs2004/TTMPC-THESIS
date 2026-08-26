@@ -2,6 +2,12 @@ WHAT-IFS AND STRICT CONSTRAINTS (DRAFT)
 
 Purpose: Enumerate error cases, constraints, and "what-if" scenarios the system should handle. Use this list for validation rules, API responses, and UI error handling.
 
+Revision note: sections below marked (added) cover features that shipped after
+the file's original May 2026 draft (loan restructuring, BOD high-value
+approval, disbursement confirmations, grocery/POS, vault, payroll release
+schedule, loan collateral, loan fee policies, bonus loan window, MIGS
+classification, staff termination). Original sections are unchanged.
+
 GLOBAL / SYSTEM-WIDE
 - What if the Supabase URL or key is missing? -> API should refuse to start or return 500 with actionable error.
 - What if service role key is missing in prod? -> Disable server-side admin flows; log critical error.
@@ -17,6 +23,14 @@ MEMBERSHIP / ACCOUNT
 - What if the member_account row is missing for a confirmed member? -> Auto-repair or return 500 with remediation step.
 - What if an applicant has no training attendance data? -> Block approval; return 400 with missing requirement.
 - What if training status is legacy ("1st Training")? -> Normalize on read and handle on write.
+
+STAFF ACCOUNT MANAGEMENT / TERMINATION (added)
+- What if a Secretary submits a termination request for a member who is already terminated or already has a pending request? -> staff_termination_requests.status only constrains the request's own lifecycle ('awaiting_bod_confirmation', 'approved', 'rejected'); the endpoint must independently check the target account's current is_active/member_status and reject a duplicate request with 409.
+- What if BOD approves a termination request? -> Must flip member_account.is_active to false (and lock the staff account) as part of the same decision, not just update staff_termination_requests.status.
+- What if BOD rejects a termination request? -> status -> 'rejected'; is_active must stay untouched.
+- What if a staff account is deactivated (is_active = false) but still holds a valid session token? -> Decide and document whether existing sessions are revoked immediately or only blocked on next login/API call; currently unspecified.
+- What if a termination request sits in 'awaiting_bod_confirmation' with no BOD action for an extended period? -> No timeout/escalation exists; consider a reminder or staleness flag on the BOD dashboard.
+- What if requested_by_role on the request doesn't match the caller's actual role (e.g. spoofed)? -> Should be derived server-side from the authenticated session, never trusted from the request body.
 
 PERSONAL DATA SHEET (PDS)
 - What if a PDS record is missing for a member? -> Auto-create or return 404 with next action.
@@ -35,6 +49,66 @@ LOANS / LOAN TYPES
 - What if the member is not bona fide (non-MIGS) and requests a member-only loan? -> Return 403.
 - What if member status is inactive/suspended/terminated? -> Return 403.
 - What if member has missing required profile data (latest_net_pay, classification, employment)? -> Return 400 with missing fields list.
+
+BOD HIGH-VALUE LOAN APPROVAL — Consolidated > ₱500,000 (added)
+- What if a Consolidated (or KOICA) loan over ₱500K is evaluated by the Bookkeeper? -> Must be routed to loan_status "recommended for bod approval", not the normal "recommended for approval", based on the ₱500K threshold; the Manager queue should never see it until BOD acts.
+- What if BOD approves? -> loan_status resets to "recommended for approval" so it re-enters the standard Manager queue; verify the loan isn't accidentally treated as fully approved at this point.
+- What if BOD rejects? -> loan_status -> "bod rejected" (terminal); no further Manager/Treasurer action should be possible on that control_number.
+- What if bod_approval_payload is saved without resolution_no / resolution_date / decision on an approve or reject? -> Only the column itself is nullable jsonb — the API should require those sub-fields before accepting the decision, not just persist whatever was sent.
+- What if a Manager, Treasurer, or Cashier account calls the BOD-decision endpoint directly? -> The "staff update loan workflow" RLS policy grants UPDATE on public.loans to manager/bookkeeper/treasurer/cashier/bod alike, so the database alone does not stop this — the FastAPI layer must check the caller's role is exactly 'bod' before writing a bod_approval_payload / bod-only status transition.
+- What if a loan is exactly ₱500,000 (boundary)? -> Confirm whether the threshold is inclusive or exclusive and apply consistently across the frontend evaluation form and any backend recompute.
+
+LOAN RESTRUCTURING (added)
+- What if new_term_months or new_amortization is <= 0? -> Blocked by the loan_restructure_requests CHECK constraints; return 400 before the insert ever reaches the DB.
+- What if a Manager approves or rejects a restructure request that isn't currently 'pending'? -> Return 409; the CHECK only constrains the allowed values (pending/approved/rejected/cancelled), it does not stop a status jump like rejected -> approved, so the endpoint must enforce the transition.
+- What if a second restructure request is submitted for a loan that already has one pending? -> Nothing in the schema prevents multiple pending rows per loan_id; the Bookkeeper-facing endpoint must check for an existing 'pending' row first.
+- What if a restructure request is approved? -> The approval action must also update the loan's own term/amortization fields, not just flip loan_restructure_requests.status — otherwise the "approved" request and the live loan silently disagree.
+- What if reviewed_by is blank when status changes away from 'pending'? -> Should be required at the point of decision so every approval/rejection is attributable.
+
+DISBURSEMENT CONFIRMATIONS (added)
+- What if the same disbursement is submitted twice (duplicate reference_number)? -> Blocked by the UNIQUE constraint; return 409 and surface the existing confirmation instead of a raw DB error.
+- What if loan_amount on the confirmation is zero or negative? -> Not currently blocked by a CHECK (only NOT NULL) — add one, since this record is the audit/evidence trail replacing a printed receipt.
+- What if a confirmation is written for a loan whose loan_status was never actually moved to a disbursed state? -> The confirmation table has no FK/trigger tying it back to loans.loan_status; the Cashier endpoint should verify the loan is in "to be disbursed"/"ready for disbursement" before accepting the confirmation.
+- What if cashier_id or cashier_name is left null? -> Both are nullable — acceptable for legacy rows, but new confirmations should require the acting cashier for accountability.
+
+GROCERY / POS (added)
+- What if the POS webhook redelivers the same event (at-least-once delivery)? -> GroceryID is the PRIMARY KEY and event_id is UNIQUE — a redelivery should upsert/no-op, not error out the webhook handler.
+- What if GroceryAmount is posted as zero or negative? -> Not currently blocked by a CHECK (only NOT NULL numeric) — a negative amount would silently reduce a member's grocery totals; add a >= 0 constraint.
+- What if Status is anything other than 'Completed' or 'On Credit'? -> Blocked by the CHECK constraint; the webhook handler should catch the DB error and return 400 to the POS side rather than a generic 500.
+- What if a transaction can't be matched to a membership_number_id (pos_member_ref doesn't resolve)? -> membership_number_id stays NULL (ON DELETE SET NULL also applies if the member row is later removed) — decide how unmatched transactions are surfaced to the Bookkeeper for manual linking, since member_grocery_totals silently excludes rows where membership_number_id IS NULL.
+- What if a transaction is 'On Credit' but balance_due is left at its default of 0? -> Should be required/validated whenever Status = 'On Credit', otherwise the member's outstanding grocery balance under-reports.
+
+VAULT — Treasurer cash-on-hand ledger (added)
+- What if a Treasurer keys a withdrawal as a positive amount instead of negative? -> No CHECK enforces sign-by-change_type (amount is just "signed: +deposit / -withdrawal" by convention) — a mis-keyed entry silently inflates the balance; validate sign against change_type in the Vault form/endpoint.
+- What if change_type = 'disbursement' but reference_id doesn't point to a real loan? -> reference_id is explicitly "FK-ish", not a real foreign key — a typo'd id breaks the audit trail without any DB-level warning.
+- What if someone without treasurer/bod role tries to insert a vault entry? -> Blocked by the is_vault_writer() RLS policy (manager/bookkeeper can read via is_vault_reader(), only treasurer/bod can write).
+- What if a prior entry needs correcting? -> The table is append-only (no UPDATE/DELETE policy by design) — corrections must be a new 'adjustment' row referencing the mistake in its note, never an edit of history.
+- What if the running balance (vault_balance_v) goes negative? -> Nothing currently blocks it — decide whether a negative balance is a valid "overdrawn" state to warn on, or should be hard-blocked before a disbursement is confirmed.
+
+PAYROLL RELEASE SCHEDULE (added)
+- What if the same agency/cycle is logged twice for the same year, month, and half? -> Blocked by UNIQUE (agency, cycle_year, cycle_month, cycle_half); return 409.
+- What if agency isn't one of NGA/LGU/SUC/PI/NGO/Cooperative? -> Blocked by CHECK constraint.
+- What if cycle_month is outside 1-12 or cycle_half isn't 1 or 2? -> Blocked by CHECK constraints.
+- What if release_date is entered earlier than makes sense for that cycle (e.g. before expected_date's month even starts)? -> No CHECK enforces this beyond the generated is_delayed flag (release_date > expected_date); a wildly wrong date would still compute a (possibly negative) delay_days.
+- What if a cycle has no release_date logged yet? -> Excluded entirely from salary_schedule_logged_v and the delay-stats view — the Treasurer Schedule page should show these as "pending", not silently omit them from the list.
+
+LOAN COLLATERAL — Consolidated loans (added)
+- What if declared_value or appraised_value is negative? -> Blocked by CHECK (>= 0).
+- What if collateral_type isn't one of co_maker / cbu_shares / chattel / real_estate / atm_hold / other? -> Blocked by CHECK constraint.
+- What if a member tries to attach collateral to a loan they don't own? -> Blocked by the loan_collateral_insert_own RLS policy (checks loans.member_id against the caller).
+- What if a loan reaches the "approved"/disbursement stage with appraised_value still null? -> Nothing in the schema forces appraisal before disbursement — should be enforced as a workflow gate (Bookkeeper can't mark evaluation complete) rather than left to the DB.
+- What if the parent loan (loan_control_number) is deleted? -> ON DELETE CASCADE removes all its collateral rows too — confirm that matches intent versus preserving collateral records for audit even if the loan row is ever removed.
+
+LOAN FEE POLICIES (added)
+- What if a non-BOD account tries to edit a fee policy? -> Blocked by the loan_fee_policies_write_bod RLS policy (is_bod_account()); only Loan-Policies.jsx in the BOD portal can write.
+- What if loan_type_code has no matching row in loan_fee_policies? -> get_cbu_rate_for_loan_type() falls back to 0 and silently charges no CBU retention instead of failing loudly — surface an explicit "policy missing" warning to BOD/Bookkeeper instead of a quiet zero.
+- What if service_fee_mode = 'bracket' but service_fee_bracket_size is 0? -> Would divide by zero wherever the bracket calculation runs; no CHECK currently prevents bracket_size <= 0.
+- What if cbu_rate or insurance_per_thousand is entered as a whole number instead of a decimal fraction (e.g. 2 instead of 0.02)? -> No range CHECK exists — a fat-fingered entry would inflate every fee on every disbursement computed against that policy until someone notices.
+
+BONUS LOAN APPLICATION WINDOW — May & November only (added)
+- What if a member applies for a Bonus or Non-Member Bonus loan outside May or November? -> Blocked at the database level by the enforce_bonus_loan_window trigger on both loans and koica_loans, regardless of what the frontend or FastAPI already validated — this is explicitly the last line of defense against a direct Supabase POST.
+- What if loan_type_id doesn't resolve to a code (bad/missing FK)? -> Falls back to the denormalized loan_type_code on the row; if both are missing/blank, the window check never fires and the insert is allowed — should default to "block" when the type can't be resolved, not "allow".
+- What if the server clock/timezone used by now() drifts from Philippine time near a month boundary? -> A borderline application near midnight April 30 / May 1 (or Oct 31 / Nov 1) could be accepted or rejected depending on DB server timezone — confirm the DB's timezone setting matches the intended business calendar.
 
 LOAN PAYMENTS
 - What if cashier posts payment for a loan with no schedules? -> Block with 400.
@@ -56,6 +130,12 @@ SAVINGS
 - What if a pending savings transaction is confirmed twice? -> Return 409.
 - What if transaction_type is invalid? -> Return 400.
 
+MIGS CLASSIFICATION & SCORING (added)
+- What if a MIGS snapshot scores exactly 50? -> classification_level maps 0-49 to 'non_migs' and 50-100 to 'migs', so 50 itself is MIGS-qualified — confirm this matches the "threshold 50 = MIGS" rule documented for migs_engine.py; the boundary is inclusive on the MIGS side, not a tie.
+- What if a member has no MIGS snapshot yet (never scored)? -> Should default to unscored/Non-MIGS (3x loan multiplier) rather than blocking the member entirely or erroring.
+- What if /api/migs/recompute-all runs while a member has a loan mid-approval? -> Decide and document whether a recompute mid-workflow re-evaluates the eligibility/multiplier on the in-flight loan, or only affects loans applied for after the recompute.
+- What if a score input (e.g. cbu added, loan availed, savings balance) is negative or null? -> migs_engine.py's bucket functions already guard <= 0 cases per criterion — verify every one of the 7 criteria has that guard, not just the ones checked so far.
+
 EMAIL / NOTIFICATIONS
 - What if RESEND_API_KEY is missing? -> Return 503 "Email disabled" and log.
 - What if email address is invalid? -> Return 400 with validation.
@@ -63,6 +143,7 @@ EMAIL / NOTIFICATIONS
 SECURITY / RLS
 - What if a user without staff role accesses staff endpoints? -> Return 403.
 - What if RLS blocks a required update? -> Return 403 with policy hint.
+- What if a table has RLS enabled but zero policies defined? -> (added) PostgREST silently returns empty results for every request instead of an error — this already happened in production for loan_schedules, "Savings_Transactions", and disbursement_confirmations, where dashboards quietly showed no data with no visible failure. Run Supabase's rls_enabled_no_policy linter against every new table before shipping it, not just the ones a bug report eventually surfaces.
 
 DATA INTEGRITY / REPORTING
 - What if member is missing related rows for lifecycle views? -> Return partial data with warnings.

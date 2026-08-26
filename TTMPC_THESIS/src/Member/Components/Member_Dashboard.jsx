@@ -1042,54 +1042,55 @@ const MemberDashboard = () => {
 
           </div>
 
-          {/* Balances Section */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 sm:gap-6 mb-8">
+          {/* Balances Section — 2-up on phones (matches the compact quick-tile
+              grid elsewhere in the app), same 4-up layout from lg up. */}
+          <div className="grid grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4 lg:gap-6 mb-8">
             {/* Share Capital */}
-            <div className="bg-white dark:bg-gray-900 p-5 sm:p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col">
-              <div className="w-8 h-8 rounded-lg bg-[#EAF1EB] dark:bg-green-900/30 flex items-center justify-center mb-4">
+            <div className="bg-white dark:bg-gray-900 p-3.5 sm:p-5 lg:p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col">
+              <div className="w-8 h-8 rounded-lg bg-[#EAF1EB] dark:bg-green-900/30 flex items-center justify-center mb-2.5 sm:mb-4">
                 <Wallet className="w-4 h-4 text-member-green dark:text-green-400" />
               </div>
-              <p className="text-xs font-bold text-gray-500 dark:text-gray-400 mb-1">Share Capital</p>
-              <h3 className="text-xl sm:text-2xl font-black text-gray-900 dark:text-white mb-2">{formatCurrency(profile?.shareCapital || 0)}</h3>
+              <p className="text-[11px] sm:text-xs font-bold text-gray-500 dark:text-gray-400 mb-1">Share Capital</p>
+              <h3 className="text-base sm:text-xl lg:text-2xl font-black text-gray-900 dark:text-white mb-1.5 sm:mb-2 break-words">{formatCurrency(profile?.shareCapital || 0)}</h3>
               <p className="text-[10px] font-bold text-green-600 dark:text-green-400 flex items-center mt-auto">
-                <ArrowUpRight className="w-3 h-3 mr-0.5" /> +5.2% from last month
+                <ArrowUpRight className="w-3 h-3 mr-0.5 shrink-0" /> +5.2% from last month
               </p>
             </div>
 
             {/* Total Savings */}
-            <div className="bg-white dark:bg-gray-900 p-5 sm:p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col">
-              <div className="w-8 h-8 rounded-lg bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center mb-4">
+            <div className="bg-white dark:bg-gray-900 p-3.5 sm:p-5 lg:p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col">
+              <div className="w-8 h-8 rounded-lg bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center mb-2.5 sm:mb-4">
                 <PiggyBank className="w-4 h-4 text-blue-600 dark:text-blue-400" />
               </div>
-              <p className="text-xs font-bold text-gray-500 dark:text-gray-400 mb-1">Total Savings</p>
-              <h3 className="text-xl sm:text-2xl font-black text-gray-900 dark:text-white mb-2">{formatCurrency(totalSavings)}</h3>
-              <p className="text-[10px] font-semibold text-gray-500 dark:text-gray-400 flex items-center mt-auto">
+              <p className="text-[11px] sm:text-xs font-bold text-gray-500 dark:text-gray-400 mb-1">Total Savings</p>
+              <h3 className="text-base sm:text-xl lg:text-2xl font-black text-gray-900 dark:text-white mb-1.5 sm:mb-2 break-words">{formatCurrency(totalSavings)}</h3>
+              <p className="text-[10px] font-semibold text-gray-500 dark:text-gray-400 mt-auto">
                 Based on savings account balances
               </p>
             </div>
 
             {/* Active Loan Balance */}
-            <div className="bg-white dark:bg-gray-900 p-5 sm:p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col">
-              <div className="w-8 h-8 rounded-lg bg-red-50 dark:bg-red-900/30 flex items-center justify-center mb-4">
+            <div className="bg-white dark:bg-gray-900 p-3.5 sm:p-5 lg:p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col">
+              <div className="w-8 h-8 rounded-lg bg-red-50 dark:bg-red-900/30 flex items-center justify-center mb-2.5 sm:mb-4">
                 <CreditCard className="w-4 h-4 text-red-500 dark:text-red-400" />
               </div>
-              <p className="text-xs font-bold text-gray-500 dark:text-gray-400 mb-1">Active Loan Balance</p>
-              <h3 className="text-xl sm:text-2xl font-black text-gray-900 dark:text-white mb-2">{formatCurrency(activeLoanBalance)}</h3>
+              <p className="text-[11px] sm:text-xs font-bold text-gray-500 dark:text-gray-400 mb-1">Active Loan Balance</p>
+              <h3 className="text-base sm:text-xl lg:text-2xl font-black text-gray-900 dark:text-white mb-1.5 sm:mb-2 break-words">{formatCurrency(activeLoanBalance)}</h3>
               <p className="text-[10px] font-semibold text-gray-400 dark:text-gray-500 mt-auto">
                 {activeLoans.length ? `${activeLoans.length} active loan(s)` : 'No active loans'}
               </p>
             </div>
 
             {/* Next Payment (Green Card) */}
-            <div className="bg-[#2C7A3F] p-5 sm:p-6 rounded-2xl shadow-sm flex flex-col text-white relative overflow-hidden">
-              <div className="absolute top-6 right-6 bg-white/20 px-2 py-1 rounded text-[9px] font-bold tracking-wider uppercase">
+            <div className="bg-[#2C7A3F] p-3.5 sm:p-5 lg:p-6 rounded-2xl shadow-sm flex flex-col text-white relative overflow-hidden">
+              <div className="absolute top-3 right-3 sm:top-6 sm:right-6 bg-white/20 px-1.5 py-0.5 sm:px-2 sm:py-1 rounded text-[8px] sm:text-[9px] font-bold tracking-wider uppercase text-right">
                 {daysUntilNextDue === null ? 'No due date' : `Due in ${daysUntilNextDue} day${daysUntilNextDue === 1 ? '' : 's'}`}
               </div>
-              <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center mb-4 backdrop-blur-sm">
+              <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center mb-2.5 sm:mb-4 backdrop-blur-sm">
                 <Calendar className="w-4 h-4 text-white" />
               </div>
-              <p className="text-xs font-semibold text-green-100 mb-1">Next Payment</p>
-              <h3 className="text-xl sm:text-2xl font-black mb-2">{formatCurrency(nextPaymentAmount)}</h3>
+              <p className="text-[11px] sm:text-xs font-semibold text-green-100 mb-1">Next Payment</p>
+              <h3 className="text-base sm:text-xl lg:text-2xl font-black mb-1.5 sm:mb-2 break-words">{formatCurrency(nextPaymentAmount)}</h3>
               <p className="text-[10px] font-medium text-green-100 mt-auto">
                 Due on: {nextPaymentDate}
               </p>
