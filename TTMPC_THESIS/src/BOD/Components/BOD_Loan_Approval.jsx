@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { StatCard, StatCardRow } from "../../components/StatCard";
 import StaffSidebar from "../../components/StaffSidebar";
 import { bodNav } from "../../components/StaffSidebar/configs/bod";
 import { NavLink, useNavigate } from "react-router-dom";
@@ -106,37 +107,11 @@ const BOD_Loan_Approval = () => {
         </header>
 
         <main className="p-8 flex-1">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
-            <div className="bg-white border border-gray-100 rounded-xl p-5 flex items-center gap-4 shadow-sm">
-              <div className="w-12 h-12 rounded-lg bg-[#EAF5EC] flex items-center justify-center flex-shrink-0">
-                <UserPlus className="text-[#2C7A3F] w-6 h-6" />
-              </div>
-              <div className="flex flex-col">
-                <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Pending Board Review</h3>
-                <p className="text-2xl font-extrabold text-slate-800 mt-0.5">{loans.length}</p>
-              </div>
-            </div>
-
-            <div className="bg-white border border-gray-100 rounded-xl p-5 flex items-center gap-4 shadow-sm">
-              <div className="w-12 h-12 rounded-lg bg-[#FFF4E5] flex items-center justify-center flex-shrink-0">
-                <ClipboardList className="text-[#D97706] w-6 h-6" />
-              </div>
-              <div className="flex flex-col">
-                <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Threshold</h3>
-                <p className="text-2xl font-extrabold text-slate-800 mt-0.5">₱500K+</p>
-              </div>
-            </div>
-
-            <div className="bg-white border border-gray-100 rounded-xl p-5 flex items-center gap-4 shadow-sm">
-              <div className="w-12 h-12 rounded-lg bg-[#EAF5EC] flex items-center justify-center flex-shrink-0">
-                <BadgeCheck className="text-[#2C7A3F] w-6 h-6" />
-              </div>
-              <div className="flex flex-col">
-                <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Loan Type</h3>
-                <p className="text-2xl font-extrabold text-slate-800 mt-0.5">Consolidated</p>
-              </div>
-            </div>
-          </div>
+          <StatCardRow cols={3}>
+            <StatCard label="Pending Board Review" value={loans.length} icon={UserPlus} iconColor="text-[#2C7A3F]" />
+            <StatCard label="Threshold" value="₱500K+" icon={ClipboardList} iconColor="text-[#D97706]" />
+            <StatCard label="Loan Type" value="Consolidated" icon={BadgeCheck} iconColor="text-[#2C7A3F]" />
+          </StatCardRow>
 
           <div className="bg-white border border-gray-200 rounded-xl shadow-sm">
             <div className="overflow-x-auto">

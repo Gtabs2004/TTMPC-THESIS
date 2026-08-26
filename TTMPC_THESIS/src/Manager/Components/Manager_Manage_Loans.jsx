@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { StatCard, StatCardRow } from "../../components/StatCard";
 import StaffSidebar from "../../components/StaffSidebar";
 import { managerNav } from "../../components/StaffSidebar/configs/manager";
 import { useNavigate, NavLink } from "react-router-dom";
@@ -299,55 +300,11 @@ const Manager_Manage_Loans = () => {
           </div>
 
           {/* KPI cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-            <div className="rounded-xl bg-white border border-gray-200 shadow-sm hover:shadow-md transition-shadow p-6">
-              <div className="flex items-start justify-between">
-                <div className="flex-1">
-                  <p className="text-sm uppercase tracking-wider text-gray-600 font-semibold">
-                    Total Active Loans
-                  </p>
-                  <h2 className="mt-3 text-3xl font-bold text-gray-900">
-                    {dashboardStats.totalActiveLoans}
-                  </h2>
-                </div>
-                <div className="bg-blue-100 rounded-lg p-3">
-                  <CreditCard size={20} className="text-blue-600" />
-                </div>
-              </div>
-            </div>
-
-            <div className="rounded-xl bg-white border border-gray-200 shadow-sm hover:shadow-md transition-shadow p-6">
-              <div className="flex items-start justify-between">
-                <div className="flex-1">
-                  <p className="text-sm uppercase tracking-wider text-gray-600 font-semibold">
-                    Outstanding Balance
-                  </p>
-                  <h2 className="mt-3 text-3xl font-bold text-gray-900">
-                    {formatCurrency(dashboardStats.totalOutstanding)}
-                  </h2>
-                </div>
-                <div className="bg-amber-100 rounded-lg p-3">
-                  <Wallet size={20} className="text-amber-600" />
-                </div>
-              </div>
-            </div>
-
-            <div className="rounded-xl bg-white border border-gray-200 shadow-sm hover:shadow-md transition-shadow p-6">
-              <div className="flex items-start justify-between">
-                <div className="flex-1">
-                  <p className="text-sm uppercase tracking-wider text-gray-600 font-semibold">
-                    Collected This Month
-                  </p>
-                  <h2 className="mt-3 text-3xl font-bold text-gray-900">
-                    {formatCurrency(dashboardStats.collectedThisMonth)}
-                  </h2>
-                </div>
-                <div className="bg-green-100 rounded-lg p-3">
-                  <Coins size={20} className="text-green-600" />
-                </div>
-              </div>
-            </div>
-          </div>
+          <StatCardRow cols={3}>
+            <StatCard label="Total Active Loans" value={dashboardStats.totalActiveLoans} icon={CreditCard} iconColor="text-blue-600" />
+            <StatCard label="Outstanding Balance" value={formatCurrency(dashboardStats.totalOutstanding)} icon={Wallet} iconColor="text-amber-600" />
+            <StatCard label="Collected This Month" value={formatCurrency(dashboardStats.collectedThisMonth)} icon={Coins} iconColor="text-green-600" />
+          </StatCardRow>
 
           {/* Filters + tabs */}
           <div className="rounded-xl bg-white border border-gray-200 shadow-sm mb-6 p-5">

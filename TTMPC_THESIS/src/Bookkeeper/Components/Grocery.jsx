@@ -1,5 +1,6 @@
 ﻿import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, NavLink, Link } from "react-router-dom";
+import { StatCard, StatCardRow } from "../../components/StatCard";
 import StaffSidebar from "../../components/StaffSidebar";
 import { bookkeeperNav } from "../../components/StaffSidebar/configs/bookkeeper";
 import { UserAuth } from "../../contex/AuthContext";
@@ -145,43 +146,23 @@ const Grocery = () => {
         
 
           {/* Summary Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-            {/* Total Transactions Card */}
-            <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm flex items-center gap-4">
-              <div className="bg-green-50 p-3 rounded-lg text-green-600">
-                <ShoppingCart className="w-6 h-6" />
-              </div>
-              <div>
-                <p className="text-xs font-bold text-gray-500 tracking-wider uppercase mb-1">Total Transactions</p>
-                <div className="flex items-baseline gap-2">
-                  <h2 className="text-2xl font-bold text-gray-900">{totals.count}</h2>
-                  <span className="text-sm text-gray-500">P{totals.sum.toLocaleString(undefined,{minimumFractionDigits:2})}</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Paid Card */}
-            <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm flex items-center gap-4">
-              <div className="bg-green-50 p-3 rounded-lg text-green-600">
-                <CheckCircle2 className="w-6 h-6" />
-              </div>
-              <div>
-                <p className="text-xs font-bold text-gray-500 tracking-wider uppercase mb-1">Paid</p>
-                <h2 className="text-2xl font-bold text-gray-900">{totals.paid}</h2>
-              </div>
-            </div>
-
-            {/* On Credit Card */}
-            <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm flex items-center gap-4">
-              <div className="bg-orange-50 p-3 rounded-lg text-orange-500">
-                <AlertCircle className="w-6 h-6" />
-              </div>
-              <div>
-                <p className="text-xs font-bold text-gray-500 tracking-wider uppercase mb-1">On Credit</p>
-                <h2 className="text-2xl font-bold text-gray-900">{totals.credit}</h2>
-              </div>
-            </div>
-          </div>
+          <StatCardRow cols={3}>
+            <StatCard
+              label="Total Transactions"
+              value={
+                <>
+                  {totals.count}{" "}
+                  <span className="text-sm font-normal text-gray-500">
+                    ₱{totals.sum.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  </span>
+                </>
+              }
+              icon={ShoppingCart}
+              iconColor="text-green-600"
+            />
+            <StatCard label="Paid" value={totals.paid} icon={CheckCircle2} iconColor="text-green-600" />
+            <StatCard label="On Credit" value={totals.credit} icon={AlertCircle} iconColor="text-orange-500" />
+          </StatCardRow>
 
           {/* Main Data Table Area */}
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">

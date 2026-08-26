@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { StatCard, StatCardRow } from "../../components/StatCard";
 import { PortalTopbarIdentity } from "../../components/PortalIdentity";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
 import StaffSidebar from "../../components/StaffSidebar";
@@ -187,48 +188,29 @@ const Treasurer_Payments = () => {
           </div>
 
           {/* KPI STRIP */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-            <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
-              <div className="flex justify-between items-start">
-                <span className="text-gray-500 text-sm font-medium">Total Debits (Cash In)</span>
-                <div className="p-2 bg-green-50 text-green-600 rounded-lg">
-                  <ArrowDownCircle size={18} />
-                </div>
-              </div>
-              <h3 className="mt-4 text-3xl font-bold text-gray-800 tabular-nums">
-                {loading ? "…" : PHP(ledger.total_debit)}
-              </h3>
-              <div className="text-xs text-gray-400 mt-2">payments in for selected window</div>
-            </div>
-
-            <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
-              <div className="flex justify-between items-start">
-                <span className="text-gray-500 text-sm font-medium">Total Credits (Cash Out)</span>
-                <div className="p-2 bg-red-50 text-red-500 rounded-lg">
-                  <ArrowUpCircle size={18} />
-                </div>
-              </div>
-              <h3 className="mt-4 text-3xl font-bold text-gray-800 tabular-nums">
-                {loading ? "…" : PHP(ledger.total_credit)}
-              </h3>
-              <div className="text-xs text-gray-400 mt-2">disbursals + withdrawals for selected window</div>
-            </div>
-
-            <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
-              <div className="flex justify-between items-start">
-                <span className="text-gray-500 text-sm font-medium">Net Cash Movement</span>
-                <div className="p-2 bg-green-50 text-green-600 rounded-lg">
-                  <Wallet size={18} />
-                </div>
-              </div>
-              <h3 className={`mt-4 text-3xl font-bold tabular-nums ${
-                ledger.net < 0 ? "text-red-600" : "text-gray-800"
-              }`}>
-                {loading ? "…" : PHP(ledger.net)}
-              </h3>
-              <div className="text-xs text-gray-400 mt-2">debits − credits (not vault balance)</div>
-            </div>
-          </div>
+          <StatCardRow cols={3}>
+            <StatCard
+              label="Total Debits (Cash In)"
+              value={loading ? "…" : PHP(ledger.total_debit)}
+              icon={ArrowDownCircle}
+              iconColor="text-green-600"
+              subtext="payments in for selected window"
+            />
+            <StatCard
+              label="Total Credits (Cash Out)"
+              value={loading ? "…" : PHP(ledger.total_credit)}
+              icon={ArrowUpCircle}
+              iconColor="text-red-500"
+              subtext="disbursals + withdrawals for selected window"
+            />
+            <StatCard
+              label="Net Cash Movement"
+              value={loading ? "…" : PHP(ledger.net)}
+              icon={Wallet}
+              iconColor={ledger.net < 0 ? "text-red-600" : "text-green-600"}
+              subtext="debits − credits (not vault balance)"
+            />
+          </StatCardRow>
 
           {/* FILTER BAR */}
           <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100 mb-4 flex flex-wrap items-end gap-4">

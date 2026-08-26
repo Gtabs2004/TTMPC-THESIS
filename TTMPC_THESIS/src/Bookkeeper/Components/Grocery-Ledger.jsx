@@ -1,5 +1,6 @@
 ﻿import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
+import { StatCard, StatCardRow } from "../../components/StatCard";
 import StaffSidebar from "../../components/StaffSidebar";
 import { bookkeeperNav } from "../../components/StaffSidebar/configs/bookkeeper";
 import { UserAuth } from "../../contex/AuthContext";
@@ -305,32 +306,13 @@ const Grocery_Ledger = () => {
           </div>
 
           {/* Summary Cards */}
-          <div className="grid grid-cols-5 gap-4 mb-8">
-            <div className="bg-white rounded-xl p-5 border border-gray-200 shadow-sm flex flex-col justify-center">
-              <p className="text-xs font-bold text-gray-500 tracking-wider uppercase mb-2">Total Gross</p>
-              <h2 className="text-2xl font-bold text-gray-900">{peso(summary.gross)}</h2>
-            </div>
-
-            <div className="bg-[#eef8f3] rounded-xl p-5 border border-green-100 shadow-sm flex flex-col justify-center">
-              <p className="text-xs font-bold text-green-700 tracking-wider uppercase mb-2">Cash Sales</p>
-              <h2 className="text-2xl font-bold text-green-800">{peso(summary.cash)}</h2>
-            </div>
-
-            <div className="bg-[#fff7f0] rounded-xl p-5 border border-orange-100 shadow-sm flex flex-col justify-center">
-              <p className="text-xs font-bold text-orange-700 tracking-wider uppercase mb-2">On Credit Sales</p>
-              <h2 className="text-2xl font-bold text-orange-800">{peso(summary.credit)}</h2>
-            </div>
-
-            <div className="bg-white rounded-xl p-5 border border-gray-200 shadow-sm flex flex-col justify-center">
-              <p className="text-xs font-bold text-gray-500 tracking-wider uppercase mb-2">Paid Transactions</p>
-              <h2 className="text-2xl font-bold text-teal-600">{summary.paidCount}</h2>
-            </div>
-
-            <div className="bg-white rounded-xl p-5 border border-gray-200 shadow-sm flex flex-col justify-center">
-              <p className="text-xs font-bold text-gray-500 tracking-wider uppercase mb-2">On Credit Transactions</p>
-              <h2 className="text-2xl font-bold text-orange-500">{summary.creditCount}</h2>
-            </div>
-          </div>
+          <StatCardRow cols={5}>
+            <StatCard label="Total Gross" value={peso(summary.gross)} />
+            <StatCard label="Cash Sales" value={peso(summary.cash)} />
+            <StatCard label="On Credit Sales" value={peso(summary.credit)} />
+            <StatCard label="Paid Transactions" value={summary.paidCount} />
+            <StatCard label="On Credit Transactions" value={summary.creditCount} />
+          </StatCardRow>
 
           {/* Transaction Ledger List */}
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">

@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { StatCard, StatCardRow } from "../../components/StatCard";
 import { supabase } from "../../supabaseClient";
 import { UserAuth } from "../../contex/AuthContext";
 import { useNotification } from "../../contex/NotificationContext";
@@ -379,25 +380,16 @@ const Vault = () => {
           </div>
 
           {/* MINI-TOTALS */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <StatCardRow cols={4}>
             {[
-              { key: "deposit", label: "Deposits", icon: ArrowDownRight, tone: "text-emerald-700 bg-emerald-50" },
-              { key: "withdrawal", label: "Withdrawals", icon: ArrowUpRight, tone: "text-red-700 bg-red-50" },
-              { key: "disbursement", label: "Disbursements", icon: CreditCard, tone: "text-blue-700 bg-blue-50" },
-              { key: "adjustment", label: "Adjustments", icon: RefreshCw, tone: "text-amber-700 bg-amber-50" },
-            ].map((c) => {
-              const Icon = c.icon;
-              return (
-                <div key={c.key} className="rounded-xl bg-white border border-gray-200 p-4 flex items-start justify-between">
-                  <div>
-                    <p className="text-xs uppercase tracking-wider text-gray-500 font-semibold">{c.label}</p>
-                    <p className="mt-2 text-lg font-bold text-gray-900 tabular-nums">{PHP(totals[c.key])}</p>
-                  </div>
-                  <div className={`rounded-lg p-2 ${c.tone}`}><Icon size={16} /></div>
-                </div>
-              );
-            })}
-          </div>
+              { key: "deposit", label: "Deposits", icon: ArrowDownRight, tone: "text-emerald-700" },
+              { key: "withdrawal", label: "Withdrawals", icon: ArrowUpRight, tone: "text-red-700" },
+              { key: "disbursement", label: "Disbursements", icon: CreditCard, tone: "text-blue-700" },
+              { key: "adjustment", label: "Adjustments", icon: RefreshCw, tone: "text-amber-700" },
+            ].map((c) => (
+              <StatCard key={c.key} label={c.label} value={PHP(totals[c.key])} icon={c.icon} iconColor={c.tone} />
+            ))}
+          </StatCardRow>
 
           {/* LEDGER */}
           <div className="rounded-xl bg-white border border-gray-200 shadow-sm">

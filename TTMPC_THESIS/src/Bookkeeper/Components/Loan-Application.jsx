@@ -1,5 +1,6 @@
 ﻿import React, { useState } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
+import { StatCard, StatCardRow } from "../../components/StatCard";
 import StaffSidebar from "../../components/StaffSidebar";
 import { bookkeeperNav } from "../../components/StaffSidebar/configs/bookkeeper";
 import { UserAuth } from "../../contex/AuthContext";
@@ -55,45 +56,12 @@ const LoanApplication = () => {
         <main className="p-8">
           <h1 className="font-bold text-2xl">Loan-Application</h1>
 
-         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6 mt-4">
-                    <div className="bg-white border border-gray-100 rounded-xl p-5 flex items-center gap-4 shadow-sm">
-                      <div className="w-12 h-12 rounded-lg bg-[#EAF5EC] flex items-center justify-center flex-shrink-0">
-                        <UserPlus className="text-[#2C7A3F] w-6 h-6" />
-                      </div>
-                      <div className="flex flex-col">
-                        <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Total Kiosk Today</h3>
-                        <p className="text-2xl font-extrabold text-slate-800 mt-0.5">24</p>
-                      </div>
-                    </div>
-        
-                    <div className="bg-white border border-gray-100 rounded-xl p-5 flex items-center gap-4 shadow-sm">
-                      <div className="w-12 h-12 rounded-lg bg-[#FFF4E5] flex items-center justify-center flex-shrink-0">
-                        <ClipboardList className="text-[#D97706] w-6 h-6" />
-                      </div>
-                      <div className="flex flex-col">
-                        <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Pending Review</h3>
-                        <p className="text-2xl font-extrabold text-slate-800 mt-0.5">8</p>
-                      </div>
-                     </div> 
-                       <div className="bg-white border border-gray-100 rounded-xl p-5 flex items-center gap-4 shadow-sm">
-                      <div className="w-12 h-12 rounded-lg bg-[#FFF4E5] flex items-center justify-center flex-shrink-0">
-                        <ClipboardList className="text-[#D97706] w-6 h-6" />
-                      </div>
-                      <div className="flex flex-col">
-                        <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Approved</h3>
-                        <p className="text-2xl font-extrabold text-slate-800 mt-0.5">12</p>
-                      </div>
-                     </div> 
-                       <div className="bg-white border border-gray-100 rounded-xl p-5 flex items-center gap-4 shadow-sm">
-                      <div className="w-12 h-12 rounded-lg bg-[#FFF4E5] flex items-center justify-center flex-shrink-0">
-                        <ClipboardList className="text-[#D97706] w-6 h-6" />
-                      </div>
-                      <div className="flex flex-col">
-                        <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">AVG. PROCESSING</h3>
-                        <p className="text-2xl font-extrabold text-slate-800 mt-0.5">1.4h</p>
-                      </div>
-                     </div> 
-                  </div>
+         <StatCardRow cols={4} className="mt-4">
+            <StatCard label="Total Kiosk Today" value="24" icon={UserPlus} iconColor="text-[#2C7A3F]" />
+            <StatCard label="Pending Review" value="8" icon={ClipboardList} iconColor="text-[#D97706]" />
+            <StatCard label="Approved" value="12" icon={ClipboardList} iconColor="text-[#D97706]" />
+            <StatCard label="AVG. Processing" value="1.4h" icon={ClipboardList} iconColor="text-[#D97706]" />
+          </StatCardRow>
 
         
           <div className="bg-white w-full rounded-2xl m-auto mt-6 p-8 shadow-sm border border-gray-100 min-h-fit">

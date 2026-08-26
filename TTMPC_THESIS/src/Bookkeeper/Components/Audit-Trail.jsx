@@ -1,5 +1,6 @@
 ﻿import React, { useState } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
+import { StatCard, StatCardRow } from "../../components/StatCard";
 import StaffSidebar from "../../components/StaffSidebar";
 import { bookkeeperNav } from "../../components/StaffSidebar/configs/bookkeeper";
 import { UserAuth } from "../../contex/AuthContext";
@@ -114,27 +115,11 @@ const AuditTrail = () => {
         <main className="flex-1 p-8 overflow-y-auto">
           
           {/* KPI Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-            {kpiData.map((kpi, idx) => {
-              const Icon = kpi.icon;
-              return (
-                <div key={idx} className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm flex flex-col relative overflow-hidden">
-                  <div className="flex justify-between items-start mb-4">
-                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${kpi.iconBg} ${kpi.iconColor}`}>
-                      <Icon size={20} />
-                    </div>
-                    <span className={`text-[10px] font-bold px-2 py-1 rounded-full ${
-                      kpi.badgeType === 'success' ? 'bg-green-50 text-green-600' : 'bg-blue-50 text-blue-600'
-                    }`}>
-                      {kpi.badge}
-                    </span>
-                  </div>
-                  <p className="text-xs font-medium text-gray-500 mb-1">{kpi.title}</p>
-                  <h3 className="text-2xl font-black text-gray-900">{kpi.value}</h3>
-                </div>
-              );
-            })}
-          </div>
+          <StatCardRow cols={4}>
+            {kpiData.map((kpi, idx) => (
+              <StatCard key={idx} label={kpi.title} value={kpi.value} icon={kpi.icon} iconColor={kpi.iconColor} />
+            ))}
+          </StatCardRow>
 
           {/* Main Table Container */}
           <div className="bg-white rounded-xl border border-gray-100 shadow-sm flex flex-col">

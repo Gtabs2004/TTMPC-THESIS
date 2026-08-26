@@ -1,5 +1,6 @@
 ﻿import React, { useEffect, useState } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
+import { StatCard, StatCardRow } from "../../components/StatCard";
 import StaffSidebar from "../../components/StaffSidebar";
 import { bodNav } from "../../components/StaffSidebar/configs/bod";
 import { UserAuth } from "../../contex/AuthContext";
@@ -324,51 +325,36 @@ const Dashboard_BOD = () => {
           </div>
 
           {/* ROW 1: QUICK INSIGHTS (KPIs) */}
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 mb-8">
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 flex flex-col justify-between">
-              <div className="flex justify-between items-start">
-                <div>
-                  <p className="text-sm font-semibold text-gray-500 mb-1">Total Loans</p>
-                  <h3 className="text-2xl font-bold text-gray-800">{loading ? '—' : kpis.totalLoansCount.toLocaleString()}</h3>
-                </div>
-                <div className="p-2 bg-green-50 rounded-lg text-[#2C7A3F]"><TrendingUp className="w-5 h-5" /></div>
-              </div>
-              <p className="text-sm text-gray-500 font-medium mt-4">All loans on file in the cooperative</p>
-            </div>
-
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 flex flex-col justify-between">
-              <div className="flex justify-between items-start">
-                <div>
-                  <p className="text-sm font-semibold text-gray-500 mb-1">Delinquency Rate</p>
-                  <h3 className="text-2xl font-bold text-gray-800">{loading ? '—' : `${kpis.delinquencyRate.toFixed(1)}%`}</h3>
-                </div>
-                <div className="p-2 bg-red-50 rounded-lg text-red-500"><AlertCircle className="w-5 h-5" /></div>
-              </div>
-              <p className="text-sm text-gray-500 font-medium mt-4">Active loans with overdue schedules</p>
-            </div>
-
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 flex flex-col justify-between">
-              <div className="flex justify-between items-start">
-                <div>
-                  <p className="text-sm font-semibold text-gray-500 mb-1">Avg Debt Capacity</p>
-                  <h3 className="text-2xl font-bold text-gray-800">{loading ? '—' : formatCurrencyShort(kpis.avgDebtCapacity)}</h3>
-                </div>
-                <div className="p-2 bg-blue-50 rounded-lg text-blue-500"><CreditCard className="w-5 h-5" /></div>
-              </div>
-              <p className="text-sm text-gray-500 font-medium mt-4">Mean principal across active loans</p>
-            </div>
-
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 flex flex-col justify-between">
-              <div className="flex justify-between items-start">
-                <div>
-                  <p className="text-sm font-semibold text-gray-500 mb-1">Approved This Month</p>
-                  <h3 className="text-2xl font-bold text-gray-800">{loading ? '—' : kpis.approvedThisMonth}</h3>
-                </div>
-                <div className="p-2 bg-green-50 rounded-lg text-[#2C7A3F]"><CheckCircle2 className="w-5 h-5" /></div>
-              </div>
-              <p className="text-sm text-gray-500 font-medium mt-4">Disbursed in {new Date().toLocaleDateString('en-US', { month: 'long' })}</p>
-            </div>
-          </div>
+          <StatCardRow cols={4}>
+            <StatCard
+              label="Total Loans"
+              value={loading ? '—' : kpis.totalLoansCount.toLocaleString()}
+              icon={TrendingUp}
+              iconColor="text-[#2C7A3F]"
+              subtext="All loans on file in the cooperative"
+            />
+            <StatCard
+              label="Delinquency Rate"
+              value={loading ? '—' : `${kpis.delinquencyRate.toFixed(1)}%`}
+              icon={AlertCircle}
+              iconColor="text-red-500"
+              subtext="Active loans with overdue schedules"
+            />
+            <StatCard
+              label="Avg Debt Capacity"
+              value={loading ? '—' : formatCurrencyShort(kpis.avgDebtCapacity)}
+              icon={CreditCard}
+              iconColor="text-blue-500"
+              subtext="Mean principal across active loans"
+            />
+            <StatCard
+              label="Approved This Month"
+              value={loading ? '—' : kpis.approvedThisMonth}
+              icon={CheckCircle2}
+              iconColor="text-[#2C7A3F]"
+              subtext={`Disbursed in ${new Date().toLocaleDateString('en-US', { month: 'long' })}`}
+            />
+          </StatCardRow>
 
           {/* ROW 2: STRATEGIC TRENDS */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8 min-w-0">

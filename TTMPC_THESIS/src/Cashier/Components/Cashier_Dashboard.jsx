@@ -1,5 +1,6 @@
 ﻿import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
+import { StatCard, StatCardRow } from "../../components/StatCard";
 import StaffSidebar from "../../components/StaffSidebar";
 import { cashierNav } from "../../components/StaffSidebar/configs/cashier";
 import { UserAuth } from "../../contex/AuthContext";
@@ -400,59 +401,36 @@ const Cashier_Dashboard = () => {
         <main className="p-8">
 
           {/* KPI Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
-            <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100 flex flex-col justify-between">
-              <div className="flex justify-between items-start mb-4">
-                <div className="p-2 bg-blue-50 text-blue-500 rounded-lg"><FileText size={20} /></div>
-                <span className="bg-blue-50 text-blue-600 rounded-full px-3 py-1 text-xs font-bold">{isViewingToday ? "Today" : selectedDateLabel}</span>
-              </div>
-              <div>
-                <h3 className="text-gray-500 text-sm font-medium">Total Transactions</h3>
-                <p className="font-bold text-3xl text-gray-800 mt-1">{loading ? "—" : kpis.totalTransactions}</p>
-                <p className="text-xs font-medium text-gray-400 mt-2">{isViewingToday ? "Recorded today" : `Recorded on ${selectedDateLabel}`}</p>
-              </div>
-            </div>
-
-            <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100 flex flex-col justify-between">
-              <div className="flex justify-between items-start mb-4">
-                <div className="p-2 bg-green-50 text-green-600 rounded-lg"><Banknote size={20} /></div>
-                <span className="bg-green-50 text-green-700 rounded-full px-3 py-1 text-xs font-bold">Cash In</span>
-              </div>
-              <div>
-                <h3 className="text-gray-500 text-sm font-medium">Cash Received</h3>
-                <p className="font-bold text-3xl text-gray-800 mt-1">{loading ? "—" : PHP(kpis.cashReceived)}</p>
-                <p className="text-xs font-medium text-gray-400 mt-2">Payments, deposits, CBU, membership</p>
-              </div>
-            </div>
-
-            <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100 flex flex-col justify-between">
-              <div className="flex justify-between items-start mb-4">
-                <div className="p-2 bg-red-50 text-red-500 rounded-lg"><ArrowUpRight size={20} /></div>
-                <span className="bg-orange-50 text-orange-600 rounded-full px-3 py-1 text-xs font-bold">
-                  {kpis.pendingPayouts} Pending
-                </span>
-              </div>
-              <div>
-                <h3 className="text-gray-500 text-sm font-medium">Cash Released</h3>
-                <p className="font-bold text-3xl text-gray-800 mt-1">{loading ? "—" : PHP(kpis.cashReleased)}</p>
-                <p className="text-xs font-medium text-gray-400 mt-2">
-                  <span className="text-orange-500">{kpis.pendingPayouts}</span> loans ready for release
-                </p>
-              </div>
-            </div>
-
-            <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100 flex flex-col justify-between">
-              <div className="flex justify-between items-start mb-4">
-                <div className="p-2 bg-purple-50 text-purple-500 rounded-lg"><Users size={20} /></div>
-                <span className="bg-teal-50 text-teal-600 rounded-full px-3 py-1 text-xs font-bold">{isViewingToday ? "Today" : selectedDateLabel}</span>
-              </div>
-              <div>
-                <h3 className="text-gray-500 text-sm font-medium">Members Served</h3>
-                <p className="font-bold text-3xl text-gray-800 mt-1">{loading ? "—" : kpis.membersServed}</p>
-                <p className="text-xs font-medium text-gray-400 mt-2">{isViewingToday ? "Unique accounts today" : `Unique accounts on ${selectedDateLabel}`}</p>
-              </div>
-            </div>
-          </div>
+          <StatCardRow cols={4}>
+            <StatCard
+              label="Total Transactions"
+              value={loading ? "—" : kpis.totalTransactions}
+              icon={FileText}
+              iconColor="text-blue-500"
+              subtext={isViewingToday ? "Recorded today" : `Recorded on ${selectedDateLabel}`}
+            />
+            <StatCard
+              label="Cash Received"
+              value={loading ? "—" : PHP(kpis.cashReceived)}
+              icon={Banknote}
+              iconColor="text-green-600"
+              subtext="Payments, deposits, CBU, membership"
+            />
+            <StatCard
+              label="Cash Released"
+              value={loading ? "—" : PHP(kpis.cashReleased)}
+              icon={ArrowUpRight}
+              iconColor="text-red-500"
+              subtext={<><span className="text-orange-500">{kpis.pendingPayouts}</span> loans ready for release</>}
+            />
+            <StatCard
+              label="Members Served"
+              value={loading ? "—" : kpis.membersServed}
+              icon={Users}
+              iconColor="text-purple-500"
+              subtext={isViewingToday ? "Unique accounts today" : `Unique accounts on ${selectedDateLabel}`}
+            />
+          </StatCardRow>
 
           {/* Charts Section */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">

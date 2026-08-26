@@ -1,5 +1,6 @@
 ﻿import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
+import { StatCard, StatCardRow } from "../../components/StatCard";
 import StaffSidebar from "../../components/StaffSidebar";
 import { bodNav } from "../../components/StaffSidebar/configs/bod";
 import { useNotification } from "../../contex/NotificationContext";
@@ -433,47 +434,25 @@ const Member_Approvals = () => {
           </div>
         </header>
         <main className="p-8">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6" >
-            <div className="bg-white border border-gray-100 rounded-xl p-5 flex items-center gap-4 shadow-sm">
-              <div className="w-12 h-12 rounded-lg bg-[#EAF5EC] flex items-center justify-center flex-shrink-0">
-                <UserPlus className="text-[#2C7A3F] w-6 h-6" />
-              </div>
-              <div className="flex flex-col">
-                <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">New This Month</h3>
-                <p className="text-2xl font-extrabold text-slate-800 mt-0.5">
-                  {stats.newThisMonth ?? "—"}
-                </p>
-              </div>
-            </div>
-            <div className="bg-white border border-gray-100 rounded-xl p-5 flex items-center gap-4 shadow-sm">
-              <div className="w-12 h-12 rounded-lg bg-[#FFF4E5] flex items-center justify-center flex-shrink-0">
-                <ClipboardList className="text-[#D97706] w-6 h-6" />
-              </div>
-              <div className="flex flex-col">
-                <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Avg Days in Pending</h3>
-                <p className="text-2xl font-extrabold text-slate-800 mt-0.5">
-                  {stats.avgPendingDays === null
-                    ? "—"
-                    : `${stats.avgPendingDays.toFixed(1)} ${
-                        stats.avgPendingDays === 1 ? "Day" : "Days"
-                      }`}
-                </p>
-              </div>
-            </div>
-            <div className="bg-white border border-gray-100 rounded-xl p-5 flex items-center gap-4 shadow-sm">
-              <div className="w-12 h-12 rounded-lg bg-[#EAF5EC] flex items-center justify-center flex-shrink-0">
-                <BadgeCheck className="text-[#2C7A3F] w-6 h-6" />
-              </div>
-              <div className="flex flex-col">
-                <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Approval Rate</h3>
-                <p className="text-2xl font-extrabold text-slate-800 mt-0.5">
-                  {stats.approvalRate === null
-                    ? "—"
-                    : `${stats.approvalRate.toFixed(1)}%`}
-                </p>
-              </div>
-            </div>
-          </div>
+          <StatCardRow cols={3}>
+            <StatCard label="New This Month" value={stats.newThisMonth ?? "—"} icon={UserPlus} iconColor="text-[#2C7A3F]" />
+            <StatCard
+              label="Avg Days in Pending"
+              value={
+                stats.avgPendingDays === null
+                  ? "—"
+                  : `${stats.avgPendingDays.toFixed(1)} ${stats.avgPendingDays === 1 ? "Day" : "Days"}`
+              }
+              icon={ClipboardList}
+              iconColor="text-[#D97706]"
+            />
+            <StatCard
+              label="Approval Rate"
+              value={stats.approvalRate === null ? "—" : `${stats.approvalRate.toFixed(1)}%`}
+              icon={BadgeCheck}
+              iconColor="text-[#2C7A3F]"
+            />
+          </StatCardRow>
 
           <div className="bg-white border border-gray-100 rounded-xl shadow-sm overflow-hidden">
             <div className="flex items-center gap-6 px-6 pt-4 border-b border-gray-100">

@@ -1,5 +1,6 @@
 ﻿import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
+import { StatCard, StatCardRow } from "../../components/StatCard";
 import StaffSidebar from "../../components/StaffSidebar";
 import { managerNav } from "../../components/StaffSidebar/configs/manager";
 import { UserAuth } from "../../contex/AuthContext";
@@ -299,64 +300,37 @@ const M_Dashboard = () => {
             </div>
           </div>
 
-          {/* KPI CARDS (CSS Grid is much better here than fixed widths) */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
-            
-            {/* Card 1 */}
-            <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100 flex flex-col justify-between">
-              <div className="flex justify-between items-start mb-4">
-                <div className="p-2 bg-orange-50 text-orange-500 rounded-lg"><ClipboardCheck size={20} /></div>
-                <span className="bg-orange-50 text-orange-600 rounded-full px-3 py-1 text-xs font-bold">Action Required</span>
-              </div>
-              <div>
-                <h3 className="text-gray-500 text-sm font-medium">Pending Approvals</h3>
-                <p className="font-bold text-3xl text-gray-800 mt-1">{loading ? '—' : stats.pendingApprovals}</p>
-                <p className="text-xs font-medium text-gray-400 mt-2">Loans recommended for your approval</p>
-              </div>
-            </div>
-
-            {/* Card 2 */}
-            <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100 flex flex-col justify-between">
-              <div className="flex justify-between items-start mb-4">
-                <div className="p-2 bg-green-50 text-green-600 rounded-lg"><CheckCircle size={20} /></div>
-                <span className="bg-green-50 text-green-700 rounded-full px-3 py-1 text-xs font-bold">This Month</span>
-              </div>
-              <div>
-                <h3 className="text-gray-500 text-sm font-medium">Approved Loans</h3>
-                <p className="font-bold text-3xl text-gray-800 mt-1">{loading ? '—' : stats.approvedThisMonth}</p>
-                <p className="text-xs font-medium text-gray-400 mt-2">Disbursed this month</p>
-              </div>
-            </div>
-
-            {/* Card 3 */}
-            <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100 flex flex-col justify-between">
-              <div className="flex justify-between items-start mb-4">
-                <div className="p-2 bg-blue-50 text-blue-500 rounded-lg"><Wallet size={20} /></div>
-                <span className="bg-blue-50 text-blue-600 rounded-full px-3 py-1 text-xs font-bold">Total Portfolio</span>
-              </div>
-              <div>
-                <h3 className="text-gray-500 text-sm font-medium">Total Loans on File</h3>
-                <p className="font-bold text-3xl text-gray-800 mt-1">{loading ? '—' : stats.totalLoans}</p>
-                <p className="text-xs font-medium text-gray-400 mt-2">
-                  {loading ? 'Loading…' : `${stats.activeLoans} active (released or partially paid)`}
-                </p>
-              </div>
-            </div>
-
-            {/* Card 4 */}
-            <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100 flex flex-col justify-between">
-              <div className="flex justify-between items-start mb-4">
-                <div className="p-2 bg-red-50 text-red-500 rounded-lg"><AlertTriangle size={20} /></div>
-                <span className="bg-red-50 text-red-600 rounded-full px-3 py-1 text-xs font-bold">Risk Factor</span>
-              </div>
-              <div>
-                <h3 className="text-gray-500 text-sm font-medium">Delinquent Rate</h3>
-                <p className="font-bold text-3xl text-gray-800 mt-1">{loading ? '—' : `${stats.delinquentRate.toFixed(1)}%`}</p>
-                <p className="text-xs font-medium text-gray-400 mt-2">Active loans with overdue schedules</p>
-              </div>
-            </div>
-
-          </div>
+          {/* KPI CARDS */}
+          <StatCardRow cols={4}>
+            <StatCard
+              label="Pending Approvals"
+              value={loading ? '—' : stats.pendingApprovals}
+              icon={ClipboardCheck}
+              iconColor="text-orange-500"
+              subtext="Loans recommended for your approval"
+            />
+            <StatCard
+              label="Approved Loans"
+              value={loading ? '—' : stats.approvedThisMonth}
+              icon={CheckCircle}
+              iconColor="text-green-600"
+              subtext="Disbursed this month"
+            />
+            <StatCard
+              label="Total Loans on File"
+              value={loading ? '—' : stats.totalLoans}
+              icon={Wallet}
+              iconColor="text-blue-500"
+              subtext={loading ? 'Loading…' : `${stats.activeLoans} active (released or partially paid)`}
+            />
+            <StatCard
+              label="Delinquent Rate"
+              value={loading ? '—' : `${stats.delinquentRate.toFixed(1)}%`}
+              icon={AlertTriangle}
+              iconColor="text-red-500"
+              subtext="Active loans with overdue schedules"
+            />
+          </StatCardRow>
 
           {/* CHARTS SECTION */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">

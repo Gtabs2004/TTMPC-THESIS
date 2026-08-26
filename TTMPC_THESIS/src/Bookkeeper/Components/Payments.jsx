@@ -1,5 +1,6 @@
 ﻿import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
+import { StatCard, StatCardRow } from "../../components/StatCard";
 import StaffSidebar from "../../components/StaffSidebar";
 import { bookkeeperNav } from "../../components/StaffSidebar/configs/bookkeeper";
 import { UserAuth } from "../../contex/AuthContext";
@@ -417,37 +418,11 @@ const BookkeeperPayments = () => {
             </button>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-            <div className="rounded-lg bg-white border border-gray-200 p-4">
-              <div className="flex items-center justify-between">
-                <p className="text-xs uppercase tracking-wide text-gray-500 font-semibold">Total Active Loans</p>
-                <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center">
-                  <CreditCard size={20} className="text-blue-600" />
-                </div>
-              </div>
-              <h2 className="mt-2 text-2xl font-bold text-gray-800">{dashboardStats.totalActiveLoans}</h2>
-            </div>
-
-            <div className="rounded-lg bg-white border border-gray-200 p-4">
-              <div className="flex items-center justify-between">
-                <p className="text-xs uppercase tracking-wide text-gray-500 font-semibold">Outstanding Balance</p>
-                <div className="w-10 h-10 rounded-lg bg-amber-100 flex items-center justify-center">
-                  <Wallet size={20} className="text-amber-600" />
-                </div>
-              </div>
-              <h2 className="mt-2 text-2xl font-bold text-gray-800">{formatCurrency(dashboardStats.totalOutstanding)}</h2>
-            </div>
-
-            <div className="rounded-lg bg-white border border-gray-200 p-4">
-              <div className="flex items-center justify-between">
-                <p className="text-xs uppercase tracking-wide text-gray-500 font-semibold">Collected This Month</p>
-                <div className="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center">
-                  <Coins size={20} className="text-green-600" />
-                </div>
-              </div>
-              <h2 className="mt-2 text-2xl font-bold text-gray-800">{formatCurrency(dashboardStats.collectedThisMonth)}</h2>
-            </div>
-          </div>
+          <StatCardRow cols={3}>
+            <StatCard label="Total Active Loans" value={dashboardStats.totalActiveLoans} icon={CreditCard} iconColor="text-blue-600" />
+            <StatCard label="Outstanding Balance" value={formatCurrency(dashboardStats.totalOutstanding)} icon={Wallet} iconColor="text-amber-600" />
+            <StatCard label="Collected This Month" value={formatCurrency(dashboardStats.collectedThisMonth)} icon={Coins} iconColor="text-green-600" />
+          </StatCardRow>
 
           <div className="rounded-lg bg-white border border-gray-200 mb-4 p-3">
             <div className="flex flex-wrap gap-2">

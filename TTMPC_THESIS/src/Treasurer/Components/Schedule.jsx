@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { StatCard, StatCardRow } from "../../components/StatCard";
 import { UserAuth } from "../../contex/AuthContext";
 import { PortalTopbarIdentity } from "../../components/PortalIdentity";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
@@ -257,76 +258,41 @@ const Schedule = () => {
             </div>
           )}
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
-            <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100 flex flex-col justify-between">
-              <div className="flex justify-between items-start">
-                <span className="text-gray-500 text-sm font-medium">Current Cycle</span>
-                <div className="p-2 rounded-lg" style={{ background: "#1D602110", color: "#1D6021" }}>
-                  <CalendarDays size={18} />
-                </div>
-              </div>
-              <div className="mt-4">
-                <h3 className="text-xl font-bold text-gray-800">
-                  {currentCycle ? cycleLabel(currentCycle) : "—"}
-                </h3>
-                <div className="text-xs text-gray-500 mt-1">
+          <StatCardRow cols={4}>
+            <StatCard
+              label="Current Cycle"
+              value={currentCycle ? cycleLabel(currentCycle) : "—"}
+              icon={CalendarDays}
+              iconColor="text-[#1D6021]"
+              subtext={
+                <>
                   {agency} · Expected {currentCycle ? formatDate(currentCycle.expected_date) : "—"}
-                </div>
-                <div className="mt-2">{currentCycle && statusPill(currentCycle.status)}</div>
-              </div>
-            </div>
-
-            <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100 flex flex-col justify-between">
-              <div className="flex justify-between items-start">
-                <span className="text-gray-500 text-sm font-medium">Late Cycles ({agency})</span>
-                <div className="p-2 bg-red-50 text-red-500 rounded-lg">
-                  <TrendingDown size={18} />
-                </div>
-              </div>
-              <div className="mt-4">
-                <h3 className="text-3xl font-bold text-gray-800 tabular-nums">
-                  {stats.sample_size > 0 ? `${stats.late_count} / ${stats.sample_size}` : "—"}
-                </h3>
-                <div className="text-xs text-gray-400 mt-2">
-                  {stats.sample_size > 0 ? "of last logged cycles" : "no data yet"}
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100 flex flex-col justify-between">
-              <div className="flex justify-between items-start">
-                <span className="text-gray-500 text-sm font-medium">Avg Delay (when late)</span>
-                <div className="p-2 bg-orange-50 text-orange-500 rounded-lg">
-                  <Clock size={18} />
-                </div>
-              </div>
-              <div className="mt-4">
-                <h3 className="text-3xl font-bold text-gray-800 tabular-nums">
-                  {stats.late_count > 0 ? `${Number(stats.avg_delay_when_late).toFixed(1)}d` : "—"}
-                </h3>
-                <div className="text-xs text-gray-400 mt-2">
-                  worst: {stats.max_delay ? `${stats.max_delay}d late` : "—"}
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100 flex flex-col justify-between">
-              <div className="flex justify-between items-start">
-                <span className="text-gray-500 text-sm font-medium">Flagged This Cycle</span>
-                <div className="p-2 bg-yellow-50 text-yellow-600 rounded-lg">
-                  <AlertTriangle size={18} />
-                </div>
-              </div>
-              <div className="mt-4">
-                <h3 className="text-3xl font-bold text-gray-800 tabular-nums">
-                  {lateInfo?.paused ? "—" : (lateInfo?.data?.length ?? 0)}
-                </h3>
-                <div className="text-xs text-gray-400 mt-2">
-                  {lateInfo?.paused ? "paused (payroll not logged)" : "active loans past due"}
-                </div>
-              </div>
-            </div>
-          </div>
+                  {currentCycle ? <div className="mt-2">{statusPill(currentCycle.status)}</div> : null}
+                </>
+              }
+            />
+            <StatCard
+              label={`Late Cycles (${agency})`}
+              value={stats.sample_size > 0 ? `${stats.late_count} / ${stats.sample_size}` : "—"}
+              icon={TrendingDown}
+              iconColor="text-red-500"
+              subtext={stats.sample_size > 0 ? "of last logged cycles" : "no data yet"}
+            />
+            <StatCard
+              label="Avg Delay (when late)"
+              value={stats.late_count > 0 ? `${Number(stats.avg_delay_when_late).toFixed(1)}d` : "—"}
+              icon={Clock}
+              iconColor="text-orange-500"
+              subtext={`worst: ${stats.max_delay ? `${stats.max_delay}d late` : "—"}`}
+            />
+            <StatCard
+              label="Flagged This Cycle"
+              value={lateInfo?.paused ? "—" : (lateInfo?.data?.length ?? 0)}
+              icon={AlertTriangle}
+              iconColor="text-yellow-600"
+              subtext={lateInfo?.paused ? "paused (payroll not logged)" : "active loans past due"}
+            />
+          </StatCardRow>
 
           <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 mb-6">
             <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100 lg:col-span-3">
