@@ -199,7 +199,7 @@ const BookkeeperSavingsTransactions = () => {
       <StaffSidebar portal="Bookkeeper" items={bookkeeperNav} />
 
       <div className="flex-1 flex flex-col">
-        <header className="bg-white h-16 shadow-sm flex items-center justify-end px-8">
+        <header className="bg-white h-16 shadow-sm flex items-center justify-end px-8 shrink-0">
           <div className="relative">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400" />
             <input

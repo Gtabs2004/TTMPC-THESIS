@@ -652,7 +652,7 @@ const Secretary_Attendance = () => {
      
            {/* MAIN CONTENT AREA */}
            <div className="flex-1 min-w-0 flex flex-col h-screen overflow-hidden">
-        <header className="bg-white h-16 shadow-sm flex items-center justify-end px-8 z-10">
+        <header className="bg-white h-16 shadow-sm flex items-center justify-end px-8 z-10 shrink-0">
           <div className="relative">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400"/>
             <input type="text" className="bg-gray-50 w-52 h-10 rounded-lg border border-gray-300 px-4 py-1 focus:outline-none focus:ring-2 focus:ring-green-500" />

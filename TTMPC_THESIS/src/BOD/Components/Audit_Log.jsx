@@ -29,7 +29,7 @@ const Audit_Log = () => {
       <StaffSidebar portal="BOD" items={bodNav} />
 
       <div className="flex-1 min-w-0 flex flex-col h-screen overflow-hidden">
-        <header className="bg-white h-16 shadow-sm flex items-center justify-end px-8 border-b border-gray-100">
+        <header className="bg-white h-16 shadow-sm flex items-center justify-end px-8 border-b border-gray-100 shrink-0">
           <NotificationBell />
           <div className="flex items-center ml-4 gap-2 border-l border-gray-200 pl-4">
             <img src="/img/bookkeeper-profile.png" alt="Profile" className="w-8 h-8 rounded-full bg-gray-200" />
