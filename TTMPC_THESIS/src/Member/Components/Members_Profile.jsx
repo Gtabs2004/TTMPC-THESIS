@@ -40,7 +40,8 @@ import {
   Sun,
   ChevronDown ,
   Scroll,
-  Camera
+  Camera,
+  LogOut
 } from 'lucide-react';
 
 const PROFILE_SECTIONS = [
@@ -224,17 +225,12 @@ const styles = `
   tbody tr:hover { transform: translateX(2px); }
 `;
 
-const MEMBER_NOTIF_SETTINGS_KEY = 'member_profile_notification_settings';
-
 const Members_Profile = () => {
   const { session, signOut } = UserAuth();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { addNotification } = useNotification();
 
-  // State for the security toggles
-  const [smsNotif, setSmsNotif] = useState(true);
-  const [emailNotif, setEmailNotif] = useState(true);
   const [profile, setProfile] = useState(null);
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [profileError, setProfileError] = useState('');
@@ -320,35 +316,6 @@ const Members_Profile = () => {
       console.error("Failed to sign out:", err);
     }
   };
-
-  // Custom Toggle Switch Component
-  const ToggleSwitch = ({ isOn, onToggle }) => (
-    <div 
-      onClick={onToggle}
-      className={`w-11 h-6 flex items-center rounded-full p-1 cursor-pointer transition-colors ${isOn ? 'bg-member-green' : 'bg-gray-300'}`}
-    >
-      <div className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform ${isOn ? 'translate-x-5' : 'translate-x-0'}`} />
-    </div>
-  );
-
-  useEffect(() => {
-    try {
-      const raw = window.localStorage.getItem(MEMBER_NOTIF_SETTINGS_KEY);
-      if (!raw) return;
-      const parsed = JSON.parse(raw);
-      if (typeof parsed?.smsNotif === 'boolean') setSmsNotif(parsed.smsNotif);
-      if (typeof parsed?.emailNotif === 'boolean') setEmailNotif(parsed.emailNotif);
-    } catch (_error) {}
-  }, []);
-
-  useEffect(() => {
-    try {
-      window.localStorage.setItem(
-        MEMBER_NOTIF_SETTINGS_KEY,
-        JSON.stringify({ smsNotif, emailNotif })
-      );
-    } catch (_error) {}
-  }, [smsNotif, emailNotif]);
 
   useEffect(() => {
     let isMounted = true;
@@ -1314,28 +1281,17 @@ const Members_Profile = () => {
             onConfirm={() => confirmTabChange(true)}
           />
 
-          {/* Notification preferences */}
-          <div className="mt-6 w-full bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-800 bg-[#FAF9FB] dark:bg-gray-800 flex items-center gap-2 text-member-green dark:text-green-400">
-              <ShieldCheck className="w-5 h-5" />
-              <h2 className="font-extrabold text-gray-900 dark:text-white text-base">Notification Preferences</h2>
-            </div>
-            <div className="p-6 flex flex-col gap-5">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="font-bold text-gray-900 dark:text-white text-sm">SMS Notifications</h3>
-                  <p className="text-[11px] text-gray-400 dark:text-gray-500 font-medium">Receive alerts via phone</p>
-                </div>
-                <ToggleSwitch isOn={smsNotif} onToggle={() => setSmsNotif(!smsNotif)} />
-              </div>
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="font-bold text-gray-900 dark:text-white text-sm">Email Notifications</h3>
-                  <p className="text-[11px] text-gray-400 dark:text-gray-500 font-medium">Receive monthly statements</p>
-                </div>
-                <ToggleSwitch isOn={emailNotif} onToggle={() => setEmailNotif(!emailNotif)} />
-              </div>
-            </div>
+          {/* Sign out — mobile only. Desktop keeps the persistent sidebar's
+              sign-out button; on mobile that button is a hamburger tap away,
+              so the profile page gets its own quick-access one too. */}
+          <div className="mt-6 w-full lg:hidden">
+            <button
+              type="button"
+              onClick={handleSignOut}
+              className="w-full flex items-center justify-center gap-2 rounded-2xl bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 shadow-sm px-6 py-4 text-sm font-bold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+            >
+              <LogOut className="w-4 h-4" /> Sign out
+            </button>
           </div>
 
         </main>

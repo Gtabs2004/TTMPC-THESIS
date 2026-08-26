@@ -1,7 +1,9 @@
 ﻿import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
+import StaffSidebar from "../../components/StaffSidebar";
+import { bodNav } from "../../components/StaffSidebar/configs/bod";
 import { useNotification } from "../../contex/NotificationContext";
-import { PortalSidebarIdentity, PortalTopbarIdentity } from "../../components/PortalIdentity";
+import { PortalTopbarIdentity } from "../../components/PortalIdentity";
 import { 
   LayoutDashboard, 
   Users, 
@@ -332,25 +334,6 @@ const Member_Approvals = () => {
     setPage(1);
   }, [activeTab]);
 
-    const menuItems = [
-       {
-         section: "BOD",
-         items: [
-           { name: "Dashboard", icon: LayoutDashboard },
-           { name: "Member Approvals", icon: Users },
-           { name: "Loan Approvals", icon: ShieldCheck },
-           { name: "Loan Ledger", icon: CreditCard },
-           { name: "Manage Member", icon: Users },
-           { name: "Audit Log", icon: History },
-           { name: "Loan Policies", icon: FileText },
-         ],
-       },
-      
-     ];
-  const handleSignOut = async (e) => {
-    e.preventDefault();
-    navigate("/");
-  };
 
   const normalizeStatus = (applicationStatus, trainingStatus) => {
     const normalized = (applicationStatus || "").toLowerCase().trim();
@@ -433,64 +416,7 @@ const Member_Approvals = () => {
 
   return (
     <div className="flex min-h-screen bg-[#F8FAFC]">
-      <aside className="bg-white w-64 shrink-0 p-4 flex flex-col border-r border-gray-200">
-        <div className="flex flex-row items-start gap-2 mb-6">
-          <img src={logo} alt="Logo" className="h-12 w-auto" />
-          <div className="flex flex-col">
-            <h1 className="text-xl font-bold text-primary">TTMPC</h1>
-            <PortalSidebarIdentity className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold" fallbackPortal="BOD Portal" fallbackRole="BOD" />
-          </div>
-        </div>
-
-        <hr className="w-full border-gray-200 mb-6" />
-
-        <nav className="flex flex-col gap-2 text-sm flex-grow">
-          {menuItems.map((sectionGroup) => {
-            const sectionRole = sectionGroup.section.toLowerCase();
-            const isAccessible = !portalRole || sectionRole === portalRole;
-            return (
-            <div key={sectionGroup.section} className="mb-4 flex flex-col gap-2">
-              <p className="text-xs font-bold text-gray-400 px-2 uppercase tracking-wider">{sectionGroup.section}</p>
-              {sectionGroup.items.map((item) => {
-                const Icon = item.icon;
-                 const routeMap = {
-    "Dashboard": "/BOD-dashboard",
-    "Member Approvals": "/member-approvals",
-    "Loan Approvals": "/bod-loan-approvals",
-    "Loan Ledger": "/bod-manage-loans",
-    "Manage Member": "/bod-manage-member",
-    "Audit Log": "/bod-audit-log",
-    "Loan Policies": "/bod-loan-policies",
-   
-  };
-
-                const to = routeMap[item.name] || `/${item.name.toLowerCase().replace(/\s+/g, '-')}`;
-                if (!isAccessible) {
-                  return (
-                    <div
-                      key={item.name}
-                      title={`Only ${sectionGroup.section} accounts can access this`}
-                      className="flex items-center gap-3 p-2 rounded-md text-gray-400 cursor-not-allowed select-none opacity-60"
-                    >
-                      <Icon size={20} /><span>{item.name}</span>
-                    </div>
-                  );
-                }
-                return (
-                  <NavLink key={item.name} to={to} className={({ isActive }) => `flex items-center gap-3 p-2 rounded-md transition-colors ${isActive ? 'bg-[#EAF5EC] text-[#2C7A3F] font-semibold' : 'text-gray-700 hover:bg-[#EAF5EC] hover:text-[#2C7A3F]'}`}>
-                    <Icon size={20} />
-                    <span>{item.name}</span>
-                  </NavLink>
-                );
-              })}
-            </div>
-
-            );
-          })}
-        </nav>
-        
-        <button onClick={handleSignOut} className="mt-auto w-full rounded p-2 text-xs bg-[#2C7A3F] hover:bg-green-800 text-white font-bold transition-colors">Sign out</button>
-      </aside>
+      <StaffSidebar portal="BOD" items={bodNav} />
 
       <div className="flex-1 flex flex-col">
         <header className="bg-white h-16 shadow-sm flex items-center justify-end px-8 border-b border-gray-100">

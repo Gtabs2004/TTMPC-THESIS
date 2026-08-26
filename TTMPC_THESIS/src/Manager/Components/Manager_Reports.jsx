@@ -1,8 +1,10 @@
 ﻿import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
+import StaffSidebar from "../../components/StaffSidebar";
+import { managerNav } from "../../components/StaffSidebar/configs/manager";
 import { UserAuth } from "../../contex/AuthContext";
 import { useNotification } from "../../contex/NotificationContext";
-import { PortalSidebarIdentity, PortalTopbarIdentity } from "../../components/PortalIdentity";
+import { PortalTopbarIdentity } from "../../components/PortalIdentity";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
 import { supabase } from "../../supabaseClient";
 import {
@@ -49,8 +51,7 @@ const TYPE_COLORS = ["#166534", "#3b82f6", "#f59e0b", "#ef4444", "#8b5cf6", "#06
 const MIGS_COLORS = { migs: "#166534", nonMigs: "#dc2626",  };
 
 const Manager_Reports = () => {
-  const { signOut } = UserAuth();
-  const navigate = useNavigate();
+    const navigate = useNavigate();
   const { addNotification } = useNotification();
 
   const [loading, setLoading] = useState(true);
@@ -67,26 +68,8 @@ const Manager_Reports = () => {
   const [loanTypeBreakdown, setLoanTypeBreakdown] = useState([]);
   const [topBorrowers, setTopBorrowers] = useState([]);
 
-  const menuItems = [
-    { name: "Dashboard", icon: LayoutDashboard },
-    { name: "Loan Approval", icon: ClipboardCheck },
-    { name: "Credit Risk", icon: Brain },
-    { name: "Manage Loans", icon: Briefcase },
-    { name: "Manage Member", icon: Users },
-    { name: "Reports", icon: BarChart3 },
-    { name: "Audit Log", icon: History },
-  ];
 
 
-  const handleSignOut = async (e) => {
-    e.preventDefault();
-    try {
-      await signOut();
-      navigate("/");
-    } catch (err) {
-      console.error("Failed to sign out:", err);
-    }
-  };
 
   useEffect(() => {
     let isMounted = true;
@@ -295,64 +278,7 @@ const Manager_Reports = () => {
   return (
     <div className="flex min-h-screen bg-gray-50">
       {/* SIDEBAR */}
-      <aside className="bg-white w-64 p-4 flex flex-col border-r border-gray-200">
-        <div className="flex flex-row items-start gap-2 mb-6">
-          <img src="/img/ttmpc logo.png" alt="Logo" className="h-12 w-auto" />
-          <div className="flex flex-col">
-            <h1 className="text-xl font-bold text-primary">TTMPC</h1>
-            <PortalSidebarIdentity
-              className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold"
-              fallbackPortal="Manager Portal"
-              fallbackRole="Manager"
-            />
-          </div>
-        </div>
-
-        <hr className="w-full border-gray-200 mb-6" />
-
-        <nav className="flex flex-col gap-2 text-sm flex-grow">
-          {(() => {
-           const routeMap = {
-    "Dashboard": "/manager-dashboard",
-    "Loan Approval": "/loan-approval",
-              "Credit Risk": "/manager-credit-risk",
-    "Manage Loans": "/manager-manage-loans",
-    "Manage Member": "/manager-manage-member",
-    "Reports": "/manager-reports",
-    "Audit Log": "/manager-audit-log",
-  };
-            return menuItems.map((item) => {
-              const Icon = item.icon;
-              const to =
-                routeMap[item.name] ||
-                `/${item.name.toLowerCase().replace(/\s+/g, "-")}`;
-              return (
-                <NavLink
-                  key={item.name}
-                  to={to}
-                  className={({ isActive }) =>
-                    `flex items-center gap-3 p-2 rounded-md transition-colors ${
-                      isActive
-                        ? "bg-green-50 text-green-700 font-semibold"
-                        : "text-gray-700 hover:bg-green-50 hover:text-green-700"
-                    }`
-                  }
-                >
-                  <Icon size={20} />
-                  <span>{item.name}</span>
-                </NavLink>
-              );
-            });
-          })()}
-        </nav>
-
-        <button
-          onClick={handleSignOut}
-          className="mt-auto w-full rounded-lg p-2 text-xs bg-green-600 hover:bg-green-700 text-white font-bold transition-colors"
-        >
-          Sign out
-        </button>
-      </aside>
+      <StaffSidebar portal="Manager" items={managerNav} />
 
       {/* MAIN */}
       <div className="flex-1 flex flex-col h-screen overflow-y-auto">
