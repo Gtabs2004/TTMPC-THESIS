@@ -1,5 +1,6 @@
 ﻿import React, { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { StatCard, StatCardRow } from "../../components/StatCard";
 import { UserAuth } from "../../contex/AuthContext";
 import { useNotification } from "../../contex/NotificationContext";
 import { PortalTopbarIdentity } from "../../components/PortalIdentity";
@@ -148,86 +149,55 @@ const Treasurer_Dashboard = () => {
               or on error so a slow/failed sub-fetch doesn't blank the whole
               strip. Bonus forecast is a hardcoded placeholder (no model
               yet) \u2014 see BONUS_FORECAST_PLACEHOLDER. */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
-            {/* Card 1 - Forecast: Consolidated (next month) */}
-            <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100 flex flex-col justify-between">
-              <div className="flex justify-between items-start">
-                <span className="text-gray-500 text-sm font-medium">Forecast - Consolidated</span>
-                <div className="p-2 bg-green-50 text-green-600 rounded-lg">
-                  <TrendingUp size={18} />
-                </div>
-              </div>
-              <div className="mt-4">
-                <h3 className="text-3xl font-bold text-gray-800 tabular-nums">
-                  {kpis.forecastConsolidated.loading ? "…" : kpis.forecastConsolidated.value == null ? "—" : PHP_COMPACT(kpis.forecastConsolidated.value)}
-                </h3>
-                <div className="flex items-center mt-2 text-xs">
-                  <span className="text-gray-400">expected in {kpis.nextMonthLabel || "next month"}</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Card 2 - Forecast: Emergency (next month) */}
-            <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100 flex flex-col justify-between">
-              <div className="flex justify-between items-start">
-                <span className="text-gray-500 text-sm font-medium">Forecast - Emergency</span>
-                <div className="p-2 bg-amber-50 text-amber-700 rounded-lg">
-                  <TrendingUp size={18} />
-                </div>
-              </div>
-              <div className="mt-4">
-                <h3 className="text-3xl font-bold text-gray-800 tabular-nums">
-                  {kpis.forecastEmergency.loading ? "…" : kpis.forecastEmergency.value == null ? "—" : PHP_COMPACT(kpis.forecastEmergency.value)}
-                </h3>
-                <div className="flex items-center mt-2 text-xs">
-                  <span className="text-gray-400">expected in {kpis.nextMonthLabel || "next month"}</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Card 3 - Forecast: Bonus (next month) - hardcoded, no model yet */}
-            <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100 flex flex-col justify-between">
-              <div className="flex justify-between items-start">
-                <span className="text-gray-500 text-sm font-medium">Forecast - Bonus</span>
-                <div className="p-2 bg-violet-50 text-violet-600 rounded-lg">
-                  <TrendingUp size={18} />
-                </div>
-              </div>
-              <div className="mt-4">
-                <h3 className="text-3xl font-bold text-gray-800 tabular-nums">
-                  {PHP_COMPACT(BONUS_FORECAST_PLACEHOLDER)}
-                </h3>
-                <div className="flex items-center mt-2 text-xs">
-                  <span className="text-gray-400">expected in {kpis.nextMonthLabel || "next month"}</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Card 4 - Pending Release (count + total) */}
-            <button
-              type="button"
+          <StatCardRow cols={4}>
+            <StatCard
+              label="Forecast - Consolidated"
+              value={
+                kpis.forecastConsolidated.loading
+                  ? "…"
+                  : kpis.forecastConsolidated.value == null
+                    ? "—"
+                    : PHP_COMPACT(kpis.forecastConsolidated.value)
+              }
+              icon={TrendingUp}
+              iconColor="text-green-600"
+              subtext={`expected in ${kpis.nextMonthLabel || "next month"}`}
+            />
+            <StatCard
+              label="Forecast - Emergency"
+              value={
+                kpis.forecastEmergency.loading
+                  ? "…"
+                  : kpis.forecastEmergency.value == null
+                    ? "—"
+                    : PHP_COMPACT(kpis.forecastEmergency.value)
+              }
+              icon={TrendingUp}
+              iconColor="text-amber-700"
+              subtext={`expected in ${kpis.nextMonthLabel || "next month"}`}
+            />
+            {/* Forecast: Bonus (next month) - hardcoded, no model yet */}
+            <StatCard
+              label="Forecast - Bonus"
+              value={PHP_COMPACT(BONUS_FORECAST_PLACEHOLDER)}
+              icon={TrendingUp}
+              iconColor="text-violet-600"
+              subtext={`expected in ${kpis.nextMonthLabel || "next month"}`}
+            />
+            <StatCard
+              label="Pending Release"
+              value={kpis.pending.loading ? "…" : kpis.pending.error ? "—" : (kpis.pending.count ?? 0)}
+              icon={ClipboardList}
+              iconColor="text-orange-500"
+              subtext={
+                <>
+                  <span className="font-medium tabular-nums">{kpis.pending.loading ? "" : PHP_FULL(kpis.pending.amount || 0)}</span>
+                  <span className="ml-1">awaiting release</span>
+                </>
+              }
               onClick={() => navigate("/treasurer-approval")}
-              className="bg-white rounded-xl p-5 shadow-sm border border-gray-100 flex flex-col justify-between text-left hover:border-green-300 hover:shadow-md transition"
-            >
-              <div className="flex justify-between items-start">
-                <span className="text-gray-500 text-sm font-medium">Pending Release</span>
-                <div className="p-2 bg-orange-50 text-orange-500 rounded-lg">
-                  <ClipboardList size={18} />
-                </div>
-              </div>
-              <div className="mt-4">
-                <h3 className="text-3xl font-bold text-gray-800 tabular-nums">
-                  {kpis.pending.loading ? "…" : kpis.pending.error ? "—" : (kpis.pending.count ?? 0)}
-                </h3>
-                <div className="flex items-center mt-2 text-xs">
-                  <span className="text-gray-500 font-medium tabular-nums">
-                    {kpis.pending.loading ? "" : PHP_FULL(kpis.pending.amount || 0)}
-                  </span>
-                  <span className="text-gray-400 ml-1">awaiting release</span>
-                </div>
-              </div>
-            </button>
-          </div>
+            />
+          </StatCardRow>
 
           {/* Priority Queue — full width. The Monthly Disbursement Trend
               chart was removed here because it duplicated info now shown on

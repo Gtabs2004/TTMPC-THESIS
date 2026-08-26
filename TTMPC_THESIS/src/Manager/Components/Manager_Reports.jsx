@@ -1,5 +1,6 @@
 ﻿import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
+import { StatCard, StatCardRow } from "../../components/StatCard";
 import StaffSidebar from "../../components/StaffSidebar";
 import { managerNav } from "../../components/StaffSidebar/configs/manager";
 import { UserAuth } from "../../contex/AuthContext";
@@ -326,53 +327,36 @@ const Manager_Reports = () => {
           )}
 
           {/* KPI ROW */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-            <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100">
-              <div className="flex items-center justify-between mb-3">
-                <p className="text-xs font-medium text-gray-500">Total Active Loans</p>
-                <Banknote className="w-4 h-4 text-blue-600" />
-              </div>
-              <p className="text-2xl font-bold text-gray-900">
-                {loading ? "—" : portfolio.totalActive}
-              </p>
-              <p className="text-[11px] text-gray-500 mt-1">Released or partially paid</p>
-            </div>
-
-            <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100">
-              <div className="flex items-center justify-between mb-3">
-                <p className="text-xs font-medium text-gray-500">Outstanding Principal</p>
-                <Wallet className="w-4 h-4 text-green-600" />
-              </div>
-              <p className="text-2xl font-bold text-gray-900">
-                {loading ? "—" : formatCurrency(portfolio.totalPrincipalOutstanding)}
-              </p>
-              <p className="text-[11px] text-gray-500 mt-1">Across all active loans</p>
-            </div>
-
-            <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100">
-              <div className="flex items-center justify-between mb-3">
-                <p className="text-xs font-medium text-gray-500">Disbursed YTD</p>
-                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-              </div>
-              <p className="text-2xl font-bold text-gray-900">
-                {loading ? "—" : formatCurrency(portfolio.totalDisbursedYtd)}
-              </p>
-              <p className="text-[11px] text-gray-500 mt-1">Calendar year to date</p>
-            </div>
-
-            <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100">
-              <div className="flex items-center justify-between mb-3">
-                <p className="text-xs font-medium text-gray-500">Overdue Rate</p>
-                <AlertTriangle className="w-4 h-4 text-rose-600" />
-              </div>
-              <p className="text-2xl font-bold text-gray-900">
-                {loading ? "—" : `${portfolio.overdueRate.toFixed(1)}%`}
-              </p>
-              <p className="text-[11px] text-gray-500 mt-1">
-                {portfolio.overdueLoans} active loans with overdue schedules
-              </p>
-            </div>
-          </div>
+          <StatCardRow cols={4}>
+            <StatCard
+              label="Total Active Loans"
+              value={loading ? "—" : portfolio.totalActive}
+              icon={Banknote}
+              iconColor="text-blue-600"
+              subtext="Released or partially paid"
+            />
+            <StatCard
+              label="Outstanding Principal"
+              value={loading ? "—" : formatCurrency(portfolio.totalPrincipalOutstanding)}
+              icon={Wallet}
+              iconColor="text-green-600"
+              subtext="Across all active loans"
+            />
+            <StatCard
+              label="Disbursed YTD"
+              value={loading ? "—" : formatCurrency(portfolio.totalDisbursedYtd)}
+              icon={CheckCircle2}
+              iconColor="text-emerald-600"
+              subtext="Calendar year to date"
+            />
+            <StatCard
+              label="Overdue Rate"
+              value={loading ? "—" : `${portfolio.overdueRate.toFixed(1)}%`}
+              icon={AlertTriangle}
+              iconColor="text-rose-600"
+              subtext={`${portfolio.overdueLoans} active loans with overdue schedules`}
+            />
+          </StatCardRow>
 
           {/* CHARTS ROW */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">

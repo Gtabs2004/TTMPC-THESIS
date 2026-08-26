@@ -1,5 +1,6 @@
 ﻿import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
+import { StatCard, StatCardRow } from "../../components/StatCard";
 import StaffSidebar from "../../components/StaffSidebar";
 import { bookkeeperNav } from "../../components/StaffSidebar/configs/bookkeeper";
 import { UserAuth } from "../../contex/AuthContext";
@@ -330,55 +331,36 @@ const ManageLoans = () => {
             </button>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5 mb-8">
-            {/* Card 1 — Total Loan Records */}
-            <div className="rounded-xl bg-white border border-gray-200 shadow-sm hover:shadow-md transition-shadow p-5">
-              <div className="flex items-center justify-between mb-4">
-                <p className="text-xs uppercase tracking-wider text-gray-500 font-semibold">Total Loan Records</p>
-                <div className="bg-blue-50 rounded-lg p-2">
-                  <FileText size={16} className="text-blue-500" />
-                </div>
-              </div>
-              <h2 className="text-3xl font-bold text-gray-900">{dashboardStats.totalActiveLoans}</h2>
-              <p className="mt-1.5 text-xs text-gray-400">All records with an outstanding balance</p>
-            </div>
-
-            {/* Card 2 — Active Member Loans */}
-            <div className="rounded-xl bg-white border border-gray-200 shadow-sm hover:shadow-md transition-shadow p-5">
-              <div className="flex items-center justify-between mb-4">
-                <p className="text-xs uppercase tracking-wider text-gray-500 font-semibold">Active Member Loans</p>
-                <div className="bg-purple-50 rounded-lg p-2">
-                  <CreditCard size={16} className="text-purple-500" />
-                </div>
-              </div>
-              <h2 className="text-3xl font-bold text-gray-900">{dashboardStats.uniqueActiveMembers}</h2>
-              <p className="mt-1.5 text-xs text-gray-400">Latest obligation per member &amp; loan type</p>
-            </div>
-
-            {/* Card 3 — Outstanding Balance */}
-            <div className="rounded-xl bg-white border border-gray-200 shadow-sm hover:shadow-md transition-shadow p-5">
-              <div className="flex items-center justify-between mb-4">
-                <p className="text-xs uppercase tracking-wider text-gray-500 font-semibold">Outstanding Balance</p>
-                <div className="bg-amber-50 rounded-lg p-2">
-                  <Wallet size={16} className="text-amber-500" />
-                </div>
-              </div>
-              <h2 className="text-2xl font-bold text-gray-900 leading-tight">{formatCurrency(dashboardStats.totalOutstanding)}</h2>
-              <p className="mt-1.5 text-xs text-gray-400">Total remaining across all active loans</p>
-            </div>
-
-            {/* Card 4 — Collected This Month */}
-            <div className="rounded-xl bg-white border border-gray-200 shadow-sm hover:shadow-md transition-shadow p-5">
-              <div className="flex items-center justify-between mb-4">
-                <p className="text-xs uppercase tracking-wider text-gray-500 font-semibold">Collected This Month</p>
-                <div className="bg-green-50 rounded-lg p-2">
-                  <Coins size={16} className="text-green-500" />
-                </div>
-              </div>
-              <h2 className="text-2xl font-bold text-gray-900 leading-tight">{formatCurrency(dashboardStats.collectedThisMonth)}</h2>
-              <p className="mt-1.5 text-xs text-gray-400">Payments received in {new Date().toLocaleString("en-PH", { month: "long", year: "numeric" })}</p>
-            </div>
-          </div>
+          <StatCardRow cols={4}>
+            <StatCard
+              label="Total Loan Records"
+              value={dashboardStats.totalActiveLoans}
+              icon={FileText}
+              iconColor="text-blue-500"
+              subtext="All records with an outstanding balance"
+            />
+            <StatCard
+              label="Active Member Loans"
+              value={dashboardStats.uniqueActiveMembers}
+              icon={CreditCard}
+              iconColor="text-purple-500"
+              subtext="Latest obligation per member & loan type"
+            />
+            <StatCard
+              label="Outstanding Balance"
+              value={formatCurrency(dashboardStats.totalOutstanding)}
+              icon={Wallet}
+              iconColor="text-amber-500"
+              subtext="Total remaining across all active loans"
+            />
+            <StatCard
+              label="Collected This Month"
+              value={formatCurrency(dashboardStats.collectedThisMonth)}
+              icon={Coins}
+              iconColor="text-green-500"
+              subtext={`Payments received in ${new Date().toLocaleString("en-PH", { month: "long", year: "numeric" })}`}
+            />
+          </StatCardRow>
 
           <div className="rounded-xl bg-white border border-gray-200 shadow-sm mb-6 p-5">
             <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">

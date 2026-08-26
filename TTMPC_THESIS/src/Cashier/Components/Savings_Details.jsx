@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { StatCard, StatCardRow } from "../../components/StatCard";
 import StaffSidebar from "../../components/StaffSidebar";
 import { cashierNav } from "../../components/StaffSidebar/configs/cashier";
 import { NavLink, useNavigate, useParams } from "react-router-dom";
@@ -371,40 +372,30 @@ const Savings_Details = () => {
                 )}
 
                 {/* SUMMARY CARDS */}
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-                  <div className="md:col-span-2 rounded-xl border border-gray-200 bg-white shadow-sm p-5">
-                    <div className="flex items-center justify-between">
-                      <p className="text-sm font-medium text-gray-500">Available Balance</p>
-                      <Wallet className="w-5 h-5 text-green-600" />
-                    </div>
-                    <p className="text-3xl font-bold text-gray-900 mt-2">
-                      {formatCurrency(balance)}
-                    </p>
-                    <p className="text-xs text-gray-500 mt-1">
-                      Last updated {formatDateTime(account.updated_at)}
-                    </p>
-                  </div>
-                  <div className="rounded-xl border border-gray-200 bg-white shadow-sm p-5">
-                    <div className="flex items-center justify-between">
-                      <p className="text-sm font-medium text-gray-500">Total Credits</p>
-                      <ArrowDownCircle className="w-5 h-5 text-emerald-600" />
-                    </div>
-                    <p className="text-2xl font-bold text-emerald-700 mt-2">
-                      {formatCurrency(ledgerTotals.credits)}
-                    </p>
-                    <p className="text-xs text-gray-500 mt-1">Across all deposits</p>
-                  </div>
-                  <div className="rounded-xl border border-gray-200 bg-white shadow-sm p-5">
-                    <div className="flex items-center justify-between">
-                      <p className="text-sm font-medium text-gray-500">Total Debits</p>
-                      <ArrowUpCircle className="w-5 h-5 text-rose-600" />
-                    </div>
-                    <p className="text-2xl font-bold text-rose-700 mt-2">
-                      {formatCurrency(ledgerTotals.debits)}
-                    </p>
-                    <p className="text-xs text-gray-500 mt-1">Across all withdrawals</p>
-                  </div>
-                </div>
+                <StatCardRow cols={4}>
+                  <StatCard
+                    className="md:col-span-2"
+                    label="Available Balance"
+                    value={formatCurrency(balance)}
+                    icon={Wallet}
+                    iconColor="text-green-600"
+                    subtext={`Last updated ${formatDateTime(account.updated_at)}`}
+                  />
+                  <StatCard
+                    label="Total Credits"
+                    value={formatCurrency(ledgerTotals.credits)}
+                    icon={ArrowDownCircle}
+                    iconColor="text-emerald-600"
+                    subtext="Across all deposits"
+                  />
+                  <StatCard
+                    label="Total Debits"
+                    value={formatCurrency(ledgerTotals.debits)}
+                    icon={ArrowUpCircle}
+                    iconColor="text-rose-600"
+                    subtext="Across all withdrawals"
+                  />
+                </StatCardRow>
 
                 {/* ACTION BUTTONS */}
                 <div className="flex flex-wrap gap-3">

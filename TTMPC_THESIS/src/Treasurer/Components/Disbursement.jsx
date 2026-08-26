@@ -1,5 +1,6 @@
 ﻿import React, { useMemo, useRef, useEffect, useState, useCallback } from "react";
 import { useNotification } from "../../contex/NotificationContext";
+import { StatCard, StatCardRow } from "../../components/StatCard";
 import { PortalTopbarIdentity } from "../../components/PortalIdentity";
 import StaffSidebar from "../../components/StaffSidebar";
 import { treasurerNav } from "../../components/StaffSidebar/configs/treasurer";
@@ -258,24 +259,11 @@ const Disbursements = () => {
           )}
 
           {/* High-Level Stats */}
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5 mb-8">
-            {stats.map((card) => {
-              const Icon = card.icon;
-              return (
-                <div key={card.label} className={`bg-white rounded-xl border border-gray-200 shadow-sm p-5 flex flex-col hover:-translate-y-1 hover:shadow-md transition-all duration-300`}>
-                  <div className="flex justify-between items-start mb-2">
-                    <div className={`p-2.5 rounded-xl ${card.bg} ${card.tone}`}>
-                      <Icon className="w-5 h-5" />
-                    </div>
-                  </div>
-                  <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mt-2">{card.label}</p>
-                  <div className="flex items-baseline gap-2 mt-1">
-                    <p className="text-2xl font-extrabold text-gray-900 tracking-tight">{card.value}</p>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+          <StatCardRow cols={4}>
+            {stats.map((card) => (
+              <StatCard key={card.label} label={card.label} value={card.value} icon={card.icon} iconColor={card.tone} />
+            ))}
+          </StatCardRow>
 
           {/* Data Table Section */}
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm mb-6 flex flex-col overflow-hidden">

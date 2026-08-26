@@ -1,5 +1,6 @@
 ﻿import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
+import { StatCard, StatCardRow } from "../../components/StatCard";
 import StaffSidebar from "../../components/StaffSidebar";
 import { bookkeeperNav } from "../../components/StaffSidebar/configs/bookkeeper";
 import {
@@ -209,40 +210,29 @@ const Bookkeeper_Savings_Accounts = () => {
             </div>
 
             {/* SUMMARY CARDS */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-              <div className="rounded-xl border border-gray-200 bg-white shadow-sm p-4">
-                <div className="flex items-center justify-between">
-                  <p className="text-xs font-medium text-gray-500">Total Balance</p>
-                  <Wallet className="w-4 h-4 text-green-600" />
-                </div>
-                <p className="text-xl font-bold text-gray-900 mt-1.5">
-                  {formatCurrency(totals.total)}
-                </p>
-                <p className="text-[11px] text-gray-500 mt-0.5">
-                  Across {accounts.length} active passbooks
-                </p>
-              </div>
-              <div className="rounded-xl border border-gray-200 bg-white shadow-sm p-4">
-                <div className="flex items-center justify-between">
-                  <p className="text-xs font-medium text-gray-500">Member Accounts</p>
-                  <Users className="w-4 h-4 text-emerald-600" />
-                </div>
-                <p className="text-xl font-bold text-gray-900 mt-1.5">{totals.memberCount}</p>
-                <p className="text-[11px] text-gray-500 mt-0.5">Linked to cooperative members</p>
-              </div>
-              <div className="rounded-xl border border-gray-200 bg-white shadow-sm p-4">
-                <div className="flex items-center justify-between">
-                  <p className="text-xs font-medium text-gray-500">Standalone Funds</p>
-                  <CreditCard className="w-4 h-4 text-amber-600" />
-                </div>
-                <p className="text-xl font-bold text-gray-900 mt-1.5">
-                  {totals.standaloneCount}
-                </p>
-                <p className="text-[11px] text-gray-500 mt-0.5">
-                  {formatCurrency(totals.standaloneTotal)} held
-                </p>
-              </div>
-            </div>
+            <StatCardRow cols={3}>
+              <StatCard
+                label="Total Balance"
+                value={formatCurrency(totals.total)}
+                icon={Wallet}
+                iconColor="text-green-600"
+                subtext={`Across ${accounts.length} active passbooks`}
+              />
+              <StatCard
+                label="Member Accounts"
+                value={totals.memberCount}
+                icon={Users}
+                iconColor="text-emerald-600"
+                subtext="Linked to cooperative members"
+              />
+              <StatCard
+                label="Standalone Funds"
+                value={totals.standaloneCount}
+                icon={CreditCard}
+                iconColor="text-amber-600"
+                subtext={`${formatCurrency(totals.standaloneTotal)} held`}
+              />
+            </StatCardRow>
 
             {status === "loading" && (
               <div className="mb-3 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-700 flex items-center gap-2">

@@ -1,5 +1,6 @@
 ﻿import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
+import { StatCard, StatCardRow } from "../../components/StatCard";
 import StaffSidebar from "../../components/StaffSidebar";
 import { bookkeeperNav } from "../../components/StaffSidebar/configs/bookkeeper";
 import { UserAuth } from "../../contex/AuthContext";
@@ -468,49 +469,27 @@ const Reports = () => {
           {!loading && reportData && (
             <>
               {/* KPI Cards */}
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 mb-6">
-                {kpiCards.map((card, idx) => {
-                  const Icon = card.icon;
-                  return (
-                    <div
-                      key={idx}
-                      className={`bg-white p-5 rounded-xl border shadow-sm flex flex-col ${
-                        card.alert ? "border-red-200" : "border-gray-100"
-                      }`}
-                    >
-                      <div
-                        className={`w-8 h-8 rounded-md flex items-center justify-center mb-4 ${
-                          card.alert ? "bg-red-50 text-red-600" : "bg-green-50 text-[#166534]"
-                        }`}
-                      >
-                        <Icon size={18} />
-                      </div>
-                      <h3 className="text-[10px] uppercase font-bold text-gray-400 tracking-wider mb-1">
-                        {card.title}
-                      </h3>
-                      <p
-                        className={`text-2xl font-black mb-2 ${
-                          card.alert ? "text-red-600" : "text-gray-900"
-                        }`}
-                      >
-                        {card.value}
-                      </p>
-                      <div
-                        className={`flex items-center text-xs font-bold ${
-                          card.up ? "text-[#166534]" : card.alert ? "text-red-500" : "text-gray-500"
-                        }`}
-                      >
+              <StatCardRow cols={4}>
+                {kpiCards.map((card, idx) => (
+                  <StatCard
+                    key={idx}
+                    label={card.title}
+                    value={card.value}
+                    icon={card.icon}
+                    iconColor={card.alert ? "text-red-600" : "text-[#166534]"}
+                    subtext={
+                      <span className="inline-flex items-center">
                         {card.up ? (
                           <ArrowUpRight size={14} className="mr-1" />
                         ) : (
                           <ArrowDownRight size={14} className="mr-1" />
                         )}
-                        <span className="text-gray-400 font-medium">{card.sub}</span>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+                        {card.sub}
+                      </span>
+                    }
+                  />
+                ))}
+              </StatCardRow>
 
               {/* Charts Row 1: Collections + Loan Distribution */}
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">

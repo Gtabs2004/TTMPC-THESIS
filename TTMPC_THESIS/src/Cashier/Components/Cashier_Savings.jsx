@@ -1,5 +1,6 @@
 ﻿import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
+import { StatCard, StatCardRow } from "../../components/StatCard";
 import StaffSidebar from "../../components/StaffSidebar";
 import { cashierNav } from "../../components/StaffSidebar/configs/cashier";
 import {
@@ -231,38 +232,29 @@ const Cashier_Savings = () => {
             </div>
 
             {/* SUMMARY CARDS */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-              <div className="rounded-xl border border-gray-200 bg-white shadow-sm p-5">
-                <div className="flex items-center justify-between">
-                  <p className="text-sm font-medium text-gray-500">Total Balance</p>
-                  <Wallet className="w-5 h-5 text-green-600" />
-                </div>
-                <p className="text-2xl font-bold text-gray-900 mt-2">
-                  {formatCurrency(totals.total)}
-                </p>
-                <p className="text-xs text-gray-500 mt-1">
-                  Across {accounts.length} active passbooks
-                </p>
-              </div>
-              <div className="rounded-xl border border-gray-200 bg-white shadow-sm p-5">
-                <div className="flex items-center justify-between">
-                  <p className="text-sm font-medium text-gray-500">Member Accounts</p>
-                  <UserPlus className="w-5 h-5 text-emerald-600" />
-                </div>
-                <p className="text-2xl font-bold text-gray-900 mt-2">{totals.memberCount}</p>
-                <p className="text-xs text-gray-500 mt-1">Linked to cooperative members</p>
-              </div>
-              <div className="rounded-xl border border-gray-200 bg-white shadow-sm p-5">
-                <div className="flex items-center justify-between">
-                  <p className="text-sm font-medium text-gray-500">Standalone Funds</p>
-                  <Banknote className="w-5 h-5 text-amber-600" />
-                </div>
-                <p className="text-2xl font-bold text-gray-900 mt-2">{totals.standaloneCount}</p>
-                <p className="text-xs text-gray-500 mt-1">
-                  {formatCurrency(totals.standaloneTotal)} held
-                </p>
-              </div>
-            </div>
+            <StatCardRow cols={3}>
+              <StatCard
+                label="Total Balance"
+                value={formatCurrency(totals.total)}
+                icon={Wallet}
+                iconColor="text-green-600"
+                subtext={`Across ${accounts.length} active passbooks`}
+              />
+              <StatCard
+                label="Member Accounts"
+                value={totals.memberCount}
+                icon={UserPlus}
+                iconColor="text-emerald-600"
+                subtext="Linked to cooperative members"
+              />
+              <StatCard
+                label="Standalone Funds"
+                value={totals.standaloneCount}
+                icon={Banknote}
+                iconColor="text-amber-600"
+                subtext={`${formatCurrency(totals.standaloneTotal)} held`}
+              />
+            </StatCardRow>
 
             {/* ALERTS */}
             {status === "loading" && (

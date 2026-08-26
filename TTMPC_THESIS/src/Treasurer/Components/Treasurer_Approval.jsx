@@ -1,5 +1,6 @@
 ﻿import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { StatCard, StatCardRow } from "../../components/StatCard";
 import { useNotification } from "../../contex/NotificationContext";
 import { PortalTopbarIdentity } from "../../components/PortalIdentity";
 import { supabase } from "../../supabaseClient";
@@ -220,44 +221,21 @@ const Treasurer_Approval = () => {
         </header>
 
         <main className="p-8 flex-1">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
-            <div className="bg-white border border-gray-100 rounded-xl p-5 flex items-center gap-4 shadow-sm">
-              <div className="w-12 h-12 rounded-lg bg-[#EAF5EC] flex items-center justify-center flex-shrink-0">
-                <UserPlus className="text-[#2C7A3F] w-6 h-6" />
-              </div>
-
-
-
-               <div className="flex flex-col">
-                <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Pending Review</h3>
-                <p className="text-2xl font-extrabold text-slate-800 mt-0.5">{queueStats.pendingCount}</p>
-              </div>
-            </div>
-
-            <div className="bg-white border border-gray-100 rounded-xl p-5 flex items-center gap-4 shadow-sm">
-              <div className="w-12 h-12 rounded-lg bg-[#FFF4E5] flex items-center justify-center flex-shrink-0">
-                <ClipboardList className="text-[#D97706] w-6 h-6" />
-              </div>
-              <div className="flex flex-col">
-                <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Avg Days Waiting</h3>
-                <p className="text-2xl font-extrabold text-slate-800 mt-0.5">
-                  {queueStats.avgDaysWaiting.toFixed(1)} {queueStats.avgDaysWaiting === 1 ? "Day" : "Days"}
-                </p>
-              </div>
-            </div>
-
-            <div className="bg-white border border-gray-100 rounded-xl p-5 flex items-center gap-4 shadow-sm">
-              <div className="w-12 h-12 rounded-lg bg-[#EAF5EC] flex items-center justify-center flex-shrink-0">
-                <BadgeCheck className="text-[#2C7A3F] w-6 h-6" />
-              </div>
-              <div className="flex flex-col">
-                <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Oldest In Queue</h3>
-                <p className="text-2xl font-extrabold text-slate-800 mt-0.5">
-                  {queueStats.oldestDays.toFixed(0)} {queueStats.oldestDays === 1 ? "Day" : "Days"}
-                </p>
-              </div>
-            </div>
-          </div>
+          <StatCardRow cols={3}>
+            <StatCard label="Pending Review" value={queueStats.pendingCount} icon={UserPlus} iconColor="text-[#2C7A3F]" />
+            <StatCard
+              label="Avg Days Waiting"
+              value={`${queueStats.avgDaysWaiting.toFixed(1)} ${queueStats.avgDaysWaiting === 1 ? "Day" : "Days"}`}
+              icon={ClipboardList}
+              iconColor="text-[#D97706]"
+            />
+            <StatCard
+              label="Oldest In Queue"
+              value={`${queueStats.oldestDays.toFixed(0)} ${queueStats.oldestDays === 1 ? "Day" : "Days"}`}
+              icon={BadgeCheck}
+              iconColor="text-[#2C7A3F]"
+            />
+          </StatCardRow>
 
           <div className="bg-white border border-gray-200 rounded-xl shadow-sm">
             <div className="overflow-x-auto">

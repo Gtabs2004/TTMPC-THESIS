@@ -1,5 +1,6 @@
 ﻿import React, { useEffect, useState } from "react";
 import StaffSidebar from "../components/StaffSidebar";
+import { StatCard, StatCardRow } from "../components/StatCard";
 import { secretaryNav } from "../components/StaffSidebar/configs/secretary";
 import { UserAuth } from "../contex/AuthContext";
 import { useNotification } from "../contex/NotificationContext";
@@ -690,26 +691,18 @@ const Secretary_Attendance = () => {
             const rescheduledSessions = rescheduleRows.filter((r) => r.hasReschedule).length;
 
             const cards = [
-              { label: "ATTENDANCE RECORDED", value: attendanceRecorded, Icon: BadgeCheck, iconBg: "#EAF5EC", iconColor: "#2C7A3F" },
-              { label: "AWAITING ATTENDANCE", value: awaitingAttendance, Icon: ClipboardList, iconBg: "#FFF4E5", iconColor: "#D97706" },
-              { label: "TO RESCHEDULE", value: toReschedule, Icon: AlertTriangle, iconBg: "#FEE2E2", iconColor: "#B91C1C" },
-              { label: "RESCHEDULED SESSIONS", value: rescheduledSessions, Icon: CalendarDays, iconBg: "#FFF4E5", iconColor: "#D97706" },
+              { label: "Attendance Recorded", value: attendanceRecorded, icon: BadgeCheck, iconColor: "text-[#2C7A3F]" },
+              { label: "Awaiting Attendance", value: awaitingAttendance, icon: ClipboardList, iconColor: "text-[#D97706]" },
+              { label: "To Reschedule", value: toReschedule, icon: AlertTriangle, iconColor: "text-[#B91C1C]" },
+              { label: "Rescheduled Sessions", value: rescheduledSessions, icon: CalendarDays, iconColor: "text-[#D97706]" },
             ];
 
             return (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-                {cards.map(({ label, value, Icon, iconBg, iconColor }) => (
-                  <div key={label} className="bg-white border border-gray-100 rounded-xl p-5 flex items-center gap-4 shadow-sm">
-                    <div className="w-12 h-12 rounded-lg flex items-center justify-center flex-shrink-0" style={{ backgroundColor: iconBg }}>
-                      <Icon className="w-6 h-6" style={{ color: iconColor }} />
-                    </div>
-                    <div className="flex flex-col">
-                      <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{label}</h3>
-                      <p className="text-2xl font-extrabold text-slate-800 mt-0.5">{value}</p>
-                    </div>
-                  </div>
+              <StatCardRow cols={4}>
+                {cards.map((c) => (
+                  <StatCard key={c.label} label={c.label} value={c.value} icon={c.icon} iconColor={c.iconColor} />
                 ))}
-              </div>
+              </StatCardRow>
             );
           })()}
 

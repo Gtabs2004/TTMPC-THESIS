@@ -1,5 +1,6 @@
 ﻿import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
+import { StatCard, StatCardRow } from "../../components/StatCard";
 import StaffSidebar from "../../components/StaffSidebar";
 import { bookkeeperNav } from "../../components/StaffSidebar/configs/bookkeeper";
 import { UserAuth } from "../../contex/AuthContext";
@@ -392,59 +393,29 @@ const Dashboard = () => {
           ) : null}
 
           {/* Top KPI Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-            {/* Card 1: Total Loans */}
-            <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100 flex flex-col justify-between">
-              <div className="flex justify-between items-start">
-                <span className="text-gray-500 text-sm font-medium">Total Loans</span>
-                <div className="p-2 bg-green-50 text-green-500 rounded-lg">
-                  <Users size={18} />
-                </div>
-              </div>
-              <div className="mt-4">
-                <h3 className="text-3xl font-bold text-gray-800">
-                  {loading ? "..." : stats.totalLoans}
-                </h3>
-                <div className="flex items-center mt-2 text-xs">
-                  <span className="text-gray-400">Legacy + live loans on record</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Card 2: Payment This Month */}
-            <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100 flex flex-col justify-between">
-              <div className="flex justify-between items-start">
-                <span className="text-gray-500 text-sm font-medium">Payment This Month</span>
-                <div className="p-2 bg-blue-50 text-blue-500 rounded-lg">
-                  <Calendar size={18} />
-                </div>
-              </div>
-              <div className="mt-4">
-                <h3 className="text-3xl font-bold text-gray-800">
-                  {loading ? "..." : formatPeso(stats.paymentsThisMonth)}
-                </h3>
-                {loading ? null : renderTrend(stats.monthChangePct)}
-              </div>
-            </div>
-
-            {/* Card 3: Total Share Capital */}
-            <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100 flex flex-col justify-between">
-              <div className="flex justify-between items-start">
-                <span className="text-gray-500 text-sm font-medium">Total Share Capital</span>
-                <div className="p-2 bg-purple-50 text-purple-500 rounded-lg">
-                  <PiggyBank size={18} />
-                </div>
-              </div>
-              <div className="mt-4">
-                <h3 className="text-3xl font-bold text-gray-800">
-                  {loading ? "..." : formatPesoCompact(stats.shareCapital)}
-                </h3>
-                <div className="flex items-center mt-2 text-xs">
-                  <span className="text-gray-400">Across all members</span>
-                </div>
-              </div>
-            </div>
-          </div>
+          <StatCardRow cols={3}>
+            <StatCard
+              label="Total Loans"
+              value={loading ? "..." : stats.totalLoans}
+              icon={Users}
+              iconColor="text-green-500"
+              subtext="Legacy + live loans on record"
+            />
+            <StatCard
+              label="Payment This Month"
+              value={loading ? "..." : formatPeso(stats.paymentsThisMonth)}
+              icon={Calendar}
+              iconColor="text-blue-500"
+              subtext={loading ? null : renderTrend(stats.monthChangePct)}
+            />
+            <StatCard
+              label="Total Share Capital"
+              value={loading ? "..." : formatPesoCompact(stats.shareCapital)}
+              icon={PiggyBank}
+              iconColor="text-purple-500"
+              subtext="Across all members"
+            />
+          </StatCardRow>
 
           {/* Middle Charts Section */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
