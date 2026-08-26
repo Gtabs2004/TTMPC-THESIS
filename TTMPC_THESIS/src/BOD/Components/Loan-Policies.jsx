@@ -211,7 +211,7 @@ const Loan_Policies = () => {
     <div className="flex min-h-screen bg-gray-50">
      <StaffSidebar portal="BOD" items={bodNav} />
 
-      <div className="flex-1 min-w-0 flex flex-col ml-64">
+      <div className="flex-1 min-w-0 flex flex-col">
         <header className="bg-white h-16 shadow-sm flex items-center justify-end px-8 border-b border-gray-100 shrink-0 gap-4">
           <NotificationBell />
           <p className="font-medium text-gray-700">BOD</p>

@@ -192,8 +192,8 @@ const MIGS = () => {
 
       <StaffSidebar portal="Bookkeeper" items={bookkeeperNav} />
 
-      <div className="flex-1 flex flex-col ml-64">
-        <header className="bg-white h-16 shadow-sm flex items-center justify-end px-8 border-b border-gray-100">
+      <div className="flex-1 flex flex-col">
+        <header className="bg-white h-16 shadow-sm flex items-center justify-end px-8 border-b border-gray-100 shrink-0">
           <div className="flex items-center gap-4">
             <LoanNotificationBell role="bookkeeper" />
             <div className="flex items-center gap-2 border-l border-gray-200 pl-4">

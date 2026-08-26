@@ -252,8 +252,8 @@ const Manager_Manage_Loans = () => {
       <StaffSidebar portal="Manager" items={managerNav} />
 
       {/* Main */}
-      <div className="flex-1 flex flex-col ml-64">
-        <header className="bg-white h-16 shadow-sm flex items-center justify-between px-8 border-b border-gray-100">
+      <div className="flex-1 flex flex-col h-screen overflow-y-auto">
+        <header className="bg-white h-16 shadow-sm flex items-center justify-between px-8 border-b border-gray-100 shrink-0">
           <div className="flex-1 max-w-2xl">
             <div className="relative">
               <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
