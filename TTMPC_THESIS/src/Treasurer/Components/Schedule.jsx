@@ -452,7 +452,7 @@ const Schedule = () => {
                   </thead>
                   <tbody>
                     {lateInfo.data.map((row) => (
-                      <tr key={row.schedule_id_ref} className="border-b border-gray-50">
+                      <tr key={row.schedule_id_ref} className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors">
                         <td className="py-2 pr-3 text-gray-800">{row.member_name}</td>
                         <td className="py-2 pr-3 text-gray-600">{row.employer_name || "—"}</td>
                         <td className="py-2 pr-3 text-gray-600 tabular-nums">{row.control_number || "—"}</td>

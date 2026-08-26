@@ -1,5 +1,6 @@
 ﻿import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { getLoanTypeChipClass as getLoanTypeStyle } from "../../utils/loanTypeColors";
 import { StatCard, StatCardRow } from "../../components/StatCard";
 import { useNotification } from "../../contex/NotificationContext";
 import { PortalTopbarIdentity } from "../../components/PortalIdentity";
@@ -144,18 +145,6 @@ const Treasurer_Approval = () => {
       oldestDays: ageDays.length ? Math.max(...ageDays) : 0,
     };
   })();
-
-  // loan_types.name stores the full product name ("Bonus Loan",
-  // "Consolidated Loan", "Emergency Loan" — see loan_form_policies.sql), not
-  // the bare word this used to switch on exactly, so the match never hit and
-  // every badge silently fell through to gray. Match on keyword instead.
-  const getLoanTypeStyle = (type) => {
-    const t = String(type || "").toLowerCase();
-    if (t.includes("bonus")) return "bg-blue-100 text-blue-700";
-    if (t.includes("emergency")) return "bg-red-100 text-red-700";
-    if (t.includes("consolidated")) return "bg-purple-100 text-purple-700";
-    return "bg-gray-100 text-gray-700";
-  };
 
   const getMigsStyle = (status) => {
     return status === "MIGS" ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500";

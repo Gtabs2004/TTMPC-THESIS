@@ -1,5 +1,6 @@
 ﻿import React, { useState, useEffect } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
+import { getLoanTypeChipClass as getLoanTypeStyle } from "../../utils/loanTypeColors";
 import { StatCard, StatCardRow } from "../../components/StatCard";
 import StaffSidebar from "../../components/StaffSidebar";
 import { managerNav } from "../../components/StaffSidebar/configs/manager";
@@ -105,15 +106,6 @@ const Loan_Approval = () => {
 
 
   // Helper functions for badge styling
-  const getLoanTypeStyle = (type) => {
-    switch(type) {
-      case 'Bonus': return 'bg-blue-100 text-blue-700';
-      case 'Emergency': return 'bg-red-100 text-red-700';
-      case 'Consolidated': return 'bg-purple-100 text-purple-700';
-      default: return 'bg-gray-100 text-gray-700';
-    }
-  };
-
   const getMigsStyle = (status) => {
     return status === 'MIGS' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500';
   };

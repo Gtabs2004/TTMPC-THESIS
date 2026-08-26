@@ -1,5 +1,6 @@
 ﻿import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
+import { getLoanTypeChipClass as getLoanTypeStyle } from "../../utils/loanTypeColors";
 import { StatCard, StatCardRow } from "../../components/StatCard";
 import StaffSidebar from "../../components/StaffSidebar";
 import { bookkeeperNav } from "../../components/StaffSidebar/configs/bookkeeper";
@@ -44,15 +45,6 @@ const formatCurrency = (value) =>
     currency: "PHP",
     minimumFractionDigits: 2,
   }).format(Number(value || 0));
-
-const getLoanTypeStyle = (code) => {
-  const key = String(code || "").toUpperCase();
-  if (key === "CONSOLIDATED") return "bg-blue-100 text-blue-700";
-  if (key === "EMERGENCY") return "bg-red-100 text-red-700";
-  if (key === "BONUS") return "bg-amber-100 text-amber-700";
-  if (key === "KOICA" || key === "ABF") return "bg-emerald-100 text-emerald-700";
-  return "bg-gray-100 text-gray-700";
-};
 
 const getStatusStyle = (status) => {
   const key = String(status || "").toLowerCase();
@@ -381,7 +373,7 @@ const BookkeeperPayments = () => {
     <div className="flex min-h-screen bg-gray-100">
       <StaffSidebar portal="Bookkeeper" items={bookkeeperNav} />
 
-      <div className="flex-1 flex flex-col">
+       <div className="flex-1 flex flex-col h-screen overflow-y-auto">
         <header className="bg-white h-16 shadow-sm flex items-center justify-end px-8 border-b border-gray-100 shrink-0">
           <div className="relative">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400" />
@@ -541,7 +533,7 @@ const BookkeeperPayments = () => {
 
                 {(activeTab === "active" || activeTab === "fully_paid") &&
                   paginatedLoanRows.map((loan, index) => (
-                    <tr key={loan.loan_id} className="border-b border-gray-100">
+                    <tr key={loan.loan_id} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
                       <td className="p-3 text-xs font-mono font-bold text-green-700">{loan.loan_id}</td>
                       <td className="p-3 text-xs text-gray-800 font-semibold">{loan.member_name}</td>
                       <td className="p-3">
@@ -596,7 +588,7 @@ const BookkeeperPayments = () => {
                     const loan = loanById.get(item.loan_id);
 
                     return (
-                      <tr key={item.payment_id} className="border-b border-gray-100">
+                      <tr key={item.payment_id} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
                         <td className="p-3 text-xs font-mono font-bold text-green-700 whitespace-nowrap">{item.payment_id}</td>
                         <td className="p-3 text-xs text-gray-800 font-semibold">{loan?.member_name || "Unknown Member"}</td>
                         <td className="p-3">
