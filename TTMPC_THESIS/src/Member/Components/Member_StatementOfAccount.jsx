@@ -1,5 +1,6 @@
 ﻿import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
+import { getLoanTypeCardStyle } from "../../utils/loanTypeColors";
 import { UserAuth } from "../../contex/AuthContext";
 import { useNotification } from "../../contex/NotificationContext";
 import { useTheme } from "../../contex/ThemeContext";
@@ -617,12 +618,6 @@ const Member_StatementOfAccount = () => {
     doc.save(`CBU_Statement_${safeName}_${new Date().toISOString().slice(0, 10)}.pdf`);
   };
 
-  const kindStyles = {
-    consolidated: { ring: "border-green-200 dark:border-green-800", bg: "bg-green-50 dark:bg-green-900/20", text: "text-green-700 dark:text-green-400", chip: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" },
-    emergency: { ring: "border-red-200 dark:border-red-800", bg: "bg-red-50 dark:bg-red-900/20", text: "text-red-700 dark:text-red-400", chip: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" },
-    bonus: { ring: "border-amber-200 dark:border-amber-800", bg: "bg-amber-50 dark:bg-amber-900/20", text: "text-amber-700 dark:text-amber-400", chip: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" },
-  };
-
   return (
     <div className="relative flex h-screen overflow-hidden bg-[#F8F9FA] dark:bg-gray-950">
       <style>{styles}</style>
@@ -764,7 +759,7 @@ const Member_StatementOfAccount = () => {
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6">
                   {loans.map((loan) => {
-                    const k = kindStyles[loan.kind];
+                    const k = getLoanTypeCardStyle(loan.kind);
                     return (
                       <button
                         key={loan.control_number}

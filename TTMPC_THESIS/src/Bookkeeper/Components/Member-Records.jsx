@@ -60,13 +60,13 @@ const Records = () => {
   
   <table className="w-full text-left border-collapse text-sm mb-24">
     <thead>
-      <tr className="border-b border-gray-200 text-gray-500">
-        <th className="pb-4 font-medium">Member Name</th>
-        <th className="pb-4 font-medium">Employer</th>
-        <th className="pb-4 font-medium">Share Capital</th>
-        <th className="pb-4 font-medium">MIGS Status</th>
-        <th className="pb-4 font-medium">Active Loans</th>
-        <th className="pb-4 font-medium">Actions</th>
+      <tr className="bg-green-700 text-[10px] uppercase tracking-wider text-white font-extrabold">
+        <th className="p-5 font-bold">Member Name</th>
+        <th className="p-5 font-bold">Employer</th>
+        <th className="p-5 font-bold">Share Capital</th>
+        <th className="p-5 font-bold">MIGS Status</th>
+        <th className="p-5 font-bold">Active Loans</th>
+        <th className="p-5 font-bold">Actions</th>
       </tr>
     </thead>
     <tbody>
@@ -78,19 +78,19 @@ const Records = () => {
         { name: "Nash Ervine Siaton", employer: "DepEd", capital: "\u20B1676,767", status: "NON-MIGS", loans: 0 },
         
       ].map((member, index) => (
-        <tr key={index} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
-          <td className="py-4 font-semibold text-[#1a4a2f]">{member.name}</td>
-          <td className="py-4 text-gray-800 font-medium">{member.employer}</td>
-          <td className="py-4 text-gray-800 font-medium">{member.capital}</td>
-          <td className="py-4">
+        <tr key={index} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
+          <td className="p-5 font-semibold text-[#1a4a2f]">{member.name}</td>
+          <td className="p-5 text-gray-800 font-medium">{member.employer}</td>
+          <td className="p-5 text-gray-800 font-medium">{member.capital}</td>
+          <td className="p-5">
             <span className={`px-3 py-1 rounded-full text-xs font-semibold text-white ${
               member.status === "MIGS" ? "bg-[#1e9e4a]" : "bg-[#a5abb3]"
             }`}>
               {member.status}
             </span>
           </td>
-          <td className="py-4 text-gray-800 font-medium">{member.loans}</td>
-          <td className="py-4">
+          <td className="p-5 text-gray-800 font-medium">{member.loans}</td>
+          <td className="p-5">
             <button onClick={() => navigate('/member_details')}
             className="text-[#1e9e4a] hover:text-green-800 transition-colors p-1">
               <Eye size={20} strokeWidth={2} />

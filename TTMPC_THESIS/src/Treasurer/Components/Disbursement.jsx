@@ -1,5 +1,6 @@
 ﻿import React, { useMemo, useRef, useEffect, useState, useCallback } from "react";
 import { useNotification } from "../../contex/NotificationContext";
+import { getLoanTypeChipClass as getLoanTypeStyle } from "../../utils/loanTypeColors";
 import { StatCard, StatCardRow } from "../../components/StatCard";
 import { PortalTopbarIdentity } from "../../components/PortalIdentity";
 import StaffSidebar from "../../components/StaffSidebar";
@@ -134,21 +135,6 @@ const Disbursements = () => {
     return d.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "2-digit" });
   };
 
-  // Same loan-type badge colors used in Loan-Approval.jsx (Bookkeeper),
-  // loan-approval.jsx (Manager), and Treasurer_Approval.jsx — keep this in
-  // sync with those if the palette ever changes.
-  const getLoanTypeStyle = (type) => {
-    switch (type) {
-      case "Bonus":
-        return "bg-blue-100 text-blue-700";
-      case "Emergency":
-        return "bg-red-100 text-red-700";
-      case "Consolidated":
-        return "bg-purple-100 text-purple-700";
-      default:
-        return "bg-gray-100 text-gray-700";
-    }
-  };
 
   const rankedRows = useMemo(() => {
     const enriched = rows.map((r) => ({ ...r, rank: computeRank(r) }));

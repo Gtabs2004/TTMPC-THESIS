@@ -1,5 +1,6 @@
 ﻿import React, { useState, useEffect } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
+import { getLoanTypeChipClass as getLoanTypeStyle } from "../../utils/loanTypeColors";
 import { StatCard, StatCardRow } from "../../components/StatCard";
 import StaffSidebar from "../../components/StaffSidebar";
 import { bookkeeperNav } from "../../components/StaffSidebar/configs/bookkeeper";
@@ -144,18 +145,6 @@ const BookkeeperLoanApproval = () => {
   };
 
 
-  const getLoanTypeStyle = (type) => {
-    switch (type) {
-      case "Bonus":
-        return "bg-blue-100 text-blue-700";
-      case "Emergency":
-        return "bg-red-100 text-red-700";
-      case "Consolidated":
-        return "bg-purple-100 text-purple-700";
-      default:
-        return "bg-gray-100 text-gray-700";
-    }
-  };
 
   const getMigsStyle = (status) => {
     return status === "MIGS" ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500";
@@ -359,7 +348,7 @@ const BookkeeperLoanApproval = () => {
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr className="bg-green-700 border-8px border-gray-200 text-[10px] uppercase tracking-wider text-white font-extrabold">
+                  <tr className="bg-green-700 text-[10px] uppercase tracking-wider text-white font-extrabold">
                     <th className="p-3 font-bold">Loan ID</th>
                     <th className="p-3 font-bold">Member Name</th>
                     <th className="p-3 font-bold">Loan Type</th>

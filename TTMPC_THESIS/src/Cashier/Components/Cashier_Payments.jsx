@@ -1015,7 +1015,7 @@ const Cashier_Payments = () => {
                             </thead>
                             <tbody>
                               {loanPayments.map((p) => (
-                                <tr key={p.payment_id} className="border-t border-gray-100">
+                                <tr key={p.payment_id} className="border-t border-gray-100 hover:bg-gray-50/50 transition-colors">
                                   <td className="px-4 py-2 text-gray-700 tabular-nums whitespace-nowrap">
                                     {p.payment_date ? new Date(p.payment_date).toLocaleDateString() : "—"}
                                   </td>

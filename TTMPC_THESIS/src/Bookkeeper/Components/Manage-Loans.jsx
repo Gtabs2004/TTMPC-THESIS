@@ -1,5 +1,6 @@
 ﻿import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
+import { getLoanTypeChipClass as getLoanTypeStyle } from "../../utils/loanTypeColors";
 import { StatCard, StatCardRow } from "../../components/StatCard";
 import StaffSidebar from "../../components/StaffSidebar";
 import { bookkeeperNav } from "../../components/StaffSidebar/configs/bookkeeper";
@@ -52,15 +53,6 @@ const formatLoanStatus = (value) => {
   if (raw === "to be disbursed") return "Approved for Disbursement";
   if (raw === "ready for disbursement") return "Ready for Release";
   return value || "No schedule";
-};
-
-const getLoanTypeStyle = (code) => {
-  const key = String(code || "").toUpperCase();
-  if (key === "CONSOLIDATED") return "bg-blue-100 text-blue-700";
-  if (key === "EMERGENCY") return "bg-red-100 text-red-700";
-  if (key === "BONUS") return "bg-amber-100 text-amber-700";
-  if (key === "KOICA" || key === "ABF") return "bg-emerald-100 text-emerald-700";
-  return "bg-gray-100 text-gray-700";
 };
 
 const ManageLoans = () => {

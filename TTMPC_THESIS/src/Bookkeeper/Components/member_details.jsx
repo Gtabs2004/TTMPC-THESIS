@@ -1,5 +1,6 @@
 ﻿import React, { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { getLoanTypeDotClass as loanTypeAccent } from "../../utils/loanTypeColors";
 import {
   ArrowLeft,
   Phone,
@@ -401,14 +402,6 @@ const DebtCapacityPanel = ({ membershipId }) => {
     if (s.includes('released')) return 'bg-indigo-100 text-indigo-800 border-indigo-200';
     if (s.includes('unpaid')) return 'bg-red-100 text-red-800 border-red-200';
     return 'bg-slate-100 text-slate-800 border-slate-200';
-  };
-
-  const loanTypeAccent = (type) => {
-    const t = String(type || '').toLowerCase();
-    if (t.includes('consolidated')) return 'bg-emerald-500';
-    if (t.includes('emergency')) return 'bg-amber-500';
-    if (t.includes('bonus')) return 'bg-sky-500';
-    return 'bg-slate-400';
   };
 
   return (
