@@ -11,6 +11,7 @@ import {
   BarChart3,
   History,
   Coins,
+  Banknote,
 } from "lucide-react";
 
 // Bookkeeper portal navigation. Same list on every Bookkeeper page.
@@ -28,9 +29,11 @@ export const bookkeeperNav = [
     subItems: [
       { name: "All Accounts",         path: "/bookkeeper-savings-accounts" },
       { name: "Savings Withdrawals",  path: "/bookkeeper-savings-transactions" },
+       { name: "Capital Build-Up", icon: Banknote, path: "/bookkeeper-cbu" },
     ],
   },
-  { name: "Accounting",   icon: Calculator, path: "/accounting" },
+ 
+ 
   { name: "MIGS Scoring", icon: Activity,   path: "/migs" },
   { name: "Reports",      icon: BarChart3,  path: "/reports" },
   { name: "Audit Trail",  icon: History,    path: "/audit-trail" },
