@@ -6,6 +6,7 @@ import { UserAuth } from "../../contex/AuthContext";
 import { useNotification } from "../../contex/NotificationContext";
 import { PortalTopbarIdentity } from "../../components/PortalIdentity";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
+import InterestOnShareCapitalModal from "../../components/InterestOnShareCapitalModal";
 import { 
   LayoutDashboard, 
   Search,
@@ -26,6 +27,7 @@ import {
   ShoppingCart,
   ArrowDownLeft,
   History,
+  Calculator
 } from 'lucide-react';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
@@ -42,6 +44,7 @@ const Cashier_CBU = () => {
   const [loadError, setLoadError] = useState("");
   const [memberPage, setMemberPage] = useState(1);
   const [transactionPage, setTransactionPage] = useState(1);
+  const [showInterestModal, setShowInterestModal] = useState(false);
 
 
 
@@ -198,11 +201,20 @@ const Cashier_CBU = () => {
           <h1 className="text-2xl font-bold text-[#1F3E35] mb-6">Capital Build-Up</h1>
 
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 mb-8">
-            <div className="flex items-center justify-between mb-5">
-              <h3 className="text-lg font-bold text-[#1F3E35]">Member Accounts</h3>
-              <span className="text-[10px] uppercase tracking-wider font-bold text-primary bg-green-50 px-2 py-1 rounded">
-                Live Data
-              </span>
+            <div className="flex items-center justify-between mb-5 gap-3 flex-wrap">
+              <div className="flex items-center gap-3">
+                <h3 className="text-lg font-bold text-[#1F3E35]">Member Accounts</h3>
+                <span className="text-[10px] uppercase tracking-wider font-bold text-primary bg-green-50 px-2 py-1 rounded">
+                  Live Data
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowInterestModal(true)}
+                className="inline-flex items-center gap-2 rounded-lg bg-[#66B538] hover:bg-green-700 px-4 py-2 text-xs font-semibold text-white transition-colors"
+              >
+                <Calculator className="w-4 h-4" /> ISC Calculator
+              </button>
             </div>
 
             {loading && (
@@ -294,6 +306,12 @@ const Cashier_CBU = () => {
 
         </main>
       </div>
+
+      <InterestOnShareCapitalModal
+        open={showInterestModal}
+        onClose={() => setShowInterestModal(false)}
+        members={members}
+      />
     </div>
   );
 };

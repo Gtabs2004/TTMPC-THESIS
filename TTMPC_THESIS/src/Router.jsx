@@ -18,6 +18,7 @@ import MIGS from "./Bookkeeper/Components/MIGS";
 import BookkeeperPayments from "./Bookkeeper/Components/Payments";
 import BookkeeperSavingsTransactions from "./Bookkeeper/Components/Savings-Transactions";
 import BookkeeperSavingsAccounts from "./Bookkeeper/Components/Bookkeeper_Savings_Accounts";
+import Bookkeeper_CBU from "./Bookkeeper/Components/Bookkeeper_CBU";
 import Reports from "./Bookkeeper/Components/Reports";
 import BookkeeperLoanApproval from "./Bookkeeper/Components/Loan-Approval";
 import LoanLedger from "./Bookkeeper/Components/Loan-Ledger";
@@ -138,6 +139,7 @@ export const router = createBrowserRouter([
     {path: "/payments", element: bookkeeperGuarded(<BookkeeperPayments/>)},
     {path: "/bookkeeper-savings-transactions", element: bookkeeperGuarded(<BookkeeperSavingsTransactions/>)},
     {path: "/bookkeeper-savings-accounts", element: bookkeeperGuarded(<BookkeeperSavingsAccounts/>)},
+    {path: "/bookkeeper-cbu", element: bookkeeperGuarded(<Bookkeeper_CBU/>)},
     {path: "/reports", element: bookkeeperGuarded(<Reports/>)},
     {path: "/loan_kiosk", element: <Loan_Kiosk/>},
     {path: "/verification", element: <Verification/>},
