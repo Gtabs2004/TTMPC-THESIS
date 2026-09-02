@@ -7,6 +7,7 @@ import { UserAuth } from "../../contex/AuthContext";
 import { supabase } from "../../supabaseClient";
 import StaffTopbar from "../../components/StaffTopbar";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
+import Breadcrumb from "../../components/Breadcrumb";
 import { 
   LayoutDashboard,
   Search,
@@ -123,9 +124,10 @@ const Cashier_Grocery = () => {
 
         {/* Page Content */}
         <main className="p-8 max-w-7xl mx-auto w-full">
-          
+          <Breadcrumb portal="Cashier" page="Grocery" />
+
           {/* Page Title & Actions */}
-         
+
 
           {/* Summary Cards */}
           <StatCardRow cols={3}>

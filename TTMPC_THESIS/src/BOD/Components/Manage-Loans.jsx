@@ -4,7 +4,9 @@ import StaffSidebar from "../../components/StaffSidebar";
 import { bodNav } from "../../components/StaffSidebar/configs/bod";
 import { NavLink, useNavigate } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
-import { PortalTopbarIdentity } from "../../components/PortalIdentity";
+import StaffTopbar from "../../components/StaffTopbar";
+import NotificationBell from "../../components/NotificationBell";
+import Breadcrumb from "../../components/Breadcrumb";
 import {
   LayoutDashboard,
   Users,
@@ -174,31 +176,17 @@ const BOD_Manage_Loans = () => {
       <StaffSidebar portal="BOD" items={bodNav} />
 
       <div className="flex-1 min-w-0 flex flex-col">
-        <header className="bg-white h-16 shadow-sm flex items-center justify-end px-8 border-b border-gray-100 shrink-0">
-          <div className="relative">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400" />
-            <input
-              type="text"
-              className="bg-gray-50 w-60 h-10 rounded-lg border border-gray-200 pl-10 pr-4 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-[#2C7A3F]"
-              placeholder="Search loans..."
-              value={searchTerm}
-              onChange={(event) => setSearchTerm(event.target.value)}
-            />
-          </div>
-          <button className="ml-6 relative p-1 rounded-full text-gray-500 hover:bg-gray-100 transition-colors">
-            <Bell className="w-5 h-5" />
-            <span className="absolute top-1 right-1 block h-2 w-2 rounded-full bg-red-500 ring-2 ring-white"></span>
-          </button>
-          <div className="flex items-center ml-4 gap-2 border-l border-gray-200 pl-4">
-            <img src="src/assets/img/bookkeeper-profile.png" alt="Profile" className="w-8 h-8 rounded-full bg-gray-200" />
-            <PortalTopbarIdentity className="text-sm font-medium text-gray-700" fallbackRole="BOD" />
-          </div>
-        </header>
+        <StaffTopbar
+          portal="BOD"
+          notifications={<NotificationBell />}
+          search={{ value: searchTerm, onChange: (event) => setSearchTerm(event.target.value), placeholder: "Search loans..." }}
+        />
 
         <main className="flex-1 overflow-auto">
           <div className="p-6 sm:p-8">
             {/* Page Header */}
             <div className="mb-8">
+              <Breadcrumb portal="BOD" page="Loan Ledger" />
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-2">
                 <h1 className="text-3xl font-bold text-gray-900">Loan Ledger</h1>
                

@@ -11,7 +11,8 @@ import {
   CalendarDays,
   History
 } from "lucide-react";
-import NotificationBell from "./NotificationBell";
+import StaffTopbar from "../../components/StaffTopbar";
+import NotificationBell from "../../components/NotificationBell";
 
 const SERVICE_FEE_MODES = [
   { value: "bracket", label: "Per bracket" },
@@ -212,10 +213,7 @@ const Loan_Policies = () => {
      <StaffSidebar portal="BOD" items={bodNav} />
 
       <div className="flex-1 min-w-0 flex flex-col">
-        <header className="bg-white h-16 shadow-sm flex items-center justify-end px-8 border-b border-gray-100 shrink-0 gap-4">
-          <NotificationBell />
-          <p className="font-medium text-gray-700">BOD</p>
-        </header>
+        <StaffTopbar portal="BOD" notifications={<NotificationBell />} />
 
         <main className="p-8 overflow-auto">
           <div className="mb-6 flex items-start justify-between gap-4 flex-wrap">

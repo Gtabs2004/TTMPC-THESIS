@@ -6,8 +6,9 @@ import { managerNav } from "../../components/StaffSidebar/configs/manager";
 import { useNavigate, NavLink } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
 import { useNotification } from "../../contex/NotificationContext";
-import { PortalTopbarIdentity } from "../../components/PortalIdentity";
+import StaffTopbar from "../../components/StaffTopbar";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
+import Breadcrumb from "../../components/Breadcrumb";
 import {
   LayoutDashboard,
   Users,
@@ -246,39 +247,21 @@ const Manager_Manage_Loans = () => {
 
       {/* Main */}
       <div className="flex-1 flex flex-col h-screen overflow-y-auto">
-        <header className="bg-white h-16 shadow-sm flex items-center justify-between px-8 border-b border-gray-100 shrink-0">
-          <div className="flex-1 max-w-2xl">
-            <div className="relative">
-              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-              <input
-                type="text"
-                className="bg-gray-50 w-full h-10 rounded-lg border border-gray-300 pl-10 pr-4 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent shadow-sm hover:border-gray-400 transition-all"
-                placeholder="Search member, loan ID, status..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
-            </div>
-          </div>
-          <div className="flex items-center gap-4 ml-6">
-            <LoanNotificationBell />
-            <div className="flex items-center gap-3 pl-4 border-l border-gray-200">
-              <PortalTopbarIdentity
-                className="text-sm font-semibold text-gray-700 hidden sm:block"
-                fallbackRole="Manager"
-              />
-            </div>
-          </div>
-        </header>
+        <StaffTopbar
+          portal="Manager"
+          notifications={<LoanNotificationBell role="manager" />}
+          search={{
+            value: searchTerm,
+            onChange: (e) => setSearchTerm(e.target.value),
+            placeholder: "Search member, loan ID, status...",
+          }}
+        />
 
         <main className="p-8">
           {/* Breadcrumb + title */}
           <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-8 gap-4">
             <div>
-              <div className="flex items-center gap-2 text-sm text-gray-500 font-medium mb-1">
-                <span>Manager</span>
-                <ChevronRight className="w-4 h-4 text-gray-300" />
-                <span className="text-[#389734]">Manage Loans</span>
-              </div>
+              <Breadcrumb portal="Manager" page="Manage Loans" />
             </div>
             <button
               type="button"

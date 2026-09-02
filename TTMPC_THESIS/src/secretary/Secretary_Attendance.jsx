@@ -4,7 +4,8 @@ import { StatCard, StatCardRow } from "../components/StatCard";
 import { secretaryNav } from "../components/StaffSidebar/configs/secretary";
 import { UserAuth } from "../contex/AuthContext";
 import { useNotification } from "../contex/NotificationContext";
-import { PortalTopbarIdentity } from "../components/PortalIdentity";
+import StaffTopbar from "../components/StaffTopbar";
+import Breadcrumb from "../components/Breadcrumb";
 import ConfirmDialog from "../components/ConfirmDialog";
 import { supabase } from "../supabaseClient";
 import { resolveAccountFromSessionUser } from "../utils/sessionIdentity";
@@ -27,7 +28,7 @@ import {
     AlertTriangle,
 } from 'lucide-react';
 import logo from "../assets/img/ttmpc logo.png";
-import NotificationBell from "../BOD/Components/NotificationBell";
+import NotificationBell from "../components/NotificationBell";
 
 
 
@@ -653,17 +654,10 @@ const Secretary_Attendance = () => {
      
            {/* MAIN CONTENT AREA */}
            <div className="flex-1 min-w-0 flex flex-col h-screen overflow-hidden">
-        <header className="bg-white h-16 shadow-sm flex items-center justify-end px-8 z-10 shrink-0">
-          <div className="relative">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400"/>
-            <input type="text" className="bg-gray-50 w-52 h-10 rounded-lg border border-gray-300 px-4 py-1 focus:outline-none focus:ring-2 focus:ring-green-500" />
-          </div>
-          <NotificationBell />
-          <img src="/img/bookkeeper-profile.png" alt="Bookkeeper Profile" className="ml-4 w-8 h-8 rounded-full" />
-          <PortalTopbarIdentity className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold" fallbackPortal="Secretary Portal" fallbackRole="Secretary" />
-        </header>
+        <StaffTopbar portal="Secretary" notifications={<NotificationBell />} />
 
         <main className="p-8 overflow-auto">
+          <Breadcrumb portal="Secretary" page="Training Attendance" />
           {/* Top Stats Cards — reflect the Secretary's active workload on this
               page: recording attendance, handling reschedules, and locking in
               verified rescheduled sessions. */}

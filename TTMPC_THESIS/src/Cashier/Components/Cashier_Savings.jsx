@@ -29,6 +29,7 @@ import { UserAuth } from "../../contex/AuthContext";
 import { useNotification } from "../../contex/NotificationContext";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
 import StaffTopbar from "../../components/StaffTopbar";
+import Breadcrumb from "../../components/Breadcrumb";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 const PAGE_SIZE = 10;
@@ -186,6 +187,7 @@ const Cashier_Savings = () => {
           <div className="mb-8">
             <div className="flex items-center justify-between gap-4 mb-6">
               <div>
+                <Breadcrumb portal="Cashier" page="Savings Accounts" />
                 <h1 className="text-3xl font-bold text-gray-900">Savings Accounts</h1>
                 <p className="text-sm text-gray-500 mt-1">
                   Manage member passbooks and standalone cooperative funds

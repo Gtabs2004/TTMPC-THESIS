@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 import StaffTopbar from "../../components/StaffTopbar";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
+import Breadcrumb from "../../components/Breadcrumb";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 const ITEMS_PER_PAGE = 10;
@@ -138,11 +139,7 @@ const Manage_Member = () => {
         <StaffTopbar portal="Bookkeeper" notifications={<LoanNotificationBell role="bookkeeper" />} />
               
         <main className="p-8">
-        <div className="flex items-center gap-2 text-sm text-gray-500 font-medium mb-1">
-              <span>Bookkeeper</span>
-              <ChevronRight className="w-4 h-4 text-gray-300" />
-              <span className="text-primary">Members Profile</span>
-          </div>
+        <Breadcrumb portal="Bookkeeper" page="Members Profile" />
           <div className="flex items-end justify-between mb-6">
             <div>
             </div>

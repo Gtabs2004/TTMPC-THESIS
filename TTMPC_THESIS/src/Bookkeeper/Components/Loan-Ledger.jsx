@@ -34,6 +34,7 @@ import logo from "../../assets/img/ttmpc logo.png";
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 import StaffTopbar from "../../components/StaffTopbar";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
+import Breadcrumb from "../../components/Breadcrumb";
 const formatCurrency = (value) =>
   new Intl.NumberFormat("en-PH", {
     style: "currency",
@@ -315,6 +316,7 @@ const LoanLedger = () => {
         <main className="p-8">
           <div className="flex items-center justify-between mb-6">
             <div>
+              <Breadcrumb portal="Bookkeeper" page="Loan Ledger" />
               <h1 className="font-bold text-2xl text-gray-800">Loan Ledger</h1>
               <p className="text-sm text-gray-500 mt-1">{selectedLoan.loan_id} • {selectedLoan.member_name}</p>
             </div>

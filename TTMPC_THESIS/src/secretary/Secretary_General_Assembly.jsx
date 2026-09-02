@@ -26,10 +26,11 @@ import {
 
 import { UserAuth } from "../contex/AuthContext";
 import { useNotification } from "../contex/NotificationContext";
-import { PortalTopbarIdentity } from "../components/PortalIdentity";
+import StaffTopbar from "../components/StaffTopbar";
+import Breadcrumb from "../components/Breadcrumb";
 import ConfirmDialog from "../components/ConfirmDialog";
 import logo from "../assets/img/ttmpc logo.png";
-import NotificationBell from "../BOD/Components/NotificationBell";
+import NotificationBell from "../components/NotificationBell";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 const PAGE_SIZE = 10;
@@ -283,26 +284,13 @@ const Secretary_General_Assembly = () => {
    
          {/* MAIN CONTENT AREA */}
          <div className="flex-1 min-w-0 flex flex-col h-screen overflow-hidden">
-        <header className="bg-white h-16 shadow-sm flex items-center justify-end px-8 z-10 shrink-0">
-          <div className="relative">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400" />
-            <input
-              type="text"
-              className="bg-gray-50 w-52 h-10 rounded-lg border border-gray-300 px-4 py-1 pl-9 focus:outline-none focus:ring-2 focus:ring-green-500"
-              placeholder="Search..."
-            />
-          </div>
-          <NotificationBell />
-          <PortalTopbarIdentity
-            className="ml-4 text-sm font-medium text-gray-700"
-            fallbackRole="Secretary"
-          />
-        </header>
+        <StaffTopbar portal="Secretary" notifications={<NotificationBell />} />
 
         <main className="p-6 overflow-auto">
           {/* Title */}
           <div className="flex items-center justify-between mb-4">
             <div>
+              <Breadcrumb portal="Secretary" page="General Assembly" />
               <h1 className="text-xl font-bold text-gray-900">General Assembly Attendance</h1>
               <p className="text-xs text-gray-500 mt-0.5">
                 Record member attendance for the {SCORING_YEAR} General Assembly. Used as MIGS scoring input.

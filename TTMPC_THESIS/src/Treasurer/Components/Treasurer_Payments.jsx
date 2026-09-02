@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { StatCard, StatCardRow } from "../../components/StatCard";
-import { PortalTopbarIdentity } from "../../components/PortalIdentity";
+import StaffTopbar from "../../components/StaffTopbar";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
+import Breadcrumb from "../../components/Breadcrumb";
 import StaffSidebar from "../../components/StaffSidebar";
 import { treasurerNav } from "../../components/StaffSidebar/configs/treasurer";
 import {
@@ -9,7 +10,6 @@ import {
   Wallet,
   ChevronLeft,
   ChevronRight,
-  ChevronRight as ChevronRightIcon,
   ArrowDownCircle,
   ArrowUpCircle,
   Filter,
@@ -158,33 +158,21 @@ const Treasurer_Payments = () => {
 
       {/* MAIN */}
       <div className="flex-1 flex flex-col h-screen overflow-y-auto">
-        <header className="bg-white h-16 shrink-0 shadow-sm flex items-center justify-end px-8 border-b border-gray-100">
-          <div className="relative">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400" />
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={(e) => { setSearchTerm(e.target.value); setPage(1); }}
-              className="bg-gray-50 w-52 h-10 rounded-lg border border-gray-300 px-4 py-1 pl-9 focus:outline-none focus:ring-2 focus:ring-green-500"
-              placeholder="Search description / member / ref..."
-            />
-          </div>
-          <LoanNotificationBell role="treasurer" />
-          <div className="ml-4 w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 shrink-0">
-            <User className="w-4.5 h-4.5" />
-          </div>
-          <PortalTopbarIdentity className="text-sm font-medium text-gray-700" fallbackRole="Treasurer" />
-        </header>
+        <StaffTopbar
+          portal="Treasurer"
+          notifications={<LoanNotificationBell role="treasurer" />}
+          search={{
+            value: searchTerm,
+            onChange: (e) => { setSearchTerm(e.target.value); setPage(1); },
+            placeholder: "Search description / member / ref...",
+          }}
+        />
 
         <main className="p-8">
           {/* Breadcrumb + Header */}
           <div className="mb-6">
-            <div className="flex items-center gap-2 text-sm text-gray-500 font-medium mb-1">
-              <span>Treasurer</span>
-              <ChevronRightIcon className="w-4 h-4 text-gray-300" />
-              <span className="text-primary">Payments</span>
-            </div>
-           
+            <Breadcrumb portal="Treasurer" page="Payments" />
+
           </div>
 
           {/* KPI STRIP */}

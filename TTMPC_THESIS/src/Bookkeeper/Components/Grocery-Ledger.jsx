@@ -38,6 +38,7 @@ const periodKey = (date, filter) => {
 };
 import StaffTopbar from "../../components/StaffTopbar";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
+import Breadcrumb from "../../components/Breadcrumb";
 import {
   LayoutDashboard,
   Users,
@@ -275,6 +276,7 @@ const Grocery_Ledger = () => {
               </button>
               
               <div>
+                <Breadcrumb portal="Bookkeeper" page="Grocery Ledger" />
                 <div className="flex items-center gap-3">
                   <BookOpen className="w-6 h-6 text-green-700" />
                   <h1 className="font-bold text-2xl text-[#1a3b47]">Ledger</h1>

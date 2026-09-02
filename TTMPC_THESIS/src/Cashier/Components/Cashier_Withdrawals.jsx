@@ -6,6 +6,7 @@ import { UserAuth } from "../../contex/AuthContext";
 import { useNotification } from "../../contex/NotificationContext";
 import StaffTopbar from "../../components/StaffTopbar";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
+import Breadcrumb from "../../components/Breadcrumb";
 import { 
   LayoutDashboard, 
   Search,
@@ -99,6 +100,7 @@ const Cashier_Withdrawals = () => {
 
         {/* 3. PAGE CONTENT */}
         <main className="p-8 overflow-auto">
+          <Breadcrumb portal="Cashier" page="Withdrawals" />
           <h1 className="text-2xl font-bold text-[#1F3E35] mb-6">Withdrawals</h1>
 
           {/* Main Card Container */}

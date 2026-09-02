@@ -4,7 +4,8 @@ import StaffSidebar from "../components/StaffSidebar";
 import { secretaryNav } from "../components/StaffSidebar/configs/secretary";
 import { UserAuth } from "../contex/AuthContext";
 import { useNotification } from "../contex/NotificationContext";
-import { PortalTopbarIdentity } from "../components/PortalIdentity";
+import StaffTopbar from "../components/StaffTopbar";
+import Breadcrumb from "../components/Breadcrumb";
 import {
   LayoutDashboard,
   Users,
@@ -29,7 +30,7 @@ import {
   X as CloseIcon,
 } from 'lucide-react';
 import logo from "../assets/img/ttmpc logo.png";
-import NotificationBell from "../BOD/Components/NotificationBell";
+import NotificationBell from "../components/NotificationBell";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 
@@ -147,26 +148,15 @@ const Secretary_Records = () => {
       <StaffSidebar portal="Secretary" items={secretaryNav} />
 
       <div className="flex-1 flex flex-col">
-        <header className="bg-white h-16 shadow-sm flex items-center justify-end px-8 border-b border-gray-100 shrink-0">
-                 <div className="relative">
-                   <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400"/>
-                   <input
-                     type="text"
-                     value={searchQuery}
-                     onChange={(e) => setSearchQuery(e.target.value)}
-                     className="bg-gray-50 w-52 h-10 rounded-lg border border-gray-200 pl-10 pr-4 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-[#2C7A3F]"
-                     placeholder="Search..."
-                   />
-                 </div>
-                 <NotificationBell />
-                 <div className="flex items-center ml-4 gap-2 border-l border-gray-200 pl-4">
-                   <img src="/img/bookkeeper-profile.png" alt="Profile" className="w-8 h-8 rounded-full bg-gray-200"></img>
-                   <PortalTopbarIdentity className="text-sm font-medium text-gray-700" fallbackRole="BOD" />
-                 </div>
-               </header>
-       
+        <StaffTopbar
+          portal="Secretary"
+          notifications={<NotificationBell />}
+          search={{ value: searchQuery, onChange: (e) => setSearchQuery(e.target.value), placeholder: "Search..." }}
+        />
+
         <main className="p-8">
-    
+          <Breadcrumb portal="Secretary" page="Membership Records" />
+
           <div className="bg-white w-full rounded-2xl m-auto mt-6 p-8 shadow-sm border border-gray-100 min-h-fit">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-lg font-bold text-gray-800">All Members</h2>
