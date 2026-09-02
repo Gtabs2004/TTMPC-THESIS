@@ -3,8 +3,7 @@ import { useNavigate, NavLink } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
 import { useTheme } from "../../contex/ThemeContext";
 import { supabase } from "../../supabaseClient";
-import { resolveMemberContextFromSessionUser } from "../../utils/sessionIdentity";
-import { loadMemberAvatarSignedUrl } from "../../utils/memberAvatar";
+import { resolveMemberIdentity } from "../../utils/memberIdentity";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
 import {
   LayoutDashboard,
@@ -164,33 +163,20 @@ const Member_ApplyLoans = () => {
               .filter(Boolean).join(" ").trim();
             if (isMounted) {
               setMemberLabel(fullName || "Member");
-              setMemberId(m.id || bundle.account?.user_id || null);
+              setMemberId(bundle.account?.user_id || null);
               if (bundle.avatar_url) setAvatarUrl(bundle.avatar_url);
             }
             return;
           }
         }
 
-        // Slow path: cache miss — fall back to DB queries
-        const { data: authData, error: authError } = await supabase.auth.getUser();
-        if (authError) throw authError;
-
-        const sessionUser = authData?.user;
-        if (!sessionUser?.id) return;
-
-        const { member: memberRow } = await resolveMemberContextFromSessionUser(sessionUser);
-        const fullName = [memberRow?.first_name, memberRow?.middle_name, memberRow?.surname]
-          .filter(Boolean)
-          .join(" ")
-          .trim();
-
+        // Slow path: cache miss — fall back to shared utility
+        const { memberId, fullName, avatarUrl } = await resolveMemberIdentity();
         if (isMounted) {
           setMemberLabel(fullName || "Member");
-          setMemberId(memberRow?.id || sessionUser.id || null);
+          setMemberId(memberId || null);
+          if (avatarUrl) setAvatarUrl(avatarUrl);
         }
-
-        const signedAvatarUrl = await loadMemberAvatarSignedUrl(supabase, sessionUser.id);
-        if (isMounted) setAvatarUrl(signedAvatarUrl || "");
       } catch (_error) {
         if (isMounted) {
           setMemberLabel("Member");

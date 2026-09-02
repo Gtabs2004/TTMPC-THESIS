@@ -4,8 +4,7 @@ import { UserAuth } from "../../contex/AuthContext";
 import { useNotification } from "../../contex/NotificationContext";
 import { useTheme } from "../../contex/ThemeContext";
 import { supabase } from "../../supabaseClient";
-import { resolveMemberContextFromSessionUser } from "../../utils/sessionIdentity";
-import { loadMemberAvatarSignedUrl } from "../../utils/memberAvatar";
+import { resolveMemberIdentity } from "../../utils/memberIdentity";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
 import { getOrFetch, peek } from "../memberDataCache";
 import {
@@ -147,23 +146,9 @@ const Member_Savings = () => {
     let isMounted = true;
 
     const buildSavingsSnapshot = async () => {
-        const { data: authData, error: authError } = await supabase.auth.getUser();
-        if (authError) throw authError;
-
-        const sessionUser = authData?.user;
-        if (!sessionUser?.id) throw new Error('Please sign in again to load your savings.');
-
-        const { account, member: memberRow } = await resolveMemberContextFromSessionUser(sessionUser);
-        const memberId = account?.user_id || sessionUser.id;
+        const { memberId, fullName, avatarUrl: signedAvatarUrl, account, memberRow } = await resolveMemberIdentity();
         const membershipId = String(account?.membership_id || memberRow?.membership_number_id || '').trim();
-
         if (!memberId) throw new Error('Unable to resolve member account for savings.');
-
-        const fullName = [memberRow?.first_name, memberRow?.middle_name, memberRow?.surname]
-          .filter(Boolean)
-          .join(' ')
-          .trim();
-        const signedAvatarUrl = await loadMemberAvatarSignedUrl(supabase, sessionUser.id);
 
         // 1. Find this member's savings account(s) in the new schema
         const { data: savingsAccountRows, error: savingsAccountError } = await supabase
@@ -269,7 +254,7 @@ const Member_Savings = () => {
           regularSavings: totalRegular,
           timeDeposit: 0,
           ledgerData: mappedLedger,
-          _sessionUserId: sessionUser.id,
+          _sessionUserId: memberId,
         };
     };
 

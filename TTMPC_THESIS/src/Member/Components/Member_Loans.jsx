@@ -3,9 +3,8 @@ import { useNavigate, NavLink } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
 import { useTheme } from "../../contex/ThemeContext";
 import { supabase } from "../../supabaseClient";
-import { resolveMemberContextFromSessionUser } from "../../utils/sessionIdentity";
+import { resolveMemberIdentity } from "../../utils/memberIdentity";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
-import { loadMemberAvatarSignedUrl } from "../../utils/memberAvatar";
 import LoanCalculatorModal from "./LoanCalculatorModal";
 import { getOrFetch, peek } from "../memberDataCache";
 import { 
@@ -188,21 +187,8 @@ const Member_Loans = () => {
   };
 
   const buildLoansSnapshot = async () => {
-      const { data: authData, error: authError } = await supabase.auth.getUser();
-      if (authError) throw authError;
-
-      const sessionUser = authData?.user;
-      if (!sessionUser?.id) throw new Error('Please sign in again to load your loans.');
-
-      const { account, member: memberRow } = await resolveMemberContextFromSessionUser(sessionUser);
-      const memberId = account?.user_id || sessionUser.id;
+      const { memberId, fullName, avatarUrl: signedAvatarUrl } = await resolveMemberIdentity();
       if (!memberId) throw new Error('Please sign in again to load your loans.');
-
-      const fullName = [memberRow?.first_name, memberRow?.middle_name, memberRow?.surname]
-        .filter(Boolean)
-        .join(' ')
-        .trim();
-      const signedAvatarUrl = await loadMemberAvatarSignedUrl(supabase, sessionUser.id);
 
       const { data, error } = await supabase
         .from('loans')
@@ -278,7 +264,7 @@ const Member_Loans = () => {
         rows,
         memberLabel: fullName || 'Member',
         avatarUrl: signedAvatarUrl || '',
-        _sessionUserId: sessionUser.id,
+        _sessionUserId: memberId,
       };
   };
 

@@ -86,6 +86,18 @@
         ],
         "createdAt": "2026-08-23T11:06:59.439Z",
         "reason": "Tailwind coupled hover: hover:bg-green-50 and hover:text-green-700 fire simultaneously; gray text never renders on green background"
+      },
+      {
+        "rule": "design-system-font-size",
+        "value": "9px",
+        "createdAt": "2026-09-02T06:45:35.848Z",
+        "reason": "Pre-existing intentional small label sizes in member portal tables"
+      },
+      {
+        "rule": "design-system-font-size",
+        "value": "8px",
+        "createdAt": "2026-09-02T06:45:38.762Z",
+        "reason": "Pre-existing intentional small label sizes in member portal tables"
       }
     ]
   }

@@ -5,8 +5,7 @@ import { UserAuth } from "../../contex/AuthContext";
 import { useNotification } from "../../contex/NotificationContext";
 import { useTheme } from "../../contex/ThemeContext";
 import { supabase } from "../../supabaseClient";
-import { resolveMemberContextFromSessionUser } from "../../utils/sessionIdentity";
-import { loadMemberAvatarSignedUrl } from "../../utils/memberAvatar";
+import { resolveMemberIdentity } from "../../utils/memberIdentity";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -150,20 +149,8 @@ const Member_StatementOfAccount = () => {
         setLoadingLoans(true);
         setLoanError("");
 
-        const { data: authData, error: authError } = await supabase.auth.getUser();
-        if (authError) throw authError;
-        const sessionUser = authData?.user;
-        if (!sessionUser?.id) throw new Error("Please sign in again to load your loans.");
-
-        const { account, member: memberRow } = await resolveMemberContextFromSessionUser(sessionUser);
-        const mId = account?.user_id || sessionUser.id;
+        const { memberId: mId, fullName, avatarUrl: signedAvatarUrl, memberRow, account } = await resolveMemberIdentity();
         if (!mId) throw new Error("Please sign in again to load your loans.");
-
-        const fullName = [memberRow?.first_name, memberRow?.middle_name, memberRow?.surname]
-          .filter(Boolean)
-          .join(" ")
-          .trim();
-        const signedAvatarUrl = await loadMemberAvatarSignedUrl(supabase, sessionUser.id);
 
         const { data, error: fetchError } = await supabase
           .from("loans")
