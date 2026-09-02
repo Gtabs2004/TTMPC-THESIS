@@ -36,11 +36,12 @@ const Bookkeeper_Audit_Log = () => {
     <div className="flex min-h-screen bg-gray-50">
       <StaffSidebar portal="Bookkeeper" items={bookkeeperNav} />
 
-      <div className="flex-1 flex flex-col">
+     <div className="flex-1 flex flex-col h-screen overflow-y-auto">
+        {/* Top Header */}
         <StaffTopbar portal="Bookkeeper" notifications={<LoanNotificationBell role="bookkeeper" />} />
 
-        <main className="p-8 flex-1">
-          <Breadcrumb portal="Bookkeeper" page="Audit Log" />
+        <main className="p-8 flex-1 min-w-0">
+          <Breadcrumb portal="Bookkeeper" page="Audit Trail" />
           <AuditLogViewer showActorRoleFilter={false} onError={(msg) => addNotification(msg, "error")} />
         </main>
       </div>

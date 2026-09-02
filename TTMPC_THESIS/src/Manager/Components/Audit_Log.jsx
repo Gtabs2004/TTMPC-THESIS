@@ -29,10 +29,10 @@ const Manager_Audit_Log = () => {
     <div className="flex min-h-screen bg-gray-50">
       <StaffSidebar portal="Manager" items={managerNav} />
 
-      <div className="flex-1 flex flex-col h-screen overflow-y-auto">
+      <div className="flex-1 flex flex-col h-screen overflow-y-auto min-w-0">
         <StaffTopbar portal="Manager" notifications={<LoanNotificationBell role="manager" />} />
 
-        <main className="p-8">
+        <main className="p-8 min-w-0">
           <Breadcrumb portal="Manager" page="Audit Log" />
           {/* TITLE */}
           <div className="flex items-center justify-between mb-6">
