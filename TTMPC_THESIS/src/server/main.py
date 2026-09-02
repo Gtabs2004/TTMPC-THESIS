@@ -5221,6 +5221,133 @@ async def get_secretary_membership_records():
         raise HTTPException(status_code=500, detail=f"Failed to load secretary membership records: {err}")
 
 
+# =============================================================================
+# Member clustering (Manage Members)
+# =============================================================================
+# Supabase holds more member records than the coop's current roster, for good
+# reasons that are invisible from the row itself. Rather than hide the extras,
+# Manage Members shows every record with a badge saying which group it belongs
+# to. The groups are derived from evidence, not hand-maintained:
+#
+#   legacy_member       in Cleaned_Members.csv -- the migrated current roster.
+#   recovered_borrower  owns loans imported from the coop's historical records
+#                       but is absent from that CSV. Real members the source
+#                       member list had lost; they must stay visible.
+#   imported_member     provisioned by the bulk import (synthetic
+#                       `ttmpc-NNN@ttmpc.local` address) with no legacy loan yet.
+#   simulation_account  created through the app's own signup flow while building
+#                       and demonstrating the system, not a real member.
+#   system_placeholder  deliberate bucket for legacy loans whose borrower cannot
+#                       be identified (e.g. "WITHDRAWN 11.26.2015").
+#   orphan_pds          a personal_data_sheet row with no member record behind
+#                       it -- left over from duplicate test applications.
+
+MEMBER_CLUSTER_LEGACY = "legacy_member"
+MEMBER_CLUSTER_RECOVERED = "recovered_borrower"
+MEMBER_CLUSTER_IMPORTED = "imported_member"
+MEMBER_CLUSTER_SIMULATION = "simulation_account"
+MEMBER_CLUSTER_PLACEHOLDER = "system_placeholder"
+MEMBER_CLUSTER_ORPHAN_PDS = "orphan_pds"
+
+MEMBER_CLUSTER_LABELS = {
+    MEMBER_CLUSTER_LEGACY: "Current member",
+    MEMBER_CLUSTER_RECOVERED: "Recovered borrower",
+    MEMBER_CLUSTER_IMPORTED: "Imported member",
+    MEMBER_CLUSTER_SIMULATION: "Simulation account",
+    MEMBER_CLUSTER_PLACEHOLDER: "System placeholder",
+    MEMBER_CLUSTER_ORPHAN_PDS: "Orphan record",
+}
+
+# Members created through the app's membership-application flow while building
+# and demoing the system. Held as a literal set so this never has to read
+# member_applications, which carries staff email addresses.
+_SIMULATION_MEMBERSHIP_IDS = {
+    "TTMPC-265", "TTMPC-266", "TTMPC-267", "TTMPC-268", "TTMPC-269",
+    "TTMPC-270", "TTMPC-271", "TTMPC-295", "TTMPC-296",
+}
+
+# Names that mark a bookkeeping placeholder rather than a person.
+_PLACEHOLDER_NAME_MARKERS = ("HISTORICAL BORROWER", "UNKNOWN")
+
+# Every bulk-imported member was provisioned an address on this domain.
+_SYNTHETIC_EMAIL_DOMAIN = "@ttmpc.local"
+
+
+def _load_member_clusters(membership_ids: list[str]) -> dict[str, str]:
+    """Map membership_id -> cluster key for the given ids.
+
+    Falls back to a usable answer rather than raising: clustering is a display
+    aid, and a failure here must not take down the member list.
+    """
+    if not membership_ids:
+        return {}
+
+    legacy_roster = {
+        (row.get("MemberID") or "").strip()
+        for row in _read_csv_resilient(_CLEANED_MEMBERS)
+        if (row.get("MemberID") or "").strip()
+    }
+
+    # Members carrying at least one loan imported from the historical records.
+    borrowers_with_legacy_loans: set[str] = set()
+    member_names: dict[str, str] = {}
+    try:
+        member_rows = (
+            supabase.table("member")
+            .select("id, membership_id, last_name, first_name")
+            .execute()
+        ).data or []
+        membership_by_uuid = {}
+        for row in member_rows:
+            mid = str(row.get("membership_id") or "").strip()
+            membership_by_uuid[row.get("id")] = mid
+            member_names[mid] = (
+                f"{row.get('last_name') or ''} {row.get('first_name') or ''}".upper()
+            )
+
+        offset = 0
+        while True:
+            batch = (
+                supabase.table("loans")
+                .select("member_id, raw_payload")
+                .range(offset, offset + 999)
+                .execute()
+            ).data or []
+            for loan in batch:
+                payload = loan.get("raw_payload") or {}
+                if isinstance(payload, dict) and str(payload.get("legacy", "")).lower() == "true":
+                    mid = membership_by_uuid.get(loan.get("member_id"))
+                    if mid:
+                        borrowers_with_legacy_loans.add(mid)
+            if len(batch) < 1000:
+                break
+            offset += 1000
+    except Exception:
+        # Without loan data we can still separate roster from non-roster.
+        pass
+
+    clusters: dict[str, str] = {}
+    for membership_id in membership_ids:
+        name = member_names.get(membership_id, "")
+        if member_names and membership_id not in member_names:
+            # A datasheet with no member record behind it. Checked first: some
+            # of these are also test applications, but "no member record" is
+            # the more useful thing to show.
+            clusters[membership_id] = MEMBER_CLUSTER_ORPHAN_PDS
+        elif membership_id in _SIMULATION_MEMBERSHIP_IDS:
+            clusters[membership_id] = MEMBER_CLUSTER_SIMULATION
+        elif any(marker in name for marker in _PLACEHOLDER_NAME_MARKERS):
+            clusters[membership_id] = MEMBER_CLUSTER_PLACEHOLDER
+        elif membership_id in legacy_roster:
+            clusters[membership_id] = MEMBER_CLUSTER_LEGACY
+        elif membership_id in borrowers_with_legacy_loans:
+            clusters[membership_id] = MEMBER_CLUSTER_RECOVERED
+        else:
+            clusters[membership_id] = MEMBER_CLUSTER_IMPORTED
+
+    return clusters
+
+
 @app.get("/api/personal_data_sheet")
 async def get_personal_datasheet_records():
     if not supabase:
@@ -5289,6 +5416,8 @@ async def get_personal_datasheet_records():
             except Exception:
                 pass
 
+        cluster_by_membership = _load_member_clusters(membership_ids)
+
         normalized = []
         for idx, row in enumerate(rows, start=1):
             first = row.get("first_name") or ""
@@ -5301,6 +5430,8 @@ async def get_personal_datasheet_records():
             contact_number = row.get("contact_number") or row.get("mobile_number") or ""
             address_value = row.get("permanent_address") or row.get("address") or ""
 
+            cluster = cluster_by_membership.get(membership_id, MEMBER_CLUSTER_ORPHAN_PDS)
+
             normalized.append(
                 {
                     "id": row.get("personal_data_sheet_id") or row.get("id") or idx,
@@ -5311,6 +5442,8 @@ async def get_personal_datasheet_records():
                     "address": address_value,
                     "permanent_address": row.get("permanent_address") or "",
                     "created_at": row.get("created_at"),
+                    "cluster": cluster,
+                    "cluster_label": MEMBER_CLUSTER_LABELS.get(cluster, cluster),
                     "raw": row,
                 }
             )
