@@ -676,6 +676,28 @@ def upsert_personal_data_sheet(
 	except Exception:
 		return None
 
+	# Guard: membership_number_id must match a real member row to avoid orphaned PDS records.
+	try:
+		member_table_candidates = ["member", "members"]
+		member_found = False
+		for tbl in member_table_candidates:
+			try:
+				chk = supabase.table(tbl).select("membership_id").eq("membership_id", membership_id).limit(1).execute()
+				if chk.data:
+					member_found = True
+					break
+			except Exception:
+				continue
+		if not member_found:
+			raise MembershipConfirmationError(
+				f"Cannot upsert PDS: membership_number_id '{membership_id}' does not match any member record. "
+				"The member row must exist before the PDS is written."
+			)
+	except MembershipConfirmationError:
+		raise
+	except Exception:
+		pass  # If the member table check itself fails, allow the upsert to proceed.
+
 	existing_pds_id = None
 	try:
 		existing_response = (
@@ -1307,9 +1329,21 @@ def confirm_membership(
 		member_table = _resolve_member_table(supabase)
 		confirmer = ensure_confirmer_is_bod(supabase, confirmed_by_user_id)
 		application_data, application_table = get_application_data_by_application_id(supabase, application_id)
+
+		# Idempotency: if the application is already confirmed, return 409 instead
+		# of running the whole flow again and generating a second member row.
+		current_app_status = str(
+			application_data.get("application_status") or ""
+		).strip().lower()
+		if current_app_status in {"member", "official member"}:
+			existing_membership_id = application_data.get("membership_id") or "unknown"
+			raise MembershipConfirmationError(
+				f"ALREADY_CONFIRMED:{existing_membership_id}"
+			)
+
 		membership_id = generate_membership_id(supabase)
 
-		# Guard against accidental duplicate confirmations.
+		# Guard against membership_id collision (race condition or data inconsistency).
 		existing = (
 			supabase.table(member_table)
 			.select("id")
@@ -1322,8 +1356,14 @@ def confirm_membership(
 
 		if not _application_is_eligible(application_data, force, supabase=supabase):
 			current_status = application_data.get("training_status") or application_data.get("application_status")
+			has_attendance = _has_present_attendance(supabase, application_data.get("application_id"))
+			if not has_attendance:
+				raise MembershipConfirmationError(
+					f"Application cannot be confirmed: no training attendance record found. "
+					f"Current status: '{current_status}'. The applicant must have at least one 'Present' attendance entry before confirmation."
+				)
 			raise MembershipConfirmationError(
-				f"Application is not eligible for confirmation. Current status: {current_status}"
+				f"Application is not eligible for confirmation. Current status: '{current_status}'."
 			)
 
 		membership_date = datetime.now(timezone.utc).date().isoformat()

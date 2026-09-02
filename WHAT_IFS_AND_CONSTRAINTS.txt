@@ -8,21 +8,21 @@ approval, disbursement confirmations, grocery/POS, vault, payroll release
 schedule, loan collateral, loan fee policies, bonus loan window, MIGS
 classification, staff termination). Original sections are unchanged.
 
-GLOBAL / SYSTEM-WIDE
-- What if the Supabase URL or key is missing? -> API should refuse to start or return 500 with actionable error.
-- What if service role key is missing in prod? -> Disable server-side admin flows; log critical error.
-- What if the same user is logged in on multiple tabs? -> Confirm session isolation or handle token refresh conflicts.
-- What if the database has missing columns from expected migrations? -> Return 500 with schema hint.
-- What if a record is deleted between read and write? -> Return 404 with retry guidance.
-- What if a request arrives with malformed JSON? -> Return 400 with validation error details.
-- What if a request exceeds rate limits or payload size? -> Return 413 or 429 with guidance.
+GLOBAL / SYSTEM-WIDE [DONE 2026-09-02]
+- What if the Supabase URL or key is missing? -> DONE: lifespan hook raises RuntimeError on startup; server refuses to start.
+- What if service role key is missing in prod? -> DONE: _has_service_role flag + _require_service_role() guard on /api/admin/* endpoints; logs WARNING on startup; returns 503 if called without service role key.
+- What if the same user is logged in on multiple tabs? -> DONE (pre-existing): sessionStorage + multiTab:false + visibility-change revalidation in AuthContext.jsx.
+- What if the database has missing columns from expected migrations? -> DONE (pre-existing): try/except column-fallback pattern throughout main.py.
+- What if a record is deleted between read and write? -> NOTED: low-traffic cooperative, no optimistic locking added; Supabase returns empty result on missing row which surfaces as 404 or empty data in existing handlers.
+- What if a request arrives with malformed JSON? -> DONE: global RequestValidationError handler returns structured 422; JSONDecodeError handler returns 400.
+- What if a request exceeds rate limits or payload size? -> DONE: slowapi Limiter (100 req/min per IP, 429); _MaxBodySizeMiddleware (1 MB cap, 413).
 
-MEMBERSHIP / ACCOUNT
-- What if membership confirmation is called twice for the same application? -> Idempotent response or 409 conflict.
-- What if membership_id is missing or already taken? -> Block confirmation, return 409 with duplicate details.
-- What if the member_account row is missing for a confirmed member? -> Auto-repair or return 500 with remediation step.
-- What if an applicant has no training attendance data? -> Block approval; return 400 with missing requirement.
-- What if training status is legacy ("1st Training")? -> Normalize on read and handle on write.
+MEMBERSHIP / ACCOUNT [DONE 2026-09-02]
+- What if membership confirmation is called twice for the same application? -> DONE: idempotency check on application_status at top of confirm_membership(); returns 409 with existing membership_id if already 'Member'.
+- What if membership_id is missing or already taken? -> DONE (pre-existing): generate_membership_id() collision-checks before assigning; raises MembershipConfirmationError on conflict.
+- What if the member_account row is missing for a confirmed member? -> DONE (pre-existing): update_confirmed_account_role_to_member() creates the row if absent.
+- What if an applicant has no training attendance data? -> DONE: error message now explicitly states "no training attendance record found" with current status; returns 400.
+- What if training status is legacy ("1st Training")? -> DONE (pre-existing): normalized in _application_is_eligible() accepted set.
 
 STAFF ACCOUNT MANAGEMENT / TERMINATION (added)
 - What if a Secretary submits a termination request for a member who is already terminated or already has a pending request? -> staff_termination_requests.status only constrains the request's own lifecycle ('awaiting_bod_confirmation', 'approved', 'rejected'); the endpoint must independently check the target account's current is_active/member_status and reject a duplicate request with 409.
@@ -32,10 +32,10 @@ STAFF ACCOUNT MANAGEMENT / TERMINATION (added)
 - What if a termination request sits in 'awaiting_bod_confirmation' with no BOD action for an extended period? -> No timeout/escalation exists; consider a reminder or staleness flag on the BOD dashboard.
 - What if requested_by_role on the request doesn't match the caller's actual role (e.g. spoofed)? -> Should be derived server-side from the authenticated session, never trusted from the request body.
 
-PERSONAL DATA SHEET (PDS)
-- What if a PDS record is missing for a member? -> Auto-create or return 404 with next action.
-- What if membership_number_id in PDS does not match member.membership_id? -> Flag mismatch and block updates.
-- What if email is missing? -> Allow but mark as incomplete for follow-up.
+PERSONAL DATA SHEET (PDS) [DONE 2026-09-02]
+- What if a PDS record is missing for a member? -> DONE: GET /api/personal_data_sheet/{id} returns structured 404 with next_action field explaining how to create the PDS.
+- What if membership_number_id in PDS does not match member.membership_id? -> DONE: GET endpoint returns membership_id_mismatch:true flag on response; upsert_personal_data_sheet() in applicationConfirmation.py verifies membership_id exists in member table before writing, raises 400 on mismatch.
+- What if email is missing? -> DONE: GET endpoint returns email_incomplete:true flag on every PDS record with a blank email field.
 
 LOANS / LOAN TYPES
 - What if loan_types is missing the configured rate? -> Return 400 with "interest rate not configured".

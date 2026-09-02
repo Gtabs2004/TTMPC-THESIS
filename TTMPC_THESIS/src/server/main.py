@@ -2,16 +2,26 @@ import os
 import json
 import io
 import calendar
+import logging
+from contextlib import asynccontextmanager
 from datetime import date, datetime, timedelta
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from typing import Annotated, Any, Literal, Union
-from fastapi import BackgroundTasks, Body, FastAPI, HTTPException, Response
+from fastapi import BackgroundTasks, Body, FastAPI, HTTPException, Request, Response
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, model_validator
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
+from starlette.middleware.base import BaseHTTPMiddleware
 from supabase import create_client, Client
 from dotenv import load_dotenv
 from urllib import request as urlrequest
 from urllib.error import HTTPError, URLError
+
+logger = logging.getLogger("uvicorn.error")
 from applicationConfirmation import (
     MembershipConfirmationError,
     confirm_membership,
@@ -59,17 +69,60 @@ resend_from_email: str = os.environ.get("RESEND_FROM_EMAIL", "onboarding@resend.
 # server so the current local workflow still works with no config.
 FRONTEND_BASE_URL = os.environ.get("FRONTEND_BASE_URL", "http://localhost:5173").rstrip("/")
 
+_has_service_role = bool(
+    os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+    or os.environ.get("VITE_SUPABASE_SERVICE_ROLE_KEY")
+)
+
 if not url:
-    print("Error: VITE_SUPABASE_URL is missing.")
+    print("CRITICAL: VITE_SUPABASE_URL is missing. Server will not start.")
 if not key:
-    print("Error: Supabase key is missing (service role and anon key are both unavailable).")
+    print("CRITICAL: Supabase key is missing (service role and anon key are both unavailable). Server will not start.")
+if not _has_service_role:
+    print("WARNING: No service role key found. Admin flows (backfill, auth admin) will be disabled.")
 if not resend_api_key:
     print("Warning: RESEND_API_KEY is missing. Email notifications are disabled.")
 
 # 2. Initialize Supabase
 supabase: Client | None = create_client(url, key) if url and key else None
 
-app = FastAPI()
+# 3. Rate limiter (100 req/min per IP by default)
+limiter = Limiter(key_func=get_remote_address, default_limits=["100/minute"])
+
+# 4. Max request body size: 1 MB (prevents oversized payload abuse)
+_MAX_BODY_BYTES = 1 * 1024 * 1024  # 1 MB
+
+
+class _MaxBodySizeMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        content_length = request.headers.get("content-length")
+        if content_length and int(content_length) > _MAX_BODY_BYTES:
+            return JSONResponse(
+                status_code=413,
+                content={"detail": f"Request body too large. Maximum allowed size is {_MAX_BODY_BYTES // 1024} KB."},
+            )
+        return await call_next(request)
+
+
+@asynccontextmanager
+async def _lifespan(app: FastAPI):
+    # Refuse to start if Supabase credentials are missing — a running server
+    # with supabase=None will crash every endpoint at runtime, which is worse
+    # than a clean startup failure.
+    if supabase is None:
+        raise RuntimeError(
+            "Supabase client could not be initialized. "
+            "Set VITE_SUPABASE_URL and either SUPABASE_SERVICE_ROLE_KEY or VITE_SUPABASE_ANON_KEY in your .env file."
+        )
+    if not _has_service_role:
+        logger.warning(
+            "Server started without a service role key. "
+            "Admin endpoints (/api/admin/*) will return 503."
+        )
+    yield
+
+
+app = FastAPI(lifespan=_lifespan)
 
 
 @app.get("/favicon.ico", include_in_schema=False)
@@ -105,6 +158,34 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Rate limiting + payload size guard
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_middleware(_MaxBodySizeMiddleware)
+
+
+@app.exception_handler(RequestValidationError)
+async def _validation_exception_handler(request: Request, exc: RequestValidationError):
+    """Return a structured 422 with all field errors instead of FastAPI's default."""
+    return JSONResponse(
+        status_code=422,
+        content={"detail": exc.errors(), "body": None},
+    )
+
+
+@app.exception_handler(json.JSONDecodeError)
+async def _json_decode_handler(request: Request, exc: json.JSONDecodeError):
+    return JSONResponse(status_code=400, content={"detail": "Malformed JSON in request body."})
+
+
+def _require_service_role():
+    """Raise 503 on admin endpoints when no service role key is configured."""
+    if not _has_service_role:
+        raise HTTPException(
+            status_code=503,
+            detail="This admin endpoint requires a service role key. Set SUPABASE_SERVICE_ROLE_KEY in your environment.",
+        )
 
 # ============================================================================
 # SECTION: Pydantic Request/Response Models
@@ -5184,7 +5265,14 @@ async def get_personal_datasheet_record_by_membership(membership_number_id: str)
 
         row = (response.data or [None])[0]
         if not row:
-            raise HTTPException(status_code=404, detail="Personal data sheet record not found.")
+            raise HTTPException(
+                status_code=404,
+                detail={
+                    "message": "Personal data sheet record not found.",
+                    "next_action": "Create a PDS for this member via the BOD membership confirmation flow, or manually insert a record with membership_number_id matching the member's membership_id.",
+                    "membership_number_id": clean_membership_id,
+                },
+            )
 
         try:
             app_response = (
@@ -5200,6 +5288,26 @@ async def get_personal_datasheet_record_by_membership(membership_number_id: str)
                 row["email"] = str(app_row.get("email") or "").strip()
         except Exception:
             pass
+
+        # Flag missing email so the frontend can prompt for follow-up.
+        email_value = str(row.get("email") or "").strip()
+        row["email_incomplete"] = not email_value
+
+        # Flag membership_id mismatch between PDS record and the member table.
+        membership_id_mismatch = False
+        try:
+            member_check = (
+                supabase.table("member")
+                .select("membership_id")
+                .eq("membership_id", clean_membership_id)
+                .limit(1)
+                .execute()
+            )
+            if not member_check.data:
+                membership_id_mismatch = True
+        except Exception:
+            pass
+        row["membership_id_mismatch"] = membership_id_mismatch
 
         return {"success": True, "data": row}
     except HTTPException as err:
@@ -8818,7 +8926,14 @@ async def confirm_membership_endpoint(payload: MembershipConfirmationRequest):
             send_email=payload.send_email,
         )
     except MembershipConfirmationError as err:
-        raise HTTPException(status_code=400, detail=str(err))
+        msg = str(err)
+        if msg.startswith("ALREADY_CONFIRMED:"):
+            membership_id = msg.split(":", 1)[1]
+            raise HTTPException(
+                status_code=409,
+                detail=f"Application is already confirmed. Membership ID: {membership_id}",
+            )
+        raise HTTPException(status_code=400, detail=msg)
     except Exception as err:
         raise HTTPException(status_code=500, detail=f"Membership confirmation failed: {err}")
 
@@ -10350,6 +10465,7 @@ async def backfill_member_auth(dry_run: bool = False, limit: int | None = None):
     """
     if not supabase:
         raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+    _require_service_role()
 
     try:
         missing_response = (
@@ -12134,6 +12250,7 @@ async def backfill_cbu_initial_capital(dry_run: bool = False):
     """
     if not supabase:
         raise HTTPException(status_code=503, detail="Supabase client is not initialized.")
+    _require_service_role()
 
     # 1. Load all paid INITIAL_PAID_UP_CAPITAL payments.
     try:
