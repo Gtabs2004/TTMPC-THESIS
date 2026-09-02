@@ -106,6 +106,48 @@ def historical(loan_type: str) -> list[dict]:
     return out
 
 
+def fitted(loan_type: str, alpha: float = 0.20) -> list[dict]:
+    """Return the model's in-sample one-step-ahead predictions over the training range.
+
+    `forecast()` only produces out-of-sample months, so for any year inside the
+    training data there is no predicted value to compare against the actual.
+    These fitted values fill that gap: they are what the model *would have*
+    predicted for each historical month, which is what the dashboard's
+    predicted-vs-actual overlay needs.
+    """
+    model = _load_model(loan_type)
+
+    try:
+        pred = model.get_prediction(dynamic=False)
+        mean = pred.predicted_mean
+        ci = pred.conf_int(alpha=alpha)
+        lower_col, upper_col = ci.columns[0], ci.columns[1]
+    except Exception:
+        return []
+
+    out = []
+    # The first in-sample step has no prior observation to condition on, so
+    # statsmodels returns 0 for it. Dropping it avoids drawing a false spike
+    # down to zero at the start of the fitted line.
+    for i, idx in enumerate(mean.index):
+        value = float(mean.loc[idx])
+        if i == 0 and value == 0.0:
+            continue
+        try:
+            lo = float(ci.at[idx, lower_col])
+            hi = float(ci.at[idx, upper_col])
+        except Exception:
+            lo, hi = 0.0, value
+        out.append({
+            "period": _isofmt(idx),
+            "predicted": value,
+            "lower": max(0.0, lo),
+            "upper": hi,
+            "in_sample": True,
+        })
+    return out
+
+
 def forecast(loan_type: str, periods: int = 12, alpha: float = 0.20) -> list[dict]:
     """Return forecasted monthly amounts + 80% (default) confidence bands.
 
@@ -150,5 +192,6 @@ def get_forecast_payload(
         "periods": periods,
         "alpha": alpha,
         "historical": historical(loan_type),
+        "fitted": fitted(loan_type, alpha=alpha),
         "forecast": forecast(loan_type, periods=periods, alpha=alpha),
     }
