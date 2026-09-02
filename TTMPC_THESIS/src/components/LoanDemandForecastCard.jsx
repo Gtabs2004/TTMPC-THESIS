@@ -48,8 +48,16 @@ const monthKey = (period) => {
 
 const buildYearSeries = (actuals, forecast, color, targetYear) => {
   const year = targetYear ?? actuals?.year;
+  // The model's `forecast` array covers out-of-sample months only. For months
+  // inside the training range we use `fitted` — the model's one-step-ahead
+  // in-sample predictions — so historical years still get a dashed forecast
+  // line to compare against the solid actual line. Out-of-sample values win
+  // where both somehow exist.
   const fcByPeriod = new Map(
-    (forecast?.forecast || []).map((r) => [monthKey(r.period), r])
+    [...(forecast?.fitted || []), ...(forecast?.forecast || [])].map((r) => [
+      monthKey(r.period),
+      r,
+    ])
   );
   const actualsByPeriod = new Map(
     (actuals?.months || []).map((r) => [monthKey(r.period), r])
@@ -73,6 +81,8 @@ const buildYearSeries = (actuals, forecast, color, targetYear) => {
       predicted: predictedValue,
       lower: fcRow?.lower ?? null,
       upper: fcRow?.upper ?? null,
+      // true = model fit on this month (in-sample); false = genuine forecast.
+      inSample: fcRow ? Boolean(fcRow.in_sample) : null,
       color,
       kind: hasActual ? "actual" : (predictedValue !== null ? "forecast" : "n/a"),
     };
@@ -202,6 +212,7 @@ const LoanDemandForecastCard = ({ className = "" }) => {
         row[`${t.value}_forecast`] = point.predicted;
         row[`${t.value}_value`] = point.actual !== null ? point.actual : point.predicted;
         row[`${t.value}_kind`] = point.kind;
+        row[`${t.value}_inSample`] = point.inSample;
       }
       return row;
     });
@@ -248,11 +259,30 @@ const LoanDemandForecastCard = ({ className = "" }) => {
 
       const bullets = [];
 
+      // Are this year's predictions in-sample (model fit on them) or a true
+      // out-of-sample forecast? Wording changes accordingly — an in-sample
+      // "fit" is not evidence of forecasting accuracy.
+      const inSampleMonths = forecastMonths.filter((r) => r.inSample === true);
+      const mostlyInSample = forecastMonths.length > 0
+        && inSampleMonths.length >= forecastMonths.length / 2;
+
       if (noForecastCoverage) {
         bullets.push({
           tone: "info",
-          text: `The forecasting model has no predictions for ${currentYear} — this year sits inside its training data (the model was fit on it, not asked to predict it). Pick a later year to see forecast values.`,
+          text: `The forecasting model has no values for ${currentYear} — this year falls outside both its training range and its forecast horizon.`,
         });
+      } else if (mostlyInSample) {
+        bullets.push({
+          tone: "info",
+          text: `${currentYear} is inside the model's training range, so the dashed line shows the model's fitted values (what it estimated for months it was trained on), not a true forecast. Pick a later year for out-of-sample predictions.`,
+        });
+        if (overlapMonths.length >= 3 && gapPct !== null) {
+          const direction = gapPct >= 0 ? "above" : "below";
+          bullets.push({
+            tone: gapPct >= 0 ? "up" : "down",
+            text: `Across ${currentYear}, actual ${t.label.toLowerCase()} demand ran about ${Math.abs(gapPct).toFixed(0)}% ${direction} the model's fitted values — a measure of how well the model describes history.`,
+          });
+        }
       } else if (overlapMonths.length >= 3 && gapPct !== null) {
         const direction = gapPct >= 0 ? "above" : "below";
         const magnitude = Math.abs(gapPct);
@@ -303,19 +333,48 @@ const LoanDemandForecastCard = ({ className = "" }) => {
     return out;
   }, [seriesByType, currentYear]);
 
+  // Show BOTH series for the hovered month. When a month has an actual and a
+  // forecast we also print the gap, since comparing the two is the whole point
+  // of overlaying the lines.
   const makeTooltip = (loanType) => ({ active, payload, label }) => {
     if (!active || !payload?.length) return null;
     const row = payload[0]?.payload || {};
-    const v = row[`${loanType.value}_value`];
-    const kind = row[`${loanType.value}_kind`];
-    if (v === undefined || v === null) return null;
+    const actual = row[`${loanType.value}_actual`];
+    const forecast = row[`${loanType.value}_forecast`];
+    const hasActual = actual !== undefined && actual !== null;
+    const hasForecast = forecast !== undefined && forecast !== null;
+    if (!hasActual && !hasForecast) return null;
+    const predictedLabel = row[`${loanType.value}_inSample`] ? "Fitted" : "Forecast";
+
+    let gapPct = null;
+    if (hasActual && hasForecast && forecast !== 0) {
+      gapPct = ((actual - forecast) / forecast) * 100;
+    }
+
     return (
       <div className="bg-white border border-gray-200 rounded-lg shadow-md px-3 py-2 text-xs space-y-1">
         <p className="font-bold text-gray-800">{label} {currentYear}</p>
-        <p style={{ color: loanType.color }}>
-          <span className="font-semibold">{loanType.label}:</span> {PHP(v)}
-          <span className="ml-1 text-gray-400 font-normal">({kind === "actual" ? "actual" : "forecast"})</span>
-        </p>
+        {hasActual && (
+          <p className="flex items-center gap-1.5" style={{ color: loanType.color }}>
+            <span className="inline-block w-4 h-0.5 shrink-0" style={{ background: loanType.color }} />
+            <span className="font-semibold">Actual:</span> {PHP(actual)}
+          </p>
+        )}
+        {hasForecast && (
+          <p className="flex items-center gap-1.5" style={{ color: loanType.color }}>
+            <span
+              className="inline-block w-4 h-0.5 shrink-0"
+              style={{ background: `repeating-linear-gradient(to right, ${loanType.color} 0 3px, transparent 3px 6px)` }}
+            />
+            <span className="font-semibold">{predictedLabel}:</span> {PHP(forecast)}
+          </p>
+        )}
+        {gapPct !== null && (
+          <p className="text-gray-500 pt-0.5 border-t border-gray-100">
+            Actual is {Math.abs(gapPct).toFixed(1)}% {gapPct >= 0 ? "above" : "below"} {predictedLabel.toLowerCase()}
+            <span className="ml-1 text-gray-400">({gapPct >= 0 ? "+" : "−"}{PHP(Math.abs(actual - forecast))})</span>
+          </p>
+        )}
       </div>
     );
   };
