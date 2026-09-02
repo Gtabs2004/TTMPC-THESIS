@@ -28,7 +28,7 @@ export function StatCard({ label, value, icon: Icon, iconColor = "text-blue-600"
         {Icon ? <Icon className={`w-4 h-4 shrink-0 ${iconColor}`} /> : null}
       </div>
       <p className="text-2xl font-bold text-gray-900">{value}</p>
-      {subtext ? <p className="text-[11px] text-gray-500 mt-1">{subtext}</p> : null}
+      {subtext ? <div className="text-[11px] text-gray-500 mt-1">{subtext}</div> : null}
     </Tag>
   );
 }
