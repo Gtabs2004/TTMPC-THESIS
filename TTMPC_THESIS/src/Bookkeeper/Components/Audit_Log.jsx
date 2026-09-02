@@ -4,7 +4,8 @@ import StaffSidebar from "../../components/StaffSidebar";
 import { bookkeeperNav } from "../../components/StaffSidebar/configs/bookkeeper";
 import { UserAuth } from "../../contex/AuthContext";
 import { useNotification } from "../../contex/NotificationContext";
-import { PortalTopbarIdentity } from "../../components/PortalIdentity";
+import StaffTopbar from "../../components/StaffTopbar";
+import LoanNotificationBell from "../../components/LoanNotificationBell";
 import AuditLogViewer from "../../components/AuditLogViewer";
 import {
   LayoutDashboard,
@@ -35,10 +36,7 @@ const Bookkeeper_Audit_Log = () => {
       <StaffSidebar portal="Bookkeeper" items={bookkeeperNav} />
 
       <div className="flex-1 flex flex-col">
-        <header className="bg-white h-16 shadow-sm flex items-center justify-end px-8 shrink-0">
-          <img src="/img/bookkeeper-profile.png" alt="Profile" className="ml-4 w-8 h-8 rounded-full bg-gray-200" />
-          <PortalTopbarIdentity className="text-sm font-medium text-gray-700" fallbackRole="Bookkeeper" />
-        </header>
+        <StaffTopbar portal="Bookkeeper" notifications={<LoanNotificationBell role="bookkeeper" />} />
 
         <main className="p-8 flex-1">
           <AuditLogViewer showActorRoleFilter={false} onError={(msg) => addNotification(msg, "error")} />

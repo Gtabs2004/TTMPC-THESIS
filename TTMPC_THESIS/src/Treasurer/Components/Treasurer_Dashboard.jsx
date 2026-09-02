@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { StatCard, StatCardRow } from "../../components/StatCard";
 import { UserAuth } from "../../contex/AuthContext";
 import { useNotification } from "../../contex/NotificationContext";
-import { PortalTopbarIdentity } from "../../components/PortalIdentity";
+import StaffTopbar from "../../components/StaffTopbar";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
 import LoanDemandForecastCard from "../../components/LoanDemandForecastCard";
 import RecentActivityCard from "../../components/RecentActivityCard";
@@ -11,10 +11,8 @@ import PriorityQueueCard from "../../components/PriorityQueueCard";
 import StaffSidebar from "../../components/StaffSidebar";
 import { treasurerNav } from "../../components/StaffSidebar/configs/treasurer";
 import {
-  Search,
   ClipboardList,
   TrendingUp,
-  User,
 } from 'lucide-react';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
@@ -125,21 +123,7 @@ const Treasurer_Dashboard = () => {
 
       {/* MAIN CONTENT AREA */}
       <div className="flex-1 flex flex-col h-screen overflow-y-auto">
-        <header className="bg-white h-16 shrink-0 shadow-sm flex items-center justify-end px-8 border-b border-gray-100">
-          <div className="relative">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400"/>
-            <input 
-              type="text" 
-              className="bg-gray-50 w-52 h-10 rounded-lg border border-gray-300 px-4 py-1 pl-9 focus:outline-none focus:ring-2 focus:ring-green-500" 
-              placeholder="Search..."
-            />
-          </div>
-          <LoanNotificationBell role="treasurer" />
-          <div className="ml-4 w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 shrink-0">
-            <User className="w-4.5 h-4.5" />
-          </div>
-          <PortalTopbarIdentity className="text-sm font-medium text-gray-700" fallbackRole="Treasurer" />
-        </header>
+        <StaffTopbar portal="Treasurer" notifications={<LoanNotificationBell role="treasurer" />} />
 
         {/* DASHBOARD CONTENT */}
         <main className="p-8">

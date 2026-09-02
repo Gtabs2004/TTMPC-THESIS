@@ -26,7 +26,7 @@ import {
   Brain,
   User,
 } from "lucide-react";
-import { PortalTopbarIdentity } from "../../components/PortalIdentity";
+import StaffTopbar from "../../components/StaffTopbar";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
@@ -135,15 +135,7 @@ const Manage_Member = () => {
       <StaffSidebar portal="Bookkeeper" items={bookkeeperNav} />
 
       <div className="flex-1 flex flex-col h-screen overflow-y-auto">
-        <header className="bg-white h-16 shrink-0 shadow-sm flex items-center justify-end px-8 border-b border-gray-100">
-          <LoanNotificationBell role="bookkeeper" />
-          <div className="flex items-center ml-4 gap-2 border-l border-gray-200 pl-4">
-            <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 shrink-0">
-              <User className="w-4.5 h-4.5" />
-            </div>
-            <PortalTopbarIdentity className="text-sm font-medium text-gray-700" fallbackRole="Bookkeeper" />
-          </div>
-        </header>
+        <StaffTopbar portal="Bookkeeper" notifications={<LoanNotificationBell role="bookkeeper" />} />
               
         <main className="p-8">
         <div className="flex items-center gap-2 text-sm text-gray-500 font-medium mb-1">

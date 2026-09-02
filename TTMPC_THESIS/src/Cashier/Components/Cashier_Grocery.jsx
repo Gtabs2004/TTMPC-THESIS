@@ -5,7 +5,7 @@ import StaffSidebar from "../../components/StaffSidebar";
 import { cashierNav } from "../../components/StaffSidebar/configs/cashier";
 import { UserAuth } from "../../contex/AuthContext";
 import { supabase } from "../../supabaseClient";
-import { PortalTopbarIdentity } from "../../components/PortalIdentity";
+import StaffTopbar from "../../components/StaffTopbar";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
 import { 
   LayoutDashboard,
@@ -119,19 +119,7 @@ const Cashier_Grocery = () => {
       <div className="flex-1 flex flex-col h-screen overflow-y-auto">
         
         {/* Top Header */}
-        <header className="sticky top-0 z-10 bg-white h-16 shadow-sm flex items-center justify-end px-8 shrink-0">
-          <div className="relative">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400" />
-            <input 
-              type="text" 
-              placeholder="Search..."
-              className="bg-gray-50 w-52 h-10 rounded-lg border border-gray-200 px-4 pl-9 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-            />
-          </div>
-          <LoanNotificationBell role="cashier" />
-          <img src="/img/cashier-profile.png" alt="Profile" className="ml-4 w-8 h-8 rounded-full object-cover bg-gray-200" />
-          <PortalTopbarIdentity className="font-medium text-sm text-gray-700 ml-2" fallbackRole="Cashier" />
-        </header>
+        <StaffTopbar portal="Cashier" notifications={<LoanNotificationBell role="cashier" />} sticky />
 
         {/* Page Content */}
         <main className="p-8 max-w-7xl mx-auto w-full">

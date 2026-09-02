@@ -5,7 +5,7 @@ import { bookkeeperNav } from "../../components/StaffSidebar/configs/bookkeeper"
 import { UserAuth } from "../../contex/AuthContext";
 import { useNotification } from "../../contex/NotificationContext";
 import { useConfirm } from "../../contex/ConfirmContext";
-import { PortalTopbarIdentity } from "../../components/PortalIdentity";
+import StaffTopbar from "../../components/StaffTopbar";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
 import {
   LayoutDashboard,
@@ -193,15 +193,7 @@ const MIGS = () => {
       <StaffSidebar portal="Bookkeeper" items={bookkeeperNav} />
 
       <div className="flex-1 flex flex-col">
-        <header className="bg-white h-16 shadow-sm flex items-center justify-end px-8 border-b border-gray-100 shrink-0">
-          <div className="flex items-center gap-4">
-            <LoanNotificationBell role="bookkeeper" />
-            <div className="flex items-center gap-2 border-l border-gray-200 pl-4">
-              <img src="/img/bookkeeper-profile.png" alt="Profile" className="w-8 h-8 rounded-full bg-gray-200" />
-              <PortalTopbarIdentity className="text-sm font-medium text-gray-700" fallbackRole="Bookkeeper" />
-            </div>
-          </div>
-        </header>
+        <StaffTopbar portal="Bookkeeper" notifications={<LoanNotificationBell role="bookkeeper" />} />
 
         <main className="p-8 flex-1 overflow-y-auto">
           <div className="flex items-center justify-between mb-6">
