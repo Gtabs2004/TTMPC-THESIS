@@ -4,7 +4,7 @@ import StaffSidebar from "../../components/StaffSidebar";
 import { cashierNav } from "../../components/StaffSidebar/configs/cashier";
 import { UserAuth } from "../../contex/AuthContext";
 import { useNotification } from "../../contex/NotificationContext";
-import { PortalTopbarIdentity } from "../../components/PortalIdentity";
+import StaffTopbar from "../../components/StaffTopbar";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
 import { 
   LayoutDashboard, 
@@ -95,42 +95,7 @@ const Cashier_Withdrawals = () => {
       <StaffSidebar portal="Cashier" items={cashierNav} />
       {/* 2. THE MAIN AREA */}
       <div className="flex-1 flex flex-col h-screen overflow-y-auto">
-        <header className="bg-white h-16 border-b border-gray-100 flex items-center justify-between px-8 shrink-0 ">
-          
-          
-          
-      
-          {/* Right Side: Grouped Utilities */}
-          <div className="flex items-center space-x-4 ml-auto">
-            
-            {/* Search Input */}
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search..."
-                className="bg-gray-50 w-60 h-10 rounded-lg border border-gray-200 px-4 pl-9 py-1 focus:outline-none focus:ring-2 focus:ring-[#00A859] focus:border-transparent transition-all placeholder-gray-400 text-sm"
-              />
-            </div>
-      
-            {/* Notifications */}
-            <LoanNotificationBell role="cashier" />
-      
-            {/* Profile Divider (Optional but adds a premium touch) */}
-            <span className="h-6 w-px bg-gray-200"></span>
-      
-            {/* User Identity Group */}
-            <div className="flex items-center space-x-3">
-              <img
-                src="/img/bookkeeper-profile.png"
-                alt="Profile"
-                className="w-9 h-9 rounded-full object-cover border border-gray-100 bg-gray-50"
-              />
-              <PortalTopbarIdentity className="text-sm font-semibold text-green-600" fallbackRole="Cashier" />
-            </div>
-      
-          </div>
-        </header>
+        <StaffTopbar portal="Cashier" notifications={<LoanNotificationBell role="cashier" />} />
 
         {/* 3. PAGE CONTENT */}
         <main className="p-8 overflow-auto">

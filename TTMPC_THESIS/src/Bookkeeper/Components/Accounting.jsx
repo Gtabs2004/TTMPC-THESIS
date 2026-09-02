@@ -4,7 +4,7 @@ import StaffSidebar from "../../components/StaffSidebar";
 import { bookkeeperNav } from "../../components/StaffSidebar/configs/bookkeeper";
 import { UserAuth } from "../../contex/AuthContext";
 import { useNotification } from "../../contex/NotificationContext";
-import { PortalTopbarIdentity } from "../../components/PortalIdentity";
+import StaffTopbar from "../../components/StaffTopbar";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
 import {
   LayoutDashboard,
@@ -37,16 +37,7 @@ const Accounting = () => {
 
      
       <div className="flex-1 flex flex-col">
-        <header className="bg-white h-16 shadow-sm flex items-center justify-end px-8 shrink-0">
-          <div className="relative">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400"/>
-          <input type="text" className=" bg-gray-50  w-52 h-10 rounded-lg border border-gray-300 px-4 
-          py-1 focus:outline-none focus:ring-2 focus:ring-green-500"></input>
-          </div>
-          <LoanNotificationBell role="bookkeeper" />
-          <img src="/img/bookkeeper-profile.png" alt="Bookkeeper Profile" className="ml-4 w-8 h-8 rounded-full"></img>
-          <PortalTopbarIdentity className="text-sm font-medium text-gray-700" fallbackRole="Bookkeeper" />
-        </header>
+        <StaffTopbar portal="Bookkeeper" notifications={<LoanNotificationBell role="bookkeeper" />} />
 
         {/* Page Content */}
         <main className="p-8">

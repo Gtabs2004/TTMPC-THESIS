@@ -419,9 +419,9 @@ const Manager_Manage_Loans = () => {
                   <th className="px-3 py-4 font-bold">Loan ID</th>
                   <th className="px-3 py-4 font-bold">Member Name</th>
                   <th className="px-3 py-4 font-bold">Loan Type</th>
-                  <th className="px-3 py-4 font-bold text-right">Loan Amt</th>
-                  <th className="px-3 py-4 font-bold text-right">Amortization</th>
-                  <th className="px-3 py-4 font-bold text-right">Remaining</th>
+                  <th className="px-3 py-4 font-bold text-center">Loan Amt</th>
+                  <th className="px-3 py-4 font-bold text-left">Amortization</th>
+                  <th className="px-3 py-4 font-bold text-center">Remaining</th>
                   <th className="px-3 py-4 font-bold">Due Date</th>
                   <th className="px-3 py-4 font-bold text-center">Details</th>
                 </tr>
@@ -458,13 +458,13 @@ const Manager_Manage_Loans = () => {
                             {parent.loan_type}
                           </span>
                         </td>
-                        <td className="px-3 py-4 text-sm text-gray-800 font-semibold text-right whitespace-nowrap align-top">
+                        <td className="px-3 py-4 text-sm text-gray-800 font-semibold text-center whitespace-nowrap align-top">
                           {formatCurrency(parent.loan_amount)}
                         </td>
                         <td className="px-3 py-4 text-sm text-gray-700 text-left font-medium whitespace-nowrap align-top">
                           {formatCurrency(parent.amortization)}
                         </td>
-                        <td className="px-3 py-4 text-sm text-left font-bold whitespace-nowrap align-top">
+                        <td className="px-3 py-4 text-sm text-center   font-bold whitespace-nowrap align-top">
                           <span className={parent.remaining_balance > 0 ? "text-amber-600" : "text-green-600"}>
                             {formatCurrency(parent.remaining_balance)}
                           </span>
