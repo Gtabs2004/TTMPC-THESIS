@@ -104,6 +104,17 @@ class _MaxBodySizeMiddleware(BaseHTTPMiddleware):
         return await call_next(request)
 
 
+async def _warm_manage_loans_cache():
+    """Pre-populate the manage-loans cache so the first Bookkeeper page load is instant."""
+    import asyncio
+    try:
+        await asyncio.sleep(2)  # let the server fully initialize first
+        await get_bookkeeper_manage_loans()
+        logger.info("Bookkeeper manage-loans cache warmed on startup.")
+    except Exception as e:
+        logger.warning(f"Cache warm-up failed (non-fatal): {e}")
+
+
 @asynccontextmanager
 async def _lifespan(app: FastAPI):
     # Refuse to start if Supabase credentials are missing — a running server
@@ -119,6 +130,8 @@ async def _lifespan(app: FastAPI):
             "Server started without a service role key. "
             "Admin endpoints (/api/admin/*) will return 503."
         )
+    import asyncio
+    asyncio.ensure_future(_warm_manage_loans_cache())
     yield
 
 
@@ -344,8 +357,19 @@ class LoanComputeBaseRequest(BaseModel):
     first_due_date: date | None = None
 
 
+_CONSOLIDATED_VALID_TERMS = {12, 24, 36, 48, 60}
+
 class ConsolidatedLoanComputeRequest(LoanComputeBaseRequest):
     loan_type: Literal["consolidated"]
+
+    @model_validator(mode="after")
+    def validate_consolidated_rules(self):
+        if self.term_months not in _CONSOLIDATED_VALID_TERMS:
+            raise ValueError(
+                f"Consolidated loan term must be one of {sorted(_CONSOLIDATED_VALID_TERMS)} months. "
+                f"Received: {self.term_months}."
+            )
+        return self
 
 
 class EmergencyLoanComputeRequest(LoanComputeBaseRequest):
@@ -3716,6 +3740,57 @@ async def get_loan_eligibility(
         if fabricated is not None:
             return fabricated
 
+    # Member status gate — block inactive/suspended/terminated members before
+    # computing any eligibility bucket.
+    try:
+        member_table = _resolve_member_table(supabase)
+        lookup_field = "id" if len(member_id) == 36 and member_id.count("-") == 4 else "membership_id"
+        member_row_resp = (
+            supabase.table(member_table)
+            .select("id,is_bona_fide,member_status,is_active,latest_net_pay,classification,employment_type")
+            .eq(lookup_field, member_id)
+            .limit(1)
+            .execute()
+        )
+        member_row = (member_row_resp.data or [None])[0]
+        if member_row:
+            raw_status = str(member_row.get("member_status") or "").strip().lower()
+            is_active = member_row.get("is_active")
+            if raw_status in {"inactive", "suspended", "terminated"} or is_active is False:
+                raise HTTPException(
+                    status_code=403,
+                    detail=f"Member account is {raw_status or 'deactivated'} and is not eligible to apply for loans.",
+                )
+
+            # Non-bona-fide member requesting a member-only loan type → 403.
+            if normalized_type in {"consolidated", "bonus"} and not member_row.get("is_bona_fide"):
+                raise HTTPException(
+                    status_code=403,
+                    detail=f"{normalized_type.capitalize()} loans are available to bona fide (MIGS-classified) members only.",
+                )
+
+            # Missing required profile fields — return 400 with explicit field list.
+            missing_fields = []
+            if not member_row.get("latest_net_pay"):
+                missing_fields.append("latest_net_pay")
+            if not member_row.get("classification"):
+                missing_fields.append("classification")
+            if not member_row.get("employment_type"):
+                missing_fields.append("employment_type")
+            if missing_fields:
+                raise HTTPException(
+                    status_code=400,
+                    detail={
+                        "message": "Member profile is incomplete. The following required fields are missing.",
+                        "missing_fields": missing_fields,
+                    },
+                )
+    except HTTPException:
+        raise
+    except Exception:
+        # Member table lookup failure is non-fatal — continue to eligibility compute.
+        pass
+
     try:
         if normalized_type:
             return _compute_bucket_for_type(member_id, normalized_type)
@@ -4016,7 +4091,7 @@ async def get_member_debt_capacity(member_key: str):
 # stack up into request pile-up. TTL is short enough that new payments show
 # up within half a minute; not worth wiring write-invalidation for a demo.
 _MANAGE_LOANS_CACHE: dict = {"payload": None, "expires_at": 0.0}
-_MANAGE_LOANS_CACHE_TTL_SECONDS = 30.0
+_MANAGE_LOANS_CACHE_TTL_SECONDS = 120.0  # 2 min — payments show up within 2 min; avoids pile-up from multi-tab polling
 
 @app.get("/api/bookkeeper/manage-loans")
 async def get_bookkeeper_manage_loans():

@@ -134,8 +134,10 @@ const Member_ApplyLoans = () => {
 
   const isLocked = (key) => {
     if (key === 'bonus' && !bonusWindowOpen) return true;
+    // While loading, lock all cards — safer than showing them as open
+    if (!eligibilityReady) return true;
     const b = bucketFor(key);
-    if (!b || !eligibilityReady) return false;
+    if (!b) return false;
     return !b.can_apply_new && !b.can_renew;
   };
   const anyRestriction = eligibilityReady && Object.values(perType).some(
@@ -150,6 +152,26 @@ const Member_ApplyLoans = () => {
 
     const loadMemberIdentity = async () => {
       try {
+        // Fast path: read from the login bundle cached by AuthContext at login.
+        // This avoids all DB queries — memberId is available synchronously.
+        const cached = sessionStorage.getItem("_member_login_bundle_cache");
+        if (cached) {
+          const { bundle, timestamp } = JSON.parse(cached);
+          const isFresh = Date.now() - timestamp < 5 * 60 * 1000;
+          if (isFresh && bundle?.member) {
+            const m = bundle.member;
+            const fullName = [m.first_name, m.middle_name, m.surname]
+              .filter(Boolean).join(" ").trim();
+            if (isMounted) {
+              setMemberLabel(fullName || "Member");
+              setMemberId(m.id || bundle.account?.user_id || null);
+              if (bundle.avatar_url) setAvatarUrl(bundle.avatar_url);
+            }
+            return;
+          }
+        }
+
+        // Slow path: cache miss — fall back to DB queries
         const { data: authData, error: authError } = await supabase.auth.getUser();
         if (authError) throw authError;
 
@@ -162,13 +184,13 @@ const Member_ApplyLoans = () => {
           .join(" ")
           .trim();
 
-        const signedAvatarUrl = await loadMemberAvatarSignedUrl(supabase, sessionUser.id);
-
         if (isMounted) {
           setMemberLabel(fullName || "Member");
-          setAvatarUrl(signedAvatarUrl || "");
           setMemberId(memberRow?.id || sessionUser.id || null);
         }
+
+        const signedAvatarUrl = await loadMemberAvatarSignedUrl(supabase, sessionUser.id);
+        if (isMounted) setAvatarUrl(signedAvatarUrl || "");
       } catch (_error) {
         if (isMounted) {
           setMemberLabel("Member");
@@ -397,7 +419,7 @@ const Member_ApplyLoans = () => {
                     <h1 className="font-bold text-slate-800 text-sm text-center dark:text-gray-200">{item.label}</h1>
                     {disabled && (
                       <span className="mt-2 text-[10px] font-bold uppercase tracking-wider text-red-600 dark:text-red-400">
-                        {bonusClosed ? 'Window closed' : 'Locked'}
+                        {!eligibilityReady ? 'Checking...' : bonusClosed ? 'Window closed' : 'Locked'}
                       </span>
                     )}
                   </button>

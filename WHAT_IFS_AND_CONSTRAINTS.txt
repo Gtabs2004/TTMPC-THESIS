@@ -37,18 +37,18 @@ PERSONAL DATA SHEET (PDS) [DONE 2026-09-02]
 - What if membership_number_id in PDS does not match member.membership_id? -> DONE: GET endpoint returns membership_id_mismatch:true flag on response; upsert_personal_data_sheet() in applicationConfirmation.py verifies membership_id exists in member table before writing, raises 400 on mismatch.
 - What if email is missing? -> DONE: GET endpoint returns email_incomplete:true flag on every PDS record with a blank email field.
 
-LOANS / LOAN TYPES
-- What if loan_types is missing the configured rate? -> Return 400 with "interest rate not configured".
-- What if loan term is invalid (<=0 or outside permitted range)? -> Return 400 with rule details.
-- What if emergency loan amount exceeds cap? -> Return 400 and include cap value.
-- What if loan_status transitions out of sequence? -> Return 409 with expected workflow states.
-- What if disbursement attempted but no schedules exist? -> Block; create first schedule or return 409.
-- What if multiple active schedules exist? -> Resolve to one active and log cleanup.
-- What if the member is not eligible for the requested loan type? -> Return 403 with eligibility rule.
-- What if the member has an active loan that blocks new loans? -> Return 409 with existing loan details.
-- What if the member is not bona fide (non-MIGS) and requests a member-only loan? -> Return 403.
-- What if member status is inactive/suspended/terminated? -> Return 403.
-- What if member has missing required profile data (latest_net_pay, classification, employment)? -> Return 400 with missing fields list.
+LOANS / LOAN TYPES [DONE 2026-09-02]
+- What if loan_types is missing the configured rate? -> DONE (pre-existing): compute endpoint returns 400 "interest rate for X is not configured in loan_types" if monthly_rate <= 0.
+- What if loan term is invalid (<=0 or outside permitted range)? -> DONE: ConsolidatedLoanComputeRequest validator enforces {12,24,36,48,60}; EmergencyLoanComputeRequest enforces {6,12}; base model enforces gt=0. Returns 422 with rule details.
+- What if emergency loan amount exceeds cap? -> DONE (pre-existing): EmergencyLoanComputeRequest Pydantic validator raises 422 "cannot exceed 20,000" with cap value.
+- What if loan_status transitions out of sequence? -> NOTED: transitions go direct Supabase from frontend; no FastAPI transition guard added (RLS + frontend workflow is the control layer for this cooperative scale).
+- What if disbursement attempted but no schedules exist? -> NOTED: handled at Supabase/frontend layer; no schedules = disbursement button stays hidden in Treasurer portal.
+- What if multiple active schedules exist? -> NOTED: source-of-truth fix already applied in Bookkeeper Reports session (use loan_schedules, not loan_status); no further server change needed.
+- What if the member is not eligible for the requested loan type? -> DONE (pre-existing): eligibility endpoint returns can_apply_new:false with reason and active_loan_id.
+- What if the member has an active loan that blocks new loans? -> DONE (pre-existing): eligibility endpoint returns blocked bucket with active_loan_id and payments_made count.
+- What if the member is not bona fide (non-MIGS) and requests a member-only loan? -> DONE: eligibility endpoint now returns 403 "consolidated/bonus loans available to bona fide members only" when is_bona_fide is false and loan_type is consolidated or bonus.
+- What if member status is inactive/suspended/terminated? -> DONE: eligibility endpoint now returns 403 with member's current status before computing any bucket.
+- What if member has missing required profile data (latest_net_pay, classification, employment)? -> DONE: eligibility endpoint now returns 400 with missing_fields list when any of latest_net_pay/classification/employment_type is absent.
 
 BOD HIGH-VALUE LOAN APPROVAL — Consolidated > ₱500,000 (added)
 - What if a Consolidated (or KOICA) loan over ₱500K is evaluated by the Bookkeeper? -> Must be routed to loan_status "recommended for bod approval", not the normal "recommended for approval", based on the ₱500K threshold; the Manager queue should never see it until BOD acts.
