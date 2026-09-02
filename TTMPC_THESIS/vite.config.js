@@ -65,14 +65,26 @@ export default defineConfig({
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // 5 MB
         // Don't try to precache the Railway backend origin.
         navigateFallbackDenylist: [/^\/api\//],
-        // Runtime cache for images (member avatars, etc.) — network-first so
-        // fresh data wins, cache is fallback.
         runtimeCaching: [
+          // Supabase storage (signed URLs for avatars, documents) — always
+          // NetworkFirst so expired/rotated signed URLs don't serve a 403
+          // from cache. Falls back to cache only when fully offline.
+          {
+            urlPattern: ({ url }) => url.hostname.includes('supabase.co') && url.pathname.includes('/storage/'),
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'ttmpc-supabase-storage',
+              networkTimeoutSeconds: 10,
+              expiration: { maxEntries: 60, maxAgeSeconds: 60 * 60 * 24 },
+            },
+          },
+          // Static images bundled with the app (icons, logos) — CacheFirst is
+          // fine because these never change between deploys.
           {
             urlPattern: /\.(?:png|jpg|jpeg|svg|gif|webp)$/,
             handler: 'CacheFirst',
             options: {
-              cacheName: 'ttmpc-images',
+              cacheName: 'ttmpc-static-images',
               expiration: { maxEntries: 60, maxAgeSeconds: 60 * 60 * 24 * 30 },
             },
           },
