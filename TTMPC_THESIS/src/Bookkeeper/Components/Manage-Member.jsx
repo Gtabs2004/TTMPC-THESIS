@@ -33,6 +33,19 @@ import Breadcrumb from "../../components/Breadcrumb";
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 const ITEMS_PER_PAGE = 10;
 
+// Supabase holds more member records than the coop's current roster. Each row
+// carries a `cluster` from the API saying which group it belongs to, so staff
+// can see why a record is there instead of it looking like a stray. Order here
+// is the order the filter dropdown offers.
+const CLUSTER_ORDER = [
+  "legacy_member",
+  "recovered_borrower",
+  "imported_member",
+  "simulation_account",
+  "system_placeholder",
+  "orphan_pds",
+];
+
 const Manage_Member = () => {
     const navigate = useNavigate();
   const [rows, setRows] = useState([]);
@@ -42,15 +55,37 @@ const Manage_Member = () => {
   // Filtering & Sorting State
   const [query, setQuery] = useState("");
   const [addressFilter, setAddressFilter] = useState("all"); // all | with | without
+  const [clusterFilter, setClusterFilter] = useState("all"); // all | one of CLUSTER_ORDER
   const [sortOrder, setSortOrder] = useState("name_asc"); // name_asc | name_desc | newest | oldest
   const [currentPage, setCurrentPage] = useState(1);
-  const hasActiveFilters = addressFilter !== "all" || sortOrder !== "name_asc" || query !== "";
+  const hasActiveFilters =
+    addressFilter !== "all" || clusterFilter !== "all" || sortOrder !== "name_asc" || query !== "";
 
   const clearFilters = () => {
     setQuery("");
     setAddressFilter("all");
+    setClusterFilter("all");
     setSortOrder("name_asc");
   };
+
+  // Only offer clusters that are actually present, so the dropdown never lists
+  // an empty group. Counts let staff see the make-up of the roster at a glance.
+  const clusterCounts = useMemo(() => {
+    const counts = new Map();
+    rows.forEach((r) => {
+      const key = r.cluster || "";
+      if (key) counts.set(key, (counts.get(key) || 0) + 1);
+    });
+    return counts;
+  }, [rows]);
+
+  const clusterLabels = useMemo(() => {
+    const labels = new Map();
+    rows.forEach((r) => {
+      if (r.cluster && r.cluster_label) labels.set(r.cluster, r.cluster_label);
+    });
+    return labels;
+  }, [rows]);
 
 
 
@@ -99,7 +134,10 @@ const Manage_Member = () => {
       }
       // 2. Address Filter
       if (!matchPresence(addressFilter, r.address)) return false;
-      
+
+      // 3. Cluster Filter
+      if (clusterFilter !== "all" && r.cluster !== clusterFilter) return false;
+
       return true;
     });
 
@@ -118,7 +156,7 @@ const Manage_Member = () => {
     });
 
     return sorted;
-  }, [query, rows, addressFilter, sortOrder]);
+  }, [query, rows, addressFilter, clusterFilter, sortOrder]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE));
   const paginatedRows = useMemo(() => {
@@ -128,7 +166,7 @@ const Manage_Member = () => {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [query, rows, addressFilter, sortOrder]);
+  }, [query, rows, addressFilter, clusterFilter, sortOrder]);
 
 
   return (
@@ -190,6 +228,22 @@ const Manage_Member = () => {
                   <option value="all">All Address</option>
                   <option value="with">With Address</option>
                   <option value="without">Without Address</option>
+                </select>
+              </div>
+
+              <div className="flex flex-col gap-1.5 min-w-[200px]">
+                <label className="text-xs uppercase tracking-wider text-gray-500 font-bold">Member group</label>
+                <select
+                  value={clusterFilter}
+                  onChange={(e) => setClusterFilter(e.target.value)}
+                  className="w-full h-10 px-3 pr-8 rounded-lg border border-gray-200 bg-white text-sm text-gray-700 transition-all focus:outline-none focus:ring-2 focus:ring-[#2C7A3F]/50 focus:border-[#2C7A3F] hover:border-gray-300"
+                >
+                  <option value="all">All groups ({rows.length})</option>
+                  {CLUSTER_ORDER.filter((key) => clusterCounts.get(key)).map((key) => (
+                    <option key={key} value={key}>
+                      {clusterLabels.get(key) || key} ({clusterCounts.get(key)})
+                    </option>
+                  ))}
                 </select>
               </div>
 
