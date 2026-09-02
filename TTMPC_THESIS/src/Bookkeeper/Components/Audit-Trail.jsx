@@ -7,6 +7,7 @@ import { UserAuth } from "../../contex/AuthContext";
 import { useNotification } from "../../contex/NotificationContext";
 import StaffTopbar from "../../components/StaffTopbar";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
+import Breadcrumb from "../../components/Breadcrumb";
 import {
   LayoutDashboard,
   Users,
@@ -88,17 +89,17 @@ const AuditTrail = () => {
   ];
 
   return (
-    <div className="flex min-h-screen bg-[#F8FAFC]">
+        <div className="flex min-h-screen bg-gray-50">
       {/* Sidebar */}
       <StaffSidebar portal="Bookkeeper" items={bookkeeperNav} />
 
       {/* Main Content Area */}
-    <div className="flex-1 flex flex-col h-screen overflow-hidden">
+    <div className="flex-1 flex flex-col h-screen overflow-y-auto">
         {/* Top Header */}
         <StaffTopbar portal="Bookkeeper" notifications={<LoanNotificationBell role="bookkeeper" />} />
 
         {/* Scrollable Dashboard Content */}
-        <main className="flex-1 p-8 overflow-y-auto">
+        <main className="p-8">
           <Breadcrumb portal="Bookkeeper" page="Audit Trail" />
 
           {/* KPI Cards */}

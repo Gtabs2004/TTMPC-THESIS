@@ -122,7 +122,8 @@ const Grocery = () => {
       
 
       {/* --- MAIN CONTENT AREA --- */}
-      <div className="flex-1 flex flex-col min-w-0">
+      
+      <div className="flex-1 flex flex-col h-screen overflow-y-auto">
         
         {/* Top Header */}
         <StaffTopbar portal="Bookkeeper" notifications={<LoanNotificationBell role="bookkeeper" />} sticky />
