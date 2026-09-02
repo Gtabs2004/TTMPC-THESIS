@@ -5,8 +5,7 @@ import { useNotification } from "../../contex/NotificationContext";
 import { useTheme } from "../../contex/ThemeContext";
 import ConfirmDialog from "../../components/ConfirmDialog";
 import { supabase } from "../../supabaseClient";
-import { resolveMemberContextFromSessionUser } from "../../utils/sessionIdentity";
-import { loadMemberAvatarSignedUrl } from "../../utils/memberAvatar";
+import { resolveMemberIdentity } from "../../utils/memberIdentity";
 import { invalidate } from "../memberDataCache";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
 import PasswordInput from "../../components/PasswordInput";
@@ -332,19 +331,12 @@ const Members_Profile = () => {
         setLoadingProfile(true);
         setProfileError('');
 
-        const { data: authData, error: authError } = await supabase.auth.getUser();
-        if (authError) throw authError;
-        const sessionUser = authData?.user;
-        if (!sessionUser?.id) throw new Error('Please sign in again to load your profile.');
-
-        const { account, member: memberRow } = await resolveMemberContextFromSessionUser(sessionUser);
-        const authEmail = sessionUser?.email || '';
-        const memberId = account?.user_id || sessionUser.id;
+        const { memberId, avatarUrl: signedAvatarUrl, account, memberRow } = await resolveMemberIdentity();
         if (!memberId) throw new Error('Please sign in again to load your profile.');
 
+        const authEmail = account?.email || '';
         const temporaryFlag = Boolean(account?.is_temporary);
         const accountTable = account?.table || 'member_account';
-        const signedAvatarUrl = await loadMemberAvatarSignedUrl(supabase, sessionUser.id);
 
         let appRow = null;
         if (account?.membership_id) {

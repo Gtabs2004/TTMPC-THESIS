@@ -4,8 +4,7 @@ import { UserAuth } from "../../contex/AuthContext";
 import { useNotification } from "../../contex/NotificationContext";
 import { useTheme } from "../../contex/ThemeContext";
 import { supabase } from "../../supabaseClient";
-import { resolveMemberContextFromSessionUser } from "../../utils/sessionIdentity";
-import { loadMemberAvatarSignedUrl } from "../../utils/memberAvatar";
+import { resolveMemberIdentity } from "../../utils/memberIdentity";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
 import {
   Activity,
@@ -273,17 +272,8 @@ const Member_Lifecycle = () => {
 
     try {
       setFetchStage("Fetching authenticated member...");
-      const { data: authData, error: authError } = await supabase.auth.getUser();
-      if (authError) throw authError;
-
-      const sessionUser = authData?.user;
-      if (!sessionUser?.id) throw new Error("Please sign in again to load your loan lifecycle.");
-
-      const { account, member: memberRow } = await resolveMemberContextFromSessionUser(sessionUser);
-      const memberId = account?.user_id || sessionUser.id;
-      const authEmail = sessionUser?.email || "";
+      const { memberId, avatarUrl: signedAvatarUrl } = await resolveMemberIdentity();
       if (!memberId) throw new Error("Please sign in again to load your loan lifecycle.");
-      const signedAvatarUrl = await loadMemberAvatarSignedUrl(supabase, sessionUser.id);
 
       setFetchStage("Loading lifecycle data from backend...");
       const lifecycleResponse = await fetch(`${API_BASE_URL}/api/member/lifecycle/${encodeURIComponent(memberId)}`, {
@@ -303,7 +293,7 @@ const Member_Lifecycle = () => {
       setProfile({
         fullName: profileRow.full_name || "N/A",
         memberId: profileRow.member_id || "N/A",
-        email: profileRow.email || authEmail || "N/A",
+        email: profileRow.email || "N/A",
         mobile: profileRow.mobile || "N/A",
         civilStatus: profileRow.civil_status || "N/A",
         gender: profileRow.gender || "N/A",
