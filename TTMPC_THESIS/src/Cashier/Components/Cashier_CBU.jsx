@@ -6,6 +6,7 @@ import { UserAuth } from "../../contex/AuthContext";
 import { useNotification } from "../../contex/NotificationContext";
 import StaffTopbar from "../../components/StaffTopbar";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
+import Breadcrumb from "../../components/Breadcrumb";
 import InterestOnShareCapitalModal from "../../components/InterestOnShareCapitalModal";
 import {
   LayoutDashboard,
@@ -161,6 +162,7 @@ const Cashier_CBU = () => {
     
         {/* 3. PAGE CONTENT */}
         <main className="p-8 overflow-auto">
+          <Breadcrumb portal="Cashier" page="Capital Build-Up" />
           <h1 className="text-2xl font-bold text-[#1F3E35] mb-6">Capital Build-Up</h1>
 
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 mb-8">

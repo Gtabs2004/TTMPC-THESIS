@@ -5,7 +5,8 @@ import { bodNav } from "../../components/StaffSidebar/configs/bod";
 import { NavLink, useNavigate } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
 import { useNotification } from "../../contex/NotificationContext";
-import { PortalTopbarIdentity } from "../../components/PortalIdentity";
+import StaffTopbar from "../../components/StaffTopbar";
+import Breadcrumb from "../../components/Breadcrumb";
 import { supabase } from "../../supabaseClient";
 import {
   LayoutDashboard,
@@ -23,7 +24,7 @@ import {
   BadgeCheck,
   History,
 } from "lucide-react";
-import NotificationBell from "./NotificationBell";
+import NotificationBell from "../../components/NotificationBell";
 
 const formatCurrency = (value) =>
   `₱${Number(value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -88,25 +89,14 @@ const BOD_Loan_Approval = () => {
       <StaffSidebar portal="BOD" items={bodNav} />
 
       <div className="flex-1 flex flex-col">
-        <header className="bg-white h-16 shadow-sm flex items-center justify-end px-8 border-b border-gray-100 shrink-0">
-          <div className="relative">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400" />
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="bg-gray-50 w-52 h-10 rounded-lg border border-gray-200 pl-10 pr-4 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-[#2C7A3F]"
-              placeholder="Search..."
-            />
-          </div>
-          <NotificationBell />
-          <div className="flex items-center ml-4 gap-2 border-l border-gray-200 pl-4">
-            <img src="/img/bookkeeper-profile.png" alt="Profile" className="w-8 h-8 rounded-full bg-gray-200" />
-            <PortalTopbarIdentity className="text-sm font-medium text-gray-700" fallbackRole="BOD" />
-          </div>
-        </header>
+        <StaffTopbar
+          portal="BOD"
+          notifications={<NotificationBell />}
+          search={{ value: search, onChange: (e) => setSearch(e.target.value), placeholder: "Search..." }}
+        />
 
         <main className="p-8 flex-1">
+          <Breadcrumb portal="BOD" page="Loan Approvals" />
           <StatCardRow cols={3}>
             <StatCard label="Pending Board Review" value={loans.length} icon={UserPlus} iconColor="text-[#2C7A3F]" />
             <StatCard label="Threshold" value="₱500K+" icon={ClipboardList} iconColor="text-[#D97706]" />

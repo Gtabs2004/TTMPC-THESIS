@@ -99,7 +99,8 @@ const AuditTrail = () => {
 
         {/* Scrollable Dashboard Content */}
         <main className="flex-1 p-8 overflow-y-auto">
-          
+          <Breadcrumb portal="Bookkeeper" page="Audit Trail" />
+
           {/* KPI Cards */}
           <StatCardRow cols={4}>
             {kpiData.map((kpi, idx) => (

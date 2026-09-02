@@ -7,6 +7,7 @@ import { useNotification } from "../../contex/NotificationContext";
 import { useConfirm } from "../../contex/ConfirmContext";
 import StaffTopbar from "../../components/StaffTopbar";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
+import Breadcrumb from "../../components/Breadcrumb";
 import {
   LayoutDashboard,
   Users,
@@ -198,6 +199,7 @@ const MIGS = () => {
         <main className="p-8 flex-1 overflow-y-auto">
           <div className="flex items-center justify-between mb-6">
             <div>
+              <Breadcrumb portal="Bookkeeper" page="MIGS Scoring" />
               <h1 className="font-bold text-2xl text-gray-900">MIGS Scoring</h1>
               <p className="text-xs text-gray-500 mt-0.5">
                 Compute classification for every member and label them in the system.

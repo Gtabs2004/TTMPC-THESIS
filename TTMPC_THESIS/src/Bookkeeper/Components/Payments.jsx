@@ -10,6 +10,7 @@ import { useConfirm } from "../../contex/ConfirmContext";
 import ConfirmDialog from "../../components/ConfirmDialog";
 import StaffTopbar from "../../components/StaffTopbar";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
+import Breadcrumb from "../../components/Breadcrumb";
 import {
   LayoutDashboard,
   Users,
@@ -386,11 +387,7 @@ const BookkeeperPayments = () => {
 
         <main className="p-8">
           <div className="flex items-center justify-between mb-6">
-                      <div className="flex items-center gap-2 text-sm text-gray-500 font-medium mb-1">
-                          <span>Bookkeeper</span>
-                           <ChevronRight className="w-4 h-4 text-gray-300" />
-                            <span className="text-primary">Payments Confirmation</span>
-            </div>
+                      <Breadcrumb portal="Bookkeeper" page="Payments Confirmation" />
             <button
               type="button"
               onClick={fetchPendingPayments}

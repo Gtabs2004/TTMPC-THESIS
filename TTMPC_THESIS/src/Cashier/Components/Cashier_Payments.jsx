@@ -5,6 +5,7 @@ import { UserAuth } from "../../contex/AuthContext";
 import { useNotification } from "../../contex/NotificationContext";
 import { useConfirm } from "../../contex/ConfirmContext";
 import StaffTopbar from "../../components/StaffTopbar";
+import Breadcrumb from "../../components/Breadcrumb";
 // Adjust path to AuthContext if needed
 import LoanNotificationBell from "../../components/LoanNotificationBell";
 import { 
@@ -589,6 +590,7 @@ const Cashier_Payments = () => {
           <div className="mb-8">
             <div className="flex items-center justify-between gap-4 mb-6">
               <div>
+                <Breadcrumb portal="Cashier" page="Loan Payments" />
                 <h1 className="text-3xl font-bold text-gray-900">Loan Payments</h1>
                 <p className="text-sm text-gray-500 mt-1">Manage and process member loan payments</p>
               </div>

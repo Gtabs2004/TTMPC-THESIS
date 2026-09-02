@@ -7,6 +7,7 @@ import { UserAuth } from "../../contex/AuthContext";
 import { useNotification } from "../../contex/NotificationContext";
 import StaffTopbar from "../../components/StaffTopbar";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
+import Breadcrumb from "../../components/Breadcrumb";
 import RecentActivityCard from "../../components/RecentActivityCard";
 import { supabase } from "../../supabaseClient";
 import {
@@ -364,6 +365,7 @@ const Cashier_Dashboard = () => {
 
         {/* DASHBOARD CONTENT */}
         <main className="p-8">
+          <Breadcrumb portal="Cashier" page="Dashboard" />
 
           {/* KPI Cards */}
           <StatCardRow cols={4}>

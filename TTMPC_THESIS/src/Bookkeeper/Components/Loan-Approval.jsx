@@ -33,6 +33,7 @@ import {
 } from "lucide-react";
 import StaffTopbar from "../../components/StaffTopbar";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
+import Breadcrumb from "../../components/Breadcrumb";
 
 const BookkeeperLoanApproval = () => {
     const navigate = useNavigate();
@@ -254,11 +255,7 @@ const BookkeeperLoanApproval = () => {
           <StaffTopbar portal="Bookkeeper" notifications={<LoanNotificationBell role="bookkeeper" />} />
 
         <main className="p-8 flex-1">
-            <div className="flex items-center gap-2 text-sm text-gray-500 font-medium mb-1">
-                          <span>Bookkeeper</span>
-                           <ChevronRight className="w-4 h-4 text-gray-300" />
-                            <span className="text-primary">Loan Approvals</span>
-            </div>
+            <Breadcrumb portal="Bookkeeper" page="Loan Approvals" />
 
           <StatCardRow cols={3}>
             <StatCard label="Pending Review" value={queueStats.pendingCount} icon={UserPlus} iconColor="text-[#2C7A3F]" />

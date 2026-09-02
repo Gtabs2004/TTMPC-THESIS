@@ -2,7 +2,9 @@
 import { useNotification } from "../../contex/NotificationContext";
 import { getLoanTypeChipClass as getLoanTypeStyle } from "../../utils/loanTypeColors";
 import { StatCard, StatCardRow } from "../../components/StatCard";
-import { PortalTopbarIdentity } from "../../components/PortalIdentity";
+import StaffTopbar from "../../components/StaffTopbar";
+import LoanNotificationBell from "../../components/LoanNotificationBell";
+import Breadcrumb from "../../components/Breadcrumb";
 import StaffSidebar from "../../components/StaffSidebar";
 import { treasurerNav } from "../../components/StaffSidebar/configs/treasurer";
 import {
@@ -188,24 +190,7 @@ const Disbursements = () => {
       <div className="flex-1 flex flex-col min-w-0 h-screen overflow-y-auto font-['Poppins']">
         
         {/* --- ORIGINAL USER TOPBAR --- */}
-        <header className="bg-white h-16 shrink-0 shadow-sm flex items-center justify-end px-8 border-b border-gray-100">
-          <div className="relative">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400" />
-            <input
-              type="text"
-              className="bg-gray-50 w-52 h-10 rounded-lg border border-gray-300 px-4 py-1 pl-9 focus:outline-none focus:ring-2 focus:ring-green-500"
-              placeholder="Search..."
-            />
-          </div>
-          <button className="ml-6 relative p-1 rounded-full text-gray-500 hover:bg-gray-100 transition-colors">
-            <Bell className="w-5 h-5" />
-            <span className="absolute top-1 right-1 block h-2 w-2 rounded-full bg-red-500 ring-2 ring-white"></span>
-          </button>
-          <div className="ml-4 w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 shrink-0">
-            <User className="w-4.5 h-4.5" />
-          </div>
-          <PortalTopbarIdentity className="text-sm font-medium text-gray-700" fallbackRole="Treasurer" />
-        </header>
+        <StaffTopbar portal="Treasurer" notifications={<LoanNotificationBell role="treasurer" />} />
 
         {/* FULL WIDTH MAIN DASHBOARD WRAPPER */}
         <main className="p-8 overflow-auto w-full">
@@ -213,11 +198,7 @@ const Disbursements = () => {
           {/* Page Header */}
           <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4 mb-8">
             <div>
-              <div className="flex items-center gap-2 text-sm text-gray-500 font-medium mb-1">
-                <span>Treasurer</span>
-                <ChevronRight className="w-4 h-4 text-gray-300" />
-                <span className="text-primary">Disbursement Audit</span>
-              </div>
+              <Breadcrumb portal="Treasurer" page="Disbursement Audit" />
               <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">Released Loans</h1>
               <p className="text-sm text-gray-500 mt-1 font-medium">Audit view of loans successfully disbursed by the Cashier.</p>
             </div>

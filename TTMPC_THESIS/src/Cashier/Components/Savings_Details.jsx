@@ -33,6 +33,7 @@ import { UserAuth } from "../../contex/AuthContext";
 import { useNotification } from "../../contex/NotificationContext";
 import StaffTopbar from "../../components/StaffTopbar";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
+import Breadcrumb from "../../components/Breadcrumb";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 const PAGE_SIZE = 10;
@@ -305,6 +306,7 @@ const Savings_Details = () => {
             <>
               {/* TITLE BLOCK */}
               <div className="mb-8">
+                <Breadcrumb portal="Cashier" page="Account Details" />
                 <div className="flex items-center justify-between gap-4 mb-6">
                   <div>
                     <div className="flex items-center gap-3 mb-1">

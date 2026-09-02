@@ -6,6 +6,7 @@ import { UserAuth } from "../../contex/AuthContext";
 import { useNotification } from "../../contex/NotificationContext";
 import StaffTopbar from "../../components/StaffTopbar";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
+import Breadcrumb from "../../components/Breadcrumb";
 import {
   LayoutDashboard,
   Users,
@@ -41,6 +42,7 @@ const Accounting = () => {
 
         {/* Page Content */}
         <main className="p-8">
+          <Breadcrumb portal="Bookkeeper" page="Accounting" />
           <h1 className="font-bold text-2xl">Accounting</h1>
         </main>
       </div>

@@ -8,6 +8,7 @@ import { useConfirm } from "../../contex/ConfirmContext";
 import ConfirmDialog from "../../components/ConfirmDialog";
 import StaffTopbar from "../../components/StaffTopbar";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
+import Breadcrumb from "../../components/Breadcrumb";
 import {
   LayoutDashboard,
   Users,
@@ -204,6 +205,7 @@ const BookkeeperSavingsTransactions = () => {
         <main className="p-6">
           <div className="flex items-center justify-between mb-4">
             <div>
+              <Breadcrumb portal="Bookkeeper" page="Savings Withdrawal Verification" />
               <h1 className="text-xl font-bold text-gray-900">Savings Withdrawal Verification</h1>
               <p className="text-xs text-gray-500 mt-0.5">Review and confirm cashier-submitted withdrawals</p>
             </div>

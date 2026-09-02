@@ -1,6 +1,8 @@
 import React from "react";
 import { useNotification } from "../../contex/NotificationContext";
-import { PortalTopbarIdentity } from "../../components/PortalIdentity";
+import StaffTopbar from "../../components/StaffTopbar";
+import LoanNotificationBell from "../../components/LoanNotificationBell";
+import Breadcrumb from "../../components/Breadcrumb";
 import AuditLogViewer from "../../components/AuditLogViewer";
 import StaffSidebar from "../../components/StaffSidebar";
 import { treasurerNav } from "../../components/StaffSidebar/configs/treasurer";
@@ -14,14 +16,10 @@ const Treasurer_Audit_Log = () => {
       <StaffSidebar portal="Treasurer" items={treasurerNav} />
 
       <div className="flex-1 flex flex-col h-screen overflow-y-auto">
-        <header className="bg-white h-16 shrink-0 shadow-sm flex items-center justify-end px-8 border-b border-gray-100">
-          <div className="ml-4 w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 shrink-0">
-            <User className="w-4.5 h-4.5" />
-          </div>
-          <PortalTopbarIdentity className="text-sm font-medium text-gray-700" fallbackRole="Treasurer" />
-        </header>
+        <StaffTopbar portal="Treasurer" notifications={<LoanNotificationBell role="treasurer" />} />
 
         <main className="p-8">
+          <Breadcrumb portal="Treasurer" page="Audit Log" />
           <AuditLogViewer showActorRoleFilter={false} onError={(msg) => addNotification(msg, "error")} />
         </main>
       </div>

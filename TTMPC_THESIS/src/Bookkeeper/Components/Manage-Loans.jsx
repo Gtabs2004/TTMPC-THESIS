@@ -8,6 +8,7 @@ import { UserAuth } from "../../contex/AuthContext";
 import { useNotification } from "../../contex/NotificationContext";
 import StaffTopbar from "../../components/StaffTopbar";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
+import Breadcrumb from "../../components/Breadcrumb";
 import {
   LayoutDashboard,
   Users,
@@ -289,11 +290,7 @@ const ManageLoans = () => {
           <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-8 gap-4">
             <div>
               
-            <div className="flex items-center gap-2 text-sm text-gray-500 font-medium mb-1">
-                              <span>Bookkeeper</span>
-                              <ChevronRight className="w-4 h-4 text-gray-300" />
-                              <span className="text-primary">Manage loans</span>
-                            </div>
+            <Breadcrumb portal="Bookkeeper" page="Manage loans" />
 
               <p className="text-base text-gray-600 mt-2">Track loan status, monitor balances, and manage member ledger records in real-time.</p>
             </div>

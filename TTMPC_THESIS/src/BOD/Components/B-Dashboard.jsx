@@ -5,7 +5,8 @@ import StaffSidebar from "../../components/StaffSidebar";
 import { bodNav } from "../../components/StaffSidebar/configs/bod";
 import { UserAuth } from "../../contex/AuthContext";
 import { useNotification } from "../../contex/NotificationContext";
-import { PortalTopbarIdentity } from "../../components/PortalIdentity";
+import StaffTopbar from "../../components/StaffTopbar";
+import Breadcrumb from "../../components/Breadcrumb";
 import LoanDemandForecastCard from "../../components/LoanDemandForecastCard";
 import { supabase } from "../../supabaseClient";
 import {
@@ -29,7 +30,7 @@ import {
   CalendarDays,
   History
 } from 'lucide-react';
-import NotificationBell from "./NotificationBell";
+import NotificationBell from "../../components/NotificationBell";
 import {
   BarChart,
   Bar,
@@ -302,19 +303,11 @@ const Dashboard_BOD = () => {
       {/* MAIN CONTENT AREA */}
       <div className="flex-1 min-w-0 flex flex-col h-screen overflow-hidden">
         {/* TOPBAR */}
-        <header className="bg-white h-16 shadow-sm flex items-center justify-end px-8 border-b border-gray-100 shrink-0">
-          <div className="relative">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400"/>
-            <input type="text" className="bg-gray-50 w-72 h-10 rounded-lg border border-gray-200 pl-10 pr-4 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-[#2C7A3F]" placeholder="Search..." />
-          </div>
-          <NotificationBell />
-          <img src="/img/bookkeeper-profile.png" alt="Profile" className="ml-4 w-8 h-8 rounded-full bg-gray-200" />
-          <PortalTopbarIdentity className="text-sm font-medium text-gray-700" fallbackRole="BOD" />
-        </header>
-        
+        <StaffTopbar portal="BOD" notifications={<NotificationBell />} />
+
         {/* SCROLLABLE DASHBOARD CONTENT */}
         <main className="flex-1 overflow-y-auto p-8">
-          
+          <Breadcrumb portal="BOD" page="Dashboard" />
           {/* Action Header */}
           <div className="flex justify-between items-center mb-8">
             <div>

@@ -1,7 +1,14 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Bell, UserPlus, Inbox } from "lucide-react";
-import { supabase } from "../../supabaseClient";
+import { supabase } from "../supabaseClient";
+
+// Membership-application notification bell — a separate feed from
+// LoanNotificationBell's loan-workflow queue. Used by BOD (member/loan
+// approval) and secretary (member records) pages, the two roles that
+// actually approve new membership applications. Relocated here from
+// BOD/Components/NotificationBell.jsx (secretary pages were already
+// reaching into that folder cross-portal to import it).
 
 const STORAGE_KEY = "bod_notifications_last_seen";
 const POLL_MS = 30_000;

@@ -18,6 +18,7 @@ import {
 import { useNotification } from "../../contex/NotificationContext";
 import StaffTopbar from "../../components/StaffTopbar";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
+import Breadcrumb from "../../components/Breadcrumb";
 import InterestOnShareCapitalModal from "../../components/InterestOnShareCapitalModal";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
@@ -149,6 +150,7 @@ const Bookkeeper_CBU = () => {
           <div className="mb-6 ">
             <div className="flex items-center justify-between gap-4 mb-4">
               <div>
+                <Breadcrumb portal="Bookkeeper" page="Capital Build-Up" />
                 <h1 className="text-xl font-bold text-gray-900">Capital Build-Up</h1>
                 <p className="text-xs text-gray-500 mt-0.5">
                   Read-only ledger of member CBU/share balances and contributions

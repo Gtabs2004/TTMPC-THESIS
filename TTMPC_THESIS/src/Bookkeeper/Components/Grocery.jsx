@@ -7,6 +7,7 @@ import { UserAuth } from "../../contex/AuthContext";
 import { supabase } from "../../supabaseClient";
 import StaffTopbar from "../../components/StaffTopbar";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
+import Breadcrumb from "../../components/Breadcrumb";
 import {
   LayoutDashboard,
   Users,
@@ -128,8 +129,7 @@ const Grocery = () => {
 
         {/* Page Content */}
         <main className="p-8 max-w-7xl mx-auto w-full">
-          
-        
+          <Breadcrumb portal="Bookkeeper" page="Grocery" />
 
           {/* Summary Cards */}
           <StatCardRow cols={3}>
