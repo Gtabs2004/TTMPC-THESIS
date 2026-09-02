@@ -1,6 +1,6 @@
 import { supabase } from "../supabaseClient";
 import { resolveMemberContextFromSessionUser } from "./sessionIdentity";
-import { loadMemberAvatarSignedUrl } from "./memberAvatar";
+import { loadMemberAvatarSignedUrl, createMemberAvatarSignedUrl } from "./memberAvatar";
 
 const CACHE_KEY = "_member_login_bundle_cache";
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
@@ -22,10 +22,24 @@ export async function resolveMemberIdentity() {
         const m = bundle.member || {};
         const fullName = [m.first_name, m.middle_name, m.surname]
           .filter(Boolean).join(" ").trim();
+        // bundle.avatar_url is a raw storage path, not a signed URL —
+        // generate a signed URL so it works in production (Vercel → Supabase storage)
+        const rawAvatarUrl = bundle.avatar_url || "";
+        let avatarUrl = "";
+        if (rawAvatarUrl && !rawAvatarUrl.startsWith("http")) {
+          avatarUrl = await createMemberAvatarSignedUrl(
+            supabase,
+            bundle.account.user_id,
+            rawAvatarUrl
+          );
+        } else {
+          avatarUrl = rawAvatarUrl;
+        }
+
         return {
           memberId: bundle.account.user_id,
           fullName: fullName || "Member",
-          avatarUrl: bundle.avatar_url || "",
+          avatarUrl,
           memberRow: bundle.member || null,
           account: bundle.account || null,
         };
