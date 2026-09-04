@@ -432,8 +432,11 @@ class CashierLoanPaymentCreateRequest(BaseModel):
 
 class CashierDisbursementRequest(BaseModel):
     disbursed_at: datetime | None = None
-    cashier_id: str | None = None
-    cashier_name: str | None = None
+    # The confirmation row is the accountability record for a released loan, so
+    # the acting cashier is required on new disbursements. Legacy rows in
+    # disbursement_confirmations keep nullable columns; only new writes are gated.
+    cashier_id: str = Field(..., min_length=1)
+    cashier_name: str = Field(..., min_length=1)
     cashier_email: str | None = None
 
 
@@ -3307,6 +3310,31 @@ async def disburse_cashier_loan(loan_id: str, payload: CashierDisbursementReques
         reference_number = f"TTMPC-DSB-{disbursed_at.strftime('%Y%m%d%H%M%S')}-{clean_loan_id[-6:].upper()}"
         cashier_display = (payload.cashier_name or payload.cashier_email or "Cashier").strip()
 
+        # Duplicate-submission guard. reference_number is UNIQUE, but the insert
+        # below is intentionally non-fatal (legacy DBs may lack the table), so a
+        # resubmit would otherwise be swallowed silently. Surface the existing
+        # confirmation as a 409 instead of writing a second receipt.
+        try:
+            existing_confirmation = (
+                supabase.table("disbursement_confirmations")
+                .select("reference_number,loan_id,disbursed_at,cashier_name,loan_amount")
+                .eq("reference_number", reference_number)
+                .limit(1)
+                .execute()
+            )
+            prior = (existing_confirmation.data or [None])[0]
+        except Exception:
+            prior = None
+
+        if prior:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "message": "This disbursement has already been confirmed.",
+                    "existing_confirmation": prior,
+                },
+            )
+
         confirmation_record = {
             "reference_number": reference_number,
             "loan_id": clean_loan_id,
@@ -3322,7 +3350,18 @@ async def disburse_cashier_loan(loan_id: str, payload: CashierDisbursementReques
         }
         try:
             supabase.table("disbursement_confirmations").insert(confirmation_record).execute()
-        except Exception:
+        except Exception as confirm_err:
+            err_text = str(confirm_err).lower()
+            # A uniqueness violation means this disbursement was already confirmed
+            # (racing double-submit that slipped past the pre-check above).
+            if "duplicate key" in err_text or "unique constraint" in err_text:
+                raise HTTPException(
+                    status_code=409,
+                    detail={
+                        "message": "This disbursement has already been confirmed.",
+                        "reference_number": reference_number,
+                    },
+                )
             # Table may not exist yet in legacy DBs; surface confirmation client-side regardless.
             pass
 
@@ -9664,7 +9703,10 @@ async def print_consolidated_loan_pdf(payload: ConsolidatedLoanPdfRequest):
     except ValueError:
         amount_number = 0.0
 
-    template_filename = "CONSOLIDATED LOAN-500,000 AND UP.pdf" if amount_number >= 500000 else "CONSOLIDATED LOAN -A4.pdf"
+    # Threshold is EXCLUSIVE: > 500,000 needs BOD approval and the large-format template.
+    # Exactly ₱500,000 uses the standard template (no BOD route). Must match the
+    # frontend routing rule in LoanApprovalDetails.jsx (rawAmount > 500000).
+    template_filename = "CONSOLIDATED LOAN-500,000 AND UP.pdf" if amount_number > 500000 else "CONSOLIDATED LOAN -A4.pdf"
     return build_loan_pdf_response(payload, template_filename, "CONSOLIDATED_LOAN_FILLED.pdf", "consolidated")
 
 
@@ -10426,6 +10468,164 @@ async def list_membership_payments(
         return {"success": True, "data": results}
     except Exception as err:
         raise HTTPException(status_code=500, detail=f"Failed to list payments: {err}")
+
+
+# ============================================================================
+# SECTION: BOD High-Value Loan Decision
+# Server-side guard for BOD-only loan approval/rejection on loans > ₱500K.
+# RLS alone does not prevent Manager/Cashier from writing bod_approval_payload
+# (they share the same "staff update loan workflow" policy). This endpoint
+# enforces role = 'bod' before any status transition or payload write.
+# Threshold: EXCLUSIVE > ₱500,000 (exactly ₱500K uses the standard Manager queue).
+# ============================================================================
+
+class BodLoanDecisionRequest(BaseModel):
+    loan_id: str = Field(..., min_length=1)
+    decision: Literal["approved", "rejected"]
+    actor_user_id: str = Field(..., min_length=1)
+    # Required for approve; optional for reject
+    resolution_no: str | None = None
+    resolution_date: str | None = None   # ISO date string
+    signed_form_path: str | None = None
+    # Required for reject; optional for approve
+    remarks: str | None = None
+
+    @model_validator(mode="after")
+    def validate_decision_fields(self):
+        if self.decision == "approved":
+            missing = []
+            if not (self.resolution_no or "").strip():
+                missing.append("resolution_no")
+            if not (self.resolution_date or "").strip():
+                missing.append("resolution_date")
+            if missing:
+                raise ValueError(
+                    f"BOD approval requires: {', '.join(missing)}."
+                )
+        elif self.decision == "rejected":
+            if not (self.remarks or "").strip():
+                raise ValueError("BOD rejection requires a remarks/reason.")
+        return self
+
+
+_BOD_LOAN_THRESHOLD = 500_000  # exclusive: > 500,000 needs BOD, exactly 500,000 does not
+_BOD_TERMINAL_STATUSES = {"bod rejected"}
+_BOD_ELIGIBLE_STATUSES = {"recommended for bod approval"}
+
+
+@app.post("/api/bod/loan-decision")
+async def bod_loan_decision(payload: BodLoanDecisionRequest):
+    """BOD approves or rejects a high-value consolidated loan (> ₱500K).
+
+    Guards:
+    - Caller must have role='bod' in member_account.
+    - Loan must be in 'recommended for bod approval' status.
+    - 'bod rejected' is terminal — no further transitions allowed.
+    - approve: requires resolution_no + resolution_date → resets to 'recommended for approval'.
+    - reject:  requires remarks → sets 'bod rejected' (terminal).
+    """
+    if not supabase:
+        raise HTTPException(status_code=503, detail="Supabase client is not initialized.")
+
+    # 1. Role guard — must be exactly 'bod', derived from DB, never trusted from body.
+    try:
+        account_resp = (
+            supabase.table("member_account")
+            .select("role")
+            .or_(f"user_id.eq.{payload.actor_user_id},auth_user_id.eq.{payload.actor_user_id}")
+            .limit(1)
+            .execute()
+        )
+        account = (account_resp.data or [None])[0]
+        if not account or str(account.get("role") or "").strip().lower() != "bod":
+            raise HTTPException(
+                status_code=403,
+                detail="Only BOD accounts can submit a BOD loan decision.",
+            )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Role verification failed: {e}")
+
+    # 2. Load current loan status and amount.
+    try:
+        loan_resp = (
+            supabase.table("loans")
+            .select("control_number,loan_status,loan_amount,principal_amount")
+            .eq("control_number", payload.loan_id)
+            .limit(1)
+            .execute()
+        )
+        loan = (loan_resp.data or [None])[0]
+        if not loan:
+            raise HTTPException(status_code=404, detail=f"Loan {payload.loan_id} not found.")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch loan: {e}")
+
+    current_status = str(loan.get("loan_status") or "").strip().lower()
+
+    # 3. Terminal state guard — bod rejected cannot be re-acted on.
+    if current_status in _BOD_TERMINAL_STATUSES:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Loan {payload.loan_id} has already been rejected by the BOD and cannot be reprocessed.",
+        )
+
+    # 4. Must be in the BOD queue to receive a decision.
+    if current_status not in _BOD_ELIGIBLE_STATUSES:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"Loan {payload.loan_id} is not awaiting BOD approval "
+                f"(current status: '{current_status}'). "
+                f"Expected: '{next(iter(_BOD_ELIGIBLE_STATUSES))}'."
+            ),
+        )
+
+    # 5. Write decision.
+    next_status = "recommended for approval" if payload.decision == "approved" else "bod rejected"
+    bod_payload = {
+        "decision": payload.decision,
+        "resolution_no": (payload.resolution_no or "").strip() or None,
+        "resolution_date": (payload.resolution_date or "").strip() or None,
+        "signed_form_path": payload.signed_form_path or None,
+        "remarks": (payload.remarks or "").strip() or None,
+        "decided_by": payload.actor_user_id,
+        "decided_at": datetime.utcnow().isoformat(),
+    }
+
+    try:
+        update_resp = (
+            supabase.table("loans")
+            .update({
+                "loan_status": next_status,
+                "application_status": next_status,
+                "bod_approval_payload": bod_payload,
+            })
+            .eq("control_number", payload.loan_id)
+            .select("control_number,loan_status")
+            .limit(1)
+            .execute()
+        )
+        updated = (update_resp.data or [None])[0]
+        if not updated:
+            raise HTTPException(
+                status_code=500,
+                detail="Loan update returned no rows. Check RLS policy for the BOD role on the loans table.",
+            )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to write BOD decision: {e}")
+
+    return {
+        "success": True,
+        "loan_id": payload.loan_id,
+        "decision": payload.decision,
+        "new_status": next_status,
+    }
 
 
 @app.get("/api/bod/membership-approval/{application_id}/payment-status")

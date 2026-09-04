@@ -50,13 +50,13 @@ LOANS / LOAN TYPES [DONE 2026-09-02]
 - What if member status is inactive/suspended/terminated? -> DONE: eligibility endpoint now returns 403 with member's current status before computing any bucket.
 - What if member has missing required profile data (latest_net_pay, classification, employment)? -> DONE: eligibility endpoint now returns 400 with missing_fields list when any of latest_net_pay/classification/employment_type is absent.
 
-BOD HIGH-VALUE LOAN APPROVAL — Consolidated > ₱500,000 (added)
-- What if a Consolidated (or KOICA) loan over ₱500K is evaluated by the Bookkeeper? -> Must be routed to loan_status "recommended for bod approval", not the normal "recommended for approval", based on the ₱500K threshold; the Manager queue should never see it until BOD acts.
-- What if BOD approves? -> loan_status resets to "recommended for approval" so it re-enters the standard Manager queue; verify the loan isn't accidentally treated as fully approved at this point.
-- What if BOD rejects? -> loan_status -> "bod rejected" (terminal); no further Manager/Treasurer action should be possible on that control_number.
-- What if bod_approval_payload is saved without resolution_no / resolution_date / decision on an approve or reject? -> Only the column itself is nullable jsonb — the API should require those sub-fields before accepting the decision, not just persist whatever was sent.
-- What if a Manager, Treasurer, or Cashier account calls the BOD-decision endpoint directly? -> The "staff update loan workflow" RLS policy grants UPDATE on public.loans to manager/bookkeeper/treasurer/cashier/bod alike, so the database alone does not stop this — the FastAPI layer must check the caller's role is exactly 'bod' before writing a bod_approval_payload / bod-only status transition.
-- What if a loan is exactly ₱500,000 (boundary)? -> Confirm whether the threshold is inclusive or exclusive and apply consistently across the frontend evaluation form and any backend recompute.
+BOD HIGH-VALUE LOAN APPROVAL — Consolidated > ₱500,000 (added) [DONE 2026-09-04]
+- What if a Consolidated (or KOICA) loan over ₱500K is evaluated by the Bookkeeper? -> DONE (pre-existing): LoanApprovalDetails.jsx line 1095 routes rawAmount > 500000 to 'recommended for bod approval'; Manager queue filters this status out.
+- What if BOD approves? -> DONE: new POST /api/bod/loan-decision endpoint sets next_status = 'recommended for approval'; loan re-enters Manager queue normally.
+- What if BOD rejects? -> DONE: endpoint sets 'bod rejected' (terminal); _BOD_TERMINAL_STATUSES guard blocks any further decision on that control_number with 409.
+- What if bod_approval_payload is saved without resolution_no / resolution_date / decision on an approve or reject? -> DONE: BodLoanDecisionRequest Pydantic model_validator requires resolution_no + resolution_date on approve, remarks on reject — returns 422 before any DB write.
+- What if a Manager, Treasurer, or Cashier account calls the BOD-decision endpoint directly? -> DONE: POST /api/bod/loan-decision checks member_account.role === 'bod' server-side before any update; non-BOD callers get 403.
+- What if a loan is exactly ₱500,000 (boundary)? -> DONE: threshold confirmed EXCLUSIVE (> 500000). Frontend routing (LoanApprovalDetails.jsx) already used > 500000. PDF template selector in main.py corrected from >= to > 500000 to match.
 
 LOAN RESTRUCTURING (added)
 - What if new_term_months or new_amortization is <= 0? -> Blocked by the loan_restructure_requests CHECK constraints; return 400 before the insert ever reaches the DB.
@@ -65,11 +65,13 @@ LOAN RESTRUCTURING (added)
 - What if a restructure request is approved? -> The approval action must also update the loan's own term/amortization fields, not just flip loan_restructure_requests.status — otherwise the "approved" request and the live loan silently disagree.
 - What if reviewed_by is blank when status changes away from 'pending'? -> Should be required at the point of decision so every approval/rejection is attributable.
 
-DISBURSEMENT CONFIRMATIONS (added)
-- What if the same disbursement is submitted twice (duplicate reference_number)? -> Blocked by the UNIQUE constraint; return 409 and surface the existing confirmation instead of a raw DB error.
-- What if loan_amount on the confirmation is zero or negative? -> Not currently blocked by a CHECK (only NOT NULL) — add one, since this record is the audit/evidence trail replacing a printed receipt.
-- What if a confirmation is written for a loan whose loan_status was never actually moved to a disbursed state? -> The confirmation table has no FK/trigger tying it back to loans.loan_status; the Cashier endpoint should verify the loan is in "to be disbursed"/"ready for disbursement" before accepting the confirmation.
-- What if cashier_id or cashier_name is left null? -> Both are nullable — acceptable for legacy rows, but new confirmations should require the acting cashier for accountability.
+DISBURSEMENT CONFIRMATIONS (added) [DONE 2026-09-04]
+- What if the same disbursement is submitted twice (duplicate reference_number)? -> DONE: the insert was previously wrapped in `except: pass`, silently swallowing duplicates. Now /api/cashier/disbursements/{loan_id}/disburse pre-checks reference_number and returns 409 with the existing confirmation row; the insert's except block also distinguishes a uniqueness violation (409) from a missing table (still non-fatal).
+- What if loan_amount on the confirmation is zero or negative? -> DONE: added CHECK (loan_amount > 0) to disbursement_confirmations_schema.sql as an idempotent DO block. Upstream guard at main.py also rejects principal <= 0 with 400 before reaching the insert.
+- What if a confirmation is written for a loan whose loan_status was never actually moved to a disbursed state? -> DONE (pre-existing): the endpoint rejects any loan whose loan_status != "ready for disbursement" with 400 before computing or writing anything.
+- What if cashier_id or cashier_name is left null? -> DONE: CashierDisbursementRequest now requires both (min_length=1) so new confirmations always carry the acting cashier; legacy rows keep their nullable columns. Cashier_Disbursement.jsx adds a pre-flight session check so a missing session shows "please sign in again" instead of a raw 422.
+
+  NOTE: the CHECK constraint is in the .sql file only — run disbursement_confirmations_schema.sql in the Supabase SQL editor to apply it to the live DB.
 
 GROCERY / POS (added)
 - What if the POS webhook redelivers the same event (at-least-once delivery)? -> GroceryID is the PRIMARY KEY and event_id is UNIQUE — a redelivery should upsert/no-op, not error out the webhook handler.

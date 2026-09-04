@@ -25,3 +25,18 @@ CREATE INDEX IF NOT EXISTS idx_disbursement_confirmations_loan_id
 
 CREATE INDEX IF NOT EXISTS idx_disbursement_confirmations_disbursed_at
     ON public.disbursement_confirmations (disbursed_at DESC);
+
+-- A confirmation is the audit/evidence trail replacing a printed receipt, so a
+-- zero or negative disbursed amount is never a valid record. NOT NULL alone did
+-- not stop it. Idempotent: skip if the constraint already exists.
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conname = 'disbursement_confirmations_loan_amount_positive'
+    ) THEN
+        ALTER TABLE public.disbursement_confirmations
+            ADD CONSTRAINT disbursement_confirmations_loan_amount_positive
+            CHECK (loan_amount > 0);
+    END IF;
+END $$;

@@ -1009,34 +1009,32 @@ const LoanApprovalDetails = () => {
       }
 
       const { data: { user } = {} } = await supabase.auth.getUser();
-      const nowIso = new Date().toISOString();
-      const bodPayload = {
-        decision: decision === 'approve' ? 'approved' : 'rejected',
-        resolution_no: bodResolutionNo || null,
-        resolution_date: bodResolutionDate || null,
-        signed_form_path: signedPath,
-        remarks: bodRemarks.trim() || null,
-        decided_by: user?.id || null,
-        decided_at: nowIso,
-      };
 
-      const nextStatus = decision === 'approve' ? 'recommended for approval' : 'bod rejected';
-      const { data: updatedRows, error } = await supabase
-        .from(loanDetails.sourceTable || 'loans')
-        .update({
-          loan_status: nextStatus,
-          application_status: nextStatus,
-          bod_approval_payload: bodPayload,
-        })
-        .eq('control_number', loanDetails.id)
-        .select('control_number, loan_status');
-      if (error) throw error;
-      if (!updatedRows || updatedRows.length === 0) {
-        throw new Error(
-          'The loan was not updated. Your account may not have permission to update loans. '
-          + 'Run the bod_loan_update_policy.sql migration so the BOD role can write to loans.'
-        );
+      // Route through the FastAPI BOD decision endpoint so the server can
+      // enforce role='bod', validate required sub-fields, and block
+      // further action on already-terminal loans — Supabase RLS alone
+      // cannot stop Manager/Cashier from writing bod_approval_payload directly.
+      const decisionResp = await fetch(`${API_BASE_URL}/api/bod/loan-decision`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          loan_id: loanDetails.id,
+          decision: decision === 'approve' ? 'approved' : 'rejected',
+          actor_user_id: user?.id || null,
+          resolution_no: bodResolutionNo || null,
+          resolution_date: bodResolutionDate || null,
+          signed_form_path: signedPath,
+          remarks: bodRemarks.trim() || null,
+        }),
+      });
+      const decisionBody = await decisionResp.json();
+      if (!decisionResp.ok) {
+        const detail = typeof decisionBody?.detail === 'string'
+          ? decisionBody.detail
+          : JSON.stringify(decisionBody?.detail || 'BOD decision failed.');
+        throw new Error(detail);
       }
+      const nextStatus = decisionBody.new_status;
 
       addNotification(
         decision === 'approve' ? 'Loan approved by the BOD successfully.' : 'Loan rejected by the BOD.',

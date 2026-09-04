@@ -178,6 +178,15 @@ const Cashier_Disbursement = () => {
       cashierUser.email ||
       "Cashier";
 
+    // The confirmation record is the accountability trail for a released loan,
+    // so the backend now requires the acting cashier. Fail here with a readable
+    // message rather than letting the API reject it as a validation error.
+    if (!cashierUser.id) {
+      setErrorMessage("Your session has expired. Please sign in again before disbursing a loan.");
+      setDisbursingLoanId(null);
+      return;
+    }
+
     try {
       const response = await fetch(`${API_BASE_URL}/api/cashier/disbursements/${loanId}/disburse`, {
         method: "POST",
