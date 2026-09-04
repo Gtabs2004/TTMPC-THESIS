@@ -6,6 +6,7 @@ import { bodNav } from "../../components/StaffSidebar/configs/bod";
 import { useNotification } from "../../contex/NotificationContext";
 import StaffTopbar from "../../components/StaffTopbar";
 import Breadcrumb from "../../components/Breadcrumb";
+import Pagination from "../../components/Pagination";
 import { 
   LayoutDashboard, 
   Users, 
@@ -16,8 +17,6 @@ import {
   ClipboardList,
   BadgeCheck,
   Banknote,
-  ChevronLeft,
-  ChevronRight,
   ChevronDown,
   Download,
   CalendarDays,
@@ -408,14 +407,6 @@ const Member_Approvals = () => {
     ? ["Pending"]
     : ["Pending", "Training", "Reschedule", "Approved", "For Revision"];
 
-  const visiblePageNumbers = useMemo(() => {
-    const safeTotal = Math.max(1, totalPages);
-    const safePage = Math.min(Math.max(1, page), safeTotal);
-    const start = Math.floor((safePage - 1) / 5) * 5 + 1;
-    const end = Math.min(start + 4, safeTotal);
-    return Array.from({ length: end - start + 1 }, (_, i) => start + i);
-  }, [page, totalPages]);
-
   return (
     <div className="flex min-h-screen bg-[#F8FAFC]">
       <StaffSidebar portal="BOD" items={bodNav} />
@@ -549,13 +540,7 @@ const Member_Approvals = () => {
               </table>
             </div>
 
-            <div className="flex items-center justify-center gap-2 py-6 border-t border-gray-50">
-              <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="w-8 h-8 rounded-full border flex items-center justify-center disabled:opacity-50"><ChevronLeft size={16}/></button>
-              {visiblePageNumbers.map(n => (
-                <button key={n} onClick={() => setPage(n)} className={`w-8 h-8 rounded-full border text-xs font-semibold ${page === n ? "bg-[#16A34A] text-white" : "bg-white text-gray-600"}`}>{n}</button>
-              ))}
-              <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages} className="w-8 h-8 rounded-full border flex items-center justify-center disabled:opacity-50"><ChevronRight size={16}/></button>
-            </div>
+            <Pagination page={page} totalPages={totalPages} onChange={setPage} />
           </div>
         </main>
       </div>

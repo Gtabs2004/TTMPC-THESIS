@@ -153,13 +153,11 @@ const Cashier_CBU = () => {
     <div className="flex min-h-screen bg-gray-50">
       {/* 1. THE SIDEBAR */}
       <StaffSidebar portal="Cashier" items={cashierNav} />
-      
+
       {/* 2. THE MAIN AREA */}
-    <div className="flex-1 flex flex-col h-screen overflow-y-auto">
-            <div className="flex-1 flex flex-col min-w-0">
-      <StaffTopbar portal="Cashier" notifications={<LoanNotificationBell role="cashier" />} />
-    </div>
-    
+      <div className="flex-1 flex flex-col h-screen overflow-y-auto">
+        <StaffTopbar portal="Cashier" notifications={<LoanNotificationBell role="cashier" />} />
+
         {/* 3. PAGE CONTENT */}
         <main className="p-8 overflow-auto">
           <Breadcrumb portal="Cashier" page="Capital Build-Up" />

@@ -9,12 +9,11 @@ import StaffTopbar from "../../components/StaffTopbar";
 import {
   Search,
   Eye,
-  ChevronLeft,
-  ChevronRight,
   AlertTriangle,
   X as CloseIcon,
 } from "lucide-react";
 import NotificationBell from "../../components/NotificationBell";
+import Pagination from "../../components/Pagination";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 
@@ -131,7 +130,7 @@ const Secretary_Records = () => {
               {paginatedRecords.map((member, index) => <tr key={`${member.member_uuid}-${index}`} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors"><td className="p-5 font-semibold text-[#1a4a2f]">{member.applicant_id}</td><td className="p-5 text-gray-800 font-medium">{member.applicant_name}</td><td className="p-5 text-gray-800 font-medium">{formatDate(member.date_joined)}</td><td className="p-5 text-gray-800 font-medium">{Number(member.shares || 0).toFixed(2)}</td><td className="p-5 text-gray-800 font-medium">{formatCurrency(member.paid_up_capital)}</td><td className="p-5"><div className="flex items-center gap-2"><button onClick={() => navigate(`/record-details/${member.member_uuid}`)} className="text-[#1e9e4a] hover:text-green-800 transition-colors p-1" title="View record"><Eye size={20} /></button><button onClick={() => openTerminate(member)} className="text-red-600 hover:text-red-700 transition-colors p-1" title="Terminate member"><AlertTriangle size={18} /></button></div></td></tr>)}
             </tbody></table>
           </div>
-          <div className="flex justify-center items-center mt-8 gap-2"><button className="w-8 h-8 flex items-center justify-center rounded-full border border-gray-300 bg-white text-gray-500 hover:bg-gray-50 disabled:opacity-50" disabled={currentPage <= 1} onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}><ChevronLeft className="w-4 h-4" /></button>{Array.from({ length: Math.min(5, totalPages) }, (_, index) => index + 1).map((page) => <button key={page} onClick={() => setCurrentPage(page)} className={`w-8 h-8 rounded-full border text-xs font-semibold ${page === currentPage ? "bg-[#16A34A] text-white border-[#16A34A]" : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"}`}>{page}</button>)}<button className="w-8 h-8 flex items-center justify-center rounded-full border border-gray-300 bg-white text-gray-500 hover:bg-gray-50 disabled:opacity-50" disabled={currentPage >= totalPages} onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}><ChevronRight className="w-4 h-4" /></button></div>
+          <Pagination page={currentPage} totalPages={totalPages} onChange={setCurrentPage} />
         </main>
       </div>
 

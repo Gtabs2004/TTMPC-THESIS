@@ -2606,6 +2606,7 @@ async def get_treasurer_cash_ledger(
                     "id, amount_paid, payment_date, payment_reference, confirmation_status, "
                     "loan:loan_id(control_number, member:member_id(first_name, last_name))"
                 )
+                .eq("confirmation_status", "validated")
                 .gte("payment_date", start_ts)
                 .lte("payment_date", end_ts)
                 .order("payment_date", desc=True)
@@ -2751,6 +2752,7 @@ async def get_treasurer_cash_ledger(
             resp = (
                 supabase.table("membership_payments")
                 .select("id, application_id, payment_date, payment_status, payment_type, amount")
+                .eq("payment_status", "paid")
                 .gte("payment_date", start_ts)
                 .lte("payment_date", end_ts)
                 .order("payment_date", desc=True)

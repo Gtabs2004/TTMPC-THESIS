@@ -6,6 +6,7 @@ import { useNotification } from "../../contex/NotificationContext";
 import { useConfirm } from "../../contex/ConfirmContext";
 import StaffTopbar from "../../components/StaffTopbar";
 import Breadcrumb from "../../components/Breadcrumb";
+import Pagination from "../../components/Pagination";
 // Adjust path to AuthContext if needed
 import LoanNotificationBell from "../../components/LoanNotificationBell";
 import { 
@@ -14,8 +15,6 @@ import {
   Bell,
   Banknote,
   ChevronDown,
-  ChevronLeft,
-  ChevronRight,
   ArrowUpDown,
   X,
   AlertCircle,
@@ -576,15 +575,11 @@ const Cashier_Payments = () => {
 
   return (
     <div className="flex min-h-screen bg-gray-50">
-      
-        <StaffSidebar portal="Cashier" items={cashierNav} />
-        
+      <StaffSidebar portal="Cashier" items={cashierNav} />
 
-      
-     <div ref={scrollContainerRef} className="flex-1 flex flex-col h-screen overflow-y-auto">
-             <div className="flex flex-col min-w-0">
-       <StaffTopbar portal="Cashier" notifications={<LoanNotificationBell role="cashier" />} />
-     </div>
+      <div ref={scrollContainerRef} className="flex-1 flex flex-col h-screen overflow-y-auto">
+        <StaffTopbar portal="Cashier" notifications={<LoanNotificationBell role="cashier" />} />
+
         {/* 3. CASHIER LOAN PAYMENTS */}
         <main className="p-8 ">
           <div className="mb-8">
@@ -1252,43 +1247,6 @@ const Cashier_Payments = () => {
   );
 };
 
-const Pagination = ({ page, totalPages, onChange }) => (
-  <div className="flex items-center justify-center p-6 gap-2 border-t border-gray-100">
-    <button
-      className="w-8 h-8 flex items-center justify-center rounded-full border border-gray-300 bg-white text-gray-500 transition-colors hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-      disabled={page <= 1}
-      onClick={() => onChange(Math.max(page - 1, 1))}
-    >
-      <ChevronLeft className="w-4 h-4" />
-    </button>
-
-    {(() => {
-      const groupStart = Math.floor((page - 1) / 5) * 5 + 1;
-      const groupEnd = Math.min(groupStart + 4, totalPages);
-      return Array.from({ length: groupEnd - groupStart + 1 }, (_, i) => groupStart + i).map((p) => (
-        <button
-          key={p}
-          onClick={() => onChange(p)}
-          className={`w-8 h-8 flex items-center justify-center rounded-full border text-xs font-semibold transition-colors ${
-            p === page
-              ? "bg-[#16A34A] text-white border-[#16A34A]"
-              : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"
-          }`}
-        >
-          {p}
-        </button>
-      ));
-    })()}
-
-    <button
-      className="w-8 h-8 flex items-center justify-center rounded-full border border-gray-300 bg-white text-gray-500 transition-colors hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-      disabled={page >= totalPages}
-      onClick={() => onChange(Math.min(page + 1, totalPages))}
-    >
-      <ChevronRight className="w-4 h-4" />
-    </button>
-  </div>
-);
 
 export default Cashier_Payments;
 

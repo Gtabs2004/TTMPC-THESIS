@@ -50,18 +50,7 @@ export default function StaffTopbar({ portal, notifications, search, avatarUrl, 
         sticky ? "sticky top-0 z-10" : ""
       }`}
     >
-      {search ? (
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-          <input
-            type="text"
-            value={search.value}
-            onChange={search.onChange}
-            placeholder={search.placeholder || "Search..."}
-            className="bg-gray-50 w-64 h-10 rounded-lg border border-gray-300 pl-9 pr-4 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-          />
-        </div>
-      ) : null}
+      
 
       {notifications}
 

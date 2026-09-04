@@ -8,8 +8,6 @@ import {
   CalendarCheck,
   CalendarDays,
   CheckCircle2,
-  ChevronLeft,
-  ChevronRight,
   Clock,
   CreditCard,
   FileText,
@@ -28,6 +26,7 @@ import { UserAuth } from "../contex/AuthContext";
 import { useNotification } from "../contex/NotificationContext";
 import StaffTopbar from "../components/StaffTopbar";
 import Breadcrumb from "../components/Breadcrumb";
+import Pagination from "../components/Pagination";
 import ConfirmDialog from "../components/ConfirmDialog";
 import logo from "../assets/img/ttmpc logo.png";
 import NotificationBell from "../components/NotificationBell";
@@ -597,42 +596,5 @@ const Secretary_General_Assembly = () => {
   );
 };
 
-const Pagination = ({ page, totalPages, onChange }) => (
-  <div className="flex items-center justify-center p-4 gap-1.5 border-t border-gray-100">
-    <button
-      className="w-7 h-7 flex items-center justify-center rounded-full border border-gray-300 bg-white text-gray-500 transition-colors hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-      disabled={page <= 1}
-      onClick={() => onChange(Math.max(page - 1, 1))}
-    >
-      <ChevronLeft className="w-3.5 h-3.5" />
-    </button>
-
-    {(() => {
-      const groupStart = Math.floor((page - 1) / 5) * 5 + 1;
-      const groupEnd = Math.min(groupStart + 4, totalPages);
-      return Array.from({ length: groupEnd - groupStart + 1 }, (_, i) => groupStart + i).map((p) => (
-        <button
-          key={p}
-          onClick={() => onChange(p)}
-          className={`w-7 h-7 flex items-center justify-center rounded-full border text-[11px] font-semibold transition-colors ${
-            p === page
-              ? "bg-[#16A34A] text-white border-[#16A34A]"
-              : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"
-          }`}
-        >
-          {p}
-        </button>
-      ));
-    })()}
-
-    <button
-      className="w-7 h-7 flex items-center justify-center rounded-full border border-gray-300 bg-white text-gray-500 transition-colors hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-      disabled={page >= totalPages}
-      onClick={() => onChange(Math.min(page + 1, totalPages))}
-    >
-      <ChevronRight className="w-3.5 h-3.5" />
-    </button>
-  </div>
-);
 
 export default Secretary_General_Assembly;

@@ -1,11 +1,9 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { supabase } from "../supabaseClient";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import {
   Search,
-  ChevronLeft,
-  ChevronRight,
   ChevronDown,
   FileDown,
   FileSpreadsheet,
@@ -13,6 +11,7 @@ import {
   Receipt,
   UserPlus,
 } from "lucide-react";
+import Pagination from "./Pagination";
 
 const PAGE_SIZE = 5;
 
@@ -360,11 +359,6 @@ const AuditLogViewer = ({ showActorRoleFilter = true, onError }) => {
   };
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
-  const pageNumbers = useMemo(() => {
-    const groupStart = Math.floor((page - 1) / 5) * 5 + 1;
-    const groupEnd = Math.min(groupStart + 4, totalPages);
-    return Array.from({ length: groupEnd - groupStart + 1 }, (_, i) => groupStart + i);
-  }, [page, totalPages]);
 
   const kpiData = [
     { title: "Activities Today",   value: kpis.activitiesToday,  badge: "Live",    badgeType: "success", icon: ClipboardList,  iconColor: "text-blue-600",   iconBg: "bg-blue-50" },
@@ -555,41 +549,7 @@ const AuditLogViewer = ({ showActorRoleFilter = true, onError }) => {
           </table>
         </div>
 
-        {/* Pagination Footer */}
-        <div className="flex justify-center items-center p-6 gap-2 border-t border-gray-100">
-          <button
-            type="button"
-            disabled={page <= 1}
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
-            className="w-8 h-8 flex items-center justify-center rounded-full border border-gray-300 bg-white text-gray-500 transition-colors hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <ChevronLeft className="w-4 h-4" />
-          </button>
-
-          {pageNumbers.map((p) => (
-            <button
-              key={p}
-              type="button"
-              onClick={() => setPage(p)}
-              className={`w-8 h-8 flex items-center justify-center rounded-full border text-xs font-semibold transition-colors ${
-                p === page
-                  ? "bg-[#16A34A] text-white border-[#16A34A]"
-                  : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"
-              }`}
-            >
-              {p}
-            </button>
-          ))}
-
-          <button
-            type="button"
-            disabled={page >= totalPages}
-            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-            className="w-8 h-8 flex items-center justify-center rounded-full border border-gray-300 bg-white text-gray-500 transition-colors hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <ChevronRight className="w-4 h-4" />
-          </button>
-        </div>
+        <Pagination page={page} totalPages={totalPages} onChange={setPage} />
       </div>
     </>
   );

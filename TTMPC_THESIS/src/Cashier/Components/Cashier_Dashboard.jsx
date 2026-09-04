@@ -357,11 +357,8 @@ const Cashier_Dashboard = () => {
       {/* SIDEBAR */}
       <StaffSidebar portal="Cashier" items={cashierNav} />
 
-      
       <div className="flex-1 flex flex-col h-screen overflow-y-auto">
-        <div className="flex-1 flex flex-col min-w-0">
-  <StaffTopbar portal="Cashier" notifications={<LoanNotificationBell role="cashier" />} />
-</div>
+        <StaffTopbar portal="Cashier" notifications={<LoanNotificationBell role="cashier" />} />
 
         {/* DASHBOARD CONTENT */}
         <main className="p-8">
