@@ -402,8 +402,8 @@ const BookkeeperPayments = () => {
             <StatCard label="Collected This Month" value={formatCurrency(dashboardStats.collectedThisMonth)} icon={Coins} iconColor="text-green-600" />
           </StatCardRow>
 
-          <div className="rounded-lg bg-white border border-gray-200 mb-4 p-3">
-            <div className="flex flex-wrap gap-2">
+          <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden enhanced-table">
+            <div className="p-3 border-b border-gray-100 flex flex-wrap gap-2">
               {tabItems.map((tab) => ( <button
                   key={tab.key}
                   type="button"
@@ -419,63 +419,62 @@ const BookkeeperPayments = () => {
                     {tab.count}
                   </span>
                 </button>
-                  
+
               ))}
             </div>
-          </div>
 
-          <div className="rounded-lg bg-white border border-gray-200 mb-4 p-4">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              <div className="flex flex-wrap items-center gap-2">
-                <select
-                  value={loanTypeFilter}
-                  onChange={(event) => setLoanTypeFilter(event.target.value)}
-                  className="h-10 rounded-lg border border-gray-200 bg-gray-50 px-3 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#2C7A3F]"
-                >
-                  <option value="all">All Loan Types</option>
-                  <option value="CONSOLIDATED">Consolidated</option>
-                  <option value="EMERGENCY">Emergency</option>
-                  <option value="BONUS">Bonus</option>
-                  <option value="KOICA">KOICA</option>
-                  <option value="ABF">ABF</option>
-                </select>
+            <div className="p-4 border-b border-gray-100">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <div className="flex flex-wrap items-center gap-2">
+                  <select
+                    value={loanTypeFilter}
+                    onChange={(event) => setLoanTypeFilter(event.target.value)}
+                    className="h-10 rounded-lg border border-gray-200 bg-gray-50 px-3 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#2C7A3F]"
+                  >
+                    <option value="all">All Loan Types</option>
+                    <option value="CONSOLIDATED">Consolidated</option>
+                    <option value="EMERGENCY">Emergency</option>
+                    <option value="BONUS">Bonus</option>
+                    <option value="KOICA">KOICA</option>
+                    <option value="ABF">ABF</option>
+                  </select>
 
-                <select
-                  value={memberTypeFilter}
-                  onChange={(event) => setMemberTypeFilter(event.target.value)}
-                  className="h-10 rounded-lg border border-gray-200 bg-gray-50 px-3 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#2C7A3F]"
-                >
-                  <option value="all">All Member Types</option>
-                  <option value="Member">Member</option>
-                  <option value="Non-Member">Non-Member</option>
-                  <option value="KOICA">KOICA</option>
-                </select>
+                  <select
+                    value={memberTypeFilter}
+                    onChange={(event) => setMemberTypeFilter(event.target.value)}
+                    className="h-10 rounded-lg border border-gray-200 bg-gray-50 px-3 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#2C7A3F]"
+                  >
+                    <option value="all">All Member Types</option>
+                    <option value="Member">Member</option>
+                    <option value="Non-Member">Non-Member</option>
+                    <option value="KOICA">KOICA</option>
+                  </select>
+                </div>
+
+                <div className="relative lg:justify-self-end">
+                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400" />
+                  <input
+                    type="text"
+                    value={searchTerm}
+                    onChange={(event) => setSearchTerm(event.target.value)}
+                    className="bg-gray-50 w-full lg:w-80 h-10 rounded-lg border border-gray-200 pl-9 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-[#2C7A3F]"
+                    placeholder="Search loan/member/payment"
+                  />
+                </div>
               </div>
 
-              <div className="relative lg:justify-self-end">
-                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400" />
-                <input
-                  type="text"
-                  value={searchTerm}
-                  onChange={(event) => setSearchTerm(event.target.value)}
-                  className="bg-gray-50 w-full lg:w-80 h-10 rounded-lg border border-gray-200 pl-9 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-[#2C7A3F]"
-                  placeholder="Search loan/member/payment"
-                />
+              <div className="mt-3 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                Business Rules: Non-Member accounts are limited to Bonus loans. KOICA users are limited to KOICA or ABF loans.
               </div>
+
+              {loading && (
+                <div className="mt-3 rounded border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700">
+                  Syncing payment queue and loan ledger data...
+                </div>
+              )}
             </div>
 
-            <div className="mt-3 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-              Business Rules: Non-Member accounts are limited to Bonus loans. KOICA users are limited to KOICA or ABF loans.
-            </div>
-
-            {loading && (
-              <div className="mt-3 rounded border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700">
-                Syncing payment queue and loan ledger data...
-              </div>
-            )}
-          </div>
-
-          <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-lg enhanced-table">
+            <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
                 {activeTab === "active" || activeTab === "fully_paid" ? (
@@ -632,6 +631,7 @@ const BookkeeperPayments = () => {
                   })}
               </tbody>
             </table>
+            </div>
           </div>
 
           {activeRecordCount > ITEMS_PER_PAGE && (

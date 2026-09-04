@@ -225,57 +225,57 @@ const MIGS = () => {
             </button>
           </div>
 
-          {/* Filters Section */}
-          <div className="flex gap-4 mb-6 items-center justify-between">
-            <div className="relative flex-1 max-w-xs">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400" />
-              <input
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                type="text"
-                className="bg-gray-50 w-full h-10 rounded-lg border border-gray-200 pl-10 pr-4 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-[#2C7A3F]"
-                placeholder="Search by name or ID..."
-              />
+          {/* Table Section (filters toolbar + table share this card) */}
+          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+            <div className="p-5 border-b border-gray-100 flex flex-wrap gap-4 items-center justify-between">
+              <div className="relative flex-1 max-w-xs">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400" />
+                <input
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  type="text"
+                  className="bg-gray-50 w-full h-10 rounded-lg border border-gray-200 pl-10 pr-4 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-[#2C7A3F]"
+                  placeholder="Search by name or ID..."
+                />
+              </div>
+
+              <div className="flex gap-4 items-center">
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  className="px-4 py-2 rounded-lg border border-gray-200 bg-white text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#2C7A3F]"
+                >
+                  <option>All Status</option>
+                  <option>Pending</option>
+                  <option>MIGS Qualified</option>
+                  <option>Non-MIGS</option>
+                </select>
+
+                <select
+                  value={yearFilter}
+                  onChange={(e) => setYearFilter(e.target.value)}
+                  className="px-4 py-2 rounded-lg border border-gray-200 bg-white text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#2C7A3F]"
+                >
+                  <option>2026</option>
+                  <option>2025</option>
+                  <option>2024</option>
+                  <option>2023</option>
+                </select>
+
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value)}
+                  className="px-4 py-2 rounded-lg border border-gray-200 bg-white text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#2C7A3F]"
+                >
+                  <option>Name A-Z</option>
+                  <option>Name Z-A</option>
+                  <option>Score High-Low</option>
+                  <option>Score Low-High</option>
+                </select>
+              </div>
             </div>
 
-            <div className="flex gap-4 items-center">
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className="px-4 py-2 rounded-lg border border-gray-200 bg-white text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#2C7A3F]"
-              >
-                <option>All Status</option>
-                <option>Pending</option>
-                <option>MIGS Qualified</option>
-                <option>Non-MIGS</option>
-              </select>
-
-              <select
-                value={yearFilter}
-                onChange={(e) => setYearFilter(e.target.value)}
-                className="px-4 py-2 rounded-lg border border-gray-200 bg-white text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#2C7A3F]"
-              >
-                <option>2026</option>
-                <option>2025</option>
-                <option>2024</option>
-                <option>2023</option>
-              </select>
-
-              <select
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value)}
-                className="px-4 py-2 rounded-lg border border-gray-200 bg-white text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#2C7A3F]"
-              >
-                <option>Name A-Z</option>
-                <option>Name Z-A</option>
-                <option>Score High-Low</option>
-                <option>Score Low-High</option>
-              </select>
-            </div>
-          </div>
-
-          {/* Table Section */}
-          <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
+            <div className="overflow-x-auto">
             {loading ? (
               <p className="p-6 text-blue-700 text-center">Loading MIGS scoring data...</p>
             ) : null}
@@ -346,6 +346,7 @@ const MIGS = () => {
                 </tbody>
               </table>
             ) : null}
+            </div>
           </div>
 
           {!loading && filtered.length > 0 ? (

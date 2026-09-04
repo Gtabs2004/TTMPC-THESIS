@@ -203,7 +203,7 @@ const Cashier_CBU = () => {
               />
             </div>
 
-            <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-lg">
+            <div className="overflow-x-auto rounded-xl border border-gray-100">
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="bg-green-700 text-[10px] uppercase tracking-wider text-white font-extrabold">

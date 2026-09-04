@@ -236,8 +236,11 @@ const Bookkeeper_Savings_Accounts = () => {
               </div>
             )}
 
-            {/* SEARCH + FILTER BAR */}
-            <div className="bg-white rounded-lg border border-gray-200 p-3 mb-4 flex flex-wrap items-center gap-2">
+          </div>
+
+          {/* TABLE (search & filter toolbar shares this card) */}
+          <div className="border border-gray-200 rounded-lg shadow-sm overflow-hidden bg-white">
+            <div className="p-4 border-b border-gray-100 flex flex-wrap items-center gap-2">
               <div className="relative flex-1 min-w-[220px] md:max-w-md">
                 <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
                 <input
@@ -265,7 +268,7 @@ const Bookkeeper_Savings_Accounts = () => {
             </div>
 
             {showFilters && (
-              <div className="mb-4 rounded-lg border border-gray-200 bg-gray-50 p-3 space-y-3">
+              <div className="border-b border-gray-100 bg-gray-50 p-3 space-y-3">
                 <div>
                   <label className="block text-xs font-semibold text-gray-700 mb-1.5">
                     Account Kind
@@ -316,10 +319,7 @@ const Bookkeeper_Savings_Accounts = () => {
                 </div>
               </div>
             )}
-          </div>
 
-          {/* TABLE */}
-          <div className="border border-gray-200 rounded-lg shadow-sm overflow-hidden bg-white">
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>

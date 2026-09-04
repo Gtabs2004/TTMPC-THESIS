@@ -182,9 +182,12 @@ const Manage_Member = () => {
             </div>
           </div>
 
-          {/* DEDICATED SEARCH & FILTER BAR */}
+          {/* TABLE SECTION (search & filter toolbar + table share one card) */}
           <div
-            className="bg-white rounded-xl border border-gray-200 p-5 mb-6 flex flex-col lg:flex-row items-end gap-5 shadow-sm"
+            className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm transition-shadow duration-150 ease-in-out hover:shadow-md"
+          >
+          <div
+            className="p-5 border-b border-gray-100 flex flex-col lg:flex-row items-end gap-5"
           >
             {/* Primary Search Bar */}
             <div className="flex-1 w-full">
@@ -258,10 +261,6 @@ const Manage_Member = () => {
             </div>
           </div>
 
-          {/* TABLE SECTION */}
-          <div
-            className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm transition-shadow duration-150 ease-in-out hover:shadow-md"
-          >
             {loading ? <p className="p-8 text-sm font-medium text-gray-500 flex justify-center">Loading personal datasheet...</p> : null}
             {error ? <p className="p-8 text-sm font-medium text-red-600 flex justify-center">{error}</p> : null}
             {!loading && !error ? (
