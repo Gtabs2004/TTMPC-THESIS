@@ -325,8 +325,9 @@ const Secretary_General_Assembly = () => {
             </div>
           </div>
 
-          {/* Toolbar */}
-          <div className="bg-white rounded-lg border border-gray-200 p-3 mb-4 flex flex-wrap items-center gap-2">
+          {/* Table (toolbar shares this card) */}
+          <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
+            <div className="p-3 border-b border-gray-100 flex flex-wrap items-center gap-2">
             <div className="relative flex-1 min-w-[220px] md:max-w-md">
               <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
               <input
@@ -412,8 +413,6 @@ const Secretary_General_Assembly = () => {
             </button>
           </div>
 
-          {/* Table */}
-          <div className="border border-gray-200 rounded-lg shadow-sm overflow-hidden bg-white">
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>

@@ -334,8 +334,8 @@ const ManageLoans = () => {
             />
           </StatCardRow>
 
-          <div className="rounded-xl bg-white border border-gray-200 shadow-sm mb-6 p-5">
-            <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+          <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden enhanced-table">
+            <div className="p-5 border-b border-gray-100 flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
               <div className="flex flex-wrap items-center gap-1.5">
                 {tabs.map((tab) => (
                   <button
@@ -401,14 +401,14 @@ const ManageLoans = () => {
             </div>
 
             {loading && (
-              <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800 flex items-center gap-2">
+              <div className="mx-5 mt-4 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800 flex items-center gap-2">
                 <span className="inline-block w-2 h-2 bg-blue-500 rounded-full animate-pulse"></span>
                 Syncing approved loans from server...
               </div>
             )}
 
             {!loading && loadError && (
-              <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 flex items-start justify-between gap-3">
+              <div className="mx-5 mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 flex items-start justify-between gap-3">
                 <span>{loadError}</span>
                 <button
                   type="button"
@@ -419,9 +419,7 @@ const ManageLoans = () => {
                 </button>
               </div>
             )}
-          </div>
 
-          <div className="rounded-xl border border-gray-200 bg-white shadow-lg enhanced-table">
             <table className="w-full text-left border-collapse table-fixed">
               <colgroup>
                 <col style={{ width: "16%" }} />

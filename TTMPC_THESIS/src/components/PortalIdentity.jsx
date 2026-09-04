@@ -19,7 +19,7 @@ const formatRole = (role, fallbackRole = "User") => {
   return ROLE_LABELS[key] || fallbackRole;
 };
 
-function usePortalIdentity(fallbackPortal = "Portal", fallbackRole = "User") {
+export function usePortalIdentity(fallbackPortal = "Portal", fallbackRole = "User") {
   const { session } = UserAuth();
   const [resolvedRole, setResolvedRole] = useState("");
 
@@ -67,6 +67,7 @@ function usePortalIdentity(fallbackPortal = "Portal", fallbackRole = "User") {
   const portalLabel = `${roleLabel} Portal`;
 
   return {
+    role: resolvedRole,
     roleLabel,
     portalLabel: portalLabel || fallbackPortal,
     userEmail: userEmail || "-",

@@ -219,35 +219,35 @@ const BookkeeperSavingsTransactions = () => {
             </button>
           </div>
 
-          <div className="bg-white rounded-lg border border-gray-200 p-3 mb-4 flex flex-wrap gap-2 items-center">
-            <input
-              value={searchTerm}
-              onChange={(event) => setSearchTerm(event.target.value)}
-              placeholder="Search by transaction ID, savings ID, or member name"
-              className="flex-1 min-w-[200px] md:max-w-md bg-gray-50 border border-gray-300 rounded-md px-3 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-green-500"
-            />
-
-            <button
-              onClick={() => setActiveTab("pending_verification")}
-              className={`px-2.5 py-1.5 rounded-md text-[11px] font-semibold ${activeTab === "pending_verification" ? "bg-amber-100 text-amber-800" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}`}
-            >
-              Pending ({tabCounts.pending})
-            </button>
-            <button
-              onClick={() => setActiveTab("validated")}
-              className={`px-2.5 py-1.5 rounded-md text-[11px] font-semibold ${activeTab === "validated" ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}`}
-            >
-              Validated ({tabCounts.validated})
-            </button>
-            <button
-              onClick={() => setActiveTab("rejected")}
-              className={`px-2.5 py-1.5 rounded-md text-[11px] font-semibold ${activeTab === "rejected" ? "bg-red-100 text-red-800" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}`}
-            >
-              Rejected ({tabCounts.rejected})
-            </button>
-          </div>
-
           <div className="border border-gray-200 rounded-lg shadow-sm overflow-hidden bg-white">
+            <div className="p-3 border-b border-gray-100 flex flex-wrap gap-2 items-center">
+              <input
+                value={searchTerm}
+                onChange={(event) => setSearchTerm(event.target.value)}
+                placeholder="Search by transaction ID, savings ID, or member name"
+                className="flex-1 min-w-[200px] md:max-w-md bg-gray-50 border border-gray-300 rounded-md px-3 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-green-500"
+              />
+
+              <button
+                onClick={() => setActiveTab("pending_verification")}
+                className={`px-2.5 py-1.5 rounded-md text-[11px] font-semibold ${activeTab === "pending_verification" ? "bg-amber-100 text-amber-800" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}`}
+              >
+                Pending ({tabCounts.pending})
+              </button>
+              <button
+                onClick={() => setActiveTab("validated")}
+                className={`px-2.5 py-1.5 rounded-md text-[11px] font-semibold ${activeTab === "validated" ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}`}
+              >
+                Validated ({tabCounts.validated})
+              </button>
+              <button
+                onClick={() => setActiveTab("rejected")}
+                className={`px-2.5 py-1.5 rounded-md text-[11px] font-semibold ${activeTab === "rejected" ? "bg-red-100 text-red-800" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}`}
+              >
+                Rejected ({tabCounts.rejected})
+              </button>
+            </div>
+
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>

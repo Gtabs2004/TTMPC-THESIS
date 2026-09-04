@@ -354,7 +354,10 @@ const Cashier_Disbursement = () => {
               </div>
             )}
 
-            <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          </div>
+
+          <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+            <div className="p-4 border-b border-gray-100 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
               <div className="flex-1">
                 <div className="relative">
                   <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
@@ -377,7 +380,7 @@ const Cashier_Disbursement = () => {
             </div>
 
             {showFilters && (
-              <div className="mb-6 rounded-lg border border-gray-200 bg-gray-50 p-4">
+              <div className="border-b border-gray-100 bg-gray-50 p-4">
                 <div className="space-y-3">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -402,9 +405,7 @@ const Cashier_Disbursement = () => {
                 </div>
               </div>
             )}
-          </div>
 
-          <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>

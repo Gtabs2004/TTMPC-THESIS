@@ -202,34 +202,33 @@ const Bookkeeper_CBU = () => {
               </div>
             )}
 
-            <div className="mb-4 flex items-center justify-between gap-3">
-              <div className="relative flex-1 max-w-md">
-                <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
-                <input
-                  type="text"
-                  value={memberSearch}
-                  onChange={(event) => setMemberSearch(event.target.value)}
-                  placeholder="Search by Member ID or Name"
-                  className="w-full bg-gray-50 border border-gray-300 rounded-md pl-9 pr-3 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-green-500"
-                />
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setShowInterestModal(true)}
-                className="inline-flex items-center gap-1.5 rounded-md bg-green-600 hover:bg-green-700 px-3 py-1.5 text-xs font-semibold text-white transition-colors shrink-0"
-              >
-                <Calculator className="w-3.5 h-3.5" />
-                ISC Calculator
-              </button>
-            </div>
           </div>
 
           {/* MEMBER BALANCES */}
           <div className="border border-gray-200 rounded-lg shadow-sm overflow-hidden bg-white mb-8">
             <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between gap-3 flex-wrap">
               <h3 className="text-sm font-bold text-gray-900">Member Accounts</h3>
-             
+              <div className="flex items-center gap-3">
+                <div className="relative flex-1 max-w-md">
+                  <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
+                  <input
+                    type="text"
+                    value={memberSearch}
+                    onChange={(event) => setMemberSearch(event.target.value)}
+                    placeholder="Search by Member ID or Name"
+                    className="w-full bg-gray-50 border border-gray-300 rounded-md pl-9 pr-3 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-green-500"
+                  />
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setShowInterestModal(true)}
+                  className="inline-flex items-center gap-1.5 rounded-md bg-green-600 hover:bg-green-700 px-3 py-1.5 text-xs font-semibold text-white transition-colors shrink-0"
+                >
+                  <Calculator className="w-3.5 h-3.5" />
+                  ISC Calculator
+                </button>
+              </div>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">

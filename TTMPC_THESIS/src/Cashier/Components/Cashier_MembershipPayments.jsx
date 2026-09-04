@@ -321,62 +321,62 @@ const Cashier_MembershipPayments = () => {
             </div>
           )}
 
-          {/* Tabs */}
-          <div className="flex gap-2 mb-4">
-            <button
-              onClick={() => setActiveTab("applicants")}
-              className={`px-4 py-2 text-sm font-semibold rounded-lg transition-colors ${
-                activeTab === "applicants"
-                  ? "bg-member-green text-white"
-                  : "bg-white border border-gray-200 text-gray-700 hover:bg-gray-50"
-              }`}
-            >
-              Applicants ({filteredApplicants.length})
-            </button>
-            <button
-              onClick={() => setActiveTab("transactions")}
-              className={`px-4 py-2 text-sm font-semibold rounded-lg transition-colors ${
-                activeTab === "transactions"
-                  ? "bg-member-green text-white"
-                  : "bg-white border border-gray-200 text-gray-700 hover:bg-gray-50"
-              }`}
-            >
-              Transactions ({filteredTransactions.length})
-            </button>
-          </div>
-
-          {/* Filters */}
-          <div className="flex flex-wrap items-center gap-3 mb-4">
-            <div className="relative max-w-md flex-1">
-              <UserSearch className="absolute left-3 top-3.5 w-4 h-4 text-gray-400" />
-              <input
-                type="text"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder={
+          {/* Tabs + filters + table share one card */}
+          <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+            <div className="p-4 border-b border-gray-100 flex gap-2">
+              <button
+                onClick={() => setActiveTab("applicants")}
+                className={`px-4 py-2 text-sm font-semibold rounded-lg transition-colors ${
                   activeTab === "applicants"
-                    ? "Search by applicant name, email, or application ID"
-                    : "Search by name, payment ID, or reference number"
-                }
-                className="w-full rounded-lg border border-gray-300 bg-gray-50 h-11 pl-10 pr-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-              />
-            </div>
-            {activeTab === "applicants" && (
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className="h-11 rounded-lg border border-gray-300 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                    ? "bg-member-green text-white"
+                    : "bg-white border border-gray-200 text-gray-700 hover:bg-gray-50"
+                }`}
               >
-                <option value="all">All Applicants</option>
-                <option value="unpaid">Unpaid Only</option>
-                <option value="paid">Paid Only</option>
-              </select>
-            )}
-          </div>
+                Applicants ({filteredApplicants.length})
+              </button>
+              <button
+                onClick={() => setActiveTab("transactions")}
+                className={`px-4 py-2 text-sm font-semibold rounded-lg transition-colors ${
+                  activeTab === "transactions"
+                    ? "bg-member-green text-white"
+                    : "bg-white border border-gray-200 text-gray-700 hover:bg-gray-50"
+                }`}
+              >
+                Transactions ({filteredTransactions.length})
+              </button>
+            </div>
 
-          {/* APPLICANTS TABLE */}
-          {activeTab === "applicants" && (
-            <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-sm">
+            <div className="p-4 border-b border-gray-100 flex flex-wrap items-center gap-3">
+              <div className="relative max-w-md flex-1">
+                <UserSearch className="absolute left-3 top-3.5 w-4 h-4 text-gray-400" />
+                <input
+                  type="text"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder={
+                    activeTab === "applicants"
+                      ? "Search by applicant name, email, or application ID"
+                      : "Search by name, payment ID, or reference number"
+                  }
+                  className="w-full rounded-lg border border-gray-300 bg-gray-50 h-11 pl-10 pr-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+              </div>
+              {activeTab === "applicants" && (
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  className="h-11 rounded-lg border border-gray-300 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                >
+                  <option value="all">All Applicants</option>
+                  <option value="unpaid">Unpaid Only</option>
+                  <option value="paid">Paid Only</option>
+                </select>
+              )}
+            </div>
+
+            {/* APPLICANTS TABLE */}
+            {activeTab === "applicants" && (
+            <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="bg-green-700 text-[10px] uppercase tracking-wider text-white font-extrabold">
@@ -464,9 +464,9 @@ const Cashier_MembershipPayments = () => {
             </div>
           )}
 
-          {/* TRANSACTIONS TABLE */}
-          {activeTab === "transactions" && (
-            <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-sm">
+            {/* TRANSACTIONS TABLE */}
+            {activeTab === "transactions" && (
+            <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="bg-green-700 text-[10px] uppercase tracking-wider text-white font-extrabold">
@@ -535,7 +535,8 @@ const Cashier_MembershipPayments = () => {
                 />
               )}
             </div>
-          )}
+            )}
+          </div>
         </main>
       </div>
 
