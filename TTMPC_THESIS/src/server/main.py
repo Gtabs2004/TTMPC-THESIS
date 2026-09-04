@@ -3047,19 +3047,38 @@ async def create_cashier_cbu_deposit(payload: CashierCBUDepositRequest):
         if deposit_amount <= 0:
             raise HTTPException(status_code=400, detail="deposit_amount must be greater than zero.")
 
-        # Two same-day deposits can share an identical `transaction_date`
-        # (legacy rows stored date-only). Add `id` as a tiebreaker so the most
-        # recently inserted row consistently wins.
+        # Most rows store `transaction_date` date-only (00:00:00), so two
+        # same-day deposits tie on it and a tiebreaker decides which row is
+        # "latest". `id` must NOT be used for that: it is gen_random_uuid(),
+        # so ordering by it is random and unrelated to insertion order — that
+        # bug let a stale balance win repeatedly and broke the running-balance
+        # chain (see cbu_backup_*.json / the 2026-05-21 rows).
+        #
+        # `cbu_deposit_id` (CBUD_001, CBUD_002, ...) is assigned sequentially by
+        # trg_set_cbu_deposit_id, so it does reflect insertion order. Sort on
+        # its numeric suffix in Python rather than as text, so CBUD_100 sorts
+        # after CBUD_099 rather than before it.
         latest_cbu_response = (
             supabase.table("capital_build_up")
-            .select("ending_share_capital,transaction_date,id")
+            .select("ending_share_capital,transaction_date,id,cbu_deposit_id")
             .eq("member_id", member_uuid)
-            .order("transaction_date", desc=True)
-            .order("id", desc=True)
-            .limit(1)
             .execute()
         )
-        latest_cbu_row = (latest_cbu_response.data or [None])[0]
+
+        def _cbu_row_order(row: dict) -> tuple:
+            raw = str(row.get("cbu_deposit_id") or "")
+            digits = "".join(ch for ch in raw if ch.isdigit())
+            return (
+                str(row.get("transaction_date") or ""),
+                int(digits) if digits else -1,
+                str(row.get("id") or ""),
+            )
+
+        latest_cbu_row = max(
+            (latest_cbu_response.data or []),
+            key=_cbu_row_order,
+            default=None,
+        )
 
         starting_balance = Decimal(str((latest_cbu_row or {}).get("ending_share_capital") or CBU_STARTING_CAPITAL))
         if starting_balance < 0:
