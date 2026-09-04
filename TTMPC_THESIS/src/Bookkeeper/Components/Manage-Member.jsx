@@ -14,8 +14,6 @@ import {
   History,
   Search,
   Bell,
-  ChevronLeft,
-  ChevronRight,
   ChevronDown,
   PiggyBank,
   X,
@@ -29,6 +27,7 @@ import {
 import StaffTopbar from "../../components/StaffTopbar";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
 import Breadcrumb from "../../components/Breadcrumb";
+import Pagination from "../../components/Pagination";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 const ITEMS_PER_PAGE = 10;
@@ -175,9 +174,9 @@ const Manage_Member = () => {
 
       <div className="flex-1 flex flex-col h-screen overflow-y-auto">
         <StaffTopbar portal="Bookkeeper" notifications={<LoanNotificationBell role="bookkeeper" />} />
-              
+
         <main className="p-8">
-        <Breadcrumb portal="Bookkeeper" page="Members Profile" />
+          <Breadcrumb portal="Bookkeeper" page="Members Profile" />
           <div className="flex items-end justify-between mb-6">
             <div>
             </div>
@@ -309,41 +308,7 @@ const Manage_Member = () => {
             ) : null}
           </div>
 
-          <div className="flex items-center justify-center p-6 gap-2 mt-4">
-            <button
-              className="w-8 h-8 flex items-center justify-center rounded-full border border-gray-300 bg-white text-gray-500 transition-colors hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-              disabled={currentPage <= 1}
-              onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </button>
-
-            {(() => {
-              const groupStart = Math.floor((currentPage - 1) / 5) * 5 + 1;
-              const groupEnd = Math.min(groupStart + 4, totalPages);
-              return Array.from({ length: groupEnd - groupStart + 1 }, (_, i) => groupStart + i).map((page) => (
-              <button
-                key={page}
-                onClick={() => setCurrentPage(page)}
-                className={`w-8 h-8 flex items-center justify-center rounded-full border text-xs font-bold transition-colors ${
-                  page === currentPage
-                    ? "bg-member-green text-white border-member-green"
-                    : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"
-                }`}
-              >
-                {page}
-              </button>
-              ));
-            })()}
-
-            <button
-              className="w-8 h-8 flex items-center justify-center rounded-full border border-gray-300 bg-white text-gray-500 transition-colors hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-              disabled={currentPage >= totalPages}
-              onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
-            >
-              <ChevronRight className="w-4 h-4" />
-            </button>
-          </div>
+          <Pagination page={currentPage} totalPages={totalPages} onChange={setCurrentPage} />
         </main>
       </div>
     </div>

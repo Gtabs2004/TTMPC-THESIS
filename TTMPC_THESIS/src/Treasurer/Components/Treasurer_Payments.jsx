@@ -3,13 +3,12 @@ import { StatCard, StatCardRow } from "../../components/StatCard";
 import StaffTopbar from "../../components/StaffTopbar";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
 import Breadcrumb from "../../components/Breadcrumb";
+import Pagination from "../../components/Pagination";
 import StaffSidebar from "../../components/StaffSidebar";
 import { treasurerNav } from "../../components/StaffSidebar/configs/treasurer";
 import {
   Search,
   Wallet,
-  ChevronLeft,
-  ChevronRight,
   ArrowDownCircle,
   ArrowUpCircle,
   Filter,
@@ -137,6 +136,20 @@ const Treasurer_Payments = () => {
       );
     });
   }, [ledger.entries, searchTerm]);
+
+  // Totals for the footer — summed from searchedEntries (not ledger.total_debit/
+  // credit, which the backend computes over the whole date window and never
+  // sees the search term) so "Window totals" always reconciles with what's
+  // actually visible in the table, search applied or not.
+  const searchedTotals = useMemo(() => {
+    return searchedEntries.reduce(
+      (acc, e) => ({
+        debit: acc.debit + Number(e.debit || 0),
+        credit: acc.credit + Number(e.credit || 0),
+      }),
+      { debit: 0, credit: 0 }
+    );
+  }, [searchedEntries]);
 
   const totalPages = Math.max(1, Math.ceil(searchedEntries.length / PAGE_SIZE));
   const pagedEntries = useMemo(() => {
@@ -280,13 +293,13 @@ const Treasurer_Payments = () => {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-green-700 text-left text-[10px] uppercase tracking-wider text-white font-extrabold">
-                    <th className="px-4 py-3 font-bold">Date</th>
-                    <th className="px-4 py-3 font-bold">Reference</th>
-                    <th className="px-4 py-3 font-bold">Description</th>
-                    <th className="px-4 py-3 font-bold">Type</th>
-                    <th className="px-4 py-3 font-bold">Member</th>
-                    <th className="px-4 py-3 font-bold text-right" title="Cash in — from the cooperative's cash-account perspective">Debit</th>
-                    <th className="px-4 py-3 font-bold text-right" title="Cash out — from the cooperative's cash-account perspective">Credit</th>
+                    <th className="p-5 font-bold">Date</th>
+                    <th className="p-5 font-bold">Reference</th>
+                    <th className="p-5 font-bold">Description</th>
+                    <th className="p-5 font-bold">Type</th>
+                    <th className="p-5 font-bold">Member</th>
+                    <th className="p-5 font-bold text-right" title="Cash in — from the cooperative's cash-account perspective">Debit</th>
+                    <th className="p-5 font-bold text-right" title="Cash out — from the cooperative's cash-account perspective">Credit</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -299,29 +312,29 @@ const Treasurer_Payments = () => {
                       const meta = TYPE_META[e.type] || { label: e.type, cls: "bg-gray-50 text-gray-700 ring-1 ring-gray-200", dir: "any" };
                       const { primary, secondary } = splitDescription(e.description);
                       return (
-                        <tr key={`${e.source_table}-${e.reference}-${idx}`} className="border-b border-gray-50 hover:bg-gray-50/60">
-                          <td className="px-4 py-2 text-gray-700 tabular-nums whitespace-nowrap">{formatDate(e.date)}</td>
-                          <td className="px-4 py-2 whitespace-nowrap">
+                        <tr key={`${e.source_table}-${e.reference}-${idx}`} className="border-b border-gray-100 hover:bg-gray-50/50">
+                          <td className="p-5 text-gray-700 tabular-nums whitespace-nowrap">{formatDate(e.date)}</td>
+                          <td className="p-5 whitespace-nowrap">
                             <span className="inline-flex items-center rounded-md bg-gray-50 px-2 py-1 font-mono text-[11px] text-gray-600 ring-1 ring-gray-200">
                               {e.reference}
                             </span>
                           </td>
-                          <td className="px-4 py-2 max-w-[16rem]">
+                          <td className="p-5 max-w-[16rem]">
                             <div className="font-semibold text-gray-800 truncate" title={e.description}>{primary}</div>
                             {secondary ? (
                               <div className="text-xs text-gray-500 truncate mt-0.5">{secondary}</div>
                             ) : null}
                           </td>
-                          <td className="px-4 py-2 whitespace-nowrap">
+                          <td className="p-5 whitespace-nowrap">
                             <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold ${meta.cls}`}>
                               {meta.label}
                             </span>
                           </td>
-                          <td className="px-4 py-2 text-gray-700 whitespace-nowrap">{e.member_name || "—"}</td>
-                          <td className="px-4 py-2 text-right tabular-nums whitespace-nowrap font-medium">
+                          <td className="p-5 text-gray-700 whitespace-nowrap">{e.member_name || "—"}</td>
+                          <td className="p-5 text-right tabular-nums whitespace-nowrap font-medium">
                             {e.debit > 0 ? <span className="text-green-700">{PHP(e.debit)}</span> : <span className="text-gray-400">—</span>}
                           </td>
-                          <td className="px-4 py-2 text-right tabular-nums whitespace-nowrap font-medium">
+                          <td className="p-5 text-right tabular-nums whitespace-nowrap font-medium">
                             {e.credit > 0 ? <span className="text-red-700">{PHP(e.credit)}</span> : <span className="text-gray-400">—</span>}
                           </td>
                         </tr>
@@ -332,9 +345,11 @@ const Treasurer_Payments = () => {
                 {searchedEntries.length > 0 && (
                   <tfoot className="bg-gray-50 font-semibold">
                     <tr className="border-t-2 border-gray-200">
-                      <td colSpan={5} className="px-4 py-3 text-right text-gray-600 text-xs uppercase tracking-wider">Window totals</td>
-                      <td className="px-4 py-3 text-right tabular-nums text-green-700">{PHP(ledger.total_debit)}</td>
-                      <td className="px-4 py-3 text-right tabular-nums text-red-700">{PHP(ledger.total_credit)}</td>
+                      <td colSpan={5} className="p-5 text-right text-gray-600 text-xs uppercase tracking-wider">
+                        {searchTerm ? "Filtered totals" : "Window totals"}
+                      </td>
+                      <td className="p-5 text-right tabular-nums text-green-700">{PHP(searchedTotals.debit)}</td>
+                      <td className="p-5 text-right tabular-nums text-red-700">{PHP(searchedTotals.credit)}</td>
                     </tr>
                   </tfoot>
                 )}
@@ -354,42 +369,5 @@ const Treasurer_Payments = () => {
 
 // Pagination — copied from Cashier_Payments.jsx to keep the paginator identical
 // across the two payment pages. Renders 5-page groups with prev/next chevrons.
-const Pagination = ({ page, totalPages, onChange }) => (
-  <div className="flex items-center justify-center p-6 gap-2 border-t border-gray-100">
-    <button
-      className="w-8 h-8 flex items-center justify-center rounded-full border border-gray-300 bg-white text-gray-500 transition-colors hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-      disabled={page <= 1}
-      onClick={() => onChange(Math.max(page - 1, 1))}
-    >
-      <ChevronLeft className="w-4 h-4" />
-    </button>
-
-    {(() => {
-      const groupStart = Math.floor((page - 1) / 5) * 5 + 1;
-      const groupEnd = Math.min(groupStart + 4, totalPages);
-      return Array.from({ length: groupEnd - groupStart + 1 }, (_, i) => groupStart + i).map((p) => (
-        <button
-          key={p}
-          onClick={() => onChange(p)}
-          className={`w-8 h-8 flex items-center justify-center rounded-full border text-xs font-semibold transition-colors ${
-            p === page
-              ? "bg-[#16A34A] text-white border-[#16A34A]"
-              : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"
-          }`}
-        >
-          {p}
-        </button>
-      ));
-    })()}
-
-    <button
-      className="w-8 h-8 flex items-center justify-center rounded-full border border-gray-300 bg-white text-gray-500 transition-colors hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-      disabled={page >= totalPages}
-      onClick={() => onChange(Math.min(page + 1, totalPages))}
-    >
-      <ChevronRight className="w-4 h-4" />
-    </button>
-  </div>
-);
 
 export default Treasurer_Payments;

@@ -16,7 +16,7 @@ export const cashierNav = [
   { name: "Disbursement",          icon: Send,            path: "/Cashier_Disbursement" },
   { name: "Membership Payments",   icon: UserPlus,        path: "/Cashier_MembershipPayments" },
   {
-    name: "Deposits",
+    name: "Savings Account",
     icon: PiggyBank,
     isDropdown: true,
     subItems: [

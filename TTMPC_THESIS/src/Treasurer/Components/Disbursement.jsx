@@ -5,6 +5,7 @@ import { StatCard, StatCardRow } from "../../components/StatCard";
 import StaffTopbar from "../../components/StaffTopbar";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
 import Breadcrumb from "../../components/Breadcrumb";
+import Pagination from "../../components/Pagination";
 import StaffSidebar from "../../components/StaffSidebar";
 import { treasurerNav } from "../../components/StaffSidebar/configs/treasurer";
 import {
@@ -19,8 +20,6 @@ import {
   Receipt,
   History,
   CalendarDays,
-  ChevronLeft,
-  ChevronRight,
   AlertCircle,
   X,
   Check,
@@ -371,41 +370,7 @@ const Disbursements = () => {
               )}
 
               {visibleRows.length > ITEMS_PER_PAGE && (
-                <div className="flex items-center justify-center p-6 gap-2 border-t border-gray-100">
-                  <button
-                    className="w-8 h-8 flex items-center justify-center rounded-full border border-gray-300 bg-white text-gray-500 transition-colors hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                    disabled={currentPage <= 1}
-                    onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
-                  >
-                    <ChevronLeft className="w-4 h-4" />
-                  </button>
-
-                  {(() => {
-                    const groupStart = Math.floor((currentPage - 1) / 5) * 5 + 1;
-                    const groupEnd = Math.min(groupStart + 4, totalPages);
-                    return Array.from({ length: groupEnd - groupStart + 1 }, (_, i) => groupStart + i).map((page) => (
-                      <button
-                        key={page}
-                        onClick={() => setCurrentPage(page)}
-                        className={`w-8 h-8 flex items-center justify-center rounded-full border text-xs font-semibold transition-colors ${
-                          page === currentPage
-                            ? "bg-[#16A34A] text-white border-[#16A34A]"
-                            : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"
-                        }`}
-                      >
-                        {page}
-                      </button>
-                    ));
-                  })()}
-
-                  <button
-                    className="w-8 h-8 flex items-center justify-center rounded-full border border-gray-300 bg-white text-gray-500 transition-colors hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                    disabled={currentPage >= totalPages}
-                    onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
-                  >
-                    <ChevronRight className="w-4 h-4" />
-                  </button>
-                </div>
+                <Pagination page={currentPage} totalPages={totalPages} onChange={setCurrentPage} />
               )}
             </div>
           </div>

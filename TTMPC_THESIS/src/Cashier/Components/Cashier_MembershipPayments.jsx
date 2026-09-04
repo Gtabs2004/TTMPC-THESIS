@@ -8,6 +8,7 @@ import { useConfirm } from "../../contex/ConfirmContext";
 import StaffTopbar from "../../components/StaffTopbar";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
 import Breadcrumb from "../../components/Breadcrumb";
+import Pagination from "../../components/Pagination";
 import ConfirmDialog from "../../components/ConfirmDialog";
 import { supabase } from "../../supabaseClient";
 import {
@@ -16,8 +17,6 @@ import {
   Bell,
   Banknote,
   ChevronDown,
-  ChevronLeft,
-  ChevronRight,
   UserSearch,
   UserPlus,
   CheckCircle2,
@@ -292,8 +291,8 @@ const Cashier_MembershipPayments = () => {
       <StaffSidebar portal="Cashier" items={cashierNav} />
       
       {/* MAIN */}
-     <div className="flex-1 flex flex-col h-screen overflow-y-auto">
-       <StaffTopbar portal="Cashier" notifications={<LoanNotificationBell role="cashier" />} />
+      <div className="flex-1 flex flex-col h-screen overflow-y-auto">
+        <StaffTopbar portal="Cashier" notifications={<LoanNotificationBell role="cashier" />} />
 
         <main className="p-8 overflow-auto">
           <div className="flex items-center justify-between mb-6">
@@ -655,27 +654,5 @@ const Cashier_MembershipPayments = () => {
   );
 };
 
-const Pagination = ({ page, totalPages, onChange }) => (
-  <div className="flex items-center justify-between p-4 border-t border-gray-200 bg-gray-50">
-    <button
-      onClick={() => onChange(Math.max(1, page - 1))}
-      disabled={page === 1}
-      className="inline-flex items-center gap-1 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50"
-    >
-      <ChevronLeft size={14} /> Previous
-    </button>
-    <span className="text-sm text-gray-600">
-      Page <span className="font-semibold">{page}</span> of{" "}
-      <span className="font-semibold">{totalPages}</span>
-    </span>
-    <button
-      onClick={() => onChange(Math.min(totalPages, page + 1))}
-      disabled={page === totalPages}
-      className="inline-flex items-center gap-1 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50"
-    >
-      Next <ChevronRight size={14} />
-    </button>
-  </div>
-);
 
 export default Cashier_MembershipPayments;

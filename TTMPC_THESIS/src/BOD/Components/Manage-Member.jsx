@@ -6,16 +6,15 @@ import { UserAuth } from "../../contex/AuthContext";
 import { useNotification } from "../../contex/NotificationContext";
 import StaffTopbar from "../../components/StaffTopbar";
 import Breadcrumb from "../../components/Breadcrumb";
-import { 
-  LayoutDashboard, 
-  Users, 
-  CreditCard, 
-  CalendarCheck, 
-  Archive, 
+import Pagination from "../../components/Pagination";
+import {
+  LayoutDashboard,
+  Users,
+  CreditCard,
+  CalendarCheck,
+  Archive,
   Search,
   Bell,
-  ChevronLeft,
-  ChevronRight,
   FileText,
   ShieldCheck,
   AlertTriangle,
@@ -115,7 +114,7 @@ const BOD_Manage_Member = () => {
       <StaffSidebar portal="BOD" items={bodNav} />
 
       <div className="flex-1 flex flex-col">
-         <StaffTopbar portal="BOD" notifications={<NotificationBell />} />
+        <StaffTopbar portal="BOD" notifications={<NotificationBell />} />
 
         <main className="p-8">
           <Breadcrumb portal="BOD" page="Manage Member" />
@@ -168,41 +167,7 @@ const BOD_Manage_Member = () => {
             ) : null}
           </div>
 
-          <div className="flex items-center justify-center p-6 gap-2 border-t border-gray-100">
-            <button
-              className="w-8 h-8 flex items-center justify-center rounded-full border border-gray-300 bg-white text-gray-500 transition-colors hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-              disabled={currentPage <= 1}
-              onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </button>
-
-            {(() => {
-              const groupStart = Math.floor((currentPage - 1) / 5) * 5 + 1;
-              const groupEnd = Math.min(groupStart + 4, totalPages);
-              return Array.from({ length: groupEnd - groupStart + 1 }, (_, i) => groupStart + i).map((page) => (
-              <button
-                key={page}
-                onClick={() => setCurrentPage(page)}
-                className={`w-8 h-8 flex items-center justify-center rounded-full border text-xs font-semibold transition-colors ${
-                  page === currentPage
-                    ? "bg-[#16A34A] text-white border-[#16A34A]"
-                    : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"
-                }`}
-              >
-                {page}
-              </button>
-              ));
-            })()}
-
-            <button
-              className="w-8 h-8 flex items-center justify-center rounded-full border border-gray-300 bg-white text-gray-500 transition-colors hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-              disabled={currentPage >= totalPages}
-              onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
-            >
-              <ChevronRight className="w-4 h-4" />
-            </button>
-          </div>
+          <Pagination page={currentPage} totalPages={totalPages} onChange={setCurrentPage} />
         </main>
       </div>
     </div>

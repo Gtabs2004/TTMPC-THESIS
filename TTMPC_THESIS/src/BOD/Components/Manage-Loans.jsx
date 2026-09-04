@@ -7,6 +7,7 @@ import { UserAuth } from "../../contex/AuthContext";
 import StaffTopbar from "../../components/StaffTopbar";
 import NotificationBell from "../../components/NotificationBell";
 import Breadcrumb from "../../components/Breadcrumb";
+import Pagination from "../../components/Pagination";
 import {
   LayoutDashboard,
   Users,
@@ -18,8 +19,6 @@ import {
   Bell,
   BookOpen,
   RefreshCw,
-  ChevronRight,
-  ChevronLeft,
   FileText,
   ShieldCheck,
   AlertTriangle,
@@ -384,41 +383,7 @@ const BOD_Manage_Loans = () => {
                 </table>
               </div>
 
-              {/* Pagination */}
-              <div className="flex items-center justify-center p-3 gap-2 border-t border-gray-100">
-                <button
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  disabled={currentPage <= 1}
-                  className="w-8 h-8 flex items-center justify-center rounded-full border border-gray-300 bg-white text-gray-500 transition-colors hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <ChevronLeft className="w-4 h-4" />
-                </button>
-                {(() => {
-                  const windowSize = 5;
-                  const groupStart = Math.floor((currentPage - 1) / windowSize) * windowSize + 1;
-                  const groupEnd = Math.min(groupStart + windowSize - 1, totalPages);
-                  return Array.from({ length: groupEnd - groupStart + 1 }, (_, i) => groupStart + i).map((n) => (
-                    <button
-                      key={n}
-                      onClick={() => setPage(n)}
-                      className={`w-8 h-8 flex items-center justify-center rounded-full border text-xs font-semibold transition-colors ${
-                        n === currentPage
-                          ? "bg-[#16A34A] text-white border-[#16A34A]"
-                          : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"
-                      }`}
-                    >
-                      {n}
-                    </button>
-                  ));
-                })()}
-                <button
-                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                  disabled={currentPage >= totalPages}
-                  className="w-8 h-8 flex items-center justify-center rounded-full border border-gray-300 bg-white text-gray-500 transition-colors hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <ChevronRight className="w-4 h-4" />
-                </button>
-              </div>
+              <Pagination page={currentPage} totalPages={totalPages} onChange={setPage} />
             </div>
           </div>
         </main>

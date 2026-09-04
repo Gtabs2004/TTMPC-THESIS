@@ -553,7 +553,7 @@ const Member_Loans = () => {
                     <td className="p-5 text-sm font-medium text-gray-500 dark:text-gray-400">{loan.nextDue}</td>
                     <td className="p-5">
                       <span className={`badge-animated px-2.5 py-1 rounded text-[10px] font-extrabold tracking-wider ${
-                        loan.status === 'Active' ? 'bg-[#EAF1EB] text-member-green dark:bg-green-900/30 dark:text-green-400' : loan.status === 'Rejected' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' : 'bg-[#FEF08A] text-[#854D0E] dark:bg-amber-900/30 dark:text-amber-400'
+                        loan.status === 'Active' || loan.status === 'Fully paid' ? 'bg-[#EAF1EB] text-member-green dark:bg-green-900/30 dark:text-green-400' : loan.status === 'Rejected' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' : 'bg-[#FEF08A] text-[#854D0E] dark:bg-amber-900/30 dark:text-amber-400'
                       }`}>
                         {loan.status}
                       </span>
@@ -581,7 +581,7 @@ const Member_Loans = () => {
                       <p className="text-[10px] text-gray-400 dark:text-gray-500 font-medium">ID: {loan.id}</p>
                     </div>
                     <span className={`shrink-0 badge-animated px-2.5 py-1 rounded text-[10px] font-extrabold tracking-wider ${
-                      loan.status === 'Active' ? 'bg-[#EAF1EB] text-member-green dark:bg-green-900/30 dark:text-green-400' : loan.status === 'Rejected' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' : 'bg-[#FEF08A] text-[#854D0E] dark:bg-amber-900/30 dark:text-amber-400'
+                      loan.status === 'Active' || loan.status === 'Fully paid' ? 'bg-[#EAF1EB] text-member-green dark:bg-green-900/30 dark:text-green-400' : loan.status === 'Rejected' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' : 'bg-[#FEF08A] text-[#854D0E] dark:bg-amber-900/30 dark:text-amber-400'
                     }`}>
                       {loan.status}
                     </span>

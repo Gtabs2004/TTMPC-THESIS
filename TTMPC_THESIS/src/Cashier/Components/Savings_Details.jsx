@@ -14,8 +14,6 @@ import {
   Bell,
   CheckCircle2,
   ChevronDown,
-  ChevronLeft,
-  ChevronRight,
   Clock,
   LayoutDashboard,
   PiggyBank,
@@ -34,6 +32,7 @@ import { useNotification } from "../../contex/NotificationContext";
 import StaffTopbar from "../../components/StaffTopbar";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
 import Breadcrumb from "../../components/Breadcrumb";
+import Pagination from "../../components/Pagination";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 const PAGE_SIZE = 10;
@@ -274,7 +273,7 @@ const Savings_Details = () => {
 
       {/* MAIN */}
       <div className="flex-1 flex flex-col h-screen overflow-y-auto">
-             <StaffTopbar portal="Cashier" notifications={<LoanNotificationBell role="cashier" />} />
+        <StaffTopbar portal="Cashier" notifications={<LoanNotificationBell role="cashier" />} />
 
         <main className="p-8 overflow-auto">
           {/* BACK + TITLE */}
@@ -645,43 +644,5 @@ const Savings_Details = () => {
     </div>
   );
 };
-
-const Pagination = ({ page, totalPages, onChange }) => (
-  <div className="flex items-center justify-center p-6 gap-2 border-t border-gray-100">
-    <button
-      className="w-8 h-8 flex items-center justify-center rounded-full border border-gray-300 bg-white text-gray-500 transition-colors hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-      disabled={page <= 1}
-      onClick={() => onChange(Math.max(page - 1, 1))}
-    >
-      <ChevronLeft className="w-4 h-4" />
-    </button>
-
-    {(() => {
-      const groupStart = Math.floor((page - 1) / 5) * 5 + 1;
-      const groupEnd = Math.min(groupStart + 4, totalPages);
-      return Array.from({ length: groupEnd - groupStart + 1 }, (_, i) => groupStart + i).map((p) => (
-        <button
-          key={p}
-          onClick={() => onChange(p)}
-          className={`w-8 h-8 flex items-center justify-center rounded-full border text-xs font-semibold transition-colors ${
-            p === page
-              ? "bg-[#16A34A] text-white border-[#16A34A]"
-              : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"
-          }`}
-        >
-          {p}
-        </button>
-      ));
-    })()}
-
-    <button
-      className="w-8 h-8 flex items-center justify-center rounded-full border border-gray-300 bg-white text-gray-500 transition-colors hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-      disabled={page >= totalPages}
-      onClick={() => onChange(Math.min(page + 1, totalPages))}
-    >
-      <ChevronRight className="w-4 h-4" />
-    </button>
-  </div>
-);
 
 export default Savings_Details;
