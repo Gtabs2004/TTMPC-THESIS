@@ -8,6 +8,7 @@ import StaffTopbar from "../../components/StaffTopbar";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
 import Breadcrumb from "../../components/Breadcrumb";
 import InterestOnShareCapitalModal from "../../components/InterestOnShareCapitalModal";
+import IscPostingHistory from "../../components/IscPostingHistory";
 import {
   LayoutDashboard,
   Banknote,
@@ -44,6 +45,7 @@ const Cashier_CBU = () => {
   const [memberPage, setMemberPage] = useState(1);
   const [transactionPage, setTransactionPage] = useState(1);
   const [showInterestModal, setShowInterestModal] = useState(false);
+  const [showIscHistory, setShowIscHistory] = useState(false);
 
 
 
@@ -171,13 +173,22 @@ const Cashier_CBU = () => {
                   Live Data
                 </span>
               </div>
-              <button
-                type="button"
-                onClick={() => setShowInterestModal(true)}
-                className="inline-flex items-center gap-2 rounded-lg bg-[#66B538] hover:bg-green-700 px-4 py-2 text-xs font-semibold text-white transition-colors"
-              >
-                <Calculator className="w-4 h-4" /> ISC Calculator
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowIscHistory(true)}
+                  className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white hover:bg-gray-50 px-4 py-2 text-xs font-semibold text-gray-700 transition-colors"
+                >
+                  <History className="w-4 h-4" /> View Postings
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowInterestModal(true)}
+                  className="inline-flex items-center gap-2 rounded-lg bg-[#66B538] hover:bg-green-700 px-4 py-2 text-xs font-semibold text-white transition-colors"
+                >
+                  <Calculator className="w-4 h-4" /> ISC Calculator
+                </button>
+              </div>
             </div>
 
             {loading && (
@@ -273,7 +284,14 @@ const Cashier_CBU = () => {
       <InterestOnShareCapitalModal
         open={showInterestModal}
         onClose={() => setShowInterestModal(false)}
-        members={members}
+        canPost={false}
+        onPosted={fetchCbuData}
+      />
+
+      <IscPostingHistory
+        open={showIscHistory}
+        onClose={() => setShowIscHistory(false)}
+        canReverse={false}
       />
     </div>
   );

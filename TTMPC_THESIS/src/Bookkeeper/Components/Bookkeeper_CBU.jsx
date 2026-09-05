@@ -10,7 +10,8 @@ import {
   Search,
   Users,
   Wallet,
-  Calculator
+  Calculator,
+  History
 } from "lucide-react";
 
 import { useNotification } from "../../contex/NotificationContext";
@@ -19,6 +20,7 @@ import LoanNotificationBell from "../../components/LoanNotificationBell";
 import Breadcrumb from "../../components/Breadcrumb";
 import Pagination from "../../components/Pagination";
 import InterestOnShareCapitalModal from "../../components/InterestOnShareCapitalModal";
+import IscPostingHistory from "../../components/IscPostingHistory";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 const PAGE_SIZE = 5;
@@ -98,6 +100,7 @@ const Bookkeeper_CBU = () => {
   const [memberPage, setMemberPage] = useState(1);
   const [txPage, setTxPage] = useState(1);
   const [showInterestModal, setShowInterestModal] = useState(false);
+  const [showIscHistory, setShowIscHistory] = useState(false);
 
   const totals = useMemo(() => {
     const now = new Date();
@@ -222,6 +225,14 @@ const Bookkeeper_CBU = () => {
 
                 <button
                   type="button"
+                  onClick={() => setShowIscHistory(true)}
+                  className="inline-flex items-center gap-1.5 rounded-md border border-gray-300 bg-white hover:bg-gray-50 px-3 py-1.5 text-xs font-semibold text-gray-700 transition-colors shrink-0"
+                >
+                  <History className="w-3.5 h-3.5" />
+                  View Postings
+                </button>
+                <button
+                  type="button"
                   onClick={() => setShowInterestModal(true)}
                   className="inline-flex items-center gap-1.5 rounded-md bg-green-600 hover:bg-green-700 px-3 py-1.5 text-xs font-semibold text-white transition-colors shrink-0"
                 >
@@ -335,7 +346,14 @@ const Bookkeeper_CBU = () => {
       <InterestOnShareCapitalModal
         open={showInterestModal}
         onClose={() => setShowInterestModal(false)}
-        members={members}
+        canPost
+        onPosted={refresh}
+      />
+
+      <IscPostingHistory
+        open={showIscHistory}
+        onClose={() => setShowIscHistory(false)}
+        canReverse={false}
       />
     </div>
   );
