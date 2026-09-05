@@ -19,7 +19,6 @@ export const treasurerNav = [
   { name: "Schedule",      icon: Calculator,      path: "/schedule" },
   { name: "Payments",      icon: Users,           path: "/treasurer-payments" },
   { name: "Loan Approval", icon: FileText,      path: "/treasurer-approval" },
- 
   { name: "Audit Log",     icon: History,         path: "/treasurer-audit-log" },
 ];
 

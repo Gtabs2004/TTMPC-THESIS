@@ -64,7 +64,7 @@ then divide by **how many months are in that range**.
 
 ```
 Average Share Capital  =  sum of each month-end balance
-                          ────────────────────────────
+                          ──────────────────────────── 
                             number of months in range
 ```
 
