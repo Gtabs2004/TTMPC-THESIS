@@ -234,7 +234,7 @@ const Bookkeeper_CBU = () => {
                 <button
                   type="button"
                   onClick={() => setShowInterestModal(true)}
-                  className="inline-flex items-center gap-1.5 rounded-md bg-green-600 hover:bg-green-700 px-3 py-1.5 text-xs font-semibold text-white transition-colors shrink-0"
+                  className="inline-flex items-center gap-1.5 rounded-md bg-primary hover:bg-primary-deep px-3 py-1.5 text-xs font-semibold text-white transition-colors shrink-0"
                 >
                   <Calculator className="w-3.5 h-3.5" />
                   ISC Calculator
@@ -244,7 +244,7 @@ const Bookkeeper_CBU = () => {
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr className="bg-green-700 text-[10px] uppercase tracking-wider text-white font-extrabold">
+                  <tr className="bg-primary-deep text-[10px] uppercase tracking-wider text-white font-extrabold">
                     <th className="p-5 font-bold">Member ID</th>
                     <th className="p-5 font-bold">Member Name</th>
                     <th className="p-5 font-bold text-right">Current Balance</th>
@@ -293,7 +293,7 @@ const Bookkeeper_CBU = () => {
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr className="bg-green-700 text-[10px] uppercase tracking-wider text-white font-extrabold">
+                  <tr className="bg-primary-deep text-[10px] uppercase tracking-wider text-white font-extrabold">
                     <th className="p-5 font-bold">Reference</th>
                     <th className="p-5 font-bold">Member</th>
                     <th className="p-5 font-bold">Type</th>
