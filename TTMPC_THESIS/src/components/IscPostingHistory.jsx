@@ -196,12 +196,14 @@ export default function IscPostingHistory({ open, onClose, canReverse = false })
                           <td className="p-3 text-sm">
                             <span
                               className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide ${
-                                posting.status === "reversed"
-                                  ? "bg-red-50 text-red-600"
-                                  : "bg-green-50 text-green-700"
+                                posting.reverses_posting_id
+                                  ? "bg-gray-100 text-gray-600 border border-gray-200"
+                                  : posting.status === "reversed"
+                                  ? "bg-amber-50 text-amber-700 border border-amber-200"
+                                  : "bg-green-50 text-primary-deep border border-green-200"
                               }`}
                             >
-                              {posting.status}
+                              {posting.reverses_posting_id ? "reversal" : posting.status}
                             </span>
                           </td>
                           <td className="p-3 text-xs text-gray-600">
@@ -210,7 +212,12 @@ export default function IscPostingHistory({ open, onClose, canReverse = false })
                           </td>
                           <td className="p-3 text-right whitespace-nowrap">
                             <div className="flex items-center justify-end gap-2">
-                              {canReverse && posting.status === "posted" && (
+                              {/* A reversal row carries status='posted' (that is what
+                                  frees the period for a corrected posting), so status
+                                  alone cannot gate this. reverses_posting_id marks it
+                                  explicitly. isc_reverse() enforces the same rule
+                                  server-side — this only keeps a dead button off screen. */}
+                              {canReverse && posting.status === "posted" && !posting.reverses_posting_id && (
                                 <button
                                   onClick={() => openReverse(posting)}
                                   className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md border border-red-200 text-red-600 hover:bg-red-50 text-[11px] font-semibold transition-colors"

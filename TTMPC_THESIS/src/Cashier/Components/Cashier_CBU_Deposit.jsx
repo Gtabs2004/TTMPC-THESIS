@@ -49,8 +49,7 @@ const Cashier_CBU_Deposit = () => {
   const [depositAmount, setDepositAmount] = useState("");
   const [paymentMode, setPaymentMode] = useState("Cash");
   const [transactionDate, setTransactionDate] = useState(new Date().toISOString().slice(0, 10));
-  const [cbuDepositId, setCbuDepositId] = useState("CBUD_001");
-  const [statusMessage, setStatusMessage] = useState("Fill in all required fields before submitting.");
+  const [statusMessage, setStatusMessage] = useState("");
 
 
 
@@ -89,6 +88,10 @@ const Cashier_CBU_Deposit = () => {
     loadMember();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [memberId]);
+
+  // Live preview of the resulting balance. Non-numeric or negative input
+  // reads as 0 so the panel shows a dash rather than NaN.
+  const parsedAmount = Math.max(0, Number(depositAmount) || 0);
 
   const handleSubmit = async () => {
     if (!selectedMember) {
@@ -145,7 +148,6 @@ const Cashier_CBU_Deposit = () => {
       }
 
       const returnedId = payload?.data?.cbu_deposit_id || "—";
-      setCbuDepositId(returnedId);
       setStatusMessage(`CBU deposit recorded successfully. Deposit ID: ${returnedId}.`);
       setDepositAmount("");
       // Refetch member so current_balance reflects the new ending_share_capital.
@@ -188,54 +190,68 @@ const Cashier_CBU_Deposit = () => {
           )}
 
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 mb-6">
-            <h3 className="text-lg font-bold text-[#1F3E35] mb-5">Selected Member</h3>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="flex flex-wrap items-center justify-between gap-4">
               <div>
-                <p className="text-xs uppercase tracking-wider text-gray-500 font-bold mb-2">Member ID</p>
-                <div className="h-11 rounded-lg border border-gray-200 bg-gray-50 px-3 flex items-center text-sm font-semibold text-gray-700">
-                  {selectedMember?.member_id || "N/A"}
-                </div>
+                <p className="text-xs uppercase tracking-wider text-gray-500 font-bold mb-1">
+                  Depositing for
+                </p>
+                <p className="text-xl font-extrabold text-[#1F3E35] leading-tight">
+                  {selectedMember?.member_name || "—"}
+                </p>
+                <p className="text-sm text-gray-500 mt-0.5">
+                  {selectedMember?.member_id || "—"}
+                  {/* "Starting Point: Existing Capital" said nothing a cashier
+                      could act on. Whether this is the member's first deposit
+                      is the part that actually matters. */}
+                  {selectedMember?.is_new_member && (
+                    <span className="ml-2 inline-flex items-center rounded-full bg-blue-50 border border-blue-200 px-2 py-0.5 text-[11px] font-semibold text-blue-700">
+                      First deposit
+                    </span>
+                  )}
+                </p>
               </div>
-              <div>
-                <p className="text-xs uppercase tracking-wider text-gray-500 font-bold mb-2">Member Name</p>
-                <div className="h-11 rounded-lg border border-gray-200 bg-gray-50 px-3 flex items-center text-sm font-semibold text-gray-700">
-                  {selectedMember?.member_name || "N/A"}
-                </div>
-              </div>
-              <div>
-                <p className="text-xs uppercase tracking-wider text-gray-500 font-bold mb-2">Current Capital</p>
-                <div className="h-11 rounded-lg border border-gray-200 bg-gray-50 px-3 flex items-center text-sm font-semibold text-gray-700">
+              <div className="text-right">
+                <p className="text-xs uppercase tracking-wider text-gray-500 font-bold mb-1">
+                  Share capital today
+                </p>
+                <p className="text-2xl font-extrabold text-[#1F3E35] tabular-nums">
                   {formatCurrency(currentBalance)}
-                </div>
-              </div>
-              <div>
-                <p className="text-xs uppercase tracking-wider text-gray-500 font-bold mb-2">Starting Point</p>
-                <div className="h-11 rounded-lg border border-gray-200 bg-gray-50 px-3 flex items-center text-sm font-semibold text-gray-700">
-                  {selectedMember?.is_new_member ? `${formatCurrency(STARTING_CAPITAL)} (New)` : "Existing Capital"}
-                </div>
+                </p>
               </div>
             </div>
           </div>
 
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
-            <h3 className="text-lg font-bold text-[#1F3E35] mb-5">Required Deposit Fields</h3>
+            <h3 className="text-lg font-bold text-[#1F3E35] mb-1">Record a deposit</h3>
+            <p className="text-sm text-gray-500 mb-5">
+              This adds to {selectedMember?.member_name || "the member"}&apos;s share capital.
+            </p>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-5">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-5">
               <div>
-                <label className="text-xs uppercase tracking-wider font-bold text-gray-500 mb-2 block">Deposit Amount *</label>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={depositAmount}
-                  onChange={(event) => setDepositAmount(event.target.value)}
-                  className="w-full rounded-lg border border-gray-300 bg-gray-50 h-11 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                  placeholder="0.00"
-                />
+                <label className="text-xs uppercase tracking-wider font-bold text-gray-500 mb-2 block">
+                  Amount received
+                </label>
+                <div className="flex items-stretch h-11 rounded-lg border border-gray-300 bg-gray-50 focus-within:bg-white focus-within:ring-2 focus-within:ring-primary overflow-hidden">
+                  <span className="flex items-center px-3 text-sm font-semibold text-gray-500 bg-gray-100 border-r border-gray-200">
+                    &#8369;
+                  </span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={depositAmount}
+                    onChange={(event) => setDepositAmount(event.target.value)}
+                    className="min-w-0 flex-1 bg-transparent px-3 text-sm focus:outline-none"
+                    placeholder="0.00"
+                  />
+                </div>
               </div>
 
               <div>
-                <label className="text-xs uppercase tracking-wider font-bold text-gray-500 mb-2 block">Payment Mode *</label>
+                <label className="text-xs uppercase tracking-wider font-bold text-gray-500 mb-2 block">
+                  Paid by
+                </label>
                 <select
                   value={paymentMode}
                   onChange={(event) => setPaymentMode(event.target.value)}
@@ -248,14 +264,9 @@ const Cashier_CBU_Deposit = () => {
               </div>
 
               <div>
-                <label className="text-xs uppercase tracking-wider font-bold text-gray-500 mb-2 block">CBU Deposit ID *</label>
-                <div className="w-full rounded-lg border border-gray-300 bg-gray-50 h-11 px-3 flex items-center text-sm font-semibold text-gray-700">
-                  {cbuDepositId}
-                </div>
-              </div>
-
-              <div>
-                <label className="text-xs uppercase tracking-wider font-bold text-gray-500 mb-2 block">Transaction Date *</label>
+                <label className="text-xs uppercase tracking-wider font-bold text-gray-500 mb-2 block">
+                  Date received
+                </label>
                 <input
                   type="date"
                   value={transactionDate}
@@ -263,15 +274,46 @@ const Cashier_CBU_Deposit = () => {
                   className="w-full rounded-lg border border-gray-300 bg-gray-50 h-11 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                 />
               </div>
-
             </div>
 
-            
-
-            <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 mb-5 text-sm text-gray-700 flex items-start gap-2">
-              <Calculator className="w-4 h-4 mt-0.5 text-primary" />
-              <span>{statusMessage}</span>
+            {/* The resulting balance was previously invisible until AFTER
+                submitting — the one number the cashier most needs to sanity-check
+                against the member's passbook. Shown live, before committing. */}
+            <div className="rounded-lg border border-gray-200 bg-gray-50 overflow-hidden mb-5">
+              <div className="grid grid-cols-3 divide-x divide-gray-200">
+                <div className="px-4 py-3">
+                  <p className="text-[11px] uppercase tracking-wider text-gray-500 font-bold mb-1">
+                    Current
+                  </p>
+                  <p className="text-sm font-semibold text-gray-700 tabular-nums">
+                    {formatCurrency(currentBalance)}
+                  </p>
+                </div>
+                <div className="px-4 py-3">
+                  <p className="text-[11px] uppercase tracking-wider text-gray-500 font-bold mb-1">
+                    Deposit
+                  </p>
+                  <p className="text-sm font-semibold text-gray-700 tabular-nums">
+                    {parsedAmount > 0 ? `+ ${formatCurrency(parsedAmount)}` : "—"}
+                  </p>
+                </div>
+                <div className="px-4 py-3 bg-white">
+                  <p className="text-[11px] uppercase tracking-wider text-gray-500 font-bold mb-1">
+                    New balance
+                  </p>
+                  <p className={`text-base font-extrabold tabular-nums ${parsedAmount > 0 ? "text-primary-deep" : "text-gray-400"}`}>
+                    {parsedAmount > 0 ? formatCurrency(currentBalance + parsedAmount) : "—"}
+                  </p>
+                </div>
+              </div>
             </div>
+
+            {statusMessage && parsedAmount > 0 && (
+              <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 mb-5 text-sm text-gray-700 flex items-start gap-2">
+                <Calculator className="w-4 h-4 mt-0.5 text-primary" />
+                <span>{statusMessage}</span>
+              </div>
+            )}
 
             <div className="flex items-center gap-3">
               <button

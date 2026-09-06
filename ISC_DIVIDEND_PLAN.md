@@ -1,10 +1,278 @@
 # Interest on Share Capital (ISC) — Design & Implementation Plan
 
-**Status:** Designed, not yet implemented (as of 2026-09-04)
+**Status:** ✅ **BUILT, DEPLOYED AND VERIFIED END-TO-END** (2026-09-06) — see §0
 **Feature:** Annual dividend / Interest on Share Capital posting for members
 **Owner module:** Bookkeeper & Cashier — Capital Build-Up (CBU)
 
 ---
+
+## 0. Status — end-to-end verification (2026-09-06)
+
+**The feature is built, deployed, and proven against live data.** A complete
+post → reverse cycle was executed on the real database and every check passed.
+
+### What was proven
+
+| Area | Result |
+|---|---|
+| Schema | `isc_postings`, `isc_transactions`, `source_isc_id`, `reverses_posting_id` all live |
+| Calculation | 263 eligible members, ₱29,922,087.77 basis, ₱1,496,104.42 at 5% |
+| Growth sanity | exactly 5.00% — matches the rate, so the basis is right |
+| Divisor | 10 months for Dec 2025 – Sep 2026 ✅ |
+| Rate guards | optional to calculate; 0%, 150% and pre-Dec-2025 all rejected |
+| Atomic posting | 263 line items + 263 CBU rows + header, one transaction |
+| **Chain integrity** | **0 broken links across 263 members** |
+| Reversal | net effect exactly **₱0.00**; co-op total back to ₱30,232,587.77 |
+| Audit trail | bookkeeper posted, manager reversed with written reason |
+
+### The live record
+
+```
+posting   reversed    ₱ 1,496,104.42   bookkeeper@gmail.com
+REVERSAL  posted      ₱-1,496,104.42   manager@gmail.com
+
+capital_build_up: 812 rows   coop total ₱30,232,587.77 (baseline restored)
+```
+
+Nothing was deleted. The original posting stays visible as `reversed`, the
+offsetting entry stays visible as `reversal`, and the ledger nets to zero.
+
+---
+
+### Six bugs found and fixed during verification
+
+None of these were visible from reading the code alone — each was found by
+running the feature against real data.
+
+**1. Stale starting balance** *(`isc_post`)* — the CBU row used the member's
+balance at *period end* rather than their current balance. On any back-dated
+posting (the normal case) this would silently break the running-balance chain,
+erasing every deposit made after the period. Measured: ₱16,400 and ₱23,600 lost
+on two live members.
+
+**2. Interest paid on interest** *(`isc_calculate_preview`)* — ISC rows from a
+previous posting counted as basis for the next. The overlap constraint cannot
+catch this because the month ranges genuinely do not overlap. Fixed with
+`AND cbu.source_isc_id IS NULL`.
+
+**3. NULL closing balance** *(`isc_calculate_preview`)* — a `period_end` that was
+not a month's final day returned NULL.
+
+**4. `posted_by` foreign key** *(`isc_postings`)* — **blocked posting entirely.**
+The column referenced `member(id)`, but it stores `auth.uid()`, and none of the
+six staff accounts have a member row under that id.
+
+**5. Double reversal** *(`isc_reverse`)* — a reversal row carries
+`status='posted'`, so the existing guard passed and a manager could have reversed
+a reversal, re-crediting ₱1.49M. Fixed with an explicit `reverses_posting_id`
+marker rather than inferring from a negative total.
+
+**6. Co-op total read one member's balance** *(modal)* — showed ₱185,543.13 and
+"+806% growth" instead of ₱30.2M and 5%. A direct `capital_build_up` read hit the
+member-level RLS policy instead of the staff one. Now derived from the preview
+rows, which come from a `SECURITY DEFINER` function.
+
+> Bugs 4 and 6 shared one root cause: **staff accounts have two identities** —
+> `member_account.user_id` (which is a member) and `auth_user_id` (which is not).
+> `auth.uid()` returns the second. Worth remembering for any future feature that
+> stores or filters by the acting user.
+
+---
+
+### Deployment order for a fresh database
+
+Run in the Supabase SQL editor, in this order:
+
+1. `is_cbu_staff_add_bookkeeper.sql` — without it the bookkeeper's RLS check
+   fails and their history view returns an empty list with no error
+2. `isc_dividend_schema.sql` — tables, functions, RLS, audit trigger
+3. `isc_fix_stale_balance.sql` — bugs 1, 2, 3
+4. `isc_fix_posted_by_fk.sql` — bug 4
+5. `isc_fix_double_reversal.sql` — bug 5
+
+All are idempotent and safe to re-run. Bug 6 is frontend-only, no SQL.
+
+> The schema file has been updated in place, so a fresh deploy of
+> `isc_dividend_schema.sql` already carries the bug-4 correction. The separate
+> fix files remain for databases where the original was already applied.
+
+---
+
+### Still open
+
+**The averaging formula is not confirmed with Romelyn.** Everything above proves
+the system computes *what we specified* — a month-end average over the chosen
+range, divided by the month count. It does not prove that is the formula the
+cooperative actually uses.
+
+It lives in one SQL function (`isc_calculate_preview`), so changing it is a
+single `CREATE OR REPLACE` with nothing else touched. **This should be confirmed
+before any posting is treated as final.**
+
+---
+
+## 0.5 How each person uses it — a walkthrough
+
+Four people touch this feature, and each sees something different. This section
+follows the whole cycle in order, as it happens in real life.
+
+---
+
+### 👤 The Bookkeeper — calculates and posts
+
+**Where:** Bookkeeper portal → **Capital Build-Up** → **ISC Calculator** button
+
+**Step 1 — Open the calculator.** A window appears with a progress strip across
+the top: `① Choose period → ② Review → ③ Confirm`, so the shape of the task is
+visible from the start.
+
+**Step 2 — Choose the period.** One question: *"Which period are you paying
+interest for?"* with two month pickers joined by "to".
+
+As soon as both are valid, the screen shows **`10 months`** and explains:
+
+> Each member's share capital will be averaged over these **10 months** — their
+> total across the period divided by 10.
+
+The earliest allowed start is **December 2025**. Earlier dates are refused,
+because the cooperative has no month-by-month records before then.
+
+**Step 3 — Enter the rate (optional here).** The rate can be left blank. The
+field explains why:
+
+> Leave blank to preview the members and total basis first — you can add the
+> rate before posting.
+
+This is useful when the General Assembly has not yet decided the percentage: the
+bookkeeper can still ask *"how much is our total share capital basis?"*
+
+**Step 4 — Click Calculate.** Nothing is saved. The database works out each
+member's average and returns the preview:
+
+| | |
+|---|---|
+| Period | Dec 2025 – Sep 2026 |
+| Months | 10 |
+| Rate | 5% |
+| Eligible Members | 263 |
+| Total Share Capital Basis | ₱29,922,087.77 |
+| **Total Interest** | **₱1,496,104.42** |
+| Cooperative share capital after posting | ₱31,728,692.19 (+5.00%) |
+
+Below that, every member with their **total share capital**, their **average
+share capital**, and their **interest**.
+
+The bookkeeper can go **Back**, change the rate, and recalculate as often as they
+like. Still nothing saved.
+
+**Step 5 — Confirm & Post.** A second window asks *"Are you sure?"* and repeats
+the numbers, including an amber panel:
+
+```
+EFFECT ON COOPERATIVE SHARE CAPITAL
+Before    ₱30,232,587.77
+After     ₱31,728,692.19
+Growth              +5.00%
+```
+
+> **The growth line is a typo guard.** A correct 5% shows about +5%. A mistyped
+> 50% would show about +50% — obvious at a glance, in a way a large peso figure
+> is not when every figure on screen is already in the millions.
+
+Clicking **Confirm & Post** writes everything in one go: the posting record, one
+line per member, one CBU entry per member, and the audit trail. If anything
+fails, none of it happens.
+
+---
+
+### 👥 The Members — see their balance grow
+
+Nothing to do. The next time a member opens their dashboard, their share capital
+is higher and a new entry appears in their history:
+
+```
+Killua F Zoldyck
+  Before                        ₱10,000.00
+  + INTEREST_ON_SHARE_CAPITAL   +   555.56
+  ─────────────────────────────────────────
+  New balance                   ₱10,555.56
+```
+
+The interest is **added to their share capital**, not paid out in cash. Their
+dashboard reads the figure from the database — nothing is faked on screen.
+
+---
+
+### 🧾 The Cashier — looks things up at the counter
+
+**Where:** Cashier portal → **Capital Build-Up** → **View Postings**
+
+The cashier has **no ISC Calculator**. When a member asks *"how much interest did
+I get?"*, they open View Postings and read what was actually paid.
+
+They cannot run new calculations at arbitrary rates — viewing a fact and
+computing a hypothetical are different things, and only the first is their job.
+
+The Capital Build-Up page itself also now shows three figures at the top —
+**total share capital**, **members with capital**, and **average per funded
+member** — so a single balance has context.
+
+---
+
+### 📋 The Treasurer — checks the bookkeeper's work
+
+**Where:** Treasurer portal → **ISC Postings**
+
+The treasurer is the bookkeeper's counterpart: the bookkeeper calculates, the
+treasurer checks. They see every posting and every member's breakdown, and they
+can post nothing, calculate nothing, and reverse nothing.
+
+---
+
+### 🛡️ The Manager — reverses a mistake
+
+**Where:** Manager portal → **ISC Postings**
+
+If the rate was wrong, only the **manager** can undo it — never the bookkeeper
+who posted it. That is deliberate: one person should not be able to move
+₱1.49 million and quietly move it back.
+
+Clicking **Reverse** requires a **written reason**. It cannot be left blank.
+
+**Nothing is deleted.** The system posts the opposite, like a refund receipt:
+
+| Entry | Rate | Amount | Status |
+|---|---|---|---|
+| Original posting | 5% | ₱1,496,104.42 | `reversed` |
+| Offsetting entry | 5% | −₱1,496,104.42 | `reversal` |
+
+Every member's balance returns to exactly what it was. Both rows stay visible, so
+anyone can see what happened, who did it, and why.
+
+A reversal **cannot itself be reversed** — it has no Reverse button, and the
+database refuses even if the request is made directly. To pay a corrected amount,
+the bookkeeper simply posts the period again at the right rate.
+
+---
+
+### The whole cycle, in one view
+
+```
+BOOKKEEPER                MEMBERS           TREASURER        MANAGER
+    │                        │                  │               │
+ Choose period               │                  │               │
+    │                        │                  │               │
+ Calculate ──► preview only  │                  │               │
+    │          nothing saved │                  │               │
+    │                        │                  │               │
+ Confirm & Post ─────────────┼──────────────────┼───────────────┤
+    │                        │                  │               │
+    │                   balance up          reviews         can reverse
+    │                        │              the work        with a reason
+    │                        │                  │               │
+    │                   balance back ◄──────────┼───────────────┘
+                                                        (nothing deleted)
+```
 
 ## 1. What the feature does
 
@@ -269,21 +537,48 @@ The modal is a single shared component rendered on both pages
 (`Bookkeeper_CBU.jsx:337` and `Cashier_CBU.jsx:275`). Rather than duplicating it,
 it takes a **`canPost`** prop:
 
-| Page | `canPost` | What the user sees |
+**"View" and "Calculate" are different things**, and the difference matters:
+
+| Action | What it means | Who |
 |---|---|---|
-| Bookkeeper | `true` | Full workflow: Calculate → Preview → Confirm & Post |
-| Cashier | `false` | Calculate and Preview only. No Post button. |
+| **Calculate** | Open the ISC modal and run a new calculation over any period and rate | Bookkeeper only |
+| **View** | Browse `IscPostingHistory` — the postings that were actually made, who made them, and what each member received | Bookkeeper, Treasurer, Manager, Cashier |
 
-On the cashier's copy the Post button is **not rendered at all** — not shown-and-
-disabled. A button that always fails is worse than no button; it invites the
-question "why is this broken?" A short line reading *"Posting is performed by the
-Bookkeeper"* explains the absence.
+So the Cashier CBU page carries a **View Postings** button and **no ISC
+Calculator**. A cashier answering a member at the counter needs to know what that
+member *was actually paid* — a historical fact — not to run speculative
+calculations at arbitrary rates.
 
-Everything else is identical. The cashier still sees the year, the rate, the
-eligible members, every member's average share capital, and the totals.
+> **Design note.** An earlier version of this document said the cashier could
+> "Calculate and Preview only, with no Post button", and the code was built that
+> way. That contradicted the table above and was wrong: with no stored preview,
+> Calculate *is* the only way to see anything, so "view but not calculate" was
+> unimplementable as written. Splitting the two — modal for calculating, history
+> for viewing — makes the permission real rather than nominal.
+
+The modal still takes a `canPost` prop. It stays `false` everywhere except the
+Bookkeeper page, because the interface guard is only a courtesy — `isc_post()`
+checks the caller's role itself regardless of which page called it.
 
 Reversal is a separate action on the manager's side and is not part of this
 modal — see §8.2.
+
+**Where each role exercises "View":**
+
+| Role | Page | Reversal |
+|---|---|---|
+| Bookkeeper | Capital Build-Up → *View Postings* | no |
+| Treasurer | **ISC Postings** (`/treasurer-isc`) | no |
+| Manager | ISC Postings (`/manager-isc`) | **yes** |
+| Cashier | Capital Build-Up → *View Postings* | no |
+
+The treasurer has a dedicated page because they are the bookkeeper's
+counterpart — the bookkeeper calculates and posts, the treasurer checks. They
+get the full posting history and per-member breakdown, and no way to post,
+calculate, or reverse.
+
+No database change was needed: `is_cbu_staff()` already allows *treasurer*, so
+the RLS policies on `isc_postings` and `isc_transactions` admit them for SELECT.
 
 ### The real guard is in the database
 
@@ -914,6 +1209,61 @@ on the deposit-ID convention.
   balance until real transactions accumulate.
 - **32 active members hold no CBU row at all** and would be excluded under
   `average > 0`. Worth confirming this is intended.
+
+### 11.4 ⛔ DO NOT USE `member.membership_date` — it is an import artifact
+
+**This field looks authoritative and is not. Do not build eligibility, tenure,
+or ISC rules on it.**
+
+#### The evidence
+
+| Check | Result |
+|---|---|
+| Members whose `membership_date` == `created_at` | **295 / 295** |
+| Distinct `membership_date` values across 295 members | **8** |
+| Members sharing 2026-04-23 (the bulk upload day) | **264** |
+| Members whose **first CBU row predates** their `membership_date` | **258** |
+
+That last row is the proof. 258 members hold share capital dated 2025-12-31 —
+*before* the date the system claims they joined. Impossible if the field were
+real. It records the day the row was inserted, nothing more.
+
+#### The real dates exist, but were lost in normalisation
+
+The cooperative's raw spreadsheet has a **"Date of Membership"** column with
+genuine values (07/17/2021, 07/13/2019 — long-standing members, as expected).
+
+`Normalized_Profiles.csv` carries a `DateJoined` column for it — **empty in all
+264 rows**. The column survived normalisation; the data did not. The raw
+spreadsheet is not in the repository.
+
+#### Why this matters for ISC — a bug that was proposed and rejected
+
+Filtering the averaging window by `membership_date <= month_end` looks obviously
+correct: don't pay a member for months before they joined. Applied to this data
+it would be **catastrophic**.
+
+Posting Dec 2025 – Dec 2026, the 264 members stamped 2026-04-23 would count as
+non-members for December through March. Their balances would read ₱0 for those
+four months, and nearly every long-standing member in the cooperative would be
+underpaid by roughly a third.
+
+**The current behaviour is correct precisely because it ignores this field.**
+The carry-in rule (§3) uses the imported 2025-12-31 balance for earlier months,
+which is right for someone who has been a member since 2019.
+
+> This is the same failure mode as `Normalized_Share_Capital.csv`'s `AsOfDate`
+> (§8.1.1): a column whose name promises more than its contents deliver. Both
+> were caught by checking the data rather than trusting the schema.
+
+#### To make the field usable
+
+Backfill it from the cooperative's raw membership spreadsheet, matching on name
+the way `import_share_capital.py` did. That import needed a review step for
+ambiguous matches, so this one would too — dry run first, then approve.
+
+Until that happens, treat `membership_date` as **unreliable**, and leave the ISC
+averaging window as it is.
 
 ### 11.3 Remaining open items
 
