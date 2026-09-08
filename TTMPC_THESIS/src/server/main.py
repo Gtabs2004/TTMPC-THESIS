@@ -289,6 +289,15 @@ class MembershipFormPdfRequest(BaseModel):
     other_income: str | None = None
 
 
+class LoanCoMaker(BaseModel):
+    name: str | None = None
+    id_type: str | None = None
+    id_no: str | None = None
+    address: str | None = None
+    email: str | None = None
+    mobile: str | None = None
+
+
 class LoanPdfRequest(BaseModel):
     application_type: str | None = None
     control_no: str | None = None
@@ -322,6 +331,10 @@ class LoanPdfRequest(BaseModel):
     borrower_id_number: str | None = None
     bonus_amount_words: str | None = None
     bonus_amount_numeric: str | None = None
+    # Co-Makers' Oath. Populated by staff during loan review (the member form
+    # doesn't collect co-makers), so these stay optional and render only when
+    # supplied. Index 0 is the first co-maker, index 1 the second.
+    co_makers: list[LoanCoMaker] = Field(default_factory=list)
 
 
 class ConsolidatedLoanPdfRequest(LoanPdfRequest):
@@ -9597,6 +9610,10 @@ def build_loan_pdf_response(
                 add_text(page_width * 0.48, footer_y, clean(payload.contact_no), 8.6)
                 add_wrapped_text(page_width * 0.58, footer_y, clean(payload.residence_address), page_width * 0.13, 8.6, 8.2, 2)
 
+                # The >500k template shifts the oath block, so pick the layout
+                # from the same threshold the endpoint uses to pick the template.
+                render_co_makers_oath(is_large_format=amount_number > 500000)
+
             def render_bonus_fields() -> None:
                 render_common_identity_fields()
                 add_wrapped_text(page_width * 0.245, page_height * 0.41, clean(payload.loan_amount_words), page_width * 0.24, 7.0, 8.2, 2)
@@ -9617,6 +9634,147 @@ def build_loan_pdf_response(
                 add_wrapped_text(page_width * 0.155, page_height * 0.36, loan_purpose_text(), page_width * 0.16, 7.0, 8.2, 2)
                 add_text(page_width * 0.255, page_height * 0.33, clean(payload.loan_term_months), 7.0)
                 add_text(page_width * 0.205, page_height * 0.31, format_amount(payload.monthly_amortization), 7.0)
+                render_emergency_co_makers()
+
+            def co_maker(index: int):
+                makers = payload.co_makers or []
+                return makers[index] if index < len(makers) else None
+
+            def render_co_makers_oath(is_large_format: bool) -> None:
+                """Co-Makers' Oath block on the right-hand column.
+
+                Two identical field groups stacked vertically. The oath's
+                opening sentence names both co-makers and the borrower; each
+                group below carries name/ID/address/email/mobile.
+                """
+                first = co_maker(0)
+                second = co_maker(1)
+                if not first and not second:
+                    return
+
+                first_name_text = clean(first.name) if first else ""
+                second_name_text = clean(second.name) if second else ""
+                borrower_name = " ".join(
+                    part for part in [clean(payload.first_name), clean(payload.middle_name), clean(payload.surname)] if part
+                )
+
+                # "We, ____ and ____, the co-makers oF ____ hereby..."
+                oath_y = page_height * (0.9099 if is_large_format else 0.8898)
+                add_text(page_width * 0.712, oath_y + 2, truncate_to_width(first_name_text, page_width * 0.085, 6.5), 6.5)
+                add_text(page_width * 0.850, oath_y + 2, truncate_to_width(second_name_text, page_width * 0.110, 6.5), 6.5)
+                add_text(
+                    page_width * 0.772,
+                    page_height * (0.8863 if is_large_format else 0.8663) + 2,
+                    truncate_to_width(borrower_name, page_width * 0.150, 6.5),
+                    6.5,
+                )
+
+                # Per-co-maker detail groups. Baselines differ between the
+                # standard A4 template and the >500k large-format one.
+                if is_large_format:
+                    # Signature rules sit at .6448/.5407 (the .63/.51 values are
+                    # the captions below them). Email/mobile/residence live in a
+                    # separate "Co-maker's Additional Information" table here,
+                    # not on this block, so those slots stay unused.
+                    groups = [(0.6448, 0.6082, 0.5864, None, None, None), (0.5407, 0.4882, 0.4664, None, None, None)]
+                else:
+                    groups = [
+                        (0.6253, 0.5833, 0.5558, 0.5282, 0.5027, 0.4772),
+                        (0.4288, 0.3878, 0.3603, 0.3327, 0.3072, 0.2817),
+                    ]
+
+                for index, rows in enumerate(groups):
+                    maker = co_maker(index)
+                    if not maker:
+                        continue
+
+                    name_y, id_type_y, id_no_y, address_y, email_y, mobile_y = rows
+
+                    # Signature-over-printed-name line sits just above its caption.
+                    add_text(
+                        page_width * 0.700,
+                        page_height * name_y + 3,
+                        truncate_to_width(clean(maker.name), page_width * 0.230, 7.0),
+                        7.0,
+                    )
+                    add_text(
+                        page_width * (0.860 if is_large_format else 0.836),
+                        page_height * id_type_y,
+                        truncate_to_width(clean(maker.id_type), page_width * (0.080 if is_large_format else 0.105), 6.5),
+                        6.5,
+                    )
+                    add_text(
+                        page_width * (0.790 if is_large_format else 0.780),
+                        page_height * id_no_y,
+                        truncate_to_width(clean(maker.id_no), page_width * 0.150, 6.5),
+                        6.5,
+                    )
+
+                    if address_y is not None:
+                        add_text(
+                            page_width * 0.822,
+                            page_height * address_y,
+                            truncate_to_width(clean(maker.address), page_width * 0.122, 6.5),
+                            6.5,
+                        )
+                    if email_y is not None:
+                        add_text(
+                            page_width * 0.790,
+                            page_height * email_y,
+                            truncate_to_width(clean(maker.email), page_width * 0.155, 6.5),
+                            6.5,
+                        )
+                    if mobile_y is not None:
+                        add_text(
+                            page_width * 0.793,
+                            page_height * mobile_y,
+                            truncate_to_width(clean(maker.mobile), page_width * 0.150, 6.5),
+                            6.5,
+                        )
+
+                if is_large_format:
+                    render_co_maker_additional_info()
+
+            def render_co_maker_additional_info() -> None:
+                """Large-format template only: the 4-column Co-Maker's
+                Additional Information table (Name / E-mail / Tel.-Mobile /
+                Residence). The standard A4 oath carries these inline instead.
+                """
+                columns = (
+                    (0.690, 0.085, lambda m: clean(m.name)),
+                    (0.780, 0.062, lambda m: clean(m.email)),
+                    (0.848, 0.055, lambda m: clean(m.mobile)),
+                    (0.905, 0.072, lambda m: clean(m.address)),
+                )
+                # Two data rows between the header (~0.3696) and the notary block (~0.2806).
+                for index, row_y in enumerate((0.3400, 0.3110)):
+                    maker = co_maker(index)
+                    if not maker:
+                        continue
+                    for col_x, col_width, getter in columns:
+                        add_text(
+                            page_width * col_x,
+                            page_height * row_y,
+                            truncate_to_width(getter(maker), page_width * col_width, 5.8),
+                            5.8,
+                        )
+
+            def render_emergency_co_makers() -> None:
+                """Emergency loans use a Deed of Assignment instead of the oath.
+
+                It has only two co-maker signature lines (printed name), no
+                ID/address/email fields.
+                """
+                for index, name_y in enumerate((0.2104, 0.0864)):
+                    maker = co_maker(index)
+                    if not maker:
+                        continue
+                    add_text(
+                        page_width * 0.700,
+                        page_height * name_y + 12,
+                        truncate_to_width(clean(maker.name), page_width * 0.250, 7.5),
+                        7.5,
+                    )
 
             if loan_kind == "consolidated":
                 render_consolidated_fields()
