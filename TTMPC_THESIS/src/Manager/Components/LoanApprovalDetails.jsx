@@ -2,6 +2,7 @@
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '../../supabaseClient';
 import { formatTinNumber } from '../../LOANFORMS/tinFormat';
+import { printLoanApplicationForm } from '../../LOANFORMS/staffLoanPrint';
 import { useMigsLabel, getMigsBadgeClasses } from '../../hooks/useMigsLabel';
 import ConfirmDialog from '../../components/ConfirmDialog';
 import { useNotification } from '../../contex/NotificationContext';
@@ -23,6 +24,7 @@ import {
   RefreshCw,
   Info,
   ClipboardCheck,
+  Printer,
   Briefcase,
   Banknote,
   Wallet,
@@ -142,6 +144,7 @@ const LoanApprovalDetails = () => {
   const [riskLoading, setRiskLoading] = useState(false);
   const [riskError, setRiskError] = useState('');
   const [revisionResetDone, setRevisionResetDone] = useState(false);
+  const [printing, setPrinting] = useState(false);
 
   // Load collateral rows for this loan. Bookkeeper can edit appraised_value;
   // Manager/BOD see read-only.
@@ -394,6 +397,7 @@ const LoanApprovalDetails = () => {
               bookkeeper_reviewed_at,
               manager_review_requested_at,
               loan_type_code,
+              application_date,
               raw_payload
             `)
             .eq('control_number', id)
@@ -418,6 +422,7 @@ const LoanApprovalDetails = () => {
               bookkeeper_internal_remarks,
               bookkeeper_reviewed_at,
               manager_review_requested_at,
+              application_date,
               raw_payload,
               loan_purpose,
               source_of_income,
@@ -552,6 +557,7 @@ const LoanApprovalDetails = () => {
           id: data.control_number,
           sourceTable: tableName,
           rawPayload: data.raw_payload || {},
+          applicationDate: data.application_date || null,
           memberName,
           status: formatStatus(data.loan_status || data.application_status),
           borrowerMemberId: data.member?.id || data.member_id || null,
@@ -645,6 +651,22 @@ const LoanApprovalDetails = () => {
       isMounted = false;
     };
   }, [id]);
+
+  // Reprint the borrower's original application form. Same backend templates
+  // the member portal uses; personal data is re-read from the PDS because
+  // raw_payload doesn't carry it.
+  const handlePrintApplicationForm = async () => {
+    if (!loanDetails || printing) return;
+    setPrinting(true);
+    try {
+      await printLoanApplicationForm(loanDetails, coMakerDetails);
+    } catch (err) {
+      console.error('Loan form print failed:', err);
+      addNotification(`Print error: ${err.message}`, 'error');
+    } finally {
+      setPrinting(false);
+    }
+  };
 
   const handleRunRiskAssessment = async () => {
     if (!id) return;
@@ -1394,10 +1416,24 @@ const LoanApprovalDetails = () => {
                 <span className="font-bold text-gray-800">{loanDetails.summary.recommendedAmount}</span>
               </div>
             </div>
-            <span className="bg-[#FEF08A] text-[#854D0E] px-3 py-1 rounded-full text-xs font-bold flex items-center shrink-0">
-              <span className="w-1.5 h-1.5 rounded-full bg-[#EAB308] mr-1.5"></span>
-              {loanDetails.status}
-            </span>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={handlePrintApplicationForm}
+                disabled={printing}
+                title="Open the filled application form as a printable PDF"
+                className="inline-flex items-center gap-1.5 rounded-full border border-member-green px-3 py-1 text-xs font-bold text-member-green hover:bg-green-50 disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {printing
+                  ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  : <Printer className="w-3.5 h-3.5" />}
+                {printing ? 'Preparing PDF...' : 'Print Form'}
+              </button>
+              <span className="bg-[#FEF08A] text-[#854D0E] px-3 py-1 rounded-full text-xs font-bold flex items-center">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#EAB308] mr-1.5"></span>
+                {loanDetails.status}
+              </span>
+            </div>
           </div>
 
           {/* Workflow steps */}
