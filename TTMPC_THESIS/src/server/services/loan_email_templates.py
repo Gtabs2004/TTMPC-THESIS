@@ -7,9 +7,16 @@ used on free-form fields (remarks) before reaching the template.
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 from html import escape
 from typing import Literal
+
+# Same shared header banner referenced in main.py and applicationConfirmation.py
+# — one static frontend asset rather than three copies. Save the exported PNG
+# to TTMPC_THESIS/public/assets/img/ttmpc-email-banner.png to make it live.
+_FRONTEND_BASE_URL = os.environ.get("FRONTEND_BASE_URL", "http://localhost:5173").rstrip("/")
+EMAIL_BANNER_URL = f"{_FRONTEND_BASE_URL}/assets/img/ttmpc-email-banner.png"
 
 Stage = Literal["bookkeeper", "manager", "treasurer"]
 Action = Literal[
@@ -103,44 +110,66 @@ def render_member_email(ctx: LoanEmailContext) -> tuple[str, str]:
             </div>
         """
 
-    html = f"""
-    <div style="background:#f8fafc;padding:32px 12px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
-        <div style="max-width:600px;margin:0 auto;background:#ffffff;border-radius:14px;overflow:hidden;border:1px solid #e2e8f0;box-shadow:0 2px 12px rgba(0,0,0,0.03);">
-            <div style="background:#389734;padding:24px 32px;">
-                <p style="color:#D3ECD2;font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;margin:0 0 6px 0;">TTMPC Loan Portal</p>
-                <h1 style="color:#ffffff;margin:0;font-size:20px;font-weight:700;">{safe_stage}</h1>
+    subject = member_email_subject(ctx.stage, ctx.action, ctx.loan_id)
+
+    # Wrapped in a full HTML document (doctype, head, viewport meta) to match
+    # the membership-application templates in applicationConfirmation.py and
+    # main.py — a bare fragment renders fine in Gmail but is unreliable in
+    # Outlook desktop, which needs the full document shell to pick up styles.
+    html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="color-scheme" content="light" />
+<title>{escape(subject)}</title>
+</head>
+<body style="margin:0;padding:0;background-color:#f8fafc;color:#0f172a;">
+  <div style="display:none;max-height:0;overflow:hidden;opacity:0;">
+    Your loan application {safe_loan_id} status: {safe_status}.
+  </div>
+  <div style="background:#f8fafc;padding:32px 12px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+    <div style="max-width:600px;margin:0 auto;background:#ffffff;border-radius:14px;overflow:hidden;border:1px solid #e2e8f0;box-shadow:0 2px 12px rgba(0,0,0,0.03);">
+        <div style="line-height:0;">
+            <img src="{EMAIL_BANNER_URL}" width="600" alt="Tubungan Teachers' Multi-Purpose Cooperative"
+                 style="display:block;width:100%;max-width:600px;height:auto;border:0;" />
+        </div>
+        <div style="padding:14px 32px 0 32px;text-align:center;">
+            <p style="color:#64748b;font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;margin:0 0 4px 0;">TTMPC Loan Portal</p>
+            <h1 style="color:#2E7A2A;margin:0;font-size:18px;font-weight:700;">{safe_stage}</h1>
+        </div>
+        <div style="padding:20px 32px 32px 32px;">
+            <p style="font-size:15px;color:#334155;margin:0 0 8px 0;">Hello <strong>{safe_member}</strong>,</p>
+            <p style="font-size:14px;color:#64748b;line-height:1.6;margin:0 0 24px 0;">
+                This is an official notification regarding the status of your loan application.
+            </p>
+            <div style="text-align:center;padding:24px;background:#f1f5f9;border-radius:10px;border:1px dashed #cbd5e1;">
+                <span style="font-size:12px;color:#64748b;text-transform:uppercase;letter-spacing:1px;">Current Status</span>
+                <div style="margin-top:8px;font-size:22px;font-weight:800;color:{color};letter-spacing:-0.4px;">{safe_status}</div>
             </div>
-            <div style="padding:32px;">
-                <p style="font-size:15px;color:#334155;margin:0 0 8px 0;">Hello <strong>{safe_member}</strong>,</p>
-                <p style="font-size:14px;color:#64748b;line-height:1.6;margin:0 0 24px 0;">
-                    This is an official notification regarding the status of your loan application.
-                </p>
-                <div style="text-align:center;padding:24px;background:#f1f5f9;border-radius:10px;border:1px dashed #cbd5e1;">
-                    <span style="font-size:12px;color:#64748b;text-transform:uppercase;letter-spacing:1px;">Current Status</span>
-                    <div style="margin-top:8px;font-size:22px;font-weight:800;color:{color};letter-spacing:-0.4px;">{safe_status}</div>
-                </div>
-                <table style="width:100%;margin-top:24px;border-collapse:collapse;font-size:13px;color:#334155;">
-                    <tr><td style="padding:6px 0;color:#64748b;">Loan Control No.</td><td style="padding:6px 0;text-align:right;font-weight:600;">{safe_loan_id}</td></tr>
-                    <tr><td style="padding:6px 0;color:#64748b;">Loan Type</td><td style="padding:6px 0;text-align:right;font-weight:600;">{safe_loan_type}</td></tr>
-                    <tr><td style="padding:6px 0;color:#64748b;">Amount Applied</td><td style="padding:6px 0;text-align:right;font-weight:600;">{safe_amount}</td></tr>
-                </table>
-                {remarks_block}
-                <p style="margin-top:28px;font-size:14px;color:#475569;line-height:1.6;">
-                    You may log in to the TTMPC member portal to view the full status of your application.
-                    If you have questions, please contact the cooperative office.
-                </p>
-                <div style="margin-top:32px;padding-top:20px;border-top:1px solid #f1f5f9;">
-                    <p style="margin:0;font-size:13px;font-weight:700;color:#0f172a;">TTMPC Loan Validation Office</p>
-                    <p style="margin:2px 0 0 0;font-size:12px;color:#94a3b8;">Bookkeeper · Manager · Treasurer Approval Chain</p>
-                </div>
-            </div>
-            <div style="background:#f8fafc;padding:16px;text-align:center;font-size:11px;color:#94a3b8;border-top:1px solid #e2e8f0;">
-                Automated message — please do not reply directly.
+            <table style="width:100%;margin-top:24px;border-collapse:collapse;font-size:13px;color:#334155;">
+                <tr><td style="padding:6px 0;color:#64748b;">Loan Control No.</td><td style="padding:6px 0;text-align:right;font-weight:600;">{safe_loan_id}</td></tr>
+                <tr><td style="padding:6px 0;color:#64748b;">Loan Type</td><td style="padding:6px 0;text-align:right;font-weight:600;">{safe_loan_type}</td></tr>
+                <tr><td style="padding:6px 0;color:#64748b;">Amount Applied</td><td style="padding:6px 0;text-align:right;font-weight:600;">{safe_amount}</td></tr>
+            </table>
+            {remarks_block}
+            <p style="margin-top:28px;font-size:14px;color:#475569;line-height:1.6;">
+                You may log in to the TTMPC member portal to view the full status of your application.
+                If you have questions, please contact the cooperative office.
+            </p>
+            <div style="margin-top:32px;padding-top:20px;border-top:1px solid #f1f5f9;">
+                <p style="margin:0;font-size:13px;font-weight:700;color:#0f172a;">TTMPC Loan Validation Office</p>
+                <p style="margin:2px 0 0 0;font-size:12px;color:#94a3b8;">Bookkeeper &middot; Manager &middot; Treasurer Approval Chain</p>
             </div>
         </div>
+        <div style="background:#f8fafc;padding:16px;text-align:center;font-size:11px;color:#94a3b8;border-top:1px solid #e2e8f0;">
+            Automated message. Please do not reply directly.
+        </div>
     </div>
-    """
-    return member_email_subject(ctx.stage, ctx.action, ctx.loan_id), html
+  </div>
+</body>
+</html>"""
+    return subject, html
 
 
 def render_next_approver_email(ctx: LoanEmailContext, approver_role: str) -> tuple[str, str]:
@@ -154,7 +183,15 @@ def render_next_approver_email(ctx: LoanEmailContext, approver_role: str) -> tup
     safe_role = escape(approver_role)
 
     subject = f"[Action Needed] Loan {ctx.loan_id} ready for {approver_role} review"
-    html = f"""
+    html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="color-scheme" content="light" />
+<title>{escape(subject)}</title>
+</head>
+<body style="margin:0;padding:0;background-color:#f8fafc;color:#0f172a;">
     <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;padding:24px;background:#f8fafc;">
         <div style="max-width:560px;margin:0 auto;background:#ffffff;border:1px solid #e2e8f0;border-radius:12px;padding:28px;">
             <p style="margin:0 0 4px 0;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#2E7A2A;font-weight:700;">TTMPC Loan Workflow</p>
@@ -170,7 +207,8 @@ def render_next_approver_email(ctx: LoanEmailContext, approver_role: str) -> tup
             </table>
         </div>
     </div>
-    """
+</body>
+</html>"""
     return subject, html
 
 

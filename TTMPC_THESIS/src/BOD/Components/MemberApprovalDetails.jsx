@@ -5,6 +5,8 @@ import {
   Download, User, Users, Contact, Briefcase,
   CheckCircle2, AlertCircle, Wallet,
 } from 'lucide-react';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import { supabase } from '../../supabaseClient';
 import { formatTinNumber } from '../../LOANFORMS/tinFormat';
 
@@ -166,6 +168,132 @@ const MemberApprovalDetails = () => {
       row: memberRow,
     };
   }, [memberRow]);
+
+  // jsPDF's built-in Helvetica font has no ₱ (U+20B1) glyph — it silently
+  // substitutes a fallback character, which is why exported PDFs would show
+  // "±" wherever a peso amount belongs. Use "PHP " for anything written into
+  // the PDF instead. Same pattern already used in Reports.jsx and
+  // Member_StatementOfAccount.jsx's PDF exports.
+  const formatCurrencyPdf = (value) => {
+    const num = Number(value);
+    if (!Number.isFinite(num)) return 'N/A';
+    return `PHP ${num.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  };
+
+  const handleExportPdf = () => {
+    if (!member) return;
+
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    const pageW = doc.internal.pageSize.getWidth();
+    const pageH = doc.internal.pageSize.getHeight();
+    const margin = 14;
+
+    // Header bar
+    doc.setFillColor(29, 96, 33);
+    doc.rect(0, 0, pageW, 28, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(16);
+    doc.setFont('helvetica', 'bold');
+    doc.text('TTMPC — Membership Application', pageW / 2, 12, { align: 'center' });
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    doc.text("Tubungan Teachers' Multi-Purpose Cooperative", pageW / 2, 19, { align: 'center' });
+    doc.text(`Generated: ${new Date().toLocaleString('en-PH')}`, pageW / 2, 25, { align: 'center' });
+
+    let y = 36;
+
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(29, 96, 33);
+    doc.text(member.name, margin, y);
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(80, 80, 80);
+    doc.text(`Status: ${member.status}`, pageW - margin, y, { align: 'right' });
+    y += 6;
+    doc.text(`Reference: ${member.id}   •   Submitted: ${member.date}`, margin, y);
+    y += 8;
+
+    // Renders one "Field / Value" section table, adding a page break first
+    // if the section header wouldn't fit above the bottom margin.
+    const section = (title, rows) => {
+      if (y > pageH - 40) {
+        doc.addPage();
+        y = 20;
+      }
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(29, 96, 33);
+      doc.text(title.toUpperCase(), margin, y);
+      y += 4;
+
+      autoTable(doc, {
+        startY: y,
+        body: rows,
+        theme: 'grid',
+        styles: { fontSize: 9, cellPadding: 4, textColor: [30, 41, 59] },
+        columnStyles: {
+          0: { fontStyle: 'bold', cellWidth: 55, textColor: [90, 90, 90] },
+          1: { cellWidth: 'auto' },
+        },
+        margin: { left: margin, right: margin },
+      });
+
+      y = doc.lastAutoTable.finalY + 10;
+    };
+
+    section('Personal Information', [
+      ['Surname', member.surname],
+      ['First Name', member.firstName],
+      ['Middle Name', member.middleName],
+      ['Gender', member.gender],
+      ['Civil Status', member.civilStatus],
+      ['Date of Birth', member.dob],
+      ['Age', member.age],
+      ['Place of Birth', member.birthPlace],
+      ['Citizenship', member.citizenship],
+      ['Religion', member.religion],
+      ['Height / Weight', member.heightWeight],
+      ['Blood Type', member.bloodType],
+      ['Tax Identification Number (TIN)', member.tin],
+    ]);
+
+    section('Family Information', [
+      ['Maiden Name', member.maidenName],
+      ['Name of Spouse', member.spouseName],
+      ["Spouse's Occupation", member.spouseOccupation],
+      ['Number of Dependents', member.dependents],
+    ]);
+
+    section('Contact & Address Details', [
+      ['Permanent Address', member.address],
+      ['Contact Number', member.contact],
+      ['Email Address', member.email],
+    ]);
+
+    section('Educational & Employment Information', [
+      ['Educational Attainment', member.education],
+      ['Occupation / Income Source', member.occupation],
+      ['Position', member.position],
+      ['Annual Income', formatCurrencyPdf(member.annualIncome)],
+      ['Other Source of Income', member.otherIncomeSource],
+    ]);
+
+    if (member.status === 'Training' && paymentStatus) {
+      const requiredPaidUp = Number(paymentStatus.required_paid_up_capital ?? 10000);
+      const currentPaidUp = Number(paymentStatus.paid_up_capital_amount ?? 0);
+      section('Payment Verification', [
+        ['Membership Fee', paymentStatus.membership_fee_paid ? 'Paid' : 'Unpaid'],
+        [
+          'Initial Paid-Up Capital',
+          `${formatCurrencyPdf(currentPaidUp)} / ${formatCurrencyPdf(requiredPaidUp)}`,
+        ],
+      ]);
+    }
+
+    const safeName = (member.name || 'applicant').replace(/[^a-z0-9]+/gi, '_');
+    doc.save(`Membership_Application_${safeName}_${member.id}.pdf`);
+  };
 
   const getProceedConfig = (status) => {
     if (status === 'Pending') return { title: 'Proceed to Training', nextStatus: 'Training', button: 'Proceed to Training' };
@@ -414,8 +542,11 @@ const MemberApprovalDetails = () => {
             Application Submitted: <span className="text-gray-900">{member.date}</span> • Ref: <span className="text-gray-900">{member.id}</span>
           </div>
         </div>
-        <button className="flex items-center gap-2 px-4 py-2 border border-gray-200 bg-white text-gray-700 font-semibold rounded-lg text-sm shadow-sm hover:bg-gray-50 transition-colors">
-          <Download className="w-4 h-4" /> Export Application as PDF
+        <button
+          onClick={handleExportPdf}
+          className="flex items-center gap-2 px-4 py-2 border border-gray-200 bg-white text-gray-700 font-semibold rounded-lg text-sm shadow-sm hover:bg-gray-50 transition-colors cursor-pointer"
+        >
+          <Download className="w-4 h-4 " /> Export Application as PDF
         </button>
       </div>
 

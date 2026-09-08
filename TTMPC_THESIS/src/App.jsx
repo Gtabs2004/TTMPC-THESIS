@@ -14,7 +14,6 @@ import {
   ChevronLeft,
   ChevronRight,
   FileText,
-  Sparkles,
   PieChart
 } from 'lucide-react';
 
@@ -77,27 +76,37 @@ function Reveal({ children, className = '', delayMs = 0 }) {
   );
 }
 
-function FeatureCard({ icon, title, description, tinted = false }) {
+// Community-list row used by the "Core Cooperative Services" and "Run With
+// the Discipline..." sections — icon + title + description, no card chrome.
+// Kept as one shared component so both sections read as the same language.
+function IconListItem({ icon, title, description, tag, ctaTo, ctaLabel }) {
   return (
-    <div
-      className={`p-8 rounded-3xl shadow-sm hover:shadow-xl hover:shadow-green-900/5 transition-all duration-300 border group relative overflow-hidden flex flex-col h-full transform hover:-translate-y-1 cursor-default ${
-        tinted ? 'bg-gradient-to-br from-[#E9F7DE] to-white border-green-100' : 'bg-white border-gray-100'
-      }`}
-    >
-      <div className="absolute top-0 left-0 w-full h-1 bg-primary opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-      <div
-        className={`w-14 h-14 rounded-xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300 shadow-sm ${
-          tinted ? 'bg-white text-primary' : 'bg-gradient-to-br from-[#E9F7DE] to-white border border-green-100 text-primary'
-        }`}
-      >
+    <div className="group flex items-start gap-5 md:gap-6 py-6 md:py-7">
+      <div className="w-12 h-12 md:w-14 md:h-14 shrink-0 rounded-full bg-gradient-to-br from-[#E9F7DE] to-white border border-green-100 text-primary flex items-center justify-center group-hover:bg-primary group-hover:text-white group-hover:scale-110 group-hover:border-primary transition-all duration-300">
         {icon}
       </div>
-      <h3 className="text-xl font-bold text-gray-900 mb-3 group-hover:text-primary transition-colors duration-300">
-        {title}
-      </h3>
-      <p className="text-gray-600 leading-relaxed text-sm md:text-base flex-grow">
-        {description}
-      </p>
+      <div className="flex-1 min-w-0">
+        <div className="flex flex-wrap items-center gap-3 mb-1.5">
+          <h4 className="text-lg md:text-xl font-bold text-gray-900 group-hover:text-primary-deep transition-colors duration-300">
+            {title}
+          </h4>
+          {tag && (
+            <span className="text-[11px] font-bold uppercase tracking-wider text-primary-deep bg-[#E9F7DE] px-3 py-1 rounded-full shrink-0">
+              {tag}
+            </span>
+          )}
+        </div>
+        <p className="text-gray-600 leading-relaxed text-sm md:text-base max-w-[60ch]">
+          {description}
+        </p>
+        {ctaTo && (
+          <div className="mt-4">
+            <Button to={ctaTo} variant="secondary" className="px-6 py-2 text-sm">
+              {ctaLabel}
+            </Button>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -380,51 +389,30 @@ function App() {
             <p className="text-gray-600 max-w-2xl mx-auto text-lg">We offer a variety of financial products designed to build your savings and support your goals.</p>
           </Reveal>
 
-          <div className="grid md:grid-cols-3 gap-6 items-center text-left max-w-6xl mx-auto">
+          <div className="max-w-3xl mx-auto divide-y divide-gray-100">
             <Reveal>
-              <div className="bg-white p-8 md:p-10 rounded-3xl border border-gray-100 shadow-xl shadow-gray-200/40 hover:-translate-y-2 transition-transform duration-300 relative z-0">
-                <div className="w-14 h-14 bg-gradient-to-br from-[#E9F7DE] to-white border border-green-100 rounded-2xl flex items-center justify-center text-primary mb-8 shadow-sm">
-                  <Wallet strokeWidth={2} className="w-7 h-7" />
-                </div>
-                <h4 className="text-xl font-bold text-gray-900 mb-4">Savings & Deposits</h4>
-                <p className="text-gray-600 leading-relaxed text-sm md:text-base">
-                  Two dedicated ways to save: a regular passbook account, and Share Capital (CBU) that builds real equity in the cooperative you co-own.
-                </p>
-              </div>
+              <IconListItem
+                icon={<Wallet strokeWidth={2} className="w-6 h-6 md:w-7 md:h-7" />}
+                title="Savings & Deposits"
+                description="Two dedicated ways to save: a regular passbook account, and Share Capital (CBU) that builds real equity in the cooperative you co-own."
+              />
             </Reveal>
 
-            <Reveal delayMs={150}>
-              <div className="bg-gradient-to-b from-primary-deep to-[#1B4A18] p-10 md:p-12 rounded-3xl shadow-2xl shadow-green-900/30 transform md:-translate-y-6 hover:-translate-y-8 transition-transform duration-300 relative z-10 border border-primary/40">
-                <div className="flex justify-between items-start mb-8">
-                  <div className="w-14 h-14 bg-white rounded-2xl flex items-center justify-center text-primary shadow-lg">
-                    <Landmark strokeWidth={2} className="w-7 h-7" />
-                  </div>
-                  <span className="bg-black/25 text-white text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider backdrop-blur-sm">
-                    Core Service
-                  </span>
-                </div>
-                <h4 className="text-2xl font-bold text-white mb-4">Loan Programs</h4>
-                <p className="text-white/90 leading-relaxed text-sm md:text-base mb-8">
-                  3 loan programs built around real needs: Emergency, Consolidated, and Bonus, tailored to your immediate financial needs.
-                </p>
-                <div className="w-full h-[1px] bg-white/20 mb-6"></div>
-                <div className="text-white/90 text-sm font-medium flex items-center">
-                  <Sparkles className="w-4 h-4 mr-2 text-[#E9F7DE]" />
-                  Now powered by smart approvals
-                </div>
-              </div>
+            <Reveal delayMs={100}>
+              <IconListItem
+                icon={<Landmark strokeWidth={2} className="w-6 h-6 md:w-7 md:h-7" />}
+                title="Loan Programs"
+                tag="Core Service"
+                description="3 loan programs built around real needs: Emergency, Consolidated, and Bonus, tailored to your immediate financial needs."
+              />
             </Reveal>
 
-            <Reveal delayMs={300}>
-              <div className="bg-white p-8 md:p-10 rounded-3xl border border-gray-100 shadow-xl shadow-gray-200/40 hover:-translate-y-2 transition-transform duration-300 relative z-0">
-                <div className="w-14 h-14 bg-gradient-to-br from-[#E9F7DE] to-white border border-green-100 rounded-2xl flex items-center justify-center text-primary mb-8 shadow-sm">
-                  <HeartHandshake strokeWidth={2} className="w-7 h-7" />
-                </div>
-                <h4 className="text-xl font-bold text-gray-900 mb-4">Member Benefits</h4>
-                <p className="text-gray-600 leading-relaxed text-sm md:text-base">
-                  Become a co-owner for a ₱100 membership fee, build toward ₱10,000 in paid-up capital over time, and enjoy annual dividends and patronage refunds along the way.
-                </p>
-              </div>
+            <Reveal delayMs={200}>
+              <IconListItem
+                icon={<HeartHandshake strokeWidth={2} className="w-6 h-6 md:w-7 md:h-7" />}
+                title="Member Benefits"
+                description="Become a co-owner for a ₱100 membership fee, build toward ₱10,000 in paid-up capital over time, and enjoy annual dividends and patronage refunds along the way."
+              />
             </Reveal>
           </div>
         </div>
@@ -441,77 +429,55 @@ function App() {
               Behind every deposit and loan is a modern system that keeps our books accurate, our approvals fair, and our officers accountable to you.
             </p>
           </Reveal>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <Reveal className="md:col-span-2">
-              <div className="bg-gray-900 rounded-3xl p-8 md:p-12 shadow-lg border border-gray-800 flex flex-col md:flex-row items-center gap-8 group hover:-translate-y-1 transition-transform duration-300">
-                <div className="flex-1 text-left">
-                  <div className="w-14 h-14 bg-gray-800 border border-gray-700 text-primary rounded-xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300">
-                    <Brain strokeWidth={2} className="w-7 h-7" />
-                  </div>
-                  <h3 className="text-2xl font-bold text-white mb-4">Data-Driven Loan Screening</h3>
-                  <p className="text-gray-400 leading-relaxed md:text-lg mb-6">
-                    Every application is weighed against real repayment history, not guesswork or favoritism, so approvals stay fair and consistent for every member.
-                  </p>
-                  <div className="inline-flex items-center text-primary-deep font-medium text-sm">
-                    <Sparkles className="w-4 h-4 mr-2" /> Backed by real payment data, not guesswork
-                  </div>
-                </div>
-                <div className="flex-1 w-full mt-6 md:mt-0">
-                  <div className="aspect-video bg-gray-800 border border-gray-700 rounded-xl flex flex-col items-center justify-center gap-4 overflow-hidden relative">
-                    <div className="absolute inset-0 bg-[linear-gradient(to_right,#4f4f4f1a_1px,transparent_1px),linear-gradient(to_bottom,#4f4f4f1a_1px,transparent_1px)] bg-[size:14px_14px]"></div>
-                    <div className="relative z-10 w-14 h-14 bg-gray-900 border border-gray-700 text-primary rounded-xl flex items-center justify-center">
-                      <TrendingUp strokeWidth={2} className="w-7 h-7" />
-                    </div>
-                    <p className="relative z-10 text-gray-500 text-xs font-medium tracking-wide">Live analytics preview coming soon</p>
-                  </div>
-                </div>
-              </div>
-            </Reveal>
-            <Reveal className="md:col-span-1" delayMs={100}>
-              <FeatureCard
-                icon={<PieChart className="w-7 h-7" strokeWidth={2}/>}
-                title="Real-Time Financial Oversight"
-                description="Officers see the cooperative's full financial position at all times, so your contributions are never mismanaged or misplaced."
-              />
-            </Reveal>
-            <Reveal className="md:col-span-1" delayMs={200}>
-              <FeatureCard
-                icon={<CreditCard className="w-7 h-7" strokeWidth={2}/>}
-                title="Standardized Loan Rules"
-                description="Every application runs through the same eligibility checks and amortization schedule, so every member is evaluated by the same rules."
-              />
-            </Reveal>
-            <Reveal className="md:col-span-1" delayMs={300}>
-              <FeatureCard
-                icon={<Users className="w-7 h-7" strokeWidth={2}/>}
-                title="Your Full Record, One Place"
-                description="Your profile, capital contributions, and complete loan history live in one secure record, not scattered paper files."
-                tinted
-              />
-            </Reveal>
-            <Reveal className="md:col-span-1" delayMs={400}>
-              <FeatureCard
-                icon={<TrendingUp className="w-7 h-7" strokeWidth={2}/>}
-                title="Funds Ready When You Need Them"
-                description="We plan ahead for seasonal loan demand, so the cooperative isn't caught short when members need funds most."
-              />
-            </Reveal>
-            <Reveal className="md:col-span-3" delayMs={500}>
-              <div className="bg-white rounded-3xl p-8 md:p-10 shadow-sm border border-gray-100 flex flex-col md:flex-row items-center gap-8 group hover:shadow-xl hover:shadow-green-900/5 hover:-translate-y-1 transition-all duration-300">
-              <div className="w-16 h-16 shrink-0 bg-gradient-to-br from-[#E9F7DE] to-white border border-green-100 text-primary rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
-                <FileText strokeWidth={2} className="w-8 h-8" />
-              </div>
-              <div className="flex-1 text-center md:text-left">
-                <h3 className="text-2xl font-bold text-gray-900 mb-3 group-hover:text-primary transition-colors duration-300">Full Transparency to the Board</h3>
-                <p className="text-gray-600 leading-relaxed md:text-lg max-w-4xl">
-                  The Board reviews accurate, board-ready financial reports every cycle, so your cooperative's finances stay fully accountable.
-                </p>
-              </div>
-              <div className="shrink-0 mt-4 md:mt-0">
-                 <Button to="/role_selection" variant="secondary" className="px-8">See Our Reports</Button>
-              </div>
-              </div>
-            </Reveal>
+          <div className="grid md:grid-cols-2 gap-x-12 max-w-5xl mx-auto">
+            <div className="divide-y divide-gray-200 md:pr-8">
+              <Reveal>
+                <IconListItem
+                  icon={<Brain strokeWidth={2} className="w-6 h-6 md:w-7 md:h-7" />}
+                  title="Data-Driven Loan Screening"
+                  description="Every application is weighed against real repayment history, not guesswork or favoritism, so approvals stay fair and consistent for every member."
+                />
+              </Reveal>
+              <Reveal delayMs={100}>
+                <IconListItem
+                  icon={<PieChart strokeWidth={2} className="w-6 h-6 md:w-7 md:h-7" />}
+                  title="Real-Time Financial Oversight"
+                  description="Officers see the cooperative's full financial position at all times, so your contributions are never mismanaged or misplaced."
+                />
+              </Reveal>
+              <Reveal delayMs={200}>
+                <IconListItem
+                  icon={<CreditCard strokeWidth={2} className="w-6 h-6 md:w-7 md:h-7" />}
+                  title="Standardized Loan Rules"
+                  description="Every application runs through the same eligibility checks and amortization schedule, so every member is evaluated by the same rules."
+                />
+              </Reveal>
+            </div>
+            <div className="divide-y divide-gray-200 md:pl-8 md:border-l md:border-gray-200">
+              <Reveal delayMs={100}>
+                <IconListItem
+                  icon={<Users strokeWidth={2} className="w-6 h-6 md:w-7 md:h-7" />}
+                  title="Your Full Record, One Place"
+                  description="Your profile, capital contributions, and complete loan history live in one secure record, not scattered paper files."
+                />
+              </Reveal>
+              <Reveal delayMs={200}>
+                <IconListItem
+                  icon={<TrendingUp strokeWidth={2} className="w-6 h-6 md:w-7 md:h-7" />}
+                  title="Funds Ready When You Need Them"
+                  description="We plan ahead for seasonal loan demand, so the cooperative isn't caught short when members need funds most."
+                />
+              </Reveal>
+              <Reveal delayMs={300}>
+                <IconListItem
+                  icon={<FileText strokeWidth={2} className="w-6 h-6 md:w-7 md:h-7" />}
+                  title="Full Transparency to the Board"
+                  description="The Board reviews accurate, board-ready financial reports every cycle, so your cooperative's finances stay fully accountable."
+                  ctaTo="/role_selection"
+                  ctaLabel="See Our Reports"
+                />
+              </Reveal>
+            </div>
           </div>
         </div>
       </section>

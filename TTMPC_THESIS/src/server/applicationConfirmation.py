@@ -2,6 +2,7 @@ import json
 import os
 import re
 from datetime import datetime, timezone
+from html import escape
 from typing import Any
 from urllib import request as urlrequest
 from urllib.error import HTTPError, URLError
@@ -16,6 +17,13 @@ ROOT_ENV_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".
 # Overridden per environment via .env — production sets it to the deployed
 # origin so members receive working sign-in links instead of localhost:5173.
 FRONTEND_BASE_URL = os.environ.get("FRONTEND_BASE_URL", "http://localhost:5173").rstrip("/")
+
+# Shared header banner for every outbound email. Hosted as a static frontend
+# asset (not embedded/attached) so it renders from one stable public URL —
+# save the exported PNG to TTMPC_THESIS/public/assets/img/ttmpc-email-banner.png
+# to make this live. Until that file exists, email clients just show the alt
+# text / a broken-image icon here — nothing else in the email depends on it.
+EMAIL_BANNER_URL = f"{FRONTEND_BASE_URL}/assets/img/ttmpc-email-banner.png"
 
 APPLICATION_TABLE_CANDIDATES = ["membership_application", "member_applications"]
 MEMBER_TABLE_CANDIDATES = ["member", "members"]
@@ -927,13 +935,17 @@ def send_pmes_invitation_email(
 	if not to_email:
 		return {"sent": False, "reason": "No recipient email found."}
 
-	safe_first_name = str(first_name or "Applicant").strip() or "Applicant"
-	safe_last_name = str(last_name or "").strip()
+	# Every value below lands verbatim in the HTML string, so anything that can
+	# contain user/staff-entered text (name, application id, schedule, venue,
+	# notes) must be escaped — otherwise a stray "<" or "&" breaks the email's
+	# rendering, and free-form notes could inject markup into the message.
+	safe_first_name = escape(str(first_name or "Applicant").strip() or "Applicant")
+	safe_last_name = escape(str(last_name or "").strip())
 	safe_full_name = f"{safe_last_name}, {safe_first_name}".strip(", ") if safe_last_name else safe_first_name
-	safe_app_id = str(application_id or "—").strip()
-	safe_schedule = str(training_schedule or "—").strip()
-	safe_venue = str(venue or "").strip()
-	safe_email = str(to_email).strip()
+	safe_app_id = escape(str(application_id or "—").strip())
+	safe_schedule = escape(str(training_schedule or "—").strip())
+	safe_venue = escape(str(venue or "").strip())
+	safe_email = escape(str(to_email).strip())
 
 	venue_row = ""
 	if safe_venue:
@@ -946,7 +958,7 @@ def send_pmes_invitation_email(
 
 	notes_block = ""
 	if additional_notes:
-		safe_notes = str(additional_notes).replace("\n", "<br/>")
+		safe_notes = escape(str(additional_notes)).replace("\n", "<br/>")
 		notes_block = f"""
 		<tr>
 		  <td style="padding:0 32px 24px 32px;">
@@ -981,13 +993,16 @@ def send_pmes_invitation_email(
       <td align="center">
         <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;width:100%;background-color:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(15,23,42,0.06);border:1px solid #E2E8F0;">
 
-          <!-- Header -->
+          <!-- Header banner -->
           <tr>
-            <td style="background-color:#389734;padding:28px 32px;text-align:center;">
-              <h1 style="margin:0;color:#ffffff;font-size:20px;font-weight:700;letter-spacing:0.5px;font-family:Arial,Helvetica,sans-serif;">
-                Tubungan Teachers' Multi-Purpose Cooperative
-              </h1>
-              <p style="margin:6px 0 0 0;color:#D3ECD2;font-size:12px;letter-spacing:2px;text-transform:uppercase;">
+            <td style="padding:0;line-height:0;">
+              <img src="{EMAIL_BANNER_URL}" width="600" alt="Tubungan Teachers' Multi-Purpose Cooperative"
+                   style="display:block;width:100%;max-width:600px;height:auto;border:0;" />
+            </td>
+          </tr>
+          <tr>
+            <td style="background-color:#ffffff;padding:14px 32px 0 32px;text-align:center;">
+              <p style="margin:0;color:#2E7A2A;font-size:12px;letter-spacing:2px;text-transform:uppercase;font-weight:700;">
                 Membership Application — Training Invitation
               </p>
             </td>
@@ -1128,23 +1143,27 @@ def send_confirmation_email(
 	if not to_email:
 		return {"sent": False, "reason": "No recipient email found."}
 
-	safe_first_name = str(first_name or "Member").strip() or "Member"
-	safe_email = str(to_email).strip()
+	# Escaped for the same reason as send_pmes_invitation_email above — these
+	# values (especially training_schedule, which can carry free text) are
+	# interpolated straight into the HTML string.
+	safe_first_name = escape(str(first_name or "Member").strip() or "Member")
+	safe_email = escape(str(to_email).strip())
 
 	password_row = ""
 	if default_password:
 		password_row = f"""
                 <tr>
                   <td style="padding:8px 0;font-size:14px;color:#334155;font-weight:600;width:40%;">Temporary Password</td>
-                  <td style="padding:8px 0;font-size:14px;color:#0f172a;font-family:'Courier New',monospace;">{default_password}</td>
+                  <td style="padding:8px 0;font-size:14px;color:#0f172a;font-family:'Courier New',monospace;">{escape(str(default_password))}</td>
                 </tr>
 		"""
 
-	safe_last_name = str(last_name or "").strip()
+	safe_last_name = escape(str(last_name or "").strip())
 	safe_full_name = f"{safe_last_name}, {safe_first_name}".strip(", ") if safe_last_name else safe_first_name
 
 	training_section = ""
 	if training_schedule:
+		safe_training_schedule = escape(str(training_schedule))
 		training_section = f"""
         <tr>
           <td style="padding:0 32px 24px 32px;">
@@ -1152,7 +1171,7 @@ def send_confirmation_email(
               <tr>
                 <td style="padding:16px 20px;">
                   <p style="margin:0 0 4px 0;font-size:11px;color:#2E7A2A;text-transform:uppercase;letter-spacing:0.08em;font-weight:700;">Upcoming PMES Schedule</p>
-                  <p style="margin:0 0 6px 0;font-size:15px;color:#111827;font-weight:600;">{training_schedule}</p>
+                  <p style="margin:0 0 6px 0;font-size:15px;color:#111827;font-weight:600;">{safe_training_schedule}</p>
                   <p style="margin:0;font-size:13px;color:#475569;">Please mark your calendar and arrive on time.</p>
                 </td>
               </tr>
@@ -1181,11 +1200,14 @@ def send_confirmation_email(
         <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;width:100%;background-color:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(15,23,42,0.06);">
 
           <tr>
-            <td style="background-color:#389734;padding:28px 32px;text-align:center;">
-              <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:700;letter-spacing:0.5px;font-family:Arial,Helvetica,sans-serif;">
-                Tubungan Teachers' Multi-Purpose Cooperative
-              </h1>
-              <p style="margin:6px 0 0 0;color:#D3ECD2;font-size:13px;letter-spacing:2px;text-transform:uppercase;">
+            <td style="padding:0;line-height:0;">
+              <img src="{EMAIL_BANNER_URL}" width="600" alt="Tubungan Teachers' Multi-Purpose Cooperative"
+                   style="display:block;width:100%;max-width:600px;height:auto;border:0;" />
+            </td>
+          </tr>
+          <tr>
+            <td style="background-color:#ffffff;padding:14px 32px 0 32px;text-align:center;">
+              <p style="margin:0;color:#2E7A2A;font-size:13px;letter-spacing:2px;text-transform:uppercase;font-weight:700;">
                 Membership Activated
               </p>
             </td>
@@ -1222,8 +1244,28 @@ def send_confirmation_email(
                       </tr>
                       {password_row}
                     </table>
-                    <p style="margin:10px 0 0 0;font-size:12px;color:#64748B;">
-                      For your security, please change your temporary password after your first sign-in.
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Security notice: the temp password has no expiry — it stays valid
+               until the member actually sets a new one, so this is called out
+               as its own notice rather than a soft one-line reminder. The
+               portal enforces the "set a new password first" step itself
+               (MemberOnboardingGuard redirects until it's done); this copy
+               matches that real behavior instead of implying auto-expiry. -->
+          <tr>
+            <td style="padding:0 32px 24px 32px;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#FFF7ED;border-left:4px solid #B45309;border-radius:6px;">
+                <tr>
+                  <td style="padding:14px 18px;">
+                    <p style="margin:0 0 4px 0;font-size:11px;font-weight:700;color:#B45309;text-transform:uppercase;letter-spacing:0.08em;">Security Notice</p>
+                    <p style="margin:0;font-size:13px;color:#78350F;line-height:1.55;">
+                      You will be required to set a new password the first time you sign in. Your temporary
+                      password keeps working until you do this, so please do not forward this email and set
+                      your new password as soon as you sign in.
                     </p>
                   </td>
                 </tr>
@@ -1237,7 +1279,7 @@ def send_confirmation_email(
             <td style="padding:16px 32px 8px 32px;">
               <p style="margin:0 0 8px 0;font-size:14px;color:#0f172a;font-weight:700;">What's next</p>
               <ul style="margin:0 0 8px 20px;padding:0;color:#334155;font-size:14px;line-height:1.6;">
-                <li style="margin-bottom:6px;">Sign in to the Member Portal to view your dashboard.</li>
+                <li style="margin-bottom:6px;">Sign in and set your new password when prompted.</li>
                 <li style="margin-bottom:6px;">Complete your personal data sheet and profile.</li>
                 <li style="margin-bottom:6px;">Explore savings and loan services available to members.</li>
               </ul>

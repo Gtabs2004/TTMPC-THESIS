@@ -3,6 +3,7 @@ import json
 import io
 import calendar
 import logging
+from html import escape as _html_escape
 from contextlib import asynccontextmanager
 from datetime import date, datetime, timedelta
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
@@ -68,6 +69,12 @@ resend_from_email: str = os.environ.get("RESEND_FROM_EMAIL", "onboarding@resend.
 # from this. Overridden per environment via .env; defaults to the local dev
 # server so the current local workflow still works with no config.
 FRONTEND_BASE_URL = os.environ.get("FRONTEND_BASE_URL", "http://localhost:5173").rstrip("/")
+
+# Same shared header banner referenced in applicationConfirmation.py and
+# loan_email_templates.py — kept as one static frontend asset rather than
+# three copies so a redesign only means re-exporting one file. Save it to
+# TTMPC_THESIS/public/assets/img/ttmpc-email-banner.png to make it live.
+EMAIL_BANNER_URL = f"{FRONTEND_BASE_URL}/assets/img/ttmpc-email-banner.png"
 
 _has_service_role = bool(
     os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
@@ -8531,9 +8538,16 @@ async def send_status_email(payload: StatusEmailRequest):
     if not runtime_resend_api_key:
         raise HTTPException(status_code=500, detail="RESEND_API_KEY is not configured.")
 
+    # Compute the is_* flags off the raw status text (case-insensitive keyword
+    # match), then escape everything that actually lands in the HTML below —
+    # member_name and remarks are staff/applicant-entered free text, so an
+    # unescaped "<" or "&" would otherwise break the email's rendering.
     status_text = str(payload.status or "Updated").strip()
     status_lower = status_text.lower()
-    member_name = str(payload.member_name or "Applicant").strip() or "Applicant"
+    safe_status_text = _html_escape(status_text)
+    member_name = _html_escape(str(payload.member_name or "Applicant").strip() or "Applicant")
+    safe_remarks = _html_escape(payload.remarks) if payload.remarks else ""
+    safe_to_email = _html_escape(str(payload.to_email or "").strip())
 
     is_revision = "revision" in status_lower
     is_approved = "approved" in status_lower or "official" in status_lower or "member" == status_lower
@@ -8541,7 +8555,7 @@ async def send_status_email(payload: StatusEmailRequest):
     is_training = status_lower in {"training", "1st training", "first training"}
 
     if is_training:
-        safe_app_id = str(payload.application_id or "—").strip()
+        safe_app_id = _html_escape(str(payload.application_id or "—").strip())
         safe_member_name = member_name
 
         training_subject = f"Invitation: Pre-Membership Education Seminar (PMES)"
@@ -8565,11 +8579,14 @@ async def send_status_email(payload: StatusEmailRequest):
                style="max-width:600px;width:100%;background-color:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(15,23,42,0.06);border:1px solid #E2E8F0;">
 
           <tr>
-            <td style="background-color:#389734;padding:28px 32px;text-align:center;">
-              <h1 style="margin:0;color:#ffffff;font-size:20px;font-weight:700;letter-spacing:0.5px;font-family:Arial,Helvetica,sans-serif;">
-                Tubungan Teachers' Multi-Purpose Cooperative
-              </h1>
-              <p style="margin:6px 0 0 0;color:#D3ECD2;font-size:12px;letter-spacing:2px;text-transform:uppercase;">
+            <td style="padding:0;line-height:0;">
+              <img src="{EMAIL_BANNER_URL}" width="600" alt="Tubungan Teachers' Multi-Purpose Cooperative"
+                   style="display:block;width:100%;max-width:600px;height:auto;border:0;" />
+            </td>
+          </tr>
+          <tr>
+            <td style="background-color:#ffffff;padding:14px 32px 0 32px;text-align:center;">
+              <p style="margin:0;color:#2E7A2A;font-size:12px;letter-spacing:2px;text-transform:uppercase;font-weight:700;">
                 Membership Application — Training Invitation
               </p>
             </td>
@@ -8599,7 +8616,7 @@ async def send_status_email(payload: StatusEmailRequest):
                 <tr>
                   <td style="padding:14px 18px;">
                     <p style="margin:0 0 4px 0;font-size:11px;font-weight:700;color:#B45309;text-transform:uppercase;letter-spacing:0.08em;">Schedule &amp; Details</p>
-                    <p style="margin:0;font-size:13px;color:#78350F;line-height:1.55;white-space:pre-wrap;">{payload.remarks}</p>
+                    <p style="margin:0;font-size:13px;color:#78350F;line-height:1.55;white-space:pre-wrap;">{safe_remarks}</p>
                   </td>
                 </tr>
               </table>
@@ -8633,7 +8650,7 @@ async def send_status_email(payload: StatusEmailRequest):
           <tr>
             <td style="background-color:#F8FAFC;border-top:1px solid #E2E8F0;padding:18px 24px;text-align:center;">
               <p style="margin:0;font-size:12px;color:#64748B;">
-                This invitation was sent by TTMPC to <strong>{payload.to_email}</strong> because your membership application passed initial evaluation.
+                This invitation was sent by TTMPC to <strong>{safe_to_email}</strong> because your membership application passed initial evaluation.
               </p>
               <p style="margin:4px 0 0 0;font-size:12px;color:#94A3B8;">
                 &copy; 2026 Tubungan Teachers' Multi-Purpose Cooperative. All rights reserved.
@@ -8697,7 +8714,10 @@ async def send_status_email(payload: StatusEmailRequest):
         accent_color = "#B91C1C"
         accent_soft = "#FEE2E2"
         accent_border = "#EF4444"
-        headline = "Application Update"
+        # Say plainly that the application was not approved — a shared
+        # "Application Update" headline with the approval branch left the
+        # member to infer the outcome from the accent color alone.
+        headline = "Application Not Approved"
         intro = "The Board of Directors has completed its review of your membership application."
         notes_label = "Notes from the Board"
         cta_label = "Contact the Board"
@@ -8706,7 +8726,7 @@ async def send_status_email(payload: StatusEmailRequest):
             "If you have questions, please contact your training coordinator.",
         ]
     elif is_approved:
-        accent_color = "#3F6B22"
+        accent_color = "#2E7A2A"
         accent_soft = "#EAF6DF"
         accent_border = "#66B538"
         headline = "Application Update"
@@ -8718,7 +8738,7 @@ async def send_status_email(payload: StatusEmailRequest):
             "Watch your inbox for further instructions.",
         ]
     else:
-        accent_color = "#3F6B22"
+        accent_color = "#2E7A2A"
         accent_soft = "#EAF6DF"
         accent_border = "#66B538"
         headline = "Application Update"
@@ -8741,7 +8761,7 @@ async def send_status_email(payload: StatusEmailRequest):
                     <p style="margin:0 0 6px 0;font-size:12px;color:{accent_color};text-transform:uppercase;letter-spacing:0.08em;font-weight:700;">
                       {notes_label}
                     </p>
-                    <p style="margin:0;font-size:14px;color:#0f172a;line-height:1.6;white-space:pre-wrap;">{payload.remarks}</p>
+                    <p style="margin:0;font-size:14px;color:#0f172a;line-height:1.6;white-space:pre-wrap;">{safe_remarks}</p>
                   </td>
                 </tr>
               </table>
@@ -8777,11 +8797,14 @@ async def send_status_email(payload: StatusEmailRequest):
                style="max-width:600px;width:100%;background-color:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(15,23,42,0.06);">
 
           <tr>
-            <td style="background-color:#66B538;padding:28px 32px;text-align:center;">
-              <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:700;letter-spacing:0.5px;font-family:Arial,Helvetica,sans-serif;">
-                Tubungan Teachers' Multi-Purpose Cooperative
-              </h1>
-              <p style="margin:6px 0 0 0;color:#EAF6DF;font-size:13px;letter-spacing:2px;text-transform:uppercase;">
+            <td style="padding:0;line-height:0;">
+              <img src="{EMAIL_BANNER_URL}" width="600" alt="Tubungan Teachers' Multi-Purpose Cooperative"
+                   style="display:block;width:100%;max-width:600px;height:auto;border:0;" />
+            </td>
+          </tr>
+          <tr>
+            <td style="background-color:#ffffff;padding:14px 32px 0 32px;text-align:center;">
+              <p style="margin:0;color:#2E7A2A;font-size:13px;letter-spacing:2px;text-transform:uppercase;font-weight:700;">
                 Membership Application
               </p>
             </td>
@@ -8805,7 +8828,7 @@ async def send_status_email(payload: StatusEmailRequest):
                       Current Status
                     </p>
                     <p style="margin:0;font-size:22px;color:{accent_color};font-weight:800;letter-spacing:0.3px;">
-                      {status_text.upper()}
+                      {safe_status_text.upper()}
                     </p>
                   </td>
                 </tr>
@@ -8827,7 +8850,7 @@ async def send_status_email(payload: StatusEmailRequest):
           <tr>
             <td align="center" style="padding:20px 32px 32px 32px;">
               <a href="{FRONTEND_BASE_URL}/memberlogin"
-                 style="background-color:#66B538;color:#ffffff;text-decoration:none;padding:12px 28px;border-radius:6px;font-weight:700;font-size:15px;display:inline-block;font-family:Arial,Helvetica,sans-serif;">
+                 style="background-color:#389734;color:#ffffff;text-decoration:none;padding:12px 28px;border-radius:6px;font-weight:700;font-size:15px;display:inline-block;font-family:Arial,Helvetica,sans-serif;">
                 {cta_label}
               </a>
             </td>
