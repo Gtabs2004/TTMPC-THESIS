@@ -41,11 +41,14 @@ CREATE TABLE IF NOT EXISTS public.isc_postings (
   total_basis       numeric NOT NULL DEFAULT 0,
   total_interest    numeric NOT NULL DEFAULT 0,
   status            text NOT NULL DEFAULT 'posted' CHECK (status IN ('posted', 'reversed')),
-  posted_by         uuid REFERENCES public.member(id),
+  -- auth.uid() of the actor. Deliberately NOT a member(id) FK: staff
+  -- accounts are not necessarily cooperative members, and all six of
+  -- TTMPC's staff auth uids have no member row. See isc_fix_posted_by_fk.sql.
+  posted_by         uuid,
   posted_by_email   text,
   posted_at         timestamptz NOT NULL DEFAULT now(),
   -- Reversal fields — null until this posting is reversed.
-  reversed_by       uuid REFERENCES public.member(id),
+  reversed_by       uuid,
   reversed_by_email text,
   reversed_at       timestamptz,
   reversal_reason   text,
@@ -191,6 +194,15 @@ BEGIN
           FROM public.capital_build_up cbu
           WHERE cbu.member_id = em.id
             AND cbu.transaction_date::date <= me.month_end
+            -- Interest is earned on capital the member CONTRIBUTED, not on
+            -- interest already paid to them. Without this, a posting made in
+            -- September for Dec2025-Jun2026 lands a September-dated ISC row
+            -- that the NEXT posting (Jul-Dec2026) would count as basis --
+            -- paying interest on interest for months it was never held. The
+            -- EXCLUDE constraint cannot catch that: the month ranges genuinely
+            -- do not overlap. Compounding should be a deliberate coop policy,
+            -- not an emergent side effect of posting order.
+            AND cbu.source_isc_id IS NULL
           ORDER BY
             cbu.transaction_date DESC,
             NULLIF(regexp_replace(coalesce(cbu.cbu_deposit_id, ''), '^CBUD_0*', ''), '')::integer DESC NULLS LAST,
@@ -206,7 +218,10 @@ BEGIN
     SELECT
       mb.member_id,
       AVG(mb.balance) AS average_share_capital,
-      MAX(mb.balance) FILTER (WHERE mb.month_end = v_period_end) AS total_share_capital
+      -- Closing balance = the balance at the LAST month_end in the series.
+      -- Matching on = v_period_end would silently return NULL if the caller
+      -- passed a period_end that is not its month's final day.
+      (ARRAY_AGG(mb.balance ORDER BY mb.month_end DESC))[1] AS total_share_capital
     FROM monthly_balances mb
     GROUP BY mb.member_id
   )
@@ -257,6 +272,7 @@ DECLARE
   v_total_members  integer := 0;
   v_total_basis    numeric := 0;
   v_total_interest numeric := 0;
+  v_current_balance numeric;
 BEGIN
   -- The disabled Post button is only a courtesy — this is the real guard.
   IF NOT public.has_portal_role(auth.uid(), auth.email(), ARRAY['bookkeeper']) THEN
@@ -322,14 +338,38 @@ BEGIN
     v_cbud := 'CBUD_' || lpad(v_next_seq::text, 3, '0');
     v_next_seq := v_next_seq + 1;
 
+    -- The CBU row must continue from the member's CURRENT running balance,
+    -- not from v_row.total_share_capital. total_share_capital is the closing
+    -- balance at PERIOD END — a historical snapshot used as the interest
+    -- basis. For any back-dated period (the normal case: pay 2026 interest in
+    -- January 2027) a member may have deposited since, so posting the snapshot
+    -- would write a stale starting_share_capital and silently break the
+    -- running-balance chain, erasing every deposit made after period_end.
+    -- isc_reverse() below already reads the live balance for the same reason.
+    SELECT cbu.ending_share_capital
+    INTO v_current_balance
+    FROM public.capital_build_up cbu
+    WHERE cbu.member_id = v_row.member_id
+    ORDER BY
+      cbu.transaction_date DESC,
+      NULLIF(regexp_replace(coalesce(cbu.cbu_deposit_id, ''), '^CBUD_0*', ''), '')::integer DESC NULLS LAST,
+      cbu.id DESC
+    LIMIT 1;
+    v_current_balance := coalesce(v_current_balance, 0);
+
+    -- transaction_date stays now(): the ledger must stay in true
+    -- chronological order or the running-balance chain breaks (a back-dated
+    -- row would carry a starting balance taken from a LATER row). The related
+    -- risk -- ISC being counted as basis in a future period -- is handled in
+    -- isc_calculate_preview instead, which excludes ISC-sourced rows outright.
     INSERT INTO public.capital_build_up (
       id, member_id, transaction_date,
       starting_share_capital, capital_added, deposit_account,
       ending_share_capital, cbu_deposit_id, source_isc_id
     ) VALUES (
       gen_random_uuid(), v_row.member_id, now(),
-      v_row.total_share_capital, v_row.interest_amount, 'INTEREST_ON_SHARE_CAPITAL',
-      v_row.total_share_capital + v_row.interest_amount, v_cbud, v_isc_tx_id
+      v_current_balance, v_row.interest_amount, 'INTEREST_ON_SHARE_CAPITAL',
+      v_current_balance + v_row.interest_amount, v_cbud, v_isc_tx_id
     );
   END LOOP;
 

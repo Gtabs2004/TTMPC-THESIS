@@ -7,7 +7,6 @@ import { useNotification } from "../../contex/NotificationContext";
 import StaffTopbar from "../../components/StaffTopbar";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
 import Breadcrumb from "../../components/Breadcrumb";
-import InterestOnShareCapitalModal from "../../components/InterestOnShareCapitalModal";
 import IscPostingHistory from "../../components/IscPostingHistory";
 import {
   LayoutDashboard,
@@ -33,7 +32,6 @@ import {
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 const PAGE_SIZE = 10;
 
-
 const Cashier_CBU = () => {
     const navigate = useNavigate();
   const { addNotification } = useNotification();
@@ -44,9 +42,7 @@ const Cashier_CBU = () => {
   const [loadError, setLoadError] = useState("");
   const [memberPage, setMemberPage] = useState(1);
   const [transactionPage, setTransactionPage] = useState(1);
-  const [showInterestModal, setShowInterestModal] = useState(false);
   const [showIscHistory, setShowIscHistory] = useState(false);
-
 
 
   const getStatusStyle = (status) => {
@@ -70,6 +66,18 @@ const Cashier_CBU = () => {
     if (Number.isNaN(d.getTime())) return "-";
     return d.toLocaleDateString("en-US", { month: "short", day: "2-digit", year: "numeric" });
   };
+
+  const summary = useMemo(() => {
+    const balances = members.map((m) => Number(m.current_balance || 0));
+    const funded = balances.filter((b) => b > 0);
+    const total = balances.reduce((sum, b) => sum + b, 0);
+    return {
+      total,
+      count: members.length,
+      funded: funded.length,
+      average: funded.length ? total / funded.length : 0,
+    };
+  }, [members]);
 
   const filteredMembers = useMemo(() => {
     const key = String(memberSearch || "").trim().toLowerCase();
@@ -163,7 +171,42 @@ const Cashier_CBU = () => {
         {/* 3. PAGE CONTENT */}
         <main className="p-8 overflow-auto">
           <Breadcrumb portal="Cashier" page="Capital Build-Up" />
-          <h1 className="text-2xl font-bold text-[#1F3E35] mb-6">Capital Build-Up</h1>
+          <h1 className="text-2xl font-bold text-[#1F3E35] mb-1">Capital Build-Up</h1>
+          <p className="text-sm text-gray-500 mb-6">
+            Each member&apos;s share capital in the cooperative. Use{" "}
+            <strong>Deposit</strong> to record money a member has paid in.
+          </p>
+
+          {/* A balance means little without the whole. The Bookkeeper page has
+              carried this total for a while; the Cashier had no reference at
+              all for whether a figure was ordinary or unusual. */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm px-5 py-4">
+              <p className="text-[11px] uppercase tracking-wider text-gray-500 font-bold mb-1">
+                Total share capital
+              </p>
+              <p className="text-xl font-extrabold text-[#1F3E35] tabular-nums">
+                {formatCurrency(summary.total)}
+              </p>
+            </div>
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm px-5 py-4">
+              <p className="text-[11px] uppercase tracking-wider text-gray-500 font-bold mb-1">
+                Members with capital
+              </p>
+              <p className="text-xl font-extrabold text-[#1F3E35] tabular-nums">
+                {summary.funded}
+                <span className="text-sm font-semibold text-gray-400"> / {summary.count}</span>
+              </p>
+            </div>
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm px-5 py-4">
+              <p className="text-[11px] uppercase tracking-wider text-gray-500 font-bold mb-1">
+                Average per funded member
+              </p>
+              <p className="text-xl font-extrabold text-[#1F3E35] tabular-nums">
+                {formatCurrency(summary.average)}
+              </p>
+            </div>
+          </div>
 
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 mb-8">
             <div className="flex items-center justify-between mb-5 gap-3 flex-wrap">
@@ -180,13 +223,6 @@ const Cashier_CBU = () => {
                   className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white hover:bg-gray-50 px-4 py-2 text-xs font-semibold text-gray-700 transition-colors"
                 >
                   <History className="w-4 h-4" /> View Postings
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowInterestModal(true)}
-                  className="inline-flex items-center gap-2 rounded-lg bg-[#66B538] hover:bg-green-700 px-4 py-2 text-xs font-semibold text-white transition-colors"
-                >
-                  <Calculator className="w-4 h-4" /> ISC Calculator
                 </button>
               </div>
             </div>
@@ -217,7 +253,7 @@ const Cashier_CBU = () => {
             <div className="overflow-x-auto rounded-xl border border-gray-100">
               <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr className="bg-green-700 text-[10px] uppercase tracking-wider text-white font-extrabold">
+                  <tr className="bg-primary-deep text-[10px] uppercase tracking-wider text-white font-extrabold">
                     <th className="p-5 font-bold">Member ID</th>
                     <th className="p-5 font-bold">Member Name</th>
                     <th className="p-5 font-bold text-right">Current Balance</th>
@@ -241,7 +277,7 @@ const Cashier_CBU = () => {
                           <button
                             type="button"
                             onClick={() => proceedToDepositPage(member)}
-                            className="btn-enhanced inline-flex items-center gap-2 rounded-lg bg-[#66B538] px-4 py-2 text-xs font-semibold text-white transition-colors cursor-pointer hover:bg-green-700"
+                            className="btn-enhanced inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-xs font-semibold text-white transition-colors cursor-pointer hover:bg-primary-deep"
                           >
                             <ArrowRightCircle className="w-4 h-4" /> Deposit
                           </button>
@@ -281,12 +317,6 @@ const Cashier_CBU = () => {
         </main>
       </div>
 
-      <InterestOnShareCapitalModal
-        open={showInterestModal}
-        onClose={() => setShowInterestModal(false)}
-        canPost={false}
-        onPosted={fetchCbuData}
-      />
 
       <IscPostingHistory
         open={showIscHistory}
@@ -298,6 +328,5 @@ const Cashier_CBU = () => {
 };
 
 export default Cashier_CBU;
-
 
 

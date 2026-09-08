@@ -106,6 +106,7 @@ import Manage_Member from "./Bookkeeper/Components/Manage-Member";
 import Manager_Manage_Member from "./Manager/Components/Manage-Member";
 import Manager_Manage_Loans from "./Manager/Components/Manager_Manage_Loans";
 import Manager_ISC_Postings from "./Manager/Components/ISC_Postings";
+import Treasurer_ISC_Postings from "./Treasurer/Components/ISC_Postings";
 import Savings_Forms from "./LOANFORMS/Savings_Forms";
 import Grocery from "./Bookkeeper/Components/Grocery";
 import PosSimulator from "./Bookkeeper/Components/PosSimulator";
@@ -212,6 +213,7 @@ export const router = createBrowserRouter([
     {path: "/bod-audit-log", element: bodGuarded(<BOD_Audit_Log/>)},
     {path: "/manager-audit-log", element: managerGuarded(<Manager_Audit_Log/>)},
     {path: "/treasurer-audit-log", element: treasurerGuarded(<Treasurer_Audit_Log/>)},
+    {path: "/treasurer-isc", element: treasurerGuarded(<Treasurer_ISC_Postings/>)},
     {path: "/cashier-audit-log", element: cashierGuarded(<Cashier_Audit_Log/>)},
     {path: "/bod-manage-loans", element: bodGuarded(<BOD_Manage_Loans/>)},
     {path: "/bod-loan-policies", element: bodGuarded(<BOD_Loan_Policies/>)},
