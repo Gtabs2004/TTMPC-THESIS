@@ -1934,8 +1934,12 @@ anything, and it gives the SQL port a reference to check against to the centavo.
 - [ ] §15.3 — extend `isc_calculate_preview` to return `month_end_balances`,
       `crj_by_month`, `cdj_by_month`, `opening_balance` (keep the existing
       scalars; the modal depends on them)
-- [ ] §15.3 — split CRJ/CDJ on **origin** (`cbu_deposit_id` / `source_loan_id`),
-      not on sign; both increase share capital
+- [x] ~~§15.3 — split CRJ/CDJ on origin~~ — **rule corrected 2026-09-09 (§21.2).**
+      Classify on `deposit_account`, NOT `cbu_deposit_id` (a trigger stamps that
+      on every row). Lift the classifier from
+      `isc_checks/06_ORIGIN_RULES_FIXED.sql` verbatim.
+- [ ] §21.3 — match **both** spellings of the paid-up-capital label; normalise
+      with `lower(replace(label,' ','_'))`
 - [ ] §15.6 — membership payments are the **opening balance**, not a CRJ/CDJ
       column; assert no movement falls outside the four known origins
 - [ ] §15.4 — assert `opening + Σcrj + Σcdj == last month-end` per member; block
@@ -1944,35 +1948,46 @@ anything, and it gives the SQL port a reference to check against to the centavo.
 - [ ] §18.1 — read `capital_added` for CDJ, never recompute `principal × 2%`; the
       retention that actually happened is what the member holds
 
-**Backfill (§20) — must land before any 2026 distribution:**
+**Data repair (found 2026-09-09, §22.12):**
 
-- [ ] §20.3 — `source_backfill_id` UNIQUE column + `deposit_account = 'BACKFILL_2026'`,
-      acting bookkeeper and timestamp recorded
-- [ ] §20.3 — write path recomputes the member's **full chain forward** from the
-      edited month, in one transaction (never patch a single row — §11.1)
-- [ ] §20.3 — reject writes to a month already holding a real transaction
-      (cashier / loan trigger / membership payment); enforce in SQL, not just UI
-- [ ] §20.3 — re-run §15.4's assertion after every save, per member
-- [ ] §20.3 — lock backfill for a period once a posting exists for it
-- [ ] §20.1 — support members with **no** opening balance (2026 joiners: opening
-      ₱0, membership payment as the joining month's movement)
-- [ ] §20.4 — readiness indicator ("14 members have no data for Mar–Aug"); don't
-      block Calculate, the bookkeeper knows which gaps are real
+- [ ] De-duplicate the paid-up capital rows for `TTMPC-297` and `TTMPC-298` —
+      two writers fired for one ₱10,000 event. Balances are correct; the
+      duplicate inflates `capital_added` and breaks the chain check.
+- [ ] Give `applicationConfirmation.py:785-833` a dedup key, or retire it in
+      favour of the trigger. It is the only CBU writer with no dedup key (§4),
+      which is why the duplicate was possible at all.
 
-**Frontend:**
+**~~Backfill (§20)~~ — WITHDRAWN 2026-09-09. The ISC grid is read-only.**
 
-- [ ] `utils/iscCalculations.js` — the seven rules as pure functions
-- [ ] Unit tests: the §12.3 fixture + a property test (payouts sum to pool exactly)
+CRJ and CDJ arrive automatically from cashier deposits and loan retention. The
+empty 2026 months are an operational gap — transactions not recorded at the time
+— not a missing feature. Any catch-up goes through the cashier's existing CBU
+deposit screen, not a new data-entry surface.
+
+- [x] ~~`source_backfill_id`, `BACKFILL_2026`, the write path, the backfill UI,
+      the readiness indicator~~ — all cancelled. The columns added by
+      `isc_v2_01_schema.sql` are harmless if left unused.
+
+**Frontend — another developer's work (§24). Not started; nothing in the tree.**
+
 - [ ] `configs/bookkeeper.js` — "ISC Distribution" nav entry
 - [ ] `Router.jsx` — `/bookkeeper-isc`, `bookkeeperGuarded`
+- [ ] ~~`utils/iscCalculations.js`~~ — **not needed.** The seven rules live in
+      the database and the page must not recompute a payout (§7, §24.2)
 - [ ] `Bookkeeper/Components/ISC_Distribution.jsx` — shell + ledger grid (port
       the module's grid from `.tsx` to `.jsx`)
 - [ ] §17.2 — settlement checklist (all rows checked = capitalise; uncheck for
       cash; header count + select-all/clear-all), run after the March GA
+- [ ] §23.3 — settlement date defaults to **March of the year AFTER** period_end
+      (Jan–Dec 2026 settles March 2027); warn if far from it, never refuse —
+      an assembly can be rescheduled
 - [ ] §17.1 — remove the reverse control from `/manager-isc`, keep it read-only
 - [ ] §14.4 — move the before/after share-capital panel off posting onto capitalisation
 - [ ] Flip both modal call sites to `canPost={false}`
 - [ ] §19.3 — three density levels: Summary (default) / Quarters / Full journal
+- [ ] §24.2 — **no period picker.** Jan–Dec of the current year, from the clock,
+      shown as read-only text. Supersedes §22.5's warn-on-December approach:
+      fixing the period removes the failure rather than warning about it.
 - [ ] §19.4 — per-member drill-down drawer (one member's 12-month ledger)
 - [ ] §19.5 — paginate at **10 members per page** (25/50 optional); slice the
       render only — **totals and CSV export always cover every member**
@@ -2343,20 +2358,36 @@ cdj_by_month       numeric[]    -- loan CBU retention, per month
 `month_end_balances` needs no new logic — it is `ARRAY_AGG(mb.balance ORDER BY
 mb.month_end)` over the CTE that already exists, rather than `AVG()` alone.
 
-CRJ and CDJ are new, and they split on **origin**, not on sign:
+CRJ and CDJ are new, and they split on **origin**, not on sign.
+
+> ⚠️ **CORRECTED 2026-09-09 after measuring the live table (§21).** An earlier
+> draft split on `cbu_deposit_id IS NOT NULL` for CRJ. **That is wrong** — a
+> trigger stamps `cbu_deposit_id` on *every* row regardless of origin (all 816
+> rows carry one), so the column identifies nothing and loan rows match two
+> rules at once. **The classifier is `deposit_account`.** See §21 for the
+> measured labels.
 
 ```sql
--- CRJ — paid in at the cashier
-SUM(cbu.capital_added) FILTER (WHERE cbu.cbu_deposit_id IS NOT NULL)
+-- ISC's own rows — excluded from the basis (§0 bug 2). By FK: isc_post sets it.
+WHEN cbu.source_isc_id IS NOT NULL THEN 'isc'
+
+-- OPENING balance — the migration, plus new members' paid-up capital.
+-- BOTH spellings must match (§15.6): two writers, two labels, same event.
+WHEN cbu.deposit_account = 'historical_import_2025' THEN 'opening'
+-- Normalise EVERY non-alphanumeric run, not just spaces (§21.6).
+WHEN regexp_replace(lower(coalesce(cbu.deposit_account,'')), '[^a-z0-9]+', '_', 'g')
+       = 'initial_paid_up_capital' THEN 'opening'
 
 -- CDJ — retained from a loan disbursement
-SUM(cbu.capital_added) FILTER (WHERE cbu.source_loan_id IS NOT NULL)
+WHEN cbu.source_loan_id IS NOT NULL THEN 'cdj'
+
+-- CRJ — everything the cashier took in (catch-all: tender types vary)
+ELSE 'crj'
 ```
 
-Splitting on the `source_*` columns is more reliable than matching
-`deposit_account` text: `source_loan_id` and `cbu_deposit_id` are UNIQUE, indexed,
-and are the established dedup keys (§4), whereas `deposit_account` is a free-text
-tag that varies by writer ("Cash", "GCash", …).
+`source_loan_id` and `source_isc_id` *are* reliable — they are set only by their
+own writers. `cbu_deposit_id` is not, and `source_payment_id` is NULL on all
+eight membership rows, so neither can classify.
 
 **Membership payments are a third origin** (`source_payment_id`) and belong in
 neither column — **they are the member's opening balance. See §15.6.** They need no
@@ -3047,7 +3078,41 @@ name, an amount and a checkbox.
 
 ---
 
-## 20. Backfilling 2026 — the grid becomes writable (confirmed 2026-09-08)
+## 20. ~~Backfilling 2026 — the grid becomes writable~~ — WITHDRAWN 2026-09-09
+
+> ⚠️ **THIS SECTION IS WITHDRAWN. Do not implement it.**
+>
+> It was written on the premise that the bookkeeper would type the missing 2026
+> months directly into the ISC ledger grid. **Confirmed 2026-09-09: that is
+> wrong.** CRJ comes from cashier CBU deposits and CDJ from loan disbursement
+> retention — both already flow in automatically from parts of the system that
+> work today. **The ISC grid is read-only. Nothing in it is ever typed.**
+>
+> This restores §12.6's original position, which §20 had overturned: the CRJ and
+> CDJ are source books and must not be rewritable from a distribution screen.
+> That instinct was right, and the reasoning that displaced it — "there is no
+> other route by which they become complete" — was simply false. The route
+> exists; it is the cashier and loan flows.
+>
+> **What the empty months actually mean.** Five of nine months since the import
+> have no CBU activity (§22.7) because those transactions were not recorded in
+> the system at the time, not because the grid lacks an editing feature. The
+> remedy is operational — record deposits and disbursements as they happen — not
+> a new data-entry surface. Any historical catch-up should go through the
+> cashier's existing CBU deposit screen, where it is subject to the same
+> validation, audit trail and dedup keys as every other deposit.
+>
+> **What this cancels:** `source_backfill_id`, the `BACKFILL_2026` tag, the
+> chain-recompute write path, the backfill UI, and the readiness indicator. The
+> columns added by `isc_v2_01_schema.sql` are harmless and can stay unused, or be
+> dropped later.
+>
+> The section is kept below rather than deleted, because §20.3's containment
+> rules — never overwrite a real transaction, recompute the chain forward, re-run
+> the §15.4 assertion after every write — remain good guidance for **any** future
+> writer to `capital_build_up`.
+
+## 20. Backfilling 2026 — the grid becomes writable (SUPERSEDED — see above)
 
 The cooperative's records for January 2026 onward are incomplete: the system holds
 the 2025-12-31 import and only the handful of transactions entered since. The real
@@ -3172,3 +3237,835 @@ whether it was entered in March or typed in September. The tag exists for audit 
 for the "never overwrite a real transaction" rule, not to exclude the row from
 averaging. Confirm with the bookkeeper, but proceed on that reading: excluding
 backfilled rows would defeat the entire point of typing them in.
+
+---
+
+## 21. Step 0 results — the data is sound (measured 2026-09-09)
+
+The pre-migration checks (`src/server/isc_checks/`) were run against the live
+database. **The foundation holds.** One of the six checks failed, and the failure
+was in the check itself, not the data — but diagnosing it produced a correction
+to §15.3 that would otherwise have been a bug in the grid.
+
+### 21.1 The verdicts
+
+| Check | Question | Result |
+|---|---|---|
+| A | Does each row's own arithmetic add up? | **PASS** — 0 of 775 |
+| **B** | **Does each row start where the last one ended?** | **PASS** — 0 broken links |
+| C | Does every row declare an origin? | FAIL — *the check was wrong, see §21.2* |
+| **D** | **Opening + movements = current balance, per member?** | **PASS** — 0 of 258 |
+| E | Does loan retention add money? | **PASS** — 7 rows, all positive |
+| F | Active members with no share capital | 32 of 297 (info) |
+
+**B and D were the gate, and both passed.** The §11.1 repair has held: the CBU
+chain is intact and every member's balance reconciles to their movements. The ISC
+basis can be built on this data.
+
+**E confirms §18.1 empirically** — every loan CBU retention row carries a positive
+`capital_added`. Only 7 rows, so it is a thin sample, but it agrees with the
+bookkeeper's ₱500,000 → ₱10,000 rule and with the trigger source.
+
+**F is unchanged from §11** — 32 active members hold no CBU row and are excluded by
+the `average > 0` eligibility rule. Still worth confirming that is intended, still
+not blocking.
+
+### 21.2 Why check C failed — and the §15.3 correction it forced
+
+C reported 774 of 775 rows unclassifiable. A ratio that extreme means the rule is
+wrong, not the data.
+
+**The cause:** `cbu_deposit_id` does not identify a cashier deposit. The
+`set_cbu_deposit_id` trigger stamps a `CBUD_nnn` number on **every** row at insert
+— import rows, loan retentions, ISC postings, all of them. Measured: all 816 rows
+carry one. So the column identifies nothing, and loan-retention rows matched two
+rules at once (deposit id *and* loan id), which the check counted as an error.
+
+§15.3 had specified exactly that wrong rule, on the reasoning that the `source_*`
+columns are UNIQUE and indexed while `deposit_account` is free text. The reasoning
+was sound; the premise was not. **§15.3 is corrected** — the classifier is
+`deposit_account`, with `source_loan_id` and `source_isc_id` as reliable
+supplements.
+
+Had this shipped, CRJ would have absorbed every row in the table and CDJ would have
+double-counted the loan retentions.
+
+### 21.3 What is actually in the table
+
+Measured 2026-09-09, 816 rows:
+
+| `deposit_account` | Rows | Members | Amount | Grid column |
+|---|---:|---:|---:|---|
+| `historical_import_2025` | 258 | 258 | ₱29,638,787.77 | **opening** |
+| `Cash` | 17 | 5 | ₱422,000.00 | **CRJ** |
+| `LOAN_CBU_RETENTION` | 7 | 3 | ₱41,800.00 | **CDJ** |
+| `INITIAL_PAID_UP_CAPITAL` | 5 | 5 | ₱140,000.00 | **opening** |
+| `Initial Paid-Up Capital` | 3 | 3 | ₱30,000.00 | **opening** |
+| `INTEREST_ON_SHARE_CAPITAL` | 263 | 263 | ₱1,496,104.42 | excluded |
+| `INTEREST_ON_SHARE_CAPITAL_REVERSAL` | 263 | 263 | −₱1,496,104.42 | excluded |
+
+**Three findings worth carrying into the build:**
+
+**1. The duplicate label is real.** `INITIAL_PAID_UP_CAPITAL` (trigger, 5 rows) and
+`Initial Paid-Up Capital` (`applicationConfirmation.py`, 3 rows) are the same event
+written by two writers — precisely what §15.6 predicted. Any classifier must match
+**both** spellings or three members' opening balances are misfiled as CRJ.
+
+> **And the first attempt at that got it wrong — see §21.6.** Normalise with
+> `regexp_replace(lower(label), '[^a-z0-9]+', '_', 'g')`. Replacing only spaces
+> leaves the **hyphen** in "Paid-Up", so the normalised string is
+> `initial_paid-up_capital`, which matches nothing.
+
+**2. `source_payment_id` is NULL on all eight membership rows.** §15.6 proposed
+identifying openings by that key; it does not work. Use the label.
+
+**3. The 2026-09-06 test posting is still in the table** — 526 rows across the
+posting and its reversal, 64% of all rows, netting exactly ₱0.00 as §0 records.
+They are correctly excluded from the basis by `source_isc_id`, but they dominate any
+raw row count, which is worth knowing before someone reads `count(*)` as a measure
+of activity.
+
+### 21.4 The table is live
+
+Row count moved from **775 to 816 during the checks** — a few minutes apart. The
+cashier deposit screen is in active use.
+
+Consequence for §12.5's baseline: capture `03_BASELINE_NUMBERS.sql` **immediately
+before running the migration**, not days ahead, or the "did the books move?"
+comparison is against a stale number.
+
+### 21.5 What this changes
+
+- **§15.3's CRJ/CDJ split — corrected** (see above). This is the substantive change.
+- **§15.6's `source_payment_id` identification — does not work**, use the label.
+- **Nothing blocks the migration.** B and D passing is what step 0 existed to
+  establish.
+- `isc_checks/06_ORIGIN_RULES_FIXED.sql` holds the corrected classifier and should
+  be lifted into `isc_calculate_preview` verbatim rather than re-derived.
+
+### 21.6 The hyphen — the same bug, caught twice
+
+Running the corrected classifier (§21.2) against live data produced this:
+
+```
+opening  263 rows  P29,778,787.77   historical_import_2025, INITIAL_PAID_UP_CAPITAL
+crj       20 rows  P   452,000.00   Cash, Initial Paid-Up Capital   <-- WRONG
+cdj        7 rows  P    41,800.00   LOAN_CBU_RETENTION
+isc      526 rows  P         0.00   INTEREST_ON_SHARE_CAPITAL, ..._REVERSAL
+```
+
+`Initial Paid-Up Capital` landed in **CRJ**, not `opening` — 3 rows, PHP 30,000.
+Exactly the misfiling §15.6 predicted and §21.3 was written to prevent, in the code
+written to prevent it.
+
+**Cause: the hyphen.** The rule normalised with `lower(replace(label, ' ', '_'))`,
+which converts spaces but leaves "Paid-Up" intact:
+
+```
+'Initial Paid-Up Capital'  ->  'initial_paid-up_capital'   != 'initial_paid_up_capital'
+```
+
+**Fix:** normalise every run of non-alphanumeric characters, not just spaces:
+
+```sql
+regexp_replace(lower(coalesce(deposit_account,'')), '[^a-z0-9]+', '_', 'g')
+```
+
+#### Why this one is worth recording
+
+The failure was **silent and self-consistent**. CRJ is the catch-all, so the
+misfiled rows still summed correctly, the co-op total was still right, and §15.4's
+assertion still passed — because `opening + crj + cdj` is the same number however
+the rows are split between those buckets. Nothing would have flagged it.
+
+The visible symptom would have been three members' opening capital appearing as
+cashier deposits in the ledger grid, months later, with no way to trace it back.
+
+**The catch-all is the hazard.** Any label that is mislabelled, misspelled, or
+simply new falls into CRJ without complaint. So `06_ORIGIN_RULES_FIXED.sql` now
+carries a second query listing **every label reaching CRJ**, flagging anything that
+is not a known cashier tender type. Run it after any change to the classifier, and
+port the same guard into `isc_calculate_preview`.
+
+> **General lesson, worth applying beyond this bug:** when a classifier has a
+> catch-all branch, test what lands in it — not only what lands in the named
+> branches. A rule that silently absorbs its own mistakes cannot be verified by
+> checking that the totals add up.
+
+---
+
+## 22. Build log — v2 migration
+
+Bugs found while writing the migration, kept because each is the kind that
+recurs. §21 covers the pre-migration data checks; this covers the code.
+
+### 22.1 Step 1 (schema) — the unnamed CHECK constraints
+
+`isc_dividend_schema.sql` declares its table CHECKs inline and unnamed, so
+Postgres generated `isc_postings_check`, `_check1`, `_check2`… in declaration
+order. Two of them had to change for v2:
+
+- `CHECK (rate > 0 AND rate <= 100)` — under the pool model the rate is derived,
+  so it cannot exist before the basis is computed, and a basis-only preview has
+  no rate at all. `rate` becomes nullable.
+- `CHECK (status IN ('posted','reversed'))` — needs `'settled'` (§17).
+
+**Guessing the generated names would be brittle.** The migration instead uses a
+`DO` block that looks up `pg_constraint` for any unnamed CHECK on the table
+mentioning the column, drops it, then re-adds the replacement under an explicit
+name (`isc_postings_rate_valid`, `isc_postings_status_valid`) so it is never
+ambiguous again.
+
+`'reversed'` stays a legal value even though §17 discards reversal: the two
+2026-09-06 rows carry it and must stay readable. It is simply never written
+again.
+
+Step 1 verified clean: all six schema items OK, 816 CBU rows untouched, and the
+526 legacy line items correctly defaulted to `settlement = 'unsettled'`.
+
+### 22.2 Step 2 (preview) — `42702: column reference "member_id" is ambiguous`
+
+The new `isc_calculate_preview` failed on first run.
+
+**Cause.** A plpgsql function's `RETURNS TABLE (...)` column names are also
+variables in the function's scope. This one returns `member_id`, `rate`,
+`adjusted`, `month_count`, `total_average`, `opening_balance` — all of which are
+*also* column names inside the query body. When plpgsql meets a bare `member_id`
+it cannot tell whether the OUT parameter or the table column is meant, and
+refuses rather than guessing.
+
+The old function never hit this: it returned the same names but its body was a
+single flat query where every reference was already qualified. The v2 body has
+ten CTEs, and `movements_by_month` groups by a bare `member_id`.
+
+**Fix.** Declare the resolution rule at the top of the function body:
+
+```sql
+#variable_conflict use_column
+```
+
+`use_column` is the correct choice here — every bare name in the query body is a
+table column, and the OUT parameters are only ever assigned positionally by
+`RETURN QUERY`. The alternative (`use_variable`) would silently substitute the
+OUT parameter into the query, which is far worse than an error.
+
+> **The safer habit**, and why this was survivable: every local variable in these
+> functions is prefixed `v_` and every argument `p_`. No table has columns by
+> those names, so `use_column` cannot misresolve them. The collision was only
+> ever possible for the un-prefixed `RETURNS TABLE` names.
+
+### 22.3 Still to verify
+
+Step 2 is read-only, so it can be re-run freely. `isc_checks/07_VERIFY_PREVIEW.sql`
+holds seven acceptance tests; the two that matter most are:
+
+- **Test 1 — rule 7.** Payouts must sum to the pool *exactly*, across six awkward
+  pool amounts including ₱0.07 and ₱999,999.99. This is where largest-remainder
+  allocation either works or does not.
+- **Test 2 — cross-check against the old build.** A ₱1,496,104.42 pool should
+  derive a rate of ≈5%, because that pool *was* 5% of the basis on 2026-09-06.
+  Agreement here means the pool-based arithmetic reproduces the rate-based
+  build's numbers from the opposite direction.
+
+### 22.4 Step 2 verified — rule 7 holds exactly
+
+`isc_calculate_preview` v2 was run against live data on **2026-09-09**.
+
+**Rule 7 (Σ payouts = pool, exactly) passes on every pool tested**, period
+Jan–Dec 2026, 265 eligible members:
+
+| Pool in | Paid out | Difference | Rows adjusted |
+|---:|---:|---:|---:|
+| ₱1,496,104.42 | ₱1,496,104.42 | **0.00** | 131 |
+| ₱1,000,000.00 | ₱1,000,000.00 | **0.00** | 106 |
+| ₱999,999.99 | ₱999,999.99 | **0.00** | 105 |
+| ₱333,333.33 | ₱333,333.33 | **0.00** | 106 |
+| ₱20,000.00 | ₱20,000.00 | **0.00** | 124 |
+| **₱0.07** | **₱0.07** | **0.00** | 7 |
+
+The ₱0.07 row is the strongest of these: seven centavos shared across 265
+members, still landing exactly. That is the degenerate case where independent
+per-row rounding fails outright.
+
+Around 105–131 rows carry a residual centavo, which is the expected order for
+265 members — roughly half. The derived rate read **4.9997%** for the
+₱1,496,104.42 pool, matching the ≈5% that pool represented on 2026-09-06 and
+confirming the pool-based arithmetic reproduces the rate-based build's figure
+from the opposite direction.
+
+265 eligible members against 263 on 2026-09-06 — two members have joined since.
+
+### 22.5 December 2025 is the OPENING month, not an earning month
+
+Test 7 first ran on **Dec 2025 – Sep 2026** and returned `opening_balance = 0.00`
+for every member, with `average` exactly equal to `closing`. Both looked like
+calculation bugs. Neither was.
+
+**The import rows are dated 2025-12-31 — inside December.** So a period starting
+`2025-12-01` asks for the balance *before* 1 December, when nothing existed yet,
+and returns ₱0. December's own month-end then picks the import up, and because
+almost no member has 2026 activity yet (§21 query G), all ten months carry the
+same figure forward. `average = closing` follows by construction.
+
+**The first real distribution period is Jan–Dec 2026**, with December 2025
+carried in as the opening balance. This is exactly the carry-in rule of §12.6,
+seen from the other side.
+
+> **RESOLVED 2026-09-09 — better than a warning: there is no picker.** The UI
+> fixes the period at January–December of the current year, derived from the
+> clock and shown as read-only text (§24.2). A bookkeeper cannot choose December
+> as a start, so the silently-wrong basis is not reachable from the screen at
+> all. Removing the input beats warning about it.
+>
+> The existing `period_start >= 2025-12-01` CHECK stays: December remains a
+> legal start once real December movements exist. It is the *current* data that
+> makes it the wrong choice, not the constraint.
+
+**Added to the §13.7 checklist.**
+
+### 22.6 PRE-MIGRATION BASELINE — captured 2026-09-09
+
+Taken immediately before running `isc_v2_03_post_settle.sql`, the first file that
+writes. **Every one of these must be identical after the migration and after the
+step-3/4/5 verification tests tear their test posting down.**
+
+| Item | Value |
+|---|---:|
+| Members brought in by the migration | **258** |
+| Their CBU rows (opening + everything since) | **775** |
+| CBU rows in the whole table (incl. test accounts) | **816** |
+| Active members in the system | **297** |
+| Opening balance total (2025-12-31 import) | **₱29,638,787.77** |
+| **COOPERATIVE SHARE CAPITAL TODAY** | **₱29,678,787.77** |
+
+The co-op total sits ₱40,000 above the import total — that is the real 2026
+activity to date (₱633,800 gross across ~12 members, net of the reversal pair).
+
+> **Why 816 rows but 775 in scope:** 41 rows belong to members outside the
+> migration — test accounts and members created through the app since. They are
+> excluded from every check deliberately (§21), because a discrepancy there is
+> not a discrepancy in the cooperative's books.
+
+### 22.7 Backfill coverage at migration time
+
+Confirms §21's finding with the full month series:
+
+| Month | Movements | Members | Amount |
+|---|---:|---:|---:|
+| 2025-Dec | 258 | 258 | ₱29,638,787.77 |
+| 2026-Jan | **0** | 0 | — |
+| 2026-Feb | **0** | 0 | — |
+| 2026-Mar | **0** | 0 | — |
+| 2026-Apr | **0** | 0 | — |
+| 2026-May | 19 | 5 | ₱538,800.00 |
+| 2026-Jun | **0** | 0 | — |
+| 2026-Jul | 6 | 2 | ₱34,000.00 |
+| 2026-Aug | 2 | 2 | ₱16,000.00 |
+| 2026-Sep | 5 | 3 | ₱45,000.00 |
+
+**Five of the nine months since the import are completely empty, and no month
+touches more than 5 of 258 members.**
+
+A Jan–Dec 2026 distribution run on this data would average almost entirely on the
+carried-forward December figure. That is arithmetically correct — carry-in is the
+right rule (§12.6) — but it is barely an average, and it makes the month-range
+design indistinguishable in practice from the single-balance model §3 was written
+to replace.
+
+**The 2026 record therefore needs filling before a real distribution means much**
+— but through the cashier and loan flows, not a backfill grid (§20 WITHDRAWN
+2026-09-09). The migration proceeds regardless: the functions are correct however
+sparse the data is, and the numbers improve on their own as transactions are
+recorded.
+
+### 22.8 Migration deployed — 2026-09-09
+
+`isc_v2_01_schema.sql` and `isc_v2_03_post_settle.sql` are live. Verified by
+`isc_checks/10_MIGRATION_LANDED.sql`:
+
+| Check | Result |
+|---|---|
+| `isc_reverse` removed | **PASS** |
+| `isc_post` takes a pool, not a rate | **PASS** |
+| Exactly one `isc_post` (no stale overload) | **PASS** |
+| `isc_settle_posting` created | **PASS** |
+| `isc_delete_posting` created | **PASS** |
+| `isc_calculate_preview` takes a pool | **PASS** |
+| Overlap constraint excludes only reversed rows | **PASS** |
+
+**And nothing moved:** 816 CBU rows, ₱29,678,787.77 co-op share capital, 2
+postings, 526 line items — every figure identical to the §22.6 baseline.
+
+The "no stale overload" check earned its place. `isc_post`'s signature changed
+from `(date, date, rate)` to `(date, date, pool)` — both `numeric`, so an old
+copy left behind would have been a silent ambiguity a caller could resolve
+either way. Dropping it explicitly before the `CREATE` is what prevents that.
+
+### 22.9 The SQL editor cannot post — and that is correct
+
+The first attempt to test `isc_post` from the Supabase SQL editor raised:
+
+```
+ERROR: Only a bookkeeper may post Interest on Share Capital.
+```
+
+**This is the §5.4 guard working, not a defect.** The editor connects as
+`postgres`/`service_role`, so `auth.uid()` and `auth.email()` are NULL and
+`has_portal_role()` correctly returns false.
+
+It is worth noticing that this is the same *shape* as bug 4 from the 2026-09-06
+build — a permission check blocking posting outright — except that this time it
+is refusing the wrong caller rather than the right one.
+
+**Do not weaken the guard to make a test pass.** `has_portal_role()` matches on
+`user_id`, `auth_user_id`, **or email** (`loan_form_policies.sql:240`), so a test
+can impersonate a real bookkeeper for the session:
+
+```sql
+SELECT set_config('request.jwt.claims',
+  json_build_object('sub', '<auth_user_id>', 'email', '<email>',
+                    'role', 'authenticated')::text, false);
+```
+
+Session-local, discarded on disconnect, and it changes no code.
+`isc_checks/11_TEST_AS_BOOKKEEPER.sql` uses this to exercise post → settle →
+delete end to end, including a teardown that returns the database to the §22.6
+baseline.
+
+> **The real caller was never affected.** The frontend calls
+> `supabase.rpc('isc_post', ...)` as the signed-in bookkeeper, which is the whole
+> reason §5.1 chose the browser over FastAPI: `auth.uid()` there is the actual
+> person, not a service account.
+
+### 22.10 Bug in the migration — the overlap constraint kept a dead pair alive
+
+The first real `isc_post` call was rejected:
+
+```
+conflicting key ([2026-01-01,2027-01-01))
+  conflicts with ([2025-12-01,2026-10-01))
+```
+
+**The constraint was right to fire; my predicate was wrong.**
+
+Step 5b rewrote it as `WHERE (status <> 'reversed')`, on the reasoning that §17.1
+discards reversal so `status` tells the whole story. It does not. A reversal is
+*itself a posting* and carries `status = 'posted'`:
+
+| id | status | period | total | by |
+|---|---|---|---:|---|
+| `e649520f` | **reversed** | Dec 2025 – Sep 2026 | +₱1,496,104.42 | bookkeeper |
+| `38dc1d51` | **posted** | Dec 2025 – Sep 2026 | −₱1,496,104.42 | manager |
+
+The pair nets to **₱0.00** and owes nobody anything, yet the second row kept ten
+months occupied and blocked a legitimate posting.
+
+**What I missed:** `reverses_posting_id` identifies the cancelling half, and it
+is still on the table — step 5a dropped the `isc_reverse` *function*, not the
+column. That marker was load-bearing for the constraint and I removed the
+predicate's reliance on it without noticing.
+
+**The rule, stated properly:** a posting occupies its months unless it is part of
+a reversal pair. Both halves are excluded — the original by `status`, the
+cancelling entry by `reverses_posting_id IS NOT NULL`. Fixed in
+`isc_v2_04_fix_overlap.sql`, which also refuses to run if any negative-total
+posting lacks the marker (relaxing the constraint with an unmarked reversal
+could let two *live* postings share months — the failure §8.2 exists to prevent).
+
+> **§22.8 recorded this check as PASS, and it should not have.** The check asked
+> whether the constraint *definition mentioned* `'reversed'`. It did. But
+> mentioning a value is not the same as excluding the right rows — a
+> definition-text check cannot verify behaviour. The real test is the one that
+> found it: attempt an overlapping posting and see whether it is allowed.
+>
+> This is the second time in this migration that a check passed while the thing
+> it checked was broken (§21.6 was the first, where CRJ's catch-all absorbed a
+> misfiled label and still totalled correctly). **Both were caught by exercising
+> the behaviour, not by inspecting the artefact.**
+
+---
+
+## 23. Settlement timing — March of the FOLLOWING year (confirmed 2026-09-09)
+
+§14.2 established that a capitalised payout is dated at the March General
+Assembly. What it did not pin down is *which* March.
+
+**Confirmed: the earning period is January–December, and the General Assembly
+that settles it meets in March of the NEXT year.**
+
+```
+Jan 2026 ─────────── Dec 2026        the earning period
+                          │
+                          │  audited surplus determined,
+                          │  GA convenes
+                          ▼
+                     March 2027       members elect: cash or capital
+                                      capitalised payouts enter CBU here
+```
+
+So a Jan–Dec 2026 distribution settles in **March 2027**, roughly three months
+after the period closes — which is when the audited net surplus is actually known
+and the assembly meets.
+
+### 23.1 The election stays voluntary
+
+At the March assembly each member chooses: **withdraw the payout as cash, or put
+it into their share capital.** It is a real choice, made per member, every year.
+Nothing becomes compulsory.
+
+This is exactly what §17.2's checklist implements. The all-checked default
+(capitalise) is a convenience for the common case and a fail-safe — an overlooked
+row adds visible money that keeps earning, rather than silently marking someone
+as paid cash they never received. It is **not** a rule being applied to people
+who did not choose it.
+
+### 23.2 What this means for the CBU ledger
+
+A capitalisation lands in `capital_build_up` dated **March 2027**, so it first
+appears as a movement in the **Jan–Dec 2027** distribution — never in the 2026
+one that produced it.
+
+That gives the compounding question (§14.2) a clean answer in practice: a payout
+earned across 2026 and capitalised in March 2027 earns interest for ten of the
+twelve months of 2027. It cannot inflate the basis that produced it, because that
+period has already closed and been posted.
+
+### 23.3 The date guard: warn, do not enforce
+
+`isc_settle_posting` currently rejects only an effective date **before**
+`period_end`. That guard stays — back-dating a capitalisation would insert a CBU
+row ahead of deposits made since, which is bug 1's broken chain (§14.2).
+
+**A hard "must be the following March" rule is deliberately NOT added.** A general
+assembly can be postponed, rescheduled, or run late, and a constraint that blocks
+a legitimate late settlement would be worse than the mistake it prevents. The
+bookkeeper knows when the assembly actually happened.
+
+The UI should **default** the settlement date to March of the year after
+`period_end` and flag anything far from it, rather than refusing it. Same posture
+as §22.5's period picker: a sensible default plus a visible warning, not a lock.
+
+**Added to the §13.7 checklist.**
+
+### 22.11 §14 VERIFIED — posting moves no money (2026-09-09)
+
+A real posting was created through `isc_post` as the signed-in bookkeeper:
+
+```
+66e154b4  Jan-Dec 2026  12 months  265 members
+          pool PHP 1,000,000.00   rate 3.3300%   basis PHP 30,029,987.77
+          payouts PHP 1,000,000.00      posted_by bookkeeper@gmail.com
+```
+
+Then `isc_checks/14_DID_POSTING_MOVE_MONEY.sql`:
+
+| Check | Result |
+|---|---|
+| **CBU rows created by this posting** | **0** |
+| **Co-op share capital** | **₱29,678,787.77** — unmoved |
+| `capital_build_up` rows | 816 — unchanged |
+| Line items created | 265 |
+| All unsettled | 265 |
+| Payouts sum to the pool | ₱1,000,000.00 exactly |
+| Rows given a residual centavo | 106 |
+| `payout_unrounded` retained | 265 |
+
+**This is the change the migration existed for.** The Sep-6 build would have
+credited all 265 members' share capital the moment this was posted — 18 months
+before their March 2027 election (§23). It now records a payable and nothing
+else.
+
+Three secondary confirmations in the same result:
+
+- **Rule 7 holds through the real posting path**, not just the preview. The
+  server-side re-verification in `isc_post` passed on live data.
+- **`posted_by_email` is the actual bookkeeper**, not `service_role` — which is
+  precisely why §5.1 chose `supabase.rpc()` from the browser over FastAPI.
+- **The derived rate is arithmetically sound**: ₱1,000,000 ÷ ₱30,029,987.77 =
+  3.33%. Derived from the pool, never typed.
+
+> Note the rate here (3.33%) differs from the ≈5% of §22.4 because the pool and
+> the period both differ — Jan–Dec 2026 over twelve months against a larger
+> basis. That the rate *moves with the inputs* is itself the point of §12.1.
+
+### 22.12 Settlement verified — and a pre-existing duplicate found
+
+`isc_settle_posting` was run against posting `66e154b4` with effective date
+**2027-03-15** (§23: a Jan–Dec 2026 period settles in March of the following
+year). Two members were passed as the cash list; everyone else capitalised.
+
+| | Members | Total | CBU rows |
+|---|---:|---:|---:|
+| capitalised | 263 | ₱928,068.69 | 263 |
+| cash | 2 | ₱71,931.31 | **0** |
+| | **265** | **₱1,000,000.00** | |
+
+Both paths behave correctly: every capitalised line item owns exactly one CBU
+row, and cash line items wrote none. The arithmetic closes exactly:
+
+```
+₱29,678,787.77  baseline
++    928,068.69  capitalised only -- NOT the whole pool
+= ₱30,594,717.49  measured
+```
+
+#### One bug of mine, found and fixed
+
+Settlement first failed with `duplicate key ... (cbu_deposit_id)=(CBUD_100)`.
+`isc_settle_posting` recomputed the next sequence number with a `MAX()` scan
+**inside the loop**, so consecutive iterations could produce the same id. That
+was meant to satisfy §5.3 (pre-supply the id so the trigger's scan never fires)
+— the intent was right, the implementation was not: a per-iteration rescan is
+both the performance problem §5.3 warns about *and* a correctness bug.
+
+Fixed in `isc_v2_05_fix_deposit_id.sql`: compute the starting number **once**,
+before the loop, then increment locally. The unique index caught it before any
+bad data landed, and the failed attempt rolled back completely (verified: 0
+partial settlements).
+
+> A note in that file first blamed `lpad(n,3,'0')` as a second cause. Measured
+> afterwards, the highest suffix in use is **830**, so `lpad` was already
+> emitting un-padded 4-digit ids and was not implicated. The diagnosis has been
+> corrected in place; padding is still widened to 4, which costs nothing.
+
+#### The 2 "broken chain links" were NOT settlement's doing
+
+The post-settlement chain check reported 2 broken links, where there had been 0.
+Re-running it while excluding **every** ISC-created row still showed 2 — so the
+breaks pre-date settlement entirely.
+
+They are `TTMPC-297` and `TTMPC-298`, both app-created, both with **two rows for
+the same ₱10,000 on the same day**:
+
+```
+2026-09-08  'Initial Paid-Up Capital'   0 -> 10,000    applicationConfirmation.py
+2026-09-08  'INITIAL_PAID_UP_CAPITAL'   0 -> 10,000    the membership trigger
+```
+
+**This is the two-writer duplicate §15.6 predicted and §21.3 measured** — the
+same casing pair — except here both writers fired for one event. Neither can see
+the other's row: the trigger dedupes on `source_payment_id`, and the Python seed
+dedupes on nothing at all (§4 records it as the one writer with no dedup key).
+
+It surfaces as a chain break because the second row starts at 0 instead of
+continuing from 10,000. But the real defect is that the row exists.
+
+**Impact is contained:** both rows end at ₱10,000 and every balance read takes
+the latest row, so the members' *balances* are right — the duplicate inflates
+`capital_added`, not the balance. And both members are outside the migrated 258,
+so the cooperative's books are untouched (verified: 0 duplicated members inside
+the migrated set).
+
+**Still worth fixing**, because ISC's basis walks `ending_share_capital` and a
+member whose ledger claims ₱20,000 of contributions against a ₱10,000 balance is
+an accident waiting to happen. Added to the checklist.
+
+#### A check of mine that overstated its result
+
+`isc_checks/01_RUN_THIS_FIRST.sql` reported **0 broken links** while scoped to
+members holding a `historical_import_2025` row. That scope is right for proving
+the *cooperative's books* sound — but I presented the result as though it covered
+the whole table, and it never did. These two members were always outside it.
+
+> This is the third time in this migration that a check passed while something
+> beneath it was wrong: §21.6 (a catch-all absorbing a misfiled label and still
+> totalling correctly), §22.10 (a constraint definition that *mentioned* the
+> right value without excluding the right rows), and now a correct check whose
+> **scope** was narrower than the claim made for it.
+>
+> The pattern is consistent: each was found by exercising behaviour, and each
+> passed a check that inspected structure. **State what a check does not cover,
+> not just what it asserts.**
+
+### 22.13 SQL phase complete — full cycle proven, database back to baseline
+
+The whole lifecycle was exercised against live data on 2026-09-09 and then
+unwound. Final state, verified:
+
+| | Baseline | After teardown |
+|---|---:|---:|
+| `capital_build_up` rows | 816 | **816** |
+| Co-op share capital | ₱29,678,787.77 | **₱29,678,787.77** |
+| ISC postings | 2 | **2** |
+| ISC line items | 526 | **526** |
+
+**What was proven end to end:**
+
+| Step | Result |
+|---|---|
+| Schema migration | all columns and constraints in place, nothing moved |
+| `isc_calculate_preview` | rule 7 exact on 6 pool amounts incl. ₱0.07 |
+| `isc_post` | payable recorded, **0 CBU rows**, rule 7 re-verified server-side |
+| Permission guard | SQL editor refused; real bookkeeper accepted (§22.9) |
+| Overlap constraint | rejected a genuine overlap; fixed for reversal pairs (§22.10) |
+| `isc_settle_posting` | 263 capitalised + 2 cash = ₱1,000,000.00 exactly |
+| Capitalisation | credited only the capitalised total, not the pool |
+| `isc_delete_posting` | removed an unsettled posting cleanly |
+| Teardown | database identical to baseline |
+
+**Three bugs found and fixed during the build**, all mine, none reaching bad
+data: the plpgsql variable collision (§22.2), the overlap predicate that kept a
+dead reversal pair alive (§22.10), and the `cbu_deposit_id` rescan inside the
+settlement loop (§22.12).
+
+**One pre-existing data fault found**: duplicate paid-up capital rows for two
+app-created members (§22.12), outside the cooperative's books, on the checklist
+to repair.
+
+**What remains before a real posting:**
+
+1. **The 2026 record** — five of nine months since the import have no CBU
+   activity at all (§22.7). Until deposits and disbursements are being recorded,
+   a 2026 average is barely an average. This is operational, not a build task:
+   the ISC grid is read-only and the data arrives through the cashier and loan
+   flows (§20 WITHDRAWN).
+2. **Step 5c** — remove bug 2's `source_isc_id IS NULL` guard. Safe now that
+   `isc_post` writes no CBU rows, but deliberately left as a separate conscious
+   action (§14.2).
+3. **The frontend** — §13 (page + nav), §17.2 (settlement checklist), §19
+   (density levels, pagination), §22.5 (period picker defaulting to January).
+
+---
+
+## 24. The frontend — NOT built, deliberately
+
+A calculation-only page was built on 2026-09-09 and then **removed at the user's
+request**: the frontend is another developer's work, and a half-built page from a
+different hand would be something to undo rather than something to start from.
+
+**Nothing UI-side is in the tree.** No page component, no route, no nav entry.
+`Router.jsx` and `configs/bookkeeper.js` are untouched; build verified clean
+after removal.
+
+> **The brief now lives with the design, not only here.**
+> `TTMPC_THESIS/src/ISC Notes/FRONTEND_BRIEF.md` is a standalone version of this
+> section — written so it can be read without the plan. That folder also has a
+> `README.md` explaining which of its three files is current, and both older
+> files carry a banner saying what in them has been superseded.
+>
+> The sections below are kept as the plan's own record of the same contract.
+
+### 24.1 What the frontend developer needs
+
+Everything the page needs already exists in the database and is verified working.
+
+**One RPC does the whole job — it writes nothing:**
+
+```js
+const { data, error } = await supabase.rpc("isc_calculate_preview", {
+  p_period_start: "2026-01-01",
+  p_period_end:   "2026-12-01",
+  p_allocated_pool: 1000000.00,   // or null for the basis alone
+});
+```
+
+**Each row returns:**
+
+| Field | Meaning |
+|---|---|
+| `member_id`, `membership_id`, `member_name` | who |
+| `opening_balance` | carried in from before the period |
+| `month_end_balances` | `numeric[]`, one per month, chronological |
+| `crj_by_month` | `numeric[]` — paid in at the cashier |
+| `cdj_by_month` | `numeric[]` — retained from a loan (also ADDS, §18.1) |
+| `average_share_capital` | rule 3 |
+| `total_share_capital` | closing balance |
+| `total_average` | rule 4 — same on every row |
+| `rate` | derived percent — same on every row |
+| `interest_amount` | the payout, reconciled |
+| `payout_unrounded`, `adjusted` | centavo audit trail (§12.3) |
+| `month_count` | the divisor |
+
+### 24.2 Things the page must get right
+
+These are not style preferences; each has a failure behind it.
+
+**Totals must cover every member, never the visible page (§19.5).** The footer
+carries rule 7 — payouts must equal the pool exactly. Paginate the *render*, not
+the maths, and export every row too. A page-only total reads "out of balance"
+against a pool of millions and looks like a calculation bug.
+
+**There is no period picker (confirmed 2026-09-09).** The period is always
+1 January – 31 December of the **current calendar year**, derived from the clock:
+
+```js
+const year = new Date().getFullYear();
+p_period_start: `${year}-01-01`,
+p_period_end:   `${year}-12-01`,
+```
+
+Show it as read-only text. This supersedes §22.5's "default to January and warn
+on December" — fixing the period *removes* that failure instead of warning about
+it, which is strictly better. A December start reads every opening as ₱0 and
+every average as the closing balance, silently and plausibly (§22.5), and a
+picker's only real use would be to allow exactly that.
+
+The database still accepts any range and still enforces its own guards. This is a
+UI simplification, not a loosening.
+
+**Never recompute a payout client-side (§7).** Every figure comes from the RPC.
+The page formats, paginates and filters — nothing more. Preview and any future
+posting then share one implementation and cannot disagree.
+
+**A blank pool means "not decided yet" (§12.5).** Show `—`, never ₱0.00.
+
+**Show the centavo adjustments (§12.3).** Rows with `adjusted = true` received a
+residual centavo; surfacing them is what lets an auditor trace a one-centavo
+difference instead of assuming a bug.
+
+**No Post button yet.** Posting is deferred (§24.3). State that on the page
+rather than showing a disabled control — §5.4 makes the same argument for the
+cashier: a button that always fails invites "why is this broken?".
+
+### 24.3 What is deliberately not needed yet
+
+- **The settlement checklist (§17.2)** — only relevant once posting is enabled.
+- **§19.3's density levels and §19.4's drawer** — the month columns are mostly
+  empty (§22.7) until 2026 transactions are actually being recorded, so a summary
+  table is honest for now.
+- **~~§20's backfill grid~~** — withdrawn. The grid is read-only; CRJ and CDJ
+  arrive from the cashier and loan flows.
+
+The design to follow is `TTMPC_THESIS/src/ISC Notes/` — the approved grid and its
+implementation note — plus `DESIGN.md` for the system's colours, cards, table
+header band and stat-card pattern.
+
+## 25. Handwritten formula sheet — checked against the build (2026-09-09)
+
+The bookkeeper's own formula sheet was provided and checked line by line against
+what is deployed. **Everything agrees.**
+
+| Sheet | Implementation |
+|---|---|
+| `Member Average = Σ month-end balances (Jan–Dec) ÷ 12` | rule 3 ✓ |
+| `438,000 ÷ 12 = 36,500.00` | ✓ |
+| `Total Average = Average₁ + Average₂ + … + Averageₙ` | rule 4 ✓ — the sum of the averages, deliberately not the grand total ÷ 12 |
+| `ISC Rate = Total Net Surplus Audited for ISC ÷ Total Average Share Capital` | rule 5 ✓ |
+| `20,000 ÷ 177,833.33 = 0.11246498` | ✓ |
+| `Member Payout = Member Average × ISC Rate` | rule 6 ✓ |
+| **"Must be balanced in the ISC"** | rule 7 ✓ |
+
+The sheet's figures are the §12.3 fixture, and its rate — `0.11246498` — matches
+the reference implementation's `0.11246485473289597` to seven decimal places. The
+difference is the sheet rounding `177,833.33` by hand before dividing.
+
+> **That difference is itself a confirmation.** The code holds the rate
+> **unrounded** in state and rounds only at display (§12.2's precision note), so
+> it never accumulates the drift a hand calculation does. Rounding the
+> denominator first is exactly what §12.2 warns against.
+
+**"Must be balanced in the ISC"** is the sheet's own statement of rule 7, and it
+is the constraint the whole reconciliation design exists to satisfy. Verified
+2026-09-09 across six pool amounts including ₱0.07 — difference ₱0.00 every time
+(§22.4) — and `isc_post` re-verifies it server-side before committing, refusing
+the batch if it is off by a centavo (§22.11).
+
+**The dashboard sketch** on the accompanying sheet shows the same column set the
+module defines and `isc_calculate_preview` already returns: member name, share
+capital carried in from last year, per-month CRJ/CDJ, a running "total until
+[month]", then Total, Average, ISC Rate, Payout. The "total until Jan" column
+(25,000 opening + 1,000 CRJ = 26,000) is the running month-end balance of rule 1,
+returned as `month_end_balances`.
+
+**No change required.** The formulas the cooperative works to and the formulas in
+the database are the same formulas.

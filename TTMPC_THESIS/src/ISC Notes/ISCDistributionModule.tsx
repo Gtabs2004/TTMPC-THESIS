@@ -1,3 +1,21 @@
+/* ============================================================================
+ * WHAT THIS FILE IS:  a DESIGN REFERENCE, not shipping code.
+ *
+ * It is TypeScript; the app is .jsx. Port it, do not import it. The LAYOUT is
+ * approved and the FORMULAS below are correct -- both were confirmed with the
+ * bookkeeper -- but the surrounding machinery has been superseded:
+ *
+ *   - The arithmetic now lives in the DATABASE (isc_calculate_preview).
+ *     Do NOT reimplement it in JS; two implementations round differently and
+ *     will disagree by centavos.
+ *   - The rate is DERIVED from the allocated amount, not entered.
+ *   - SAMPLE_MEMBERS is a fixture. Real data comes from the RPC.
+ *   - The editable CRJ/CDJ cells belong to the 2026 backfill, which is a
+ *     separate later job -- not part of the calculation screen.
+ *
+ * >>> BUILDING THE SCREEN?  READ  FRONTEND_BRIEF.md  IN THIS FOLDER FIRST. <<<
+ * ==========================================================================*/
+
 /**
  * Interest on Share Capital (ISC) Distribution
  *
