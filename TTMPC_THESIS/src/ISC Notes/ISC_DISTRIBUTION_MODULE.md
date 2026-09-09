@@ -1,3 +1,22 @@
+<!-- ==========================================================================
+     WHAT THIS FILE IS:  the DESIGN REFERENCE for the ISC ledger grid.
+     Written before the backend existed. The LAYOUT and the SEVEN FORMULAS
+     here are still authoritative and were confirmed with the bookkeeper.
+
+     WHAT HAS CHANGED SINCE:  the backend is now built, and three things in
+     this note are out of date --
+
+       1. "persist edits and posted batches" -- posting is DEFERRED, and the
+          arithmetic now lives in the database, not in the component.
+       2. The rate is DERIVED from the allocated amount, not entered.
+       3. A payout pays CASH; it becomes share capital only if the member
+          elects that at the General Assembly.
+
+     >>> IF YOU ARE BUILDING THE SCREEN, READ  FRONTEND_BRIEF.md  FIRST. <<<
+     It supersedes the "what to build next" parts of this note.
+     Full reasoning: ISC_DIVIDEND_PLAN.md at the repo root.
+     ========================================================================== -->
+
 # ISC Distribution Module — implementation note
 
 **File:** `ISCDistributionModule.tsx`
