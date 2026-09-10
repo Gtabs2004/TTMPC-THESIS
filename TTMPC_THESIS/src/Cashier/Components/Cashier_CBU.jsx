@@ -7,7 +7,6 @@ import { useNotification } from "../../contex/NotificationContext";
 import StaffTopbar from "../../components/StaffTopbar";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
 import Breadcrumb from "../../components/Breadcrumb";
-import IscPostingHistory from "../../components/IscPostingHistory";
 import {
   LayoutDashboard,
   Banknote,
@@ -25,8 +24,6 @@ import {
   PiggyBank,
   ShoppingCart,
   ArrowDownLeft,
-  History,
-  Calculator
 } from 'lucide-react';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
@@ -42,7 +39,6 @@ const Cashier_CBU = () => {
   const [loadError, setLoadError] = useState("");
   const [memberPage, setMemberPage] = useState(1);
   const [transactionPage, setTransactionPage] = useState(1);
-  const [showIscHistory, setShowIscHistory] = useState(false);
 
 
   const getStatusStyle = (status) => {
@@ -216,15 +212,6 @@ const Cashier_CBU = () => {
                   Live Data
                 </span>
               </div>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setShowIscHistory(true)}
-                  className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white hover:bg-gray-50 px-4 py-2 text-xs font-semibold text-gray-700 transition-colors"
-                >
-                  <History className="w-4 h-4" /> View Postings
-                </button>
-              </div>
             </div>
 
             {loading && (
@@ -316,13 +303,6 @@ const Cashier_CBU = () => {
 
         </main>
       </div>
-
-
-      <IscPostingHistory
-        open={showIscHistory}
-        onClose={() => setShowIscHistory(false)}
-        canReverse={false}
-      />
     </div>
   );
 };

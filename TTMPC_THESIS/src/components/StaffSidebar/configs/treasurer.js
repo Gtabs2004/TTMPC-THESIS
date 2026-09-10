@@ -4,7 +4,6 @@ import {
   Wallet,
   Calculator,
   Users,
-  BarChart3,
   History,
   FileText
 } from "lucide-react";
@@ -19,7 +18,6 @@ export const treasurerNav = [
   { name: "Schedule",      icon: Calculator,      path: "/schedule" },
   { name: "Payments",      icon: Users,           path: "/treasurer-payments" },
   { name: "Loan Approval", icon: FileText,      path: "/treasurer-approval" },
-  { name: "ISC Postings",  icon: BarChart3,       path: "/treasurer-isc" },
   { name: "Audit Log",     icon: History,         path: "/treasurer-audit-log" },
 ];
 
