@@ -30,6 +30,7 @@ import Manage_Loans from "./Bookkeeper/Components/Manage-Loans";
 import BookkeeperCreditRisk from "./Bookkeeper/Components/CreditRisk";
 import ManagerCreditRisk from "./Manager/Components/CreditRisk";
 import Member_Details from "./Bookkeeper/Components/member_details";
+import Bookkeeper_ISC from "./Bookkeeper/Components/ISC_Distribution";
 import Membership_Form from "./LOANFORMS/Membership_Form";
 import Dashboard_BOD from "./BOD/Components/B-Dashboard";
 import Member_Approvals from "./BOD/Components/Member-Approvals";
@@ -105,8 +106,6 @@ import Cashier_MembershipPayments from "./Cashier/Components/Cashier_MembershipP
 import Manage_Member from "./Bookkeeper/Components/Manage-Member";
 import Manager_Manage_Member from "./Manager/Components/Manage-Member";
 import Manager_Manage_Loans from "./Manager/Components/Manager_Manage_Loans";
-import Manager_ISC_Postings from "./Manager/Components/ISC_Postings";
-import Treasurer_ISC_Postings from "./Treasurer/Components/ISC_Postings";
 import Savings_Forms from "./LOANFORMS/Savings_Forms";
 import Grocery from "./Bookkeeper/Components/Grocery";
 import PosSimulator from "./Bookkeeper/Components/PosSimulator";
@@ -142,6 +141,7 @@ export const router = createBrowserRouter([
     {path: "/bookkeeper-savings-transactions", element: bookkeeperGuarded(<BookkeeperSavingsTransactions/>)},
     {path: "/bookkeeper-savings-accounts", element: bookkeeperGuarded(<BookkeeperSavingsAccounts/>)},
     {path: "/bookkeeper-cbu", element: bookkeeperGuarded(<Bookkeeper_CBU/>)},
+    {path: "/bookkeeper-isc", element: bookkeeperGuarded(<Bookkeeper_ISC/>)},
     {path: "/reports", element: bookkeeperGuarded(<Reports/>)},
     {path: "/loan_kiosk", element: <Loan_Kiosk/>},
     {path: "/verification", element: <Verification/>},
@@ -162,7 +162,6 @@ export const router = createBrowserRouter([
     {path: "/manager-loan-ledger/:loanId", element: managerGuarded(<LoanLedger/>)},
     {path: "/loan-approval", element: managerGuarded(<Loan_Approval/>)},
     {path: "/manager-reports", element: managerGuarded(<Manager_Reports/>)},
-    {path: "/manager-isc", element: managerGuarded(<Manager_ISC_Postings/>)},
     {path: "/role_selection", element:<Role_Selection/>},
     {path: "/memberlogin", element:<MemberLogin/>},
     {path: "/forgot-password", element:<ForgotPassword/>},
@@ -213,7 +212,6 @@ export const router = createBrowserRouter([
     {path: "/bod-audit-log", element: bodGuarded(<BOD_Audit_Log/>)},
     {path: "/manager-audit-log", element: managerGuarded(<Manager_Audit_Log/>)},
     {path: "/treasurer-audit-log", element: treasurerGuarded(<Treasurer_Audit_Log/>)},
-    {path: "/treasurer-isc", element: treasurerGuarded(<Treasurer_ISC_Postings/>)},
     {path: "/cashier-audit-log", element: cashierGuarded(<Cashier_Audit_Log/>)},
     {path: "/bod-manage-loans", element: bodGuarded(<BOD_Manage_Loans/>)},
     {path: "/bod-loan-policies", element: bodGuarded(<BOD_Loan_Policies/>)},

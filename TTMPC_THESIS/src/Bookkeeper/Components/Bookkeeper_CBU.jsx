@@ -10,8 +10,6 @@ import {
   Search,
   Users,
   Wallet,
-  Calculator,
-  History
 } from "lucide-react";
 
 import { useNotification } from "../../contex/NotificationContext";
@@ -19,8 +17,6 @@ import StaffTopbar from "../../components/StaffTopbar";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
 import Breadcrumb from "../../components/Breadcrumb";
 import Pagination from "../../components/Pagination";
-import InterestOnShareCapitalModal from "../../components/InterestOnShareCapitalModal";
-import IscPostingHistory from "../../components/IscPostingHistory";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 const PAGE_SIZE = 5;
@@ -99,8 +95,6 @@ const Bookkeeper_CBU = () => {
   const [memberSearch, setMemberSearch] = useState("");
   const [memberPage, setMemberPage] = useState(1);
   const [txPage, setTxPage] = useState(1);
-  const [showInterestModal, setShowInterestModal] = useState(false);
-  const [showIscHistory, setShowIscHistory] = useState(false);
 
   const totals = useMemo(() => {
     const now = new Date();
@@ -211,34 +205,15 @@ const Bookkeeper_CBU = () => {
           <div className="border border-gray-200 rounded-lg shadow-sm overflow-hidden bg-white mb-8">
             <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between gap-3 flex-wrap">
               <h3 className="text-sm font-bold text-gray-900">Member Accounts</h3>
-              <div className="flex items-center gap-3">
-                <div className="relative flex-1 max-w-md">
-                  <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
-                  <input
-                    type="text"
-                    value={memberSearch}
-                    onChange={(event) => setMemberSearch(event.target.value)}
-                    placeholder="Search by Member ID or Name"
-                    className="w-full bg-gray-50 border border-gray-300 rounded-md pl-9 pr-3 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-green-500"
-                  />
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => setShowIscHistory(true)}
-                  className="inline-flex items-center gap-1.5 rounded-md border border-gray-300 bg-white hover:bg-gray-50 px-3 py-1.5 text-xs font-semibold text-gray-700 transition-colors shrink-0"
-                >
-                  <History className="w-3.5 h-3.5" />
-                  View Postings
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowInterestModal(true)}
-                  className="inline-flex items-center gap-1.5 rounded-md bg-primary hover:bg-primary-deep px-3 py-1.5 text-xs font-semibold text-white transition-colors shrink-0"
-                >
-                  <Calculator className="w-3.5 h-3.5" />
-                  ISC Calculator
-                </button>
+              <div className="relative flex-1 max-w-md">
+                <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
+                <input
+                  type="text"
+                  value={memberSearch}
+                  onChange={(event) => setMemberSearch(event.target.value)}
+                  placeholder="Search by Member ID or Name"
+                  className="w-full bg-gray-50 border border-gray-300 rounded-md pl-9 pr-3 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-green-500"
+                />
               </div>
             </div>
             <div className="overflow-x-auto">
@@ -342,19 +317,6 @@ const Bookkeeper_CBU = () => {
           </div>
         </main>
       </div>
-
-      <InterestOnShareCapitalModal
-        open={showInterestModal}
-        onClose={() => setShowInterestModal(false)}
-        canPost
-        onPosted={refresh}
-      />
-
-      <IscPostingHistory
-        open={showIscHistory}
-        onClose={() => setShowIscHistory(false)}
-        canReverse={false}
-      />
     </div>
   );
 };
