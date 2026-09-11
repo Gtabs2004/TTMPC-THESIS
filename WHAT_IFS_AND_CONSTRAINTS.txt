@@ -124,6 +124,12 @@ CBU (CAPITAL BUILD-UP)
 - What if member is not found when posting a CBU deposit? -> Return 404.
 - What if deposit amount is 0 or negative? -> Return 400.
 - What if cbu_deposit_id duplicates? -> Auto-generate next ID or 409.
+- What if cbu_deposit_id is generated from a row COUNT instead of MAX(sequence)? -> (added) A count undercounts once any row has ever been deleted, so the "next" id collides with one already in use. Derive the next sequence from the highest existing CBUD_nnn suffix, not len(rows)+1.
+- What if transaction_date is omitted on a cashier CBU deposit? -> (added) Store date-only (00:00:00), matching every other CBU writer (the import, the loan-disbursement trigger, membership payments). A full timestamp here while other rows are date-only breaks same-day tiebreaking and reproduces the running-balance chain bug already fixed once (see cbu_backup_*.json).
+- What if a CBU deposit targets a terminated/inactive member? -> (added) Reject with 400. Nothing upstream currently checks member_status before crediting share capital; ISC and other CBU-derived reporting assume only active members hold live capital.
+- What if the running-balance lookup returns a negative starting_share_capital? -> (added) That is a broken-chain symptom, not a normal case. Do not silently clamp it to 0 — return 409 and surface it so the underlying chain gap gets fixed rather than hidden.
+- What if the primary CBU insert fails (e.g. schema mismatch on cbu_deposit_id)? -> (added) Do not silently retry with a stripped-down fallback payload that drops fields like deposit_account defaulting. Surface the real error; a fallback insert can make a broken write look like a successful deposit.
+- What if the same cashier deposit request is submitted twice (double-click/retry)? -> (added) No dedup key exists on cashier-entered CBU rows today (unlike source_loan_id / source_payment_id / source_isc_id for other writers). Accept a client-supplied idempotency key, or dedupe on (member_id, transaction_date, capital_added) within a short window, to avoid crediting share capital twice.
 
 SAVINGS
 - What if savings account does not exist? -> Return 404.

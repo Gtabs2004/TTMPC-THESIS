@@ -1100,6 +1100,18 @@ const LoanApprovalDetails = () => {
         setActionError('Please enter at least one co-maker under Bookkeeper Internal Review.');
         return;
       }
+
+      // Workflow gate: every declared collateral item must be appraised before
+      // evaluation can be marked complete. The DB allows a null appraised_value
+      // indefinitely (WHAT_IFS_AND_CONSTRAINTS.txt — LOAN COLLATERAL section), so
+      // this is enforced here rather than left to a DB constraint.
+      const hasUnappraisedCollateral = collateralRows.some((row) => (
+        row.appraised_value === null || row.appraised_value === undefined || row.appraised_value === ''
+      ));
+      if (hasUnappraisedCollateral) {
+        setActionError('Please appraise all declared collateral items before sending to Manager.');
+        return;
+      }
     }
 
     let nextStatus = 'pending';
