@@ -4069,3 +4069,105 @@ returned as `month_end_balances`.
 
 **No change required.** The formulas the cooperative works to and the formulas in
 the database are the same formulas.
+
+---
+
+## 26. Frontend/backend alignment check (2026-09-11)
+
+The frontend was built by the other developer and reviewed against the deployed
+database. **Two pages exist:** `Bookkeeper/Components/ISC_Distribution.jsx` (724
+lines, the calculator) and `ISC_Journal.jsx` (the month-by-month ledger view).
+
+**Verdict: aligned, with one real bug found and fixed.** Lint clean, build clean.
+
+### 26.1 What matches
+
+| Contract | Status |
+|---|---|
+| `isc_calculate_preview(start, end, pool)` signature | ✅ both pages |
+| `isc_post(start, end, pool)` — pool, not rate | ✅ |
+| Period fixed Jan–Dec, from the clock (§24.2) | ✅ no picker on either page |
+| Totals over **all** members, never the page (§19.5) | ✅ `totals` reduces `rows`, not `paginated` |
+| Excel export covers every row | ✅ iterates `rows` |
+| Sort applied before pagination | ✅ |
+| `adjusted` surfaced | ✅ amber dot with tooltip |
+| Grid read-only (§20 withdrawn) | ✅ *"nothing here is editable"* |
+| Cash-not-capital explained at confirm | ✅ |
+| No client-side payout arithmetic (§5.5) | ✅ |
+
+The developer also read the brief carefully enough to **cite it in comments** and
+to justify the two places they do compute client-side — both defensible:
+
+- `monthlyDeposit` = `crj[m] + cdj[m]` — a sum of returned raw fields, and
+  correctly **adding** CDJ (§18.1), not subtracting.
+- `combinedTotal` = `average × 12` — reconstructing rule 2's "Member Total",
+  which the RPC doesn't return. Exact inverse of rule 3.
+
+> **One caveat on `combinedTotal`:** ×12 is hardcoded while the RPC returns
+> `month_count`. Correct today because the period is fixed at Jan–Dec, but it
+> would silently break if a shorter period were ever calculated. Using
+> `row.month_count` instead costs nothing and removes the coupling.
+
+### 26.2 THE BUG — sub-centavo pool would have blocked every posting
+
+**The page lets the bookkeeper type a RATE**, which matches how the cooperative
+works. But `isc_post` only accepts a POOL (§22.8 dropped the rate overload), so
+the page converts: `pool = (rate / 100) × total_average`.
+
+That conversion produced **sub-centavo pools**:
+
+```
+5% of 30,029,987.77  =  ₱1,501,499.3885
+```
+
+And `isc_calculate_preview` allocates residual centavos against
+`round(p_allocated_pool * 100)`, so its payouts always sum to a whole number of
+centavos — ₱1,501,499.39. Meanwhile `isc_post` re-verifies rule 7 with **exact
+equality, no tolerance**:
+
+```sql
+IF v_total_interest <> p_allocated_pool THEN
+  RAISE EXCEPTION 'Reconciliation failed: payouts total % but the allocated pool is % ...'
+```
+
+₱1,501,499.39 ≠ ₱1,501,499.3885, so **every posting would have failed** with a
+reconciliation error. Verified against six rates: 5%, 3.33%, 7.25%, 4.125%,
+0.01%, 12.5% — all mismatched.
+
+**Fix** (one line, in `ISC_Distribution.jsx`):
+
+```js
+const impliedPool = rateValid && totalAverage
+  ? Math.round((rateNum / 100) * totalAverage * 100) / 100
+  : null;
+```
+
+Applied in both places the pool is derived — the debounced preview and the post
+handler — so the screen previews exactly the figure it posts. Re-verified: all
+seven rates now reconcile exactly.
+
+> **Why this was invisible in testing:** the calculator works perfectly without
+> it. The preview renders, the totals foot, the rate displays. The failure only
+> appears at the moment of posting — and posting is the one thing that had not
+> been exercised from the UI.
+>
+> This is the same shape as §22's three findings: **the check that passes is not
+> the check that matters.** The server-side rule-7 guard did exactly its job —
+> it refused a batch it could not reconcile rather than writing a wrong one.
+
+### 26.3 One environment issue, not a code bug
+
+The build failed on `Rollup failed to resolve import "exceljs"`. `exceljs` is
+declared in `package.json` but was not installed. `npm install` fixed it; build
+now passes. Worth knowing if anyone else pulls this branch.
+
+### 26.4 Posting is live again
+
+The brief said "no Post button" because posting was deferred. The developer built
+one anyway, wired correctly. That is a **product decision, not a defect** — the
+functions are deployed and tested, and the confirm dialog is honest about what
+posting does (records a payable, credits nobody, deletable only while unsettled).
+
+If posting should stay switched off for now, remove the button — the calculator
+works without it. If it stays, §17.2's settlement checklist becomes the next
+piece of work, since posted line items sit `unsettled` until the March GA.

@@ -55,17 +55,15 @@ const Bookkeeper_ISC = () => {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
 
-  // The bookkeeper types a RATE (matches how the cooperative actually works),
-  // but the only posting function that still exists on the database takes a
-  // POOL, not a rate — isc_post's rate-based overload was deliberately
-  // dropped in the 2026-09-09 migration (ISC_DIVIDEND_PLAN.md §22.8: "isc_post
-  // takes a pool, not a rate" / "exactly one isc_post, no stale overload").
-  // So the typed rate is converted to its equivalent pool (rate% ×
-  // total_average, itself an RPC-returned figure) before either previewing
-  // or posting — the real arithmetic still happens inside
-  // isc_calculate_preview/isc_post, this just picks the pool that reproduces
-  // the rate the bookkeeper asked for.
-  const [rateInput, setRateInput] = useState("");
+  // The bookkeeper enters the AMOUNT the General Assembly allocated — the peso
+  // figure, e.g. 1,000,000. The RATE is not an input: rule 5 DERIVES it
+  //
+  //     ISC Rate = Allocated Amount / Total Average Share Capital
+  //
+  // and the database returns it on every preview row. The amount is also
+  // exactly what isc_post takes (p_allocated_pool), so nothing is converted in
+  // either direction.
+  const [amountInput, setAmountInput] = useState("");
   const [totalAverage, setTotalAverage] = useState(null);
   const [showConfirm, setShowConfirm] = useState(false);
   const [posting, setPosting] = useState(false);
@@ -114,13 +112,19 @@ const Bookkeeper_ISC = () => {
     [viewMonth]
   );
 
-  // Rule 2's annual "Member Total" — the sum of the member's 12 monthly
-  // balances, which rule 3 then divides by 12 to GET Average Share Capital.
-  // The RPC never returns that sum on its own (only the already-divided
-  // average), so it's reconstructed here as average × 12 — the exact
-  // inverse of rule 3, not a new calculation. This is deliberately NOT the
-  // same field as the RPC's own `total_share_capital` (that one is the
-  // member's closing/last-month balance, a different figure entirely).
+  // Rule 2's annual "Member Total" — the SUM OF THE 12 MONTH-END BALANCES,
+  // which rule 3 then divides by 12 to GET Average Share Capital. The RPC
+  // never returns that sum on its own (only the already-divided average), so
+  // it's reconstructed here as average × 12 — the exact inverse of rule 3.
+  //
+  // IT IS NOT MONEY THE MEMBER HOLDS. A member sitting on PHP 1,510,000 all
+  // year has a Member Total of PHP 18,120,000 — the same peso counted twelve
+  // times, once per month. Labelled "Total Share Capital" it read as a balance
+  // and made exactly that figure look like a 12x windfall, so the header says
+  // "Sum of Monthly Balances". Never label it as capital.
+  //
+  // Also NOT the RPC's own `total_share_capital` field (that one is the
+  // member's closing balance, a different figure entirely).
   const combinedTotal = useCallback((r) => Number(r.average_share_capital || 0) * 12, []);
 
   const runCalculation = async (pool) => {
@@ -154,24 +158,35 @@ const Bookkeeper_ISC = () => {
     runCalculation(null);
   }, []);
 
-  const rateNum = Number(rateInput);
-  const rateValid = rateInput !== "" && Number.isFinite(rateNum) && rateNum > 0 && rateNum <= 100;
-  const impliedPool = rateValid && totalAverage ? (rateNum / 100) * totalAverage : null;
+  const amountNum = Number(amountInput);
+  // Rounded to the centavo: isc_post re-verifies rule 7 with EXACT equality
+  // (isc_v2_03_post_settle.sql ~line 157) while isc_calculate_preview
+  // reconciles against `round(p_allocated_pool * 100)`. An amount carrying
+  // sub-centavo digits could never satisfy both, so it is normalised once here
+  // and the same figure drives the preview, the dialog and the post.
+  const allocatedAmount =
+    amountInput !== "" && Number.isFinite(amountNum) && amountNum > 0
+      ? Math.round(amountNum * 100) / 100
+      : null;
+  const amountValid = allocatedAmount !== null;
+
+  // Rule 5, for the confirm dialog only — derived, never typed.
+  const derivedRate =
+    amountValid && totalAverage ? (allocatedAmount / totalAverage) * 100 : null;
 
   // Debounced preview: recompute isc_calculate_preview with the pool implied
   // by the typed rate, so the ISC Rate / ISC Payout columns already show
   // exactly what would be posted — the real RPC computes it, this only picks
   // which pool to hand it.
   useEffect(() => {
-    if (!rateValid || !totalAverage) return undefined;
-    const pool = (rateNum / 100) * totalAverage;
+    if (!amountValid) return undefined;
     clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
-      runCalculation(pool);
+      runCalculation(allocatedAmount);
     }, 500);
     return () => clearTimeout(debounceRef.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rateInput, totalAverage]);
+  }, [amountInput]);
 
   const filtered = useMemo(() => {
     const key = search.trim().toLowerCase();
@@ -261,7 +276,7 @@ const Bookkeeper_ISC = () => {
       "Share Capital",
       `${monthLabel} Balance`,
       `Total Deposit (${monthLabel})`,
-      "Total Share Capital",
+      "Sum of Monthly Balances",
       "Average Share Capital",
       "Rate (%)",
       "ISC Payout",
@@ -351,27 +366,25 @@ const Bookkeeper_ISC = () => {
     await downloadWorkbook(workbook, `isc_distribution_${monthLabel.replace(" ", "_")}.xlsx`);
   };
 
-  // Real posting. isc_post only accepts a pool (§22.8 dropped the rate-based
-  // overload entirely), so the typed rate travels as impliedPool — the same
-  // figure already driving the live preview above, so what gets posted is
-  // exactly what was reviewed on screen (isc_post itself re-runs
-  // isc_calculate_preview server-side with this same pool before writing
-  // anything, so the two can never disagree).
+  // Real posting. The allocated amount goes straight through — it is exactly
+  // what isc_post takes and exactly what drove the preview, so what is posted
+  // is what was reviewed. isc_post re-runs isc_calculate_preview server-side
+  // with the same amount and re-verifies rule 7 before writing anything.
   const handlePost = async () => {
-    if (!rateValid || !impliedPool) return;
+    if (!amountValid) return;
     setPosting(true);
     setPostError("");
     try {
       const { error: rpcError } = await supabase.rpc("isc_post", {
         p_period_start: PERIOD_START,
         p_period_end: PERIOD_END,
-        p_allocated_pool: impliedPool,
+        p_allocated_pool: allocatedAmount,
       });
       if (rpcError) throw new Error(rpcError.message || "Failed to post Interest on Share Capital.");
       setShowConfirm(false);
       setPostedAt(new Date());
       addNotification(
-        `Interest on Share Capital posted at ${rateNum}% for ${YEAR} — ${rows.length} members.`,
+        `Interest on Share Capital posted for ${YEAR} — ${formatCurrency(allocatedAmount)} across ${rows.length} members.`,
         "success"
       );
     } catch (err) {
@@ -403,38 +416,38 @@ const Bookkeeper_ISC = () => {
             <div className="flex items-end gap-3 flex-wrap">
               <div>
                 <label className="block text-xs font-bold text-gray-700 uppercase tracking-wide mb-1.5">
-                  ISC Rate
+                  Allocated Amount
                 </label>
                 <div
-                  className={`flex items-stretch h-11 rounded-lg border bg-gray-50 focus-within:bg-white transition-colors overflow-hidden w-40 ${
-                    rateInput !== "" && !rateValid
+                  className={`flex items-stretch h-11 rounded-lg border bg-gray-50 focus-within:bg-white transition-colors overflow-hidden w-56 ${
+                    amountInput !== "" && !amountValid
                       ? "border-red-300 focus-within:ring-2 focus-within:ring-red-400/50"
                       : "border-gray-300 focus-within:ring-2 focus-within:ring-primary/40 focus-within:border-primary"
                   }`}
                 >
+                  <span className="flex items-center px-3 text-sm font-semibold text-gray-500 bg-gray-100 border-r border-gray-200 shrink-0">
+                    ₱
+                  </span>
                   <input
                     type="text"
                     inputMode="decimal"
-                    value={rateInput}
-                    onChange={(e) => setRateInput(e.target.value)}
-                    placeholder="e.g. 5.00"
-                    className="min-w-0 flex-1 bg-transparent px-3 text-sm focus:outline-none"
+                    value={amountInput}
+                    onChange={(e) => setAmountInput(e.target.value.replace(/[^0-9.]/g, ""))}
+                    placeholder="e.g. 1000000"
+                    className="min-w-0 flex-1 bg-transparent px-3 text-sm text-right tabular-nums focus:outline-none"
                   />
-                  <span className="flex items-center px-3 text-sm font-semibold text-gray-500 bg-gray-100 border-l border-gray-200 shrink-0">
-                    %
-                  </span>
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => setShowConfirm(true)}
-                disabled={!rateValid || !totalAverage || status === "loading"}
+                disabled={!amountValid || !totalAverage || status === "loading"}
                 className="inline-flex items-center gap-2 h-11 px-5 rounded-lg bg-primary hover:bg-primary-deep text-white text-sm font-semibold shadow-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
               >
                 <Send className="w-4 h-4" /> Post ISC
               </button>
               <p className="text-xs text-gray-400 max-w-sm">
-                Enter the rate the General Assembly approved. The table below updates to preview it as you type — nothing is posted until you confirm.
+                Enter the amount the General Assembly allocated for ISC. The rate is worked out from it — amount ÷ total average share capital — and the table previews as you type. Nothing is posted until you confirm.
               </p>
             </div>
 
@@ -450,7 +463,8 @@ const Bookkeeper_ISC = () => {
               <div className="mt-3 rounded-lg border border-green-200 bg-green-50 px-3 py-2 flex items-start gap-2">
                 <CheckCircle2 className="w-3.5 h-3.5 text-green-600 shrink-0 mt-0.5" />
                 <p className="text-xs text-green-700">
-                  Posted at {rateNum}% on {postedAt.toLocaleString("en-PH", { dateStyle: "medium", timeStyle: "short" })}.
+                  Posted {formatCurrency(allocatedAmount)} on{" "}
+                  {postedAt.toLocaleString("en-PH", { dateStyle: "medium", timeStyle: "short" })}.
                 </p>
               </div>
             )}
@@ -559,7 +573,7 @@ const Bookkeeper_ISC = () => {
                         onClick={() => toggleSort("combined")}
                         className="inline-flex items-center gap-1 w-full justify-end hover:text-white/80 transition-colors"
                       >
-                        Total Share Capital {renderSortIcon("combined")}
+                        Sum of Monthly Balances {renderSortIcon("combined")}
                       </button>
                     </th>
                     <th className="p-4 font-bold text-right">
@@ -691,8 +705,8 @@ const Bookkeeper_ISC = () => {
       >
         <div className="text-sm text-gray-700 space-y-3">
           <p>
-            You are about to post Interest on Share Capital for <strong>January – December {YEAR}</strong> at{" "}
-            <strong>{rateNum}%</strong>.
+            You are about to post Interest on Share Capital for <strong>January – December {YEAR}</strong>,
+            allocating <strong>{formatCurrency(allocatedAmount)}</strong>.
           </p>
           <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 space-y-1">
             <div className="flex justify-between">
@@ -700,8 +714,14 @@ const Bookkeeper_ISC = () => {
               <span className="font-semibold">{rows.length}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-gray-500">Implied Allocated Pool</span>
-              <span className="font-semibold">{formatCurrency(impliedPool)}</span>
+              <span className="text-gray-500">Allocated Amount</span>
+              <span className="font-semibold">{formatCurrency(allocatedAmount)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-500">Resulting Rate</span>
+              <span className="font-semibold">
+                {derivedRate === null ? "—" : `${derivedRate.toFixed(4)}%`}
+              </span>
             </div>
             <div className="flex justify-between">
               <span className="text-gray-500">Total ISC Payout</span>
