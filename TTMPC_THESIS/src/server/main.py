@@ -115,7 +115,13 @@ async def _warm_manage_loans_cache():
     """Pre-populate the manage-loans cache so the first Bookkeeper page load is instant."""
     import asyncio
     try:
-        await asyncio.sleep(2)  # let the server fully initialize first
+        # 2s wasn't enough on Railway — the container's outbound connection
+        # to Supabase (DNS + TLS handshake + connection pool) isn't always
+        # ready that fast on a cold boot, and this eager query hitting it
+        # too early surfaced as "Server disconnected" in the warm-up log.
+        # Non-fatal either way (caught below), but 10s gives it a real shot
+        # at actually landing a warm cache instead of failing every cold start.
+        await asyncio.sleep(10)
         await get_bookkeeper_manage_loans()
         logger.info("Bookkeeper manage-loans cache warmed on startup.")
     except Exception as e:
