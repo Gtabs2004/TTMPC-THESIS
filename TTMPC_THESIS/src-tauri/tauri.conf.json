@@ -1,0 +1,39 @@
+{
+  "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
+  "productName": "REGANT Admin",
+  "version": "0.1.0",
+  "identifier": "ph.edu.wvsu.ttmpc.reganta.dmin",
+  "build": {
+    "frontendDist": "../dist",
+    "devUrl": "http://localhost:5173",
+    "beforeBuildCommand": "npm run build"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "REGANT Admin",
+        "url": "https://ttmpc-thesis-xi.vercel.app/Login",
+        "width": 1440,
+        "height": 900,
+        "minWidth": 1024,
+        "minHeight": 700,
+        "resizable": true,
+        "fullscreen": false
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self' https://ttmpc-thesis-xi.vercel.app; connect-src 'self' https://ttmpc-thesis-xi.vercel.app https://ttmpc-thesis.vercel.app https://*.supabase.co wss://*.supabase.co https://*.up.railway.app; img-src 'self' https://ttmpc-thesis-xi.vercel.app https://*.supabase.co data: blob:; style-src 'self' 'unsafe-inline' https://ttmpc-thesis-xi.vercel.app; font-src 'self' https://ttmpc-thesis-xi.vercel.app data:; script-src 'self' https://ttmpc-thesis-xi.vercel.app"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis"],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ]
+  }
+}

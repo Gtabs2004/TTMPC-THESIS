@@ -1325,20 +1325,32 @@ async def get_cashier_loans_for_payments():
         except Exception:
             prior_versions_by_loan = {}
 
-        # Cashier view = only ACTIVE (collectible) loans. Restructured / closed
-        # legacy loans have all their schedule rows marked Paid (no Unpaid/
-        # Pending/Overdue row remaining) — filter them out here so the cashier
-        # doesn't see them alongside collectible loans. Restructured history
-        # is still visible in the Bookkeeper Loan Ledger and Member SOA.
+        # Cashier view = only ACTIVE (collectible) loans — any loan with at
+        # least one Unpaid/Pending/Overdue schedule row. This used to be
+        # computed in Python by pulling the *entire* loan_schedules table
+        # (6,080+ legacy rows plus live) — that full-table read was the
+        # dominant cost of this endpoint (10+ seconds).
+        # get_active_cashier_loan_ids() does the same filter in one indexed
+        # SQL query instead, and everything below only fetches
+        # schedules/payments for the resulting (small) loan-id set.
+        #
+        # No per-(member, loan_type) dedup here: an earlier version of this
+        # endpoint (and this RPC) collapsed each member+type down to only
+        # their newest loan, on the assumption a renewal always closes out
+        # its predecessor. In practice some members have multiple concurrent
+        # loans of the same type that were never cleanly closed out, and
+        # deduping silently hid real outstanding balances from the cashier.
+        # A loan that *was* properly superseded by a renewal has all its
+        # schedules marked Paid, so it already drops out of the active-
+        # schedule filter above without needing an explicit dedup step.
         _active_loan_ids: set[str] = set()
         try:
-            _active_scheds = (
-                supabase.table("loan_schedules")
-                .select("loan_id")
-                .in_("schedule_status", ["Unpaid", "unpaid", "Pending", "pending", "Overdue", "overdue"])
-                .execute()
-            ).data or []
-            _active_loan_ids = {str(r.get("loan_id") or "") for r in _active_scheds if r.get("loan_id")}
+            _active_rpc = supabase.rpc("get_active_cashier_loan_ids").execute()
+            _active_loan_ids = {
+                str(r.get("control_number") or "")
+                for r in (_active_rpc.data or [])
+                if r.get("control_number")
+            }
         except Exception:
             _active_loan_ids = set()
 
@@ -1347,59 +1359,67 @@ async def get_cashier_loans_for_payments():
                 row for row in loans_rows
                 if str(row.get("control_number") or "") in _active_loan_ids
             ]
+        else:
+            # RPC missing/failed (e.g. migration not applied yet) — fall back
+            # to the old in-Python filter so the endpoint still works, just
+            # slower, instead of silently returning nothing.
+            _active_scheds = (
+                supabase.table("loan_schedules")
+                .select("loan_id")
+                .in_("schedule_status", ["Unpaid", "unpaid", "Pending", "pending", "Overdue", "overdue"])
+                .execute()
+            ).data or []
+            _sched_active_ids = {str(r.get("loan_id") or "") for r in _active_scheds if r.get("loan_id")}
+            if _sched_active_ids:
+                loans_rows = [
+                    row for row in loans_rows
+                    if str(row.get("control_number") or "") in _sched_active_ids
+                ]
+            _active_loan_ids = {str(row.get("control_number") or "") for row in loans_rows}
 
-        # Renewal deduplication — a member can only have one active loan per type
-        # at a time. When a member renews, the new loan's disbursement should close
-        # the predecessor (marking its schedules Paid). If a predecessor still has
-        # Unpaid schedules it's a processing gap, not a separate obligation the
-        # cashier should collect on. Keep only the LATEST loan per (member_id, loan_type).
-        # loans_rows is already ordered by application_date DESC so first occurrence
-        # per (member_id, loan_type) is the latest.
-        _seen_member_type: set[tuple] = set()
-        _deduped: list[dict] = []
-        for row in loans_rows:
-            mid = str(row.get("member_id") or "")
-            lt = str((row.get("loan_type") or {}).get("name") or "")
-            key = (mid, lt)
-            if key in _seen_member_type:
-                continue
-            _seen_member_type.add(key)
-            _deduped.append(row)
-        loans_rows = _deduped
-
-        # Page through loan_schedules — 6,080+ LEGACY rows plus live means a
-        # single .execute() silently caps at 1000 and starves most loans of
-        # their schedule data, which the loop below reads to decide whether to
-        # emit each loan. Without pagination live loans dropped out entirely.
+        # Fetch loan_schedules only for the active loans we're about to display
+        # (instead of paging through the whole table). Falls back to a full
+        # paged read only if we somehow have no active-id set to filter by.
         schedules_by_loan: dict[str, list[dict]] = {}
         try:
-            page = 1000
-            offset = 0
             wide_cols = "id,schedule_id,loan_id,installment_no,due_date,expected_amount,expected_principal,expected_interest,penalty,remaining_principal,schedule_status"
             narrow_cols = "id,loan_id,installment_no,due_date,expected_amount,principal_component,interest_component,schedule_status"
-            use_wide = True
-            while True:
-                try:
-                    cols = wide_cols if use_wide else narrow_cols
+
+            def _fetch_schedules(cols: str):
+                # Supabase/PostgREST caps a single .execute() at 1000 rows
+                # regardless of filtering — 445 active loans across many
+                # installments each easily exceeds that, so this must stay
+                # paginated with .range() even when narrowed to active IDs.
+                # (Narrowing to active IDs is still what makes this fast:
+                # far fewer total rows than the old full-table page-through.)
+                rows: list[dict] = []
+                page = 1000
+                offset = 0
+                query_base = supabase.table("loan_schedules").select(cols)
+                if _active_loan_ids:
+                    query_base = query_base.in_("loan_id", list(_active_loan_ids))
+                while True:
                     batch = (
-                        supabase.table("loan_schedules")
-                        .select(cols)
+                        query_base
                         .order("due_date")
                         .range(offset, offset + page - 1)
                         .execute()
                     ).data or []
-                except Exception:
-                    if use_wide:
-                        use_wide = False
-                        continue
-                    raise
-                if not batch:
-                    break
-                for row in batch:
-                    schedules_by_loan.setdefault(str(row.get("loan_id") or ""), []).append(row)
-                if len(batch) < page:
-                    break
-                offset += page
+                    if not batch:
+                        break
+                    rows.extend(batch)
+                    if len(batch) < page:
+                        break
+                    offset += page
+                return rows
+
+            try:
+                batch = _fetch_schedules(wide_cols)
+            except Exception:
+                batch = _fetch_schedules(narrow_cols)
+
+            for row in batch:
+                schedules_by_loan.setdefault(str(row.get("loan_id") or ""), []).append(row)
         except Exception:
             schedules_by_loan = {}
 
@@ -1411,15 +1431,29 @@ async def get_cashier_loans_for_payments():
                 if internal_id:
                     schedule_display_by_internal_id[internal_id] = display_id
 
-        # Page through loan_payments (live) — Supabase caps at 1000 rows/page.
+        # loan_payments (live) — filtered to the active loan-id set instead of
+        # paging through the whole table (which is what made this endpoint
+        # 10+ seconds as loan_payments grew). Falls back to a full paged read
+        # only if we have no active-id set to filter by.
         payments_rows: list[dict] = []
+        _active_ids_list = list(_active_loan_ids)
         try:
+            # Supabase/PostgREST caps a single .execute() at 1000 rows no
+            # matter how the query is filtered — with 400+ active loans this
+            # is easily exceeded, so pagination must stay even when narrowed
+            # to active IDs (narrowing is what makes this fast; skipping
+            # pagination on top of it silently truncated payment history and
+            # under-counted confirmed_paid_by_loan for real loans).
             page = 1000
             offset = 0
+            query_base = supabase.table("loan_payments").select(
+                "id,loan_id,schedule_id,amount_paid,penalties,payment_date,deficiency,confirmation_status,payment_reference,transaction_reference"
+            )
+            if _active_ids_list:
+                query_base = query_base.in_("loan_id", _active_ids_list)
             while True:
                 batch = (
-                    supabase.table("loan_payments")
-                    .select("id,loan_id,schedule_id,amount_paid,penalties,payment_date,deficiency,confirmation_status,payment_reference,transaction_reference")
+                    query_base
                     .order("payment_date", desc=True)
                     .range(offset, offset + page - 1)
                     .execute()
@@ -1431,11 +1465,16 @@ async def get_cashier_loans_for_payments():
                     break
                 offset += page
         except Exception:
+            payments_rows = []
             offset = 0
+            query_base = supabase.table("loan_payments").select(
+                "id,loan_id,schedule_id,amount_paid,penalties,payment_date,deficiency"
+            )
+            if _active_ids_list:
+                query_base = query_base.in_("loan_id", _active_ids_list)
             while True:
                 batch = (
-                    supabase.table("loan_payments")
-                    .select("id,loan_id,schedule_id,amount_paid,penalties,payment_date,deficiency")
+                    query_base
                     .order("payment_date", desc=True)
                     .range(offset, offset + 999)
                     .execute()
@@ -1448,38 +1487,49 @@ async def get_cashier_loans_for_payments():
                 offset += 1000
 
         # Also union loan_payments_legacy — historical payments migrated from
-        # the coop's pre-app records. Always treated as validated. Same pagination
-        # pattern as the bookkeeper ledger endpoint (main.py:2469).
+        # the coop's pre-app records. Always treated as validated. Same
+        # active-id filtering as loan_payments above.
         try:
-            page = 1000
-            offset = 0
-            while True:
-                batch = (
-                    supabase.table("loan_payments_legacy")
-                    .select("id,loan_id,amount_paid,payment_date,payment_code,or_cdv_no")
-                    .order("payment_date", desc=True)
-                    .range(offset, offset + page - 1)
-                    .execute()
-                ).data or []
-                if not batch:
-                    break
-                for legacy in batch:
-                    payments_rows.append({
-                        "id": legacy.get("id"),
-                        "loan_id": legacy.get("loan_id"),
-                        "schedule_id": None,
-                        "amount_paid": legacy.get("amount_paid"),
-                        "penalties": 0,
-                        "payment_date": legacy.get("payment_date"),
-                        "deficiency": 0,
-                        "confirmation_status": "validated",
-                        "payment_reference": legacy.get("payment_code") or legacy.get("or_cdv_no"),
-                        "transaction_reference": legacy.get("or_cdv_no") or legacy.get("payment_code"),
-                        "_is_legacy": True,
-                    })
-                if len(batch) < page:
-                    break
-                offset += page
+            def _fetch_legacy_payments():
+                # Same 1000-row-per-.execute() cap as loan_payments above —
+                # must stay paginated even when narrowed to active IDs.
+                rows: list[dict] = []
+                page = 1000
+                offset = 0
+                query_base = supabase.table("loan_payments_legacy").select(
+                    "id,loan_id,amount_paid,payment_date,payment_code,or_cdv_no"
+                )
+                if _active_ids_list:
+                    query_base = query_base.in_("loan_id", _active_ids_list)
+                while True:
+                    batch = (
+                        query_base
+                        .order("payment_date", desc=True)
+                        .range(offset, offset + page - 1)
+                        .execute()
+                    ).data or []
+                    if not batch:
+                        break
+                    rows.extend(batch)
+                    if len(batch) < page:
+                        break
+                    offset += page
+                return rows
+
+            for legacy in _fetch_legacy_payments():
+                payments_rows.append({
+                    "id": legacy.get("id"),
+                    "loan_id": legacy.get("loan_id"),
+                    "schedule_id": None,
+                    "amount_paid": legacy.get("amount_paid"),
+                    "penalties": 0,
+                    "payment_date": legacy.get("payment_date"),
+                    "deficiency": 0,
+                    "confirmation_status": "validated",
+                    "payment_reference": legacy.get("payment_code") or legacy.get("or_cdv_no"),
+                    "transaction_reference": legacy.get("or_cdv_no") or legacy.get("payment_code"),
+                    "_is_legacy": True,
+                })
         except Exception:
             pass
 
@@ -4253,6 +4303,11 @@ async def get_bookkeeper_manage_loans():
         return cached["payload"]
 
     try:
+        # Bound + narrow, same fix applied to /api/secretary/membership-records:
+        # an unbounded select with nested foreign-table joins (member, loan_type)
+        # over the full `loans` table can push supabase-py past the HTTP2 stream
+        # limit, surfacing as a client `ConnectionTerminated` with no server-side
+        # traceback. .limit() keeps the payload (and join fan-out) bounded.
         loans_response = (
             supabase.table("loans")
             .select(
@@ -4260,6 +4315,7 @@ async def get_bookkeeper_manage_loans():
                 "member:member_id(membership_id,first_name,last_name,is_bona_fide),loan_type:loan_type_id(code,name,interest_rate)"
             )
             .order("application_date", desc=True)
+            .limit(5000)
             .execute()
         )
         loan_rows = loans_response.data or []
