@@ -1,15 +1,18 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Search,
   Download,
   Users,
   Loader2,
   Table2,
-  X,
   Calendar,
   ChevronUp,
   ChevronDown,
   ChevronsUpDown,
+  Send,
+  Info,
+  CheckCircle2,
 } from "lucide-react";
 import StaffSidebar from "../../components/StaffSidebar";
 import { bookkeeperNav } from "../../components/StaffSidebar/configs/bookkeeper";
@@ -17,43 +20,13 @@ import StaffTopbar from "../../components/StaffTopbar";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
 import Breadcrumb from "../../components/Breadcrumb";
 import Pagination from "../../components/Pagination";
+import ConfirmDialog from "../../components/ConfirmDialog";
 import { supabase } from "../../supabaseClient";
+import { UserAuth } from "../../contex/AuthContext";
+import { useNotification } from "../../contex/NotificationContext";
+import { BRAND_GREEN, BAND_FILL, BORDER_SOFT, PESO_FORMAT, colLetter, downloadWorkbook } from "../../utils/excelExport";
 
 const PAGE_SIZE = 10;
-
-// Export styling — mirrors the app's own palette (DESIGN.md: Cooperative
-// Green — Deep for real text/fills, the soft border tone for zebra rows) so
-// the spreadsheet reads as the same product, not a generic data dump.
-const BRAND_GREEN = "FF2E7A2A";
-const BAND_FILL = "FFF3F4F6";
-const BORDER_SOFT = "FFE5E7EB";
-const PESO_FORMAT = '"₱"#,##0.00';
-
-// Excel column letter for a 1-indexed column number (1 -> A, 27 -> AA, ...).
-const colLetter = (n) => {
-  let s = "";
-  while (n > 0) {
-    const rem = (n - 1) % 26;
-    s = String.fromCharCode(65 + rem) + s;
-    n = Math.floor((n - 1) / 26);
-  }
-  return s;
-};
-
-const downloadWorkbook = async (workbook, filename) => {
-  const buffer = await workbook.xlsx.writeBuffer();
-  const blob = new Blob([buffer], {
-    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-  });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 5000);
-};
 
 const YEAR = new Date().getFullYear();
 const PERIOD_START = `${YEAR}-01-01`;
@@ -72,12 +45,33 @@ const formatCurrency = (value) =>
     : `₱${Number(value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 const Bookkeeper_ISC = () => {
+  const navigate = useNavigate();
+  const { session } = UserAuth();
+  const { addNotification } = useNotification();
+
   const [rows, setRows] = useState([]);
   const [status, setStatus] = useState("idle");
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
-  const [showFullView, setShowFullView] = useState(false);
+
+  // The bookkeeper types a RATE (matches how the cooperative actually works),
+  // but the only posting function that still exists on the database takes a
+  // POOL, not a rate — isc_post's rate-based overload was deliberately
+  // dropped in the 2026-09-09 migration (ISC_DIVIDEND_PLAN.md §22.8: "isc_post
+  // takes a pool, not a rate" / "exactly one isc_post, no stale overload").
+  // So the typed rate is converted to its equivalent pool (rate% ×
+  // total_average, itself an RPC-returned figure) before either previewing
+  // or posting — the real arithmetic still happens inside
+  // isc_calculate_preview/isc_post, this just picks the pool that reproduces
+  // the rate the bookkeeper asked for.
+  const [rateInput, setRateInput] = useState("");
+  const [totalAverage, setTotalAverage] = useState(null);
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [posting, setPosting] = useState(false);
+  const [postError, setPostError] = useState("");
+  const [postedAt, setPostedAt] = useState(null);
+  const debounceRef = useRef(null);
 
   // Which month's CRJ/CDJ/Balance the table shows — defaults to the current
   // real-world month (e.g. opens on "Sep 2026" if today is in September),
@@ -109,6 +103,26 @@ const Bookkeeper_ISC = () => {
     );
   };
 
+  // Two new columns, positioned between Month Balance and Average Share
+  // Capital per the bookkeeper's own layout. Both are simple sums of
+  // already-returned raw fields — never a payout/rate calculation — so
+  // computing them client-side doesn't touch the "never recompute a payout"
+  // rule (FRONTEND_BRIEF.md §5.5); only the seven ISC formulas themselves
+  // are off-limits there.
+  const monthlyDeposit = useCallback(
+    (r) => Number(r.crj_by_month?.[viewMonth] || 0) + Number(r.cdj_by_month?.[viewMonth] || 0),
+    [viewMonth]
+  );
+
+  // Rule 2's annual "Member Total" — the sum of the member's 12 monthly
+  // balances, which rule 3 then divides by 12 to GET Average Share Capital.
+  // The RPC never returns that sum on its own (only the already-divided
+  // average), so it's reconstructed here as average × 12 — the exact
+  // inverse of rule 3, not a new calculation. This is deliberately NOT the
+  // same field as the RPC's own `total_share_capital` (that one is the
+  // member's closing/last-month balance, a different figure entirely).
+  const combinedTotal = useCallback((r) => Number(r.average_share_capital || 0) * 12, []);
+
   const runCalculation = async (pool) => {
     setStatus("loading");
     setError("");
@@ -119,7 +133,12 @@ const Bookkeeper_ISC = () => {
         p_allocated_pool: pool,
       });
       if (rpcError) throw new Error(rpcError.message || "Failed to calculate Interest on Share Capital.");
-      setRows(Array.isArray(data) ? data : []);
+      const list = Array.isArray(data) ? data : [];
+      setRows(list);
+      // Cooperative-wide and identical on every row regardless of the pool
+      // passed in — captured once so a typed rate can be converted to its
+      // equivalent pool without waiting on another round trip.
+      if (list[0]?.total_average) setTotalAverage(Number(list[0].total_average));
       setStatus("ready");
     } catch (err) {
       setError(err?.message || "Unable to calculate Interest on Share Capital.");
@@ -134,6 +153,25 @@ const Bookkeeper_ISC = () => {
   useEffect(() => {
     runCalculation(null);
   }, []);
+
+  const rateNum = Number(rateInput);
+  const rateValid = rateInput !== "" && Number.isFinite(rateNum) && rateNum > 0 && rateNum <= 100;
+  const impliedPool = rateValid && totalAverage ? (rateNum / 100) * totalAverage : null;
+
+  // Debounced preview: recompute isc_calculate_preview with the pool implied
+  // by the typed rate, so the ISC Rate / ISC Payout columns already show
+  // exactly what would be posted — the real RPC computes it, this only picks
+  // which pool to hand it.
+  useEffect(() => {
+    if (!rateValid || !totalAverage) return undefined;
+    const pool = (rateNum / 100) * totalAverage;
+    clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      runCalculation(pool);
+    }, 500);
+    return () => clearTimeout(debounceRef.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rateInput, totalAverage]);
 
   const filtered = useMemo(() => {
     const key = search.trim().toLowerCase();
@@ -159,6 +197,10 @@ const Bookkeeper_ISC = () => {
           return Number(r.opening_balance || 0);
         case "balance":
           return Number(r.month_end_balances?.[viewMonth] || 0);
+        case "deposit":
+          return monthlyDeposit(r);
+        case "combined":
+          return combinedTotal(r);
         case "average":
           return Number(r.average_share_capital || 0);
         case "rate":
@@ -176,7 +218,7 @@ const Bookkeeper_ISC = () => {
       if (av > bv) return 1 * dir;
       return 0;
     });
-  }, [filtered, sortKey, sortDir, viewMonth]);
+  }, [filtered, sortKey, sortDir, viewMonth, monthlyDeposit, combinedTotal]);
 
   useEffect(() => setPage(1), [search, rows, sortKey, sortDir, viewMonth]);
 
@@ -186,17 +228,23 @@ const Bookkeeper_ISC = () => {
     return sorted.slice(start, start + PAGE_SIZE);
   }, [sorted, page]);
 
-  // Journal footer totals — every eligible member, never just the page
-  // rendered in the modal (§5.1).
-  const journalTotals = useMemo(() => {
-    const opening = rows.reduce((sum, r) => sum + Number(r.opening_balance || 0), 0);
-    const perMonth = MONTH_LABELS.map((_, i) => ({
-      crj: rows.reduce((sum, r) => sum + Number(r.crj_by_month?.[i] || 0), 0),
-      cdj: rows.reduce((sum, r) => sum + Number(r.cdj_by_month?.[i] || 0), 0),
-      balance: rows.reduce((sum, r) => sum + Number(r.month_end_balances?.[i] || 0), 0),
-    }));
-    return { opening, perMonth };
-  }, [rows]);
+  // Table footer totals — every ELIGIBLE member, not the filtered/paginated
+  // subset (§5.1: totals must cover every member, never just the visible
+  // page). Average Share Capital's total is rule 4's "Total Average" — the
+  // sum of every member's own average, which the RPC already returns as
+  // `total_average` (identical on every row); summing average_share_capital
+  // client-side reproduces the same number rather than recomputing it a
+  // different way.
+  const totals = useMemo(() => {
+    return {
+      opening: rows.reduce((sum, r) => sum + Number(r.opening_balance || 0), 0),
+      balance: rows.reduce((sum, r) => sum + Number(r.month_end_balances?.[viewMonth] || 0), 0),
+      deposit: rows.reduce((sum, r) => sum + monthlyDeposit(r), 0),
+      combined: rows.reduce((sum, r) => sum + combinedTotal(r), 0),
+      average: rows.reduce((sum, r) => sum + Number(r.average_share_capital || 0), 0),
+      payout: rows.reduce((sum, r) => sum + Number(r.interest_amount || 0), 0),
+    };
+  }, [rows, viewMonth, monthlyDeposit, combinedTotal]);
 
   // Every row, never just the current page or the search filter (§5.1). A
   // real formatted workbook rather than plain CSV — bold banded header,
@@ -210,8 +258,10 @@ const Bookkeeper_ISC = () => {
     const columnHeaders = [
       "Membership ID",
       "Member Name",
-      "Opening Balance",
+      "Share Capital",
       `${monthLabel} Balance`,
+      `Total Deposit (${monthLabel})`,
+      "Total Share Capital",
       "Average Share Capital",
       "Rate (%)",
       "ISC Payout",
@@ -223,7 +273,7 @@ const Bookkeeper_ISC = () => {
     const sheet = workbook.addWorksheet("ISC Distribution", {
       views: [{ state: "frozen", ySplit: 4 }],
     });
-    sheet.columns = [16, 26, 16, 16, 18, 10, 16].map((width) => ({ width }));
+    sheet.columns = [16, 26, 16, 16, 18, 18, 18, 10, 16].map((width) => ({ width }));
     const lastCol = colLetter(columnHeaders.length);
 
     sheet.mergeCells(`A1:${lastCol}1`);
@@ -259,17 +309,19 @@ const Bookkeeper_ISC = () => {
         r.member_name,
         Number(r.opening_balance || 0),
         Number(r.month_end_balances?.[viewMonth] || 0),
+        monthlyDeposit(r),
+        combinedTotal(r),
         Number(r.average_share_capital || 0),
         r.rate === null || r.rate === undefined ? null : Number(r.rate),
         r.interest_amount === null || r.interest_amount === undefined ? null : Number(r.interest_amount),
       ];
-      row.getCell(3).numFmt = PESO_FORMAT;
-      row.getCell(4).numFmt = PESO_FORMAT;
-      row.getCell(5).numFmt = PESO_FORMAT;
-      row.getCell(6).numFmt = '0.00"%"';
-      row.getCell(7).numFmt = PESO_FORMAT;
+      [3, 4, 5, 6, 7].forEach((col) => {
+        row.getCell(col).numFmt = PESO_FORMAT;
+      });
+      row.getCell(8).numFmt = '0.00"%"';
+      row.getCell(9).numFmt = PESO_FORMAT;
       row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
-        if (colNumber >= 3 && colNumber <= 7) cell.alignment = { horizontal: "right" };
+        if (colNumber >= 3 && colNumber <= 9) cell.alignment = { horizontal: "right" };
         cell.border = { bottom: { style: "thin", color: { argb: BORDER_SOFT } } };
         if (idx % 2 === 1) cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: BAND_FILL } };
       });
@@ -281,6 +333,8 @@ const Bookkeeper_ISC = () => {
       `Total (${rows.length} members)`,
       rows.reduce((sum, r) => sum + Number(r.opening_balance || 0), 0),
       rows.reduce((sum, r) => sum + Number(r.month_end_balances?.[viewMonth] || 0), 0),
+      rows.reduce((sum, r) => sum + monthlyDeposit(r), 0),
+      rows.reduce((sum, r) => sum + combinedTotal(r), 0),
       rows.reduce((sum, r) => sum + Number(r.average_share_capital || 0), 0),
       "",
       rows.reduce((sum, r) => sum + Number(r.interest_amount || 0), 0),
@@ -288,7 +342,7 @@ const Bookkeeper_ISC = () => {
     totalsRow.eachCell({ includeEmpty: true }, (cell, colNumber) => {
       cell.font = { bold: true };
       cell.border = { top: { style: "medium", color: { argb: "FF9CA3AF" } } };
-      if ([3, 4, 5, 7].includes(colNumber)) {
+      if ([3, 4, 5, 6, 7, 9].includes(colNumber)) {
         cell.numFmt = PESO_FORMAT;
         cell.alignment = { horizontal: "right" };
       }
@@ -297,128 +351,35 @@ const Bookkeeper_ISC = () => {
     await downloadWorkbook(workbook, `isc_distribution_${monthLabel.replace(" ", "_")}.xlsx`);
   };
 
-  // Full month-by-month journal — every row, every month, never just the
-  // page on screen (§5.1). Same merged month-group header the on-screen grid
-  // uses, ported to real merged Excel cells rather than a flat CSV row.
-  const exportJournalExcel = async () => {
-    const { default: ExcelJS } = await import("exceljs");
-    const totalCols = 3 + MONTH_LABELS.length * 3;
-    const lastCol = colLetter(totalCols);
-
-    const workbook = new ExcelJS.Workbook();
-    workbook.creator = "REGANT";
-    workbook.created = new Date();
-    const sheet = workbook.addWorksheet("ISC Journal", {
-      views: [{ state: "frozen", xSplit: 2, ySplit: 5 }],
-    });
-
-    sheet.getColumn(1).width = 16;
-    sheet.getColumn(2).width = 26;
-    sheet.getColumn(3).width = 14;
-    MONTH_LABELS.forEach((_, i) => {
-      sheet.getColumn(4 + i * 3).width = 12;
-      sheet.getColumn(5 + i * 3).width = 12;
-      sheet.getColumn(6 + i * 3).width = 13;
-    });
-
-    sheet.mergeCells(`A1:${lastCol}1`);
-    const title = sheet.getCell("A1");
-    title.value = `Expanded 12-Month Share Capital Journal — ${YEAR}`;
-    title.font = { size: 14, bold: true, color: { argb: "FFFFFFFF" } };
-    title.fill = { type: "pattern", pattern: "solid", fgColor: { argb: BRAND_GREEN } };
-    title.alignment = { vertical: "middle", indent: 1 };
-    sheet.getRow(1).height = 26;
-
-    sheet.mergeCells(`A2:${lastCol}2`);
-    const subtitle = sheet.getCell("A2");
-    subtitle.value = `Read-only, sourced from the cashier and loan ledgers  ·  Generated ${new Date().toLocaleString(
-      "en-PH",
-      { dateStyle: "medium", timeStyle: "short" }
-    )}`;
-    subtitle.font = { size: 10, italic: true, color: { argb: "FF6B7280" } };
-    subtitle.alignment = { indent: 1 };
-
-    sheet.mergeCells("A4:A5");
-    sheet.getCell("A4").value = "Membership ID";
-    sheet.mergeCells("B4:B5");
-    sheet.getCell("B4").value = "Member Name";
-    sheet.mergeCells("C4:C5");
-    sheet.getCell("C4").value = "Opening Balance";
-
-    MONTH_LABELS.forEach((label, i) => {
-      const start = 4 + i * 3;
-      const startLetter = colLetter(start);
-      sheet.mergeCells(`${startLetter}4:${colLetter(start + 2)}4`);
-      sheet.getCell(`${startLetter}4`).value = label;
-      sheet.getCell(`${startLetter}5`).value = "CRJ";
-      sheet.getCell(`${colLetter(start + 1)}5`).value = "CDJ";
-      sheet.getCell(`${colLetter(start + 2)}5`).value = "Bal";
-    });
-
-    [4, 5].forEach((rowNum) => {
-      sheet.getRow(rowNum).eachCell({ includeEmpty: true }, (cell) => {
-        cell.font = { bold: true, size: 9, color: { argb: "FFFFFFFF" } };
-        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: BRAND_GREEN } };
-        cell.alignment = { vertical: "middle", horizontal: "center" };
+  // Real posting. isc_post only accepts a pool (§22.8 dropped the rate-based
+  // overload entirely), so the typed rate travels as impliedPool — the same
+  // figure already driving the live preview above, so what gets posted is
+  // exactly what was reviewed on screen (isc_post itself re-runs
+  // isc_calculate_preview server-side with this same pool before writing
+  // anything, so the two can never disagree).
+  const handlePost = async () => {
+    if (!rateValid || !impliedPool) return;
+    setPosting(true);
+    setPostError("");
+    try {
+      const { error: rpcError } = await supabase.rpc("isc_post", {
+        p_period_start: PERIOD_START,
+        p_period_end: PERIOD_END,
+        p_allocated_pool: impliedPool,
       });
-    });
-    sheet.getRow(4).height = 18;
-    sheet.getRow(5).height = 16;
-
-    rows.forEach((r, idx) => {
-      const row = sheet.getRow(6 + idx);
-      const values = [r.membership_id, r.member_name, Number(r.opening_balance || 0)];
-      MONTH_LABELS.forEach((_, i) => {
-        values.push(
-          Number(r.crj_by_month?.[i] || 0),
-          Number(r.cdj_by_month?.[i] || 0),
-          Number(r.month_end_balances?.[i] || 0)
-        );
-      });
-      row.values = values;
-      for (let col = 3; col <= totalCols; col++) row.getCell(col).numFmt = PESO_FORMAT;
-      row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
-        if (colNumber >= 3) cell.alignment = { horizontal: "right" };
-        cell.border = { bottom: { style: "thin", color: { argb: BORDER_SOFT } } };
-        if (idx % 2 === 1) cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: BAND_FILL } };
-      });
-    });
-
-    const totalsRow = sheet.getRow(6 + rows.length);
-    const totalValues = [
-      "",
-      `Total (${rows.length} accounts)`,
-      rows.reduce((sum, r) => sum + Number(r.opening_balance || 0), 0),
-    ];
-    MONTH_LABELS.forEach((_, i) => {
-      totalValues.push(
-        rows.reduce((sum, r) => sum + Number(r.crj_by_month?.[i] || 0), 0),
-        rows.reduce((sum, r) => sum + Number(r.cdj_by_month?.[i] || 0), 0),
-        rows.reduce((sum, r) => sum + Number(r.month_end_balances?.[i] || 0), 0)
+      if (rpcError) throw new Error(rpcError.message || "Failed to post Interest on Share Capital.");
+      setShowConfirm(false);
+      setPostedAt(new Date());
+      addNotification(
+        `Interest on Share Capital posted at ${rateNum}% for ${YEAR} — ${rows.length} members.`,
+        "success"
       );
-    });
-    totalsRow.values = totalValues;
-    totalsRow.eachCell({ includeEmpty: true }, (cell, colNumber) => {
-      cell.font = { bold: true };
-      cell.border = { top: { style: "medium", color: { argb: "FF9CA3AF" } } };
-      if (colNumber >= 3) {
-        cell.numFmt = PESO_FORMAT;
-        cell.alignment = { horizontal: "right" };
-      }
-    });
-
-    await downloadWorkbook(workbook, `isc_journal_${YEAR}.xlsx`);
+    } catch (err) {
+      setPostError(err?.message || "Unable to post Interest on Share Capital.");
+    } finally {
+      setPosting(false);
+    }
   };
-
-  // Opening the full journal scrolls straight to the selected month (the
-  // current month by default) instead of dropping the bookkeeper on January.
-  const monthHeaderRefs = useRef([]);
-  useEffect(() => {
-    if (!showFullView) return;
-    requestAnimationFrame(() => {
-      monthHeaderRefs.current[viewMonth]?.scrollIntoView({ behavior: "auto", inline: "center", block: "nearest" });
-    });
-  }, [showFullView, viewMonth]);
 
   return (
     <div className="flex min-h-screen bg-gray-50">
@@ -438,6 +399,63 @@ const Bookkeeper_ISC = () => {
             </p>
           </div>
 
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5 mb-6">
+            <div className="flex items-end gap-3 flex-wrap">
+              <div>
+                <label className="block text-xs font-bold text-gray-700 uppercase tracking-wide mb-1.5">
+                  ISC Rate
+                </label>
+                <div
+                  className={`flex items-stretch h-11 rounded-lg border bg-gray-50 focus-within:bg-white transition-colors overflow-hidden w-40 ${
+                    rateInput !== "" && !rateValid
+                      ? "border-red-300 focus-within:ring-2 focus-within:ring-red-400/50"
+                      : "border-gray-300 focus-within:ring-2 focus-within:ring-primary/40 focus-within:border-primary"
+                  }`}
+                >
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={rateInput}
+                    onChange={(e) => setRateInput(e.target.value)}
+                    placeholder="e.g. 5.00"
+                    className="min-w-0 flex-1 bg-transparent px-3 text-sm focus:outline-none"
+                  />
+                  <span className="flex items-center px-3 text-sm font-semibold text-gray-500 bg-gray-100 border-l border-gray-200 shrink-0">
+                    %
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowConfirm(true)}
+                disabled={!rateValid || !totalAverage || status === "loading"}
+                className="inline-flex items-center gap-2 h-11 px-5 rounded-lg bg-primary hover:bg-primary-deep text-white text-sm font-semibold shadow-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
+              >
+                <Send className="w-4 h-4" /> Post ISC
+              </button>
+              <p className="text-xs text-gray-400 max-w-sm">
+                Enter the rate the General Assembly approved. The table below updates to preview it as you type — nothing is posted until you confirm.
+              </p>
+            </div>
+
+            <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 flex items-start gap-2">
+              <Info className="w-3.5 h-3.5 text-blue-600 shrink-0 mt-0.5" />
+              <p className="text-xs text-blue-700">
+                Posting creates a permanent record for {YEAR} — it cannot be edited afterward, only deleted while
+                every member is still unsettled.
+              </p>
+            </div>
+
+            {postedAt && (
+              <div className="mt-3 rounded-lg border border-green-200 bg-green-50 px-3 py-2 flex items-start gap-2">
+                <CheckCircle2 className="w-3.5 h-3.5 text-green-600 shrink-0 mt-0.5" />
+                <p className="text-xs text-green-700">
+                  Posted at {rateNum}% on {postedAt.toLocaleString("en-PH", { dateStyle: "medium", timeStyle: "short" })}.
+                </p>
+              </div>
+            )}
+          </div>
+
           {status === "error" && (
             <div className="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
               {error}
@@ -450,8 +468,8 @@ const Bookkeeper_ISC = () => {
                 <h3 className="text-lg font-bold text-gray-900">Member Breakdown</h3>
                 <p className="text-xs text-gray-500 mt-0.5">Every figure below comes from the ledger — nothing here is editable.</p>
               </div>
-              <div className="flex items-center gap-2">
-                <div className="relative">
+              <div className="flex items-center gap-2 flex-wrap">
+                <div className="relative shrink-0">
                   <Calendar className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400 pointer-events-none" />
                   <select
                     value={viewMonth}
@@ -466,21 +484,21 @@ const Bookkeeper_ISC = () => {
                     ))}
                   </select>
                 </div>
-                <div className="relative w-full max-w-xs">
+                <div className="relative w-64 shrink-0">
                   <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
                   <input
                     type="text"
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
                     placeholder="Search name or membership ID..."
-                    className="w-full bg-gray-50 focus:bg-white border border-gray-300 rounded-lg pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition-colors"
+                    className="w-full h-9 bg-gray-50 focus:bg-white border border-gray-300 rounded-lg pl-9 pr-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition-colors"
                   />
                 </div>
                 <button
                   type="button"
-                  onClick={() => setShowFullView(true)}
+                  onClick={() => navigate(`/bookkeeper-isc-journal?month=${viewMonth}`)}
                   disabled={!rows.length}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white hover:bg-gray-50 px-3.5 py-2 text-xs font-semibold text-gray-700 transition-colors shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg border border-gray-300 bg-white hover:bg-gray-50 text-xs font-semibold text-gray-700 transition-colors shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <Table2 className="w-3.5 h-3.5" /> Full View
                 </button>
@@ -488,7 +506,7 @@ const Bookkeeper_ISC = () => {
                   type="button"
                   onClick={exportExcel}
                   disabled={!rows.length}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white hover:bg-gray-50 px-3.5 py-2 text-xs font-semibold text-gray-700 transition-colors shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg border border-gray-300 bg-white hover:bg-gray-50 text-xs font-semibold text-gray-700 transition-colors shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <Download className="w-3.5 h-3.5" /> Export Excel
                 </button>
@@ -514,7 +532,7 @@ const Bookkeeper_ISC = () => {
                         onClick={() => toggleSort("opening")}
                         className="inline-flex items-center gap-1 w-full justify-end hover:text-white/80 transition-colors"
                       >
-                        Opening Balance {renderSortIcon("opening")}
+                       Share Capital {renderSortIcon("opening")}
                       </button>
                     </th>
                     <th className="p-4 font-bold text-right">
@@ -524,6 +542,24 @@ const Bookkeeper_ISC = () => {
                         className="inline-flex items-center gap-1 w-full justify-end hover:text-white/80 transition-colors"
                       >
                         {MONTH_LABELS[viewMonth]} Balance {renderSortIcon("balance")}
+                      </button>
+                    </th>
+                    <th className="p-4 font-bold text-right">
+                      <button
+                        type="button"
+                        onClick={() => toggleSort("deposit")}
+                        className="inline-flex items-center gap-1 w-full justify-end hover:text-white/80 transition-colors"
+                      >
+                        Total Deposit ({MONTH_LABELS[viewMonth]}) {renderSortIcon("deposit")}
+                      </button>
+                    </th>
+                    <th className="p-4 font-bold text-right">
+                      <button
+                        type="button"
+                        onClick={() => toggleSort("combined")}
+                        className="inline-flex items-center gap-1 w-full justify-end hover:text-white/80 transition-colors"
+                      >
+                        Total Share Capital {renderSortIcon("combined")}
                       </button>
                     </th>
                     <th className="p-4 font-bold text-right">
@@ -558,7 +594,7 @@ const Bookkeeper_ISC = () => {
                 <tbody>
                   {status === "loading" ? (
                     <tr>
-                      <td colSpan={6} className="p-10 text-center">
+                      <td colSpan={8} className="p-10 text-center">
                         <div className="flex flex-col items-center gap-2">
                           <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
                           <p className="text-xs text-gray-500">Calculating Interest on Share Capital...</p>
@@ -567,7 +603,7 @@ const Bookkeeper_ISC = () => {
                     </tr>
                   ) : paginated.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="p-10 text-center">
+                      <td colSpan={8} className="p-10 text-center">
                         <div className="flex flex-col items-center gap-2">
                           <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center">
                             <Users className="w-5 h-5 text-gray-400" />
@@ -595,6 +631,12 @@ const Bookkeeper_ISC = () => {
                           {formatCurrency(row.month_end_balances?.[viewMonth])}
                         </td>
                         <td className="p-4 text-sm text-right text-gray-700 tabular-nums">
+                          {formatCurrency(monthlyDeposit(row))}
+                        </td>
+                        <td className="p-4 text-sm text-right text-gray-700 tabular-nums">
+                          {formatCurrency(combinedTotal(row))}
+                        </td>
+                        <td className="p-4 text-sm text-right text-gray-700 tabular-nums">
                           {formatCurrency(row.average_share_capital)}
                         </td>
                         <td className="p-4 text-sm text-right text-gray-700 tabular-nums">
@@ -615,6 +657,20 @@ const Bookkeeper_ISC = () => {
                     ))
                   )}
                 </tbody>
+                {paginated.length > 0 && (
+                  <tfoot>
+                    <tr className="bg-gray-100 font-semibold border-t-2 border-gray-300">
+                      <td className="p-4 text-gray-900">Total ({rows.length} members)</td>
+                      <td className="p-4 text-right text-gray-900 tabular-nums">{formatCurrency(totals.opening)}</td>
+                      <td className="p-4 text-right text-gray-900 tabular-nums">{formatCurrency(totals.balance)}</td>
+                      <td className="p-4 text-right text-gray-900 tabular-nums">{formatCurrency(totals.deposit)}</td>
+                      <td className="p-4 text-right text-gray-900 tabular-nums">{formatCurrency(totals.combined)}</td>
+                      <td className="p-4 text-right text-gray-900 tabular-nums">{formatCurrency(totals.average)}</td>
+                      <td className="p-4 text-right text-gray-500">—</td>
+                      <td className="p-4 text-right text-gray-900 tabular-nums">{formatCurrency(totals.payout)}</td>
+                    </tr>
+                  </tfoot>
+                )}
               </table>
             </div>
 
@@ -623,217 +679,44 @@ const Bookkeeper_ISC = () => {
         </main>
       </div>
 
-      {/* Full View — the expanded month-by-month CRJ/CDJ/Balance journal.
-          Opt-in and separate from the default Member Breakdown table: the
-          brief flags the full 12-month grid as more honest as an on-demand
-          drill-down than the default view while most 2026 months are still
-          data-entry gaps (FRONTEND_BRIEF.md §7, §9). Read-only — the CRJ and
-          CDJ are source books; if a figure looks wrong the fix is in the
-          cashier or loan record that produced it, not here (§3.2). No Post
-          button, no FY picker, and CDJ is correctly labelled as ADDING to
-          share capital — see the three things FRONTEND_BRIEF.md §6 flags as
-          out of date in the old design reference. */}
-      {showFullView && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/60 backdrop-blur-sm p-4"
-          onClick={() => setShowFullView(false)}
-        >
-          <div
-            className="bg-white rounded-2xl shadow-2xl w-full max-w-[96vw] max-h-[92vh] flex flex-col border border-transparent"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-start justify-between gap-3 px-6 py-5 bg-gray-50 border-b border-gray-100 rounded-t-2xl shrink-0">
-              <div className="flex items-start gap-3">
-                <div className="w-9 h-9 rounded-lg bg-primary flex items-center justify-center shrink-0">
-                  <Table2 className="w-4 h-4 text-white" />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <h3 className="text-lg font-bold text-gray-900">Expanded 12-Month Share Capital Journal</h3>
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide bg-gray-100 text-gray-500 ring-1 ring-gray-200">
-                      Preview Only
-                    </span>
-                  </div>
-                  <p className="text-xs text-gray-500 mt-0.5">
-                    January – December {YEAR} · every figure is read-only, sourced from the cashier and loan
-                    ledgers.
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <button
-                  type="button"
-                  onClick={exportJournalExcel}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white hover:bg-gray-50 px-3.5 py-2 text-xs font-semibold text-gray-700 transition-colors"
-                >
-                  <Download className="w-3.5 h-3.5" /> Export Excel
-                </button>
-                <button
-                  onClick={() => setShowFullView(false)}
-                  className="text-gray-400 hover:text-gray-600 transition-colors p-1"
-                  aria-label="Close"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
+      <ConfirmDialog
+        open={showConfirm}
+        title="Post Interest on Share Capital"
+        tone="warning"
+        confirmLabel="Confirm & Post"
+        loading={posting}
+        errorMessage={postError}
+        onConfirm={handlePost}
+        onCancel={() => setShowConfirm(false)}
+      >
+        <div className="text-sm text-gray-700 space-y-3">
+          <p>
+            You are about to post Interest on Share Capital for <strong>January – December {YEAR}</strong> at{" "}
+            <strong>{rateNum}%</strong>.
+          </p>
+          <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 space-y-1">
+            <div className="flex justify-between">
+              <span className="text-gray-500">Eligible Members</span>
+              <span className="font-semibold">{rows.length}</span>
             </div>
-
-            <div className="overflow-auto flex-1">
-              <table className="border-collapse text-sm">
-                <thead>
-                  <tr>
-                    <th
-                      rowSpan={2}
-                      className="sticky left-0 top-0 z-30 bg-green-700 text-white text-[10px] uppercase tracking-wider font-extrabold p-3 text-left align-bottom min-w-[200px]"
-                    >
-                      Member
-                    </th>
-                    <th
-                      rowSpan={2}
-                      className="sticky top-0 z-20 bg-green-700 text-white text-[10px] uppercase tracking-wider font-extrabold p-3 text-right align-bottom min-w-[130px]"
-                    >
-                      Opening Balance
-                    </th>
-                    {MONTH_LABELS.map((label, i) => (
-                      <th
-                        key={label}
-                        ref={(el) => (monthHeaderRefs.current[i] = el)}
-                        colSpan={3}
-                        className={`sticky top-0 z-20 text-white text-[10px] uppercase tracking-wider font-extrabold p-2 text-center border-l border-green-600 ${
-                          i === viewMonth ? "bg-emerald-600 ring-2 ring-inset ring-amber-300" : "bg-green-800"
-                        }`}
-                      >
-                        {label}
-                        {i === viewMonth && <span className="block text-[8px] font-bold tracking-wide text-amber-200">SELECTED</span>}
-                      </th>
-                    ))}
-                  </tr>
-                  <tr>
-                    {MONTH_LABELS.map((label, i) => (
-                      <React.Fragment key={`${label}-sub`}>
-                        <th
-                          className={`sticky top-[37px] z-20 text-white text-[9px] uppercase tracking-wider font-bold p-2 text-right border-l border-green-600 min-w-[90px] ${
-                            i === viewMonth ? "bg-emerald-600" : "bg-green-700"
-                          }`}
-                        >
-                          CRJ
-                        </th>
-                        <th
-                          className={`sticky top-[37px] z-20 text-white text-[9px] uppercase tracking-wider font-bold p-2 text-right min-w-[90px] ${
-                            i === viewMonth ? "bg-emerald-600" : "bg-green-700"
-                          }`}
-                        >
-                          CDJ
-                        </th>
-                        <th
-                          className={`sticky top-[37px] z-20 text-white text-[9px] uppercase tracking-wider font-bold p-2 text-right min-w-[100px] ${
-                            i === viewMonth ? "bg-emerald-600" : "bg-green-700"
-                          }`}
-                        >
-                          Bal
-                        </th>
-                      </React.Fragment>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {status === "loading" ? (
-                    <tr>
-                      <td colSpan={2 + MONTH_LABELS.length * 3} className="p-10 text-center">
-                        <div className="flex flex-col items-center gap-2">
-                          <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
-                          <p className="text-xs text-gray-500">Loading the journal...</p>
-                        </div>
-                      </td>
-                    </tr>
-                  ) : paginated.length === 0 ? (
-                    <tr>
-                      <td colSpan={2 + MONTH_LABELS.length * 3} className="p-10 text-center text-sm text-gray-500">
-                        No eligible members found for this period.
-                      </td>
-                    </tr>
-                  ) : (
-                    paginated.map((row) => (
-                      <tr key={row.member_id} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
-                        <td className="sticky left-0 z-10 bg-white p-3 min-w-[200px]">
-                          <p className="text-gray-900 font-medium">{row.member_name}</p>
-                          <p className="text-[10px] text-gray-500 mt-0.5">{row.membership_id}</p>
-                        </td>
-                        <td className="p-3 text-right text-gray-700 tabular-nums min-w-[130px]">
-                          {formatCurrency(row.opening_balance)}
-                        </td>
-                        {MONTH_LABELS.map((label, i) => (
-                          <React.Fragment key={`${row.member_id}-${label}`}>
-                            <td
-                              className={`p-2 text-right text-emerald-700 tabular-nums border-l border-gray-100 min-w-[90px] ${
-                                i === viewMonth ? "bg-amber-50" : ""
-                              }`}
-                            >
-                              {Number(row.crj_by_month?.[i] || 0) > 0 ? formatCurrency(row.crj_by_month[i]) : "–"}
-                            </td>
-                            <td className={`p-2 text-right text-sky-700 tabular-nums min-w-[90px] ${i === viewMonth ? "bg-amber-50" : ""}`}>
-                              {Number(row.cdj_by_month?.[i] || 0) > 0 ? formatCurrency(row.cdj_by_month[i]) : "–"}
-                            </td>
-                            <td
-                              className={`p-2 text-right font-semibold text-gray-900 tabular-nums min-w-[100px] ${
-                                i === viewMonth ? "bg-amber-50" : ""
-                              }`}
-                            >
-                              {formatCurrency(row.month_end_balances?.[i])}
-                            </td>
-                          </React.Fragment>
-                        ))}
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-                {paginated.length > 0 && (
-                  <tfoot>
-                    <tr className="bg-gray-100 font-semibold border-t-2 border-gray-300">
-                      <td className="sticky left-0 z-10 bg-gray-100 p-3 text-gray-900 min-w-[200px]">
-                        Total Cooperative ({rows.length} accounts)
-                      </td>
-                      <td className="p-3 text-right text-gray-900 tabular-nums min-w-[130px]">
-                        {formatCurrency(journalTotals.opening)}
-                      </td>
-                      {journalTotals.perMonth.map((m, i) => (
-                        <React.Fragment key={`total-${MONTH_LABELS[i]}`}>
-                          <td className="p-2 text-right text-emerald-800 tabular-nums border-l border-gray-200 min-w-[90px]">
-                            {m.crj > 0 ? formatCurrency(m.crj) : "–"}
-                          </td>
-                          <td className="p-2 text-right text-sky-800 tabular-nums min-w-[90px]">
-                            {m.cdj > 0 ? formatCurrency(m.cdj) : "–"}
-                          </td>
-                          <td className="p-2 text-right text-gray-900 tabular-nums min-w-[100px]">
-                            {formatCurrency(m.balance)}
-                          </td>
-                        </React.Fragment>
-                      ))}
-                    </tr>
-                  </tfoot>
-                )}
-              </table>
+            <div className="flex justify-between">
+              <span className="text-gray-500">Implied Allocated Pool</span>
+              <span className="font-semibold">{formatCurrency(impliedPool)}</span>
             </div>
-
-            <div className="px-6 py-3 bg-gray-50 border-t border-gray-100 rounded-b-2xl flex items-center justify-between gap-3 flex-wrap shrink-0">
-              <div className="flex items-center gap-4 flex-wrap text-[11px] text-gray-500">
-                <span className="inline-flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-emerald-600" />
-                  <strong className="text-gray-700">CRJ:</strong> paid in at the cashier's CBU counter
-                </span>
-                <span className="inline-flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-sky-600" />
-                  <strong className="text-gray-700">CDJ:</strong> 2% loan retention — automatically{" "}
-                  <strong>added</strong> to share capital on disbursement
-                </span>
-              </div>
-              {filtered.length > 0 && (
-                <Pagination page={page} totalPages={totalPages} onChange={setPage} />
-              )}
+            <div className="flex justify-between">
+              <span className="text-gray-500">Total ISC Payout</span>
+              <span className="font-semibold">{formatCurrency(totals.payout)}</span>
             </div>
           </div>
+          <p className="text-xs text-gray-500">
+            This records a payable for every eligible member — it does not automatically credit anyone's share
+            capital. A member's payout only becomes share capital if they elect to capitalise it at the March
+            General Assembly. This cannot be edited once posted, and can only be deleted while every member is
+            still unsettled.
+          </p>
+          {session?.user?.email && <p className="text-[11px] text-gray-400">Posting as {session.user.email}</p>}
         </div>
-      )}
+      </ConfirmDialog>
     </div>
   );
 };

@@ -31,6 +31,7 @@ import BookkeeperCreditRisk from "./Bookkeeper/Components/CreditRisk";
 import ManagerCreditRisk from "./Manager/Components/CreditRisk";
 import Member_Details from "./Bookkeeper/Components/member_details";
 import Bookkeeper_ISC from "./Bookkeeper/Components/ISC_Distribution";
+import ISC_Journal from "./Bookkeeper/Components/ISC_Journal";
 import Membership_Form from "./LOANFORMS/Membership_Form";
 import Dashboard_BOD from "./BOD/Components/B-Dashboard";
 import Member_Approvals from "./BOD/Components/Member-Approvals";
@@ -142,6 +143,7 @@ export const router = createBrowserRouter([
     {path: "/bookkeeper-savings-accounts", element: bookkeeperGuarded(<BookkeeperSavingsAccounts/>)},
     {path: "/bookkeeper-cbu", element: bookkeeperGuarded(<Bookkeeper_CBU/>)},
     {path: "/bookkeeper-isc", element: bookkeeperGuarded(<Bookkeeper_ISC/>)},
+    {path: "/bookkeeper-isc-journal", element: bookkeeperGuarded(<ISC_Journal/>)},
     {path: "/reports", element: bookkeeperGuarded(<Reports/>)},
     {path: "/loan_kiosk", element: <Loan_Kiosk/>},
     {path: "/verification", element: <Verification/>},
