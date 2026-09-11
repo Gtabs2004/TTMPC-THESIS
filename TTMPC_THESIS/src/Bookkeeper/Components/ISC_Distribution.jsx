@@ -4,6 +4,7 @@ import {
   Search,
   Download,
   Users,
+  Users2,
   Loader2,
   Table2,
   Calendar,
@@ -25,6 +26,7 @@ import { supabase } from "../../supabaseClient";
 import { UserAuth } from "../../contex/AuthContext";
 import { useNotification } from "../../contex/NotificationContext";
 import { BRAND_GREEN, BAND_FILL, BORDER_SOFT, PESO_FORMAT, colLetter, downloadWorkbook } from "../../utils/excelExport";
+import IscPayoutPreferencesModal from "./IscPayoutPreferencesModal";
 
 const PAGE_SIZE = 10;
 
@@ -68,7 +70,16 @@ const Bookkeeper_ISC = () => {
   const [showConfirm, setShowConfirm] = useState(false);
   const [posting, setPosting] = useState(false);
   const [postError, setPostError] = useState("");
-  const [postedAt, setPostedAt] = useState(null);
+  // The posting for this YEAR — found on page load (via existingPosting
+  // below) OR just created by handlePost. Either way, this is what drives
+  // the "Set Payout Preferences" section: only isc_settle_posting, called
+  // from that modal, ever moves a member's share capital (§14, §17.2, §23);
+  // isc_post itself only ever records a payable. Without loading it on
+  // mount, a posting made in an earlier session would have no way back into
+  // the settlement modal.
+  const [lastPostingId, setLastPostingId] = useState(null);
+  const [existingPosting, setExistingPosting] = useState(null); // { id, status, total_interest, total_members, posted_at }
+  const [showPayoutModal, setShowPayoutModal] = useState(false);
   const debounceRef = useRef(null);
 
   // Which month's CRJ/CDJ/Balance the table shows — defaults to the current
@@ -156,6 +167,32 @@ const Bookkeeper_ISC = () => {
   // before the General Assembly has even set a figure (§5.3).
   useEffect(() => {
     runCalculation(null);
+  }, []);
+
+  // Find whether THIS YEAR already has a posting, so the "Set Payout
+  // Preferences" section reappears on a fresh page load rather than only
+  // right after clicking Post ISC in the current session. Matches on
+  // period_start/period_end the way isc_post's own overlap constraint does.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const { data, error: lookupError } = await supabase
+        .from("isc_postings")
+        .select("id, status, total_interest, total_members, posted_at")
+        .eq("period_start", PERIOD_START)
+        .neq("status", "reversed")
+        .order("posted_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (cancelled || lookupError) return;
+      if (data) {
+        setExistingPosting(data);
+        setLastPostingId(data.id);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const amountNum = Number(amountInput);
@@ -375,20 +412,34 @@ const Bookkeeper_ISC = () => {
     setPosting(true);
     setPostError("");
     try {
-      const { error: rpcError } = await supabase.rpc("isc_post", {
+      // isc_post RETURNS uuid — the new posting's id. Captured so the
+      // payout-preferences modal (the March settlement step) knows which
+      // posting's isc_transactions rows to load, without a separate lookup.
+      const { data: newPostingId, error: rpcError } = await supabase.rpc("isc_post", {
         p_period_start: PERIOD_START,
         p_period_end: PERIOD_END,
         p_allocated_pool: allocatedAmount,
       });
-      if (rpcError) throw new Error(rpcError.message || "Failed to post Interest on Share Capital.");
+      if (rpcError) throw new Error(rpcError.message || "Failed to record Interest on Share Capital.");
       setShowConfirm(false);
-      setPostedAt(new Date());
+      setLastPostingId(newPostingId || null);
+      setExistingPosting(
+        newPostingId
+          ? {
+              id: newPostingId,
+              status: "posted",
+              total_interest: allocatedAmount,
+              total_members: rows.length,
+              posted_at: new Date().toISOString(),
+            }
+          : null
+      );
       addNotification(
-        `Interest on Share Capital posted for ${YEAR} — ${formatCurrency(allocatedAmount)} across ${rows.length} members.`,
+        `Interest on Share Capital recorded for ${YEAR} — ${formatCurrency(allocatedAmount)} across ${rows.length} members.`,
         "success"
       );
     } catch (err) {
-      setPostError(err?.message || "Unable to post Interest on Share Capital.");
+      setPostError(err?.message || "Unable to record Interest on Share Capital.");
     } finally {
       setPosting(false);
     }
@@ -444,28 +495,77 @@ const Bookkeeper_ISC = () => {
                 disabled={!amountValid || !totalAverage || status === "loading"}
                 className="inline-flex items-center gap-2 h-11 px-5 rounded-lg bg-primary hover:bg-primary-deep text-white text-sm font-semibold shadow-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
               >
-                <Send className="w-4 h-4" /> Post ISC
+                <Send className="w-4 h-4" /> Record ISC
+              </button>
+              {/* Always visible — not gated on the existingPosting lookup, so
+                  the March step is reachable even if that background query
+                  finds nothing or fails. The modal itself explains what to do
+                  when there is no recorded amount for the year yet. */}
+              <button
+                type="button"
+                onClick={() => setShowPayoutModal(true)}
+                disabled={!lastPostingId}
+                title={
+                  lastPostingId
+                    ? "Open the March payout checklist for this year's recorded amount"
+                    : "Record the ISC amount for this year first"
+                }
+                className="inline-flex items-center gap-2 h-11 px-5 rounded-lg border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 text-sm font-semibold shadow-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
+              >
+                <Users2 className="w-4 h-4" /> March Payout Checklist
               </button>
               <p className="text-xs text-gray-400 max-w-sm">
-                Enter the amount the General Assembly allocated for ISC. The rate is worked out from it — amount ÷ total average share capital — and the table previews as you type. Nothing is posted until you confirm.
+                Enter the amount the General Assembly allocated for ISC. The rate is worked out from it — amount ÷ total average share capital — and the table previews as you type. Nothing is recorded until you confirm.
               </p>
             </div>
 
             <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 flex items-start gap-2">
               <Info className="w-3.5 h-3.5 text-blue-600 shrink-0 mt-0.5" />
               <p className="text-xs text-blue-700">
-                Posting creates a permanent record for {YEAR} — it cannot be edited afterward, only deleted while
-                every member is still unsettled.
+                Recording creates a permanent record for {YEAR} — it cannot be edited afterward, only deleted while
+                every member is still unsettled. No share capital moves yet; that only happens at the March General
+                Assembly.
               </p>
             </div>
 
-            {postedAt && (
-              <div className="mt-3 rounded-lg border border-green-200 bg-green-50 px-3 py-2 flex items-start gap-2">
-                <CheckCircle2 className="w-3.5 h-3.5 text-green-600 shrink-0 mt-0.5" />
-                <p className="text-xs text-green-700">
-                  Posted {formatCurrency(allocatedAmount)} on{" "}
-                  {postedAt.toLocaleString("en-PH", { dateStyle: "medium", timeStyle: "short" })}.
-                </p>
+            {/* Shown whenever THIS YEAR has a posting — found on page load
+                (existingPosting), including one just created in this session.
+                Not gated on session-only state, so a posting from an earlier
+                session is still reachable after a refresh. */}
+            {existingPosting && (
+              <div
+                className={`mt-3 rounded-lg border px-3 py-3 flex items-start justify-between gap-3 flex-wrap ${
+                  existingPosting.status === "settled"
+                    ? "border-gray-200 bg-gray-50"
+                    : "border-green-200 bg-green-50"
+                }`}
+              >
+                <div className="flex items-start gap-2">
+                  <CheckCircle2
+                    className={`w-3.5 h-3.5 shrink-0 mt-0.5 ${
+                      existingPosting.status === "settled" ? "text-gray-500" : "text-green-600"
+                    }`}
+                  />
+                  <p className={`text-xs ${existingPosting.status === "settled" ? "text-gray-600" : "text-green-700"}`}>
+                    {existingPosting.status === "settled" ? (
+                      <>
+                        {YEAR} has already been settled —{" "}
+                        {formatCurrency(existingPosting.total_interest)} across {existingPosting.total_members}{" "}
+                        members. Preferences can be reviewed but not changed.
+                      </>
+                    ) : (
+                      <>
+                        Recorded {formatCurrency(existingPosting.total_interest)} on{" "}
+                        {new Date(existingPosting.posted_at).toLocaleString("en-PH", {
+                          dateStyle: "medium",
+                          timeStyle: "short",
+                        })}
+                        . No member's share capital has changed yet — that happens at the March General Assembly
+                        when each member chooses to withdraw or add their payout to share capital.
+                      </>
+                    )}
+                  </p>
+                </div>
               </div>
             )}
           </div>
@@ -695,9 +795,9 @@ const Bookkeeper_ISC = () => {
 
       <ConfirmDialog
         open={showConfirm}
-        title="Post Interest on Share Capital"
+        title="Record Interest on Share Capital"
         tone="warning"
-        confirmLabel="Confirm & Post"
+        confirmLabel="Confirm & Record"
         loading={posting}
         errorMessage={postError}
         onConfirm={handlePost}
@@ -705,7 +805,7 @@ const Bookkeeper_ISC = () => {
       >
         <div className="text-sm text-gray-700 space-y-3">
           <p>
-            You are about to post Interest on Share Capital for <strong>January – December {YEAR}</strong>,
+            You are about to record Interest on Share Capital for <strong>January – December {YEAR}</strong>,
             allocating <strong>{formatCurrency(allocatedAmount)}</strong>.
           </p>
           <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 space-y-1">
@@ -731,12 +831,27 @@ const Bookkeeper_ISC = () => {
           <p className="text-xs text-gray-500">
             This records a payable for every eligible member — it does not automatically credit anyone's share
             capital. A member's payout only becomes share capital if they elect to capitalise it at the March
-            General Assembly. This cannot be edited once posted, and can only be deleted while every member is
+            General Assembly. This cannot be edited once recorded, and can only be deleted while every member is
             still unsettled.
           </p>
-          {session?.user?.email && <p className="text-[11px] text-gray-400">Posting as {session.user.email}</p>}
+          {session?.user?.email && <p className="text-[11px] text-gray-400">Recording as {session.user.email}</p>}
         </div>
       </ConfirmDialog>
+
+      <IscPayoutPreferencesModal
+        open={showPayoutModal}
+        postingId={lastPostingId}
+        onClose={() => setShowPayoutModal(false)}
+        onSettled={(result) => {
+          const capCount = result?.capitalised_count ?? 0;
+          const cashCount = result?.cash_count ?? 0;
+          setExistingPosting((prev) => (prev ? { ...prev, status: "settled" } : prev));
+          addNotification(
+            `Success: Payout allocations saved! ${cashCount} member${cashCount === 1 ? "" : "s"} set to Withdraw, ${capCount} added to Share Capital.`,
+            "success"
+          );
+        }}
+      />
     </div>
   );
 };
