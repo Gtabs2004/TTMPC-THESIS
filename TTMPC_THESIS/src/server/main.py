@@ -3063,6 +3063,32 @@ async def create_cashier_cbu_deposit(payload: CashierCBUDepositRequest):
         if not member_uuid:
             raise HTTPException(status_code=400, detail="Member UUID is missing.")
 
+        # Reject a deposit for a terminated/inactive member. ISC eligibility and
+        # other CBU-derived reporting assume only active members hold live
+        # share capital; nothing upstream of this endpoint enforced that.
+        try:
+            status_response = (
+                supabase.table("member")
+                .select("member_status")
+                .eq("id", member_uuid)
+                .limit(1)
+                .execute()
+            )
+            status_row = (status_response.data or [None])[0] or {}
+            member_status = str(status_row.get("member_status") or "active").strip().lower()
+            if member_status not in ("", "active"):
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Cannot post a CBU deposit for a {member_status} member.",
+                )
+        except HTTPException:
+            raise
+        except Exception:
+            # member_status column unavailable — do not block deposits over a
+            # schema gap; the intent is to reject terminated members, not to
+            # fail deposits when the column is missing.
+            pass
+
         deposit_amount = Decimal(str(payload.deposit_amount or 0))
         if deposit_amount <= 0:
             raise HTTPException(status_code=400, detail="deposit_amount must be greater than zero.")
@@ -3102,11 +3128,31 @@ async def create_cashier_cbu_deposit(payload: CashierCBUDepositRequest):
 
         starting_balance = Decimal(str((latest_cbu_row or {}).get("ending_share_capital") or CBU_STARTING_CAPITAL))
         if starting_balance < 0:
-            starting_balance = Decimal("0")
+            # A negative running balance means the chain is already broken
+            # upstream of this deposit — clamping it to 0 would silently hide
+            # that and let the deposit paper over a data-integrity problem.
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    "This member's running CBU balance is negative "
+                    f"({decimal_to_float(starting_balance)}), which indicates a broken "
+                    "capital_build_up chain. Fix the chain before posting a new deposit."
+                ),
+            )
         ending_balance = starting_balance + deposit_amount
 
-        sequence_count_response = supabase.table("capital_build_up").select("id").execute()
-        next_sequence = len(sequence_count_response.data or []) + 1
+        # Derive the next sequence from the HIGHEST existing CBUD_nnn suffix,
+        # not from a row count. A count undercounts once any row has ever been
+        # deleted and collides with an id already in use.
+        sequence_scan_response = (
+            supabase.table("capital_build_up").select("cbu_deposit_id").execute()
+        )
+        highest_sequence = 0
+        for row in sequence_scan_response.data or []:
+            digits = "".join(ch for ch in str(row.get("cbu_deposit_id") or "") if ch.isdigit())
+            if digits:
+                highest_sequence = max(highest_sequence, int(digits))
+        next_sequence = highest_sequence + 1
 
         cbu_deposit_id = build_cbu_deposit_id(next_sequence)
 
@@ -3138,9 +3184,35 @@ async def create_cashier_cbu_deposit(payload: CashierCBUDepositRequest):
             # If cbu_deposit_id column does not exist yet, insertion fallback handles it.
             pass
 
+        # Store date-only, matching every other CBU writer (the historical
+        # import, the loan-disbursement trigger, membership payments). A full
+        # timestamp here while other rows are date-only breaks same-day
+        # tiebreaking and reproduces the running-balance chain bug already
+        # fixed once (see cbu_backup_*.json).
+        deposit_date = (payload.transaction_date or datetime.utcnow()).date()
+
+        # Dedup guard: reject an identical deposit (same member, same date,
+        # same amount) already on record. Cashier-entered rows carry no
+        # source_* key the way loan/payment/ISC writers do, so a double-click
+        # or retried request would otherwise credit share capital twice.
+        duplicate_check = (
+            supabase.table("capital_build_up")
+            .select("id")
+            .eq("member_id", member_uuid)
+            .eq("transaction_date", deposit_date.isoformat())
+            .eq("capital_added", decimal_to_float(deposit_amount))
+            .limit(1)
+            .execute()
+        )
+        if duplicate_check.data:
+            raise HTTPException(
+                status_code=409,
+                detail="An identical CBU deposit for this member, date, and amount already exists.",
+            )
+
         insert_payload = {
             "member_id": member_uuid,
-            "transaction_date": (payload.transaction_date or datetime.utcnow()).isoformat(),
+            "transaction_date": deposit_date.isoformat(),
             "starting_share_capital": decimal_to_float(starting_balance),
             "capital_added": decimal_to_float(deposit_amount),
             "deposit_account": str(payload.deposit_account or "Cash").strip() or "Cash",
@@ -3148,21 +3220,12 @@ async def create_cashier_cbu_deposit(payload: CashierCBUDepositRequest):
             "cbu_deposit_id": cbu_deposit_id,
         }
 
-        inserted_row = None
-        try:
-            insert_response = supabase.table("capital_build_up").insert(insert_payload).execute()
-            inserted_row = (insert_response.data or [None])[0]
-        except Exception:
-            fallback_payload = {
-                "member_id": member_uuid,
-                "transaction_date": insert_payload["transaction_date"],
-                "starting_share_capital": insert_payload["starting_share_capital"],
-                "capital_added": insert_payload["capital_added"],
-                "deposit_account": insert_payload["deposit_account"],
-                "ending_share_capital": insert_payload["ending_share_capital"],
-            }
-            insert_response = supabase.table("capital_build_up").insert(fallback_payload).execute()
-            inserted_row = (insert_response.data or [None])[0]
+        # No silent fallback insert. A failure here means something real is
+        # wrong with the payload/schema — surfacing it beats a stripped-down
+        # retry that can drop fields (e.g. deposit_account) and make a broken
+        # write look like a successful deposit.
+        insert_response = supabase.table("capital_build_up").insert(insert_payload).execute()
+        inserted_row = (insert_response.data or [None])[0]
 
         return {
             "success": True,
@@ -3462,13 +3525,18 @@ async def create_cashier_loan_payment(payload: CashierLoanPaymentCreateRequest):
 
         loan_response = (
             supabase.table("loans")
-            .select("control_number")
+            .select("control_number,loan_status")
             .eq("control_number", loan_id)
             .limit(1)
             .execute()
         )
         if not loan_response.data:
             raise HTTPException(status_code=404, detail="Loan not found.")
+
+        loan_row_for_status = loan_response.data[0]
+        loan_status_lc = str(loan_row_for_status.get("loan_status") or "").strip().lower()
+        if loan_status_lc in ("fully paid", "completed", "closed"):
+            raise HTTPException(status_code=409, detail="This loan is already fully paid.")
 
         try:
             schedules_response = (
@@ -6036,7 +6104,7 @@ async def post_cashier_savings_withdrawal(savings_id: str, payload: CashierSavin
 
         account_response = (
             supabase.table("Savings_Transactions")
-            .select("Savings_ID,membership_number_id,Account_Name")
+            .select("Savings_ID,membership_number_id,Account_Name,Balance,Savings_Amount,Amount")
             .eq("Savings_ID", clean_savings_id)
             .limit(1)
             .execute()
@@ -6044,6 +6112,42 @@ async def post_cashier_savings_withdrawal(savings_id: str, payload: CashierSavin
         account_row = (account_response.data or [None])[0]
         if not account_row:
             raise HTTPException(status_code=404, detail="Savings account not found.")
+
+        membership_key = str(account_row.get("membership_number_id") or "").strip()
+        if membership_key:
+            try:
+                member_response = (
+                    supabase.table("member")
+                    .select("membership_id,is_bona_fide")
+                    .eq("membership_id", membership_key)
+                    .limit(1)
+                    .execute()
+                )
+                member_row = (member_response.data or [None])[0]
+                if member_row and member_row.get("is_bona_fide") is False:
+                    raise HTTPException(status_code=400, detail="Member is not bonafide and cannot transact.")
+            except HTTPException as err:
+                raise err
+            except Exception:
+                pass
+
+        withdrawal_amount = money(Decimal(str(payload.amount or 0)))
+        if withdrawal_amount <= 0:
+            raise HTTPException(status_code=400, detail="Withdrawal amount must be greater than zero.")
+
+        current_balance = Decimal(
+            str(
+                account_row.get("Balance")
+                if account_row.get("Balance") is not None
+                else (
+                    account_row.get("Savings_Amount")
+                    if account_row.get("Savings_Amount") is not None
+                    else account_row.get("Amount") or 0
+                )
+            )
+        )
+        if withdrawal_amount > current_balance:
+            raise HTTPException(status_code=400, detail="Withdrawal exceeds available balance.")
 
         transaction_id = get_next_savings_cashier_transaction_id()
         queue_payload = {
@@ -6294,6 +6398,23 @@ async def post_savings_account_deposit(account_number: str, payload: CashierSavi
         if account.get("status") != "active":
             raise HTTPException(status_code=400, detail=f"Account is {account.get('status')}; deposits not allowed.")
 
+        if account.get("member_id"):
+            try:
+                member_response = (
+                    supabase.table("member")
+                    .select("id,is_bona_fide")
+                    .eq("id", account["member_id"])
+                    .limit(1)
+                    .execute()
+                )
+                member_row = (member_response.data or [None])[0]
+                if member_row and member_row.get("is_bona_fide") is False:
+                    raise HTTPException(status_code=400, detail="Member is not bonafide and cannot transact.")
+            except HTTPException as err:
+                raise err
+            except Exception:
+                pass
+
         amount = money(Decimal(str(payload.amount or 0)))
         if amount <= 0:
             raise HTTPException(status_code=400, detail="Deposit amount must be greater than zero.")
@@ -6405,7 +6526,7 @@ async def post_savings_account_withdraw(account_number: str, payload: CashierSav
     try:
         account_response = (
             supabase.table("savings_accounts")
-            .select("account_number,account_name,balance,status,legacy_savings_id")
+            .select("account_number,account_name,member_id,balance,status,legacy_savings_id")
             .eq("account_number", account_number)
             .limit(1)
             .execute()
@@ -6415,6 +6536,23 @@ async def post_savings_account_withdraw(account_number: str, payload: CashierSav
             raise HTTPException(status_code=404, detail="Savings account not found.")
         if account.get("status") != "active":
             raise HTTPException(status_code=400, detail=f"Account is {account.get('status')}; withdrawals not allowed.")
+
+        if account.get("member_id"):
+            try:
+                member_response = (
+                    supabase.table("member")
+                    .select("id,is_bona_fide")
+                    .eq("id", account["member_id"])
+                    .limit(1)
+                    .execute()
+                )
+                member_row = (member_response.data or [None])[0]
+                if member_row and member_row.get("is_bona_fide") is False:
+                    raise HTTPException(status_code=400, detail="Member is not bonafide and cannot transact.")
+            except HTTPException as err:
+                raise err
+            except Exception:
+                pass
 
         amount = money(Decimal(str(payload.amount or 0)))
         if amount <= 0:
