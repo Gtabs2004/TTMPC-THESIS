@@ -16,3 +16,12 @@ TTMPC_THESIS/src/server/**/__pycache__/
 # Exclude migration scripts and generated data dump from GitHub
 TTMPC_THESIS/src/server/migration/
 TTMPC_THESIS/src/server/schema_dump.json
+
+# Credential exports — account lists downloaded from the SQL editor contain
+# live working passwords (member_account.password). Never commit them.
+*account_list*.csv
+*account_list*.xlsx
+*accounts*.csv
+*accounts*.xlsx
+*credentials*.csv
+*credentials*.xlsx
