@@ -32,7 +32,7 @@ export const bookkeeperNav = [
        { name: "Capital Build-Up", icon: Banknote, path: "/bookkeeper-cbu" },
     ],
   },
-  { name: "ISC Distribution", icon: Banknote, path: "/bookkeeper-isc" },
+  { name: "ISC ", icon: Banknote, path: "/bookkeeper-isc" },
   { name: "MIGS Scoring", icon: Activity,   path: "/migs" },
   { name: "Reports",      icon: BarChart3,  path: "/reports" },
   { name: "Audit Trail",  icon: History,    path: "/audit-trail" },
