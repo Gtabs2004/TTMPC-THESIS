@@ -30,6 +30,7 @@ import {
   ResponsiveContainer,
   Tooltip,
 } from "recharts";
+import { SERIES_PRIMARY } from "../../lib/chartColors";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 
@@ -389,7 +390,7 @@ const Schedule = () => {
                       <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: "#9ca3af", fontSize: 11 }} />
                       <YAxis axisLine={false} tickLine={false} tick={{ fill: "#9ca3af", fontSize: 11 }} tickFormatter={(v) => `${v}d`} />
                       <Tooltip formatter={(v) => [`${v} day(s)`, "Delay"]} cursor={{ fill: CHART_HOVER_TINT }} />
-                      <Bar dataKey="delay" fill="#22c55e" radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="delay" fill={SERIES_PRIMARY} radius={[4, 4, 0, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>

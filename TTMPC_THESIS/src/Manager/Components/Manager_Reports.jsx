@@ -40,6 +40,7 @@ import {
   Cell,
   Legend,
 } from "recharts";
+import { SERIES_PRIMARY, SEMANTIC_COLORS, getLoanTypeColor } from "../../lib/chartColors";
 
 const formatCurrency = (value, opts = {}) => {
   const amount = Number(value || 0);
@@ -49,8 +50,7 @@ const formatCurrency = (value, opts = {}) => {
   })}`;
 };
 
-const TYPE_COLORS = ["#166534", "#3b82f6", "#f59e0b", "#ef4444", "#8b5cf6", "#06b6d4"];
-const MIGS_COLORS = { migs: "#166534", nonMigs: "#dc2626",  };
+const MIGS_COLORS = { migs: SERIES_PRIMARY, nonMigs: SEMANTIC_COLORS.danger };
 
 const Manager_Reports = () => {
     const navigate = useNavigate();
@@ -185,7 +185,7 @@ const Manager_Reports = () => {
               name,
               count,
               amount: typeAmounts.get(name) || 0,
-              color: TYPE_COLORS[i % TYPE_COLORS.length],
+              color: getLoanTypeColor(name, i),
             }))
         );
 
@@ -360,7 +360,7 @@ const Manager_Reports = () => {
                       contentStyle={{ borderRadius: 8, border: "1px solid #e5e7eb", fontSize: 12 }}
                       formatter={(v, n) => (n === "amount" ? formatCurrency(v) : v)}
                     />
-                    <Bar dataKey="approved" fill="#166534" radius={[4, 4, 0, 0]} name="Loans" />
+                    <Bar dataKey="approved" fill={SERIES_PRIMARY} radius={[4, 4, 0, 0]} name="Loans" />
                   </BarChart>
                 </ResponsiveContainer>
               </div>

@@ -53,19 +53,20 @@ import {
   Legend,
   ResponsiveContainer,
 } from "recharts";
+import { GREEN, SEMANTIC_COLORS, getLoanTypeColor } from "../../lib/chartColors";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 
+// This page is the reference palette for every portal's charts — see
+// src/lib/chartColors.js, which mirrors these exact values.
 const BRAND = {
   dark: "#14532d",
-  primary: "#166534",
-  mid: "#16a34a",
-  light: "#22c55e",
-  pale: "#bbf7d0",
+  primary: GREEN.dark,
+  mid: GREEN.mid,
+  light: GREEN.light,
+  pale: GREEN.palest,
   bg: "#f0fdf4",
 };
-
-const PIE_COLORS = ["#166534", "#16a34a", "#22c55e", "#4ade80", "#86efac", "#bbf7d0"];
 
 function fmt(n) {
   if (n === undefined || n === null) return "—";
@@ -340,21 +341,21 @@ const Reports = () => {
   const pieData = loanDist.map((d, i) => ({
     name: d.name,
     value: d.count,
-    color: PIE_COLORS[i % PIE_COLORS.length],
+    color: getLoanTypeColor(d.name, i),
   }));
 
   // Payment status pie
   const paymentPieData = [
     { name: "Validated", value: psb.validated || 0, color: BRAND.primary },
-    { name: "Pending", value: psb.pending || 0, color: "#f59e0b" },
-    { name: "Rejected", value: psb.rejected || 0, color: "#ef4444" },
+    { name: "Pending", value: psb.pending || 0, color: SEMANTIC_COLORS.warning },
+    { name: "Rejected", value: psb.rejected || 0, color: SEMANTIC_COLORS.danger },
   ];
 
   // MIGS pie
   const migsPieData = [
     { name: "MIGS", value: migs.migs || 0, color: BRAND.primary },
-    { name: "Non-MIGS", value: migs.non_migs || 0, color: "#94a3b8" },
-    ...(migs.unscored ? [{ name: "Unscored", value: migs.unscored, color: "#e2e8f0" }] : []),
+    { name: "Non-MIGS", value: migs.non_migs || 0, color: SEMANTIC_COLORS.neutral },
+    ...(migs.unscored ? [{ name: "Unscored", value: migs.unscored, color: SEMANTIC_COLORS.faint }] : []),
   ];
 
   const kpiCards = [
@@ -621,7 +622,7 @@ const Reports = () => {
                                   className="h-full rounded-full"
                                   style={{
                                     width: `${pctVal}%`,
-                                    backgroundColor: i === 0 ? BRAND.primary : i === 1 ? "#f59e0b" : "#ef4444",
+                                    backgroundColor: i === 0 ? BRAND.primary : i === 1 ? SEMANTIC_COLORS.warning : SEMANTIC_COLORS.danger,
                                   }}
                                 />
                               </div>
@@ -703,7 +704,7 @@ const Reports = () => {
                                 <div className="flex items-center gap-2">
                                   <div
                                     className="w-2 h-2 rounded-full shrink-0"
-                                    style={{ backgroundColor: PIE_COLORS[idx % PIE_COLORS.length] }}
+                                    style={{ backgroundColor: getLoanTypeColor(row.name, idx) }}
                                   />
                                   <span className="font-semibold text-gray-800">{row.name}</span>
                                 </div>

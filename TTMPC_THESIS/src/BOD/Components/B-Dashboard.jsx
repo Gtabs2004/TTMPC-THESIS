@@ -46,8 +46,7 @@ import {
   Legend,
   ResponsiveContainer
 } from 'recharts';
-
-const COLORS = ['#2C7A3F', '#4ADE80', '#9CA3AF'];
+import { SERIES_PRIMARY, GENDER_COLORS, AGING_SEVERITY_COLORS } from '../../lib/chartColors';
 
 const formatCurrency = (v) => `₱${Number(v || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
 const formatCurrencyShort = (v) => {
@@ -361,7 +360,7 @@ const Dashboard_BOD = () => {
                     <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#9CA3AF' }} />
                     <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#9CA3AF' }} allowDecimals={false} />
                     <Tooltip cursor={{ fill: '#f9fafb' }} contentStyle={{ borderRadius: '12px', border: '1px solid #E5E7EB', boxShadow: '0 10px 25px -5px rgb(0 0 0 / 0.1)', backgroundColor: '#FFFFFF', padding: '12px' }}/>
-                    <Bar dataKey="count" name="Approved" fill="#2C7A3F" radius={[6, 6, 0, 0]} />
+                    <Bar dataKey="count" name="Approved" fill={SERIES_PRIMARY} radius={[6, 6, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer> : <div className="h-full w-full rounded-lg bg-gray-50" />}
               </div>
@@ -378,9 +377,9 @@ const Dashboard_BOD = () => {
                     <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#9CA3AF' }} allowDecimals={false} />
                     <Tooltip cursor={{ fill: '#f9fafb' }} contentStyle={{ borderRadius: '12px', border: '1px solid #E5E7EB', boxShadow: '0 10px 25px -5px rgb(0 0 0 / 0.1)', backgroundColor: '#FFFFFF', padding: '12px' }}/>
                     <Legend wrapperStyle={{ paddingTop: '20px' }} />
-                    <Bar dataKey="30-Day" stackId="a" fill="#FCD34D" radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="60-Day" stackId="a" fill="#F97316" />
-                    <Bar dataKey="90-Day" stackId="a" fill="#EF4444" radius={[0, 0, 0, 0]} />
+                    <Bar dataKey="30-Day" stackId="a" fill={AGING_SEVERITY_COLORS[0]} radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="60-Day" stackId="a" fill={AGING_SEVERITY_COLORS[1]} />
+                    <Bar dataKey="90-Day" stackId="a" fill={AGING_SEVERITY_COLORS[2]} radius={[0, 0, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer> : <div className="h-full w-full rounded-lg bg-gray-50" />}
               </div>
@@ -409,7 +408,7 @@ const Dashboard_BOD = () => {
                       stroke="white"
                       strokeWidth={2}
                     >
-                      {genderData.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
+                      {genderData.map((entry, index) => <Cell key={`cell-${index}`} fill={GENDER_COLORS[index % GENDER_COLORS.length]} />)}
                     </Pie>
                     <Tooltip contentStyle={{ borderRadius: '12px', border: '1px solid #E5E7EB', boxShadow: '0 10px 25px -5px rgb(0 0 0 / 0.1)', backgroundColor: '#FFFFFF', padding: '12px' }} formatter={(value) => `${value} members`} />
                     <Legend verticalAlign="bottom" height={36} iconType="circle" wrapperStyle={{ paddingTop: '16px' }} />
@@ -428,7 +427,7 @@ const Dashboard_BOD = () => {
                     <XAxis type="number" dataKey="debt" name="Principal" tickFormatter={(val) => `${(val/1000).toFixed(0)}k`} axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#9CA3AF' }} />
                     <YAxis type="number" dataKey="repaymentSpeed" name="Speed %" domain={[0, 100]} axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#9CA3AF' }} />
                     <Tooltip cursor={{ strokeDasharray: '0' }} contentStyle={{ borderRadius: '12px', border: '1px solid #E5E7EB', boxShadow: '0 10px 25px -5px rgb(0 0 0 / 0.1)', backgroundColor: '#FFFFFF', padding: '12px' }} formatter={(value, name) => name === 'Principal' ? formatCurrency(value) : `${value}%`} />
-                    <Scatter name="Loans" data={debtScatter} fill="#10B981" />
+                    <Scatter name="Loans" data={debtScatter} fill={SERIES_PRIMARY} />
                   </ScatterChart>
                 </ResponsiveContainer> : <div className="h-full w-full rounded-lg bg-gray-50 flex items-center justify-center text-xs text-gray-400">{loading ? 'Loading…' : 'No active loans to plot'}</div>}
               </div>

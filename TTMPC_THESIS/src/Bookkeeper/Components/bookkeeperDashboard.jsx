@@ -46,6 +46,7 @@ import {
   ReferenceLine,
   Cell,
 } from "recharts";
+import { SERIES_PRIMARY, SEMANTIC_COLORS, REPAYMENT_HEALTH_COLORS } from "../../lib/chartColors";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 
@@ -429,9 +430,9 @@ const Dashboard = () => {
                     <Tooltip
                       formatter={(v) => [formatPeso(v), "Collected"]}
                       labelFormatter={(l) => `FY ${l}`}
-                      cursor={{ fill: "rgba(16,185,129,0.08)" }}
+                      cursor={{ fill: "rgba(22,101,52,0.08)" }}
                     />
-                    <Bar dataKey="value" fill="#10b981" radius={[4, 4, 0, 0]} barSize={28} />
+                    <Bar dataKey="value" fill={SERIES_PRIMARY} radius={[4, 4, 0, 0]} barSize={28} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -462,10 +463,10 @@ const Dashboard = () => {
                 </div>
               </div>
               <div className="flex flex-wrap gap-4 text-xs font-medium mb-3">
-                <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-green-500"></span><span className="text-gray-500">Healthy (&lt;2% late)</span></div>
-                <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-amber-400"></span><span className="text-gray-500">Watch (2-5%)</span></div>
-                <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-red-400"></span><span className="text-gray-500">Poor (&gt;5%)</span></div>
-                <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-gray-300"></span><span className="text-gray-500">No data</span></div>
+                <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full" style={{ backgroundColor: REPAYMENT_HEALTH_COLORS.healthy }}></span><span className="text-gray-500">Healthy (&lt;2% late)</span></div>
+                <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full" style={{ backgroundColor: REPAYMENT_HEALTH_COLORS.watch }}></span><span className="text-gray-500">Watch (2-5%)</span></div>
+                <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full" style={{ backgroundColor: REPAYMENT_HEALTH_COLORS.poor }}></span><span className="text-gray-500">Poor (&gt;5%)</span></div>
+                <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full" style={{ backgroundColor: REPAYMENT_HEALTH_COLORS.noData }}></span><span className="text-gray-500">No data</span></div>
               </div>
               <div className="h-56">
                 <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
@@ -491,8 +492,8 @@ const Dashboard = () => {
                       tickLine={false}
                     />
                     <ZAxis type="number" dataKey="total" range={[60, 500]} name="Payments" />
-                    <ReferenceLine y={2} stroke="#f59e0b" strokeDasharray="4 4" label={{ value: "2%", fill: "#b45309", fontSize: 10, position: "insideRight" }} />
-                    <ReferenceLine y={5} stroke="#ef4444" strokeDasharray="4 4" label={{ value: "5%", fill: "#b91c1c", fontSize: 10, position: "insideRight" }} />
+                    <ReferenceLine y={2} stroke={SEMANTIC_COLORS.warning} strokeDasharray="4 4" label={{ value: "2%", fill: "#b45309", fontSize: 10, position: "insideRight" }} />
+                    <ReferenceLine y={5} stroke={SEMANTIC_COLORS.danger} strokeDasharray="4 4" label={{ value: "5%", fill: "#b91c1c", fontSize: 10, position: "insideRight" }} />
                     <Tooltip
                       cursor={{ strokeDasharray: "3 3" }}
                       content={({ active, payload }) => {
@@ -521,10 +522,10 @@ const Dashboard = () => {
                     <Scatter data={monthlyBehaviorData}>
                       {monthlyBehaviorData.map((entry, idx) => {
                         const color =
-                          entry.total === 0 ? "#d1d5db"
-                          : entry.latePct > 5 ? "#f87171"
-                          : entry.latePct >= 2 ? "#fbbf24"
-                          : "#10b981";
+                          entry.total === 0 ? REPAYMENT_HEALTH_COLORS.noData
+                          : entry.latePct > 5 ? REPAYMENT_HEALTH_COLORS.poor
+                          : entry.latePct >= 2 ? REPAYMENT_HEALTH_COLORS.watch
+                          : REPAYMENT_HEALTH_COLORS.healthy;
                         return <Cell key={idx} fill={color} fillOpacity={0.8} />;
                       })}
                     </Scatter>
