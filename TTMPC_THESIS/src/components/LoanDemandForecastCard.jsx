@@ -10,12 +10,13 @@ import {
   YAxis,
 } from "recharts";
 import { TrendingUp, Loader2, AlertCircle, Info } from "lucide-react";
+import { FORECAST_LOAN_TYPE_COLORS } from "../lib/chartColors";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 
 const LOAN_TYPES = [
-  { value: "consolidated", label: "Consolidated", color: "var(--color-member-green)" },
-  { value: "emergency",    label: "Emergency",    color: "#B45309" },
+  { value: "consolidated", label: "Consolidated", color: FORECAST_LOAN_TYPE_COLORS.consolidated },
+  { value: "emergency",    label: "Emergency",    color: FORECAST_LOAN_TYPE_COLORS.emergency },
 ];
 
 const PHP = (value) =>

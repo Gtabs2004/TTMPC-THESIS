@@ -23,15 +23,14 @@ import {
   ChevronRight,
   User,
 } from "lucide-react";
+import { FORECAST_LOAN_TYPE_COLORS } from "../../lib/chartColors";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
-// System Green (#16A34A) / Warning (#B45309) — matches the same Consolidated
-// vs. Emergency color pairing used on the Treasurer dashboard's forecast
-// cards. Previously used Member Green (var(--color-member-green)), which
-// DESIGN.md scopes to the Member self-service portal only.
+// Shared with LoanDemandForecastCard.jsx via chartColors.js — both forecast
+// surfaces must use the same Consolidated/Emergency pairing.
 const FORECAST_LOAN_TYPES = [
-  { value: "consolidated", label: "Consolidated", color: "#16A34A" },
-  { value: "emergency",    label: "Emergency",    color: "#B45309" },
+  { value: "consolidated", label: "Consolidated", color: FORECAST_LOAN_TYPE_COLORS.consolidated },
+  { value: "emergency",    label: "Emergency",    color: FORECAST_LOAN_TYPE_COLORS.emergency },
 ];
 
 // ---------------------------------------------------------------------------

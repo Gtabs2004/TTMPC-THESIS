@@ -2,10 +2,17 @@
 
 from __future__ import annotations
 
+import os
 from html import escape
 from typing import Literal
 
 from . import email_service
+
+# Same shared header banner referenced in main.py, applicationConfirmation.py,
+# and loan_email_templates.py — one static frontend asset rather than four
+# copies. Lives at TTMPC_THESIS/public/assets/img/ttmpc-email-banner.png.
+_FRONTEND_BASE_URL = os.environ.get("FRONTEND_BASE_URL", "http://localhost:5173").rstrip("/")
+EMAIL_BANNER_URL = f"{_FRONTEND_BASE_URL}/assets/img/ttmpc-email-banner.png"
 
 Purpose = Literal["email_change", "email_change_initial", "password_change"]
 
@@ -31,9 +38,15 @@ def _render_html(code: str, purpose: Purpose, ttl_minutes: int) -> str:
 <!doctype html>
 <html>
   <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background:#f6f8fa; padding:24px; margin:0;">
-    <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="max-width:520px; margin:0 auto; background:#ffffff; border-radius:12px; border:1px solid #e5e7eb; padding:32px;">
+    <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="max-width:520px; margin:0 auto; background:#ffffff; border-radius:12px; border:1px solid #e5e7eb; overflow:hidden;">
       <tr>
-        <td style="text-align:center;">
+        <td style="padding:0;line-height:0;">
+          <img src="{EMAIL_BANNER_URL}" width="520" alt="Tubungan Teachers' Multi-Purpose Cooperative"
+               style="display:block;width:100%;max-width:520px;height:auto;border:0;" />
+        </td>
+      </tr>
+      <tr>
+        <td style="text-align:center;padding:32px;">
           <h1 style="margin:0 0 8px; font-size:20px; color:#111827;">TTMPC Account Security</h1>
           <p style="margin:0 0 24px; color:#4b5563; font-size:14px;">
             Use the code below to {escape(action)}.

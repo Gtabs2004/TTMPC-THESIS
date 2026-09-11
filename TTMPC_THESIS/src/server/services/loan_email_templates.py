@@ -193,7 +193,12 @@ def render_next_approver_email(ctx: LoanEmailContext, approver_role: str) -> tup
 </head>
 <body style="margin:0;padding:0;background-color:#f8fafc;color:#0f172a;">
     <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;padding:24px;background:#f8fafc;">
-        <div style="max-width:560px;margin:0 auto;background:#ffffff;border:1px solid #e2e8f0;border-radius:12px;padding:28px;">
+        <div style="max-width:560px;margin:0 auto;background:#ffffff;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;">
+            <div style="line-height:0;">
+                <img src="{EMAIL_BANNER_URL}" width="560" alt="Tubungan Teachers' Multi-Purpose Cooperative"
+                     style="display:block;width:100%;max-width:560px;height:auto;border:0;" />
+            </div>
+            <div style="padding:28px;">
             <p style="margin:0 0 4px 0;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#2E7A2A;font-weight:700;">TTMPC Loan Workflow</p>
             <h2 style="margin:0 0 16px 0;font-size:18px;color:#0f172a;">A loan application is ready for {safe_role} review</h2>
             <p style="font-size:14px;color:#475569;margin:0 0 18px 0;line-height:1.55;">
@@ -205,6 +210,7 @@ def render_next_approver_email(ctx: LoanEmailContext, approver_role: str) -> tup
                 <tr><td style="padding:6px 0;color:#64748b;">Loan Type</td><td style="padding:6px 0;text-align:right;font-weight:600;">{safe_loan_type}</td></tr>
                 <tr><td style="padding:6px 0;color:#64748b;">Amount</td><td style="padding:6px 0;text-align:right;font-weight:600;">{safe_amount}</td></tr>
             </table>
+            </div>
         </div>
     </div>
 </body>

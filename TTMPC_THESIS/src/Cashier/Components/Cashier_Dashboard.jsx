@@ -40,6 +40,7 @@ import {
   Pie,
   Cell,
 } from "recharts";
+import { SERIES_PRIMARY, getLoanTypeColor } from "../../lib/chartColors";
 
 const PHP = (v) => `₱${Number(v || 0).toLocaleString("en-PH", { maximumFractionDigits: 0 })}`;
 
@@ -267,11 +268,11 @@ const Cashier_Dashboard = () => {
         // Distribution donut — collapse to the 4 buckets from the original design.
         const total = totalTransactions || 1;
         const distRows = [
-          { name: "Loan Payments",     count: breakdown.loanPayments + breakdown.disbursals, color: "#166534" },
-          { name: "Savings Deposits",  count: breakdown.savingsDeposits,                     color: "#3b82f6" },
-          { name: "CBU Contributions", count: breakdown.cbuContributions,                    color: "#8b5cf6" },
-          { name: "Withdrawals",       count: breakdown.withdrawals,                         color: "#ef4444" },
-        ].map((r) => ({ ...r, value: Math.round((r.count / total) * 100) }));
+          { name: "Loan Payments",     count: breakdown.loanPayments + breakdown.disbursals },
+          { name: "Savings Deposits",  count: breakdown.savingsDeposits },
+          { name: "CBU Contributions", count: breakdown.cbuContributions },
+          { name: "Withdrawals",       count: breakdown.withdrawals },
+        ].map((r, i) => ({ ...r, color: getLoanTypeColor(r.name, i), value: Math.round((r.count / total) * 100) }));
         setDistributionData(distRows);
 
         // Recent activity: merge all transaction sources, sort newest first, take top 6.
@@ -459,8 +460,8 @@ const Cashier_Dashboard = () => {
                   <AreaChart data={trendData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
                     <defs>
                       <linearGradient id="colorTxn" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#22c55e" stopOpacity={0.2} />
-                        <stop offset="95%" stopColor="#22c55e" stopOpacity={0} />
+                        <stop offset="5%" stopColor={SERIES_PRIMARY} stopOpacity={0.2} />
+                        <stop offset="95%" stopColor={SERIES_PRIMARY} stopOpacity={0} />
                       </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
@@ -479,11 +480,11 @@ const Cashier_Dashboard = () => {
                     <Area
                       type="monotone"
                       dataKey="value"
-                      stroke="#22c55e"
+                      stroke={SERIES_PRIMARY}
                       strokeWidth={3}
                       fill="url(#colorTxn)"
-                      activeDot={{ r: 6, fill: "#fff", stroke: "#22c55e", strokeWidth: 2 }}
-                      dot={{ r: 4, fill: "#fff", stroke: "#22c55e", strokeWidth: 2 }}
+                      activeDot={{ r: 6, fill: "#fff", stroke: SERIES_PRIMARY, strokeWidth: 2 }}
+                      dot={{ r: 4, fill: "#fff", stroke: SERIES_PRIMARY, strokeWidth: 2 }}
                     />
                   </AreaChart>
                 </ResponsiveContainer>

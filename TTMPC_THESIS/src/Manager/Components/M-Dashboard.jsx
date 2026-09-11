@@ -37,6 +37,7 @@ import {
   Pie,
   Cell
 } from "recharts";
+import { SERIES_PRIMARY, getLoanTypeColor } from "../../lib/chartColors";
 
 const formatCurrency = (value) => {
   const amount = Number(value || 0);
@@ -49,12 +50,6 @@ const formatDate = (value) => {
   if (Number.isNaN(d.getTime())) return '—';
   return d.toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' });
 };
-
-const TYPE_COLORS = ['#166534', '#3b82f6', '#f59e0b', '#8b5cf6', '#06b6d4'];
-// Emergency loans always render in red, regardless of their rank in the distribution.
-// Matched by substring since loan_types.name varies between seeds ("Emergency" vs "Emergency Loan").
-const getLoanTypeColor = (name, i) =>
-  /emergency/i.test(name) ? '#dc2626' : TYPE_COLORS[i % TYPE_COLORS.length];
 
 const M_Dashboard = () => {
     const navigate = useNavigate();
@@ -338,14 +333,14 @@ const M_Dashboard = () => {
                   <AreaChart data={trendData} margin={{ top: 10, right: 0, left: 0, bottom: 0 }}>
                     <defs>
                       <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#166534" stopOpacity={0.1}/>
-                        <stop offset="95%" stopColor="#166534" stopOpacity={0}/>
+                        <stop offset="5%" stopColor={SERIES_PRIMARY} stopOpacity={0.1}/>
+                        <stop offset="95%" stopColor={SERIES_PRIMARY} stopOpacity={0}/>
                       </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
                     <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: "#9ca3af", fontSize: 12, fontWeight: 600 }} dy={10} />
                     {/* Hiding Y axis as per design, but keeping the grid lines */}
-                    <Area type="monotone" dataKey="value" stroke="#166534" strokeWidth={3} fillOpacity={1} fill="url(#colorValue)" />
+                    <Area type="monotone" dataKey="value" stroke={SERIES_PRIMARY} strokeWidth={3} fillOpacity={1} fill="url(#colorValue)" />
                   </AreaChart>
                 </ResponsiveContainer>
               </div>
