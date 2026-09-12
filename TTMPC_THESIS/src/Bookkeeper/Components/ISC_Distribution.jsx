@@ -112,31 +112,14 @@ const Bookkeeper_ISC = () => {
     );
   };
 
-  // Two new columns, positioned between Month Balance and Average Share
-  // Capital per the bookkeeper's own layout. Both are simple sums of
-  // already-returned raw fields — never a payout/rate calculation — so
-  // computing them client-side doesn't touch the "never recompute a payout"
-  // rule (FRONTEND_BRIEF.md §5.5); only the seven ISC formulas themselves
-  // are off-limits there.
+  // A simple sum of an already-returned raw field — never a payout/rate
+  // calculation — so computing it client-side doesn't touch the "never
+  // recompute a payout" rule (FRONTEND_BRIEF.md §5.5); only the seven ISC
+  // formulas themselves are off-limits there.
   const monthlyDeposit = useCallback(
     (r) => Number(r.crj_by_month?.[viewMonth] || 0) + Number(r.cdj_by_month?.[viewMonth] || 0),
     [viewMonth]
   );
-
-  // Rule 2's annual "Member Total" — the SUM OF THE 12 MONTH-END BALANCES,
-  // which rule 3 then divides by 12 to GET Average Share Capital. The RPC
-  // never returns that sum on its own (only the already-divided average), so
-  // it's reconstructed here as average × 12 — the exact inverse of rule 3.
-  //
-  // IT IS NOT MONEY THE MEMBER HOLDS. A member sitting on PHP 1,510,000 all
-  // year has a Member Total of PHP 18,120,000 — the same peso counted twelve
-  // times, once per month. Labelled "Total Share Capital" it read as a balance
-  // and made exactly that figure look like a 12x windfall, so the header says
-  // "Sum of Monthly Balances". Never label it as capital.
-  //
-  // Also NOT the RPC's own `total_share_capital` field (that one is the
-  // member's closing balance, a different figure entirely).
-  const combinedTotal = useCallback((r) => Number(r.average_share_capital || 0) * 12, []);
 
   const runCalculation = async (pool) => {
     setStatus("loading");
@@ -251,8 +234,6 @@ const Bookkeeper_ISC = () => {
           return Number(r.month_end_balances?.[viewMonth] || 0);
         case "deposit":
           return monthlyDeposit(r);
-        case "combined":
-          return combinedTotal(r);
         case "average":
           return Number(r.average_share_capital || 0);
         case "rate":
@@ -270,7 +251,7 @@ const Bookkeeper_ISC = () => {
       if (av > bv) return 1 * dir;
       return 0;
     });
-  }, [filtered, sortKey, sortDir, viewMonth, monthlyDeposit, combinedTotal]);
+  }, [filtered, sortKey, sortDir, viewMonth, monthlyDeposit]);
 
   useEffect(() => setPage(1), [search, rows, sortKey, sortDir, viewMonth]);
 
@@ -292,11 +273,10 @@ const Bookkeeper_ISC = () => {
       opening: rows.reduce((sum, r) => sum + Number(r.opening_balance || 0), 0),
       balance: rows.reduce((sum, r) => sum + Number(r.month_end_balances?.[viewMonth] || 0), 0),
       deposit: rows.reduce((sum, r) => sum + monthlyDeposit(r), 0),
-      combined: rows.reduce((sum, r) => sum + combinedTotal(r), 0),
       average: rows.reduce((sum, r) => sum + Number(r.average_share_capital || 0), 0),
       payout: rows.reduce((sum, r) => sum + Number(r.interest_amount || 0), 0),
     };
-  }, [rows, viewMonth, monthlyDeposit, combinedTotal]);
+  }, [rows, viewMonth, monthlyDeposit]);
 
   // Every row, never just the current page or the search filter (§5.1). A
   // real formatted workbook rather than plain CSV — bold banded header,
@@ -313,7 +293,6 @@ const Bookkeeper_ISC = () => {
       "Share Capital",
       `${monthLabel} Balance`,
       `Total Deposit (${monthLabel})`,
-      "Sum of Monthly Balances",
       "Average Share Capital",
       "Rate (%)",
       "ISC Payout",
@@ -325,7 +304,7 @@ const Bookkeeper_ISC = () => {
     const sheet = workbook.addWorksheet("ISC Distribution", {
       views: [{ state: "frozen", ySplit: 4 }],
     });
-    sheet.columns = [16, 26, 16, 16, 18, 18, 18, 10, 16].map((width) => ({ width }));
+    sheet.columns = [16, 26, 16, 16, 18, 18, 10, 16].map((width) => ({ width }));
     const lastCol = colLetter(columnHeaders.length);
 
     sheet.mergeCells(`A1:${lastCol}1`);
@@ -362,18 +341,17 @@ const Bookkeeper_ISC = () => {
         Number(r.opening_balance || 0),
         Number(r.month_end_balances?.[viewMonth] || 0),
         monthlyDeposit(r),
-        combinedTotal(r),
         Number(r.average_share_capital || 0),
         r.rate === null || r.rate === undefined ? null : Number(r.rate),
         r.interest_amount === null || r.interest_amount === undefined ? null : Number(r.interest_amount),
       ];
-      [3, 4, 5, 6, 7].forEach((col) => {
+      [3, 4, 5, 6].forEach((col) => {
         row.getCell(col).numFmt = PESO_FORMAT;
       });
-      row.getCell(8).numFmt = '0.00"%"';
-      row.getCell(9).numFmt = PESO_FORMAT;
+      row.getCell(7).numFmt = '0.00"%"';
+      row.getCell(8).numFmt = PESO_FORMAT;
       row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
-        if (colNumber >= 3 && colNumber <= 9) cell.alignment = { horizontal: "right" };
+        if (colNumber >= 3 && colNumber <= 8) cell.alignment = { horizontal: "right" };
         cell.border = { bottom: { style: "thin", color: { argb: BORDER_SOFT } } };
         if (idx % 2 === 1) cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: BAND_FILL } };
       });
@@ -386,7 +364,6 @@ const Bookkeeper_ISC = () => {
       rows.reduce((sum, r) => sum + Number(r.opening_balance || 0), 0),
       rows.reduce((sum, r) => sum + Number(r.month_end_balances?.[viewMonth] || 0), 0),
       rows.reduce((sum, r) => sum + monthlyDeposit(r), 0),
-      rows.reduce((sum, r) => sum + combinedTotal(r), 0),
       rows.reduce((sum, r) => sum + Number(r.average_share_capital || 0), 0),
       "",
       rows.reduce((sum, r) => sum + Number(r.interest_amount || 0), 0),
@@ -394,7 +371,7 @@ const Bookkeeper_ISC = () => {
     totalsRow.eachCell({ includeEmpty: true }, (cell, colNumber) => {
       cell.font = { bold: true };
       cell.border = { top: { style: "medium", color: { argb: "FF9CA3AF" } } };
-      if ([3, 4, 5, 6, 7, 9].includes(colNumber)) {
+      if ([3, 4, 5, 6, 8].includes(colNumber)) {
         cell.numFmt = PESO_FORMAT;
         cell.alignment = { horizontal: "right" };
       }
@@ -514,9 +491,7 @@ const Bookkeeper_ISC = () => {
               >
                 <Users2 className="w-4 h-4" /> March Payout Checklist
               </button>
-              <p className="text-xs text-gray-400 max-w-sm">
-                Enter the amount the General Assembly allocated for ISC. The rate is worked out from it — amount ÷ total average share capital — and the table previews as you type. Nothing is recorded until you confirm.
-              </p>
+            
             </div>
 
             <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 flex items-start gap-2">
@@ -670,15 +645,6 @@ const Bookkeeper_ISC = () => {
                     <th className="p-4 font-bold text-right">
                       <button
                         type="button"
-                        onClick={() => toggleSort("combined")}
-                        className="inline-flex items-center gap-1 w-full justify-end hover:text-white/80 transition-colors"
-                      >
-                        Sum of Monthly Balances {renderSortIcon("combined")}
-                      </button>
-                    </th>
-                    <th className="p-4 font-bold text-right">
-                      <button
-                        type="button"
                         onClick={() => toggleSort("average")}
                         className="inline-flex items-center gap-1 w-full justify-end hover:text-white/80 transition-colors"
                       >
@@ -708,7 +674,7 @@ const Bookkeeper_ISC = () => {
                 <tbody>
                   {status === "loading" ? (
                     <tr>
-                      <td colSpan={8} className="p-10 text-center">
+                      <td colSpan={7} className="p-10 text-center">
                         <div className="flex flex-col items-center gap-2">
                           <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
                           <p className="text-xs text-gray-500">Calculating Interest on Share Capital...</p>
@@ -717,7 +683,7 @@ const Bookkeeper_ISC = () => {
                     </tr>
                   ) : paginated.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="p-10 text-center">
+                      <td colSpan={7} className="p-10 text-center">
                         <div className="flex flex-col items-center gap-2">
                           <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center">
                             <Users className="w-5 h-5 text-gray-400" />
@@ -747,16 +713,13 @@ const Bookkeeper_ISC = () => {
                         <td className="p-4 text-sm text-right text-gray-700 tabular-nums">
                           {formatCurrency(monthlyDeposit(row))}
                         </td>
-                        <td className="p-4 text-sm text-right text-gray-700 tabular-nums">
-                          {formatCurrency(combinedTotal(row))}
-                        </td>
-                        <td className="p-4 text-sm text-right text-gray-700 tabular-nums">
+                        <td className="p-4 text-sm text-right text-amber-800 tabular-nums bg-amber-50/70">
                           {formatCurrency(row.average_share_capital)}
                         </td>
-                        <td className="p-4 text-sm text-right text-gray-700 tabular-nums">
+                        <td className="p-4 text-sm text-right text-purple-800 tabular-nums bg-purple-50/70">
                           {row.rate === null || row.rate === undefined ? "—" : `${Number(row.rate).toFixed(2)}%`}
                         </td>
-                        <td className="p-4 text-sm text-right font-semibold text-gray-900 tabular-nums">
+                        <td className="p-4 text-sm text-right font-semibold text-green-800 tabular-nums bg-green-50/70">
                           <span className="inline-flex items-center gap-1.5">
                             {formatCurrency(row.interest_amount)}
                             {row.adjusted && (
@@ -778,10 +741,9 @@ const Bookkeeper_ISC = () => {
                       <td className="p-4 text-right text-gray-900 tabular-nums">{formatCurrency(totals.opening)}</td>
                       <td className="p-4 text-right text-gray-900 tabular-nums">{formatCurrency(totals.balance)}</td>
                       <td className="p-4 text-right text-gray-900 tabular-nums">{formatCurrency(totals.deposit)}</td>
-                      <td className="p-4 text-right text-gray-900 tabular-nums">{formatCurrency(totals.combined)}</td>
-                      <td className="p-4 text-right text-gray-900 tabular-nums">{formatCurrency(totals.average)}</td>
-                      <td className="p-4 text-right text-gray-500">—</td>
-                      <td className="p-4 text-right text-gray-900 tabular-nums">{formatCurrency(totals.payout)}</td>
+                      <td className="p-4 text-right text-amber-900 tabular-nums bg-amber-200 ring-1 ring-inset ring-amber-400 font-extrabold">{formatCurrency(totals.average)}</td>
+                      <td className="p-4 text-right text-gray-500 bg-purple-50/70">—</td>
+                      <td className="p-4 text-right text-green-900 tabular-nums bg-green-100">{formatCurrency(totals.payout)}</td>
                     </tr>
                   </tfoot>
                 )}

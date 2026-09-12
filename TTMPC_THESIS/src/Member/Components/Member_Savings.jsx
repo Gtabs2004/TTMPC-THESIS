@@ -5,6 +5,7 @@ import { useNotification } from "../../contex/NotificationContext";
 import { useTheme } from "../../contex/ThemeContext";
 import { supabase } from "../../supabaseClient";
 import { resolveMemberIdentity } from "../../utils/memberIdentity";
+import { pickLatestCbuRow } from "../../utils/cbuOrdering";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
 import { getOrFetch, peek } from "../memberDataCache";
 import {
@@ -178,12 +179,11 @@ const Member_Savings = () => {
         // 3. CBU still relevant for new-system members (post go-live)
         const { data: cbuRows, error: cbuError } = await supabase
           .from('capital_build_up')
-          .select('starting_share_capital, ending_share_capital, capital_added, transaction_date')
-          .eq('member_id', memberId)
-          .order('transaction_date', { ascending: false });
+          .select('id, cbu_deposit_id, starting_share_capital, ending_share_capital, capital_added, transaction_date')
+          .eq('member_id', memberId);
 
         if (cbuError) throw cbuError;
-        const cbuRow = (cbuRows && cbuRows[0]) || null;
+        const cbuRow = pickLatestCbuRow(cbuRows);
 
         // 4. Pending/in-flight transactions (queue) - still tracked by membership_id
         let queueRows = [];

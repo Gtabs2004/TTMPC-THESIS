@@ -6,6 +6,7 @@ import { useNotification } from "../../contex/NotificationContext";
 import { useTheme } from "../../contex/ThemeContext";
 import { supabase } from "../../supabaseClient";
 import { resolveMemberIdentity } from "../../utils/memberIdentity";
+import { sortCbuRowsAscending } from "../../utils/cbuOrdering";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -43,6 +44,17 @@ const ALLOWED_TYPES = ["consolidated", "emergency", "bonus"];
 
 const formatCurrency = (value) =>
   `₱${Number(value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+// `capital_added` (unlike the savings ledger's `amount` + `entry_type` pair)
+// is a single signed field — a correction/reversal row can carry a negative
+// value. formatCurrency() already embeds "-" for a negative number, so a
+// hardcoded "+" in front produced "+₱-1,479.91" instead of "-₱1,479.91".
+// This picks the sign from the actual value instead of assuming it's always
+// an addition.
+const formatSignedCurrency = (value) => {
+  const n = Number(value || 0);
+  return `${n < 0 ? "-" : "+"}${formatCurrency(Math.abs(n))}`;
+};
 
 const formatCurrencyPdf = (value) =>
   `PHP ${Number(value || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -306,14 +318,16 @@ const Member_StatementOfAccount = () => {
 
         const { data, error } = await supabase
           .from("capital_build_up")
-          .select("id, transaction_date, starting_share_capital, capital_added, ending_share_capital, deposit_account")
-          .eq("member_id", memberId)
-          .order("transaction_date", { ascending: true });
+          .select("id, cbu_deposit_id, transaction_date, starting_share_capital, capital_added, ending_share_capital, deposit_account")
+          .eq("member_id", memberId);
 
         if (error) throw error;
 
         if (isMounted) {
-          setCbuRows(data || []);
+          // Same-day rows (e.g. an ISC capitalization landing on the same date
+          // as another CBU event) need a real tiebreak, not just date order —
+          // see cbuOrdering.js.
+          setCbuRows(sortCbuRowsAscending(data));
           setCbuLoaded(true);
         }
       } catch (err) {
@@ -1170,7 +1184,7 @@ const Member_StatementOfAccount = () => {
                             <td className="p-5 text-sm font-medium text-gray-700 dark:text-gray-200">{formatDate(r.transaction_date)}</td>
                             <td className="p-5 text-sm font-bold text-gray-700 dark:text-gray-200">{humanizeSource(r.deposit_account)}</td>
                             <td className="p-5 text-sm font-medium text-gray-600 dark:text-gray-400 text-right">{formatCurrency(r.starting_share_capital)}</td>
-                            <td className="p-5 text-sm font-bold text-green-600 text-right">+{formatCurrency(r.capital_added)}</td>
+                            <td className={`p-5 text-sm font-bold text-right ${Number(r.capital_added || 0) < 0 ? "text-red-500 dark:text-red-400" : "text-green-600 dark:text-green-400"}`}>{formatSignedCurrency(r.capital_added)}</td>
                             <td className="p-5 text-sm font-black text-gray-900 dark:text-white text-right">{formatCurrency(r.ending_share_capital)}</td>
                           </tr>
                         ))
@@ -1180,7 +1194,7 @@ const Member_StatementOfAccount = () => {
                       <tfoot>
                         <tr className="bg-[#EAF1EB] text-member-green dark:bg-green-900/30 dark:text-green-400">
                           <td className="p-5 text-xs font-extrabold uppercase tracking-wider" colSpan="3">Totals</td>
-                          <td className="p-5 text-sm font-black text-right">+{formatCurrency(cbuTotals.added)}</td>
+                          <td className="p-5 text-sm font-black text-right">{formatSignedCurrency(cbuTotals.added)}</td>
                           <td className="p-5 text-sm font-black text-right">
                             {formatCurrency(cbuRows[cbuRows.length - 1]?.ending_share_capital || 0)}
                           </td>
@@ -1205,7 +1219,7 @@ const Member_StatementOfAccount = () => {
                             <p className="truncate text-sm font-bold text-gray-700 dark:text-gray-200">{humanizeSource(r.deposit_account)}</p>
                             <p className="text-xs text-gray-500 dark:text-gray-400">{formatDate(r.transaction_date)}</p>
                           </div>
-                          <span className="shrink-0 text-sm font-bold text-green-600">+{formatCurrency(r.capital_added)}</span>
+                          <span className={`shrink-0 text-sm font-bold ${Number(r.capital_added || 0) < 0 ? "text-red-500 dark:text-red-400" : "text-green-600 dark:text-green-400"}`}>{formatSignedCurrency(r.capital_added)}</span>
                         </div>
                         <div className="mt-2 flex items-center justify-between text-[11px] text-gray-500 dark:text-gray-400">
                           <span>Starting: {formatCurrency(r.starting_share_capital)}</span>
@@ -1216,7 +1230,7 @@ const Member_StatementOfAccount = () => {
                   )}
                   {!loadingCbu && !cbuError && cbuRows.length > 0 ? (
                     <div className="px-4 py-3.5 bg-[#EAF1EB] dark:bg-green-900/30 text-member-green dark:text-green-400 flex items-center justify-between text-xs font-black">
-                      <span>Totals: +{formatCurrency(cbuTotals.added)}</span>
+                      <span>Totals: {formatSignedCurrency(cbuTotals.added)}</span>
                       <span>{formatCurrency(cbuRows[cbuRows.length - 1]?.ending_share_capital || 0)}</span>
                     </div>
                   ) : null}

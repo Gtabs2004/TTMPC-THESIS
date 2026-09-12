@@ -28,7 +28,8 @@ import {
   AlertCircle,
   TrendingUp,
   TrendingDown,
-  PiggyBank
+  PiggyBank,
+  Banknote
 } from "lucide-react";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
@@ -85,7 +86,7 @@ const BOOKKEEPER_MENU = [
            { name: "Savings Withdrawals", path: "/bookkeeper-savings-transactions" },
          ],
        },
- 
+   { name: "ISC", icon: Banknote, route: "/bookkeeper-isc" },
   { name: "MIGS Scoring", icon: Activity, route: "/migs" },
   { name: "Reports", icon: BarChart3, route: "/reports" },
   { name: "Audit Trail", icon: History, route: "/audit-trail" },
