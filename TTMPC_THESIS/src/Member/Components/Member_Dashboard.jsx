@@ -11,6 +11,7 @@ import LoanNotificationBell from "../../components/LoanNotificationBell";
 import LoanCalculatorModal from "./LoanCalculatorModal";
 import MemberDashboardLoading from "./MemberDashboardLoading";
 import { getOrFetch, peek } from "../memberDataCache";
+import { pickLatestCbuRow } from "../../utils/cbuOrdering";
 import {
   LayoutDashboard,
   Users,
@@ -407,7 +408,7 @@ const MemberDashboard = () => {
             ? supabase.from('member_applications').select('*').ilike('email', authEmail).order('created_at', { ascending: false }).limit(1).maybeSingle()
             : Promise.resolve({ data: null, error: null }),
           supabase.from('loans').select('control_number, principal_amount, loan_amount, total_interest, monthly_amortization, loan_status, application_date, term').eq('member_id', memberId).order('application_date', { ascending: false }),
-          supabase.from('capital_build_up').select('starting_share_capital, ending_share_capital, capital_added, transaction_date').eq('member_id', memberId).order('transaction_date', { ascending: false }),
+          supabase.from('capital_build_up').select('id, cbu_deposit_id, starting_share_capital, ending_share_capital, capital_added, transaction_date').eq('member_id', memberId),
           membershipId
             ? supabase.from('Savings_Transactions').select('Balance, Savings_Amount, Amount').eq('membership_number_id', membershipId)
             : Promise.resolve({ data: [], error: null }),
@@ -424,7 +425,7 @@ const MemberDashboard = () => {
         const { data: cbuRows, error: cbuError } = cbuResult;
         if (cbuError) throw cbuError;
 
-        const cbuRow = (cbuRows && cbuRows[0]) || null;
+        const cbuRow = pickLatestCbuRow(cbuRows);
         const shareCapitalBalance = cbuRow
           ? (cbuRow.ending_share_capital !== null && cbuRow.ending_share_capital !== undefined
               ? Number(cbuRow.ending_share_capital)
