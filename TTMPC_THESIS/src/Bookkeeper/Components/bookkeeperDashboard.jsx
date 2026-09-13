@@ -219,9 +219,13 @@ const Dashboard = () => {
   // probability so the card mirrors the full Credit Risk page classification.
   const creditRiskSnapshot = useMemo(() => {
     const scored = creditRiskQueue.filter((r) => r.probability != null);
-    const high = scored.filter((r) => r.probability >= 0.6);
-    const watch = scored.filter((r) => r.probability >= 0.3 && r.probability < 0.6);
-    const low = scored.filter((r) => r.probability < 0.3);
+    // Bands come from the backend, which reads its cut-offs from the model
+    // file. Never re-derive them from the probability here: the model's scores
+    // are low in absolute terms (most fall between 0.05 and 0.35), so a
+    // plausible-looking 0.3/0.6 split would count every application as low risk.
+    const high = scored.filter((r) => r.band === "RED");
+    const watch = scored.filter((r) => r.band === "AMBER");
+    const low = scored.filter((r) => r.band === "GREEN");
     const topHigh = [...high]
       .sort((a, b) => (b.probability || 0) - (a.probability || 0))
       .slice(0, 3);

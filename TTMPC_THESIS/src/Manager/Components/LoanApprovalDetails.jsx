@@ -143,6 +143,11 @@ const LoanApprovalDetails = () => {
   const [riskAssessment, setRiskAssessment] = useState(null);
   const [riskLoading, setRiskLoading] = useState(false);
   const [riskError, setRiskError] = useState('');
+  // Model internals (raw feature values, cohort medians, contribution bars)
+  // are collapsed by default. A reviewer approving a loan needs the band and
+  // the action; the numbers behind them are for auditing the model, not for
+  // making the decision.
+  const [showRiskDetail, setShowRiskDetail] = useState(false);
   const [revisionResetDone, setRevisionResetDone] = useState(false);
   const [printing, setPrinting] = useState(false);
 
@@ -1571,221 +1576,6 @@ const LoanApprovalDetails = () => {
               </div>
             </div>
 
-            {/* Payment Risk Indicators (TTMPC Credit Risk Model) */}
-            <div id="section-risk" className="scroll-mt-44">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="flex items-center text-lg font-bold text-gray-800">
-                  <BarChart2 className="w-5 h-5 mr-2 text-member-green" /> Payment Risk Indicators
-                </h2>
-                <button
-                  type="button"
-                  onClick={handleRunRiskAssessment}
-                  disabled={riskLoading}
-                  className="flex items-center gap-2 px-3 py-1.5 text-xs font-bold uppercase tracking-wider rounded-md border border-member-green text-member-green hover:bg-member-green hover:text-white transition disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {riskLoading ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <RefreshCw className="w-4 h-4" />
-                  )}
-                  {riskAssessment ? 'Re-run' : 'Run Risk Assessment'}
-                </button>
-              </div>
-
-              {riskError && (
-                <div className="mb-3 p-3 rounded-md bg-red-50 border border-red-200 text-xs text-red-700">
-                  {riskError}
-                </div>
-              )}
-
-              {!riskAssessment && !riskLoading && !riskError && (
-                <div className="p-5 border border-dashed border-gray-300 rounded-xl text-center text-sm text-gray-500">
-                  No risk assessment yet. Click <span className="font-semibold text-member-green">Run Risk Assessment</span> to score this application.
-                </div>
-              )}
-
-              {riskAssessment && (() => {
-                const isHighRisk = Number(riskAssessment.risk_class) === 1;
-                const features = riskAssessment.features_used || {};
-                const stabilityScore = Number(features.Stability_Score ?? 0);
-                const stabilityLabel = stabilityScore >= 4
-                  ? 'Public Sector / Institutional'
-                  : stabilityScore >= 3
-                  ? 'Private Professional / Skilled'
-                  : stabilityScore >= 2
-                  ? 'Service / Support or Unclassified'
-                  : 'Entrepreneurial / Informal';
-                const incomeMissing = Number(features.Income_Is_Missing) === 1;
-                // Policy: show the exact computed Repayment Stress Index — no
-                // display cap. The 40% ceiling still drives the risk band:
-                // anything above 40 is labelled High Risk regardless of how
-                // large the actual percentage gets (e.g. 120%).
-                const STRESS_INDEX_CEILING = 40;
-                const rawStressIndex = Number(features.Repayment_Stress_Index);
-                const stressIndex = Number.isFinite(rawStressIndex) && rawStressIndex >= 0
-                  ? rawStressIndex
-                  : 0;
-                const stressIndexOverCap = Number.isFinite(rawStressIndex) && rawStressIndex > STRESS_INDEX_CEILING;
-                const stressIndexBand = !Number.isFinite(rawStressIndex)
-                  ? 'Unknown'
-                  : rawStressIndex < 20 ? 'Safe'
-                  : rawStressIndex <= 35 ? 'Low Risk'
-                  : rawStressIndex <= 40 ? 'Moderate Risk'
-                  : 'High Risk';
-
-                return (
-                  <div className="space-y-4">
-                    {/* Top row: class badge */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className={`border rounded-xl p-4 flex flex-col items-center justify-center text-center ${isHighRisk ? 'border-red-300 bg-red-50' : 'border-green-300 bg-green-50'}`}>
-                        {isHighRisk ? (
-                          <ShieldAlert className="w-8 h-8 text-red-600 mb-2" />
-                        ) : (
-                          <ShieldCheck className="w-8 h-8 text-green-700 mb-2" />
-                        )}
-                        <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Risk Class</p>
-                        <p className={`text-lg font-black ${isHighRisk ? 'text-red-700' : 'text-green-800'}`}>
-                          {isHighRisk ? 'High Risk' : 'Performing'}
-                        </p>
-                      </div>
-                      <div className="border border-gray-200 rounded-xl p-4">
-                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Risk Summary</p>
-                        <p className="text-sm text-gray-700">
-                          {isHighRisk
-                            ? 'High risk based on current model features. Review borrower context before final decision.'
-                            : 'Performing risk profile based on current model features.'}
-                        </p>
-                        <p className="text-[10px] text-gray-400 mt-3 italic">
-                          Model output is a screening tool, not a final decision.
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* Features used row */}
-                    <div className="border border-gray-200 rounded-xl p-4">
-                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-1">
-                        <Info className="w-3.5 h-3.5" /> Features Used by the Model
-                      </p>
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
-                        <div>
-                          <p className="text-[10px] text-gray-400 uppercase">Loan Amount</p>
-                          <p className="font-bold text-gray-800">{formatCurrency(features.LoanAmount)}</p>
-                        </div>
-                        <div>
-                          <p className="text-[10px] text-gray-400 uppercase">Occupation Group</p>
-                          <p className="font-bold text-gray-800">{stabilityLabel}</p>
-                        </div>
-                        <div>
-                          <p className="text-[10px] text-gray-400 uppercase">Stability Score</p>
-                          <p className="font-bold text-gray-800">{stabilityScore}</p>
-                        </div>
-                         {  
-                        <div>
-                        <p className="text-[10px] text-gray-400 uppercase">Repayment Stress</p>
-                          {incomeMissing ? (
-                            <p className="font-bold text-gray-800">— (income missing)</p>
-                          ) : (
-                            <>
-                              <p className={`font-bold ${stressIndexOverCap ? 'text-red-700' : 'text-gray-800'}`}>
-                                {stressIndex.toFixed(1)}%
-                              </p>
-                              <p className={`mt-0.5 text-[10px] font-bold uppercase tracking-wider ${
-                                stressIndexBand === 'High Risk' ? 'text-red-700'
-                                : stressIndexBand === 'Moderate Risk' ? 'text-orange-600'
-                                : stressIndexBand === 'Low Risk' ? 'text-yellow-700'
-                                : 'text-[#2E7D32]'
-                              }`}>
-                                {stressIndexBand}
-                              </p>
-                              {stressIndexOverCap ? (
-                                <p className="mt-0.5 text-[9px] text-red-600 italic">Exceeds 40% policy ceiling.</p>
-                              ) : null}
-                            </>
-                          )}
-                        </div>
-                       }
-                      </div>
-                    </div>
-
-                    {/* Feature importance drivers — why the model scored this way */}
-                    {Array.isArray(riskAssessment.drivers) && riskAssessment.drivers.length > 0 && (() => {
-                      const drivers = riskAssessment.drivers;
-                      const maxAbs = Math.max(...drivers.map(d => Math.abs(d.contribution)), 1e-9);
-                      const FEATURE_LABELS = {
-                        LoanAmount: 'Loan Amount',
-                        Stability_Score: 'Occupation Stability',
-                        Advance_Payment_Count: 'Advance Payments',
-                        Income_Is_Missing: 'Income Data Missing',
-                        Repayment_Stress_Index: 'Repayment Stress Index',
-                      };
-                      return (
-                        <div className="border border-gray-200 rounded-xl p-4">
-                          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-1">
-                            <Info className="w-3.5 h-3.5" /> Score Drivers — Why This Classification
-                          </p>
-                          <p className="text-[10px] text-gray-400 mb-3 italic">
-                            Bar width shows each feature's relative contribution to the risk score. Ranked top to bottom by impact.
-                          </p>
-                          <div className="space-y-2.5">
-                            {drivers.map((d) => {
-                              const pct = maxAbs > 0 ? (Math.abs(d.contribution) / maxAbs) * 100 : 0;
-                              const isUp = d.direction === 'up';
-                              const isNeutral = d.direction === 'neutral';
-                              const barColor = isNeutral
-                                ? 'bg-gray-300'
-                                : isUp
-                                ? 'bg-red-400'
-                                : 'bg-green-500';
-                              const label = FEATURE_LABELS[d.feature] || d.feature;
-                              const aboveMedian = d.value > d.cohort_median;
-                              return (
-                                <div key={d.feature}>
-                                  <div className="flex items-center justify-between mb-0.5">
-                                    <span className="text-xs text-gray-700 font-medium">{label}</span>
-                                    <span className={`text-[10px] font-bold uppercase tracking-wider ${isNeutral ? 'text-gray-400' : isUp ? 'text-red-600' : 'text-green-700'}`}>
-                                      {isNeutral ? 'Neutral' : isUp ? '↑ Increases Risk' : '↓ Reduces Risk'}
-                                    </span>
-                                  </div>
-                                  <div className="w-full bg-gray-100 rounded-full h-2">
-                                    <div
-                                      className={`${barColor} h-2 rounded-full transition-all`}
-                                      style={{ width: `${pct.toFixed(1)}%` }}
-                                    />
-                                  </div>
-                                  <p className="text-[10px] text-gray-400 mt-0.5">
-                                    Value: <span className="font-semibold text-gray-600">{Number.isFinite(d.value) ? d.value.toFixed(2) : '—'}</span>
-                                    {' · '}Cohort median: <span className="font-semibold text-gray-600">{Number.isFinite(d.cohort_median) ? d.cohort_median.toFixed(2) : '—'}</span>
-                                    {d.cohort_median !== undefined && (
-                                      <span className={`ml-1 font-semibold ${aboveMedian ? 'text-red-500' : 'text-green-600'}`}>
-                                        ({aboveMedian ? 'above' : 'below'} avg)
-                                      </span>
-                                    )}
-                                  </p>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      );
-                    })()}
-
-                    {/* Footer: model version + scored_at */}
-                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[10px] text-gray-400 uppercase tracking-wider">
-                      {riskAssessment.scored_at && (
-                        <span>Scored: {new Date(riskAssessment.scored_at).toLocaleString()}</span>
-                      )}
-                      {riskAssessment.model_version && (
-                        <span>Model: {riskAssessment.model_version}</span>
-                      )}
-                      {riskAssessment.cached && (
-                        <span className="text-gray-500">(cached)</span>
-                      )}
-                    </div>
-                  </div>
-                );
-              })()}
-            </div>
-
           </div>
 
           {/* Right Column */}
@@ -1948,7 +1738,373 @@ const LoanApprovalDetails = () => {
 
       </div>
 
-      <br></br>
+      {/* Payment Risk Indicators (TTMPC Credit Risk Model) — full-width row.
+          Moved out of the two-column grid: with 21 features + drivers this
+          section is naturally tall, and squeezing it into a half-width
+          column left a wall of dead space beside the shorter Computation
+          column. Full width lets the content lay out sideways instead of
+          stacking. Follows the same shape as Bookkeeper Internal Review
+          below — heading outside, tinted panel inside — so the two
+          full-width rows line up with each other and with the card above. */}
+      <div id="section-risk" className="scroll-mt-44 pt-8 pb-8">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="flex items-center text-lg font-bold text-gray-800">
+            <BarChart2 className="w-5 h-5 mr-2 text-member-green" /> Payment Risk Indicators
+          </h2>
+          <button
+            type="button"
+            onClick={handleRunRiskAssessment}
+            disabled={riskLoading}
+            className="flex items-center gap-2 px-3 py-1.5 text-xs font-bold uppercase tracking-wider rounded-md border border-member-green text-member-green hover:bg-member-green hover:text-white transition disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {riskLoading ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <RefreshCw className="w-4 h-4" />
+            )}
+            {riskAssessment ? 'Re-run' : 'Run Risk Assessment'}
+          </button>
+        </div>
+
+          {riskError && (
+            <div className="mb-3 p-3 rounded-md bg-red-50 border border-red-200 text-xs text-red-700">
+              {riskError}
+            </div>
+          )}
+
+          {!riskAssessment && !riskLoading && !riskError && (
+            <div className="p-8 border border-dashed border-gray-300 rounded-xl text-center text-sm text-gray-500">
+              No risk assessment yet. Click <span className="font-semibold text-member-green">Run Risk Assessment</span> to score this application.
+            </div>
+          )}
+
+          {riskAssessment && (() => {
+            const features = riskAssessment.features_used || {};
+
+            // The traffic-light band is decided by the backend from the model
+            // file's own thresholds. risk_class only records whether the loan
+            // crossed the recommended review threshold - it is a routing
+            // signal, not an approve/deny verdict.
+            const band = riskAssessment.band
+              || (Number(riskAssessment.risk_class) === 1 ? 'AMBER' : 'GREEN');
+
+            // Presentation only. The label, the recommended action and the
+            // band's historical trouble rate all come from the backend, which
+            // reads them from the model file - so this view never restates the
+            // cooperative's figures in its own words.
+            const BAND_UI = {
+              RED: {
+                fallbackLabel: 'High Risk',
+                fallbackAction: 'Refer to Manager / BOD before approval',
+                panel: 'border-red-200 bg-red-50',
+                accent: 'bg-red-500',
+                text: 'text-red-700',
+                Icon: ShieldAlert,
+                iconClass: 'text-red-600',
+              },
+              AMBER: {
+                fallbackLabel: 'Watch',
+                fallbackAction: 'Verify income and payslip',
+                panel: 'border-amber-200 bg-amber-50',
+                accent: 'bg-amber-500',
+                text: 'text-amber-700',
+                Icon: ShieldAlert,
+                iconClass: 'text-amber-600',
+              },
+              GREEN: {
+                fallbackLabel: 'Low Risk',
+                fallbackAction: 'Process normally',
+                panel: 'border-green-200 bg-green-50',
+                accent: 'bg-member-green',
+                text: 'text-green-800',
+                Icon: ShieldCheck,
+                iconClass: 'text-green-700',
+              },
+            };
+            const ui = BAND_UI[band] || BAND_UI.AMBER;
+            const bandLabel = riskAssessment.risk_label || ui.fallbackLabel;
+            const bandAction = riskAssessment.action || ui.fallbackAction;
+            const badRate = riskAssessment.band_bad_rate_per_100;
+
+            // ----------------------------------------------------------------
+            // Translate the model's drivers into things a reviewer can act on.
+            //
+            // The raw driver list is model diagnostics: feature names, cohort
+            // medians, signed contributions. None of that tells a bookkeeper
+            // what to verify before approving. Each rule below turns one
+            // driver into a plain-language observation about the BORROWER.
+            //
+            // Only findings that pass a materiality check are shown, so a
+            // clean application stays visually clean instead of listing eight
+            // near-zero contributions.
+            // ----------------------------------------------------------------
+            const num = (v) => (v == null || !Number.isFinite(Number(v)) ? null : Number(v));
+
+            const FINDING_RULES = {
+              PriorBehind: (v) => v > 0 && {
+                tone: 'concern',
+                text: `Fell 3+ months behind on ${v} previous ${v === 1 ? 'loan' : 'loans'}`,
+              },
+              PriorPenalties: (v) => v > 0 && {
+                tone: 'concern',
+                text: `Incurred penalties on ${v} previous ${v === 1 ? 'loan' : 'loans'}`,
+              },
+              PriorRestructured: (v) => v > 0 && {
+                tone: 'concern',
+                text: `${v} previous ${v === 1 ? 'loan was' : 'loans were'} restructured`,
+              },
+              ConcurrentLoans: (v) => v > 0 && {
+                tone: v >= 2 ? 'concern' : 'neutral',
+                text: `Already carrying ${v} open ${v === 1 ? 'loan' : 'loans'}`,
+              },
+              MonthsSinceLastLoan: (v) => v < 3 && {
+                tone: 'concern',
+                text: v < 1
+                  ? 'Applying again within a month of the last loan'
+                  : `Applying again after only ${Math.round(v)} month${Math.round(v) === 1 ? '' : 's'}`,
+              },
+              PriorLoans: (v) => v >= 3 && {
+                tone: 'good',
+                text: `Established borrowing history (${v} previous loans)`,
+              },
+              OccTier: (v) => v === 1 && {
+                tone: 'good',
+                text: 'Steady income - fixed salary or pension',
+              },
+              ShareCapital: (v) => v >= 15 && {
+                tone: 'good',
+                text: 'Strong share capital standing',
+              },
+              Age: (v) => v < 25 && {
+                tone: 'neutral',
+                text: 'Young borrower with a shorter track record',
+              },
+            };
+
+            // Rank by the model's own attribution so the most influential
+            // observations surface first, then keep the top few.
+            const findings = (riskAssessment.drivers || [])
+              .map((d) => {
+                const rule = FINDING_RULES[d.feature];
+                const value = num(d.value);
+                if (!rule || value == null) return null;
+                const hit = rule(value);
+                if (!hit) return null;
+                return { ...hit, weight: Math.abs(Number(d.contribution) || 0) };
+              })
+              .filter(Boolean)
+              .sort((a, b) => b.weight - a.weight)
+              .slice(0, 5);
+
+            const concerns = findings.filter((f) => f.tone === 'concern');
+            const positives = findings.filter((f) => f.tone !== 'concern');
+
+            const missingSnapshot = Number(features.HasSnapshot) === 0;
+
+            // Technical detail, shown only on request.
+            const FEATURE_LABELS = {
+              LoanAmount: 'Loan Amount',
+              Term: 'Term (months)',
+              MonthlyDue: 'Monthly Due',
+              Dependents: 'Dependents',
+              OccTier: 'Occupation Stability',
+              Age: 'Age',
+              PriorLoans: 'Previous Loans',
+              PriorRefinances: 'Previous Renewals',
+              PriorBehind: 'Previously Behind',
+              PriorRestructured: 'Previously Restructured',
+              PriorPenalties: 'Previous Penalties',
+              PriorBorrowed: 'Total Previously Borrowed',
+              DebtGrowth: 'Debt Growth',
+              MonthsSinceLastLoan: 'Months Since Last Loan',
+              ConcurrentLoans: 'Concurrent Loans',
+              ShareCapital: 'Share Capital (points)',
+              Savings: 'Savings Balance',
+              HasTimeDeposit: 'Has Time Deposit',
+              SavingsChange: 'Savings Change (yr)',
+              Groceries: 'Grocery Patronage (points)',
+              HasSnapshot: 'Has Financial Snapshot',
+            };
+            const detailDrivers = (riskAssessment.drivers || []).slice(0, 8);
+            const maxAbs = Math.max(...detailDrivers.map((d) => Math.abs(d.contribution)), 1e-9);
+
+            return (
+              <div className="space-y-4">
+                {/* The decision: band, what to do, and how often this band
+                    actually goes wrong. Everything a reviewer needs to act. */}
+                <div className={`border rounded-xl overflow-hidden ${ui.panel}`}>
+                  <div className="flex flex-col sm:flex-row">
+                    <div className="flex items-center gap-3 px-5 py-4 sm:w-64 sm:shrink-0">
+                      <ui.Icon className={`w-8 h-8 shrink-0 ${ui.iconClass}`} />
+                      <div>
+                        <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Risk Band</p>
+                        <p className={`text-xl font-black leading-tight ${ui.text}`}>{bandLabel}</p>
+                      </div>
+                    </div>
+                    <div className="flex-1 border-t sm:border-t-0 sm:border-l border-black/5 bg-white/60 px-5 py-4">
+                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">What to do</p>
+                      <p className={`text-base font-bold ${ui.text}`}>{bandAction}</p>
+                      {badRate != null && (
+                        <p className="text-xs text-gray-600 mt-1.5">
+                          In the past, about <span className="font-semibold text-gray-800">{badRate} out of 100</span> loans
+                          scored like this one had repayment problems.
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Plain-language findings, not model statistics. */}
+                {(concerns.length > 0 || positives.length > 0) && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="border border-gray-200 rounded-xl p-4">
+                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-3">
+                        Points to check
+                      </p>
+                      {concerns.length === 0 ? (
+                        <p className="text-sm text-gray-500 italic">
+                          Nothing in this member&apos;s record stands out as a concern.
+                        </p>
+                      ) : (
+                        <ul className="space-y-2">
+                          {concerns.map((f) => (
+                            <li key={f.text} className="flex items-start gap-2 text-sm text-gray-700">
+                              <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-red-500 shrink-0" />
+                              {f.text}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+
+                    <div className="border border-gray-200 rounded-xl p-4">
+                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-3">
+                        In the member&apos;s favour
+                      </p>
+                      {positives.length === 0 ? (
+                        <p className="text-sm text-gray-500 italic">
+                          No particular strengths stood out in the record.
+                        </p>
+                      ) : (
+                        <ul className="space-y-2">
+                          {positives.map((f) => (
+                            <li key={f.text} className="flex items-start gap-2 text-sm text-gray-700">
+                              <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-member-green shrink-0" />
+                              {f.text}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {missingSnapshot && (
+                  <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
+                    <Info className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                    <p className="text-xs text-amber-800">
+                      This member has no share capital, savings or grocery records on file, so the
+                      score is based on their loan history alone. Treat it as less certain than usual.
+                    </p>
+                  </div>
+                )}
+
+                {/* Handoff §4 and §7: the model routes, it never rejects, and
+                    it misses about a third of trouble. Both facts belong next
+                    to the recommendation, not buried in a tooltip. */}
+                <p className="text-xs text-gray-500 italic">
+                  {riskAssessment.never_rejects
+                    || 'This score routes the application for review. It is not grounds for denial - every member retains the right to apply.'}
+                  {' '}It is a guide for your judgement, not a replacement for it.
+                </p>
+
+                {/* Model internals, collapsed. For auditing the model or
+                    answering "why this score" - not for the approval itself. */}
+                <div className="border-t border-gray-200 pt-3">
+                  <button
+                    type="button"
+                    onClick={() => setShowRiskDetail((v) => !v)}
+                    className="flex items-center gap-1.5 text-xs font-semibold text-gray-500 hover:text-member-green transition-colors"
+                  >
+                    <Info className="w-3.5 h-3.5" />
+                    {showRiskDetail ? 'Hide' : 'Show'} technical detail
+                  </button>
+
+                  {showRiskDetail && (
+                    <div className="mt-4 grid grid-cols-1 xl:grid-cols-2 gap-4">
+                      <div className="border border-gray-200 rounded-xl p-4">
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-3">
+                          Values the model read
+                        </p>
+                        <div className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
+                          {[
+                            ['Loan Amount', features.LoanAmount == null ? '\u2014' : formatCurrency(Number(features.LoanAmount))],
+                            ['Previous Loans', features.PriorLoans ?? '\u2014'],
+                            ['Previously Behind', features.PriorBehind ?? '\u2014'],
+                            ['Concurrent Loans', features.ConcurrentLoans ?? '\u2014'],
+                            ['Share Capital (pts)', features.ShareCapital ?? '\u2014'],
+                            ['Grocery (pts)', features.Groceries ?? '\u2014'],
+                            ['Savings', features.Savings == null ? '\u2014' : formatCurrency(Number(features.Savings))],
+                            ['Occupation Tier', features.OccTier ?? '\u2014'],
+                          ].map(([label, value]) => (
+                            <div key={label}>
+                              <p className="text-[10px] text-gray-400 uppercase">{label}</p>
+                              <p className="font-semibold text-gray-800">{String(value)}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {detailDrivers.length > 0 && (
+                        <div className="border border-gray-200 rounded-xl p-4">
+                          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-3">
+                            Score drivers
+                          </p>
+                          <div className="space-y-2.5">
+                            {detailDrivers.map((d) => {
+                              const pct = maxAbs > 0 ? (Math.abs(d.contribution) / maxAbs) * 100 : 0;
+                              const isUp = d.direction === 'up';
+                              const isNeutral = d.direction === 'neutral';
+                              const barColor = isNeutral ? 'bg-gray-300' : isUp ? 'bg-red-400' : 'bg-green-500';
+                              return (
+                                <div key={d.feature}>
+                                  <div className="flex items-center justify-between mb-0.5 gap-2">
+                                    <span className="text-xs text-gray-700 font-medium truncate">
+                                      {FEATURE_LABELS[d.feature] || d.feature}
+                                    </span>
+                                    <span className={`text-[10px] font-bold uppercase shrink-0 ${isNeutral ? 'text-gray-400' : isUp ? 'text-red-600' : 'text-green-700'}`}>
+                                      {isNeutral ? 'Neutral' : isUp ? 'Raises' : 'Lowers'}
+                                    </span>
+                                  </div>
+                                  <div className="w-full bg-gray-100 rounded-full h-1.5">
+                                    <div className={`${barColor} h-1.5 rounded-full`} style={{ width: `${pct.toFixed(1)}%` }} />
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Footer: model version + scored_at */}
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[10px] text-gray-400 uppercase tracking-wider">
+                  {riskAssessment.scored_at && (
+                    <span>Scored: {new Date(riskAssessment.scored_at).toLocaleString()}</span>
+                  )}
+                  {riskAssessment.model_version && (
+                    <span>Model: v{riskAssessment.model_version}</span>
+                  )}
+                  {riskAssessment.cached && (
+                    <span className="text-gray-500">(cached)</span>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
+      </div>
 
       {/* Bookkeeper Internal Review (full-width row) */}
       <div id="section-notes" className="scroll-mt-44 px-8 pb-8">
@@ -1974,91 +2130,116 @@ const LoanApprovalDetails = () => {
             <p className="text-sm text-gray-700 whitespace-pre-wrap">{loanDetails.summary.bookkeeperInternalRemarks}</p>
           </div>
 
-          <div className="border-t border-gray-200 pt-3">
+          <div className="border-t border-gray-200 pt-4">
             <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-3">Co-Makers (Loan Details)</p>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               {[0, 1].map((index) => {
                 const row = coMakerDetails[index] || EMPTY_CO_MAKERS[index];
+                const fieldClass = "w-full border border-gray-300 rounded-md px-3 py-1.5 text-sm text-gray-800 disabled:bg-gray-100 disabled:text-gray-500 focus:outline-none focus:ring-1 focus:ring-member-green focus:border-member-green";
                 return (
-                  <div key={`co-maker-${index}`} className="border border-gray-200 rounded-lg p-3 bg-white">
-                    <p className="text-xs font-bold text-gray-700 mb-2">Co-Maker {index + 1}</p>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      <div className="md:col-span-2 flex gap-2">
-                        <input
-                          type="text"
-                          value={coMakerSearch[index] || ''}
-                          onChange={(e) => updateCoMakerSearch(index, e.target.value)}
-                          placeholder="Search by name, surname, or membership number"
-                          disabled={coMakerMemberLoading}
-                          className="border border-gray-300 rounded px-3 py-2 text-sm flex-1 disabled:bg-gray-100"
-                        />
-                        <button
-                          type="button"
-                          onClick={loadCoMakerMembers}
-                          disabled={coMakerMemberLoading}
-                          className="px-3 py-2 text-xs font-semibold border border-gray-300 rounded bg-white hover:bg-gray-50 disabled:opacity-60"
+                  <div key={`co-maker-${index}`} className="border border-gray-200 rounded-lg bg-white overflow-hidden">
+                    <div className="px-4 py-2.5 bg-gray-50 border-b border-gray-200">
+                      <p className="text-xs font-bold text-gray-700">Co-Maker {index + 1}</p>
+                    </div>
+                    <div className="p-4 space-y-3">
+                      {/* Lookup: search + refresh + resolved member, grouped as one unit */}
+                      <div className="space-y-2 pb-3 border-b border-dashed border-gray-200">
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            value={coMakerSearch[index] || ''}
+                            onChange={(e) => updateCoMakerSearch(index, e.target.value)}
+                            placeholder="Search by name, surname, or membership number"
+                            disabled={coMakerMemberLoading}
+                            className={`${fieldClass} flex-1`}
+                          />
+                          <button
+                            type="button"
+                            onClick={loadCoMakerMembers}
+                            disabled={coMakerMemberLoading}
+                            className="shrink-0 px-3 py-1.5 text-xs font-semibold border border-gray-300 rounded-md bg-white text-gray-600 hover:bg-gray-50 disabled:opacity-60"
+                          >
+                            Refresh
+                          </button>
+                        </div>
+                        <select
+                          value={row.membership_number_id || ''}
+                          onChange={(e) => handleCoMakerMemberSelect(index, e.target.value)}
+                          disabled={!isBookkeeperFlow || coMakerMemberLoading}
+                          className={fieldClass}
                         >
-                          Refresh
-                        </button>
-                      </div>
-                      <select
-                        value={row.membership_number_id || ''}
-                        onChange={(e) => handleCoMakerMemberSelect(index, e.target.value)}
-                        disabled={!isBookkeeperFlow || coMakerMemberLoading}
-                        className="border border-gray-300 rounded px-3 py-2 text-sm md:col-span-2 disabled:bg-gray-100"
-                      >
-                        <option value="">
-                          {coMakerMemberLoading ? 'Loading members...' : 'Select Member (from Personal Data Sheet)'}
-                        </option>
-                        {!coMakerMemberLoading && coMakerMemberOptions.length === 0 ? (
-                          <option value="" disabled>No members available</option>
-                        ) : null}
-                        {filteredCoMakerOptions(index).map((option) => (
-                          <option key={option.membership_number_id} value={option.membership_number_id}>
-                            {(option.name || 'Unnamed Member')} ({option.membership_number_id})
+                          <option value="">
+                            {coMakerMemberLoading ? 'Loading members...' : 'Select member (from Personal Data Sheet)'}
                           </option>
-                        ))}
-                      </select>
-                      <input
-                        type="text"
-                        value={row.name}
-                        onChange={(e) => updateCoMakerField(index, 'name', e.target.value)}
-                        placeholder="Full name"
-                        disabled={!isBookkeeperFlow}
-                        className="border border-gray-300 rounded px-3 py-2 text-sm disabled:bg-gray-100"
-                      />
-                      <input
-                        type="text"
-                        value={row.id_no}
-                        onChange={(e) => updateCoMakerField(index, 'id_no', e.target.value)}
-                        placeholder="ID number"
-                        disabled={!isBookkeeperFlow}
-                        className="border border-gray-300 rounded px-3 py-2 text-sm disabled:bg-gray-100"
-                      />
-                      <input
-                        type="text"
-                        value={row.mobile}
-                        onChange={(e) => updateCoMakerField(index, 'mobile', e.target.value)}
-                        placeholder="Mobile number"
-                        disabled={!isBookkeeperFlow}
-                        className="border border-gray-300 rounded px-3 py-2 text-sm disabled:bg-gray-100"
-                      />
-                      <input
-                        type="email"
-                        value={row.email}
-                        onChange={(e) => updateCoMakerField(index, 'email', e.target.value)}
-                        placeholder="Email"
-                        disabled={!isBookkeeperFlow}
-                        className="border border-gray-300 rounded px-3 py-2 text-sm disabled:bg-gray-100"
-                      />
-                      <input
-                        type="text"
-                        value={row.address}
-                        onChange={(e) => updateCoMakerField(index, 'address', e.target.value)}
-                        placeholder="Address"
-                        disabled={!isBookkeeperFlow}
-                        className="border border-gray-300 rounded px-3 py-2 text-sm md:col-span-2 disabled:bg-gray-100"
-                      />
+                          {!coMakerMemberLoading && coMakerMemberOptions.length === 0 ? (
+                            <option value="" disabled>No members available</option>
+                          ) : null}
+                          {filteredCoMakerOptions(index).map((option) => (
+                            <option key={option.membership_number_id} value={option.membership_number_id}>
+                              {(option.name || 'Unnamed Member')} ({option.membership_number_id})
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* Resolved contact details */}
+                      <div className="grid grid-cols-2 gap-3">
+                        <label className="block col-span-2 sm:col-span-1">
+                          <span className="block text-[10px] font-semibold text-gray-400 uppercase mb-1">Full name</span>
+                          <input
+                            type="text"
+                            value={row.name}
+                            onChange={(e) => updateCoMakerField(index, 'name', e.target.value)}
+                            placeholder="Full name"
+                            disabled={!isBookkeeperFlow}
+                            className={fieldClass}
+                          />
+                        </label>
+                        <label className="block col-span-2 sm:col-span-1">
+                          <span className="block text-[10px] font-semibold text-gray-400 uppercase mb-1">ID number</span>
+                          <input
+                            type="text"
+                            value={row.id_no}
+                            onChange={(e) => updateCoMakerField(index, 'id_no', e.target.value)}
+                            placeholder="ID number"
+                            disabled={!isBookkeeperFlow}
+                            className={fieldClass}
+                          />
+                        </label>
+                        <label className="block col-span-2 sm:col-span-1">
+                          <span className="block text-[10px] font-semibold text-gray-400 uppercase mb-1">Mobile number</span>
+                          <input
+                            type="text"
+                            value={row.mobile}
+                            onChange={(e) => updateCoMakerField(index, 'mobile', e.target.value)}
+                            placeholder="Mobile number"
+                            disabled={!isBookkeeperFlow}
+                            className={fieldClass}
+                          />
+                        </label>
+                        <label className="block col-span-2 sm:col-span-1">
+                          <span className="block text-[10px] font-semibold text-gray-400 uppercase mb-1">Email</span>
+                          <input
+                            type="email"
+                            value={row.email}
+                            onChange={(e) => updateCoMakerField(index, 'email', e.target.value)}
+                            placeholder="Email"
+                            disabled={!isBookkeeperFlow}
+                            className={fieldClass}
+                          />
+                        </label>
+                        <label className="block col-span-2">
+                          <span className="block text-[10px] font-semibold text-gray-400 uppercase mb-1">Address</span>
+                          <input
+                            type="text"
+                            value={row.address}
+                            onChange={(e) => updateCoMakerField(index, 'address', e.target.value)}
+                            placeholder="Address"
+                            disabled={!isBookkeeperFlow}
+                            className={fieldClass}
+                          />
+                        </label>
+                      </div>
                     </div>
                   </div>
                 );

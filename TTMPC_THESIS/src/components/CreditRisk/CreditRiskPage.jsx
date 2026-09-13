@@ -47,13 +47,26 @@ const formatDate = (value) =>
 
 const formatPct = (p) => (p == null ? "—" : `${(Number(p) * 100).toFixed(1)}%`);
 
-// Bucket a probability into a risk band. Threshold points are conservative
-// and match how the panel would reason: <30 healthy, 30-60 review, 60+ deny.
-const riskBand = (p) => {
-  if (p == null) return { key: "unknown", label: "Unavailable", chip: "bg-gray-100 text-gray-700", bar: "bg-gray-300" };
-  if (p >= 0.6) return { key: "high", label: "High Risk", chip: "bg-red-100 text-red-700", bar: "bg-red-500" };
-  if (p >= 0.3) return { key: "watch", label: "Watch", chip: "bg-amber-100 text-amber-700", bar: "bg-amber-500" };
-  return { key: "low", label: "Low Risk", chip: "bg-emerald-100 text-emerald-700", bar: "bg-emerald-500" };
+// Presentation for each of the model's traffic-light bands.
+//
+// The band itself is decided by the backend, which reads its cut-offs from the
+// model file. Do NOT reintroduce probability thresholds here: they are
+// recomputed at every retraining, and the model's scores are low in absolute
+// terms (most sit between 0.05 and 0.35), so an intuitive-looking 0.3/0.6 split
+// would label every application low-risk.
+const BAND_STYLES = {
+  RED: { key: "high", label: "High Risk", chip: "bg-red-100 text-red-700", bar: "bg-red-500" },
+  AMBER: { key: "watch", label: "Watch", chip: "bg-amber-100 text-amber-700", bar: "bg-amber-500" },
+  GREEN: { key: "low", label: "Low Risk", chip: "bg-emerald-100 text-emerald-700", bar: "bg-emerald-500" },
+};
+
+const UNKNOWN_BAND = { key: "unknown", label: "Unavailable", chip: "bg-gray-100 text-gray-700", bar: "bg-gray-300" };
+
+// Takes the scored row (not a bare probability) so the band travels with the
+// server's decision.
+const riskBand = (row) => {
+  if (!row || row.band == null) return UNKNOWN_BAND;
+  return BAND_STYLES[row.band] || UNKNOWN_BAND;
 };
 
 // Human-readable labels for the model's feature names. Keeps the UI clean
@@ -61,13 +74,33 @@ const riskBand = (p) => {
 // name if we forget to add a label.
 const FEATURE_LABELS = {
   LoanAmount: "Loan Amount",
-  Stability_Score: "Occupation Stability",
-  Advance_Payment_Count: "Advance Payments",
-  Income_Is_Missing: "Income Missing",
-  Repayment_Stress_Index: "Repayment Stress",
+  Term: "Term (months)",
+  MonthlyDue: "Monthly Due",
+  Dependents: "Dependents",
+  OccTier: "Occupation Stability",
+  Age: "Age",
+  PriorLoans: "Previous Loans",
+  PriorRefinances: "Previous Renewals",
+  PriorBehind: "Previously Behind",
+  PriorRestructured: "Previously Restructured",
+  PriorPenalties: "Previous Penalties",
+  PriorBorrowed: "Total Previously Borrowed",
+  DebtGrowth: "Debt Growth",
+  MonthsSinceLastLoan: "Months Since Last Loan",
+  ConcurrentLoans: "Concurrent Loans",
+  ShareCapital: "Share Capital (points)",
+  Savings: "Savings Balance",
+  HasTimeDeposit: "Has Time Deposit",
+  SavingsChange: "Savings Change (yr)",
+  Groceries: "Grocery Patronage (points)",
+  HasSnapshot: "Has Financial Snapshot",
 };
 
 const featureLabel = (feat) => FEATURE_LABELS[feat] || feat;
+
+// The model returns all 21 features ranked by impact. Showing every one buries
+// the signal, so the detail panel lists the strongest drivers only.
+const DRIVERS_SHOWN = 8;
 
 const BOOKKEEPER_MENU = [
   { name: "Dashboard", icon: LayoutDashboard, route: "/dashboard" },
@@ -115,6 +148,7 @@ const CreditRiskPage = ({ portal = "bookkeeper" }) => {
     portal === "manager" ? "/img/manager-profile.png" : "/img/bookkeeper-profile.png";
 
   const [rows, setRows] = useState([]);
+  const [modelInfo, setModelInfo] = useState(null);
   const [modelVersion, setModelVersion] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -148,6 +182,17 @@ const CreditRiskPage = ({ portal = "bookkeeper" }) => {
       const data = json?.data || {};
       setRows(Array.isArray(data.rows) ? data.rows : []);
       setModelVersion(data.model_version || null);
+      // Model metadata (accuracy, thresholds, operating point) is served
+      // separately so it stays correct across retrainings without a redeploy.
+      try {
+        const infoRes = await fetch(`${API_BASE_URL}/api/risk/model-info`);
+        if (infoRes.ok) {
+          const infoJson = await infoRes.json();
+          setModelInfo(infoJson?.data || null);
+        }
+      } catch {
+        setModelInfo(null);
+      }
       setLoadError("");
     } catch (err) {
       console.error("credit risk load failed", err);
@@ -175,7 +220,7 @@ const CreditRiskPage = ({ portal = "bookkeeper" }) => {
   const summary = useMemo(() => {
     const base = { high: 0, watch: 0, low: 0, unknown: 0 };
     rows.forEach((r) => {
-      const band = riskBand(r.probability);
+      const band = riskBand(r);
       base[band.key] = (base[band.key] || 0) + 1;
     });
     return { ...base, total: rows.length };
@@ -184,7 +229,7 @@ const CreditRiskPage = ({ portal = "bookkeeper" }) => {
   const filteredRows = useMemo(() => {
     const q = search.trim().toLowerCase();
     let list = rows.filter((r) => {
-      const band = riskBand(r.probability);
+      const band = riskBand(r);
       if (bandFilter !== "all" && band.key !== bandFilter) return false;
       if (loanTypeFilter !== "all" && r.loan_type !== loanTypeFilter) return false;
       if (!q) return true;
@@ -332,16 +377,44 @@ const CreditRiskPage = ({ portal = "bookkeeper" }) => {
               <p className="text-sm text-gray-500 mt-0.5">
                 Model-scored loan applications currently under review. Higher probability = higher predicted default risk.
               </p>
-              <p className="text-xs text-gray-500 mt-2 inline-flex items-center gap-1.5 bg-indigo-50 border border-indigo-200 rounded-md px-2 py-1">
-                <Brain size={12} className="text-indigo-600" />
+              {/* The model's credentials, stated plainly. Accuracy and the
+                  active operating point come from the model file itself, so
+                  they stay honest across retrainings. */}
+              <div className="text-xs text-gray-600 mt-2 inline-flex flex-wrap items-center gap-x-2 gap-y-1 bg-indigo-50 border border-indigo-200 rounded-md px-2.5 py-1.5">
+                <Brain size={12} className="text-indigo-600 shrink-0" />
                 <span>
-                  Model version:{" "}
-                  <span className="font-semibold text-indigo-800">{modelVersion || "not identified"}</span>
-                  {" — swap the PKL in "}
-                  <code className="text-[11px] bg-white px-1 rounded">risk_model.py</code>
-                  {" to upgrade."}
+                  Model <span className="font-semibold text-indigo-800">v{modelVersion || "—"}</span>
                 </span>
-              </p>
+                {modelInfo?.roc_auc != null && (
+                  <>
+                    <span className="text-indigo-300">·</span>
+                    <span>
+                      ROC-AUC <span className="font-semibold text-indigo-800">{modelInfo.roc_auc}</span>
+                    </span>
+                  </>
+                )}
+                {modelInfo?.operating_points?.[modelInfo?.operating_point] && (
+                  <>
+                    <span className="text-indigo-300">·</span>
+                    <span>
+                      Reviewing the top{" "}
+                      <span className="font-semibold text-indigo-800">
+                        {Math.round(modelInfo.operating_points[modelInfo.operating_point].reviews_share * 100)}%
+                      </span>
+                      , catching{" "}
+                      <span className="font-semibold text-indigo-800">
+                        {Math.round(modelInfo.operating_points[modelInfo.operating_point].catches_share * 100)}%
+                      </span>{" "}
+                      of problem loans
+                    </span>
+                  </>
+                )}
+              </div>
+              {modelInfo?.limits && (
+                <p className="text-[11px] text-gray-400 italic mt-1.5 max-w-2xl">
+                  {modelInfo.limits} A score never denies an application — it routes it for review.
+                </p>
+              )}
             </div>
             <button
               onClick={handleRefresh}
@@ -468,7 +541,7 @@ const CreditRiskPage = ({ portal = "bookkeeper" }) => {
                     </tr>
                   ) : (
                     pagedRows.map((row) => {
-                      const band = riskBand(row.probability);
+                      const band = riskBand(row);
                       const topDrivers = (row.drivers || []).slice(0, 3);
                       return (
                         <tr
@@ -547,7 +620,7 @@ const CreditRiskPage = ({ portal = "bookkeeper" }) => {
 
             <div className="p-6 border-b border-gray-100">
               {(() => {
-                const band = riskBand(selectedLoan.probability);
+                const band = riskBand(selectedLoan);
                 return (
                   <>
                     <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Predicted Default Probability</p>
@@ -563,6 +636,41 @@ const CreditRiskPage = ({ portal = "bookkeeper" }) => {
                         style={{ width: `${selectedLoan.probability != null ? Math.min(100, selectedLoan.probability * 100) : 0}%` }}
                       />
                     </div>
+
+                    {/* What the cooperative does with this band, and what the
+                        band historically meant. Both come from the backend so
+                        the numbers stay the team's, not the UI's. */}
+                    {selectedLoan.action && (
+                      <div className="mt-4 rounded-lg bg-gray-50 border border-gray-200 p-3">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Recommended action</p>
+                        <p className="text-sm font-semibold text-gray-800 mt-0.5">{selectedLoan.action}</p>
+                        {selectedLoan.band_bad_rate_per_100 != null && (
+                          <p className="text-[11px] text-gray-500 mt-2">
+                            Historically about{" "}
+                            <span className="font-semibold text-gray-700">
+                              {selectedLoan.band_bad_rate_per_100} in 100
+                            </span>{" "}
+                            loans in this band ran into trouble
+                            {selectedLoan.band_share != null && (
+                              <>, and the band covers roughly{" "}
+                                <span className="font-semibold text-gray-700">
+                                  {Math.round(selectedLoan.band_share * 100)}%
+                                </span>{" "}
+                                of applications
+                              </>
+                            )}
+                            .
+                          </p>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Handoff rule: a score routes an application, it never
+                        denies one. Stated wherever a score is shown. */}
+                    <p className="text-[11px] text-gray-400 italic mt-3">
+                      This score routes the application for review. It is not grounds for
+                      denial — every member retains the right to apply.
+                    </p>
                   </>
                 );
               })()}
@@ -576,9 +684,17 @@ const CreditRiskPage = ({ portal = "bookkeeper" }) => {
                 </p>
               ) : (
                 <ul className="space-y-4">
-                  {(selectedLoan.drivers || []).map((d) => {
-                    const bump = d.value - d.cohort_median;
-                    const bumpPct = d.cohort_median !== 0 ? (bump / Math.abs(d.cohort_median)) * 100 : 0;
+                  {(selectedLoan.drivers || []).slice(0, DRIVERS_SHOWN).map((d) => {
+                    // A null value means the cooperative has no record of this
+                    // feature for the applicant. That is not a zero, and must
+                    // not be rendered as one — the model treats the two
+                    // differently and so should the reviewer.
+                    const recorded = d.value != null;
+                    const bump = recorded ? d.value - d.cohort_median : null;
+                    const bumpPct =
+                      recorded && d.cohort_median !== 0
+                        ? (bump / Math.abs(d.cohort_median)) * 100
+                        : 0;
                     const arrow = d.direction === "up" ? TrendingUp : d.direction === "down" ? TrendingDown : null;
                     const color = d.direction === "up" ? "text-red-600" : d.direction === "down" ? "text-emerald-600" : "text-gray-500";
                     return (
@@ -594,12 +710,21 @@ const CreditRiskPage = ({ portal = "bookkeeper" }) => {
                           </span>
                         </div>
                         <div className="flex items-center gap-2 text-xs text-gray-500">
-                          <span>Applicant: <span className="font-semibold text-gray-700">{Number(d.value).toLocaleString("en-PH", { maximumFractionDigits: 2 })}</span></span>
+                          <span>
+                            Applicant:{" "}
+                            <span className="font-semibold text-gray-700">
+                              {recorded
+                                ? Number(d.value).toLocaleString("en-PH", { maximumFractionDigits: 2 })
+                                : "not recorded"}
+                            </span>
+                          </span>
                           <span>·</span>
                           <span>Cohort median: <span className="font-semibold text-gray-700">{Number(d.cohort_median).toLocaleString("en-PH", { maximumFractionDigits: 2 })}</span></span>
                         </div>
                         <div className="text-[11px] text-gray-400">
-                          {bump === 0
+                          {!recorded
+                            ? "no record on file — scored as unknown"
+                            : bump === 0
                             ? "matches cohort"
                             : `${bump > 0 ? "above" : "below"} cohort by ${Math.abs(bumpPct).toFixed(0)}%`}
                         </div>
