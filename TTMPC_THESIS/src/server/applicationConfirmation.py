@@ -13,6 +13,11 @@ from supabase import Client, create_client
 
 ROOT_ENV_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".env"))
 
+# Load .env before reading FRONTEND_BASE_URL below. _load_runtime_config()
+# also loads it, but that runs per-call at request time -- far too late for
+# the module-scope constants here, which are evaluated once at import.
+load_dotenv(ROOT_ENV_PATH, override=True)
+
 # Base URL of the public-facing React frontend, used in outbound emails.
 # Overridden per environment via .env — production sets it to the deployed
 # origin so members receive working sign-in links instead of localhost:5173.

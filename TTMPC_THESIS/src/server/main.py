@@ -23,6 +23,17 @@ from urllib import request as urlrequest
 from urllib.error import HTTPError, URLError
 
 logger = logging.getLogger("uvicorn.error")
+
+# 1. Load Environment Variables -- MUST happen before the local imports below.
+# Several of those modules (services.account_otp_email, loan_email_templates,
+# applicationConfirmation) read FRONTEND_BASE_URL at module scope to build
+# EMAIL_BANNER_URL. Python runs an imported module's top level at import time,
+# so loading .env after these imports left every one of them frozen on the
+# localhost fallback -- which is why emails shipped a banner and sign-in link
+# pointing at localhost:5173 even with FRONTEND_BASE_URL set correctly.
+ROOT_ENV_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".env"))
+load_dotenv(ROOT_ENV_PATH, override=True)
+
 from applicationConfirmation import (
     MembershipConfirmationError,
     confirm_membership,
@@ -50,11 +61,7 @@ from services.account_otp_service import (
 from services.account_otp_email import send_otp_email as _send_otp_email
 from fastapi import Depends as _Depends
 
-# 1. Load Environment Variables
-# Load from project root .env explicitly for consistent behavior.
-ROOT_ENV_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".env"))
-load_dotenv(ROOT_ENV_PATH, override=True)
-
+# Environment already loaded above, before the local imports that depend on it.
 url: str = os.environ.get("VITE_SUPABASE_URL")
 # Prefer service role key, but allow anon fallback so server can start in dev.
 key: str = (
@@ -13017,6 +13024,183 @@ def account_onboarding_profile(
         raise HTTPException(status_code=500, detail=f"Could not save your profile: {exc}")
 
     return {"ok": True, "missing_profile_fields": _profile_missing_fields(membership_id)}
+
+
+# ============================================================================
+# SECTION: Audit log reads
+#
+# The audit_log table's RLS lets non-BOD staff read only rows where
+# actor_user_id = auth.uid(). That never matches for portal staff: every
+# cashier/bookkeeper/treasurer write goes through THIS backend on the
+# service-role key, so audit_resolve_actor() sees a NULL auth.uid() and stamps
+# the row actor_user_id = NULL, actor_role = 'service_role'. The rows exist but
+# are invisible to the very staff who created them -- the Cashier audit page
+# came back permanently empty.
+#
+# Reading through the backend (which already holds service role) and scoping by
+# the caller's verified role fixes every portal at once, without touching the
+# write path or loosening the table's RLS for direct clients.
+# ============================================================================
+
+# Roles allowed to open an audit log, and how much they may see.
+_AUDIT_FULL_ACCESS_ROLES = {"bod"}
+_AUDIT_STAFF_ROLES = {"manager", "bookkeeper", "treasurer", "cashier", "secretary"}
+
+# Entity types each staff role is responsible for. A role sees the modules it
+# actually works in rather than the whole cooperative's activity; BOD sees all.
+_AUDIT_ROLE_ENTITY_SCOPE: dict[str, list[str]] = {
+    "cashier": ["payment", "disbursement", "cbu", "savings", "withdrawal",
+                "membership_payment", "grocery"],
+    "treasurer": ["disbursement", "payment", "cbu", "savings", "withdrawal"],
+    "bookkeeper": ["loan", "payment", "cbu", "savings", "member", "application",
+                   "membership_payment", "grocery"],
+    "manager": ["loan", "application", "member", "policy"],
+    "secretary": ["member", "application", "termination", "policy"],
+}
+
+
+def _resolve_staff_role(auth_user_id: str, email: str) -> str:
+    """The caller's portal role, from member_account. '' when unknown."""
+    if not supabase:
+        return ""
+    try:
+        resp = (
+            supabase.table("member_account")
+            .select("role")
+            .eq("auth_user_id", auth_user_id)
+            .limit(1)
+            .execute()
+        )
+        rows = resp.data or []
+        if not rows and email:
+            resp = (
+                supabase.table("member_account")
+                .select("role")
+                .eq("email", email)
+                .limit(1)
+                .execute()
+            )
+            rows = resp.data or []
+    except Exception:
+        return ""
+    return str((rows[0] if rows else {}).get("role") or "").strip().lower()
+
+
+@app.get("/api/audit-log")
+def read_audit_log(
+    current_user: dict = _Depends(_get_current_user),
+    module: str | None = None,
+    action: str | None = None,
+    actor_role: str | None = None,
+    date_from: str | None = None,
+    date_to: str | None = None,
+    search: str | None = None,
+    page: int = 1,
+    page_size: int = 10,
+):
+    """Paginated audit log, scoped to what the caller's role may see."""
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase not configured")
+
+    role = _resolve_staff_role(current_user["id"], current_user.get("email") or "")
+    if role not in _AUDIT_FULL_ACCESS_ROLES and role not in _AUDIT_STAFF_ROLES:
+        raise HTTPException(status_code=403, detail="You do not have access to the audit log.")
+
+    page = max(1, int(page or 1))
+    # 5000 matches the old client-side export ceiling; the on-screen table asks
+    # for 10 at a time.
+    page_size = min(5000, max(1, int(page_size or 10)))
+
+    def scoped(select_expr: str, *, count_mode: str | None = None):
+        q = supabase.table("audit_log").select(
+            select_expr, count=count_mode
+        ) if count_mode else supabase.table("audit_log").select(select_expr)
+
+        # Role scope, unless BOD (sees everything).
+        if role not in _AUDIT_FULL_ACCESS_ROLES:
+            allowed = _AUDIT_ROLE_ENTITY_SCOPE.get(role, [])
+            if module:
+                # Never let a filter widen the role's scope.
+                if module not in allowed:
+                    return None
+                q = q.eq("entity_type", module)
+            elif allowed:
+                q = q.in_("entity_type", allowed)
+        elif module:
+            q = q.eq("entity_type", module)
+
+        if action:
+            q = q.eq("action", action)
+        if actor_role:
+            q = q.eq("actor_role", actor_role.lower())
+        if date_from:
+            q = q.gte("occurred_at", date_from)
+        if date_to:
+            q = q.lte("occurred_at", f"{date_to}T23:59:59")
+        if search and search.strip():
+            s = search.strip()
+            q = q.or_(f"entity_id.ilike.%{s}%,actor_email.ilike.%{s}%")
+        return q
+
+    rows_q = scoped("*", count_mode="exact")
+    if rows_q is None:
+        # Filter fell outside the role's scope — an empty page, not an error.
+        return {"ok": True, "rows": [], "total": 0, "role": role}
+
+    start = (page - 1) * page_size
+    try:
+        resp = (
+            rows_q.order("occurred_at", desc=True)
+            .range(start, start + page_size - 1)
+            .execute()
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Could not read the audit log: {exc}")
+
+    return {
+        "ok": True,
+        "rows": resp.data or [],
+        "total": getattr(resp, "count", None) or 0,
+        "role": role,
+    }
+
+
+@app.get("/api/audit-log/kpis")
+def read_audit_log_kpis(current_user: dict = _Depends(_get_current_user)):
+    """Headline counts for the audit page, scoped the same way as the rows."""
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase not configured")
+
+    role = _resolve_staff_role(current_user["id"], current_user.get("email") or "")
+    if role not in _AUDIT_FULL_ACCESS_ROLES and role not in _AUDIT_STAFF_ROLES:
+        raise HTTPException(status_code=403, detail="You do not have access to the audit log.")
+
+    allowed = None if role in _AUDIT_FULL_ACCESS_ROLES else _AUDIT_ROLE_ENTITY_SCOPE.get(role, [])
+
+    def count(**filters) -> int:
+        try:
+            q = supabase.table("audit_log").select("id", count="exact")
+            if allowed is not None and allowed:
+                q = q.in_("entity_type", allowed)
+            for key, value in filters.items():
+                if key == "since":
+                    q = q.gte("occurred_at", value)
+                else:
+                    q = q.eq(key, value)
+            resp = q.limit(1).execute()
+            return getattr(resp, "count", None) or 0
+        except Exception:
+            return 0
+
+    start_of_day = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+
+    return {
+        "ok": True,
+        "activitiesToday": count(since=start_of_day.isoformat()),
+        "paymentsDeposits": count(action="disburse"),
+        "profilesCreated": count(entity_type="application", action="approve"),
+        "reportsGenerated": count(entity_type="policy"),
+    }
 
 
 # =====================================================================

@@ -646,6 +646,10 @@ const Member_Details = () => {
     return fromQuery ? String(fromQuery) : '';
   }, [location]);
 
+  // Which portal the member was opened from, used only for the back link.
+  // Account/role administration is gated separately on the viewer's real role
+  // (see StaffAccountPanel's isBod check), not on this value — ?portal= comes
+  // from the URL and must never decide what a user is allowed to do.
   const returnPath = useMemo(() => {
     const statePortal = String(location.state?.portal || '').toLowerCase();
     const params = new URLSearchParams(location.search);

@@ -593,9 +593,6 @@ const Cashier_Dashboard = () => {
             </div>
           </div>
 
-          <div className="mt-6">
-            <RecentActivityCard to="/cashier-audit-log" title="My Audit Activity" />
-          </div>
 
         </main>
       </div>
