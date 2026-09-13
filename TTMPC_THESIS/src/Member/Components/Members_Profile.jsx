@@ -591,6 +591,26 @@ const Members_Profile = () => {
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body.detail || 'Unable to update password.');
 
+      // Supabase revokes every session for a user when their password changes,
+      // so the token still sitting in sessionStorage is already dead. Left in
+      // place it 401s the next security-status call and 403s the next
+      // getUser() revalidation, which signs the member out mid-session. Mint a
+      // fresh session with the password we just set instead.
+      const reAuthEmail = session?.user?.email;
+      if (reAuthEmail) {
+        const { error: reAuthError } = await supabase.auth.signInWithPassword({
+          email: reAuthEmail,
+          password: newPassword,
+        });
+        if (reAuthError) {
+          // Never leave a revoked token behind -- send them through a clean
+          // login rather than letting the dead session fail somewhere later.
+          await supabase.auth.signOut();
+          navigate('/memberlogin');
+          return;
+        }
+      }
+
       setIsTemporaryAccount(false);
       // Let the onboarding guard re-read status instead of serving the
       // cached "still temporary" answer for up to a minute.
@@ -663,6 +683,22 @@ const Members_Profile = () => {
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body.detail || 'Invalid code.');
+
+      // Same session revocation as the direct change: verify-and-set calls
+      // admin.update_user_by_id, which kills every existing session. Re-auth
+      // with the password just set so the member keeps their session.
+      const reAuthEmail = session?.user?.email;
+      if (reAuthEmail) {
+        const { error: reAuthError } = await supabase.auth.signInWithPassword({
+          email: reAuthEmail,
+          password: newPassword,
+        });
+        if (reAuthError) {
+          await supabase.auth.signOut();
+          navigate('/memberlogin');
+          return;
+        }
+      }
 
       setIsTemporaryAccount(false);
       // Let the onboarding guard re-read status instead of serving the
