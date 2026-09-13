@@ -1,41 +1,145 @@
-CREDIT RISK MODEL UPGRADE — TODO
-=================================
+CREDIT RISK MODEL UPGRADE — DONE (v3.3 deployed 2026-09-13)
+============================================================
 
-Status: New model trained, more accurate than current. NOT YET DEPLOYED.
+Status: New model IS NOW SERVING. The old Logistic Regression (AUC 0.43,
+effectively inverted) has been replaced outright.
 
-Current in production:
-  - File:  ttmpc_credit_risk_model.pkl
-  - Type:  Logistic Regression
-  - AUC:   0.43 (per formal system evaluation — effectively inverted)
-  - Served by: risk_model.py -> POST /score-loan
+Now in production:
+  - File:  models/ttmpc_risk_model.pkl  (bundle dict, internal version 3.3)
+  - Type:  HistGradientBoostingClassifier, 21 features
+  - ROC-AUC: 0.682 cross-validated / 0.655 single-split out-of-fold
+  - PR-AUC:  0.342 against a 0.151 baseline
+  - Served by: risk_model.py + risk_features.py
+               -> POST /api/risk/predict
+               -> GET  /api/credit-risk/queue
+               -> GET  /api/risk/model-info   (new)
 
-To swap in the new model:
-  [ ] 1. Drop the new .pkl file into TTMPC_THESIS/src/server/
-  [ ] 2. Update the joblib.load(...) path in risk_model.py
-  [ ] 3. If feature schema changed, update the input Pydantic model
-  [ ] 4. Verify /score-loan still returns:
-           {
-             "probability": <float 0..1>,
-             "drivers": [
-                { "feature": str, "contribution": float,
-                  "value": float, "cohort_median": float }, ... ]
-           }
-         (The Credit Risk UI on Bookkeeper + Manager dashboards
-          reads this shape — keep it stable.)
-  [ ] 5. If the new model is a tree ensemble (RF / XGBoost),
-         replace coefficient-based driver contributions with SHAP values.
-         Requires:  pip install shap
-         Pattern:   explainer = shap.TreeExplainer(model)
-                    shap_values = explainer.shap_values(X_single_row)
-                    drivers = sorted by |shap_value| desc, take top 3
-  [ ] 6. Retire the "inverted AUC 0.43" flag in the system evaluation
-         memo after verifying the new model on holdout.
-  [ ] 7. Retrain cohort medians if feature set changed (cohort_median
-         is used by the UI's "value vs. cohort" bar).
+Old model file retained at models/ttmpc_credit_risk_model.pkl but no longer
+loaded by anything. The previous risk_model.py is in git history.
 
-The UI (Bookkeeper + Manager Credit Risk sidebar page + dashboard
-snippet) is intentionally model-agnostic. It reads the normalized
-{probability, drivers[]} response, so no frontend changes are needed
-when swapping the model — only risk_model.py.
+WHAT CHANGED
+------------
+[x] 1. New .pkl copied into src/server/models/
+[x] 2. risk_model.py rewritten: pickle bundle loader (not joblib; the file is
+       a dict of {pipeline, features, thresholds, results, version, ...})
+[x] 3. Feature schema went 5 -> 21. All 21 are assembled from the database by
+       the new module risk_features.py. No Pydantic input model needed: the
+       endpoints take a control number and derive everything server-side.
+[x] 4. Response shape kept stable — {probability, drivers[]} as before, plus
+       new fields: band, risk_label, action, band_share,
+       band_bad_rate_per_100, flagged, operating_point, never_rejects,
+       thresholds.
+[x] 5. Tree ensemble, so coefficient attribution is gone. Drivers are computed
+       by OCCLUSION rather than SHAP: re-score with one feature blanked to NaN
+       and measure the movement. The model handles NaN natively, so this is
+       exact, needs no new dependency, and every feature for a whole batch
+       goes through ONE predict_proba call (50 loans ≈ 25 ms).
+[x] 6. The "inverted AUC 0.43" finding in the system evaluation is retired.
+[x] 7. Cohort medians updated for the new feature space (risk_model.py).
+
+HANDOFF SECTIONS 3 & 4 — IMPLEMENTED AS SPECIFIED
+--------------------------------------------------
+The team's presentation contract, not just the mechanism:
+
+* Traffic light carries the cooperative's OWN figures, not paraphrases.
+  Every score ships with: action text, share of applications, and the
+  historical bad rate (GREEN 8/100, AMBER 18/100, RED 25/100). These live in
+  risk_model.BAND_META and are asserted by the validator — a reworded action
+  or nudged figure fails the run rather than quietly misinforming staff.
+
+* All FOUR operating points are published (loose / moderate / balanced /
+  strict) via GET /api/risk/model-info, each with its live threshold, review
+  workload and catch rate. score()/score_many() take an `operating_point`
+  argument. `loose` is the default and the recommended setting per §3. The
+  trade-off belongs to the cooperative, so no single point is baked in.
+
+* "The model never rejects an application" (§4) travels in the payload as
+  `never_rejects`, and is rendered wherever a score is shown — not left as a
+  UI string a later redesign could drop.
+
+* Model limits are stated to the user: /api/risk/model-info returns `limits`
+  ("...misses about a third of problem loans. It supports judgement; it does
+  not replace it."), shown under the Credit Risk header.
+
+* §4 "log every score": BOTH endpoints now persist to risk_assessments. The
+  queue scores the whole review list on each cache miss and logs the batch
+  (_persist_risk_scores in main.py); previously only the single-loan endpoint
+  logged, so most scores a reviewer saw left no record. `features_used` stores
+  the assembled 21-feature input row, so a score is reproducible later —
+  verified: replaying a logged row reproduces its probability exactly.
+
+* §4 forbidden inputs (MIGS status, total classification points, attendance)
+  are asserted absent from the feature list by the validator.
+
+RULES THE HANDOFF IMPOSES — DO NOT UNDO THESE
+---------------------------------------------
+* NaN means unknown. Do NOT impute and do NOT fill blanks with 0. A blank and
+  a zero mean different things to this model (validated: scoring the same loan
+  with blanks vs zero-filled gives 0.173 vs 0.419).
+* Thresholds are read from the bundle, never hardcoded. They are recomputed at
+  every retraining. The frontend now reads bands from the backend for this
+  reason — the old hardcoded 0.3/0.6 UI split would have labelled EVERY
+  application low-risk, because the new model's scores mostly fall between
+  0.05 and 0.35.
+* ShareCapital (#16) and Groceries (#20) are classification POINT scores
+  (0–20 and 3–10), not peso amounts.
+* Features 7–15 count PREVIOUS loans only. risk_features._prior_loans() is the
+  single chokepoint enforcing this; bypassing it leaks the outcome.
+* Feature #2 Term must be the ORIGINAL term. loans.term is overwritten on
+  restructure, so _original_term() reconstructs it from the schedule.
+* The model never rejects an application. It routes to a review queue.
+
+SCHEMA GOTCHA WORTH KNOWING
+---------------------------
+Two tables have a column named `membership_number_id` holding DIFFERENT keys:
+    personal_data_sheet.membership_number_id           -> text, "TTMPC-270"
+    member_classification_temporal.membership_number_id -> the member UUID
+Keying one the way you key the other returns no rows and silently produces NaN
+features rather than an error. risk_features.fetch_member_context() keeps the
+two lookups deliberately separate.
+
+VALIDATION
+----------
+Run:  .venv/Scripts/python.exe scripts/validate_risk_model.py
+27/27 checks passing, including the handoff §5 dataset checks against
+modeling_dataset_scored.csv (which lives in the "New Model" folder) and the
+§3/§4 contract checks that pin the band figures, the four operating points and
+the never-rejects rule.
+
+Note on the two AUC figures the script prints: scoring the reference dataset
+with the shipped model gives ~0.907, because that model was refit on those very
+rows. That is in-sample optimism, NOT leakage. The honest figure is the
+out-of-fold 0.655 in the CSV's model_score column, or the cross-validated 0.682
+recorded in the bundle. Quote 0.682 — never 0.907.
+
+CURRENT FEATURE COVERAGE AGAINST LIVE DATA
+------------------------------------------
+Measured over a 40-loan sample. Gaps are genuine missing records, handled as
+NaN by design — not bugs:
+  full coverage   LoanAmount, OccTier, PriorLoans, PriorRefinances,
+                  PriorBehind, PriorRestructured, PriorPenalties,
+                  PriorBorrowed, ConcurrentLoans, ShareCapital, Groceries,
+                  HasSnapshot, Term, MonthlyDue, Age (39-40 of 40)
+  partial         Dependents (10/40 — PDS holds 266/303 overall),
+                  Savings (13/40), DebtGrowth & MonthsSinceLastLoan (35/40,
+                  absent for first loans by definition)
+  none yet        SavingsChange (savings_ledger only starts 2026-06-21, so no
+                  member has a 12-month-old balance yet — will populate from
+                  2027-06 onward)
+                  HasTimeDeposit (savings_accounts.account_kind only records
+                  'member'/'standalone'; time deposits are not tracked in this
+                  schema at all. risk_features._is_time_deposit() is the one
+                  place to teach if that changes.)
+
+RETRAINING (handoff §6)
+-----------------------
+Once a year, after the January classification update. Preserve the grouped
+cross-validation (StratifiedGroupKFold by member). Each retraining recomputes
+the thresholds — read them fresh from the new file, never carry them forward.
+If the feature list changes, update FEATURE_COLUMNS in risk_model.py (it is
+asserted against the bundle at load, so a mismatch fails loudly) and the
+assembly in risk_features.py.
 
 Reference memory: memory/project_credit_risk_model_upgrade.md
+Handoff document:
+  src/analytics/RISK Assesment/New Model/DEVELOPER_HANDOFF.md

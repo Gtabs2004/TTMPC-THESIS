@@ -1,4 +1,18 @@
 import os
+
+# Silence joblib/loky's physical-core probe before anything imports it.
+# It shells out to `wmic`, which no longer ships with Windows 11, so the lookup
+# fails and prints a multi-line warning plus a traceback on every startup.
+#
+# loky only honours this variable when it is STRICTLY LESS than the logical
+# core count (see loky/backend/context.py: `if cpu_count_user < os_cpu_count`),
+# so setting it to the full count would still trigger the probe. Physical cores
+# are typically half of logical on a hyperthreaded machine, which is both a
+# sane worker count and safely under the threshold.
+#
+# Must precede the scikit-learn import chain.
+os.environ.setdefault("LOKY_MAX_CPU_COUNT", str(max(1, (os.cpu_count() or 2) // 2)))
+
 import json
 import io
 import calendar
@@ -44,7 +58,14 @@ from applicationConfirmation import (
     _resolve_member_table,
 )
 from pypdf.generic import DecodedStreamObject, DictionaryObject, NameObject
-from risk_model import ModelNotAvailableError, score as risk_score, score_with_drivers as risk_score_with_drivers
+from risk_model import (
+    ModelNotAvailableError,
+    model_info as risk_model_info,
+    score as risk_score,
+    score_many as risk_score_many,
+    occupation_tier as risk_occupation_tier,
+)
+from risk_features import assemble_many as risk_assemble_many, fetch_member_context as risk_fetch_context
 from demand_model import (
     DemandModelNotAvailableError,
     SUPPORTED_LOAN_TYPES as DEMAND_LOAN_TYPES,
@@ -10380,8 +10401,10 @@ async def print_emergency_loan_pdf(payload: EmergencyLoanPdfRequest):
 
 # ============================================================================
 # SECTION: ML — Credit Risk Prediction
-# Wraps risk_model.py (Logistic Regression PKL) to score a loan's default
-# probability using LoanAmount, Stability_Score, Advance_Payment_Count, etc.
+# Wraps risk_model.py (HistGradientBoosting bundle, v3.3) to score a loan's
+# default probability from the 21-feature contract. Feature assembly lives in
+# risk_features.py; this section only fetches the loan row and persists the
+# result.
 # ============================================================================
 
 class RiskPredictRequest(BaseModel):
@@ -10392,11 +10415,15 @@ class RiskPredictRequest(BaseModel):
 
 
 def _fetch_loan_for_scoring(control_number: str, source: str) -> dict:
+    """Load the loan row with the columns the feature assembly needs."""
     table = "koica_loans" if source == "koica_loans" else "loans"
     select_cols = (
-        "control_number, loan_amount, monthly_amortization, member_id"
+        "control_number,member_id,loan_amount,principal_amount,term,"
+        "interest_rate,monthly_amortization,application_date,disbursal_date,"
+        "loan_status,application_status,raw_payload,"
+        "loan_type:loan_type_id(code,name)"
         if table == "loans"
-        else "control_number, loan_amount, raw_payload"
+        else "control_number,loan_amount,term,application_date,raw_payload"
     )
     resp = (
         supabase.table(table)
@@ -10411,70 +10438,17 @@ def _fetch_loan_for_scoring(control_number: str, source: str) -> dict:
     return rows[0]
 
 
-def _fetch_member_pds(member_id: str | None) -> dict:
-    """Resolve member -> personal_data_sheet to get occupation, annual_income,
-    and monthly net pay. The PDS table has `salary` (monthly) — there is no
-    dedicated `latest_net_pay` column, so we treat `salary` as the monthly net
-    pay used by the risk model's Debt-to-Income formula."""
-    empty = {
-        "occupation": None,
-        "annual_income": None,
-        "latest_net_pay": None,
-        "membership_number_id": None,
-    }
-    if not member_id:
-        return empty
+@app.get("/api/risk/model-info")
+async def get_risk_model_info():
+    """Model version, operating thresholds and training metrics.
 
-    member_resp = (
-        supabase.table("member")
-        .select("id, membership_id")
-        .eq("id", member_id)
-        .limit(1)
-        .execute()
-    )
-    member_rows = member_resp.data or []
-    if not member_rows:
-        return empty
-
-    membership_number_id = member_rows[0].get("membership_id")
-    if not membership_number_id:
-        return empty
-
-    # Try the richest column set first; degrade gracefully if any column is
-    # missing on legacy databases.
-    column_attempts = [
-        "occupation, annual_income, salary, membership_number_id",
-        "occupation, annual_income, membership_number_id",
-        "occupation, membership_number_id",
-    ]
-    pds_rows: list[dict] = []
-    for cols in column_attempts:
-        try:
-            pds_resp = (
-                supabase.table("personal_data_sheet")
-                .select(cols)
-                .eq("membership_number_id", membership_number_id)
-                .order("created_at", desc=True)
-                .limit(1)
-                .execute()
-            )
-            pds_rows = pds_resp.data or []
-            break
-        except Exception:
-            continue
-
-    if not pds_rows:
-        return {**empty, "membership_number_id": membership_number_id}
-
-    row = pds_rows[0]
-    return {
-        "occupation": row.get("occupation"),
-        "annual_income": row.get("annual_income"),
-        # PDS stores monthly net pay in `salary` (text column). The risk model
-        # treats this value as latest_net_pay for the DTI calculation.
-        "latest_net_pay": row.get("salary") if isinstance(row, dict) else None,
-        "membership_number_id": membership_number_id,
-    }
+    The UI reads its band cut-offs from here rather than hardcoding them —
+    thresholds are recomputed at every retraining.
+    """
+    try:
+        return {"success": True, "data": risk_model_info()}
+    except ModelNotAvailableError as e:
+        raise HTTPException(status_code=503, detail=str(e))
 
 
 @app.post("/api/risk/predict")
@@ -10495,74 +10469,46 @@ async def predict_loan_risk(payload: RiskPredictRequest):
             return {"cached": True, **cached.data[0]}
 
     loan = _fetch_loan_for_scoring(payload.loan_control_number, payload.source)
-
     member_id = loan.get("member_id")
-    loan_amount = loan.get("loan_amount")
-    # monthly_amortization may be stored on the loan row or inside raw_payload.optionalFields
-    monthly_amortization = loan.get("monthly_amortization") or (
-        (loan.get("raw_payload") or {}).get("optionalFields", {}) or {}
-    ).get("monthly_amortization")
 
-    # KOICA loans store applicant info inside raw_payload — pull from there if needed
-    occupation = None
-    annual_income = None
-    pds: dict | None = None
+    # KOICA applications are non-member loans: they carry no cooperative
+    # history or classification snapshot, so the feature assembly is skipped
+    # and the loan is scored on its application-level features alone.
     if payload.source == "koica_loans":
         raw = loan.get("raw_payload") or {}
-        occupation = raw.get("occupation")
-        annual_income = raw.get("annual_income")
+        features = {
+            "LoanAmount": loan.get("loan_amount"),
+            "Term": loan.get("term"),
+            "MonthlyDue": (raw.get("optionalFields") or {}).get("monthly_amortization"),
+            "OccTier": risk_occupation_tier(raw.get("occupation")),
+            "HasSnapshot": 0,
+            "HasTimeDeposit": 0,
+        }
     else:
-        pds = _fetch_member_pds(member_id)
-        occupation = pds.get("occupation")
-        annual_income = pds.get("annual_income")
-
-    # Resolve latest_net_pay through every available source, in order of
-    # confidence. The first non-empty, positive value wins. Order matters:
-    #   1. loan row optionalFields (form-submitted value, most current)
-    #   2. PDS salary (canonical member record)
-    #   3. raw_payload root (KOICA-style payloads)
-    def _is_positive_number(value: Any) -> bool:
         try:
-            return value is not None and float(str(value).replace(",", "")) > 0
-        except (TypeError, ValueError):
-            return False
-
-    raw_payload = loan.get("raw_payload") or {}
-    optional_fields = (raw_payload.get("optionalFields") or {}) if isinstance(raw_payload, dict) else {}
-
-    latest_net_pay_candidates = [
-        optional_fields.get("latest_net_pay"),
-        loan.get("latest_net_pay"),
-        (pds or {}).get("latest_net_pay"),
-        raw_payload.get("latest_net_pay") if isinstance(raw_payload, dict) else None,
-    ]
-    latest_net_pay = next(
-        (val for val in latest_net_pay_candidates if _is_positive_number(val)),
-        None,
-    )
+            features = risk_assemble_many(supabase, [loan])[0]
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to assemble risk features: {e}")
 
     try:
-        result = risk_score_with_drivers(
-            loan_amount=loan_amount,
-            occupation=occupation,
-            annual_income=annual_income,
-            advance_payment_count=0,
-            monthly_amortization=monthly_amortization,
-            latest_net_pay=latest_net_pay,
-        )
+        result = risk_score(features)
     except ModelNotAvailableError as e:
         raise HTTPException(status_code=503, detail=str(e))
 
-    # score_with_drivers returns {probability, risk_label, model_version, drivers}.
-    # Re-derive risk_class from the probability so insert_row stays consistent.
-    risk_class = 1 if result["probability"] >= 0.5 else 0
+    # risk_class records whether the loan is flagged for review at the model's
+    # recommended (loose) operating point. It is NOT an approve/deny decision:
+    # the model never rejects an application (handoff §4).
+    risk_class = 1 if result["flagged"] else 0
 
     insert_row = {
         "loan_control_number": payload.loan_control_number,
         "member_id": member_id,
         "risk_class": risk_class,
         "risk_probability": round(result["probability"], 4),
-        "features_used": {d["feature"]: d["value"] for d in result["drivers"]},
+        # The assembled input row itself (handoff §4), so the score can be
+        # reproduced at audit or retraining time. Storing the driver list
+        # instead would record only what the attribution reported.
+        "features_used": features,
         "model_version": result.get("model_version"),
         "scored_by": payload.scored_by,
     }
@@ -10577,6 +10523,14 @@ async def predict_loan_risk(payload: RiskPredictRequest):
         "cached": False,
         **saved,
         "risk_label": result["risk_label"],
+        "band": result["band"],
+        "action": result["action"],
+        "band_share": result["band_share"],
+        "band_bad_rate_per_100": result["band_bad_rate_per_100"],
+        "flagged": result["flagged"],
+        "operating_point": result["operating_point"],
+        "never_rejects": result["never_rejects"],
+        "thresholds": result["thresholds"],
         "drivers": result["drivers"],
     }
 
@@ -10610,6 +10564,46 @@ _CREDIT_RISK_QUEUE_CACHE: dict = {"payload": None, "expires_at": 0.0}
 _CREDIT_RISK_QUEUE_CACHE_TTL_SECONDS = 60.0
 
 
+def _persist_risk_scores(
+    loans: list[dict],
+    feature_rows: list[dict],
+    results: list[dict],
+) -> None:
+    """Write scores to risk_assessments for audit and retraining (handoff §4).
+
+    Best-effort and non-fatal: a logging failure must not stop a reviewer from
+    seeing the queue. Upserts on the control number so rescoring a loan updates
+    its row rather than accumulating duplicates.
+    """
+    rows = []
+    for loan, features, result in zip(loans, feature_rows, results):
+        control_number = loan.get("control_number")
+        if not control_number:
+            continue
+        rows.append({
+            "loan_control_number": control_number,
+            "member_id": loan.get("member_id"),
+            # Whether the loan crossed the active operating point — a routing
+            # signal, never an approve/deny verdict.
+            "risk_class": 1 if result["flagged"] else 0,
+            "risk_probability": round(result["probability"], 4),
+            # The assembled input row, so a score can be reproduced later.
+            "features_used": features,
+            "model_version": result.get("model_version"),
+        })
+    if not rows:
+        return
+    try:
+        for i in range(0, len(rows), 100):
+            (
+                supabase.table("risk_assessments")
+                .upsert(rows[i : i + 100], on_conflict="loan_control_number")
+                .execute()
+            )
+    except Exception as err:
+        print(f"[credit-risk] score logging failed (non-fatal): {err}")
+
+
 @app.get("/api/credit-risk/queue")
 async def get_credit_risk_queue():
     if supabase is None:
@@ -10625,7 +10619,8 @@ async def get_credit_risk_queue():
             supabase.table("loans")
             .select(
                 "control_number,member_id,loan_amount,principal_amount,monthly_amortization,"
-                "term,application_status,loan_status,application_date,latest_net_pay,raw_payload,"
+                "term,interest_rate,application_status,loan_status,application_date,disbursal_date,"
+                "raw_payload,"
                 "member:member_id(first_name,last_name,membership_id,is_bona_fide),"
                 "loan_type:loan_type_id(code,name)"
             )
@@ -10644,125 +10639,75 @@ async def get_credit_risk_queue():
         if status in _CREDIT_RISK_QUEUE_STATUSES:
             filtered.append(row)
 
-    # Batch-fetch PDS rows for all borrowers so we don't do N+1 queries.
-    member_ids = list({row.get("member_id") for row in filtered if row.get("member_id")})
-    pds_by_member: dict[str, dict] = {}
-    if member_ids:
-        try:
-            member_lookup = (
-                supabase.table("member")
-                .select("id,membership_number_id")
-                .in_("id", member_ids)
-                .execute()
-            ).data or []
-            membership_by_member = {
-                str(row.get("id")): str(row.get("membership_number_id") or "").strip()
-                for row in member_lookup
-                if row.get("id") and row.get("membership_number_id")
-            }
-            if membership_by_member:
-                membership_ids = list(set(membership_by_member.values()))
-                pds_rows = (
-                    supabase.table("personal_data_sheet")
-                    .select("membership_number_id,occupation,annual_income,salary")
-                    .in_("membership_number_id", membership_ids)
-                    .execute()
-                ).data or []
-                pds_by_membership = {
-                    str(r.get("membership_number_id") or "").strip(): r
-                    for r in pds_rows
-                }
-                for mid, mnid in membership_by_member.items():
-                    row = pds_by_membership.get(mnid)
-                    if row:
-                        pds_by_member[mid] = row
-        except Exception:
-            pds_by_member = {}
-
-    scored_rows: list[dict] = []
+    # Assemble features for the whole queue in one pass. fetch_member_context
+    # issues a fixed number of bulk queries no matter how many loans are in
+    # review, and score_many puts every loan's 21 occlusion probes through a
+    # single predict_proba call — so this stays flat as the queue grows.
     model_version: str | None = None
+    thresholds_used: dict | None = None
+    scored_rows: list[dict] = []
 
-    for loan in filtered:
+    def _row_shell(loan: dict) -> dict:
         member = loan.get("member") or {}
         member_name = f"{member.get('first_name') or ''} {member.get('last_name') or ''}".strip() or "Unknown"
         loan_type = (loan.get("loan_type") or {}).get("name") or (loan.get("loan_type") or {}).get("code") or "N/A"
+        return {
+            "loan_id": loan.get("control_number"),
+            "member_name": member_name,
+            "membership_id": str(member.get("membership_id") or "").strip(),
+            "member_type": "Member" if bool(member.get("is_bona_fide")) else "Non-Member",
+            "loan_type": loan_type,
+            "loan_amount": float(loan.get("loan_amount") or loan.get("principal_amount") or 0),
+            "term_months": int(loan.get("term") or 0),
+            "application_date": loan.get("application_date"),
+            "application_status": loan.get("application_status") or loan.get("loan_status"),
+        }
 
-        pds = pds_by_member.get(str(loan.get("member_id")), {}) if loan.get("member_id") else {}
-        occupation = pds.get("occupation")
-        annual_income = pds.get("annual_income")
-        # PDS.salary is monthly net pay per existing convention.
-        pds_net_pay = pds.get("salary")
-
-        # KOICA loans embed applicant data in raw_payload.
-        raw = loan.get("raw_payload") or {}
-        if not occupation and isinstance(raw, dict):
-            occupation = raw.get("occupation")
-        if not annual_income and isinstance(raw, dict):
-            annual_income = raw.get("annual_income")
-
-        optional_fields = (raw.get("optionalFields") or {}) if isinstance(raw, dict) else {}
-        latest_net_pay = (
-            optional_fields.get("latest_net_pay")
-            or loan.get("latest_net_pay")
-            or pds_net_pay
-            or (raw.get("latest_net_pay") if isinstance(raw, dict) else None)
-        )
-        monthly_amort = loan.get("monthly_amortization") or optional_fields.get("monthly_amortization")
-
+    if filtered:
         try:
-            result = risk_score_with_drivers(
-                loan_amount=loan.get("loan_amount") or loan.get("principal_amount") or 0,
-                occupation=occupation,
-                annual_income=annual_income,
-                advance_payment_count=0,
-                monthly_amortization=monthly_amort,
-                latest_net_pay=latest_net_pay,
-            )
-            if not model_version and result.get("model_version"):
-                model_version = result["model_version"]
-            scored_rows.append({
-                "loan_id": loan.get("control_number"),
-                "member_name": member_name,
-                "membership_id": str(member.get("membership_id") or "").strip(),
-                "member_type": "Member" if bool(member.get("is_bona_fide")) else "Non-Member",
-                "loan_type": loan_type,
-                "loan_amount": float(loan.get("loan_amount") or loan.get("principal_amount") or 0),
-                "term_months": int(loan.get("term") or 0),
-                "application_date": loan.get("application_date"),
-                "application_status": loan.get("application_status") or loan.get("loan_status"),
-                "probability": result["probability"],
-                "risk_label": result["risk_label"],
-                "drivers": result["drivers"],
-            })
+            member_ids = [str(l.get("member_id")) for l in filtered if l.get("member_id")]
+            ctx = risk_fetch_context(supabase, member_ids)
+            feature_rows = risk_assemble_many(supabase, filtered, ctx=ctx)
+            results = risk_score_many(feature_rows)
+
+            for loan, features, result in zip(filtered, feature_rows, results):
+                if not model_version:
+                    model_version = result.get("model_version")
+                if thresholds_used is None:
+                    thresholds_used = result.get("thresholds")
+                scored_rows.append({
+                    **_row_shell(loan),
+                    "probability": result["probability"],
+                    "band": result["band"],
+                    "risk_label": result["risk_label"],
+                    "action": result["action"],
+                    "band_share": result["band_share"],
+                    "band_bad_rate_per_100": result["band_bad_rate_per_100"],
+                    "flagged": result["flagged"],
+                    "operating_point": result["operating_point"],
+                    "drivers": result["drivers"],
+                })
+
+            # Handoff §4: log every score with its input row and model version.
+            # The queue scores the whole review list on each cache miss, so the
+            # audit trail is written here too, not only on the single-loan
+            # endpoint — otherwise most scores a reviewer actually looks at
+            # would leave no record behind.
+            _persist_risk_scores(filtered, feature_rows, results)
         except ModelNotAvailableError as e:
-            # Model isn't loaded — return an unscored row so the UI can still
+            # Model isn't loaded — return unscored rows so the UI can still
             # show the queue with a "model unavailable" note per row.
-            scored_rows.append({
-                "loan_id": loan.get("control_number"),
-                "member_name": member_name,
-                "membership_id": str(member.get("membership_id") or "").strip(),
-                "member_type": "Member" if bool(member.get("is_bona_fide")) else "Non-Member",
-                "loan_type": loan_type,
-                "loan_amount": float(loan.get("loan_amount") or loan.get("principal_amount") or 0),
-                "term_months": int(loan.get("term") or 0),
-                "application_date": loan.get("application_date"),
-                "application_status": loan.get("application_status") or loan.get("loan_status"),
-                "probability": None,
-                "risk_label": "Unavailable",
-                "drivers": [],
-                "error": str(e),
-            })
+            scored_rows = [
+                {**_row_shell(loan), "probability": None, "band": None,
+                 "risk_label": "Unavailable", "drivers": [], "error": str(e)}
+                for loan in filtered
+            ]
         except Exception as e:
-            scored_rows.append({
-                "loan_id": loan.get("control_number"),
-                "member_name": member_name,
-                "loan_type": loan_type,
-                "loan_amount": float(loan.get("loan_amount") or loan.get("principal_amount") or 0),
-                "probability": None,
-                "risk_label": "Error",
-                "drivers": [],
-                "error": str(e),
-            })
+            scored_rows = [
+                {**_row_shell(loan), "probability": None, "band": None,
+                 "risk_label": "Error", "drivers": [], "error": str(e)}
+                for loan in filtered
+            ]
 
     # Sort by probability desc, unscored rows at the bottom.
     scored_rows.sort(key=lambda r: (r.get("probability") is None, -(r.get("probability") or 0.0)))
@@ -10772,6 +10717,7 @@ async def get_credit_risk_queue():
         "data": {
             "server_time": datetime.utcnow().isoformat(),
             "model_version": model_version,
+            "thresholds": thresholds_used,
             "count": len(scored_rows),
             "rows": scored_rows,
         },
