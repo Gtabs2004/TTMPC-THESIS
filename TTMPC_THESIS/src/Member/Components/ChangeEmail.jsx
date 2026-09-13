@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { ArrowLeft, Mail, ShieldCheck } from "lucide-react";
 import { supabase } from "../../supabaseClient";
 import { useNotification } from "../../contex/NotificationContext";
+import { invalidateSecurityStatus } from "../securityStatusCache";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
@@ -104,6 +105,9 @@ export default function ChangeEmail() {
       addNotification("Email updated successfully.", "success");
       // Refresh the local session so future requests carry the new email claim.
       try { await supabase.auth.refreshSession(); } catch { /* non-fatal */ }
+      // Drop the guard's cached status, or it keeps reporting the old dummy
+      // address and bounces the member straight back to this page.
+      invalidateSecurityStatus();
 
       // First-login flow → go to password change next if still temporary.
       // Steady-state → back to profile.
