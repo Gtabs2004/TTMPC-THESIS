@@ -54,7 +54,7 @@ export const AuthContextProvider = ({ children }) => {
   };
 
   // Ensure personal_data_sheet record exists by backfilling from member_applications (first login only)
-  const ensurePersonalDataSheetExists = async (email, membershipId, isTemporary, accountId) => {
+  const ensurePersonalDataSheetExists = async (email, membershipId, isTemporary) => {
     try {
       // Only backfill on first login (is_temporary = true)
       if (!isTemporary || !membershipId) return;
@@ -68,8 +68,7 @@ export const AuthContextProvider = ({ children }) => {
         .maybeSingle();
 
       if (!checkError && existingRecord) {
-        // Record exists, just mark account as no longer temporary
-        await markAccountAsNotTemporary(accountId);
+        // Profile row already present; nothing to backfill.
         return;
       }
 
@@ -102,8 +101,8 @@ export const AuthContextProvider = ({ children }) => {
       }
 
       if (!appData) {
-        // No application found, just mark as not temporary
-        await markAccountAsNotTemporary(accountId);
+        // No application to backfill from; the member fills the profile in
+        // themselves via the account-setup gate.
         return;
       }
 
@@ -133,30 +132,19 @@ export const AuthContextProvider = ({ children }) => {
         console.warn("Could not backfill personal_data_sheet:", insertError);
       }
 
-      // Mark account as no longer temporary (first login complete)
-      await markAccountAsNotTemporary(accountId);
     } catch (error) {
       console.warn("Error ensuring personal_data_sheet exists:", error);
     }
   };
 
-  // Mark account as not temporary after first login
-  const markAccountAsNotTemporary = async (accountId) => {
-    try {
-      if (!accountId) return;
-      
-      const { error } = await supabase
-        .from("member_account")
-        .update({ is_temporary: false })
-        .eq("user_id", accountId);
-
-      if (error) {
-        console.warn("Could not update is_temporary flag:", error);
-      }
-    } catch (error) {
-      console.warn("Error updating is_temporary:", error);
-    }
-  };
+  // NOTE: is_temporary is deliberately NOT cleared here.
+  //
+  // This used to call markAccountAsNotTemporary() on sign-in, which meant
+  // simply logging in satisfied the "has changed their password" check and the
+  // account-setup gate opened without the password ever being changed. The flag
+  // is cleared only by the password-change endpoints
+  // (/api/account/password/change-direct and /verify-and-set), which is the
+  // only point at which it is actually true.
 
   // Sign up
   const signUpNewUser = async (email, password, role = "treasurer") => {
@@ -233,10 +221,9 @@ export const AuthContextProvider = ({ children }) => {
       const memberEmail = memberAccount?.email || normalizedEmail;
       const membershipId = memberAccount?.membership_id;
       const isTemporary = Boolean(memberAccount?.is_temporary);
-      const userId = memberAccount?.user_id;
-      
+
       if (isTemporary) {
-        await ensurePersonalDataSheetExists(memberEmail, membershipId, isTemporary, userId);
+        await ensurePersonalDataSheetExists(memberEmail, membershipId, isTemporary);
       }
 
       // Pre-load member data in background (non-blocking) — stored in sessionStorage

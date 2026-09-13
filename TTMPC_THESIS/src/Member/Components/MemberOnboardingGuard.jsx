@@ -1,44 +1,39 @@
 import { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { supabase } from "../../supabaseClient";
+import {
+  hasCachedStatus,
+  readCachedStatus,
+  writeCachedStatus,
+} from "../securityStatusCache";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 
-const ONBOARDING_ROUTES = new Set([
-  "/members-profile",
-  "/members-profile/change-email",
-]);
+// The ONLY route a member with an unfinished account may open: the dashboard,
+// which hosts the blocking AccountSetupGate overlay. Every step is completed
+// inside that overlay, so no other page needs to be reachable -- and the
+// profile page in particular must not be, since it renders the portal sidebar
+// and would hand out the navigation this lock exists to withhold.
+const SETUP_ALLOWED_ROUTES = new Set(["/member-dashboard"]);
 
 // Paths where we should NOT check onboarding status. Anything not member-facing
 // (auth flows, marketing landing, staff portals) doesn't need this check —
 // skipping avoids a spurious 401 when a staff auth token or no token is present.
 const SKIP_PREFIXES = ["/login", "/signup", "/forgot", "/reset", "/memberlogin"];
 
-// Cache the security-status result for the lifetime of the SPA session so
-// tab-to-tab navigation doesn't blank the screen while re-fetching. The cache
-// is keyed by access token so a re-login invalidates it.
-let cachedStatus = null; // { token, body, fetchedAt }
-const STATUS_TTL_MS = 60_000;
-
 async function fetchStatus(session) {
   const token = session?.access_token;
   if (!token) return null;
 
-  const now = Date.now();
-  if (
-    cachedStatus &&
-    cachedStatus.token === token &&
-    now - cachedStatus.fetchedAt < STATUS_TTL_MS
-  ) {
-    return cachedStatus.body;
-  }
+  const fromCache = readCachedStatus(token);
+  if (fromCache) return fromCache;
 
   const res = await fetch(`${API_BASE}/api/account/security-status`, {
     headers: { Authorization: `Bearer ${token}` },
   });
   if (!res.ok) return null;
   const body = await res.json();
-  cachedStatus = { token, body, fetchedAt: now };
+  writeCachedStatus(token, body);
   return body;
 }
 
@@ -47,7 +42,7 @@ export default function MemberOnboardingGuard({ children }) {
   const navigate = useNavigate();
   // Start "checked" if we have a fresh cached status — avoids the blank flash
   // on every sidebar navigation.
-  const [checked, setChecked] = useState(() => cachedStatus !== null);
+  const [checked, setChecked] = useState(() => hasCachedStatus());
   const didInitialCheck = useRef(false);
 
   useEffect(() => {
@@ -74,20 +69,22 @@ export default function MemberOnboardingGuard({ children }) {
           return;
         }
 
-        if (body.is_email_dummy && path !== "/members-profile/change-email") {
-          navigate("/members-profile/change-email", { replace: true });
-          return;
-        }
+        // An account is "set up" once it has a real email, a password the
+        // member chose, and the required profile fields on file.
+        const setupIncomplete =
+          body.is_email_dummy || body.is_temporary || body.profile_incomplete;
 
-        if (!body.is_email_dummy && body.is_temporary) {
-          const alreadyOnProfile = path === "/members-profile";
-          const alreadyForcing = location.search.includes("forcePassword=1");
-          if (!alreadyOnProfile || !alreadyForcing) {
-            if (!ONBOARDING_ROUTES.has(path)) {
-              navigate("/members-profile?forcePassword=1", { replace: true });
-              return;
-            }
-          }
+        // The dashboard and the three setup destinations stay reachable: the
+        // dashboard renders AccountSetupGate, a blocking overlay that walks the
+        // member through the outstanding steps, and they obviously need to
+        // reach the pages those steps link to.
+        //
+        // Everything else in the portal (loans, savings, statements) is sent
+        // back to the dashboard, so the member always meets the same overlay
+        // rather than being bounced between pages.
+        if (setupIncomplete && !SETUP_ALLOWED_ROUTES.has(path)) {
+          navigate("/member-dashboard", { replace: true });
+          return;
         }
 
         setChecked(true);

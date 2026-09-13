@@ -2,7 +2,6 @@
 import { Link } from 'react-router-dom';
 import { useNavigate, NavLink } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
-import { useNotification } from "../../contex/NotificationContext";
 import { useTheme } from "../../contex/ThemeContext";
 import { supabase } from "../../supabaseClient";
 import { resolveMemberContextFromSessionUser } from "../../utils/sessionIdentity";
@@ -10,6 +9,7 @@ import { useMigsLabel, getMigsBadgeClasses } from "../../hooks/useMigsLabel";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
 import LoanCalculatorModal from "./LoanCalculatorModal";
 import MemberDashboardLoading from "./MemberDashboardLoading";
+import AccountSetupGate from "./AccountSetupGate";
 import { getOrFetch, peek } from "../memberDataCache";
 import { pickLatestCbuRow } from "../../utils/cbuOrdering";
 import {
@@ -109,7 +109,6 @@ const styles = `
 const MemberDashboard = () => {
   const { session, signOut } = UserAuth();
   const navigate = useNavigate();
-  const { addNotification } = useNotification();
   const [profile, setProfile] = useState(null);
   const [migsMemberKey, setMigsMemberKey] = useState(null);
   const { data: migsLabel, status: migsLabelStatus } = useMigsLabel(migsMemberKey);
@@ -726,11 +725,9 @@ const MemberDashboard = () => {
     };
   }, []);
 
-  useEffect(() => {
-    if (isTemporaryAccount) {
-      addNotification('Your password is still the default one. Please change it right away in Member Profile.', 'warning', 8000);
-    }
-  }, [isTemporaryAccount, addNotification]);
+  // The temporary-password warning used to be a toast here. AccountSetupGate
+  // now covers it (along with the email and profile steps) as a blocking
+  // overlay, so a toast saying the same thing would only fire behind it.
 
   const activeLoans = useMemo(
     () => memberLoans.filter((loan) => !['rejected', 'cancelled'].includes(String(loan.loan_status || '').toLowerCase())),
@@ -766,6 +763,9 @@ const MemberDashboard = () => {
   return (
   <div className="relative flex h-screen overflow-hidden bg-[#F8F9FA] dark:bg-gray-950">
       <style>{styles}</style>
+      {/* Blocks the dashboard until the email, password and profile steps are
+          done. Renders nothing once the account is fully set up. */}
+      <AccountSetupGate />
       {isSidebarOpen ? (
         <button
           aria-label="Close sidebar overlay"

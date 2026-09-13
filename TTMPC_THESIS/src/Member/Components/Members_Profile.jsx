@@ -7,6 +7,7 @@ import ConfirmDialog from "../../components/ConfirmDialog";
 import { supabase } from "../../supabaseClient";
 import { resolveMemberIdentity } from "../../utils/memberIdentity";
 import { invalidate } from "../memberDataCache";
+import { invalidateSecurityStatus } from "../securityStatusCache";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
 import PasswordInput from "../../components/PasswordInput";
 import PasswordRequirements from "../../components/PasswordRequirements";
@@ -452,6 +453,23 @@ const Members_Profile = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // The guard sends first-login members here with ?completeProfile=1 when the
+  // required fields are still blank. Latch it into state before clearing the
+  // param, so the banner survives the URL cleanup and any re-render.
+  const [mustCompleteProfile, setMustCompleteProfile] = useState(
+    () => searchParams.get('completeProfile') === '1',
+  );
+
+  useEffect(() => {
+    if (searchParams.get('completeProfile') === '1') {
+      setMustCompleteProfile(true);
+      const next = new URLSearchParams(searchParams);
+      next.delete('completeProfile');
+      setSearchParams(next, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000';
 
   const handleOpenChangePassword = () => {
@@ -574,6 +592,9 @@ const Members_Profile = () => {
       if (!res.ok) throw new Error(body.detail || 'Unable to update password.');
 
       setIsTemporaryAccount(false);
+      // Let the onboarding guard re-read status instead of serving the
+      // cached "still temporary" answer for up to a minute.
+      invalidateSecurityStatus();
       setPasswordSuccess('Password updated successfully.');
       setShowPasswordModal(false);
       setNewPassword('');
@@ -644,6 +665,9 @@ const Members_Profile = () => {
       if (!res.ok) throw new Error(body.detail || 'Invalid code.');
 
       setIsTemporaryAccount(false);
+      // Let the onboarding guard re-read status instead of serving the
+      // cached "still temporary" answer for up to a minute.
+      invalidateSecurityStatus();
       setPasswordSuccess('Password updated successfully.');
       setShowPasswordModal(false);
       setPasswordStep(1);
@@ -758,6 +782,10 @@ const Members_Profile = () => {
       if (updateError) throw updateError;
 
       setOriginalData((prev) => ({ ...prev, ...formData }));
+      // The onboarding guard holds new members on this page until the required
+      // fields are filled; drop its cached status so a save that completes them
+      // releases the member immediately rather than after the cache expires.
+      invalidateSecurityStatus();
       setSaveSuccess('Profile information updated successfully.');
       setEditingSection(null); // Return to View Mode
       setShowConfirmSave(false);
@@ -1013,6 +1041,17 @@ const Members_Profile = () => {
               >
                 Change Password
               </button>
+            </div>
+          ) : null}
+
+          {mustCompleteProfile && !isTemporaryAccount ? (
+            <div className="w-full mb-6 p-4 rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/30 text-sm text-amber-800 dark:text-amber-300 font-semibold">
+              <p>Complete your profile to finish setting up your account.</p>
+              <p className="mt-1 font-medium">
+                Fill in your mobile number and permanent address, then save. The rest
+                of the portal unlocks once these are on file. Your membership details
+                come from the cooperative and need nothing from you.
+              </p>
             </div>
           ) : null}
 

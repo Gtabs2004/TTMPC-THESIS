@@ -11677,6 +11677,10 @@ async def backfill_member_auth(dry_run: bool = False, limit: int | None = None):
             "auth_user_id": auth_user_id,
             "email": email,
             "is_temporary": True,
+            # Record that the address is the generated @ttmpc.local placeholder
+            # rather than a real inbox. Without this the onboarding guard has no
+            # stored signal and these accounts reach the portal on a fake email.
+            "is_email_dummy": is_placeholder_email,
         }
         # Only set user_id when we created a brand-new auth user (in that
         # case the new auth UUID is also intended to become the member-row
@@ -12473,19 +12477,41 @@ def _verify_current_password(email: str, password: str) -> bool:
 
 
 def _get_member_account_by_auth_user(auth_user_id: str) -> dict[str, Any] | None:
+    """Fetch the member_account row for an authenticated user.
+
+    Columns are listed explicitly and must all exist on the table. The previous
+    version selected "id, member_id" -- neither of which member_account has
+    (its key is membership_id) -- so PostgREST rejected the whole query, the
+    except below swallowed it, and every caller saw None. For the onboarding
+    gate that read as "nothing outstanding", opening the portal to accounts
+    still on their temporary password.
+
+    Raising on failure rather than returning None keeps that class of bug
+    loud: a security gate must not fail open because a query broke.
+    """
     if not supabase:
         return None
     try:
         resp = (
             supabase.table("member_account")
-            .select("id, member_id, auth_user_id, is_temporary, is_email_dummy, pending_email")
+            # membership_id and password are needed by the security-status gate:
+            # the former to look up the profile row, the latter because a
+            # lingering plaintext bootstrap password means the member has never
+            # set one of their own.
+            .select(
+                "user_id, auth_user_id, membership_id, email, is_temporary, "
+                "is_email_dummy, pending_email, password"
+            )
             .eq("auth_user_id", auth_user_id)
             .limit(1)
             .execute()
         )
-        return resp.data[0] if resp.data else None
-    except Exception:
-        return None
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Could not read account record: {exc}",
+        )
+    return resp.data[0] if resp.data else None
 
 
 def _send_otp_or_500(*, to_email: str, code: str, purpose: str) -> None:
@@ -12838,18 +12864,159 @@ def account_password_verify_and_set(
     return {"ok": True}
 
 
+# Profile fields a member must supply themselves before the portal unlocks.
+#
+# Only member-EDITABLE details belong here. Deliberately excluded:
+#   * surname / first_name -- supplied by the cooperative's own records and
+#     already populated by the member import.
+#   * the whole Membership section (date_of_membership, BOD_resolution_number,
+#     number_of_shares, amount, initial_paid_up_capital) -- cooperative
+#     financial standing, rendered read-only in the profile UI. A member cannot
+#     fill these in, so gating on them would lock them out permanently.
+#
+# Email is gated separately via is_email_dummy, so it is not repeated here.
+#
+# These are exactly the `required: true` fields of the editable sections in
+# PROFILE_SECTIONS (Members_Profile.jsx). Keep the two in step: gating on a
+# field the form does not itself require would leave the member unable to
+# satisfy the gate by saving the form.
+_REQUIRED_PROFILE_FIELDS = ("contact_number", "permanent_address")
+
+
+def _profile_missing_fields(membership_id: str | None) -> list[str]:
+    """Which required personal_data_sheet fields are still blank.
+
+    A bulk-imported member typically has a name and nothing else, so this is
+    what forces them through the profile step on first login. Returns [] when
+    we cannot read the row -- an unreadable PDS must not lock a member out of
+    the portal.
+    """
+    if not supabase or not membership_id:
+        return []
+    try:
+        resp = (
+            supabase.table("personal_data_sheet")
+            .select(", ".join(_REQUIRED_PROFILE_FIELDS))
+            .eq("membership_number_id", membership_id)
+            .limit(1)
+            .execute()
+        )
+    except Exception:
+        return []
+
+    rows = resp.data or []
+    if not rows:
+        # No PDS row at all: every required field is outstanding.
+        return list(_REQUIRED_PROFILE_FIELDS)
+
+    row = rows[0]
+    return [f for f in _REQUIRED_PROFILE_FIELDS if not str(row.get(f) or "").strip()]
+
+
 @app.get("/api/account/security-status")
 def account_security_status(current_user: dict = _Depends(_get_current_user)):
-    """Lightweight check used by the frontend route guard to decide whether
-    to force the user into the email-change or password-change flow."""
-    account = _get_member_account_by_auth_user(current_user["id"])
+    """Onboarding gate consulted by the member route guard.
+
+    Every flag is DERIVED here rather than trusted from the column alone.
+    Bulk-imported rows were written before these columns existed, so they carry
+    is_temporary = NULL and no is_email_dummy at all -- reading the columns
+    straight through let exactly the accounts this gate exists for walk past
+    it. Specifically:
+      * is_email_dummy also trips on the generated @ttmpc.local address.
+      * is_temporary also trips when a plaintext bootstrap `password` is still
+        on the row (that column is cleared the moment a real password is set).
+    """
+    account = _get_member_account_by_auth_user(current_user["id"]) or {}
+    email = current_user.get("email") or ""
+
+    is_email_dummy = bool(account.get("is_email_dummy")) or email.lower().endswith(
+        _SYNTHETIC_EMAIL_DOMAIN
+    )
+
+    is_temporary = bool(account.get("is_temporary")) or bool(account.get("password"))
+
+    missing_profile = _profile_missing_fields(account.get("membership_id"))
+
     return {
         "ok": True,
-        "is_email_dummy": bool(account and account.get("is_email_dummy")),
-        "is_temporary": bool(account and account.get("is_temporary")),
-        "email": current_user.get("email"),
-        "pending_email": (account or {}).get("pending_email"),
+        "is_email_dummy": is_email_dummy,
+        "is_temporary": is_temporary,
+        "profile_incomplete": bool(missing_profile),
+        "missing_profile_fields": missing_profile,
+        "email": email,
+        "pending_email": account.get("pending_email"),
     }
+
+
+class OnboardingProfilePayload(BaseModel):
+    contact_number: str | None = None
+    permanent_address: str | None = None
+
+
+@app.post("/api/account/onboarding/profile")
+def account_onboarding_profile(
+    payload: OnboardingProfilePayload,
+    current_user: dict = _Depends(_get_current_user),
+):
+    """Save just the required profile fields from the account-setup gate.
+
+    The gate is a locked modal on the dashboard, so it cannot send the member to
+    the full profile page to do this -- that page renders the portal sidebar and
+    would hand them the navigation the lock exists to withhold. This writes the
+    same personal_data_sheet columns the profile form does, scoped to the two
+    fields the gate requires.
+    """
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase not configured")
+
+    account = _get_member_account_by_auth_user(current_user["id"]) or {}
+    membership_id = account.get("membership_id")
+    if not membership_id:
+        raise HTTPException(status_code=400, detail="Your account has no membership id on file.")
+
+    contact = str(payload.contact_number or "").strip()
+    address = str(payload.permanent_address or "").strip()
+    if not contact:
+        raise HTTPException(status_code=400, detail="Mobile number is required.")
+    if not address:
+        raise HTTPException(status_code=400, detail="Permanent address is required.")
+
+    # personal_data_sheet.contact_number is bigint, so store digits only. This
+    # also normalises the 09xxxxxxxxx / +639xxxxxxxxx / spaced variants members
+    # type into one comparable value.
+    digits = _re.sub(r"\D", "", contact)
+    if not digits:
+        raise HTTPException(status_code=400, detail="Enter a valid mobile number.")
+
+    updates = {"contact_number": int(digits), "permanent_address": address}
+
+    try:
+        existing = (
+            supabase.table("personal_data_sheet")
+            .select("personal_data_sheet_id")
+            .eq("membership_number_id", membership_id)
+            .limit(1)
+            .execute()
+        )
+        if existing.data:
+            supabase.table("personal_data_sheet").update(updates).eq(
+                "membership_number_id", membership_id
+            ).execute()
+        else:
+            # Imported members can reach the portal with no profile row at all.
+            supabase.table("personal_data_sheet").insert(
+                {
+                    "personal_data_sheet_id": f"pds_{membership_id}_{int(datetime.now().timestamp())}",
+                    "membership_number_id": membership_id,
+                    **updates,
+                }
+            ).execute()
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Could not save your profile: {exc}")
+
+    return {"ok": True, "missing_profile_fields": _profile_missing_fields(membership_id)}
 
 
 # =====================================================================
