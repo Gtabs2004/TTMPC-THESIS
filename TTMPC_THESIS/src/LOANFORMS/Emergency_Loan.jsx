@@ -532,7 +532,10 @@ function Emergency_Loan() {
           surname: profile.surname ?? profile.last_name ?? prev.surname,
           first_name: profile.first_name ?? prev.first_name,
           middle_name: profile.middle_name ?? profile.middle_initial ?? prev.middle_name,
-          contact_no: profile.contact_number ?? profile.contact_no ?? prev.contact_no,
+          // contact_number is bigint in personal_data_sheet, so it arrives as a
+          // JS number; the PDF endpoint's Pydantic model types it str | None and
+          // 422s on an int. Coerce like age/share_capital below.
+          contact_no: (profile.contact_number ?? profile.contact_no)?.toString() ?? prev.contact_no,
           residence_address: profile.permanent_address ?? profile.residence_address ?? prev.residence_address,
           date_of_birth: profile.date_of_birth ?? prev.date_of_birth,
           age: profile.age?.toString() ?? prev.age,

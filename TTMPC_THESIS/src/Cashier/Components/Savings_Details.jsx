@@ -29,6 +29,7 @@ import {
 
 import { UserAuth } from "../../contex/AuthContext";
 import { useNotification } from "../../contex/NotificationContext";
+import { useConfirm } from "../../contex/ConfirmContext";
 import StaffTopbar from "../../components/StaffTopbar";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
 import Breadcrumb from "../../components/Breadcrumb";
@@ -135,6 +136,7 @@ const Savings_Details = () => {
   const { id: accountParam } = useParams();
   const navigate = useNavigate();
     const { addNotification } = useNotification();
+  const confirm = useConfirm();
 
   const { data, ledger, status, error, refresh, submitTransaction } =
     useSavingsAccount(accountParam);
@@ -220,6 +222,14 @@ const Savings_Details = () => {
       setDepositError("Enter a deposit amount greater than zero.");
       return;
     }
+    const ok = await confirm({
+      title: "Record Savings Deposit",
+      message: `Post a deposit of ${formatCurrency(numeric)} to ${memberName || "this member"}'s savings account ${account?.account_number || ""}? This credits the savings ledger immediately and cannot be undone without a reversing entry.`,
+      confirmLabel: "Post Deposit",
+      tone: "default",
+    });
+    if (!ok) return;
+
     setDepositBusy(true);
     try {
       await submitTransaction("deposit", numeric);
@@ -246,6 +256,14 @@ const Savings_Details = () => {
       setWithdrawError("Withdrawal exceeds the available balance.");
       return;
     }
+    const ok = await confirm({
+      title: "Submit Savings Withdrawal",
+      message: `Submit a withdrawal of ${formatCurrency(numeric)} from ${memberName || "this member"}'s savings account ${account?.account_number || ""}? Balance after posting: ${formatCurrency(balance - numeric)}. This is sent to the Bookkeeper for verification.`,
+      confirmLabel: "Submit Withdrawal",
+      tone: "warning",
+    });
+    if (!ok) return;
+
     setWithdrawBusy(true);
     try {
       await submitTransaction("withdraw", numeric);
