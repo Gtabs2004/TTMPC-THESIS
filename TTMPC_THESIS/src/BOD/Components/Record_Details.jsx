@@ -92,9 +92,9 @@ const Record_Details = () => {
           membership_number: formData.membershipNumber,
           date_of_membership: formData.dateOfMembership || null,
           bod_resolution_number: formData.bodResolutionNumber,
-          number_of_shares: formData.numberOfShares === "" ? null : Number(formData.numberOfShares),
-          amount: formData.amount === "" ? null : Number(formData.amount),
-          initial_paid_up_capital: formData.initialPaidUpCapital === "" ? null : Number(formData.initialPaidUpCapital),
+          // number_of_shares, amount, and initial_paid_up_capital are no
+          // longer editable here — they're auto-derived from Capital
+          // Build-Up by a DB trigger (see sync_member_shares_from_cbu.sql).
           termination_resolution_number: formData.terminationResolutionNumber,
           termination_date: formData.terminationDate || null,
         }),
@@ -198,30 +198,36 @@ const Record_Details = () => {
               <input
                 type="text"
                 value={formData.numberOfShares}
-                onChange={(e) => handleInputChange('numberOfShares', e.target.value)}
-                disabled={!isEditable}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                disabled
+                readOnly
+                title="Auto-computed from Capital Build-Up (₱1,000 = 1 share). Not manually editable."
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-600 cursor-not-allowed"
               />
+              <p className="text-xs text-gray-400 mt-1">Auto-computed from CBU balance</p>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-600 mb-2">Amount (₱)</label>
               <input
                 type="text"
                 value={formData.amount}
-                onChange={(e) => handleInputChange('amount', e.target.value)}
-                disabled={!isEditable}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                disabled
+                readOnly
+                title="Auto-computed from Capital Build-Up running balance. Not manually editable."
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-600 cursor-not-allowed"
               />
+              <p className="text-xs text-gray-400 mt-1">Auto-computed from CBU balance</p>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-600 mb-2">Initial Paid-up Capital (₱)</label>
               <input
                 type="text"
                 value={formData.initialPaidUpCapital}
-                onChange={(e) => handleInputChange('initialPaidUpCapital', e.target.value)}
-                disabled={!isEditable}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                disabled
+                readOnly
+                title="Set once from the member's first CBU payment. Not manually editable."
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-600 cursor-not-allowed"
               />
+              <p className="text-xs text-gray-400 mt-1">Set once from first CBU payment</p>
             </div>
           </div>
         </div>
