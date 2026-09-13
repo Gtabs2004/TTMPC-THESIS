@@ -47,11 +47,20 @@ export default function AccountSetupGate() {
     navigate("/");
   }, [signOut, navigate]);
 
-  const load = useCallback(async () => {
+  // `overrideToken` lets a step hand in a token it just minted (see the
+  // password step's re-auth). getSession() can still report the previous
+  // session immediately after sign-in, and that token is revoked the moment
+  // the password changes.
+  const load = useCallback(async (overrideToken) => {
     setError(false);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token;
+      // Guard the type: this is also used as an onClick handler, which would
+      // otherwise pass a React event object in as the token.
+      let token = typeof overrideToken === "string" ? overrideToken : undefined;
+      if (!token) {
+        const { data: { session } } = await supabase.auth.getSession();
+        token = session?.access_token;
+      }
       if (!token) {
         setLoaded(true);
         return;
@@ -106,9 +115,9 @@ export default function AccountSetupGate() {
     load();
   }, [load]);
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (overrideToken) => {
     invalidateSecurityStatus();
-    await load();
+    await load(overrideToken);
   }, [load]);
 
   if (!loaded) return null;
@@ -126,7 +135,7 @@ export default function AccountSetupGate() {
         </p>
         <button
           type="button"
-          onClick={load}
+          onClick={() => load()}
           className="mt-4 rounded-lg bg-member-green px-6 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-[#154718]"
         >
           Try again
@@ -487,19 +496,30 @@ function PasswordStep({ currentEmail, onDone }) {
       //
       // refreshSession() cannot help: the refresh token is revoked too. Sign
       // in again with the password we just set.
-      const { error: reauthError } = await supabase.auth.signInWithPassword({
+      const { data: reauth, error: reauthError } = await supabase.auth.signInWithPassword({
         email: currentEmail,
         password: next,
       });
-      if (reauthError) {
-        // The password DID change; only the session could not be re-established.
-        // Say so plainly rather than implying the change failed.
-        throw new Error(
-          "Your password was updated, but we could not refresh your session. Please sign in again with your new password.",
-        );
+      if (reauthError || !reauth?.session?.access_token) {
+        // The password DID change; only the in-memory session could not be
+        // re-established. Rather than dead-ending on an error the member can do
+        // nothing about, reload: that rebuilds every cache from the session
+        // Supabase persisted, which is the new one. Same tab, and the client
+        // uses sessionStorage with persistSession, so they stay signed in.
+        //
+        // This is the fallback, not the mechanism -- the token hand-off below
+        // is the normal path and avoids the reload entirely.
+        invalidateSecurityStatus();
+        window.location.reload();
+        return;
       }
 
-      await onDone();
+      // Hand the freshly-minted token straight to the status refetch. Going
+      // back through supabase.auth.getSession() is unreliable here: it reads
+      // the persisted session, which can still be the pre-change one for a
+      // moment after sign-in resolves, so the gate would re-check with the
+      // revoked token and 401 again -- the exact failure this is fixing.
+      await onDone(reauth.session.access_token);
     } catch (e2) {
       setErr(e2.message);
       setBusy(false);
