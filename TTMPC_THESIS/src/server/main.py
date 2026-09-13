@@ -516,6 +516,11 @@ class SecretaryMembershipRecordUpdateRequest(BaseModel):
     membership_number: str | None = None
     date_of_membership: str | None = None
     bod_resolution_number: str | None = None
+    # number_of_shares, amount, and initial_paid_up_capital are accepted
+    # for backward compatibility but intentionally ignored by the PUT
+    # handler below — they're auto-derived from capital_build_up by the
+    # trg_capital_build_up_sync_member_shares DB trigger
+    # (sync_member_shares_from_cbu.sql). Do not write them here.
     number_of_shares: Decimal | None = None
     amount: Decimal | None = None
     initial_paid_up_capital: Decimal | None = None
@@ -8345,9 +8350,9 @@ async def update_secretary_membership_record(member_ref: str, payload: Secretary
             "membership_id": payload.membership_number,
             "membership_date": payload.date_of_membership,
             "bod_resolution_number": payload.bod_resolution_number,
-            "number_of_shares": decimal_to_float(payload.number_of_shares) if payload.number_of_shares is not None else None,
-            "share_capital_amount": decimal_to_float(payload.amount) if payload.amount is not None else None,
-            "initial_paid_up_capital": decimal_to_float(payload.initial_paid_up_capital) if payload.initial_paid_up_capital is not None else None,
+            # number_of_shares / share_capital_amount / initial_paid_up_capital
+            # are intentionally NOT written here — they're auto-derived from
+            # capital_build_up by trg_capital_build_up_sync_member_shares.
             "termination_resolution_number": payload.termination_resolution_number,
             "termination_date": payload.termination_date,
         }
@@ -8376,9 +8381,8 @@ async def update_secretary_membership_record(member_ref: str, payload: Secretary
                 "membership_number_id": payload.membership_number,
                 "date_of_membership": payload.date_of_membership,
                 "BOD_resolution_number": payload.bod_resolution_number,
-                "number_of_shares": decimal_to_float(payload.number_of_shares) if payload.number_of_shares is not None else None,
-                "amount": decimal_to_float(payload.amount) if payload.amount is not None else None,
-                "initial_paid_up_capital": decimal_to_float(payload.initial_paid_up_capital) if payload.initial_paid_up_capital is not None else None,
+                # number_of_shares / amount / initial_paid_up_capital are
+                # intentionally NOT written here — see note above.
             }
             pds_payload = {k: v for k, v in pds_payload.items() if v is not None}
 
