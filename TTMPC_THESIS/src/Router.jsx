@@ -153,7 +153,11 @@ export const router = createBrowserRouter([
     {path: "/bookkeeper-credit-risk", element: bookkeeperGuarded(<BookkeeperCreditRisk/>)},
     {path: "/manager-credit-risk", element: managerGuarded(<ManagerCreditRisk/>)},
     {path: "/manage-member", element: bookkeeperGuarded(<Manage_Member/>)},
-    {path: "/member_details", element: bookkeeperGuarded(<Member_Details/>)},
+    // Shared member record. Reached from three portals' Manage Member tables
+    // (Bookkeeper, BOD, Manager) and the page itself branches on ?portal= /
+    // state.portal for its back link, so the guard has to allow all three --
+    // bookkeeper-only sent BOD and Manager users to the landing page instead.
+    {path: "/member_details", element: <RequireRole allow={["bookkeeper", "bod", "manager"]}><Member_Details/></RequireRole>},
     {path: "/membership_form", element:<Membership_Form/>},
     {path: "/BOD-dashboard", element: bodGuarded(<Dashboard_BOD/>)},
     {path: "/member-approvals", element: bodGuarded(<Member_Approvals/>)},

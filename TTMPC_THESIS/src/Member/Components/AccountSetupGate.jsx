@@ -64,9 +64,29 @@ export default function AccountSetupGate() {
         return;
       }
 
-      const res = await fetch(`${API_BASE}/api/account/security-status`, {
+      let res = await fetch(`${API_BASE}/api/account/security-status`, {
         headers: { Authorization: `Bearer ${token}` },
       });
+
+      // A 401 usually means the access token went stale (Supabase revokes
+      // tokens when the account's credentials change). Try once with a fresh
+      // one before declaring the account unverifiable.
+      if (res.status === 401) {
+        const { data: refreshed } = await supabase.auth.refreshSession();
+        const newToken = refreshed?.session?.access_token;
+        if (newToken) {
+          res = await fetch(`${API_BASE}/api/account/security-status`, {
+            headers: { Authorization: `Bearer ${newToken}` },
+          });
+          if (res.ok) {
+            const retried = await res.json();
+            writeCachedStatus(newToken, retried);
+            setStatus(retried);
+            return;
+          }
+        }
+      }
+
       if (!res.ok) {
         // Fail CLOSED: a gate that cannot verify the account must block.
         setError(true);
@@ -138,7 +158,7 @@ export default function AccountSetupGate() {
       {needsEmail ? (
         <EmailStep currentEmail={status.email} onDone={refresh} />
       ) : needsPassword ? (
-        <PasswordStep onDone={refresh} />
+        <PasswordStep currentEmail={status.email} onDone={refresh} />
       ) : (
         <ProfileStep
           missing={status.missing_profile_fields || []}
@@ -429,7 +449,7 @@ function EmailStep({ currentEmail, onDone }) {
   );
 }
 
-function PasswordStep({ onDone }) {
+function PasswordStep({ currentEmail, onDone }) {
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -457,6 +477,28 @@ function PasswordStep({ onDone }) {
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body.detail || "Unable to update password.");
+
+      // Changing the password through Supabase's admin API revokes this
+      // user's existing refresh tokens, so the access token sitting in the
+      // browser is dead the moment the call succeeds. Without re-establishing
+      // the session here, the very next security-status request 401s and the
+      // gate reports "Could not verify your account" -- even though the change
+      // worked (which is why it came right after a restart/re-login).
+      //
+      // refreshSession() cannot help: the refresh token is revoked too. Sign
+      // in again with the password we just set.
+      const { error: reauthError } = await supabase.auth.signInWithPassword({
+        email: currentEmail,
+        password: next,
+      });
+      if (reauthError) {
+        // The password DID change; only the session could not be re-established.
+        // Say so plainly rather than implying the change failed.
+        throw new Error(
+          "Your password was updated, but we could not refresh your session. Please sign in again with your new password.",
+        );
+      }
+
       await onDone();
     } catch (e2) {
       setErr(e2.message);

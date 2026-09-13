@@ -1,5 +1,29 @@
 import React, { useEffect, useState } from "react";
 import { supabase } from "../supabaseClient";
+
+const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
+
+// The audit log is read through the backend rather than straight from Supabase.
+// Its RLS only exposes rows where actor_user_id = auth.uid(), and portal writes
+// come from the backend on the service-role key — so those rows carry a NULL
+// actor and are invisible to the staff who created them. The API scopes rows by
+// the caller's verified role instead.
+async function auditAuthHeaders() {
+  const { data: { session } } = await supabase.auth.getSession();
+  return { Authorization: `Bearer ${session?.access_token || ""}` };
+}
+
+function buildAuditQuery(filters, extra = {}) {
+  const params = new URLSearchParams();
+  if (filters.module) params.set("module", filters.module);
+  if (filters.action) params.set("action", filters.action);
+  if (filters.role) params.set("actor_role", filters.role.toLowerCase());
+  if (filters.from) params.set("date_from", filters.from);
+  if (filters.to) params.set("date_to", filters.to);
+  if (filters.search && filters.search.trim()) params.set("search", filters.search.trim());
+  for (const [k, v] of Object.entries(extra)) params.set(k, String(v));
+  return params.toString();
+}
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import {
@@ -127,35 +151,17 @@ const AuditLogViewer = ({ showActorRoleFilter = true, onError }) => {
   const [showModuleMenu, setShowModuleMenu] = useState(false);
   const [showDateMenu, setShowDateMenu] = useState(false);
 
-  const applyQueryFilters = (q) => {
-    if (filters.module)  q = q.eq("entity_type", filters.module);
-    if (filters.role)    q = q.eq("actor_role", filters.role.toLowerCase());
-    if (filters.action)  q = q.eq("action", filters.action);
-    if (filters.from)    q = q.gte("occurred_at", filters.from);
-    if (filters.to)      q = q.lte("occurred_at", `${filters.to}T23:59:59`);
-    if (filters.search.trim()) {
-      const s = filters.search.trim();
-      q = q.or(`entity_id.ilike.%${s}%,actor_email.ilike.%${s}%`);
-    }
-    return q;
-  };
-
   const loadRows = async () => {
     setLoading(true);
     try {
-      let q = supabase
-        .from("audit_log")
-        .select("*", { count: "exact" })
-        .order("occurred_at", { ascending: false });
-      q = applyQueryFilters(q);
-
-      const start = (page - 1) * PAGE_SIZE;
-      q = q.range(start, start + PAGE_SIZE - 1);
-
-      const { data, error, count } = await q;
-      if (error) throw error;
-      setRows(data || []);
-      setTotal(count || 0);
+      const qs = buildAuditQuery(filters, { page, page_size: PAGE_SIZE });
+      const res = await fetch(`${API_BASE}/api/audit-log?${qs}`, {
+        headers: await auditAuthHeaders(),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.detail || "Failed to load audit log.");
+      setRows(body.rows || []);
+      setTotal(body.total || 0);
     } catch (err) {
       const msg = err?.message || "Failed to load audit log.";
       if (onError) onError(msg);
@@ -168,39 +174,19 @@ const AuditLogViewer = ({ showActorRoleFilter = true, onError }) => {
 
   const loadKpis = async () => {
     try {
-      const startOfDay = new Date();
-      startOfDay.setHours(0, 0, 0, 0);
-      const isoToday = startOfDay.toISOString();
-
-      const todayCountRes = await supabase
-        .from("audit_log")
-        .select("id", { count: "exact", head: true })
-        .gte("occurred_at", isoToday);
-
-      const disburseCountRes = await supabase
-        .from("audit_log")
-        .select("id", { count: "exact", head: true })
-        .eq("action", "disburse");
-
-      const createdProfilesRes = await supabase
-        .from("audit_log")
-        .select("id", { count: "exact", head: true })
-        .eq("entity_type", "application")
-        .eq("action", "approve");
-
-      const policyEventsRes = await supabase
-        .from("audit_log")
-        .select("id", { count: "exact", head: true })
-        .eq("entity_type", "policy");
-
+      const res = await fetch(`${API_BASE}/api/audit-log/kpis`, {
+        headers: await auditAuthHeaders(),
+      });
+      if (!res.ok) return;
+      const body = await res.json();
       setKpis({
-        activitiesToday: todayCountRes?.count || 0,
-        paymentsDeposits: disburseCountRes?.count || 0,
-        profilesCreated: createdProfilesRes?.count || 0,
-        reportsGenerated: policyEventsRes?.count || 0,
+        activitiesToday: body.activitiesToday || 0,
+        paymentsDeposits: body.paymentsDeposits || 0,
+        profilesCreated: body.profilesCreated || 0,
+        reportsGenerated: body.reportsGenerated || 0,
       });
     } catch {
-      // KPIs are best-effort; failures shouldn't break the page.
+      /* KPIs are decorative; the table is the source of truth. */
     }
   };
 
@@ -256,11 +242,13 @@ const AuditLogViewer = ({ showActorRoleFilter = true, onError }) => {
   // current filters and shapes them into the same 8 columns the on-screen
   // table and both exports use.
   const fetchExportRows = async () => {
-    let q = supabase.from("audit_log").select("*").order("occurred_at", { ascending: false }).limit(5000);
-    q = applyQueryFilters(q);
-    const { data, error } = await q;
-    if (error) throw error;
-    return (data || []).map((r) => {
+    const qs = buildAuditQuery(filters, { page: 1, page_size: 5000 });
+    const res = await fetch(`${API_BASE}/api/audit-log?${qs}`, {
+      headers: await auditAuthHeaders(),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.detail || "Failed to export audit log.");
+    return (body.rows || []).map((r) => {
       const moduleInfo = MODULE_BY_ENTITY[r.entity_type] || { label: r.entity_type };
       return [
         formatLogId(r.id),
