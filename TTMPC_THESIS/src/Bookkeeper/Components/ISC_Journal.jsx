@@ -29,16 +29,27 @@ import { BRAND_GREEN, BAND_FILL, BORDER_SOFT, PESO_FORMAT, colLetter, downloadWo
 
 const PAGE_SIZE = 10;
 
-const YEAR = new Date().getFullYear();
-const PERIOD_START = `${YEAR}-01-01`;
-const PERIOD_END = `${YEAR}-12-01`; // the RPC expands this to the month's last day itself
+const CURRENT_YEAR = new Date().getFullYear();
+
+// CBU history runs 2019..present (import_cbu_yearly_history.py). The RPC floor
+// was lowered to 2019-01-01 to match (isc_v2_06_allow_historical_years.sql);
+// before that import it refused any period starting before December 2025.
+//
+// This journal is the ONLY place earlier years are browsable. The main ISC
+// Distribution page stays fixed on the current year, because that is the only
+// year a distribution is ever recorded for.
+const EARLIEST_YEAR = 2019;
+const SELECTABLE_YEARS = Array.from(
+  { length: Math.max(1, CURRENT_YEAR - EARLIEST_YEAR + 1) },
+  (_, i) => CURRENT_YEAR - i
+);
 
 // index 0 = January … 11 = December, matching crj_by_month / cdj_by_month /
 // month_end_balances from isc_calculate_preview (FRONTEND_BRIEF.md §3).
-const MONTH_LABELS = [
+const MONTH_NAMES = [
   "Jan", "Feb", "Mar", "Apr", "May", "Jun",
   "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
-].map((m) => `${m} ${YEAR}`);
+];
 
 const formatCurrency = (value) =>
   value === null || value === undefined
@@ -46,6 +57,8 @@ const formatCurrency = (value) =>
     : `₱${Number(value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 const clampMonth = (n) => (Number.isInteger(n) && n >= 0 && n <= 11 ? n : new Date().getMonth());
+const clampYear = (n) =>
+  Number.isInteger(n) && n >= EARLIEST_YEAR && n <= CURRENT_YEAR ? n : CURRENT_YEAR;
 
 const ISC_Journal = () => {
   const navigate = useNavigate();
@@ -55,6 +68,12 @@ const ISC_Journal = () => {
   // Distribution's Month selector lands here already scrolled to the same
   // month, and the page stays bookmarkable/shareable/refresh-safe.
   const [viewMonth, setViewMonth] = useState(() => clampMonth(Number(searchParams.get("month"))));
+
+  // Year also travels via the URL, same reasoning as month.
+  const [year, setYear] = useState(() => clampYear(Number(searchParams.get("year"))));
+  const PERIOD_START = `${year}-01-01`;
+  const PERIOD_END = `${year}-12-01`; // the RPC expands this to the month's last day
+  const MONTH_LABELS = MONTH_NAMES.map((m) => `${m} ${year}`);
 
   const [rows, setRows] = useState([]);
   const [status, setStatus] = useState("idle");
@@ -81,15 +100,17 @@ const ISC_Journal = () => {
         setStatus("error");
       }
     })();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [year]);
 
   useEffect(() => {
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev);
       next.set("month", String(viewMonth));
+      next.set("year", String(year));
       return next;
     }, { replace: true });
-  }, [viewMonth, setSearchParams]);
+  }, [viewMonth, year, setSearchParams]);
 
   const filtered = useMemo(() => {
     const key = search.trim().toLowerCase();
@@ -112,7 +133,10 @@ const ISC_Journal = () => {
   // Every eligible member, never just the page rendered (§5.1).
   const journalTotals = useMemo(() => {
     const opening = rows.reduce((sum, r) => sum + Number(r.opening_balance || 0), 0);
-    const perMonth = MONTH_LABELS.map((_, i) => ({
+    // MONTH_NAMES, not MONTH_LABELS: only the count (12) matters here, and
+    // MONTH_LABELS is rebuilt whenever `year` changes, which would make this
+    // memo depend on the year for no reason.
+    const perMonth = MONTH_NAMES.map((_, i) => ({
       crj: rows.reduce((sum, r) => sum + Number(r.crj_by_month?.[i] || 0), 0),
       cdj: rows.reduce((sum, r) => sum + Number(r.cdj_by_month?.[i] || 0), 0),
       balance: rows.reduce((sum, r) => sum + Number(r.month_end_balances?.[i] || 0), 0),
@@ -155,7 +179,7 @@ const ISC_Journal = () => {
 
     sheet.mergeCells(`A1:${lastCol}1`);
     const title = sheet.getCell("A1");
-    title.value = `Expanded 12-Month Share Capital Journal — ${YEAR}`;
+    title.value = `Expanded 12-Month Share Capital Journal — ${year}`;
     title.font = { size: 14, bold: true, color: { argb: "FFFFFFFF" } };
     title.fill = { type: "pattern", pattern: "solid", fgColor: { argb: BRAND_GREEN } };
     title.alignment = { vertical: "middle", indent: 1 };
@@ -239,7 +263,7 @@ const ISC_Journal = () => {
       }
     });
 
-    await downloadWorkbook(workbook, `isc_journal_${YEAR}.xlsx`);
+    await downloadWorkbook(workbook, `isc_journal_${year}.xlsx`);
   };
 
   return (
@@ -269,11 +293,25 @@ const ISC_Journal = () => {
                 </span>
               </div>
               <p className="text-sm text-gray-500 mt-0.5">
-                January – December {YEAR} · every figure is read-only, sourced from the cashier and loan ledgers.
+                January – December {year} · every figure is read-only, sourced from the cashier and loan ledgers.
               </p>
             </div>
 
-            <div className="flex items-center gap-2 flex-wrap">
+            {/* ml-auto keeps this group right-aligned even when the extra year
+                selector pushes it onto its own line under the heading. */}
+            <div className="flex items-center gap-2 flex-wrap ml-auto justify-end">
+              <select
+                value={year}
+                onChange={(e) => setYear(clampYear(Number(e.target.value)))}
+                aria-label="Year to view"
+                className="h-9 rounded-lg border border-gray-300 bg-gray-50 hover:bg-white focus:bg-white px-3 text-xs font-bold text-gray-800 focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition-colors cursor-pointer shrink-0"
+              >
+                {SELECTABLE_YEARS.map((y) => (
+                  <option key={y} value={y}>
+                    {y}
+                  </option>
+                ))}
+              </select>
               <div className="relative shrink-0">
                 <Calendar className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400 pointer-events-none" />
                 <select
