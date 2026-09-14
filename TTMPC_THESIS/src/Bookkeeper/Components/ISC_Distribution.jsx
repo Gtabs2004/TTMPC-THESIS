@@ -30,16 +30,12 @@ import IscPayoutPreferencesModal from "./IscPayoutPreferencesModal";
 
 const PAGE_SIZE = 10;
 
-const YEAR = new Date().getFullYear();
-const PERIOD_START = `${YEAR}-01-01`;
-const PERIOD_END = `${YEAR}-12-01`; // the RPC expands this to the month's last day itself
+const CURRENT_YEAR = new Date().getFullYear();
 
-// index 0 = January … 11 = December, matching crj_by_month / cdj_by_month /
-// month_end_balances from isc_calculate_preview (FRONTEND_BRIEF.md §3).
-const MONTH_LABELS = [
+const MONTH_NAMES = [
   "Jan", "Feb", "Mar", "Apr", "May", "Jun",
   "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
-].map((m) => `${m} ${YEAR}`);
+];
 
 const formatCurrency = (value) =>
   value === null || value === undefined
@@ -50,6 +46,13 @@ const Bookkeeper_ISC = () => {
   const navigate = useNavigate();
   const { session } = UserAuth();
   const { addNotification } = useNotification();
+
+  // This page is always the CURRENT year. Browsing earlier years lives in the
+  // Full View journal (ISC_Journal), not here.
+  const year = CURRENT_YEAR;
+  const PERIOD_START = `${year}-01-01`;
+  const PERIOD_END = `${year}-12-01`; // the RPC expands this to the month's last day
+  const MONTH_LABELS = MONTH_NAMES.map((m) => `${m} ${year}`);
 
   const [rows, setRows] = useState([]);
   const [status, setStatus] = useState("idle");
@@ -150,6 +153,7 @@ const Bookkeeper_ISC = () => {
   // before the General Assembly has even set a figure (§5.3).
   useEffect(() => {
     runCalculation(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Find whether THIS YEAR already has a posting, so the "Set Payout
@@ -176,6 +180,7 @@ const Bookkeeper_ISC = () => {
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const amountNum = Number(amountInput);
@@ -317,7 +322,7 @@ const Bookkeeper_ISC = () => {
 
     sheet.mergeCells(`A2:${lastCol}2`);
     const subtitle = sheet.getCell("A2");
-    subtitle.value = `Period: January – December ${YEAR}  ·  Generated ${new Date().toLocaleString("en-PH", {
+    subtitle.value = `Period: January – December ${year}  ·  Generated ${new Date().toLocaleString("en-PH", {
       dateStyle: "medium",
       timeStyle: "short",
     })}`;
@@ -412,7 +417,7 @@ const Bookkeeper_ISC = () => {
           : null
       );
       addNotification(
-        `Interest on Share Capital recorded for ${YEAR} — ${formatCurrency(allocatedAmount)} across ${rows.length} members.`,
+        `Interest on Share Capital recorded for ${year} — ${formatCurrency(allocatedAmount)} across ${rows.length} members.`,
         "success"
       );
     } catch (err) {
@@ -436,7 +441,7 @@ const Bookkeeper_ISC = () => {
             <h1 className="text-2xl font-bold text-gray-900">Interest on Share Capital</h1>
             <p className="text-sm text-gray-500 mt-0.5">
               Members earn interest in proportion to their average share capital over the period. Period:{" "}
-              <span className="font-semibold text-gray-700">January – December {YEAR}</span> (fixed, not editable).
+              <span className="font-semibold text-gray-700">January – December {year}</span>.
             </p>
           </div>
 
@@ -497,11 +502,12 @@ const Bookkeeper_ISC = () => {
             <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 flex items-start gap-2">
               <Info className="w-3.5 h-3.5 text-blue-600 shrink-0 mt-0.5" />
               <p className="text-xs text-blue-700">
-                Recording creates a permanent record for {YEAR} — it cannot be edited afterward, only deleted while
+                Recording creates a permanent record for {year} — it cannot be edited afterward, only deleted while
                 every member is still unsettled. No share capital moves yet; that only happens at the March General
                 Assembly.
               </p>
             </div>
+
 
             {/* Shown whenever THIS YEAR has a posting — found on page load
                 (existingPosting), including one just created in this session.
@@ -524,7 +530,7 @@ const Bookkeeper_ISC = () => {
                   <p className={`text-xs ${existingPosting.status === "settled" ? "text-gray-600" : "text-green-700"}`}>
                     {existingPosting.status === "settled" ? (
                       <>
-                        {YEAR} has already been settled —{" "}
+                        {year} has already been settled —{" "}
                         {formatCurrency(existingPosting.total_interest)} across {existingPosting.total_members}{" "}
                         members. Preferences can be reviewed but not changed.
                       </>
@@ -585,7 +591,7 @@ const Bookkeeper_ISC = () => {
                 </div>
                 <button
                   type="button"
-                  onClick={() => navigate(`/bookkeeper-isc-journal?month=${viewMonth}`)}
+                  onClick={() => navigate(`/bookkeeper-isc-journal?month=${viewMonth}&year=${year}`)}
                   disabled={!rows.length}
                   className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg border border-gray-300 bg-white hover:bg-gray-50 text-xs font-semibold text-gray-700 transition-colors shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
@@ -742,7 +748,7 @@ const Bookkeeper_ISC = () => {
                       <td className="p-4 text-right text-gray-900 tabular-nums">{formatCurrency(totals.balance)}</td>
                       <td className="p-4 text-right text-gray-900 tabular-nums">{formatCurrency(totals.deposit)}</td>
                       <td className="p-4 text-right text-amber-900 tabular-nums bg-amber-200 ring-1 ring-inset ring-amber-400 font-extrabold">{formatCurrency(totals.average)}</td>
-                      <td className="p-4 text-right text-gray-500 bg-purple-50/70">—</td>
+                      <td className="p-4 text-right text-purple-900/60 bg-purple-50/70">—</td>
                       <td className="p-4 text-right text-green-900 tabular-nums bg-green-100">{formatCurrency(totals.payout)}</td>
                     </tr>
                   </tfoot>
@@ -767,7 +773,7 @@ const Bookkeeper_ISC = () => {
       >
         <div className="text-sm text-gray-700 space-y-3">
           <p>
-            You are about to record Interest on Share Capital for <strong>January – December {YEAR}</strong>,
+            You are about to record Interest on Share Capital for <strong>January – December {year}</strong>,
             allocating <strong>{formatCurrency(allocatedAmount)}</strong>.
           </p>
           <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 space-y-1">
