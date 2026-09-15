@@ -1,5 +1,6 @@
 ﻿import React, { useEffect, useState } from "react";
 import { supabase } from "../../supabaseClient";
+import { ShoppingCart } from "lucide-react";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 
@@ -173,33 +174,37 @@ export default function PosSimulator() {
           Latest 5 transactions
         </h2>
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+          <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead className="bg-gray-50">
-              <tr className="text-left text-xs uppercase tracking-wider text-gray-500">
-                <th className="p-3">Grocery ID</th>
-                <th className="p-3">Member Ref</th>
-                <th className="p-3">Amount</th>
-                <th className="p-3">Status</th>
-                <th className="p-3">When</th>
+            <thead>
+              <tr className="bg-primary-deep text-[10px] uppercase tracking-wider text-white font-extrabold">
+                <th className="p-5 font-bold">Grocery ID</th>
+                <th className="p-5 font-bold">Member Ref</th>
+                <th className="p-5 font-bold">Amount</th>
+                <th className="p-5 font-bold">Status</th>
+                <th className="p-5 font-bold">When</th>
               </tr>
             </thead>
             <tbody>
               {recent.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="p-4 text-center text-gray-400">
-                    No transactions yet.
+                  <td colSpan={5} className="p-10 text-center">
+                    <div className="flex flex-col items-center justify-center gap-2">
+                      <ShoppingCart size={32} className="text-gray-300" />
+                      <p className="text-sm font-medium text-gray-500">No transactions yet.</p>
+                    </div>
                   </td>
                 </tr>
               ) : (
                 recent.map((r) => (
-                  <tr key={r.GroceryID} className="border-t border-gray-100">
-                    <td className="p-3 font-mono text-xs">{r.GroceryID}</td>
-                    <td className="p-3">{r.pos_member_ref || "—"}</td>
-                    <td className="p-3">
+                  <tr key={r.GroceryID} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
+                    <td className="p-5 font-mono text-xs">{r.GroceryID}</td>
+                    <td className="p-5 text-sm">{r.pos_member_ref || "—"}</td>
+                    <td className="p-5 text-sm">
                       ₱{Number(r.GroceryAmount).toLocaleString()}
                     </td>
-                    <td className="p-3">{r.Status}</td>
-                    <td className="p-3 text-gray-500">
+                    <td className="p-5 text-sm">{r.Status}</td>
+                    <td className="p-5 text-sm text-gray-500">
                       {new Date(r.TransactionDate).toLocaleString()}
                     </td>
                   </tr>
@@ -207,6 +212,7 @@ export default function PosSimulator() {
               )}
             </tbody>
           </table>
+          </div>
         </div>
       </div>
     </div>

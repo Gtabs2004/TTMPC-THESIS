@@ -26,6 +26,7 @@ import {
   ClipboardCheck,
   Brain,
   Briefcase,
+  Loader2,
 } from "lucide-react";
 
 const Loan_Approval = () => {
@@ -198,7 +199,7 @@ const Loan_Approval = () => {
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr className="bg-green-700 text-[10px] uppercase tracking-wider text-white font-extrabold">
+                  <tr className="bg-primary-deep text-[10px] uppercase tracking-wider text-white font-extrabold">
                     <th className="p-5 font-bold">Loan ID</th>
                     <th className="p-5 font-bold">Member Name</th>
                     <th className="p-5 font-bold">Loan Type</th>
@@ -212,11 +213,21 @@ const Loan_Approval = () => {
                 <tbody>
                   {loading ? (
                     <tr>
-                      <td colSpan="8" className="p-5 text-center text-gray-500">Loading applications...</td>
+                      <td colSpan="8" className="p-10 text-center">
+                        <div className="flex flex-col items-center justify-center gap-2">
+                          <Loader2 size={24} className="text-gray-300 animate-spin" />
+                          <p className="text-sm text-gray-400">Loading...</p>
+                        </div>
+                      </td>
                     </tr>
                   ) : displayLoans.length === 0 ? (
                     <tr>
-                      <td colSpan="8" className="p-5 text-center text-gray-500">No loans found.</td>
+                      <td colSpan="8" className="p-10 text-center">
+                        <div className="flex flex-col items-center justify-center gap-2">
+                          <Banknote size={32} className="text-gray-300" />
+                          <p className="text-sm font-medium text-gray-500">No loans found.</p>
+                        </div>
+                      </td>
                     </tr>
                   ) : (
                     displayLoans.map((loan, idx) => (

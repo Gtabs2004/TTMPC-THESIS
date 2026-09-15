@@ -379,7 +379,7 @@ const Cashier_MembershipPayments = () => {
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr className="bg-green-700 text-[10px] uppercase tracking-wider text-white font-extrabold">
+                  <tr className="bg-primary-deep text-[10px] uppercase tracking-wider text-white font-extrabold">
                     <th className="p-5 font-bold">Applicant</th>
                     <th className="p-5 font-bold">Contact</th>
                     <th className="p-5 font-bold">Status</th>
@@ -389,16 +389,26 @@ const Cashier_MembershipPayments = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {paginatedApplicants.length === 0 && (
+                  {loading ? (
                     <tr>
-                      <td colSpan={6} className="p-5 text-sm text-center text-gray-500 font-medium">
-                        {loading
-                          ? "Loading eligible applicants..."
-                          : "No applicants match the current filter."}
+                      <td colSpan={6} className="p-10 text-center">
+                        <div className="flex flex-col items-center justify-center gap-2">
+                          <Loader2 size={24} className="text-gray-300 animate-spin" />
+                          <p className="text-sm text-gray-400">Loading...</p>
+                        </div>
+                      </td>
+                    </tr>
+                  ) : paginatedApplicants.length === 0 && (
+                    <tr>
+                      <td colSpan={6} className="p-10 text-center">
+                        <div className="flex flex-col items-center justify-center gap-2">
+                          <UserSearch size={32} className="text-gray-300" />
+                          <p className="text-sm font-medium text-gray-500">No applicants match the current filter.</p>
+                        </div>
                       </td>
                     </tr>
                   )}
-                  {paginatedApplicants.map((row) => (
+                  {!loading && paginatedApplicants.map((row) => (
                     <tr key={row.application_id} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
                       <td className="p-5">
                         <div className="text-sm font-bold text-gray-900">{row.full_name}</div>
@@ -469,7 +479,7 @@ const Cashier_MembershipPayments = () => {
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr className="bg-green-700 text-[10px] uppercase tracking-wider text-white font-extrabold">
+                  <tr className="bg-primary-deep text-[10px] uppercase tracking-wider text-white font-extrabold">
                     <th className="p-5 font-bold">Payment ID</th>
                     <th className="p-5 font-bold">Applicant</th>
                     <th className="p-5 font-bold text-right">Amount</th>
@@ -481,14 +491,26 @@ const Cashier_MembershipPayments = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {paginatedTransactions.length === 0 && (
+                  {loading ? (
                     <tr>
-                      <td colSpan={8} className="p-5 text-sm text-center text-gray-500 font-medium">
-                        {loading ? "Loading transactions..." : "No transactions recorded yet."}
+                      <td colSpan={8} className="p-10 text-center">
+                        <div className="flex flex-col items-center justify-center gap-2">
+                          <Loader2 size={24} className="text-gray-300 animate-spin" />
+                          <p className="text-sm text-gray-400">Loading...</p>
+                        </div>
+                      </td>
+                    </tr>
+                  ) : paginatedTransactions.length === 0 && (
+                    <tr>
+                      <td colSpan={8} className="p-10 text-center">
+                        <div className="flex flex-col items-center justify-center gap-2">
+                          <History size={32} className="text-gray-300" />
+                          <p className="text-sm font-medium text-gray-500">No transactions recorded yet.</p>
+                        </div>
                       </td>
                     </tr>
                   )}
-                  {paginatedTransactions.map((row) => (
+                  {!loading && paginatedTransactions.map((row) => (
                     <tr key={row.id} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
                       <td className="p-5 text-sm font-mono font-semibold text-gray-900">
                         {row.payment_id}

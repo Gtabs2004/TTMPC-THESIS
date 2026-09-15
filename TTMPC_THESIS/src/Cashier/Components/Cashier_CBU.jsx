@@ -250,7 +250,12 @@ const Cashier_CBU = () => {
                 <tbody>
                   {filteredMembers.length === 0 && (
                     <tr>
-                      <td colSpan={4} className="p-5 text-sm text-center text-gray-500 font-medium">No member accounts matched your search.</td>
+                      <td colSpan={4} className="p-10 text-center">
+                        <div className="flex flex-col items-center justify-center gap-2">
+                          <UserSearch size={32} className="text-gray-300" />
+                          <p className="text-sm font-medium text-gray-500">No member accounts matched your search.</p>
+                        </div>
+                      </td>
                     </tr>
                   )}
                   {paginatedMembers.map((member) => {

@@ -22,6 +22,8 @@ import {
   AlertTriangle,
   ChevronRight,
   User,
+  Inbox,
+  Loader2,
 } from "lucide-react";
 import { FORECAST_LOAN_TYPE_COLORS } from "../../lib/chartColors";
 
@@ -392,40 +394,53 @@ const Vault = () => {
 
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
-                <thead className="bg-gray-50 text-xs uppercase tracking-wider text-gray-600">
-                  <tr>
-                    <th className="text-left px-5 py-3 font-bold">When</th>
-                    <th className="text-left px-5 py-3 font-bold">Type</th>
-                    <th className="text-right px-5 py-3 font-bold">Amount</th>
-                    <th className="text-left px-5 py-3 font-bold">Note</th>
-                    <th className="text-left px-5 py-3 font-bold">Ref</th>
+                <thead>
+                  <tr className="bg-primary-deep text-[10px] uppercase tracking-wider text-white font-extrabold">
+                    <th className="p-5 font-bold">When</th>
+                    <th className="p-5 font-bold">Type</th>
+                    <th className="p-5 font-bold text-right">Amount</th>
+                    <th className="p-5 font-bold">Note</th>
+                    <th className="p-5 font-bold">Ref</th>
                   </tr>
                 </thead>
                 <tbody>
                   {loading && (
-                    <tr><td colSpan={5} className="px-5 py-8 text-center text-gray-500">Loading…</td></tr>
+                    <tr>
+                      <td colSpan={5} className="p-10 text-center">
+                        <div className="flex flex-col items-center justify-center gap-2">
+                          <Loader2 size={24} className="text-gray-300 animate-spin" />
+                          <p className="text-sm text-gray-400">Loading...</p>
+                        </div>
+                      </td>
+                    </tr>
                   )}
                   {!loading && filteredEntries.length === 0 && (
-                    <tr><td colSpan={5} className="px-5 py-8 text-center text-gray-500">
-                      No entries yet. Click <span className="font-semibold text-green-700">Update Balance</span> to record the first one.
-                    </td></tr>
+                    <tr>
+                      <td colSpan={5} className="p-10 text-center">
+                        <div className="flex flex-col items-center justify-center gap-2">
+                          <Inbox size={32} className="text-gray-300" />
+                          <p className="text-sm font-medium text-gray-500">No entries yet.</p>
+                          <p className="text-xs text-gray-400">Click Update Balance to record the first one.</p>
+                        </div>
+                      </td>
+                    </tr>
                   )}
                   {!loading && filteredEntries.map((row) => {
                     const type = CHANGE_TYPES.find((t) => t.value === row.change_type);
                     const isCredit = Number(row.amount) >= 0;
                     return (
-                      <tr key={row.id} className="border-t border-gray-100 hover:bg-gray-50/60">
-                        <td className="px-5 py-3 text-gray-700 whitespace-nowrap">{formatWhen(row.entered_at)}</td>
-                        <td className="px-5 py-3">
+                      <tr key={row.id} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
+                        <td className="p-5 text-gray-700 whitespace-nowrap">{formatWhen(row.entered_at)}</td>
+                        <td className="p-5">
                           <span className={`inline-flex px-2 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wide ring-1 ${type?.tone || "text-gray-700 bg-gray-50 ring-gray-200"}`}>
                             {type?.label || row.change_type}
                           </span>
                         </td>
-                        <td className={`px-5 py-3 text-right tabular-nums font-bold ${isCredit ? "text-emerald-700" : "text-red-700"}`}>
+                        <td className={`p-5 text-right tabular-nums font-bold ${isCredit ? "text-emerald-700" : "text-red-700"}`}>
                           {isCredit ? "+" : ""}{PHP(row.amount)}
                         </td>
-                        <td className="px-5 py-3 text-gray-700">{row.note || <span className="text-gray-400">—</span>}</td>
-                        <td className="px-5 py-3 text-gray-500 font-mono text-xs">{row.reference_id ? `#${row.reference_id}` : "—"}</td>
+                        <td className="p-5 text-gray-700">{row.note || <span className="text-gray-400">—</span>}</td>
+                        <td className="p-5 text-gray-500 font-mono text-xs">{row.reference_id ? `#${row.reference_id}` : "—"}</td>
                       </tr>
                     );
                   })}

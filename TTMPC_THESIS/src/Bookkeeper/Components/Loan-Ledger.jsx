@@ -454,33 +454,36 @@ const LoanLedger = () => {
 
           <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-sm">
             <table className="min-w-full text-sm">
-              <thead className="bg-gray-50 text-gray-700">
-                <tr>
-                  <th className="px-4 py-3 text-left font-semibold">Date</th>
-                  <th className="px-4 py-3 text-left font-semibold">Reference No.</th>
-                  <th className="px-4 py-3 text-left font-semibold">Payment Amount</th>
-                  <th className="px-4 py-3 text-left font-semibold">Penalty</th>
-                  <th className="px-4 py-3 text-left font-semibold">Remaining After Payment</th>
-                  <th className="px-4 py-3 text-left font-semibold">Status</th>
+              <thead>
+                <tr className="bg-primary-deep text-[10px] uppercase tracking-wider text-white font-extrabold">
+                  <th className="p-5 font-bold">Date</th>
+                  <th className="p-5 font-bold">Reference No.</th>
+                  <th className="p-5 font-bold">Payment Amount</th>
+                  <th className="p-5 font-bold">Penalty</th>
+                  <th className="p-5 font-bold">Remaining After Payment</th>
+                  <th className="p-5 font-bold">Status</th>
                 </tr>
               </thead>
               <tbody>
                 {selectedLoan.payment_history.length === 0 && (
                   <tr>
-                    <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
-                      No ledger entries yet.
+                    <td colSpan={6} className="p-10 text-center">
+                      <div className="flex flex-col items-center justify-center gap-2">
+                        <FileText size={32} className="text-gray-300" />
+                        <p className="text-sm font-medium text-gray-500">No ledger entries yet.</p>
+                      </div>
                     </td>
                   </tr>
                 )}
 
                 {selectedLoan.payment_history.map((entry) => (
-                  <tr key={`${entry.reference_no || entry.payment_id}-${entry.date_paid}`} className="border-t border-gray-100">
-                    <td className="px-4 py-3 text-gray-700">{new Date(entry.date_paid).toLocaleDateString()}</td>
-                    <td className="px-4 py-3 text-gray-700">{entry.reference_no || entry.payment_id || "-"}</td>
-                    <td className="px-4 py-3 text-gray-700">{formatCurrency(entry.payment_amount || entry.amount_paid)}</td>
-                    <td className="px-4 py-3 text-gray-700">{formatCurrency(entry.penalty || entry.penalties)}</td>
-                    <td className="px-4 py-3 text-gray-700">{formatCurrency(entry.remaining_after)}</td>
-                    <td className="px-4 py-3">
+                  <tr key={`${entry.reference_no || entry.payment_id}-${entry.date_paid}`} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
+                    <td className="p-5 text-gray-700">{new Date(entry.date_paid).toLocaleDateString()}</td>
+                    <td className="p-5 text-gray-700">{entry.reference_no || entry.payment_id || "-"}</td>
+                    <td className="p-5 text-gray-700">{formatCurrency(entry.payment_amount || entry.amount_paid)}</td>
+                    <td className="p-5 text-gray-700">{formatCurrency(entry.penalty || entry.penalties)}</td>
+                    <td className="p-5 text-gray-700">{formatCurrency(entry.remaining_after)}</td>
+                    <td className="p-5">
                       <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${getStatusStyle(entry.status || entry.confirmation_status)}`}>
                         {entry.status || entry.confirmation_status}
                       </span>
@@ -497,59 +500,61 @@ const LoanLedger = () => {
                 <h2 className="text-sm font-semibold text-gray-700">Renewal History ({renewalHistory.length})</h2>
                 <p className="text-xs text-gray-500 mt-0.5">Previous loans of the same type by this member, newest first</p>
               </div>
-              <table className="min-w-full text-sm">
-                <thead className="bg-gray-50 text-gray-700">
-                  <tr>
-                    <th className="px-4 py-3 text-left font-semibold">Loan ID</th>
-                    <th className="px-4 py-3 text-left font-semibold">Loan Amount</th>
-                    <th className="px-4 py-3 text-left font-semibold">Term</th>
-                    <th className="px-4 py-3 text-left font-semibold">Amortization</th>
-                    <th className="px-4 py-3 text-left font-semibold">Last Payment</th>
-                    <th className="px-4 py-3 text-left font-semibold">Status</th>
-                    <th className="px-4 py-3 text-left font-semibold">Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {renewalHistory.map((r, idx) => {
-                    // Closing date = the date this loan was superseded.
-                    // Best signal: last payment date on this loan (payments stopped when renewed).
-                    // Fallback: successor's application_date (works for system loans).
-                    const lastPay = (r.payment_history || [])
-                      .map((p) => p.date_paid)
-                      .filter(Boolean)
-                      .sort()
-                      .at(-1) || null;
-                    const successor = idx === 0 ? selectedLoan : renewalHistory[idx - 1];
-                    const closingDateVal = lastPay || successor?.application_date || null;
-                    return (
-                    <tr key={r.loan_id} className="border-t border-gray-100 hover:bg-gray-50">
-                      <td className="px-4 py-3 font-mono font-bold text-green-700 cursor-pointer" onClick={() => navigate(`/bookkeeper-loan-ledger/${r.loan_id}`, { state: { loan: r, isRenewed: true, closingDate: closingDateVal } })}>{r.loan_id}</td>
-                      <td className="px-4 py-3 text-gray-700">{formatCurrency(r.loan_amount)}</td>
-                      <td className="px-4 py-3 text-gray-700">{r.term_months ?? "—"} mo</td>
-                      <td className="px-4 py-3 text-gray-700">{formatCurrency(r.amortization)}</td>
-                      <td className="px-4 py-3 text-gray-500 text-sm">
-                        {closingDateVal ? new Date(closingDateVal).toLocaleDateString("en-PH", { year: "numeric", month: "short", day: "numeric" }) : "—"}
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className="inline-flex rounded-full px-3 py-1 text-xs font-semibold bg-blue-100 text-blue-700">
-                          Renewed
-                        </span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <button
-                          type="button"
-                          disabled={downloadingId === r.loan_id}
-                          onClick={() => handleDownloadSOA(r)}
-                          className="inline-flex items-center gap-1 rounded-lg border border-green-300 bg-green-50 px-2.5 py-1.5 text-xs font-semibold text-green-800 hover:bg-green-100 transition-colors disabled:opacity-60 disabled:cursor-not-allowed whitespace-nowrap"
-                        >
-                          <Download size={12} />
-                          {downloadingId === r.loan_id ? "..." : "SOA"}
-                        </button>
-                      </td>
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-sm">
+                  <thead>
+                    <tr className="bg-primary-deep text-[10px] uppercase tracking-wider text-white font-extrabold">
+                      <th className="p-5 font-bold">Loan ID</th>
+                      <th className="p-5 font-bold">Loan Amount</th>
+                      <th className="p-5 font-bold">Term</th>
+                      <th className="p-5 font-bold">Amortization</th>
+                      <th className="p-5 font-bold">Last Payment</th>
+                      <th className="p-5 font-bold">Status</th>
+                      <th className="p-5 font-bold">Action</th>
                     </tr>
-                  ); })}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {renewalHistory.map((r, idx) => {
+                      // Closing date = the date this loan was superseded.
+                      // Best signal: last payment date on this loan (payments stopped when renewed).
+                      // Fallback: successor's application_date (works for system loans).
+                      const lastPay = (r.payment_history || [])
+                        .map((p) => p.date_paid)
+                        .filter(Boolean)
+                        .sort()
+                        .at(-1) || null;
+                      const successor = idx === 0 ? selectedLoan : renewalHistory[idx - 1];
+                      const closingDateVal = lastPay || successor?.application_date || null;
+                      return (
+                      <tr key={r.loan_id} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
+                        <td className="p-5 font-mono font-bold text-green-700 cursor-pointer" onClick={() => navigate(`/bookkeeper-loan-ledger/${r.loan_id}`, { state: { loan: r, isRenewed: true, closingDate: closingDateVal } })}>{r.loan_id}</td>
+                        <td className="p-5 text-gray-700">{formatCurrency(r.loan_amount)}</td>
+                        <td className="p-5 text-gray-700">{r.term_months ?? "—"} mo</td>
+                        <td className="p-5 text-gray-700">{formatCurrency(r.amortization)}</td>
+                        <td className="p-5 text-gray-500 text-sm">
+                          {closingDateVal ? new Date(closingDateVal).toLocaleDateString("en-PH", { year: "numeric", month: "short", day: "numeric" }) : "—"}
+                        </td>
+                        <td className="p-5">
+                          <span className="inline-flex rounded-full px-3 py-1 text-xs font-semibold bg-blue-100 text-blue-700">
+                            Renewed
+                          </span>
+                        </td>
+                        <td className="p-5">
+                          <button
+                            type="button"
+                            disabled={downloadingId === r.loan_id}
+                            onClick={() => handleDownloadSOA(r)}
+                            className="inline-flex items-center gap-1 rounded-lg border border-green-300 bg-green-50 px-2.5 py-1.5 text-xs font-semibold text-green-800 hover:bg-green-100 transition-colors disabled:opacity-60 disabled:cursor-not-allowed whitespace-nowrap"
+                          >
+                            <Download size={12} />
+                            {downloadingId === r.loan_id ? "..." : "SOA"}
+                          </button>
+                        </td>
+                      </tr>
+                    ); })}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
         </main>

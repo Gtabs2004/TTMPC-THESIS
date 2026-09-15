@@ -123,20 +123,27 @@ const BOD_Manage_Member = () => {
             {!loading ? (
               <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr className="bg-green-700 text-[10px] uppercase tracking-wider text-white font-extrabold">
+                  <tr className="bg-primary-deep text-[10px] uppercase tracking-wider text-white font-extrabold">
                     <th className="p-5 font-bold">Member ID</th>
-                    <th className="p-5 font-bold">Name</th>
-                    <th className="p-5 font-bold">Email</th>
-                    <th className="p-5 font-bold">Contact</th>
-                    <th className="p-5 font-bold">Address</th>
-                    <th className="p-5 font-bold">Active Loans</th>
-                    <th className="p-5 font-bold">Paid Loans</th>
-                    <th className="p-5 font-bold">Action</th>
+                    <th className="p-5 font-bold text-center">Name</th>
+                    <th className="p-5 font-bold text-center">Email</th>
+                    <th className="p-5 font-bold text-center">Contact</th>
+                    <th className="p-5 font-bold text-center">Address</th>
+                    <th className="p-5 font-bold text-center">Active Loans</th>
+                    <th className="p-5 font-bold text-center">Paid Loans</th>
+                    <th className="p-5 font-bold text-center">Action</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filtered.length === 0 ? (
-                    <tr><td colSpan={8} className="p-5 text-sm text-center text-gray-500">No personal datasheet records found.</td></tr>
+                    <tr>
+                      <td colSpan={8} className="p-10 text-center">
+                        <div className="flex flex-col items-center justify-center gap-2">
+                          <Users size={32} className="text-gray-300" />
+                          <p className="text-sm font-medium text-gray-500">No personal datasheet records found.</p>
+                        </div>
+                      </td>
+                    </tr>
                   ) : (
                     paginatedRows.map((r) => {
                       const summary = loanSummaryByMemberId[String(r.member_id || "").trim()] || { paidCount: 0, activeCount: 0 };

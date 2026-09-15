@@ -479,7 +479,7 @@ const Member_Savings = () => {
             <div className="hidden md:block overflow-x-auto">
               <table className="w-full min-w-[640px] text-left border-collapse">
                 <thead>
-                  <tr className="bg-green-700 text-[10px] uppercase tracking-wider text-white font-extrabold">
+                  <tr className="bg-primary-deep text-[10px] uppercase tracking-wider text-white font-extrabold">
                     <th className="p-5 font-bold">Date</th>
                     <th className="p-5 font-bold">Transaction Type</th>
                     <th className="p-5 font-bold text-right">Amount</th>

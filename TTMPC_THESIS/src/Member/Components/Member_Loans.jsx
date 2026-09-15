@@ -515,7 +515,7 @@ const Member_Loans = () => {
             <div className="hidden md:block overflow-x-auto">
             <table className="w-full min-w-[900px] text-left border-collapse">
               <thead>
-                <tr className="bg-green-700 text-[10px] uppercase tracking-wider text-white font-extrabold">
+                <tr className="bg-primary-deep text-[10px] uppercase tracking-wider text-white font-extrabold">
                   <th className="p-5 font-bold">Loan Type</th>
                   <th className="p-5 font-bold">Original Amount</th>
                   <th className="p-5 font-bold">Remaining Balance</th>

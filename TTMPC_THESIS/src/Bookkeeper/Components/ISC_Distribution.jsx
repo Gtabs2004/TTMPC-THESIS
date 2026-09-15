@@ -611,8 +611,8 @@ const Bookkeeper_ISC = () => {
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr className="bg-green-700 text-[10px] uppercase tracking-wider text-white font-extrabold">
-                    <th className="p-4 font-bold text-left">
+                  <tr className="bg-primary-deep text-[10px] uppercase tracking-wider text-white font-extrabold">
+                    <th className="p-5 font-bold text-left">
                       <button
                         type="button"
                         onClick={() => toggleSort("name")}
@@ -621,7 +621,7 @@ const Bookkeeper_ISC = () => {
                         Member {renderSortIcon("name")}
                       </button>
                     </th>
-                    <th className="p-4 font-bold text-right">
+                    <th className="p-5 font-bold text-right">
                       <button
                         type="button"
                         onClick={() => toggleSort("opening")}
@@ -630,7 +630,7 @@ const Bookkeeper_ISC = () => {
                        Share Capital {renderSortIcon("opening")}
                       </button>
                     </th>
-                    <th className="p-4 font-bold text-right">
+                    <th className="p-5 font-bold text-right">
                       <button
                         type="button"
                         onClick={() => toggleSort("balance")}
@@ -639,7 +639,7 @@ const Bookkeeper_ISC = () => {
                         {MONTH_LABELS[viewMonth]} Balance {renderSortIcon("balance")}
                       </button>
                     </th>
-                    <th className="p-4 font-bold text-right">
+                    <th className="p-5 font-bold text-right">
                       <button
                         type="button"
                         onClick={() => toggleSort("deposit")}
@@ -648,7 +648,7 @@ const Bookkeeper_ISC = () => {
                         Total Deposit ({MONTH_LABELS[viewMonth]}) {renderSortIcon("deposit")}
                       </button>
                     </th>
-                    <th className="p-4 font-bold text-right">
+                    <th className="p-5 font-bold text-right">
                       <button
                         type="button"
                         onClick={() => toggleSort("average")}
@@ -657,7 +657,7 @@ const Bookkeeper_ISC = () => {
                         Average Share Capital {renderSortIcon("average")}
                       </button>
                     </th>
-                    <th className="p-4 font-bold text-right">
+                    <th className="p-5 font-bold text-right">
                       <button
                         type="button"
                         onClick={() => toggleSort("rate")}
@@ -666,7 +666,7 @@ const Bookkeeper_ISC = () => {
                         ISC Rate {renderSortIcon("rate")}
                       </button>
                     </th>
-                    <th className="p-4 font-bold text-right">
+                    <th className="p-5 font-bold text-right">
                       <button
                         type="button"
                         onClick={() => toggleSort("payout")}
@@ -681,20 +681,18 @@ const Bookkeeper_ISC = () => {
                   {status === "loading" ? (
                     <tr>
                       <td colSpan={7} className="p-10 text-center">
-                        <div className="flex flex-col items-center gap-2">
-                          <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
-                          <p className="text-xs text-gray-500">Calculating Interest on Share Capital...</p>
+                        <div className="flex flex-col items-center justify-center gap-2">
+                          <Loader2 size={24} className="text-gray-300 animate-spin" />
+                          <p className="text-sm text-gray-400">Calculating Interest on Share Capital...</p>
                         </div>
                       </td>
                     </tr>
                   ) : paginated.length === 0 ? (
                     <tr>
                       <td colSpan={7} className="p-10 text-center">
-                        <div className="flex flex-col items-center gap-2">
-                          <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center">
-                            <Users className="w-5 h-5 text-gray-400" />
-                          </div>
-                          <p className="text-sm font-semibold text-gray-700">
+                        <div className="flex flex-col items-center justify-center gap-2">
+                          <Users size={32} className="text-gray-300" />
+                          <p className="text-sm font-medium text-gray-500">
                             {rows.length === 0 ? "No eligible members found for this period." : "No members matched your search."}
                           </p>
                           <p className="text-xs text-gray-400">
@@ -706,26 +704,26 @@ const Bookkeeper_ISC = () => {
                   ) : (
                     paginated.map((row) => (
                       <tr key={row.member_id} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
-                        <td className="p-4 text-sm">
+                        <td className="p-5 text-sm">
                           <p className="text-gray-900 font-medium">{row.member_name}</p>
                           <p className="text-[10px] text-gray-500 mt-0.5">{row.membership_id}</p>
                         </td>
-                        <td className="p-4 text-sm text-right text-gray-700 tabular-nums">
+                        <td className="p-5 text-sm text-right text-gray-700 tabular-nums">
                           {formatCurrency(row.opening_balance)}
                         </td>
-                        <td className="p-4 text-sm text-right text-gray-700 tabular-nums">
+                        <td className="p-5 text-sm text-right text-gray-700 tabular-nums">
                           {formatCurrency(row.month_end_balances?.[viewMonth])}
                         </td>
-                        <td className="p-4 text-sm text-right text-gray-700 tabular-nums">
+                        <td className="p-5 text-sm text-right text-gray-700 tabular-nums">
                           {formatCurrency(monthlyDeposit(row))}
                         </td>
-                        <td className="p-4 text-sm text-right text-amber-800 tabular-nums bg-amber-50/70">
+                        <td className="p-5 text-sm text-right text-amber-800 tabular-nums bg-amber-50/70">
                           {formatCurrency(row.average_share_capital)}
                         </td>
-                        <td className="p-4 text-sm text-right text-purple-800 tabular-nums bg-purple-50/70">
+                        <td className="p-5 text-sm text-right text-purple-800 tabular-nums bg-purple-50/70">
                           {row.rate === null || row.rate === undefined ? "—" : `${Number(row.rate).toFixed(2)}%`}
                         </td>
-                        <td className="p-4 text-sm text-right font-semibold text-green-800 tabular-nums bg-green-50/70">
+                        <td className="p-5 text-sm text-right font-semibold text-green-800 tabular-nums bg-green-50/70">
                           <span className="inline-flex items-center gap-1.5">
                             {formatCurrency(row.interest_amount)}
                             {row.adjusted && (
@@ -742,14 +740,14 @@ const Bookkeeper_ISC = () => {
                 </tbody>
                 {paginated.length > 0 && (
                   <tfoot>
-                    <tr className="bg-gray-100 font-semibold border-t-2 border-gray-300">
-                      <td className="p-4 text-gray-900">Total ({rows.length} members)</td>
-                      <td className="p-4 text-right text-gray-900 tabular-nums">{formatCurrency(totals.opening)}</td>
-                      <td className="p-4 text-right text-gray-900 tabular-nums">{formatCurrency(totals.balance)}</td>
-                      <td className="p-4 text-right text-gray-900 tabular-nums">{formatCurrency(totals.deposit)}</td>
-                      <td className="p-4 text-right text-amber-900 tabular-nums bg-amber-200 ring-1 ring-inset ring-amber-400 font-extrabold">{formatCurrency(totals.average)}</td>
-                      <td className="p-4 text-right text-purple-900/60 bg-purple-50/70">—</td>
-                      <td className="p-4 text-right text-green-900 tabular-nums bg-green-100">{formatCurrency(totals.payout)}</td>
+                    <tr className="bg-gray-50 border-t-2 border-gray-200 font-semibold">
+                      <td className="p-5 text-gray-900">Total ({rows.length} members)</td>
+                      <td className="p-5 text-right text-gray-900 tabular-nums">{formatCurrency(totals.opening)}</td>
+                      <td className="p-5 text-right text-gray-900 tabular-nums">{formatCurrency(totals.balance)}</td>
+                      <td className="p-5 text-right text-gray-900 tabular-nums">{formatCurrency(totals.deposit)}</td>
+                      <td className="p-5 text-right text-amber-900 tabular-nums bg-amber-200 ring-1 ring-inset ring-amber-400 font-extrabold">{formatCurrency(totals.average)}</td>
+                      <td className="p-5 text-right text-purple-900/60 bg-purple-50/70">—</td>
+                      <td className="p-5 text-right text-green-900 tabular-nums bg-green-100">{formatCurrency(totals.payout)}</td>
                     </tr>
                   </tfoot>
                 )}

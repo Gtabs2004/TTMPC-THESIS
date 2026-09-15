@@ -6,6 +6,7 @@ import {
   AlertCircle,
   Banknote,
   Clock,
+  Loader2,
   RefreshCw,
   Search,
   Users,
@@ -228,14 +229,20 @@ const Bookkeeper_CBU = () => {
                 <tbody>
                   {status === "loading" ? (
                     <tr>
-                      <td colSpan={3} className="p-5 text-center text-sm text-gray-500">
-                        Loading members...
+                      <td colSpan={3} className="p-10 text-center">
+                        <div className="flex flex-col items-center justify-center gap-2">
+                          <Loader2 size={24} className="text-gray-300 animate-spin" />
+                          <p className="text-sm text-gray-400">Loading...</p>
+                        </div>
                       </td>
                     </tr>
                   ) : paginatedMembers.length === 0 ? (
                     <tr>
-                      <td colSpan={3} className="p-5 text-center text-sm text-gray-500 font-medium">
-                        No member accounts matched your search.
+                      <td colSpan={3} className="p-10 text-center">
+                        <div className="flex flex-col items-center justify-center gap-2">
+                          <AlertCircle size={32} className="text-gray-300" />
+                          <p className="text-sm font-medium text-gray-500">No member accounts matched your search.</p>
+                        </div>
                       </td>
                     </tr>
                   ) : (
@@ -279,14 +286,20 @@ const Bookkeeper_CBU = () => {
                 <tbody>
                   {status === "loading" ? (
                     <tr>
-                      <td colSpan={5} className="p-5 text-center text-sm text-gray-500">
-                        Loading transactions...
+                      <td colSpan={5} className="p-10 text-center">
+                        <div className="flex flex-col items-center justify-center gap-2">
+                          <Loader2 size={24} className="text-gray-300 animate-spin" />
+                          <p className="text-sm text-gray-400">Loading...</p>
+                        </div>
                       </td>
                     </tr>
                   ) : paginatedTx.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="p-5 text-center text-sm text-gray-500 font-medium">
-                        No CBU transactions recorded yet.
+                      <td colSpan={5} className="p-10 text-center">
+                        <div className="flex flex-col items-center justify-center gap-2">
+                          <AlertCircle size={32} className="text-gray-300" />
+                          <p className="text-sm font-medium text-gray-500">No CBU transactions recorded yet.</p>
+                        </div>
                       </td>
                     </tr>
                   ) : (

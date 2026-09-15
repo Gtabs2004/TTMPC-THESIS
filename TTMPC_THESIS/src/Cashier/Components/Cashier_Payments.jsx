@@ -733,8 +733,8 @@ const Cashier_Payments = () => {
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr className="bg-green-700 text-[10px] uppercase tracking-wider text-white font-extrabold">
-                    <th className="px-3 py-3 font-bold whitespace-nowrap">
+                  <tr className="bg-primary-deep text-[10px] uppercase tracking-wider text-white font-extrabold">
+                    <th className="p-5 font-bold whitespace-nowrap">
                       <button
                         onClick={() => handleSort("member_name")}
                         className="flex items-center gap-2 font-semibold hover:text-green-100 transition group"
@@ -743,7 +743,7 @@ const Cashier_Payments = () => {
                         <ArrowUpDown size={14} className="opacity-0 group-hover:opacity-100 transition" />
                       </button>
                     </th>
-                    <th className="px-3 py-3 font-bold whitespace-nowrap">
+                    <th className="p-5 font-bold whitespace-nowrap">
                       <button
                         onClick={() => handleSort("loan_amount")}
                         className="flex items-center gap-2 font-semibold hover:text-green-100 transition group"
@@ -752,8 +752,8 @@ const Cashier_Payments = () => {
                         <ArrowUpDown size={14} className="opacity-0 group-hover:opacity-100 transition" />
                       </button>
                     </th>
-                   
-                    <th className="px-3 py-3 font-bold whitespace-nowrap">
+
+                    <th className="p-5 font-bold whitespace-nowrap">
                       <button
                         onClick={() => handleSort("term_months")}
                         className="flex items-center gap-2 font-semibold hover:text-green-100 transition group"
@@ -762,16 +762,16 @@ const Cashier_Payments = () => {
                         <ArrowUpDown size={14} className="opacity-0 group-hover:opacity-100 transition" />
                       </button>
                     </th>
-                    <th className="px-3 py-3 font-bold whitespace-nowrap">
+                    <th className="p-5 font-bold whitespace-nowrap">
                       Amortization
                     </th>
-                  
-                    <th className="px-3 py-3 font-bold whitespace-nowrap">
+
+                    <th className="p-5 font-bold whitespace-nowrap">
                       Delay Status
                     </th>
-                   
-                   
-                    <th className="px-3 py-3 font-bold whitespace-nowrap">
+
+
+                    <th className="p-5 font-bold whitespace-nowrap">
                       <button
                         onClick={() => handleSort("remaining_balance")}
                         className="flex items-center gap-2 font-semibold hover:text-green-100 transition group"
@@ -780,7 +780,7 @@ const Cashier_Payments = () => {
                         <ArrowUpDown size={14} className="opacity-0 group-hover:opacity-100 transition" />
                       </button>
                     </th>
-                    <th className="px-3 py-3 font-bold whitespace-nowrap">
+                    <th className="p-5 font-bold whitespace-nowrap">
                       <button
                         onClick={() => handleSort("loan_status")}
                         className="flex items-center gap-2 font-semibold hover:text-green-100 transition group"
@@ -789,7 +789,7 @@ const Cashier_Payments = () => {
                         <ArrowUpDown size={14} className="opacity-0 group-hover:opacity-100 transition" />
                       </button>
                     </th>
-                    <th className="px-3 py-3 font-bold whitespace-nowrap">
+                    <th className="p-5 font-bold whitespace-nowrap">
                       Action
                     </th>
                   </tr>
@@ -797,10 +797,10 @@ const Cashier_Payments = () => {
                 <tbody>
                   {paginatedLoans.length === 0 ? (
                     <tr>
-                      <td colSpan={13} className="px-3 py-6 text-center">
-                        <div className="flex flex-col items-center gap-2">
+                      <td colSpan={13} className="p-10 text-center">
+                        <div className="flex flex-col items-center justify-center gap-2">
                           <AlertCircle size={32} className="text-gray-300" />
-                          <p className="text-sm text-gray-500">
+                          <p className="text-sm font-medium text-gray-500">
                             No loans found matching your criteria
                           </p>
                         </div>
@@ -966,29 +966,29 @@ const Cashier_Payments = () => {
                       return (
                         <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
                           <table className="w-full text-sm">
-                            <thead className="bg-gray-50">
-                              <tr className="text-left text-xs uppercase text-gray-500">
-                                <th className="px-4 py-2 font-medium">Date</th>
-                                <th className="px-4 py-2 font-medium">Reference #</th>
-                                <th className="px-4 py-2 font-medium text-right">Amount</th>
-                                <th className="px-4 py-2 font-medium text-right">Penalty</th>
-                                <th className="px-4 py-2 font-medium">Status</th>
+                            <thead>
+                              <tr className="bg-primary-deep text-[10px] uppercase tracking-wider text-white font-extrabold">
+                                <th className="p-5 font-bold">Date</th>
+                                <th className="p-5 font-bold">Reference #</th>
+                                <th className="p-5 font-bold text-right">Amount</th>
+                                <th className="p-5 font-bold text-right">Penalty</th>
+                                <th className="p-5 font-bold">Status</th>
                               </tr>
                             </thead>
                             <tbody>
                               {loanPayments.map((p) => (
-                                <tr key={p.payment_id} className="border-t border-gray-100 hover:bg-gray-50/50 transition-colors">
-                                  <td className="px-4 py-2 text-gray-700 tabular-nums whitespace-nowrap">
+                                <tr key={p.payment_id} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
+                                  <td className="p-5 text-gray-700 tabular-nums whitespace-nowrap">
                                     {p.payment_date ? new Date(p.payment_date).toLocaleDateString() : "—"}
                                   </td>
-                                  <td className="px-4 py-2 text-gray-700 whitespace-nowrap">{p.payment_id || "—"}</td>
-                                  <td className="px-4 py-2 text-gray-900 font-medium tabular-nums text-right whitespace-nowrap">
+                                  <td className="p-5 text-gray-700 whitespace-nowrap">{p.payment_id || "—"}</td>
+                                  <td className="p-5 text-gray-900 font-medium tabular-nums text-right whitespace-nowrap">
                                     {formatCurrency(p.amount_paid)}
                                   </td>
-                                  <td className="px-4 py-2 text-gray-700 tabular-nums text-right whitespace-nowrap">
+                                  <td className="p-5 text-gray-700 tabular-nums text-right whitespace-nowrap">
                                     {formatCurrency(p.penalties || 0)}
                                   </td>
-                                  <td className="px-4 py-2 whitespace-nowrap">
+                                  <td className="p-5 whitespace-nowrap">
                                     {(() => {
                                       const st = String(p.confirmation_status || "").toLowerCase();
                                       const cls =

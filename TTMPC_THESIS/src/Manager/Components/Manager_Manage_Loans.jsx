@@ -382,97 +382,97 @@ const Manager_Manage_Loans = () => {
               </div>
             )}
 
-            <table className="w-full text-left border-collapse table-fixed">
-              <colgroup>
-                <col style={{ width: "16%" }} />
-                <col style={{ width: "14%" }} />
-                <col style={{ width: "10%" }} />
-                <col style={{ width: "16%" }} />
-                <col style={{ width: "12%" }} />
-                <col style={{ width: "12%" }} />
-                <col style={{ width: "12%" }} />
-                <col style={{ width: "8%" }} />
-              </colgroup>
-              <thead>
-                <tr className="bg-green-700 text-xs uppercase tracking-wider text-white font-extrabold">
-                  <th className="px-3 py-4 font-bold">Loan ID</th>
-                  <th className="px-3 py-4 font-bold">Member Name</th>
-                  <th className="px-3 py-4 font-bold">Loan Type</th>
-                  <th className="px-3 py-4 font-bold text-center">Loan Amt</th>
-                  <th className="px-3 py-4 font-bold text-left">Amortization</th>
-                  <th className="px-3 py-4 font-bold text-center">Remaining</th>
-                  <th className="px-3 py-4 font-bold">Due Date</th>
-                  <th className="px-3 py-4 font-bold text-center">Details</th>
-                </tr>
-              </thead>
-              <tbody>
-                {groupedLoans.length === 0 && (
-                  <tr>
-                    <td colSpan={8} className="p-5 text-center">
-                      <div className="flex flex-col items-center gap-2">
-                        <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center">
-                          <Eye size={24} className="text-gray-300" />
-                        </div>
-                        <p className="text-gray-500 font-medium">No loans found</p>
-                        <p className="text-gray-400 text-sm">Try adjusting your filters</p>
-                      </div>
-                    </td>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse table-fixed">
+                <colgroup>
+                  <col style={{ width: "16%" }} />
+                  <col style={{ width: "14%" }} />
+                  <col style={{ width: "10%" }} />
+                  <col style={{ width: "16%" }} />
+                  <col style={{ width: "12%" }} />
+                  <col style={{ width: "12%" }} />
+                  <col style={{ width: "12%" }} />
+                  <col style={{ width: "8%" }} />
+                </colgroup>
+                <thead>
+                  <tr className="bg-primary-deep text-[10px] uppercase tracking-wider text-white font-extrabold">
+                    <th className="p-5 font-bold">Loan ID</th>
+                    <th className="p-5 font-bold">Member Name</th>
+                    <th className="p-5 font-bold">Loan Type</th>
+                    <th className="p-5 font-bold text-center">Loan Amt</th>
+                    <th className="p-5 font-bold">Amortization</th>
+                    <th className="p-5 font-bold text-center">Remaining</th>
+                    <th className="p-5 font-bold">Due Date</th>
+                    <th className="p-5 font-bold text-center">Details</th>
                   </tr>
-                )}
+                </thead>
+                <tbody>
+                  {groupedLoans.length === 0 && (
+                    <tr>
+                      <td colSpan={8} className="p-10 text-center">
+                        <div className="flex flex-col items-center justify-center gap-2">
+                          <Eye size={32} className="text-gray-300" />
+                          <p className="text-sm font-medium text-gray-500">No loans found</p>
+                          <p className="text-xs text-gray-400">Try adjusting your filters</p>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
 
-                {paginatedGroups.map(({ parent, renewals }) => {
-                  return (
-                    <React.Fragment key={parent.loan_id}>
-                      <tr className="border-b border-gray-100 transition-colors hover:bg-green-50/40">
-                        <td className="px-3 py-4 text-sm font-mono font-bold text-green-700 align-middle">
-                          <div className="flex flex-col items-start gap-1">
-                            <span className="truncate">{parent.loan_id}</span>
-                          </div>
-                        </td>
-                        <td className="px-3 py-4 text-sm text-gray-800 font-semibold align-top">
-                          {parent.member_name}
-                        </td>
-                        <td className="px-3 py-4 align-top">
-                          <span className={`inline-block whitespace-nowrap px-2 py-0.5 rounded-full text-[11px] font-semibold ${getLoanTypeStyle(parent.loan_type_code)}`}>
-                            {parent.loan_type}
-                          </span>
-                        </td>
-                        <td className="px-3 py-4 text-sm text-gray-800 font-semibold text-center whitespace-nowrap align-top">
-                          {formatCurrency(parent.loan_amount)}
-                        </td>
-                        <td className="px-3 py-4 text-sm text-gray-700 text-left font-medium whitespace-nowrap align-top">
-                          {formatCurrency(parent.amortization)}
-                        </td>
-                        <td className="px-3 py-4 text-sm text-center   font-bold whitespace-nowrap align-top">
-                          <span className={parent.remaining_balance > 0 ? "text-amber-600" : "text-green-600"}>
-                            {formatCurrency(parent.remaining_balance)}
-                          </span>
-                        </td>
-                        <td className="px-3 py-4 text-sm font-medium whitespace-nowrap align-top">
-                          {parent.due_date
-                            ? <span className="text-gray-700">{formatDate(parent.due_date)}</span>
-                            : <span className="text-xs text-gray-400 italic capitalize">{parent.source_loan_status || "No schedule"}</span>
-                          }
-                        </td>
-                        <td className="px-3 py-4 text-center align-top">
-                          <button
-                            type="button"
-                            onClick={() =>
-                              navigate(`/manager-loan-ledger/${parent.loan_id}`, {
-                                state: { loan: parent, readOnly: true, renewals },
-                              })
+                  {paginatedGroups.map(({ parent, renewals }) => {
+                    return (
+                      <React.Fragment key={parent.loan_id}>
+                        <tr className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
+                          <td className="p-5 text-sm font-mono font-bold text-green-700 align-middle">
+                            <div className="flex flex-col items-start gap-1">
+                              <span className="truncate">{parent.loan_id}</span>
+                            </div>
+                          </td>
+                          <td className="p-5 text-sm text-gray-800 font-semibold align-top">
+                            {parent.member_name}
+                          </td>
+                          <td className="p-5 align-top">
+                            <span className={`inline-block whitespace-nowrap px-2 py-0.5 rounded-full text-[11px] font-semibold ${getLoanTypeStyle(parent.loan_type_code)}`}>
+                              {parent.loan_type}
+                            </span>
+                          </td>
+                          <td className="p-5 text-sm text-gray-800 font-semibold text-center whitespace-nowrap align-top">
+                            {formatCurrency(parent.loan_amount)}
+                          </td>
+                          <td className="p-5 text-sm text-gray-700 text-left font-medium whitespace-nowrap align-top">
+                            {formatCurrency(parent.amortization)}
+                          </td>
+                          <td className="p-5 text-sm text-center font-bold whitespace-nowrap align-top">
+                            <span className={parent.remaining_balance > 0 ? "text-amber-600" : "text-green-600"}>
+                              {formatCurrency(parent.remaining_balance)}
+                            </span>
+                          </td>
+                          <td className="p-5 text-sm font-medium whitespace-nowrap align-top">
+                            {parent.due_date
+                              ? <span className="text-gray-700">{formatDate(parent.due_date)}</span>
+                              : <span className="text-xs text-gray-400 italic capitalize">{parent.source_loan_status || "No schedule"}</span>
                             }
-                            className="inline-flex items-center gap-1 rounded-lg bg-gray-100 px-2 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-200 border border-gray-200 transition-colors"
-                          >
-                            <Eye size={12} /> View
-                          </button>
-                        </td>
-                      </tr>
-                    </React.Fragment>
-                  );
-                })}
-              </tbody>
-            </table>
+                          </td>
+                          <td className="p-5 text-center align-top">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                navigate(`/manager-loan-ledger/${parent.loan_id}`, {
+                                  state: { loan: parent, readOnly: true, renewals },
+                                })
+                              }
+                              className="inline-flex items-center gap-1 rounded-lg bg-gray-100 px-2 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-200 border border-gray-200 transition-colors"
+                            >
+                              <Eye size={12} /> View
+                            </button>
+                          </td>
+                        </tr>
+                      </React.Fragment>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
 
           {groupedLoans.length > ITEMS_PER_PAGE && (

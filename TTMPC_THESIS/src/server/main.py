@@ -12931,21 +12931,35 @@ def account_onboarding_profile(
     if not membership_id:
         raise HTTPException(status_code=400, detail="Your account has no membership id on file.")
 
+    # Only require whichever fields the gate actually asked for. The gate's
+    # form (ProfileStep) only renders inputs for fields still missing per
+    # security-status, so a member missing just one of the two never has a
+    # chance to fill in the other -- requiring both here unconditionally
+    # rejected every such submission with an error for a field the form
+    # never showed them.
+    still_missing = set(_profile_missing_fields(membership_id))
+
     contact = str(payload.contact_number or "").strip()
     address = str(payload.permanent_address or "").strip()
-    if not contact:
+    if "contact_number" in still_missing and not contact:
         raise HTTPException(status_code=400, detail="Mobile number is required.")
-    if not address:
+    if "permanent_address" in still_missing and not address:
         raise HTTPException(status_code=400, detail="Permanent address is required.")
 
-    # personal_data_sheet.contact_number is bigint, so store digits only. This
-    # also normalises the 09xxxxxxxxx / +639xxxxxxxxx / spaced variants members
-    # type into one comparable value.
-    digits = _re.sub(r"\D", "", contact)
-    if not digits:
-        raise HTTPException(status_code=400, detail="Enter a valid mobile number.")
+    updates = {}
+    if contact:
+        # personal_data_sheet.contact_number is bigint, so store digits only.
+        # This also normalises the 09xxxxxxxxx / +639xxxxxxxxx / spaced
+        # variants members type into one comparable value.
+        digits = _re.sub(r"\D", "", contact)
+        if not digits:
+            raise HTTPException(status_code=400, detail="Enter a valid mobile number.")
+        updates["contact_number"] = int(digits)
+    if address:
+        updates["permanent_address"] = address
 
-    updates = {"contact_number": int(digits), "permanent_address": address}
+    if not updates:
+        raise HTTPException(status_code=400, detail="Nothing to update.")
 
     try:
         existing = (

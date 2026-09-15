@@ -208,13 +208,13 @@ const MIGSDetails = () => {
 
                     <div className="overflow-x-auto">
                       <table className="w-full text-sm">
-                        <thead className="bg-gray-50 border-b border-gray-200">
-                          <tr>
-                            <th className="px-6 py-3 text-left font-semibold text-gray-700">Criterion</th>
-                            <th className="px-6 py-3 text-left font-semibold text-gray-700">Value</th>
-                            <th className="px-6 py-3 text-center font-semibold text-gray-700">Score</th>
-                            <th className="px-6 py-3 text-center font-semibold text-gray-700">Progress</th>
-                            <th className="px-6 py-3 text-center font-semibold text-gray-700"></th>
+                        <thead>
+                          <tr className="bg-primary-deep text-[10px] uppercase tracking-wider text-white font-extrabold">
+                            <th className="p-5 font-bold">Criterion</th>
+                            <th className="p-5 font-bold">Value</th>
+                            <th className="p-5 font-bold text-center">Score</th>
+                            <th className="p-5 font-bold text-center">Progress</th>
+                            <th className="p-5 font-bold text-center"></th>
                           </tr>
                         </thead>
                         <tbody>
@@ -233,10 +233,10 @@ const MIGSDetails = () => {
                                   : item.value.toLocaleString()
                                 : item.value;
                             return (
-                              <tr key={index} className="border-t border-gray-100 hover:bg-gray-50 transition-colors">
-                                <td className="px-6 py-4 font-medium text-gray-800">{item.criterion}</td>
-                                <td className="px-6 py-4 text-gray-700">{formattedValue}</td>
-                                <td className="px-6 py-4 text-center">
+                              <tr key={index} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
+                                <td className="p-5 font-medium text-gray-800">{item.criterion}</td>
+                                <td className="p-5 text-gray-700">{formattedValue}</td>
+                                <td className="p-5 text-center">
                                   {item.score == null ? (
                                     <span className="text-gray-400 italic text-xs">— / {item.max_score}</span>
                                   ) : (
@@ -245,7 +245,7 @@ const MIGSDetails = () => {
                                     </span>
                                   )}
                                 </td>
-                                <td className="px-6 py-4">
+                                <td className="p-5">
                                   {item.progress == null ? (
                                     <span className="text-gray-400 italic text-xs">Pending</span>
                                   ) : (
@@ -262,7 +262,7 @@ const MIGSDetails = () => {
                                     </div>
                                   )}
                                 </td>
-                                <td className="px-6 py-4 text-center">
+                                <td className="p-5 text-center">
                                   <button className="p-1.5 rounded-lg hover:bg-gray-200 transition-colors" disabled title="Override coming soon">
                                     <Edit2 className="w-4 h-4 text-gray-400" />
                                   </button>

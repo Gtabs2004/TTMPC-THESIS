@@ -992,23 +992,23 @@ const Treasurer_ApprovalDetails = () => {
                     <table className="w-full text-xs">
                       <thead>
                         <tr className="text-gray-500 uppercase tracking-wider text-[10px] border-b border-gray-200">
-                          <th className="py-2 px-2 text-left font-semibold">Month</th>
-                          <th className="py-2 px-2 text-right font-semibold">Starting Balance</th>
-                          <th className="py-2 px-2 text-right font-semibold">Principal</th>
-                          <th className="py-2 px-2 text-right font-semibold">Interest</th>
-                          <th className="py-2 px-2 text-right font-semibold">Total Payment</th>
-                          <th className="py-2 px-2 text-right font-semibold">Remaining Balance</th>
+                          <th className="py-2 px-3 text-left font-semibold">Month</th>
+                          <th className="py-2 px-3 text-right font-semibold">Starting Balance</th>
+                          <th className="py-2 px-3 text-right font-semibold">Principal</th>
+                          <th className="py-2 px-3 text-right font-semibold">Interest</th>
+                          <th className="py-2 px-3 text-right font-semibold">Total Payment</th>
+                          <th className="py-2 px-3 text-right font-semibold">Remaining Balance</th>
                         </tr>
                       </thead>
                       <tbody>
                         {loanDetails.computation.emergencySchedule.map((row) => (
-                          <tr key={row.month} className="border-b border-gray-100 last:border-b-0">
-                            <td className="py-2 px-2 font-semibold text-gray-700">{row.month}</td>
-                            <td className="py-2 px-2 text-right text-member-green">{formatCurrency(row.startingBalance)}</td>
-                            <td className="py-2 px-2 text-right text-gray-800">{formatCurrency(row.principal)}</td>
-                            <td className="py-2 px-2 text-right text-red-600">{formatCurrency(row.interest)}</td>
-                            <td className="py-2 px-2 text-right font-bold text-gray-900">{formatCurrency(row.totalPayment)}</td>
-                            <td className="py-2 px-2 text-right text-member-green">{formatCurrency(row.remainingBalance)}</td>
+                          <tr key={row.month} className="border-b border-gray-100 hover:bg-gray-50/50">
+                            <td className="py-2 px-3 font-semibold text-gray-700">{row.month}</td>
+                            <td className="py-2 px-3 text-right text-member-green">{formatCurrency(row.startingBalance)}</td>
+                            <td className="py-2 px-3 text-right text-gray-800">{formatCurrency(row.principal)}</td>
+                            <td className="py-2 px-3 text-right text-red-600">{formatCurrency(row.interest)}</td>
+                            <td className="py-2 px-3 text-right font-bold text-gray-900">{formatCurrency(row.totalPayment)}</td>
+                            <td className="py-2 px-3 text-right text-member-green">{formatCurrency(row.remainingBalance)}</td>
                           </tr>
                         ))}
                       </tbody>

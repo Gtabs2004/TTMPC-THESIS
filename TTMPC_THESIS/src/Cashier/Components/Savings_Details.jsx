@@ -450,7 +450,7 @@ const Savings_Details = () => {
                 <div className="overflow-x-auto">
                   <table className="w-full text-left border-collapse">
                     <thead>
-                      <tr className="bg-green-700 text-[10px] uppercase tracking-wider text-white font-extrabold">
+                      <tr className="bg-primary-deep text-[10px] uppercase tracking-wider text-white font-extrabold">
                         <th className="p-5 font-bold">Posted</th>
                         <th className="p-5 font-bold">Type</th>
                         <th className="p-5 font-bold text-right">Amount</th>
@@ -463,10 +463,10 @@ const Savings_Details = () => {
                     <tbody>
                       {ledger.length === 0 ? (
                         <tr>
-                          <td colSpan={7} className="px-6 py-12 text-center">
-                            <div className="flex flex-col items-center gap-2">
+                          <td colSpan={7} className="p-10 text-center">
+                            <div className="flex flex-col items-center justify-center gap-2">
                               <Banknote size={32} className="text-gray-300" />
-                              <p className="text-sm text-gray-500">
+                              <p className="text-sm font-medium text-gray-500">
                                 No transactions yet on this account
                               </p>
                               <p className="text-xs text-gray-400">

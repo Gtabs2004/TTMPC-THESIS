@@ -744,7 +744,7 @@ const Secretary_Attendance = () => {
             <div className="overflow-x-auto pb-4">
               <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr className="bg-green-700 text-[10px] uppercase tracking-wider text-white font-extrabold">
+                  <tr className="bg-primary-deep text-[10px] uppercase tracking-wider text-white font-extrabold">
                     <th className="p-5 font-bold">Member Name</th>
                     <th className="p-5 font-bold">
                       {activeTab === "Reschedule Training" ? "New Training Schedule" : "Training Schedule"}
@@ -855,10 +855,15 @@ const Secretary_Attendance = () => {
                   ))}
                   {(!tableData[activeTab] || tableData[activeTab].length === 0) && (
                     <tr>
-                      <td colSpan="4" className="py-8 text-center text-gray-500 font-medium">
-                        {activeTab === "Reschedule Training"
-                          ? "No absent members require rescheduling."
-                          : "No records found for this category."}
+                      <td colSpan="4" className="p-10 text-center">
+                        <div className="flex flex-col items-center justify-center gap-2">
+                          <Users size={32} className="text-gray-300" />
+                          <p className="text-sm font-medium text-gray-500">
+                            {activeTab === "Reschedule Training"
+                              ? "No absent members require rescheduling."
+                              : "No records found for this category."}
+                          </p>
+                        </div>
                       </td>
                     </tr>
                   )}
