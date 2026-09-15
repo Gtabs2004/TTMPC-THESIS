@@ -299,7 +299,6 @@ const Disbursements = () => {
                 <table className="w-full text-left border-collapse">
                   <thead>
                     <tr className="bg-green-700 text-[10px] uppercase tracking-wider text-white font-extrabold">
-                      <th className="p-5 font-bold w-20">Rank</th>
                       <th className="p-5 font-bold">Member Information</th>
                       <th className="p-5 font-bold">Loan Details</th>
                       <th className="p-5 font-bold text-right">Released Amount</th>
@@ -311,11 +310,6 @@ const Disbursements = () => {
                   <tbody>
                     {paginatedRows.map((row) => (
                       <tr key={row.id} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
-                        <td className="p-5 align-top pt-5">
-                          <span className={`inline-flex items-center justify-center min-w-8 h-7 px-2 rounded-full text-xs font-bold ring-1 ${rankTone[row.rank] || "bg-gray-100 text-gray-700 ring-gray-200"}`}>
-                            #{row.rank}
-                          </span>
-                        </td>
                         <td className="p-5 max-w-[18rem]">
                           <div className="font-bold text-gray-900 mb-0.5 truncate" title={row.name}>{row.name}</div>
                           <div className="text-xs font-medium text-gray-500 flex items-center gap-1.5 min-w-0">
@@ -449,9 +443,6 @@ const Disbursements = () => {
                   <p className="text-sm text-gray-500 font-medium">{activeLoan.code}</p>
                 </div>
                 <div className="text-right">
-                  <span className={`inline-flex items-center justify-center px-3 py-1 rounded-full text-xs font-bold ring-1 ${rankTone[activeLoan.rank] || "bg-gray-100 text-gray-700 ring-gray-200"}`}>
-                    Priority #{activeLoan.rank}
-                  </span>
                 </div>
               </div>
 
