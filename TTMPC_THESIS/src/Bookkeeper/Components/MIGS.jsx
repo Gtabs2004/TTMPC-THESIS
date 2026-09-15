@@ -276,13 +276,9 @@ const MIGS = () => {
             </div>
 
             <div className="overflow-x-auto">
-            {loading ? (
-              <p className="p-6 text-blue-700 text-center">Loading MIGS scoring data...</p>
-            ) : null}
-            {!loading ? (
               <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr className="bg-green-700 text-[10px] uppercase tracking-wider text-white font-extrabold">
+                  <tr className="bg-primary-deep text-[10px] uppercase tracking-wider text-white font-extrabold">
                     <th className="p-5 font-bold">Member Name</th>
                     <th className="p-5 font-bold">ID</th>
                     <th className="p-5 font-bold text-center">Capital</th>
@@ -294,10 +290,22 @@ const MIGS = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.length === 0 ? (
+                  {loading ? (
                     <tr>
-                      <td colSpan={8} className="p-5 text-sm text-center text-gray-500">
-                        No MIGS scoring records found.
+                      <td colSpan={8} className="p-10 text-center">
+                        <div className="flex flex-col items-center justify-center gap-2">
+                          <Loader2 size={24} className="text-gray-300 animate-spin" />
+                          <p className="text-sm text-gray-400">Loading...</p>
+                        </div>
+                      </td>
+                    </tr>
+                  ) : filtered.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} className="p-10 text-center">
+                        <div className="flex flex-col items-center justify-center gap-2">
+                          <Users size={32} className="text-gray-300" />
+                          <p className="text-sm font-medium text-gray-500">No MIGS scoring records found.</p>
+                        </div>
                       </td>
                     </tr>
                   ) : (
@@ -345,7 +353,6 @@ const MIGS = () => {
                   )}
                 </tbody>
               </table>
-            ) : null}
             </div>
           </div>
 

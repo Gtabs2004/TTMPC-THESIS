@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { X, Search, Undo2, AlertTriangle } from "lucide-react";
+import { X, Search, Undo2, AlertTriangle, Users, Loader2 } from "lucide-react";
 import { supabase } from "../../supabaseClient";
 import { UserAuth } from "../../contex/AuthContext";
 
@@ -338,84 +338,93 @@ export default function IscPayoutPreferencesModal({ open, postingId, onClose, on
 
         {/* C. High-density member table */}
         <div className="flex-1 overflow-auto px-6 mt-3 min-h-0">
-          {loading ? (
-            <div className="flex items-center justify-center h-full text-sm text-gray-400">Loading members…</div>
-          ) : (
             <table className="w-full text-sm border-collapse">
-              <thead className="sticky top-0 bg-white z-10">
-                <tr className="text-left text-[10px] uppercase tracking-wider text-gray-500 border-b border-gray-200">
-                  <th className="py-2 pr-3 font-bold">Member</th>
-                  <th className="py-2 px-3 font-bold text-right">Calculated Payout</th>
-                  <th className="py-2 px-3 font-bold text-center">Payout Choice</th>
-                  <th className="py-2 pl-3 font-bold text-center">Status</th>
+              <thead>
+                <tr className="sticky top-0 z-10 bg-primary-deep text-[10px] uppercase tracking-wider text-white font-extrabold">
+                  <th className="p-5 font-bold">Member</th>
+                  <th className="p-5 font-bold text-right">Calculated Payout</th>
+                  <th className="p-5 font-bold text-center">Payout Choice</th>
+                  <th className="p-5 font-bold text-center">Status</th>
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((r) => {
-                  const value = choice[r.member_id] || "withdraw";
-                  return (
-                    <tr key={r.id} className="border-b border-gray-100 hover:bg-gray-50/60">
-                      <td className="py-2.5 pr-3">
-                        <div className="font-medium text-gray-900">{memberName(r)}</div>
-                        <div className="text-[10px] text-gray-400">ID: {r.member?.membership_id || "—"}</div>
-                      </td>
-                      <td className="py-2.5 px-3 text-right tabular-nums font-semibold text-gray-900">
-                        {PESO(r.interest_amount)}
-                      </td>
-                      <td className="py-2.5 px-3">
-                        <div className="flex justify-center">
-                          <div className="inline-flex rounded-full border border-gray-200 bg-gray-100 p-0.5">
-                            <button
-                              type="button"
-                              onClick={() => setOne(r.member_id, "withdraw")}
-                              disabled={!canEdit}
-                              className={`px-3 py-1 rounded-full text-xs font-semibold transition-colors disabled:cursor-not-allowed ${
-                                value === "withdraw"
-                                  ? "bg-emerald-600 text-white shadow-sm"
-                                  : "text-gray-500 hover:text-gray-700"
-                              }`}
-                            >
-                              Withdraw
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setOne(r.member_id, "capital")}
-                              disabled={!canEdit}
-                              className={`px-3 py-1 rounded-full text-xs font-semibold transition-colors disabled:cursor-not-allowed ${
-                                value === "capital"
-                                  ? "bg-indigo-600 text-white shadow-sm"
-                                  : "text-gray-500 hover:text-gray-700"
-                              }`}
-                            >
-                              Share Capital
-                            </button>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="py-2.5 pl-3 text-center">
-                        <span
-                          className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide ${
-                            value === "capital"
-                              ? "bg-indigo-100 text-indigo-700"
-                              : "bg-emerald-100 text-emerald-700"
-                          }`}
-                        >
-                          {value === "capital" ? "Share Capital" : "Withdraw"}
-                        </span>
-                      </td>
-                    </tr>
-                  );
-                })}
-                {!filtered.length && (
+                {loading ? (
                   <tr>
-                    <td colSpan={4} className="py-10 text-center text-sm text-gray-400">
-                      No members match.
+                    <td colSpan={4} className="p-10 text-center">
+                      <div className="flex flex-col items-center justify-center gap-2">
+                        <Loader2 size={24} className="text-gray-300 animate-spin" />
+                        <p className="text-sm text-gray-400">Loading...</p>
+                      </div>
                     </td>
                   </tr>
+                ) : !filtered.length ? (
+                  <tr>
+                    <td colSpan={4} className="p-10 text-center">
+                      <div className="flex flex-col items-center justify-center gap-2">
+                        <Users size={32} className="text-gray-300" />
+                        <p className="text-sm font-medium text-gray-500">No members match.</p>
+                      </div>
+                    </td>
+                  </tr>
+                ) : (
+                  filtered.map((r) => {
+                    const value = choice[r.member_id] || "withdraw";
+                    return (
+                      <tr key={r.id} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
+                        <td className="p-5">
+                          <div className="font-medium text-gray-900">{memberName(r)}</div>
+                          <div className="text-[10px] text-gray-400">ID: {r.member?.membership_id || "—"}</div>
+                        </td>
+                        <td className="p-5 text-right tabular-nums font-semibold text-gray-900">
+                          {PESO(r.interest_amount)}
+                        </td>
+                        <td className="p-5">
+                          <div className="flex justify-center">
+                            <div className="inline-flex rounded-full border border-gray-200 bg-gray-100 p-0.5">
+                              <button
+                                type="button"
+                                onClick={() => setOne(r.member_id, "withdraw")}
+                                disabled={!canEdit}
+                                className={`px-3 py-1 rounded-full text-xs font-semibold transition-colors disabled:cursor-not-allowed ${
+                                  value === "withdraw"
+                                    ? "bg-emerald-600 text-white shadow-sm"
+                                    : "text-gray-500 hover:text-gray-700"
+                                }`}
+                              >
+                                Withdraw
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setOne(r.member_id, "capital")}
+                                disabled={!canEdit}
+                                className={`px-3 py-1 rounded-full text-xs font-semibold transition-colors disabled:cursor-not-allowed ${
+                                  value === "capital"
+                                    ? "bg-indigo-600 text-white shadow-sm"
+                                    : "text-gray-500 hover:text-gray-700"
+                                }`}
+                              >
+                                Share Capital
+                              </button>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="p-5 text-center">
+                          <span
+                            className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide ${
+                              value === "capital"
+                                ? "bg-indigo-100 text-indigo-700"
+                                : "bg-emerald-100 text-emerald-700"
+                            }`}
+                          >
+                            {value === "capital" ? "Share Capital" : "Withdraw"}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>
-          )}
         </div>
 
         {/* D. Sticky summary footer */}

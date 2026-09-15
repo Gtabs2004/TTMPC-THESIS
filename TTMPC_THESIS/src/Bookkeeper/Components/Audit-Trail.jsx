@@ -154,7 +154,7 @@ const AuditTrail = () => {
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr className="bg-green-700 text-[10px] uppercase tracking-wider text-white font-extrabold">
+                  <tr className="bg-primary-deep text-[10px] uppercase tracking-wider text-white font-extrabold">
                     <th className="p-5 font-bold">Log ID</th>
                     <th className="p-5 font-bold">Date & Time</th>
                     <th className="p-5 font-bold">User</th>

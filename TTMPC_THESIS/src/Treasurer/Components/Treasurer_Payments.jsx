@@ -14,6 +14,8 @@ import {
   Filter,
   Info,
   User,
+  Inbox,
+  Loader2,
 } from "lucide-react";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
@@ -292,7 +294,7 @@ const Treasurer_Payments = () => {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="bg-green-700 text-left text-[10px] uppercase tracking-wider text-white font-extrabold">
+                  <tr className="bg-primary-deep text-[10px] uppercase tracking-wider text-white font-extrabold">
                     <th className="p-5 font-bold">Date</th>
                     <th className="p-5 font-bold">Reference</th>
                     <th className="p-5 font-bold">Description</th>
@@ -304,15 +306,29 @@ const Treasurer_Payments = () => {
                 </thead>
                 <tbody>
                   {loading ? (
-                    <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-500 text-sm">Loading ledger…</td></tr>
+                    <tr>
+                      <td colSpan={7} className="p-10 text-center">
+                        <div className="flex flex-col items-center justify-center gap-2">
+                          <Loader2 size={24} className="text-gray-300 animate-spin" />
+                          <p className="text-sm text-gray-400">Loading...</p>
+                        </div>
+                      </td>
+                    </tr>
                   ) : pagedEntries.length === 0 ? (
-                    <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-500 text-sm">No entries in this window.</td></tr>
+                    <tr>
+                      <td colSpan={7} className="p-10 text-center">
+                        <div className="flex flex-col items-center justify-center gap-2">
+                          <Inbox size={32} className="text-gray-300" />
+                          <p className="text-sm font-medium text-gray-500">No entries in this window.</p>
+                        </div>
+                      </td>
+                    </tr>
                   ) : (
                     pagedEntries.map((e, idx) => {
                       const meta = TYPE_META[e.type] || { label: e.type, cls: "bg-gray-50 text-gray-700 ring-1 ring-gray-200", dir: "any" };
                       const { primary, secondary } = splitDescription(e.description);
                       return (
-                        <tr key={`${e.source_table}-${e.reference}-${idx}`} className="border-b border-gray-100 hover:bg-gray-50/50">
+                        <tr key={`${e.source_table}-${e.reference}-${idx}`} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
                           <td className="p-5 text-gray-700 tabular-nums whitespace-nowrap">{formatDate(e.date)}</td>
                           <td className="p-5 whitespace-nowrap">
                             <span className="inline-flex items-center rounded-md bg-gray-50 px-2 py-1 font-mono text-[11px] text-gray-600 ring-1 ring-gray-200">
@@ -343,8 +359,8 @@ const Treasurer_Payments = () => {
                   )}
                 </tbody>
                 {searchedEntries.length > 0 && (
-                  <tfoot className="bg-gray-50 font-semibold">
-                    <tr className="border-t-2 border-gray-200">
+                  <tfoot>
+                    <tr className="bg-gray-50 border-t-2 border-gray-200 font-semibold">
                       <td colSpan={5} className="p-5 text-right text-gray-600 text-xs uppercase tracking-wider">
                         {searchTerm ? "Filtered totals" : "Window totals"}
                       </td>

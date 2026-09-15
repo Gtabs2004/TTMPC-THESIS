@@ -21,6 +21,7 @@ import {
   UserPlus,
   Wallet,
   History,
+  Loader2,
 } from "lucide-react";
 
 import { UserAuth } from "../../contex/AuthContext";
@@ -336,7 +337,7 @@ const Cashier_Savings = () => {
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr className="bg-green-700 text-[10px] uppercase tracking-wider text-white font-extrabold">
+                  <tr className="bg-primary-deep text-[10px] uppercase tracking-wider text-white font-extrabold">
                     <th className="p-5 font-bold">Account No.</th>
                     <th className="p-5 font-bold">Account Name</th>
                     <th className="p-5 font-bold">Kind</th>
@@ -349,16 +350,19 @@ const Cashier_Savings = () => {
                 <tbody>
                   {status === "loading" ? (
                     <tr>
-                      <td colSpan={7} className="p-5 text-sm text-center text-gray-500">
-                        Loading savings accounts...
+                      <td colSpan={7} className="p-10 text-center">
+                        <div className="flex flex-col items-center justify-center gap-2">
+                          <Loader2 size={24} className="text-gray-300 animate-spin" />
+                          <p className="text-sm text-gray-400">Loading...</p>
+                        </div>
                       </td>
                     </tr>
                   ) : filtered.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="p-5 text-center">
-                        <div className="flex flex-col items-center gap-2">
+                      <td colSpan={7} className="p-10 text-center">
+                        <div className="flex flex-col items-center justify-center gap-2">
                           <AlertCircle size={32} className="text-gray-300" />
-                          <p className="text-sm text-gray-500">
+                          <p className="text-sm font-medium text-gray-500">
                             {searchTerm || kindFilter !== "all"
                               ? "No accounts match your filters"
                               : "No savings accounts found"}

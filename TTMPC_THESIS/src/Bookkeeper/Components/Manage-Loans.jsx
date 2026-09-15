@@ -420,6 +420,7 @@ const ManageLoans = () => {
               </div>
             )}
 
+            <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse table-fixed">
               <colgroup>
                 <col style={{ width: "16%" }} />
@@ -432,27 +433,25 @@ const ManageLoans = () => {
                 <col style={{ width: "8%" }} />
               </colgroup>
               <thead>
-                <tr className="bg-green-700 text-[11px] uppercase tracking-wider text-white font-extrabold">
-                  <th className="px-3 py-2.5 font-bold">Loan ID</th>
-                  <th className="px-3 py-2.5 font-bold">Member Name</th>
-                  <th className="px-3 py-2.5 font-bold">Loan Type</th>
-                  <th className="px-3 py-2.5 font-bold text-right">Loan Amt</th>
-                  <th className="px-3 py-2.5 font-bold text-right">Amortization</th>
-                  <th className="px-3 py-2.5 font-bold text-right">Remaining</th>
-                  <th className="px-3 py-2.5 font-bold">Due Date</th>
-                  <th className="px-3 py-2.5 font-bold text-center">Action</th>
+                <tr className="bg-primary-deep text-[10px] uppercase tracking-wider text-white font-extrabold">
+                  <th className="p-5 font-bold">Loan ID</th>
+                  <th className="p-5 font-bold">Member Name</th>
+                  <th className="p-5 font-bold">Loan Type</th>
+                  <th className="p-5 font-bold text-right">Loan Amt</th>
+                  <th className="p-5 font-bold text-right">Amortization</th>
+                  <th className="p-5 font-bold text-right">Remaining</th>
+                  <th className="p-5 font-bold">Due Date</th>
+                  <th className="p-5 font-bold text-center">Action</th>
                 </tr>
               </thead>
               <tbody>
                 {groupedLoans.length === 0 && (
                   <tr>
-                    <td colSpan={8} className="p-5 text-center">
-                      <div className="flex flex-col items-center gap-2">
-                        <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center">
-                          <Eye size={20} className="text-gray-300" />
-                        </div>
-                        <p className="text-gray-500 text-sm font-medium">No loans found</p>
-                        <p className="text-gray-400 text-xs">Try adjusting your filters</p>
+                    <td colSpan={8} className="p-10 text-center">
+                      <div className="flex flex-col items-center justify-center gap-2">
+                        <Eye size={32} className="text-gray-300" />
+                        <p className="text-sm font-medium text-gray-500">No loans found</p>
+                        <p className="text-xs text-gray-400">Try adjusting your filters</p>
                       </div>
                     </td>
                   </tr>
@@ -461,30 +460,30 @@ const ManageLoans = () => {
                 {paginatedGroups.map(({ parent, renewals }) => {
                   return (
                     <React.Fragment key={parent.loan_id}>
-                      <tr className="border-b border-gray-100 transition-colors hover:bg-green-50/40">
-                        <td className="px-3 py-2.5 text-xs font-mono font-bold text-green-700 align-middle">
+                      <tr className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
+                        <td className="p-5 text-xs font-mono font-bold text-green-700 align-middle">
                           <span className="truncate">{parent.loan_id}</span>
                         </td>
-                        <td className="px-3 py-2.5 text-xs text-gray-800 font-semibold align-middle">{parent.member_name}</td>
-                        <td className="px-3 py-2.5 align-middle">
+                        <td className="p-5 text-xs text-gray-800 font-semibold align-middle">{parent.member_name}</td>
+                        <td className="p-5 align-middle">
                           <span className={`inline-block whitespace-nowrap px-2 py-0.5 rounded-full text-[10px] font-semibold ${getLoanTypeStyle(parent.loan_type_code)}`}>
                             {parent.loan_type}
                           </span>
                         </td>
-                        <td className="px-3 py-2.5 text-xs text-gray-800 font-semibold text-right whitespace-nowrap align-middle">{formatCurrency(parent.loan_amount)}</td>
-                        <td className="px-3 py-2.5 text-xs text-gray-700 text-right font-medium whitespace-nowrap align-middle">{formatCurrency(parent.amortization)}</td>
-                        <td className="px-3 py-2.5 text-xs text-right font-bold whitespace-nowrap align-middle">
+                        <td className="p-5 text-xs text-gray-800 font-semibold text-right whitespace-nowrap align-middle">{formatCurrency(parent.loan_amount)}</td>
+                        <td className="p-5 text-xs text-gray-700 text-right font-medium whitespace-nowrap align-middle">{formatCurrency(parent.amortization)}</td>
+                        <td className="p-5 text-xs text-right font-bold whitespace-nowrap align-middle">
                           <span className={parent.remaining_balance > 0 ? 'text-amber-600' : 'text-green-600'}>
                             {formatCurrency(parent.remaining_balance)}
                           </span>
                         </td>
-                        <td className="px-3 py-2.5 text-xs font-medium whitespace-nowrap align-middle">
+                        <td className="p-5 text-xs font-medium whitespace-nowrap align-middle">
                           {parent.due_date
                             ? <span className="text-gray-700">{formatDate(parent.due_date)}</span>
                             : <span className="text-[11px] text-gray-400 italic">{formatLoanStatus(parent.source_loan_status)}</span>
                           }
                         </td>
-                        <td className="px-3 py-2.5 text-center align-middle">
+                        <td className="p-5 text-center align-middle">
                           <button
                             type="button"
                             onClick={() => navigate(`/bookkeeper-loan-ledger/${parent.loan_id}`, { state: { loan: parent, renewals } })}
@@ -499,6 +498,7 @@ const ManageLoans = () => {
                 })}
               </tbody>
             </table>
+            </div>
           </div>
 
           {groupedLoans.length > ITEMS_PER_PAGE && (

@@ -459,7 +459,7 @@ const Member_Approvals = () => {
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr className="bg-green-700 text-[10px] uppercase tracking-wider text-white font-extrabold">
+                  <tr className="bg-primary-deep text-[10px] uppercase tracking-wider text-white font-extrabold">
                     {isTrainingTab ? (
                       <>
                         <th className="p-5 font-bold">Member Name</th>
@@ -482,7 +482,14 @@ const Member_Approvals = () => {
                 </thead>
                 <tbody>
                   {rowsForActiveTab.length === 0 ? (
-                    <tr><td colSpan={isTrainingTab ? "5" : activeTab === "For Revision" ? "5" : "5"} className="p-5 text-sm text-center text-gray-500">No {activeTab.toLowerCase()} records found.</td></tr>
+                    <tr>
+                      <td colSpan={isTrainingTab ? "5" : activeTab === "For Revision" ? "5" : "5"} className="p-10 text-center">
+                        <div className="flex flex-col items-center justify-center gap-2">
+                          <FileText size={32} className="text-gray-300" />
+                          <p className="text-sm font-medium text-gray-500">No {activeTab.toLowerCase()} records found.</p>
+                        </div>
+                      </td>
+                    </tr>
                   ) : (
                     rowsForActiveTab.map((row, index) => (
                       <tr key={index} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">

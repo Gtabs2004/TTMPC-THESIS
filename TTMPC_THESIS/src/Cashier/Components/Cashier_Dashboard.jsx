@@ -28,6 +28,7 @@ import {
   Calendar,
   ChevronLeft,
   History,
+  Loader2,
 } from "lucide-react";
 import {
   AreaChart,
@@ -546,7 +547,7 @@ const Cashier_Dashboard = () => {
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr className="bg-green-700 text-[10px] uppercase tracking-wider text-white font-extrabold">
+                  <tr className="bg-primary-deep text-[10px] uppercase tracking-wider text-white font-extrabold">
                     <th className="p-5 font-bold">Member</th>
                     <th className="p-5 font-bold">Transaction</th>
                     <th className="p-5 font-bold">Reference</th>
@@ -557,9 +558,23 @@ const Cashier_Dashboard = () => {
                 </thead>
                 <tbody>
                   {loading ? (
-                    <tr><td colSpan={6} className="p-5 text-sm text-center text-gray-400">Loading activity…</td></tr>
+                    <tr>
+                      <td colSpan={6} className="p-10 text-center">
+                        <div className="flex flex-col items-center justify-center gap-2">
+                          <Loader2 size={24} className="text-gray-300 animate-spin" />
+                          <p className="text-sm text-gray-400">Loading...</p>
+                        </div>
+                      </td>
+                    </tr>
                   ) : recentActivity.length === 0 ? (
-                    <tr><td colSpan={6} className="p-5 text-sm text-center text-gray-400">No transactions recorded today.</td></tr>
+                    <tr>
+                      <td colSpan={6} className="p-10 text-center">
+                        <div className="flex flex-col items-center justify-center gap-2">
+                          <FileText size={32} className="text-gray-300" />
+                          <p className="text-sm font-medium text-gray-500">No transactions recorded today.</p>
+                        </div>
+                      </td>
+                    </tr>
                   ) : recentActivity.map((row) => (
                     <tr key={row.id} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
                       <td className="p-5 text-sm font-bold text-gray-800">{row.name}</td>

@@ -1,35 +1,19 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { useNavigate, NavLink } from "react-router-dom";
-import { UserAuth } from "../../contex/AuthContext";
-import { PortalSidebarIdentity, PortalTopbarIdentity } from "../PortalIdentity";
+import StaffSidebar from "../StaffSidebar";
+import { bookkeeperNav } from "../StaffSidebar/configs/bookkeeper";
+import { managerNav } from "../StaffSidebar/configs/manager";
+import StaffTopbar from "../StaffTopbar";
+import Breadcrumb from "../Breadcrumb";
 import LoanNotificationBell from "../LoanNotificationBell";
 import Pagination from "../Pagination";
 import {
-  LayoutDashboard,
-  Users,
-  FileText,
-  ClipboardCheck,
-  CreditCard,
-  Calculator,
-  Activity,
-  BarChart3,
-  Search,
-  Wallet,
-  Coins,
-  History,
-  Briefcase,
-  ShieldAlert,
   Brain,
   RefreshCw,
   ArrowUpDown,
   X,
-  ChevronRight,
-  ChevronDown,
   AlertCircle,
   TrendingUp,
   TrendingDown,
-  PiggyBank,
-  Banknote
 } from "lucide-react";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
@@ -102,50 +86,9 @@ const featureLabel = (feat) => FEATURE_LABELS[feat] || feat;
 // the signal, so the detail panel lists the strongest drivers only.
 const DRIVERS_SHOWN = 8;
 
-const BOOKKEEPER_MENU = [
-  { name: "Dashboard", icon: LayoutDashboard, route: "/dashboard" },
-  { name: "Manage Member", icon: Users, route: "/manage-member" },
-  { name: "Loan Approval", icon: FileText, route: "/bookkeeper-loan-approval" },
-  { name: "Manage Loans", icon: Briefcase, route: "/manage-loans" },
- 
-  { name: "Credit Risk", icon: Brain, route: "/bookkeeper-credit-risk" },
-  { name: "Payments", icon: Wallet, route: "/payments" },
-   {
-         name: "Savings Accounts",
-         icon: PiggyBank,
-         isDropdown: true,
-         subItems: [
-           { name: "All Accounts", path: "/bookkeeper-savings-accounts" },
-           { name: "Savings Withdrawals", path: "/bookkeeper-savings-transactions" },
-         ],
-       },
-   { name: "ISC", icon: Banknote, route: "/bookkeeper-isc" },
-  { name: "MIGS Scoring", icon: Activity, route: "/migs" },
-  { name: "Reports", icon: BarChart3, route: "/reports" },
-  { name: "Audit Trail", icon: History, route: "/audit-trail" },
-  { name: "Grocery", icon: Coins, route: "/grocery" },
-  
-];
-
-const MANAGER_MENU = [
-  { name: "Dashboard", icon: LayoutDashboard, route: "/manager-dashboard" },
-  { name: "Loan Approval", icon: ClipboardCheck, route: "/loan-approval" },
-  { name: "Credit Risk", icon: Brain, route: "/manager-credit-risk" },
-  { name: "Manage Loans", icon: Briefcase, route: "/manager-manage-loans" },
-  { name: "Manage Member", icon: Users, route: "/manager-manage-member" },
-  { name: "Reports", icon: BarChart3, route: "/manager-reports" },
-  { name: "Audit Log", icon: History, route: "/manager-audit-log" },
-];
-
 const CreditRiskPage = ({ portal = "bookkeeper" }) => {
-  const { signOut } = UserAuth();
-  const navigate = useNavigate();
-
-  const menuItems = portal === "manager" ? MANAGER_MENU : BOOKKEEPER_MENU;
-  const fallbackPortal = portal === "manager" ? "Manager Portal" : "Bookkeeper Portal";
-  const fallbackRole = portal === "manager" ? "Manager" : "Bookkeeper";
-  const profileImg =
-    portal === "manager" ? "/img/manager-profile.png" : "/img/bookkeeper-profile.png";
+  const portalLabel = portal === "manager" ? "Manager" : "Bookkeeper";
+  const navItems = portal === "manager" ? managerNav : bookkeeperNav;
 
   const [rows, setRows] = useState([]);
   const [modelInfo, setModelInfo] = useState(null);
@@ -160,17 +103,6 @@ const CreditRiskPage = ({ portal = "bookkeeper" }) => {
   const [sortKey, setSortKey] = useState("risk_desc");
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedLoan, setSelectedLoan] = useState(null);
-  const [isSavingsOpen, setIsSavingsOpen] = useState(false);
-
-  const handleSignOut = async (e) => {
-    e.preventDefault();
-    try {
-      await signOut();
-      navigate("/");
-    } catch (err) {
-      console.error("sign out failed", err);
-    }
-  };
 
   const fetchQueue = async () => {
     try {
@@ -271,107 +203,25 @@ const CreditRiskPage = ({ portal = "bookkeeper" }) => {
 
   return (
     <div className="flex min-h-screen bg-gray-50">
-      {/* SIDEBAR */}
-      <aside className="bg-white w-64 p-4 flex flex-col border-r border-gray-200">
-        <div className="flex flex-row items-start gap-2 mb-6">
-          <img src="/img/ttmpc logo.png" alt="Logo" className="h-12 w-auto" />
-          <div className="flex flex-col">
-            <h1 className="text-xl font-bold text-primary">TTMPC</h1>
-            <PortalSidebarIdentity
-              className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold"
-              fallbackPortal={fallbackPortal}
-              fallbackRole={fallbackRole}
-            />
-          </div>
-        </div>
-        <hr className="w-full border-gray-200 mb-6" />
-        <nav className="flex flex-col gap-2 text-sm flex-grow">
-          {menuItems.map((item) => {
-            const Icon = item.icon;
-            if (item.isDropdown) {
-              return (
-                <div key={item.name}>
-                  <button
-                    type="button"
-                    onClick={() => setIsSavingsOpen((isOpen) => !isOpen)}
-                    className="flex items-center justify-between p-2 rounded-md text-gray-700 hover:bg-green-50 hover:text-green-700 transition-colors w-full"
-                  >
-                    <span className="flex items-center gap-3">
-                      <Icon size={20} />
-                      <span>{item.name}</span>
-                    </span>
-                    {isSavingsOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-                  </button>
-                  {isSavingsOpen ? (
-                    <div className="flex flex-col mt-1 space-y-1">
-                      {item.subItems.map((subItem) => (
-                        <NavLink
-                          key={subItem.name}
-                          to={subItem.path}
-                          className={({ isActive }) =>
-                            `block pl-11 pr-4 py-2 rounded-md transition-colors text-[13px] ${
-                              isActive
-                                ? "text-green-700 font-semibold"
-                                : "text-gray-500 hover:text-green-700 hover:bg-green-50"
-                            }`
-                          }
-                        >
-                          {subItem.name}
-                        </NavLink>
-                      ))}
-                    </div>
-                  ) : null}
-                </div>
-              );
-            }
-            return (
-              <NavLink
-                key={item.name}
-                to={item.route}
-                className={({ isActive }) =>
-                  `flex items-center gap-3 p-2 rounded-md transition-colors ${
-                    isActive
-                      ? "bg-green-50 text-green-700 font-semibold"
-                      : "text-gray-700 hover:bg-green-50 hover:text-green-700"
-                  }`
-                }
-              >
-                <Icon size={20} />
-                <span>{item.name}</span>
-              </NavLink>
-            );
-          })}
-        </nav>
-        <button
-          onClick={handleSignOut}
-          className="mt-auto w-full rounded p-2 text-xs bg-green-600 hover:bg-green-700 text-white font-bold transition-colors"
-        >
-          Sign out
-        </button>
-      </aside>
+      <StaffSidebar portal={portalLabel} items={navItems} />
 
       <div className="flex-1 flex flex-col h-screen overflow-y-auto">
-        <header className="bg-white h-16 shadow-sm flex items-center justify-end px-8 shrink-0">
-          <div className="relative">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400" />
-            <input
-              type="text"
-              className="bg-gray-50 w-52 h-10 rounded-lg border border-gray-300 px-4 py-1 pl-9 focus:outline-none focus:ring-2 focus:ring-green-500"
-              placeholder="Search member or loan ID..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-          </div>
-          <LoanNotificationBell role={portal} />
-          <img src={profileImg} alt="Profile" className="ml-4 w-8 h-8 rounded-full bg-gray-200" />
-          <PortalTopbarIdentity className="text-sm font-medium text-gray-700" fallbackRole={fallbackRole} />
-        </header>
+        <StaffTopbar
+          portal={portalLabel}
+          notifications={<LoanNotificationBell role={portal} />}
+          search={{
+            value: search,
+            onChange: (e) => setSearch(e.target.value),
+            placeholder: "Search member or loan ID...",
+          }}
+        />
 
         <main className="p-8">
+          <Breadcrumb portal={portalLabel} page="Credit Risk" />
+
           <div className="flex items-start justify-between mb-6 gap-3 flex-wrap">
             <div>
               <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-                
                 Credit Risk Assessment
               </h2>
               <p className="text-sm text-gray-500 mt-0.5">

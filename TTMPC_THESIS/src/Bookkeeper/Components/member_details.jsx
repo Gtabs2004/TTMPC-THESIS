@@ -359,17 +359,17 @@ const ActiveLoansPanel = ({ membershipId }) => {
         <div className="overflow-x-auto rounded-lg border border-gray-100">
           <table className="w-full text-left border-collapse text-sm">
             <thead>
-              <tr className="bg-member-green text-xs uppercase tracking-wider text-white font-extrabold">
-                <th className="p-3 font-bold">Type</th>
-                <th className="p-3 font-bold">Control No.</th>
-                <th className="p-3 font-bold">Status</th>
-                <th className="p-3 font-bold text-right">Principal</th>
-                <th className="p-3 font-bold text-right">Paid</th>
-                <th className="p-3 font-bold text-right">Remaining</th>
-                <th className="p-3 font-bold text-right">Accrued Penalty</th>
-                <th className="p-3 font-bold text-right">Total Owed</th>
-                <th className="p-3 font-bold text-right">Monthly</th>
-                <th className="p-3 font-bold">Disbursed</th>
+              <tr className="bg-primary-deep text-[10px] uppercase tracking-wider text-white font-extrabold">
+                <th className="p-5 font-bold">Type</th>
+                <th className="p-5 font-bold">Control No.</th>
+                <th className="p-5 font-bold">Status</th>
+                <th className="p-5 font-bold text-right">Principal</th>
+                <th className="p-5 font-bold text-right">Paid</th>
+                <th className="p-5 font-bold text-right">Remaining</th>
+                <th className="p-5 font-bold text-right">Accrued Penalty</th>
+                <th className="p-5 font-bold text-right">Total Owed</th>
+                <th className="p-5 font-bold text-right">Monthly</th>
+                <th className="p-5 font-bold">Disbursed</th>
               </tr>
             </thead>
             <tbody>
@@ -377,8 +377,8 @@ const ActiveLoansPanel = ({ membershipId }) => {
                 const penalty = Number(loan.accrued_penalty || 0);
                 const totalOwed = Number(loan.total_with_penalty ?? loan.remaining_balance ?? 0);
                 return (
-                <tr key={loan.control_number} className="border-b border-gray-100 hover:bg-gray-50">
-                  <td className="p-3">
+                <tr key={loan.control_number} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
+                  <td className="p-5">
                     <span className="inline-flex items-center gap-2">
                       <span className={`w-2 h-2 rounded-full ${loanTypeAccent(loan.loan_type)}`} />
                       <span className="font-semibold text-gray-800">{loan.loan_type}</span>
@@ -389,38 +389,38 @@ const ActiveLoansPanel = ({ membershipId }) => {
                       ) : null}
                     </span>
                   </td>
-                  <td className="p-3 font-mono text-xs text-gray-700">{loan.control_number}</td>
-                  <td className="p-3">
+                  <td className="p-5 font-mono text-xs text-gray-700">{loan.control_number}</td>
+                  <td className="p-5">
                     <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold border ${statusBadge(loan.loan_status)}`}>
                       {loan.loan_status || 'Unknown'}
                     </span>
                   </td>
-                  <td className="p-3 text-right text-gray-700">{formatPeso(loan.principal)}</td>
-                  <td className="p-3 text-right text-gray-700">{formatPeso(loan.paid)}</td>
-                  <td className="p-3 text-right text-gray-800">{formatPeso(loan.remaining_balance)}</td>
-                  <td className={`p-3 text-right ${penalty > 0 ? 'text-red-700 font-semibold' : 'text-gray-500'}`}>
+                  <td className="p-5 text-right text-gray-700">{formatPeso(loan.principal)}</td>
+                  <td className="p-5 text-right text-gray-700">{formatPeso(loan.paid)}</td>
+                  <td className="p-5 text-right text-gray-800">{formatPeso(loan.remaining_balance)}</td>
+                  <td className={`p-5 text-right ${penalty > 0 ? 'text-red-700 font-semibold' : 'text-gray-500'}`}>
                     {loan.is_legacy ? '—' : formatPeso(penalty)}
                   </td>
-                  <td className="p-3 text-right font-bold text-[#1a4a2f]">{formatPeso(totalOwed)}</td>
-                  <td className="p-3 text-right text-gray-700">{formatPeso(loan.monthly_amortization)}</td>
-                  <td className="p-3 text-xs text-gray-600">{loan.disbursal_date || loan.application_date || '—'}</td>
+                  <td className="p-5 text-right font-bold text-[#1a4a2f]">{formatPeso(totalOwed)}</td>
+                  <td className="p-5 text-right text-gray-700">{formatPeso(loan.monthly_amortization)}</td>
+                  <td className="p-5 text-xs text-gray-600">{loan.disbursal_date || loan.application_date || '—'}</td>
                 </tr>
                 );
               })}
             </tbody>
             <tfoot>
-              <tr className="bg-gray-50 border-t-2 border-gray-200 font-bold">
-                <td colSpan={5} className="p-3 text-right text-gray-700 uppercase text-xs tracking-wider">Totals</td>
-                <td className="p-3 text-right text-gray-800">
+              <tr className="bg-gray-50 border-t-2 border-gray-200 font-semibold">
+                <td colSpan={5} className="p-5 text-right text-gray-700 uppercase text-xs tracking-wider">Totals</td>
+                <td className="p-5 text-right text-gray-800">
                   {formatPeso(activeLoans.reduce((sum, l) => sum + Number(l.remaining_balance || 0), 0))}
                 </td>
-                <td className="p-3 text-right text-red-700">
+                <td className="p-5 text-right text-red-700">
                   {formatPeso(activeLoans.reduce((sum, l) => sum + Number(l.accrued_penalty || 0), 0))}
                 </td>
-                <td className="p-3 text-right text-[#1a4a2f] text-base">
+                <td className="p-5 text-right text-[#1a4a2f] text-base">
                   {formatPeso(activeLoans.reduce((sum, l) => sum + Number(l.total_with_penalty ?? l.remaining_balance ?? 0), 0))}
                 </td>
-                <td className="p-3 text-right text-gray-700">
+                <td className="p-5 text-right text-gray-700">
                   {formatPeso(activeLoans.reduce((sum, l) => sum + Number(l.monthly_amortization || 0), 0))}
                 </td>
                 <td />

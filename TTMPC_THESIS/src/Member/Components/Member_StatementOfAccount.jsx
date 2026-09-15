@@ -865,7 +865,7 @@ const Member_StatementOfAccount = () => {
                 <div className="hidden md:block overflow-x-auto">
                   <table className="w-full min-w-[1100px] text-left border-collapse">
                     <thead>
-                      <tr className="bg-green-700 text-[10px] uppercase tracking-wider text-white font-extrabold">
+                      <tr className="bg-primary-deep text-[10px] uppercase tracking-wider text-white font-extrabold">
                         <th className="p-5 font-bold">Payment Date</th>
                         <th className="p-5 font-bold">Reference ID</th>
                         <th className="p-5 font-bold text-right">Principal Paid</th>
@@ -1026,7 +1026,7 @@ const Member_StatementOfAccount = () => {
                 <div className="hidden md:block overflow-x-auto">
                   <table className="w-full min-w-[720px] text-left border-collapse">
                     <thead>
-                      <tr className="bg-green-700 text-[10px] uppercase tracking-wider text-white font-extrabold">
+                      <tr className="bg-primary-deep text-[10px] uppercase tracking-wider text-white font-extrabold">
                         <th className="p-5 font-bold">Date</th>
                         <th className="p-5 font-bold">Transaction Type</th>
                         <th className="p-5 font-bold">Reference</th>
@@ -1157,7 +1157,7 @@ const Member_StatementOfAccount = () => {
                 <div className="hidden md:block overflow-x-auto">
                   <table className="w-full min-w-[760px] text-left border-collapse">
                     <thead>
-                      <tr className="bg-green-700 text-[10px] uppercase tracking-wider text-white font-extrabold">
+                      <tr className="bg-primary-deep text-[10px] uppercase tracking-wider text-white font-extrabold">
                         <th className="p-5 font-bold">Date</th>
                         <th className="p-5 font-bold">Source</th>
                         <th className="p-5 font-bold text-right">Starting Share Capital</th>

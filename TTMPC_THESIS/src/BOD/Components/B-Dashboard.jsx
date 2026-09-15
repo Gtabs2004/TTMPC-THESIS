@@ -455,9 +455,23 @@ const Dashboard_BOD = () => {
                 </thead>
                 <tbody>
                   {loading ? (
-                    <tr><td colSpan={6} className="p-5 text-sm text-center text-gray-400">Loading transactions…</td></tr>
+                    <tr>
+                      <td colSpan={6} className="p-10 text-center">
+                        <div className="flex flex-col items-center justify-center gap-2">
+                          <Loader2 size={24} className="text-gray-300 animate-spin" />
+                          <p className="text-sm text-gray-400">Loading...</p>
+                        </div>
+                      </td>
+                    </tr>
                   ) : recentTxns.length === 0 ? (
-                    <tr><td colSpan={6} className="p-5 text-sm text-center text-gray-400">No recent transactions.</td></tr>
+                    <tr>
+                      <td colSpan={6} className="p-10 text-center">
+                        <div className="flex flex-col items-center justify-center gap-2">
+                          <History size={32} className="text-gray-300" />
+                          <p className="text-sm font-medium text-gray-500">No recent transactions.</p>
+                        </div>
+                      </td>
+                    </tr>
                   ) : recentTxns.map((txn) => (
                     <tr key={`${txn.id}-${txn.date}`} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
                       <td className="p-5 text-sm font-medium text-gray-900">{txn.id}</td>

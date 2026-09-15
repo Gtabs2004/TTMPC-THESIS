@@ -69,7 +69,7 @@ function VerifyResetCode() {
                   type="text"
                   inputMode="numeric"
                   pattern="[0-9]*"
-                  maxLength={6}
+                  maxLength={8}
                   required
                   value={code}
                   onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
@@ -87,9 +87,9 @@ function VerifyResetCode() {
 
             <button
               type="submit"
-              disabled={loading || code.length !== 6}
+              disabled={loading || code.length !== 8}
               className={`w-full flex justify-center py-2.5 px-4 rounded-lg shadow-sm text-sm font-bold text-white bg-[#66B538] hover:bg-green-700 transition-all ${
-                loading || code.length !== 6 ? "opacity-70 cursor-not-allowed" : "hover:-translate-y-0.5 hover:shadow-md"
+                loading || code.length !== 8 ? "opacity-70 cursor-not-allowed" : "hover:-translate-y-0.5 hover:shadow-md"
               }`}
             >
               {loading ? "Verifying..." : "Verify Code"}

@@ -26,6 +26,7 @@ import {
   Brain,
   ClipboardCheck,
   Briefcase,
+  Loader2,
 } from "lucide-react";
 import {
   BarChart,
@@ -421,7 +422,7 @@ const Manager_Reports = () => {
               </div>
               <table className="w-full text-xs">
                 <thead>
-                  <tr className="bg-green-700 text-[10px] uppercase tracking-wider text-white font-extrabold">
+                  <tr className="bg-primary-deep text-[10px] uppercase tracking-wider text-white font-extrabold">
                     <th className="p-5 font-bold text-left">Type</th>
                     <th className="p-5 font-bold text-left">Count</th>
                     <th className="p-5 font-bold text-left">Outstanding</th>
@@ -430,14 +431,20 @@ const Manager_Reports = () => {
                 <tbody>
                   {loading ? (
                     <tr>
-                      <td colSpan={3} className="p-5 text-sm text-center text-gray-500">
-                        Loading…
+                      <td colSpan={3} className="p-10 text-center">
+                        <div className="flex flex-col items-center justify-center gap-2">
+                          <Loader2 size={24} className="text-gray-300 animate-spin" />
+                          <p className="text-sm text-gray-400">Loading...</p>
+                        </div>
                       </td>
                     </tr>
                   ) : loanTypeBreakdown.length === 0 ? (
                     <tr>
-                      <td colSpan={3} className="p-5 text-sm text-center text-gray-400 italic">
-                        No active loans yet
+                      <td colSpan={3} className="p-10 text-center">
+                        <div className="flex flex-col items-center justify-center gap-2">
+                          <Banknote size={32} className="text-gray-300" />
+                          <p className="text-sm font-medium text-gray-500">No active loans yet</p>
+                        </div>
                       </td>
                     </tr>
                   ) : (
@@ -467,7 +474,7 @@ const Manager_Reports = () => {
               </div>
               <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr className="bg-green-700 text-[10px] uppercase tracking-wider text-white font-extrabold">
+                  <tr className="bg-primary-deep text-[10px] uppercase tracking-wider text-white font-extrabold">
                     <th className="p-5 font-bold">Member</th>
                     <th className="p-5 font-bold text-right">Active Loans</th>
                     <th className="p-5 font-bold text-right">Outstanding</th>
@@ -476,14 +483,20 @@ const Manager_Reports = () => {
                 <tbody>
                   {loading ? (
                     <tr>
-                      <td colSpan={3} className="p-5 text-sm text-center text-gray-500">
-                        Loading…
+                      <td colSpan={3} className="p-10 text-center">
+                        <div className="flex flex-col items-center justify-center gap-2">
+                          <Loader2 size={24} className="text-gray-300 animate-spin" />
+                          <p className="text-sm text-gray-400">Loading...</p>
+                        </div>
                       </td>
                     </tr>
                   ) : topBorrowers.length === 0 ? (
                     <tr>
-                      <td colSpan={3} className="p-5 text-sm text-center text-gray-400 italic">
-                        No active borrowers
+                      <td colSpan={3} className="p-10 text-center">
+                        <div className="flex flex-col items-center justify-center gap-2">
+                          <Award size={32} className="text-gray-300" />
+                          <p className="text-sm font-medium text-gray-500">No active borrowers</p>
+                        </div>
                       </td>
                     </tr>
                   ) : (

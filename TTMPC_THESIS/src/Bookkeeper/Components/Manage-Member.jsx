@@ -267,7 +267,7 @@ const Manage_Member = () => {
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse">
                   <thead>
-                    <tr className="bg-member-green text-xs uppercase tracking-wider text-white font-extrabold">
+                    <tr className="bg-primary-deep text-[10px] uppercase tracking-wider text-white font-extrabold">
                       <th className="p-5 font-bold">Member ID</th>
                       <th className="p-5 font-bold">Name</th>
                       <th className="p-5 font-bold">Email</th>
@@ -278,12 +278,19 @@ const Manage_Member = () => {
                   </thead>
                   <tbody>
                     {filtered.length === 0 ? (
-                      <tr><td colSpan={6} className="p-8 text-sm font-medium text-center text-gray-500 bg-gray-50/50">No members match your search criteria.</td></tr>
+                      <tr>
+                        <td colSpan={6} className="p-10 text-center">
+                          <div className="flex flex-col items-center justify-center gap-2">
+                            <Users size={32} className="text-gray-300" />
+                            <p className="text-sm font-medium text-gray-500">No members match your search criteria.</p>
+                          </div>
+                        </td>
+                      </tr>
                     ) : (
                       paginatedRows.map((r) => (
                         <tr
                           key={String(r.id)}
-                          className="border-b border-gray-100 hover:bg-green-50/30 transition-colors"
+                          className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors"
                         >
                           <td className="p-5 text-sm font-bold text-gray-800">{r.member_id}</td>
                           <td className="p-5 text-sm font-semibold text-gray-700">{r.full_name}</td>

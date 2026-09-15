@@ -24,7 +24,8 @@ import {
   AlertTriangle,
   History,
   CheckCircle2,
-  Clock
+  Clock,
+  Loader2
 } from "lucide-react";
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 
@@ -295,30 +296,34 @@ const BOD_Manage_Loans = () => {
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse">
                   <thead>
-                    <tr className="bg-green-700 text-[10px] uppercase tracking-wider text-white font-extrabold">
-                      <th className="p-3 font-bold">Loan ID</th>
-                      <th className="p-3 font-bold">Member</th>
-                      <th className="p-3 font-bold">Loan Type</th>
-                      <th className="p-3 font-bold text-right">Amount</th>
-                      <th className="p-3 font-bold text-right">Balance</th>
-                      <th className="p-3 font-bold text-right">Paid</th>
-                      <th className="p-3 font-bold">Status</th>
-                      <th className="p-3 font-bold">Application Date</th>
+                    <tr className="bg-primary-deep text-[10px] uppercase tracking-wider text-white font-extrabold">
+                      <th className="p-5 font-bold">Loan ID</th>
+                      <th className="p-5 font-bold">Member</th>
+                      <th className="p-5 font-bold">Loan Type</th>
+                      <th className="p-5 font-bold text-right">Amount</th>
+                      <th className="p-5 font-bold text-right">Balance</th>
+                      <th className="p-5 font-bold text-right">Paid</th>
+                      <th className="p-5 font-bold">Status</th>
+                      <th className="p-5 font-bold">Application Date</th>
                     </tr>
                   </thead>
                   <tbody>
                     {loading && !loadError ? (
                       <tr>
-                        <td colSpan={8} className="p-6 text-center text-xs text-gray-500">
-                          <RefreshCw className="inline w-4 h-4 mr-1 animate-spin" />
-                          Loading loan ledger...
+                        <td colSpan={8} className="p-10 text-center">
+                          <div className="flex flex-col items-center justify-center gap-2">
+                            <Loader2 size={24} className="text-gray-300 animate-spin" />
+                            <p className="text-sm text-gray-400">Loading...</p>
+                          </div>
                         </td>
                       </tr>
                     ) : paginatedLoans.length === 0 ? (
                       <tr>
-                        <td colSpan={8} className="p-8 text-center">
-                          <BookOpen className="w-10 h-10 text-gray-300 mx-auto mb-2" />
-                          <p className="text-xs text-gray-500">No loans match your filters.</p>
+                        <td colSpan={8} className="p-10 text-center">
+                          <div className="flex flex-col items-center justify-center gap-2">
+                            <BookOpen size={32} className="text-gray-300" />
+                            <p className="text-sm font-medium text-gray-500">No loans match your filters.</p>
+                          </div>
                         </td>
                       </tr>
                     ) : (
@@ -331,35 +336,35 @@ const BOD_Manage_Loans = () => {
                           return (
                             <tr
                               key={loan.loan_id}
-                              className="border-b border-gray-100 hover:bg-gray-50/60 transition-colors"
+                              className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors"
                             >
-                              <td className="p-3 text-xs font-mono text-gray-600 max-w-[10rem]">
+                              <td className="p-5 text-xs font-mono text-gray-600 max-w-[10rem]">
                                 <p className="truncate" title={loan.loan_id}>{loan.loan_id}</p>
                               </td>
-                              <td className="p-3 text-xs">
+                              <td className="p-5 text-xs">
                                 <p className="font-semibold text-gray-900 truncate max-w-[12rem]" title={loan.member_name}>
                                   {loan.member_name || "Unknown Member"}
                                 </p>
                                 <p className="text-[10px] text-gray-500">{loan.membership_id || "—"}</p>
                               </td>
-                              <td className="p-3 text-xs text-gray-700">{loan.loan_type || "Loan"}</td>
-                              <td className="p-3 text-xs font-semibold text-gray-900 text-right">
+                              <td className="p-5 text-xs text-gray-700">{loan.loan_type || "Loan"}</td>
+                              <td className="p-5 text-xs font-semibold text-gray-900 text-right">
                                 {formatCurrency(amount)}
                               </td>
-                              <td className="p-3 text-xs text-gray-700 text-right">
+                              <td className="p-5 text-xs text-gray-700 text-right">
                                 {formatCurrency(balance)}
                               </td>
-                              <td className="p-3 text-xs text-emerald-700 font-semibold text-right">
+                              <td className="p-5 text-xs text-emerald-700 font-semibold text-right">
                                 {formatCurrency(paid)}
                               </td>
-                              <td className="p-3 text-xs">
+                              <td className="p-5 text-xs">
                                 <span
                                   className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold ${formatStatusTone(stage)}`}
                                 >
                                   {stage}
                                 </span>
                               </td>
-                              <td className="p-3 text-xs text-gray-500 whitespace-nowrap">
+                              <td className="p-5 text-xs text-gray-500 whitespace-nowrap">
                                 {formatDisplayDate(loan.application_date)}
                               </td>
                             </tr>
@@ -367,14 +372,14 @@ const BOD_Manage_Loans = () => {
                         })}
                         {Array.from({ length: PAGE_SIZE - paginatedLoans.length }).map((_, i) => (
                           <tr key={`filler-${i}`} className="border-b border-gray-100" aria-hidden="true">
-                            <td className="p-3 text-xs">&nbsp;</td>
-                            <td className="p-3 text-xs"></td>
-                            <td className="p-3 text-xs"></td>
-                            <td className="p-3 text-xs"></td>
-                            <td className="p-3 text-xs"></td>
-                            <td className="p-3 text-xs"></td>
-                            <td className="p-3 text-xs"></td>
-                            <td className="p-3 text-xs"></td>
+                            <td className="p-5 text-xs">&nbsp;</td>
+                            <td className="p-5 text-xs"></td>
+                            <td className="p-5 text-xs"></td>
+                            <td className="p-5 text-xs"></td>
+                            <td className="p-5 text-xs"></td>
+                            <td className="p-5 text-xs"></td>
+                            <td className="p-5 text-xs"></td>
+                            <td className="p-5 text-xs"></td>
                           </tr>
                         ))}
                       </>

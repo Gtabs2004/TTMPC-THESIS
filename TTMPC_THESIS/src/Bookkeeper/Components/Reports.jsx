@@ -680,18 +680,23 @@ const Reports = () => {
                 <div className="overflow-x-auto">
                   <table className="w-full text-left">
                     <thead>
-                      <tr className="bg-green-700 text-[10px] uppercase tracking-wider text-white">
-                        <th className="px-5 py-3 font-bold">Loan Type</th>
-                        <th className="px-5 py-3 font-bold text-right">Count</th>
-                        <th className="px-5 py-3 font-bold text-right">Total Portfolio</th>
-                        <th className="px-5 py-3 font-bold text-right">Avg. Loan Size</th>
-                        <th className="px-5 py-3 font-bold text-right">Share</th>
+                      <tr className="bg-primary-deep text-[10px] uppercase tracking-wider text-white font-extrabold">
+                        <th className="p-5 font-bold">Loan Type</th>
+                        <th className="p-5 font-bold text-right">Count</th>
+                        <th className="p-5 font-bold text-right">Total Portfolio</th>
+                        <th className="p-5 font-bold text-right">Avg. Loan Size</th>
+                        <th className="p-5 font-bold text-right">Share</th>
                       </tr>
                     </thead>
                     <tbody>
                       {loanDist.length === 0 ? (
                         <tr>
-                          <td colSpan={5} className="px-5 py-8 text-center text-sm text-gray-400">No loan data available.</td>
+                          <td colSpan={5} className="p-10 text-center">
+                            <div className="flex flex-col items-center justify-center gap-2">
+                              <Landmark size={32} className="text-gray-300" />
+                              <p className="text-sm font-medium text-gray-500">No loan data available.</p>
+                            </div>
+                          </td>
                         </tr>
                       ) : (
                         loanDist.map((row, idx) => {
@@ -699,8 +704,8 @@ const Reports = () => {
                           const share = total ? ((row.count / total) * 100).toFixed(1) : "0.0";
                           const avg = row.count ? row.total_amount / row.count : 0;
                           return (
-                            <tr key={idx} className="border-b border-gray-50 hover:bg-green-50/30 transition-colors">
-                              <td className="px-5 py-3 text-sm">
+                            <tr key={idx} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
+                              <td className="p-5 text-sm">
                                 <div className="flex items-center gap-2">
                                   <div
                                     className="w-2 h-2 rounded-full shrink-0"
@@ -709,10 +714,10 @@ const Reports = () => {
                                   <span className="font-semibold text-gray-800">{row.name}</span>
                                 </div>
                               </td>
-                              <td className="px-5 py-3 text-sm text-right font-bold text-gray-900">{row.count}</td>
-                              <td className="px-5 py-3 text-sm text-right font-bold text-gray-900">{fmt(row.total_amount)}</td>
-                              <td className="px-5 py-3 text-sm text-right text-gray-600">{fmt(avg)}</td>
-                              <td className="px-5 py-3 text-sm text-right">
+                              <td className="p-5 text-sm text-right font-bold text-gray-900">{row.count}</td>
+                              <td className="p-5 text-sm text-right font-bold text-gray-900">{fmt(row.total_amount)}</td>
+                              <td className="p-5 text-sm text-right text-gray-600">{fmt(avg)}</td>
+                              <td className="p-5 text-sm text-right">
                                 <span className="inline-block bg-green-50 text-green-700 text-[10px] font-bold px-2 py-0.5 rounded-full">
                                   {share}%
                                 </span>

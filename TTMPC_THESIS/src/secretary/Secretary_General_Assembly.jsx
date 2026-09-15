@@ -8,7 +8,6 @@ import {
   CalendarCheck,
   CalendarDays,
   CheckCircle2,
-  Clock,
   CreditCard,
   FileText,
   LayoutDashboard,
@@ -20,6 +19,7 @@ import {
   AlertTriangle,
   History,
   Check,
+  Loader2,
 } from "lucide-react";
 
 import { UserAuth } from "../contex/AuthContext";
@@ -416,8 +416,8 @@ const Secretary_General_Assembly = () => {
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr className="bg-green-700 text-[10px] uppercase tracking-wider text-white font-extrabold">
-                    <th className="p-5 font-bold w-10">
+                  <tr className="bg-primary-deep text-[10px] uppercase tracking-wider text-white font-extrabold">
+                    <th className="p-5 font-bold text-center w-10">
                       {(() => {
                         const selectableIds = filtered.map((r) => r.id);
                         const allSelected =
@@ -444,17 +444,19 @@ const Secretary_General_Assembly = () => {
                 <tbody>
                   {loading ? (
                     <tr>
-                      <td colSpan={6} className="px-3 py-6 text-center text-gray-500">
-                        <Clock className="inline w-4 h-4 mr-1" />
-                        Loading members...
+                      <td colSpan={6} className="p-10 text-center">
+                        <div className="flex flex-col items-center justify-center gap-2">
+                          <Loader2 size={24} className="text-gray-300 animate-spin" />
+                          <p className="text-sm text-gray-400">Loading...</p>
+                        </div>
                       </td>
                     </tr>
                   ) : paginated.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="px-3 py-8 text-center">
-                        <div className="flex flex-col items-center gap-1.5">
-                          <AlertCircle size={24} className="text-gray-300" />
-                          <p className="text-xs text-gray-500">No members match your filters.</p>
+                      <td colSpan={6} className="p-10 text-center">
+                        <div className="flex flex-col items-center justify-center gap-2">
+                          <AlertCircle size={32} className="text-gray-300" />
+                          <p className="text-sm font-medium text-gray-500">No members match your filters.</p>
                         </div>
                       </td>
                     </tr>
