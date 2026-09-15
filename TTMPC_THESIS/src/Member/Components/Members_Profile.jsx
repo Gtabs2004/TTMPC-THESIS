@@ -55,7 +55,7 @@ const PROFILE_SECTIONS = [
       { key: 'first_name', label: 'First Name', required: true },
       { key: 'middle_name', label: 'Middle Name' },
       { key: 'maiden_name', label: 'Maiden Name' },
-      { key: 'date_of_birth', label: 'Date of Birth', type: 'date' },
+      { key: 'date_of_birth', label: 'Date of Birth', type: 'date', required: true },
       { key: 'place_of_birth', label: 'Place of Birth' },
       { key: 'gender', label: 'Gender', type: 'select', options: ['Male', 'Female'] },
       { key: 'civil_status', label: 'Civil Status', type: 'select', options: ['Single', 'Married', 'Widowed', 'Separated'] },
@@ -92,7 +92,7 @@ const PROFILE_SECTIONS = [
     fields: [
       { key: 'father_name', label: "Father's Name" },
       { key: 'mother_name', label: "Mother's Maiden Name" },
-      { key: 'number_of_dependents', label: 'Number of Dependents', type: 'number' },
+      { key: 'number_of_dependents', label: 'Number of Dependents', type: 'number', required: true },
     ],
   },
   {
@@ -114,7 +114,7 @@ const PROFILE_SECTIONS = [
     fields: [
       { key: 'employer_name', label: 'Employer Name' },
       { key: 'position', label: 'Position' },
-      { key: 'occupation', label: 'Occupation' },
+      { key: 'occupation', label: 'Occupation', required: true },
       { key: 'educational_attainment', label: 'Educational Attainment' },
       { key: 'income_source', label: 'Source of Income' },
       { key: 'salary', label: 'Monthly Salary' },

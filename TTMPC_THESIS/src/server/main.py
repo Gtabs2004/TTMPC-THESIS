@@ -172,6 +172,16 @@ async def _lifespan(app: FastAPI):
             "Admin endpoints (/api/admin/*) will return 503."
         )
     import asyncio
+
+    # Preload the JWT signing keys off the request path. Done in a thread so a
+    # slow link delays nothing: until it lands, verification falls back to the
+    # on-disk cache and only an unknown key id would reach the network.
+    def _warm_jwks():
+        from services.auth_dependencies import warm_jwks_cache
+        if not warm_jwks_cache():
+            logger.warning("Could not preload JWT signing keys; will retry on demand.")
+
+    asyncio.get_running_loop().run_in_executor(None, _warm_jwks)
     asyncio.ensure_future(_warm_manage_loans_cache())
     yield
 
@@ -12823,6 +12833,16 @@ def account_password_verify_and_set(
 
 # Profile fields a member must supply themselves before the portal unlocks.
 #
+# Two groups, both required:
+#   * Operational  -- contact_number, permanent_address. How the cooperative
+#     actually reaches the member.
+#   * Credit-risk  -- date_of_birth, occupation, number_of_dependents. These
+#     are the ONLY three of the risk model's 21 features that come from the
+#     member's own profile (risk_features.py assembles them into Age, OccTier
+#     and Dependents). Left blank they reach the model as NaN, so an incomplete
+#     profile silently degrades every risk score that member is given. Imputing
+#     them is not an option, which makes collecting them up front the fix.
+#
 # Only member-EDITABLE details belong here. Deliberately excluded:
 #   * surname / first_name -- supplied by the cooperative's own records and
 #     already populated by the member import.
@@ -12833,11 +12853,22 @@ def account_password_verify_and_set(
 #
 # Email is gated separately via is_email_dummy, so it is not repeated here.
 #
-# These are exactly the `required: true` fields of the editable sections in
-# PROFILE_SECTIONS (Members_Profile.jsx). Keep the two in step: gating on a
-# field the form does not itself require would leave the member unable to
-# satisfy the gate by saving the form.
-_REQUIRED_PROFILE_FIELDS = ("contact_number", "permanent_address")
+# Every field here must also be marked `required: true` in PROFILE_SECTIONS
+# (Members_Profile.jsx) AND have an input in ProfileStep (AccountSetupGate.jsx).
+# Gating on a field the member has no way to fill would lock them out for good.
+_REQUIRED_PROFILE_FIELDS = (
+    "contact_number",
+    "permanent_address",
+    "date_of_birth",
+    "occupation",
+    "number_of_dependents",
+)
+
+# number_of_dependents was historically written to a second column. Treat
+# either as satisfying the requirement, the way risk_features.py does when it
+# builds the Dependents feature -- otherwise members who already answered are
+# asked again.
+_DEPENDENTS_FALLBACK_COLUMN = "DependentCount"
 
 
 def _profile_missing_fields(membership_id: str | None) -> list[str]:
@@ -12853,7 +12884,7 @@ def _profile_missing_fields(membership_id: str | None) -> list[str]:
     try:
         resp = (
             supabase.table("personal_data_sheet")
-            .select(", ".join(_REQUIRED_PROFILE_FIELDS))
+            .select(", ".join((*_REQUIRED_PROFILE_FIELDS, _DEPENDENTS_FALLBACK_COLUMN)))
             .eq("membership_number_id", membership_id)
             .limit(1)
             .execute()
@@ -12867,7 +12898,16 @@ def _profile_missing_fields(membership_id: str | None) -> list[str]:
         return list(_REQUIRED_PROFILE_FIELDS)
 
     row = rows[0]
-    return [f for f in _REQUIRED_PROFILE_FIELDS if not str(row.get(f) or "").strip()]
+
+    def _is_blank(field: str) -> bool:
+        value = row.get(field)
+        if field == "number_of_dependents" and (value is None or str(value).strip() == ""):
+            value = row.get(_DEPENDENTS_FALLBACK_COLUMN)
+        # str() rather than falsiness: 0 dependents is a real answer, and
+        # `not 0` would keep asking the member for it forever.
+        return str(value if value is not None else "").strip() == ""
+
+    return [f for f in _REQUIRED_PROFILE_FIELDS if _is_blank(f)]
 
 
 @app.get("/api/account/security-status")
@@ -12908,6 +12948,9 @@ def account_security_status(current_user: dict = _Depends(_get_current_user)):
 class OnboardingProfilePayload(BaseModel):
     contact_number: str | None = None
     permanent_address: str | None = None
+    date_of_birth: str | None = None
+    occupation: str | None = None
+    number_of_dependents: str | None = None
 
 
 @app.post("/api/account/onboarding/profile")
@@ -12941,10 +12984,20 @@ def account_onboarding_profile(
 
     contact = str(payload.contact_number or "").strip()
     address = str(payload.permanent_address or "").strip()
-    if "contact_number" in still_missing and not contact:
-        raise HTTPException(status_code=400, detail="Mobile number is required.")
-    if "permanent_address" in still_missing and not address:
-        raise HTTPException(status_code=400, detail="Permanent address is required.")
+    birth = str(payload.date_of_birth or "").strip()
+    occupation = str(payload.occupation or "").strip()
+    dependents = str(payload.number_of_dependents or "").strip()
+
+    _labels = {
+        "contact_number": ("Mobile number", contact),
+        "permanent_address": ("Permanent address", address),
+        "date_of_birth": ("Date of birth", birth),
+        "occupation": ("Occupation", occupation),
+        "number_of_dependents": ("Number of dependents", dependents),
+    }
+    for field, (label, value) in _labels.items():
+        if field in still_missing and not value:
+            raise HTTPException(status_code=400, detail=f"{label} is required.")
 
     updates = {}
     if contact:
@@ -12957,6 +13010,30 @@ def account_onboarding_profile(
         updates["contact_number"] = int(digits)
     if address:
         updates["permanent_address"] = address
+    if birth:
+        # Feeds the model's Age feature, so an unparseable date must not be
+        # stored -- it would resurface as NaN at scoring time.
+        try:
+            parsed = datetime.strptime(birth[:10], "%Y-%m-%d").date()
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Enter a valid date of birth.")
+        today = datetime.now().date()
+        age = (today - parsed).days / 365.25
+        if not (18 <= age <= 100):
+            raise HTTPException(
+                status_code=400, detail="Date of birth must put you between 18 and 100."
+            )
+        updates["date_of_birth"] = parsed.isoformat()
+    if occupation:
+        updates["occupation"] = occupation
+    if dependents:
+        try:
+            count = int(float(dependents))
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Enter a valid number of dependents.")
+        if not (0 <= count <= 20):
+            raise HTTPException(status_code=400, detail="Number of dependents must be 0-20.")
+        updates["number_of_dependents"] = count
 
     if not updates:
         raise HTTPException(status_code=400, detail="Nothing to update.")

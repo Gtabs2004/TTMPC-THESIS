@@ -585,11 +585,17 @@ function PasswordStep({ currentEmail, onDone }) {
 function ProfileStep({ missing, onDone }) {
   const [contact, setContact] = useState("");
   const [address, setAddress] = useState("");
+  const [birth, setBirth] = useState("");
+  const [occupation, setOccupation] = useState("");
+  const [dependents, setDependents] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
 
   const needsContact = missing.includes("contact_number");
   const needsAddress = missing.includes("permanent_address");
+  const needsBirth = missing.includes("date_of_birth");
+  const needsOccupation = missing.includes("occupation");
+  const needsDependents = missing.includes("number_of_dependents");
 
   const submit = async (e) => {
     e.preventDefault();
@@ -602,6 +608,19 @@ function ProfileStep({ missing, onDone }) {
       setErr("Enter your permanent address.");
       return;
     }
+    if (needsBirth && !birth.trim()) {
+      setErr("Enter your date of birth.");
+      return;
+    }
+    if (needsOccupation && !occupation.trim()) {
+      setErr("Enter your occupation.");
+      return;
+    }
+    // Explicit "" check, not falsiness: "0" dependents is a valid answer.
+    if (needsDependents && dependents.trim() === "") {
+      setErr("Enter your number of dependents.");
+      return;
+    }
 
     setBusy(true);
     try {
@@ -611,6 +630,9 @@ function ProfileStep({ missing, onDone }) {
         body: JSON.stringify({
           contact_number: contact.trim(),
           permanent_address: address.trim(),
+          date_of_birth: birth.trim(),
+          occupation: occupation.trim(),
+          number_of_dependents: dependents.trim(),
         }),
       });
       const body = await res.json().catch(() => ({}));
@@ -628,8 +650,8 @@ function ProfileStep({ missing, onDone }) {
         Complete your profile
       </p>
       <p className="mt-1 text-xs text-gray-600 dark:text-gray-400">
-        Your membership details come from the cooperative. We just need these
-        contact details from you.
+        Your membership details come from the cooperative. We need these details
+        from you — they are used when your loan applications are evaluated.
       </p>
 
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
@@ -642,6 +664,45 @@ function ProfileStep({ missing, onDone }) {
               placeholder="09xxxxxxxxx"
               className={inputClass}
               autoComplete="tel"
+            />
+          </Field>
+        ) : null}
+
+        {needsBirth ? (
+          <Field label="Date of birth">
+            <input
+              type="date"
+              value={birth}
+              onChange={(e) => setBirth(e.target.value)}
+              className={inputClass}
+              autoComplete="bday"
+            />
+          </Field>
+        ) : null}
+
+        {needsOccupation ? (
+          <Field label="Occupation">
+            <input
+              type="text"
+              value={occupation}
+              onChange={(e) => setOccupation(e.target.value)}
+              placeholder="e.g. Public School Teacher"
+              className={inputClass}
+              autoComplete="organization-title"
+            />
+          </Field>
+        ) : null}
+
+        {needsDependents ? (
+          <Field label="Number of dependents">
+            <input
+              type="number"
+              min="0"
+              max="20"
+              value={dependents}
+              onChange={(e) => setDependents(e.target.value)}
+              placeholder="0"
+              className={inputClass}
             />
           </Field>
         ) : null}

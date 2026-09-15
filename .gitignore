@@ -25,3 +25,6 @@ TTMPC_THESIS/src/server/schema_dump.json
 *accounts*.xlsx
 *credentials*.csv
 *credentials*.xlsx
+
+# Cached Supabase JWT signing keys (regenerated on demand)
+.jwks_cache.json
