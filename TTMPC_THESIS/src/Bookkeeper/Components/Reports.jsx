@@ -232,7 +232,7 @@ function generateExecutivePDF(data, generatedAt) {
 
   y = doc.lastAutoTable.finalY + 8;
 
-  // MIGS distribution
+ 
   const migs = data.migs_distribution || {};
   doc.setFontSize(11);
   doc.setFont("helvetica", "bold");
