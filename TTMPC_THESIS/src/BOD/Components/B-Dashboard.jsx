@@ -127,8 +127,9 @@ const Dashboard_BOD = () => {
           supabase
             .from('loan_schedules')
             .select('loan_id, due_date, schedule_status')
-            .eq('schedule_status', 'overdue')
+            .in('schedule_status', ['Unpaid', 'unpaid', 'Overdue', 'overdue', 'Pending', 'pending'])
             .gte('due_date', sixMoStart)
+            .lt('due_date', now.toISOString().slice(0, 10))
             .limit(20000),
           supabase
             .from('loans')
