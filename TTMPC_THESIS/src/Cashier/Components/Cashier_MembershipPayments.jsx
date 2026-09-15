@@ -32,7 +32,7 @@ import {
 } from "lucide-react";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
-const PAGE_SIZE = 10;
+const PAGE_SIZE = 5;
 const MEMBERSHIP_FEE = 100;
 const PAID_UP_REQUIRED = 10000;
 
@@ -442,7 +442,7 @@ const Cashier_MembershipPayments = () => {
                               onClick={() => openModal(row, "MEMBERSHIP_FEE")}
                               className="inline-flex items-center gap-1.5 rounded-md bg-member-green text-white px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider hover:bg-[#164a18] transition-colors w-full justify-center"
                             >
-                              <Banknote size={12} /> Record Fee
+                              <Banknote size={12} /> Deposit Fee
                             </button>
                           )}
                           {row.paid_up_capital_paid ? (
@@ -454,7 +454,7 @@ const Cashier_MembershipPayments = () => {
                               onClick={() => openModal(row, "INITIAL_PAID_UP_CAPITAL")}
                               className="inline-flex items-center gap-1.5 rounded-md bg-[#0D4F8B] text-white px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider hover:bg-[#0a3f70] transition-colors w-full justify-center"
                             >
-                              <Banknote size={12} /> Record Paid-Up
+                              <Banknote size={12} /> CBU Deposit
                             </button>
                           )}
                         </div>
