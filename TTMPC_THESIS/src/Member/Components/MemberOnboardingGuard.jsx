@@ -31,6 +31,18 @@ async function fetchStatus(session) {
   const res = await fetch(`${API_BASE}/api/account/security-status`, {
     headers: { Authorization: `Bearer ${token}` },
   });
+  // 503 means the backend couldn't reach the auth service, not that this
+  // member is set up. Retry once rather than caching a non-answer -- caching
+  // it would let an unfinished account past the gate for the whole TTL.
+  if (res.status === 503) {
+    const retry = await fetch(`${API_BASE}/api/account/security-status`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!retry.ok) return null;
+    const retryBody = await retry.json();
+    writeCachedStatus(token, retryBody);
+    return retryBody;
+  }
   if (!res.ok) return null;
   const body = await res.json();
   writeCachedStatus(token, body);
