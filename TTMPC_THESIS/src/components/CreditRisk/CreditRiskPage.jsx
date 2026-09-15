@@ -371,7 +371,7 @@ const CreditRiskPage = ({ portal = "bookkeeper" }) => {
           <div className="flex items-start justify-between mb-6 gap-3 flex-wrap">
             <div>
               <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-                <Brain className="text-indigo-500" size={26} />
+                
                 Credit Risk Assessment
               </h2>
               <p className="text-sm text-gray-500 mt-0.5">

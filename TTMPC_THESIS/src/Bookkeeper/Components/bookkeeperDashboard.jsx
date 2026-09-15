@@ -367,7 +367,7 @@ const Dashboard = () => {
 
   return (
     <div className="flex min-h-screen bg-gray-50">
-      {/* SIDEBAR */}
+
       <StaffSidebar portal="Bookkeeper" items={bookkeeperNav} />
 
       
