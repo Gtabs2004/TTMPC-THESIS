@@ -33,7 +33,7 @@ function ForgotPassword() {
         <img src="/img/ttmpc logo.png" alt="TTMPC Logo" className="mx-auto h-24 w-auto drop-shadow-sm mb-6" />
         <h2 className="text-center text-3xl font-extrabold text-gray-900 tracking-tight">Forgot Password</h2>
         <p className="mt-2 text-center text-sm text-gray-500">
-          Enter your registered email and we'll send you a 6-digit verification code.
+          Enter your registered email and we'll send you a 8-digit verification code.
         </p>
       </div>
 

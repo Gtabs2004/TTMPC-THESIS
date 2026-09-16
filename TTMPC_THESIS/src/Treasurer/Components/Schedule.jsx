@@ -300,13 +300,13 @@ const Schedule = () => {
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
-                      <tr className="text-left text-[11px] uppercase text-gray-500 border-b border-gray-100">
-                        <th className="py-1.5 pr-2 font-medium">Cycle</th>
-                        <th className="py-1.5 pr-2 font-medium">Expected</th>
-                        <th className="py-1.5 pr-2 font-medium">Release</th>
-                        <th className="py-1.5 pr-2 font-medium">Delay</th>
-                        <th className="py-1.5 pr-2 font-medium">Status</th>
-                        <th className="py-1.5 font-medium text-right w-24"></th>
+                      <tr className="bg-primary-deep text-[10px] uppercase tracking-wider text-white font-extrabold">
+                        <th className="p-3 font-bold">Cycle</th>
+                        <th className="p-3 font-bold">Expected</th>
+                        <th className="p-3 font-bold">Release</th>
+                        <th className="p-3 font-bold">Delay</th>
+                        <th className="p-3 font-bold">Status</th>
+                        <th className="p-3 font-bold text-right w-24"></th>
                       </tr>
                     </thead>
                     <tbody>
@@ -329,11 +329,11 @@ const Schedule = () => {
                         return (
                           <tr
                             key={row.schedule_id}
-                            className={`group border-b border-gray-50 hover:bg-green-50/40 ${
+                            className={`group border-b border-gray-100 hover:bg-gray-50/50 transition-colors ${
                               isCurrent ? "bg-green-50/60" : ""
                             }`}
                           >
-                            <td className="py-1.5 pr-2 text-gray-800 whitespace-nowrap">
+                            <td className="p-3 text-gray-800 whitespace-nowrap">
                               <span className="inline-flex items-center gap-1.5">
                                 {cycleShort(row)}
                                 <span className={`px-1.5 py-px rounded text-[10px] font-semibold ${row.cycle_half === 1 ? "bg-gray-100 text-gray-600" : "bg-gray-200 text-gray-700"}`}>
@@ -341,13 +341,13 @@ const Schedule = () => {
                                 </span>
                               </span>
                             </td>
-                            <td className="py-1.5 pr-2 text-gray-600 tabular-nums whitespace-nowrap">{formatDate(row.expected_date)}</td>
-                            <td className="py-1.5 pr-2 text-gray-600 tabular-nums whitespace-nowrap">{formatDate(row.release_date)}</td>
-                            <td className="py-1.5 pr-2 tabular-nums whitespace-nowrap">
+                            <td className="p-3 text-gray-600 tabular-nums whitespace-nowrap">{formatDate(row.expected_date)}</td>
+                            <td className="p-3 text-gray-600 tabular-nums whitespace-nowrap">{formatDate(row.release_date)}</td>
+                            <td className="p-3 tabular-nums whitespace-nowrap">
                               {row.delay_days == null ? "—" : row.delay_days <= 0 ? <span className="text-green-600">0d</span> : <span className="text-red-600">+{row.delay_days}d</span>}
                             </td>
-                            <td className="py-1.5 pr-2">{statusPill(displayStatus)}</td>
-                            <td className="py-1.5 text-right whitespace-nowrap">
+                            <td className="p-3">{statusPill(displayStatus)}</td>
+                            <td className="p-3 text-right whitespace-nowrap">
                               <div className="inline-flex gap-1.5 items-center">
                                 {!row.release_date && isCurrent && (
                                   <button
@@ -429,24 +429,24 @@ const Schedule = () => {
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="text-left text-xs uppercase text-gray-500 border-b border-gray-100">
-                      <th className="py-2 pr-3 font-medium">Member</th>
-                      <th className="py-2 pr-3 font-medium">Employer</th>
-                      <th className="py-2 pr-3 font-medium">Loan #</th>
-                      <th className="py-2 pr-3 font-medium">Due Date</th>
-                      <th className="py-2 pr-3 font-medium">Amount Due</th>
-                      <th className="py-2 font-medium">Why Flagged</th>
+                    <tr className="bg-primary-deep text-[10px] uppercase tracking-wider text-white font-extrabold">
+                      <th className="p-3 font-bold">Member</th>
+                      <th className="p-3 font-bold">Employer</th>
+                      <th className="p-3 font-bold">Loan #</th>
+                      <th className="p-3 font-bold">Due Date</th>
+                      <th className="p-3 font-bold">Amount Due</th>
+                      <th className="p-3 font-bold">Why Flagged</th>
                     </tr>
                   </thead>
                   <tbody>
                     {lateInfo.data.map((row) => (
-                      <tr key={row.schedule_id_ref} className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors">
-                        <td className="py-2 pr-3 text-gray-800">{row.member_name}</td>
-                        <td className="py-2 pr-3 text-gray-600">{row.employer_name || "—"}</td>
-                        <td className="py-2 pr-3 text-gray-600 tabular-nums">{row.control_number || "—"}</td>
-                        <td className="py-2 pr-3 text-gray-600 tabular-nums">{formatDate(row.due_date)}</td>
-                        <td className="py-2 pr-3 text-gray-800 tabular-nums font-medium">{PHP_FULL(row.amount_due)}</td>
-                        <td className="py-2 text-gray-500 text-xs">{row.reason}</td>
+                      <tr key={row.schedule_id_ref} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
+                        <td className="p-3 text-gray-800">{row.member_name}</td>
+                        <td className="p-3 text-gray-600">{row.employer_name || "—"}</td>
+                        <td className="p-3 text-gray-600 tabular-nums">{row.control_number || "—"}</td>
+                        <td className="p-3 text-gray-600 tabular-nums">{formatDate(row.due_date)}</td>
+                        <td className="p-3 text-gray-800 tabular-nums font-medium">{PHP_FULL(row.amount_due)}</td>
+                        <td className="p-3 text-gray-500 text-xs">{row.reason}</td>
                       </tr>
                     ))}
                   </tbody>

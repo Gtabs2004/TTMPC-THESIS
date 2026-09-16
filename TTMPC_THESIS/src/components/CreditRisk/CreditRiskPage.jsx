@@ -14,6 +14,8 @@ import {
   AlertCircle,
   TrendingUp,
   TrendingDown,
+  Loader2,
+  Inbox,
 } from "lucide-react";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
@@ -362,31 +364,36 @@ const CreditRiskPage = ({ portal = "bookkeeper" }) => {
 
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
-                <thead className="bg-gray-50 text-gray-500 text-xs uppercase tracking-wider">
-                  <tr>
-                    <th className="text-left px-6 py-3 font-semibold">Applicant</th>
-                    <th className="text-left px-6 py-3 font-semibold">Loan Type</th>
-                    <th className="text-right px-6 py-3 font-semibold">Amount</th>
-                    <th className="text-center px-6 py-3 font-semibold">Applied</th>
-                    <th className="text-left px-6 py-3 font-semibold">
+                <thead>
+                  <tr className="bg-primary-deep text-[10px] uppercase tracking-wider text-white font-extrabold">
+                    <th className="p-5 font-bold">Applicant</th>
+                    <th className="p-5 font-bold">Loan Type</th>
+                    <th className="p-5 font-bold text-right">Amount</th>
+                    <th className="p-5 font-bold text-center">Applied</th>
+                    <th className="p-5 font-bold">
                       <div className="inline-flex items-center gap-1">
                         Risk Score <ArrowUpDown size={12} />
                       </div>
                     </th>
-                  
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100">
+                <tbody>
                   {loading ? (
                     <tr>
-                      <td colSpan={6} className="px-6 py-10 text-center text-sm text-gray-400">
-                        Loading model scores...
+                      <td colSpan={5} className="p-10 text-center">
+                        <div className="flex flex-col items-center justify-center gap-2">
+                          <Loader2 size={24} className="text-gray-300 animate-spin" />
+                          <p className="text-sm text-gray-400">Loading model scores...</p>
+                        </div>
                       </td>
                     </tr>
                   ) : pagedRows.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="px-6 py-10 text-center text-sm text-gray-400">
-                        No applicants match the current filters.
+                      <td colSpan={5} className="p-10 text-center">
+                        <div className="flex flex-col items-center justify-center gap-2">
+                          <Inbox size={32} className="text-gray-300" />
+                          <p className="text-sm font-medium text-gray-500">No applicants match the current filters.</p>
+                        </div>
                       </td>
                     </tr>
                   ) : (
@@ -397,22 +404,22 @@ const CreditRiskPage = ({ portal = "bookkeeper" }) => {
                         <tr
                           key={row.loan_id}
                           onClick={() => setSelectedLoan(row)}
-                          className="hover:bg-gray-50 cursor-pointer"
+                          className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors cursor-pointer"
                         >
-                          <td className="px-6 py-4">
+                          <td className="p-5">
                             <div className="font-semibold text-gray-800">{row.member_name || "—"}</div>
                             <div className="text-xs text-gray-400 mt-0.5">{row.loan_id}</div>
                           </td>
-                          <td className="px-6 py-4">
+                          <td className="p-5">
                             <span className="text-xs font-semibold text-gray-700">{row.loan_type || "—"}</span>
                           </td>
-                          <td className="px-6 py-4 text-right font-semibold text-gray-800">
+                          <td className="p-5 text-right font-semibold text-gray-800">
                             {formatPeso(row.loan_amount)}
                           </td>
-                          <td className="px-6 py-4 text-center text-xs text-gray-600">
+                          <td className="p-5 text-center text-xs text-gray-600">
                             {formatDate(row.application_date)}
                           </td>
-                          <td className="px-6 py-4">
+                          <td className="p-5">
                             <div className="flex items-center gap-2">
                               <div className="flex-1 min-w-[80px] h-2 bg-gray-100 rounded-full overflow-hidden">
                                 <div
@@ -428,7 +435,6 @@ const CreditRiskPage = ({ portal = "bookkeeper" }) => {
                               {band.label}
                             </p>
                           </td>
-                        
                         </tr>
                       );
                     })
