@@ -28,6 +28,7 @@ import {
   FileCheck2,
   FileX2,
   User,
+  Loader2,
 } from "lucide-react";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
@@ -277,19 +278,17 @@ const Disbursements = () => {
             {/* Table Content */}
             <div className="overflow-x-auto">
               {isLoading ? (
-                <div className="flex flex-col items-center justify-center py-20 text-gray-500 bg-gray-50/30">
-                  <div className="w-8 h-8 border-2 border-gray-200 border-t-primary rounded-full animate-spin mb-4"></div>
-                  <p className="text-sm font-semibold text-gray-600">Syncing ledger records...</p>
+                <div className="flex flex-col items-center justify-center gap-2 p-10 text-center">
+                  <Loader2 size={24} className="text-gray-300 animate-spin" />
+                  <p className="text-sm text-gray-400">Syncing ledger records...</p>
                 </div>
               ) : visibleRows.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-20 text-gray-500 bg-gray-50/30">
-                  <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mb-4 border border-gray-200">
-                    <ClipboardList className="w-6 h-6 text-gray-400" />
-                  </div>
-                  <p className="text-base font-bold text-gray-900 mb-1">
+                <div className="flex flex-col items-center justify-center gap-2 p-10 text-center">
+                  <ClipboardList size={32} className="text-gray-300" />
+                  <p className="text-sm font-medium text-gray-500">
                     {rows.length === 0 ? "No Disbursed Loans" : "No Matches Found"}
                   </p>
-                  <p className="text-sm text-gray-500">
+                  <p className="text-xs text-gray-400">
                     {rows.length === 0
                       ? "Records will appear here once the Cashier processes a release."
                       : "Try adjusting your search criteria or loan type filter."}

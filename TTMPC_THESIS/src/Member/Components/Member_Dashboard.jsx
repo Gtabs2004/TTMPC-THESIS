@@ -1114,10 +1114,10 @@ const MemberDashboard = () => {
                 <table className="w-full text-left border-collapse">
                   <thead>
                     <tr className="bg-primary-deep text-[10px] uppercase tracking-wider text-white font-extrabold">
-                      <th className="p-5">Date</th>
-                      <th className="p-5">Description</th>
-                      <th className="p-5">Category</th>
-                      <th className="p-5 text-right">Amount</th>
+                      <th className="p-5 font-bold">Date</th>
+                      <th className="p-5 font-bold">Description</th>
+                      <th className="p-5 font-bold">Category</th>
+                      <th className="p-5 font-bold text-right">Amount</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1136,7 +1136,12 @@ const MemberDashboard = () => {
                       </tr>
                     )) : (
                       <tr>
-                        <td colSpan={4} className="p-6 text-sm text-gray-500 dark:text-gray-400 text-center">No transactions yet.</td>
+                        <td colSpan={4} className="p-10 text-center">
+                          <div className="flex flex-col items-center justify-center gap-2">
+                            <Receipt size={32} className="text-gray-300 dark:text-gray-600" />
+                            <p className="text-sm font-medium text-gray-500 dark:text-gray-400">No transactions yet.</p>
+                          </div>
+                        </td>
                       </tr>
                     )}
                   </tbody>
@@ -1162,7 +1167,10 @@ const MemberDashboard = () => {
                       </div>
                     </div>
                   )) : (
-                    <p className="p-6 text-sm text-gray-500 dark:text-gray-400 text-center">No transactions yet.</p>
+                    <div className="flex flex-col items-center justify-center gap-2 p-10 text-center">
+                      <Receipt size={32} className="text-gray-300 dark:text-gray-600" />
+                      <p className="text-sm font-medium text-gray-500 dark:text-gray-400">No transactions yet.</p>
+                    </div>
                   )}
                 </div>
               </div>
