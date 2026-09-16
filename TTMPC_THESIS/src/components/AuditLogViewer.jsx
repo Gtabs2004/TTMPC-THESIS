@@ -34,6 +34,7 @@ import {
   ClipboardList,
   Receipt,
   UserPlus,
+  Loader2,
 } from "lucide-react";
 import Pagination from "./Pagination";
 
@@ -489,7 +490,7 @@ const AuditLogViewer = ({ showActorRoleFilter = true, onError }) => {
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse whitespace-nowrap text-sm">
             <thead>
-              <tr className="bg-green-700 text-[10px] uppercase tracking-wider text-white font-extrabold">
+              <tr className="bg-primary-deep text-[10px] uppercase tracking-wider text-white font-extrabold">
                 <th className="p-5 font-bold">Log ID</th>
                 <th className="p-5 font-bold">Date &amp; Time</th>
                 <th className="p-5 font-bold">User</th>
@@ -502,9 +503,23 @@ const AuditLogViewer = ({ showActorRoleFilter = true, onError }) => {
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={8} className="p-5 text-sm text-center text-gray-400">Loading…</td></tr>
+                <tr>
+                  <td colSpan={8} className="p-10 text-center">
+                    <div className="flex flex-col items-center justify-center gap-2">
+                      <Loader2 size={24} className="text-gray-300 animate-spin" />
+                      <p className="text-sm text-gray-400">Loading...</p>
+                    </div>
+                  </td>
+                </tr>
               ) : rows.length === 0 ? (
-                <tr><td colSpan={8} className="p-5 text-sm text-center text-gray-400">No audit entries match these filters.</td></tr>
+                <tr>
+                  <td colSpan={8} className="p-10 text-center">
+                    <div className="flex flex-col items-center justify-center gap-2">
+                      <ClipboardList size={32} className="text-gray-300" />
+                      <p className="text-sm font-medium text-gray-500">No audit entries match these filters.</p>
+                    </div>
+                  </td>
+                </tr>
               ) : rows.map((r) => {
                 const moduleInfo = MODULE_BY_ENTITY[r.entity_type] || { label: r.entity_type, className: "bg-gray-50 text-gray-600" };
                 const flagged = FLAGGED_ACTIONS.has(r.action);

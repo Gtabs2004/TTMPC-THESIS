@@ -916,26 +916,26 @@ function Emergency_Loan() {
 
                     <h3 className="text-md font-bold text-gray-800 mb-3 text-center">{formData.loan_term_months}-Month Amortization Schedule</h3>
                     <div className="overflow-x-auto rounded-lg border border-gray-200">
-                      <table className="min-w-full divide-y divide-gray-200 text-xs">
-                        <thead className="bg-gray-50">
-                          <tr>
-                            <th className="px-4 py-2 text-left font-medium text-gray-500 uppercase tracking-wider">Month</th>
-                            <th className="px-4 py-2 text-right font-medium text-gray-500 uppercase tracking-wider">Starting Balance</th>
-                            <th className="px-4 py-2 text-right font-medium text-gray-500 uppercase tracking-wider">Principal</th>
-                            <th className="px-4 py-2 text-right font-medium text-gray-500 uppercase tracking-wider">Interest</th>
-                            <th className="px-4 py-2 text-right font-medium text-gray-500 uppercase tracking-wider">Total Payment</th>
-                            <th className="px-4 py-2 text-right font-medium text-gray-500 uppercase tracking-wider">Remaining Balance</th>
+                      <table className="min-w-full text-xs">
+                        <thead>
+                          <tr className="bg-primary-deep text-[10px] uppercase tracking-wider text-white font-extrabold">
+                            <th className="p-5 font-bold">Month</th>
+                            <th className="p-5 font-bold text-right">Starting Balance</th>
+                            <th className="p-5 font-bold text-right">Principal</th>
+                            <th className="p-5 font-bold text-right">Interest</th>
+                            <th className="p-5 font-bold text-right">Total Payment</th>
+                            <th className="p-5 font-bold text-right">Remaining Balance</th>
                           </tr>
                         </thead>
-                        <tbody className="bg-white divide-y divide-gray-200">
+                        <tbody>
                           {amortizationSchedule.map((row) => (
-                            <tr key={row.month}>
-                              <td className="px-4 py-2 whitespace-nowrap font-medium text-gray-900">{row.month}</td>
-                              <td className="px-4 py-2 whitespace-nowrap text-right text-gray-600">{formatCurrency(row.startingBalance)}</td>
-                              <td className="px-4 py-2 whitespace-nowrap text-right text-gray-600">{formatCurrency(row.principalPaid)}</td>
-                              <td className="px-4 py-2 whitespace-nowrap text-right text-red-600">{formatCurrency(row.interestPaid)}</td>
-                              <td className="px-4 py-2 whitespace-nowrap text-right font-bold text-gray-900">{formatCurrency(row.totalPayment)}</td>
-                              <td className="px-4 py-2 whitespace-nowrap text-right font-semibold text-blue-600">{formatCurrency(row.remainingBalance)}</td>
+                            <tr key={row.month} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
+                              <td className="p-5 whitespace-nowrap font-medium text-gray-900">{row.month}</td>
+                              <td className="p-5 whitespace-nowrap text-right text-gray-600">{formatCurrency(row.startingBalance)}</td>
+                              <td className="p-5 whitespace-nowrap text-right text-gray-600">{formatCurrency(row.principalPaid)}</td>
+                              <td className="p-5 whitespace-nowrap text-right text-red-600">{formatCurrency(row.interestPaid)}</td>
+                              <td className="p-5 whitespace-nowrap text-right font-bold text-gray-900">{formatCurrency(row.totalPayment)}</td>
+                              <td className="p-5 whitespace-nowrap text-right font-semibold text-blue-600">{formatCurrency(row.remainingBalance)}</td>
                             </tr>
                           ))}
                         </tbody>

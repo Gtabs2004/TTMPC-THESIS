@@ -192,7 +192,7 @@ const MIGS = () => {
 
       <StaffSidebar portal="Bookkeeper" items={bookkeeperNav} />
 
-      <div className="flex-1 flex flex-col">
+      <div className="flex min-h-screen bg-gray-50">
         <StaffTopbar portal="Bookkeeper" notifications={<LoanNotificationBell role="bookkeeper" />} />
 
         <main className="p-8 flex-1 overflow-y-auto">
