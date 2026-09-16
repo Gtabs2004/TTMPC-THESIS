@@ -1,0 +1,194 @@
+I'll conduct this architecture audit by first reading through all the provided project files.Let me see the truncated middle section of the endpoints.Now the data dictionary and performance metadata.Now let me extract the full schema picture — all tables, columns, FKs, and indexes — programmatically.The parser only captured `CREATE TABLE` column blocks — the `idx=0`/`fks=0` counts reflect the parser's structure, not necessarily reality. Since `CREATE INDEX` statements are usually separate DDL statements (not inside the table block), I need to check the raw manuscript/PDF and the actual foreign key definitions embedded in columns. Let me look deeper at FK references inside columns and check the performance metadata, which likely holds the empirical query/index data.This is the key data. Let me extract both fully.Now let me analyze the heavy_logic data for N+1 patterns (loops with `.execute()` inside them) and aggregate which existing indexes exist vs. which FK columns lack them.Now let me confirm true N+1 by checking whether `.execute()` calls appear *inside* loop bodies (by line proximity) for the top suspects, and pull the actual code context.This is very informative. The pattern is mostly *batched* fetches (good) with `while True` pagination loops, but a few routes do per-item queries. Let me check the two clearest N+1s: `member/lifecycle` has a `for account_table in [...]: .execute()` (probe loop), and confirm whether disburse/cbu deposits execute inside loops. Let me also verify existing indexes coverage against FK columns, and check casing inconsistencies across tables.Now I have a clear index picture. Critically, the frontend `Member_Dashboard` queries several columns directly via Supabase that I should check against index coverage. Let me check the specific hot columns the Member Dashboard filters on (`loans.member_id`, `Savings_Transactions.membership_number_id`, `capital_build_up.member_id`) and check the casing inconsistencies (`Savings_Transactions` PascalCase vs `savings_transaction_queue` snake_case; `GROCERY_TRANSACTIONS` uppercase). Let me confirm the `loans` table column names and whether `member_id` is indexed.Confirmed: **`loans.member_id` has NO index**, and **the PascalCase `Savings_Transactions` table has no index** on `membership_number_id`. Both are queried directly by the Member Dashboard on every load. Let me verify the casing inventory of table names and check the manuscript briefly for context on scale/claims, then I have enough for the report.This confirms a critical casing/consistency finding: the frontend queries `Savings_Transactions` (PascalCase) — which isn't even in the ~70 schema files' table list (the schema defines `savings_transaction_queue` and `ledger_transactions`), and the Member Dashboard queries both `Savings_Transactions` AND `savings_transaction_queue`. Also `member_applications` is queried by frontend but isn't in the schema dictionary. Let me do a final check on the two per-item probe patterns and the disburse route, then write the report.I now have everything I need. Two more confirmed critical findings: the core `member` table and `member_applications` table are **not defined in the 70 SQL files** (they're queried everywhere but their DDL/indexes are unmanaged), and `loan_payments_legacy` / `loans_legacy` legacy tables are queried without schema definitions. Here is the audit.
+
+---
+
+# Architecture Audit — TTMPC Cooperative Platform
+**Scope:** FastAPI (`main.py`, ~13,600 lines, 100+ endpoints), Supabase (73 SQL files, 34 defined tables, 100 indexes), React/Vite role dashboards.
+
+The findings below are grounded in the actual export: 461 heavy-logic hits across routes, 100 `CREATE INDEX` statements, the frontend inline-query map, and the schema dictionary. Priorities: **P0 = ship this sprint**, **P1 = next sprint**, **P2 = backlog/hardening**.
+
+---
+
+## Executive Summary
+
+The system is functionally broad but structurally fragile in three ways. First, the **hottest read paths lack indexes on their filter columns** — most notably `loans.member_id`, which every Member Dashboard load filters on, has no index at all. Second, the **frontend queries tables that don't exist in your schema files** (`Savings_Transactions` PascalCase, `member_applications`, `member`), meaning your most important entities are running on **unmanaged, un-indexed, un-RLS-audited DDL**. Third, **role dashboards talk to Supabase directly with the anon key**, so your access control depends entirely on Row-Level Security policies that — per `rls_missing_policies.sql` in your own file list — you already know are incomplete.
+
+None of these are academic. Each maps to a measured pattern in the export.
+
+---
+
+## 1. Dashboard Loading Speed & Latency
+
+### 1.1 — [P0] Missing index on `loans.member_id` (the single highest-impact fix)
+
+`Member_Dashboard.jsx` L409 fires `loans.select(...).eq('member_id', memberId)` on **every dashboard load**, and the backend does the same in `debt-capacity`, `lifecycle`, `migs/members/{key}`, and `manage-loans`. Your index inventory for `loans` contains only:
+
+```
+idx_loans_bod_pending, idx_loans_manager_queue, idx_loans_raw_payload_gin,
+idx_koica_loans_* , (loan_status, manager_review_requested_at)
+```
+
+There is **no index on `member_id`**. Every per-member loan lookup is a full sequential scan of the loans table. This is your worst offender because it sits on the critical path of the most-loaded screen.
+
+```sql
+CREATE INDEX IF NOT EXISTS idx_loans_member_id ON public.loans (member_id);
+-- Dashboards also order by application_date DESC — make it a covering composite:
+CREATE INDEX IF NOT EXISTS idx_loans_member_appdate
+  ON public.loans (member_id, application_date DESC);
+```
+
+### 1.2 — [P0] `Savings_Transactions` is queried but has zero indexes (and zero schema)
+
+`Member_Dashboard.jsx` L412 queries `Savings_Transactions.eq('membership_number_id', membershipId)`. This PascalCase table **is not in any of your 73 SQL files** — so it has no managed indexes. Every savings lookup on the member dashboard is a full scan.
+
+```sql
+CREATE INDEX IF NOT EXISTS idx_savings_transactions_membership
+  ON public."Savings_Transactions" (membership_number_id);
+```
+
+(See §2.1 — this table should not exist under that name at all.)
+
+### 1.3 — [P1] N+1 / probe-loop query patterns
+
+Most of your batched routes are actually written *correctly* — they collect IDs and use `.in_(...)` with `while True` pagination to beat PostgREST's 1000-row cap (`cashier/loan-payments/loans`, `bookkeeper/manage-loans`, `member/lifecycle`). That's good engineering and I don't want to flag it as a problem.
+
+The genuine N+1 offenders are narrower:
+
+| Route | Pattern | Fix |
+|---|---|---|
+| `GET /api/member/lifecycle/{id}` (L5134) | `for account_table in ["member_account","member_accounts"]: …execute()` — probing two table names because you don't know which exists | Resolve the canonical table name once (§2), delete the probe loop |
+| `GET /api/migs/members/{key}` (L7432–7440) | Separate `.execute()` for `loan_payments` then `loan_payments_legacy`, then again for grocery/savings/schedules per member | Acceptable for a single-member detail view, but `recompute-all` calls this shape in a loop — batch it |
+| `GET /api/migs/members` (L6818–6867) | Multiple `while True` scans (loans, payments×2, grocery, savings, schedules, GA) with **no server-side pagination on the member list itself** | See §1.4 |
+
+The `disburse` route (L3367) is transactional, not N+1 — but note L3469 does `loan_schedules.select("id").execute()` **with no filter** just to count rows. Replace with a filtered `count`:
+
+```python
+supabase.table("loan_schedules").select("id", count="exact").eq("loan_id", loan_id).execute()
+```
+
+### 1.4 — [P1] No pagination on list endpoints
+
+`GET /api/migs/members`, `GET /api/bookkeeper/manage-loans`, and `GET /api/secretary/membership-records` fetch and post-process the **entire population** in Python (dict comprehensions keyed by `member_ids` across 6–8 tables) before returning. This is O(members × tables) work per request with no `limit`/`offset`. As membership grows this degrades linearly with no ceiling. Add keyset pagination (`?after=<id>&limit=50`) and push the aggregation into a SQL view or RPC (you already use RPCs — `get_active_cashier_loan_ids`, `get_loan_eligibility` — so the pattern is established).
+
+### 1.5 — [P1] Blocking synchronous work inside async routes
+
+`POST /api/loans/compute` runs three nested `for installment_no in range(1, term+1)` amortization loops (L1203–1291) with `Decimal` math **in-process, synchronously**. Combined with PDF generation routes (`/print-pdf` × 4) and the ML `predict_loan_risk` route, any CPU-bound call blocks the event loop and stalls *all* concurrent dashboard requests on that worker. Move CPU-bound work off the event loop:
+
+```python
+from anyio import to_thread
+result = await to_thread.run_sync(compute_amortization, principal, rate, term)
+```
+
+### 1.6 — Quick index wins (FK columns on hot tables)
+
+Your `loan_schedules`, `loan_payments`, `savings_ledger`, `capital_build_up` tables **are** well-indexed. The gaps are on tables the dashboards touch:
+
+```sql
+CREATE INDEX IF NOT EXISTS idx_loan_notifications_member ON public.loan_notifications (member_id);  -- table had ZERO name-matched indexes
+CREATE INDEX IF NOT EXISTS idx_loans_loan_status ON public.loans (loan_status);  -- filtered on every manage-loans/approval screen
+-- If loan_payments_legacy is permanent, mirror the live indexes onto it.
+```
+
+---
+
+## 2. Naming & Data Consistency
+
+### 2.1 — [P0] Casing chaos across the table namespace
+
+Your 34 defined tables are almost all `snake_case`, with two glaring exceptions, plus the frontend inventing a third convention:
+
+- **`public.GROCERY_TRANSACTIONS`** — SCREAMING_CASE, alone among 34 tables. In Postgres this requires `"GROCERY_TRANSACTIONS"` double-quoting forever or it silently folds to lowercase, which is a recurring bug source.
+- **`Savings_Transactions`** — PascalCase, queried by the frontend (§1.2) but **absent from every schema file**. Meanwhile the schema defines `savings_transaction_queue` and `ledger_transactions`. The Member Dashboard queries `Savings_Transactions` (L412) *and* `savings_transaction_queue` (L478) — two casings, possibly two sources of truth for the same money.
+- Frontend uses `camelCase` in JS (`memberId`, `membershipId`) mapping onto `snake_case` columns (`member_id`, `membership_number_id`) — normal, but the mapping is done ad-hoc inline in each component with no shared adapter.
+
+**Action:** Standardize on `snake_case`, unquoted, `public.`-qualified. Rename `GROCERY_TRANSACTIONS` → `grocery_transactions` and consolidate `Savings_Transactions` into the managed `savings_transaction_queue`/`ledger_transactions` model. Provide a compatibility view during migration:
+
+```sql
+CREATE VIEW public."Savings_Transactions" AS SELECT * FROM public.savings_transaction_queue;  -- temporary bridge
+```
+
+### 2.2 — [P0] Core entities have no managed schema
+
+The audit confirms `member`, `member_applications`, `loans_legacy`, and `loan_payments_legacy` are queried by frontend and backend but have **no `CREATE TABLE` in any of the 73 files**. Your most important tables — members and loans history — are effectively unmanaged: no version-controlled columns, no FK definitions, no index guarantees, and (critically for §3) no auditable RLS. `loans_rows.sql` and `member_rows.sql` exist but contain only data rows (`"tables": []`), not DDL.
+
+**Action:** Reverse-engineer and commit canonical DDL for `member`, `member_applications`, and the `*_legacy` tables so they enter the same review/index/RLS pipeline as everything else.
+
+### 2.3 — [P1] Ambiguous member-identity keys across modules
+
+The same logical "who is this member" is expressed as at least four different keys depending on module: `loans.member_id`, `savings.membership_number_id`, `capital_build_up.member_id`, `member_applications.membership_id`, plus `profiles.id` = `auth.user.id`. The Member Dashboard has to juggle `account.user_id`, `authData.user.id`, `account.membership_id`, and `membershipId` (L575–576) just to resolve one person. This is where cross-module bugs and mismatched balances hide.
+
+**Action:** Define one canonical member primary key (recommend the `auth.users` UUID via `profiles`) and document the FK chain from every satellite table back to it. Add FK constraints where missing so the database enforces identity integrity instead of Python.
+
+### 2.4 — [P2] Unqualified table names
+
+`loan_restructure_requests` and `salary_schedule` are declared without the `public.` schema prefix that the other 32 tables use. Harmless today, but it breaks the moment `search_path` differs between environments. Normalize.
+
+---
+
+## 3. Frontend Inline Routing & Security
+
+### 3.1 — [P0] Direct Supabase access from role dashboards = RLS is your only wall
+
+The Member Dashboard makes **9 direct Supabase queries** against `loans`, `capital_build_up`, `Savings_Transactions`, `loan_schedules`, `loan_payments`, `member_applications`, and `profiles` using the browser's anon key. That key ships to every visitor. This means:
+
+- **The `WHERE member_id = X` filters in the client are advisory, not secure.** Any authenticated user can open devtools and re-issue `supabase.from('loans').select('*')` with a *different* member_id. The only thing stopping them is a correct RLS policy on every one of those tables.
+- Your own file list includes **`rls_missing_policies.sql`** — you already know coverage is incomplete. Combined with §2.2 (core tables have no committed schema, hence no auditable RLS), this is a real data-exposure surface, not a hypothetical one.
+- **Maintenance:** query shapes are duplicated inline across dozens of components (`ui_logic_map` shows the same tables hit from multiple dashboards). A column rename requires hunting every `.jsx` file instead of changing one endpoint.
+
+### 3.2 — [P1] `Router.jsx` guards protect *routes*, not *data*
+
+The routing tree shows good per-role guards (`memberGuarded`, `bookkeeperGuarded`, etc.), but note several **unguarded sensitive routes**: `/member-dashboard`, `/member-loans`, `/member-savings`, `/members-profile`, `/loan_services`, `/savings_services`, `/withdrawal`, `/deposit` all render with **no guard** in the map. A route guard only hides UI anyway — since the data comes from direct Supabase calls (§3.1), hiding the route does nothing to stop the underlying query. Guard visibility and data authorization are two different layers, and right now only the weaker one (UI) is partially enforced.
+
+Also flag: `/member_details` → `RequireRole` with no role argument shown, and duplicate route aliases (`/capital-build-up` and `/Cashier_CBU` → same component; six cashier aliases) which multiply the surface you must keep authorized consistently.
+
+### 3.3 — Recommended target architecture: API centralization
+
+Move the money-touching and cross-member reads behind FastAPI, where you already enforce roles (your endpoint map shows a clean `role` tag per route). Leave only genuinely per-user, RLS-safe reads (e.g. `profiles.avatar_url` for the logged-in user) on the direct client.
+
+**Blueprint:**
+1. **Introduce a `/api/member/dashboard/{member_id}` aggregate endpoint** that returns the whole dashboard bundle in one authorized, server-side call — replacing the 9 client queries. The backend already assembles nearly identical bundles for `lifecycle` and `migs`; reuse that code.
+2. **Server-side authorization filter:** derive `member_id` from the validated JWT on the backend, never from a client-supplied parameter, so a user physically cannot request another member's data.
+3. **Keep direct Supabase only for self-scoped, RLS-covered reads.** Everything cross-member or write-side goes through FastAPI.
+4. **Backfill RLS** on all tables as defense-in-depth (run/extend `rls_missing_policies.sql`), so even the reduced direct-access surface is safe.
+
+---
+
+## FastAPI Code-Splitting Strategy (the 13,600-line `main.py`)
+
+Your endpoints already group cleanly by role in the export (`cashier`, `treasurer`, `bookkeeper`, `bod`, `admin`, `migs`, `savings`, `analytics`, …). Convert each group into an `APIRouter` module:
+
+```
+app/
+  main.py                  # app factory, middleware, router registration only (~150 lines)
+  deps.py                  # get_current_user, require_role(), supabase client
+  services/                # amortization, migs scoring, PDF, risk — CPU work, thread-offloaded
+  routers/
+    cashier.py  treasurer.py  bookkeeper.py  member.py
+    savings.py  loans.py  migs.py  admin.py  bod.py  analytics.py
+```
+
+Cut in this order to de-risk: (1) `admin.py` and `dev.py` (low traffic, easy), (2) `analytics.py`/`migs.py` (self-contained scoring), (3) the role dashboards. Each extraction is mechanical (move functions + `router = APIRouter(prefix=...)`) and independently deployable.
+
+---
+
+## Prioritized Action List
+
+**P0 — this sprint**
+1. `CREATE INDEX idx_loans_member_id` + `idx_loans_member_appdate`. (§1.1)
+2. Index `Savings_Transactions.membership_number_id`; index `loan_notifications.member_id`, `loans.loan_status`. (§1.2, §1.6)
+3. Commit canonical DDL for `member`, `member_applications`, `*_legacy`. (§2.2)
+4. Audit RLS on every table the frontend queries directly; close gaps from `rls_missing_policies.sql`. (§3.1)
+
+**P1 — next sprint**
+5. Build `/api/member/dashboard/{member_id}` aggregate; derive member_id from JWT; retire the 9 client queries. (§3.3)
+6. Add keyset pagination to `migs/members`, `manage-loans`, `membership-records`. (§1.4)
+7. Thread-offload `compute`, PDF, and risk routes. (§1.5)
+8. Resolve member-identity key canonicalization + FK constraints. (§2.3)
+9. Rename `GROCERY_TRANSACTIONS`; consolidate `Savings_Transactions`. (§2.1)
+
+**P2 — hardening**
+10. Split `main.py` into role routers. (§FastAPI)
+11. Add guards to unguarded member/savings/withdrawal routes; dedupe cashier route aliases. (§3.2)
+12. Normalize unqualified table names. (§2.4)
+
+I've drawn every finding from the export rather than assumption — I did not read the manuscript PDF, so if it states specific membership counts or latency SLAs, share the relevant section and I'll tighten the pagination thresholds and index priorities to match your actual scale.
