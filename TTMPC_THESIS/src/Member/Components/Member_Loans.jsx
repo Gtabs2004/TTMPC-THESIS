@@ -30,7 +30,8 @@ import {
   Sun,
   Scroll,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Loader2
 } from 'lucide-react';
 
 const styles = `
@@ -528,7 +529,12 @@ const Member_Loans = () => {
               <tbody>
                 {loadingLoans ? (
                   <tr>
-                    <td colSpan="7" className="p-5 text-sm text-gray-500 dark:text-gray-400">Loading loans...</td>
+                    <td colSpan="7" className="p-10 text-center">
+                      <div className="flex flex-col items-center justify-center gap-2">
+                        <Loader2 size={24} className="text-gray-300 dark:text-gray-600 animate-spin" />
+                        <p className="text-sm text-gray-400 dark:text-gray-500">Loading loans...</p>
+                      </div>
+                    </td>
                   </tr>
                 ) : loanError ? (
                   <tr>
@@ -536,7 +542,12 @@ const Member_Loans = () => {
                   </tr>
                 ) : loans.length === 0 ? (
                   <tr>
-                    <td colSpan="7" className="p-5 text-sm text-gray-500 dark:text-gray-400">No loan records found.</td>
+                    <td colSpan="7" className="p-10 text-center">
+                      <div className="flex flex-col items-center justify-center gap-2">
+                        <Banknote size={32} className="text-gray-300 dark:text-gray-600" />
+                        <p className="text-sm font-medium text-gray-500 dark:text-gray-400">No loan records found.</p>
+                      </div>
+                    </td>
                   </tr>
                 ) : loans
                     .slice((loansPage - 1) * LOANS_PAGE_SIZE, loansPage * LOANS_PAGE_SIZE)
@@ -566,11 +577,17 @@ const Member_Loans = () => {
 
             <div className="divide-y divide-gray-100 dark:divide-gray-800 md:hidden">
               {loadingLoans ? (
-                <p className="p-6 text-sm text-gray-500 dark:text-gray-400 text-center">Loading loans...</p>
+                <div className="flex flex-col items-center justify-center gap-2 p-10 text-center">
+                  <Loader2 size={24} className="text-gray-300 dark:text-gray-600 animate-spin" />
+                  <p className="text-sm text-gray-400 dark:text-gray-500">Loading loans...</p>
+                </div>
               ) : loanError ? (
                 <p className="p-6 text-sm text-red-600 dark:text-red-400 text-center">{loanError}</p>
               ) : loans.length === 0 ? (
-                <p className="p-6 text-sm text-gray-500 dark:text-gray-400 text-center">No loan records found.</p>
+                <div className="flex flex-col items-center justify-center gap-2 p-10 text-center">
+                  <Banknote size={32} className="text-gray-300 dark:text-gray-600" />
+                  <p className="text-sm font-medium text-gray-500 dark:text-gray-400">No loan records found.</p>
+                </div>
               ) : loans
                   .slice((loansPage - 1) * LOANS_PAGE_SIZE, loansPage * LOANS_PAGE_SIZE)
                   .map((loan, idx) => (

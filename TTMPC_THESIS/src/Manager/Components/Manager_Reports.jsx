@@ -420,6 +420,7 @@ const Manager_Reports = () => {
               <div className="p-4 border-b border-gray-100">
                 <h3 className="text-gray-800 font-bold text-sm">Active Loans by Type</h3>
               </div>
+              <div className="overflow-x-auto">
               <table className="w-full text-xs">
                 <thead>
                   <tr className="bg-primary-deep text-[10px] uppercase tracking-wider text-white font-extrabold">
@@ -466,12 +467,14 @@ const Manager_Reports = () => {
                   )}
                 </tbody>
               </table>
+              </div>
             </div>
 
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
               <div className="p-4 border-b border-gray-100">
                 <h3 className="text-gray-800 font-bold text-sm">Top 5 Borrowers — Outstanding</h3>
               </div>
+              <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="bg-primary-deep text-[10px] uppercase tracking-wider text-white font-extrabold">
@@ -517,6 +520,7 @@ const Manager_Reports = () => {
                   )}
                 </tbody>
               </table>
+              </div>
             </div>
           </div>
         </main>

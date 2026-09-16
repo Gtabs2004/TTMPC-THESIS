@@ -338,6 +338,7 @@ export default function IscPayoutPreferencesModal({ open, postingId, onClose, on
 
         {/* C. High-density member table */}
         <div className="flex-1 overflow-auto px-6 mt-3 min-h-0">
+          <div className="overflow-x-auto">
             <table className="w-full text-sm border-collapse">
               <thead>
                 <tr className="sticky top-0 z-10 bg-primary-deep text-[10px] uppercase tracking-wider text-white font-extrabold">
@@ -425,6 +426,7 @@ export default function IscPayoutPreferencesModal({ open, postingId, onClose, on
                 )}
               </tbody>
             </table>
+          </div>
         </div>
 
         {/* D. Sticky summary footer */}

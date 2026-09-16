@@ -29,7 +29,8 @@ import {
   Receipt,
   Moon,
   Sun,
-  Scroll
+  Scroll,
+  Loader2
 } from 'lucide-react';
 
 const styles = `
@@ -489,11 +490,21 @@ const Member_Savings = () => {
                 <tbody>
                   {loadingSavings ? (
                     <tr>
-                      <td colSpan={4} className="p-6 text-center text-sm text-gray-500">Loading savings ledger...</td>
+                      <td colSpan={4} className="p-10 text-center">
+                        <div className="flex flex-col items-center justify-center gap-2">
+                          <Loader2 size={24} className="text-gray-300 dark:text-gray-600 animate-spin" />
+                          <p className="text-sm text-gray-400 dark:text-gray-500">Loading savings ledger...</p>
+                        </div>
+                      </td>
                     </tr>
                   ) : ledgerData.length === 0 ? (
                     <tr>
-                      <td colSpan={4} className="p-6 text-center text-sm text-gray-500">No savings transactions yet.</td>
+                      <td colSpan={4} className="p-10 text-center">
+                        <div className="flex flex-col items-center justify-center gap-2">
+                          <Wallet size={32} className="text-gray-300 dark:text-gray-600" />
+                          <p className="text-sm font-medium text-gray-500 dark:text-gray-400">No savings transactions yet.</p>
+                        </div>
+                      </td>
                     </tr>
                   ) : ledgerData.map((row) => (
                     <tr key={row.id} className="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50/50 dark:hover:bg-gray-800/50 transition-colors">
@@ -516,9 +527,15 @@ const Member_Savings = () => {
 
             <div className="divide-y divide-gray-100 dark:divide-gray-800 md:hidden">
               {loadingSavings ? (
-                <p className="p-6 text-center text-sm text-gray-500 dark:text-gray-400">Loading savings ledger...</p>
+                <div className="flex flex-col items-center justify-center gap-2 p-10 text-center">
+                  <Loader2 size={24} className="text-gray-300 dark:text-gray-600 animate-spin" />
+                  <p className="text-sm text-gray-400 dark:text-gray-500">Loading savings ledger...</p>
+                </div>
               ) : ledgerData.length === 0 ? (
-                <p className="p-6 text-center text-sm text-gray-500 dark:text-gray-400">No savings transactions yet.</p>
+                <div className="flex flex-col items-center justify-center gap-2 p-10 text-center">
+                  <Wallet size={32} className="text-gray-300 dark:text-gray-600" />
+                  <p className="text-sm font-medium text-gray-500 dark:text-gray-400">No savings transactions yet.</p>
+                </div>
               ) : ledgerData.map((row) => (
                 <div key={row.id} className="px-4 py-3.5 hover:bg-gray-50/50 dark:hover:bg-gray-800/50 transition-colors">
                   <div className="flex items-start justify-between gap-3">
