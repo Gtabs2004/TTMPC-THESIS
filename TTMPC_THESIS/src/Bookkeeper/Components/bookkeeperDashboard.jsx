@@ -382,7 +382,7 @@ const Dashboard = () => {
             </div>
           ) : null}
 
-          {/* Top KPI Cards */}
+       
           <StatCardRow cols={3}>
             <StatCard
               label="Total Loans"

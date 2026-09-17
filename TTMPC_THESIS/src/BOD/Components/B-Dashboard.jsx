@@ -28,7 +28,8 @@ import {
   ShieldCheck,
   AlertTriangle,
   CalendarDays,
-  History
+  History,
+  Loader2,
 } from 'lucide-react';
 import NotificationBell from "../../components/NotificationBell";
 import {
@@ -44,7 +45,8 @@ import {
   CartesianGrid,
   Tooltip,
   Legend,
-  ResponsiveContainer
+  ResponsiveContainer,
+  
 } from 'recharts';
 import { SERIES_PRIMARY, GENDER_COLORS, AGING_SEVERITY_COLORS } from '../../lib/chartColors';
 
