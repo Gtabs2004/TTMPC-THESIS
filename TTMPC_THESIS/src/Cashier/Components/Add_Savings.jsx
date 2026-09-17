@@ -1,5 +1,6 @@
 ﻿import React, { useEffect, useState } from 'react';
 import { useConfirm } from '../../contex/ConfirmContext';
+import { formatWithCommas, stripCommas } from '../../utils/numberFormat';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000';
 
@@ -398,12 +399,13 @@ function Add_Savings() {
               <label className={labelStyles}>Annual Income (Gross)</label>
               <div className="relative mt-2 h-20">
                 <span className="absolute left-4 top-1/2 -translate-y-1/2 text-3xl font-bold text-gray-800">₱</span>
-                <input 
-                  type="number" 
-                  name="annual_income" 
-                  value={formData.annual_income} 
-                  onChange={handleChange} 
-                  className="w-full h-full border border-gray-300 rounded-md pl-14 pr-4 text-2xl font-semibold focus:ring-2 focus:ring-green-600 outline-none bg-white transition-all" 
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  name="annual_income"
+                  value={formatWithCommas(formData.annual_income)}
+                  onChange={(e) => handleChange({ target: { name: e.target.name, value: stripCommas(e.target.value) } })}
+                  className="w-full h-full border border-gray-300 rounded-md pl-14 pr-4 text-2xl font-semibold focus:ring-2 focus:ring-green-600 outline-none bg-white transition-all"
                 />
               </div>
             </div>

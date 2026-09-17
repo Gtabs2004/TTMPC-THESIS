@@ -6,6 +6,7 @@ import { printLoanApplicationForm } from '../../LOANFORMS/staffLoanPrint';
 import { useMigsLabel, getMigsBadgeClasses } from '../../hooks/useMigsLabel';
 import ConfirmDialog from '../../components/ConfirmDialog';
 import { useNotification } from '../../contex/NotificationContext';
+import { formatWithCommas, stripCommas } from '../../utils/numberFormat';
 import {
   ArrowLeft,
   User,
@@ -1803,7 +1804,7 @@ const LoanApprovalDetails = () => {
                 iconClass: 'text-red-600',
               },
               AMBER: {
-                fallbackLabel: 'Watch',
+                fallbackLabel: 'Medium Risk',
                 fallbackAction: 'Verify income and payslip',
                 panel: 'border-amber-200 bg-amber-50',
                 accent: 'bg-amber-500',
@@ -2280,11 +2281,10 @@ const LoanApprovalDetails = () => {
                         {isBookkeeperFlow ? (
                           <div className="flex gap-1">
                             <input
-                              type="number"
-                              min="0"
-                              step="0.01"
-                              value={row.appraised_value ?? ''}
-                              onChange={(e) => updateCollateralAppraisal(row.collateral_id, e.target.value)}
+                              type="text"
+                              inputMode="decimal"
+                              value={formatWithCommas(row.appraised_value ?? '')}
+                              onChange={(e) => updateCollateralAppraisal(row.collateral_id, stripCommas(e.target.value))}
                               className="border border-gray-300 rounded px-2 py-1 text-sm w-full"
                               placeholder="Set value"
                             />

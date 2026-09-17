@@ -4,6 +4,8 @@ import StaffSidebar from "../../components/StaffSidebar";
 import { cashierNav } from "../../components/StaffSidebar/configs/cashier";
 import { UserAuth } from "../../contex/AuthContext";
 import { useConfirm } from "../../contex/ConfirmContext";
+import { useNotification } from "../../contex/NotificationContext";
+import { formatWithCommas, stripCommas } from "../../utils/numberFormat";
 import StaffTopbar from "../../components/StaffTopbar";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
 import Breadcrumb from "../../components/Breadcrumb";
@@ -15,7 +17,6 @@ import {
   ChevronRight,
   ArrowLeft,
   Wallet,
-  Calculator,
   ReceiptText,
   CheckCircle2,
   UserPlus,
@@ -25,6 +26,7 @@ import {
   ArrowDownLeft,
   ShoppingCart,
   History,
+  Loader2,
 } from "lucide-react";
 
 
@@ -40,6 +42,7 @@ const formatCurrency = (value) =>
 
 const Cashier_CBU_Deposit = () => {
     const confirm = useConfirm();
+  const { addNotification } = useNotification();
   const navigate = useNavigate();
   const { memberId } = useParams();
   const [selectedMember, setSelectedMember] = useState(null);
@@ -49,7 +52,7 @@ const Cashier_CBU_Deposit = () => {
   const [depositAmount, setDepositAmount] = useState("");
   const [paymentMode, setPaymentMode] = useState("Cash");
   const [transactionDate, setTransactionDate] = useState(new Date().toISOString().slice(0, 10));
-  const [statusMessage, setStatusMessage] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
 
 
@@ -95,11 +98,11 @@ const Cashier_CBU_Deposit = () => {
 
   const handleSubmit = async () => {
     if (!selectedMember) {
-      setStatusMessage("Selected member not found. Go back and pick a member from the list.");
+      addNotification("Selected member not found. Go back and pick a member from the list.", "error");
       return;
     }
     if (!(amount > 0) || !paymentMode.trim() || !transactionDate) {
-      setStatusMessage("Please complete required fields: Deposit Amount, Payment Mode, and Transaction Date.");
+      addNotification("Please complete required fields: Deposit Amount, Payment Mode, and Transaction Date.", "error");
       return;
     }
 
@@ -112,6 +115,7 @@ const Cashier_CBU_Deposit = () => {
     });
     if (!ok) return;
 
+    setSubmitting(true);
     try {
       const response = await fetch(`${API_BASE_URL}/api/cashier/cbu/deposits`, {
         method: "POST",
@@ -148,12 +152,19 @@ const Cashier_CBU_Deposit = () => {
       }
 
       const returnedId = payload?.data?.cbu_deposit_id || "—";
-      setStatusMessage(`CBU deposit recorded successfully. Deposit ID: ${returnedId}.`);
+      addNotification(
+        `CBU deposit of ${formatCurrency(amount)} recorded for ${memberLabel}. Deposit ID: ${returnedId}.`,
+        "success"
+      );
       setDepositAmount("");
       // Refetch member so current_balance reflects the new ending_share_capital.
+      // Awaited before submitting flips off, so the loader stays up through
+      // the whole "balance not updated yet" window, not just the POST itself.
       await loadMember();
     } catch (err) {
-      setStatusMessage(err?.message || "Failed to submit CBU deposit.");
+      addNotification(err?.message || "Failed to submit CBU deposit.", "error");
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -214,8 +225,11 @@ const Cashier_CBU_Deposit = () => {
                 <p className="text-xs uppercase tracking-wider text-gray-500 font-bold mb-1">
                   Share capital today
                 </p>
-                <p className="text-2xl font-extrabold text-[#1F3E35] tabular-nums">
+                <p className="text-2xl font-extrabold text-[#1F3E35] tabular-nums inline-flex items-center gap-2">
                   {formatCurrency(currentBalance)}
+                  {(loadingMember || submitting) && (
+                    <Loader2 className="w-4 h-4 text-primary animate-spin" />
+                  )}
                 </p>
               </div>
             </div>
@@ -237,12 +251,12 @@ const Cashier_CBU_Deposit = () => {
                     &#8369;
                   </span>
                   <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={depositAmount}
-                    onChange={(event) => setDepositAmount(event.target.value)}
-                    className="min-w-0 flex-1 bg-transparent px-3 text-sm focus:outline-none"
+                    type="text"
+                    inputMode="decimal"
+                    value={formatWithCommas(depositAmount)}
+                    onChange={(event) => setDepositAmount(stripCommas(event.target.value))}
+                    disabled={submitting}
+                    className="min-w-0 flex-1 bg-transparent px-3 text-sm focus:outline-none disabled:opacity-60"
                     placeholder="0.00"
                   />
                 </div>
@@ -255,7 +269,8 @@ const Cashier_CBU_Deposit = () => {
                 <select
                   value={paymentMode}
                   onChange={(event) => setPaymentMode(event.target.value)}
-                  className="w-full rounded-lg border border-gray-300 bg-gray-50 h-11 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  disabled={submitting}
+                  className="w-full rounded-lg border border-gray-300 bg-gray-50 h-11 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-60"
                 >
                   <option value="Cash">Cash</option>
                   <option value="GCash">GCash</option>
@@ -271,7 +286,8 @@ const Cashier_CBU_Deposit = () => {
                   type="date"
                   value={transactionDate}
                   onChange={(event) => setTransactionDate(event.target.value)}
-                  className="w-full rounded-lg border border-gray-300 bg-gray-50 h-11 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  disabled={submitting}
+                  className="w-full rounded-lg border border-gray-300 bg-gray-50 h-11 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-60"
                 />
               </div>
             </div>
@@ -285,8 +301,11 @@ const Cashier_CBU_Deposit = () => {
                   <p className="text-[11px] uppercase tracking-wider text-gray-500 font-bold mb-1">
                     Current
                   </p>
-                  <p className="text-sm font-semibold text-gray-700 tabular-nums">
+                  <p className="text-sm font-semibold text-gray-700 tabular-nums inline-flex items-center gap-1.5">
                     {formatCurrency(currentBalance)}
+                    {(loadingMember || submitting) && (
+                      <Loader2 className="w-3 h-3 text-primary animate-spin" />
+                    )}
                   </p>
                 </div>
                 <div className="px-4 py-3">
@@ -308,20 +327,22 @@ const Cashier_CBU_Deposit = () => {
               </div>
             </div>
 
-            {statusMessage && parsedAmount > 0 && (
-              <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 mb-5 text-sm text-gray-700 flex items-start gap-2">
-                <Calculator className="w-4 h-4 mt-0.5 text-primary" />
-                <span>{statusMessage}</span>
-              </div>
-            )}
-
             <div className="flex items-center gap-3">
               <button
                 type="button"
                 onClick={handleSubmit}
-                className="bg-primary-deep hover:bg-member-green text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-colors"
+                disabled={submitting}
+                className="bg-primary-deep hover:bg-member-green text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                <ReceiptText className="w-4 h-4" /> Submit CBU Deposit
+                {submitting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" /> Recording deposit...
+                  </>
+                ) : (
+                  <>
+                    <ReceiptText className="w-4 h-4" /> Submit CBU Deposit
+                  </>
+                )}
               </button>
             </div>
           </div>

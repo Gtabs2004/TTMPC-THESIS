@@ -8,6 +8,7 @@ import { resolveAccountFromSessionUser } from '../utils/sessionIdentity';
 import { useMigsLabel } from '../hooks/useMigsLabel';
 import { useLoanEligibility } from '../hooks/useLoanEligibility';
 import { useNotification } from '../contex/NotificationContext';
+import { formatWithCommas } from '../utils/numberFormat';
 import MobileFormStepper from '../components/MobileFormStepper';
 
 const generateControlNumber = () => {
@@ -769,8 +770,8 @@ function Emergency_Loan() {
             <div><label className={labelStyles}>First Name *</label><input name="first_name" value={formData.first_name} readOnly className={readOnlyInputStyles} required /></div>
             <div><label className={labelStyles}>Middle Name</label><input name="middle_name" value={formData.middle_name} readOnly className={readOnlyInputStyles} /></div>
             <div><label className={labelStyles}>Contact No. *</label><input name="contact_no" value={formData.contact_no} readOnly className={readOnlyInputStyles} required /></div>
-            <div><label className={labelStyles}>Latest Net Pay *</label><input type="number" name="latest_net_pay" value={formData.latest_net_pay} readOnly className={readOnlyInputStyles} required /></div>
-            <div><label className={labelStyles}>Share Capital *</label><input type="number" name="share_capital" value={formData.share_capital} readOnly className={readOnlyInputStyles} required /></div>
+            <div><label className={labelStyles}>Latest Net Pay *</label><input type="text" name="latest_net_pay" value={formatWithCommas(formData.latest_net_pay)} readOnly className={readOnlyInputStyles} required /></div>
+            <div><label className={labelStyles}>Share Capital *</label><input type="text" name="share_capital" value={formatWithCommas(formData.share_capital)} readOnly className={readOnlyInputStyles} required /></div>
             <div className="md:col-span-3"><label className={labelStyles}>Residence Address *</label><input name="residence_address" value={formData.residence_address} readOnly className={readOnlyInputStyles} required /></div>
             <div><label className={labelStyles}>Date of Birth *</label><input type="date" name="date_of_birth" value={formData.date_of_birth} readOnly className={readOnlyInputStyles} required /></div>
             <div><label className={labelStyles}>Age *</label><input type="number" name="age" value={formData.age} readOnly className={readOnlyInputStyles} required /></div>

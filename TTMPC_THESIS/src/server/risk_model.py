@@ -328,7 +328,7 @@ BAND_META = {
         "bad_rate_per_100": 8,
     },
     "AMBER": {
-        "label": "Watch",
+        "label": "Medium Risk",
         "action": "Verify income and payslip",
         "share": 0.40,
         "bad_rate_per_100": 18,

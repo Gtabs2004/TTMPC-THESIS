@@ -10,6 +10,7 @@ import { useLoanEligibility } from '../hooks/useLoanEligibility';
 import { useNotification } from '../contex/NotificationContext';
 import { FileImage, Loader2, Upload, ShieldCheck, Trash2, Plus, CheckCircle2, ImagePlus } from 'lucide-react';
 import MobileFormStepper from '../components/MobileFormStepper';
+import { formatWithCommas, stripCommas } from '../utils/numberFormat';
 
 // Function to generate control number: CL-YYYYMMDD-XXXX
 const generateControlNumber = () => {
@@ -1209,11 +1210,11 @@ function Consolidated_Loan() {
             <div><label className={labelStyles}>Contact No. <span className="text-red-500">*</span></label><input type="text" name="contact_no" value={formData.contact_no} onChange={handleChange} className={inputClassFor('contact_no')} required {...lockedInputProps('contact_no')} /></div>
             <div>
               <label className={labelStyles}>Latest Net Pay <span className="text-red-500">*</span></label>
-              <div className="relative"><span className="absolute left-3 top-2 text-gray-400 text-xs">₱</span><input type="number" name="latest_net_pay" value={formData.latest_net_pay} onChange={handleChange} className={`${inputClassFor('latest_net_pay')} pl-7 ${!isLockedField('latest_net_pay') && previewNetPay > 0 && eligibilityCardData.eligibilityPass ? 'bg-[#E9F7DE] border-primary' : ''}`} required {...lockedInputProps('latest_net_pay')} /></div>
+              <div className="relative"><span className="absolute left-3 top-2 text-gray-400 text-xs">₱</span><input type="text" inputMode="decimal" name="latest_net_pay" value={formatWithCommas(formData.latest_net_pay)} onChange={(e) => handleChange({ target: { name: e.target.name, value: stripCommas(e.target.value) } })} className={`${inputClassFor('latest_net_pay')} pl-7 ${!isLockedField('latest_net_pay') && previewNetPay > 0 && eligibilityCardData.eligibilityPass ? 'bg-[#E9F7DE] border-primary' : ''}`} required {...lockedInputProps('latest_net_pay')} /></div>
             </div>
             <div>
               <label className={labelStyles}>Share Capital <span className="text-red-500">*</span></label>
-              <div className="relative"><span className="absolute left-3 top-2 text-gray-400 text-xs">₱</span><input type="number" name="share_capital" value={formData.share_capital} onChange={handleChange} className={`${inputClassFor('share_capital')} pl-7 ${!isLockedField('share_capital') && previewShareCapital > 0 && Number.isFinite(dropdownLoanCapacity) ? 'bg-[#E9F7DE] border-primary' : ''}`} required {...lockedInputProps('share_capital')} /></div>
+              <div className="relative"><span className="absolute left-3 top-2 text-gray-400 text-xs">₱</span><input type="text" inputMode="decimal" name="share_capital" value={formatWithCommas(formData.share_capital)} onChange={(e) => handleChange({ target: { name: e.target.name, value: stripCommas(e.target.value) } })} className={`${inputClassFor('share_capital')} pl-7 ${!isLockedField('share_capital') && previewShareCapital > 0 && Number.isFinite(dropdownLoanCapacity) ? 'bg-[#E9F7DE] border-primary' : ''}`} required {...lockedInputProps('share_capital')} /></div>
             </div>
             <div className="md:col-span-3"><label className={labelStyles}>Residence Address <span className="text-red-500">*</span></label><input type="text" name="residence_address" value={formData.residence_address} onChange={handleChange} className={inputClassFor('residence_address')} required {...lockedInputProps('residence_address')} /></div>
             <div><label className={labelStyles}>Date of Birth <span className="text-red-500">*</span></label><input type="date" name="date_of_birth" value={formData.date_of_birth} onChange={handleChange} className={inputClassFor('date_of_birth')} required {...lockedInputProps('date_of_birth')} /></div>

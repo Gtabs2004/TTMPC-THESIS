@@ -24,6 +24,8 @@
         "uvicorn",
         "main:app",
         "--reload",
+        "--reload-exclude",
+        "${workspaceFolder}/TTMPC_THESIS/src/server/.venv",
         "--host",
         "127.0.0.1",
         "--port",

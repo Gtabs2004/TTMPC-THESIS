@@ -42,7 +42,7 @@ const formatPct = (p) => (p == null ? "—" : `${(Number(p) * 100).toFixed(1)}%`
 // would label every application low-risk.
 const BAND_STYLES = {
   RED: { key: "high", label: "High Risk", chip: "bg-red-100 text-red-700", bar: "bg-red-500" },
-  AMBER: { key: "watch", label: "Watch", chip: "bg-amber-100 text-amber-700", bar: "bg-amber-500" },
+  AMBER: { key: "watch", label: "Medium Risk", chip: "bg-amber-50 text-amber-700 ring-1 ring-amber-200", bar: "bg-amber-500" },
   GREEN: { key: "low", label: "Low Risk", chip: "bg-emerald-100 text-emerald-700", bar: "bg-emerald-500" },
 };
 
@@ -288,7 +288,7 @@ const CreditRiskPage = ({ portal = "bookkeeper" }) => {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
             {[
               { key: "high", label: "High Risk", subtitle: "≥ 60%", accent: "text-red-600", bg: "bg-red-50", ring: "border-red-200" },
-              { key: "watch", label: "Watch", subtitle: "30% - 60%", accent: "text-amber-600", bg: "bg-amber-50", ring: "border-amber-200" },
+              { key: "watch", label: "Medium Risk", subtitle: "30% - 60%", accent: "text-amber-600", bg: "bg-amber-50", ring: "border-amber-200" },
               { key: "low", label: "Low Risk", subtitle: "< 30%", accent: "text-emerald-600", bg: "bg-emerald-50", ring: "border-emerald-200" },
               { key: "unknown", label: "Unscored", subtitle: "Model unavailable", accent: "text-gray-600", bg: "bg-gray-50", ring: "border-gray-200" },
             ].map((b) => (

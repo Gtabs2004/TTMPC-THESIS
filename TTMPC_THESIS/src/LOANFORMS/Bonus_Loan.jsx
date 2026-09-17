@@ -6,6 +6,7 @@ import { buildBonusPayload, computeLoan } from './loanComputeApi';
 import { formatTinNumber, TIN_FORMATTED_MAX_LENGTH } from './tinFormat';
 import { useLoanEligibility } from '../hooks/useLoanEligibility';
 import { useNotification } from '../contex/NotificationContext';
+import { formatWithCommas, stripCommas } from '../utils/numberFormat';
 import MobileFormStepper from '../components/MobileFormStepper';
 
 const numberToWords = (num) => {
@@ -481,8 +482,8 @@ function Bonus_Loan() {
             {isNonMemberBonus ? (
               <div><label className={labelStyles}>Email Address</label><input type="email" name="user_email" value={formData.user_email} onChange={handleChange} className={inputStyles} /></div>
             ) : null}
-            <div><label className={labelStyles}>Latest Net Pay *</label><input type="number" name="latest_net_pay" value={formData.latest_net_pay} onChange={handleChange} className={inputStyles} required /></div>
-            <div><label className={labelStyles}>Share Capital *</label><input type="number" name="share_capital" value={formData.share_capital} onChange={handleChange} className={inputStyles} required /></div>
+            <div><label className={labelStyles}>Latest Net Pay *</label><input type="text" inputMode="decimal" name="latest_net_pay" value={formatWithCommas(formData.latest_net_pay)} onChange={(e) => handleChange({ target: { name: e.target.name, value: stripCommas(e.target.value) } })} className={inputStyles} required /></div>
+            <div><label className={labelStyles}>Share Capital *</label><input type="text" inputMode="decimal" name="share_capital" value={formatWithCommas(formData.share_capital)} onChange={(e) => handleChange({ target: { name: e.target.name, value: stripCommas(e.target.value) } })} className={inputStyles} required /></div>
             <div className="md:col-span-3"><label className={labelStyles}>Residence Address *</label><input name="residence_address" value={formData.residence_address} onChange={handleChange} className={inputStyles} required /></div>
             <div><label className={labelStyles}>Date of Birth *</label><input type="date" name="date_of_birth" value={formData.date_of_birth} onChange={handleChange} className={inputStyles} required /></div>
             <div><label className={labelStyles}>Age *</label><input type="number" name="age" value={formData.age} onChange={handleChange} className={inputStyles} required /></div>
@@ -520,12 +521,13 @@ function Bonus_Loan() {
               />
               <div className="inline-flex items-center relative mr-2 align-middle">
                 <span className="absolute left-3 text-gray-400 text-xs font-medium">Php</span>
-                <input 
-                  type="number" 
-                  name="loan_amount_numeric" 
-                  value={formData.loan_amount_numeric} 
-                  onChange={handleChange}
-                  className="border border-gray-300 rounded-md pl-10 pr-3 py-1.5 focus:ring-2 focus:ring-primary outline-none bg-white text-sm transition-all w-full sm:w-40" 
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  name="loan_amount_numeric"
+                  value={formatWithCommas(formData.loan_amount_numeric)}
+                  onChange={(e) => handleChange({ target: { name: e.target.name, value: stripCommas(e.target.value) } })}
+                  className="border border-gray-300 rounded-md pl-10 pr-3 py-1.5 focus:ring-2 focus:ring-primary outline-none bg-white text-sm transition-all w-full sm:w-40"
                 />
               </div>
               for the purpose of
@@ -570,12 +572,12 @@ function Bonus_Loan() {
                 <option value="11">Yearend Bonus November (11 months)</option>
               </select>
               months with a monthly amortization of
-              <input 
-                type="number" 
-                name="monthly_amortization" 
-                value={formData.monthly_amortization} 
-                readOnly 
-                className="border border-gray-300 rounded-md px-3 py-1.5 outline-none bg-gray-50 text-sm transition-all mx-2 w-full sm:w-48 inline-block align-middle cursor-not-allowed" 
+              <input
+                type="text"
+                name="monthly_amortization"
+                value={formatWithCommas(formData.monthly_amortization)}
+                readOnly
+                className="border border-gray-300 rounded-md px-3 py-1.5 outline-none bg-gray-50 text-sm transition-all mx-2 w-full sm:w-48 inline-block align-middle cursor-not-allowed"
               />
               , which I promise to pay the amount to <strong>Tubungan Teachers' Multi Purpose Cooperative</strong>
               
@@ -613,12 +615,13 @@ function Bonus_Loan() {
               
               <div className="inline-flex items-center relative mr-2 align-middle">
                 <span className="absolute left-3 text-gray-400 text-xs font-medium">Php</span>
-                <input 
-                  type="number" 
-                  name="bonus_amount_numeric" 
-                  value={formData.bonus_amount_numeric} 
-                  onChange={handleChange} 
-                  className="border border-gray-300 rounded-md pl-10 pr-3 py-1.5 focus:ring-2 focus:ring-primary outline-none bg-white text-sm transition-all w-full sm:w-48" 
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  name="bonus_amount_numeric"
+                  value={formatWithCommas(formData.bonus_amount_numeric)}
+                  onChange={(e) => handleChange({ target: { name: e.target.name, value: stripCommas(e.target.value) } })}
+                  className="border border-gray-300 rounded-md pl-10 pr-3 py-1.5 focus:ring-2 focus:ring-primary outline-none bg-white text-sm transition-all w-full sm:w-48"
                 />
               </div>
             </div>
@@ -676,12 +679,13 @@ function Bonus_Loan() {
                 
                 <div className="inline-flex items-center relative mr-2 align-middle">
                   <span className="absolute left-3 text-gray-400 text-xs font-medium">Php</span>
-                  <input 
-                    type="number" 
-                    name="loan_amount_numeric" 
-                    value={formData.loan_amount_numeric} 
-                    onChange={handleChange} 
-                    className="border border-gray-300 rounded-md pl-10 pr-3 py-1.5 focus:ring-2 focus:ring-primary outline-none bg-white text-sm transition-all w-full sm:w-40" 
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    name="loan_amount_numeric"
+                    value={formatWithCommas(formData.loan_amount_numeric)}
+                    onChange={(e) => handleChange({ target: { name: e.target.name, value: stripCommas(e.target.value) } })}
+                    className="border border-gray-300 rounded-md pl-10 pr-3 py-1.5 focus:ring-2 focus:ring-primary outline-none bg-white text-sm transition-all w-full sm:w-40"
                   />
                 </div>
                 

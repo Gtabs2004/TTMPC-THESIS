@@ -14,6 +14,7 @@ import {
   Send,
   Info,
   CheckCircle2,
+  Percent,
 } from "lucide-react";
 import StaffSidebar from "../../components/StaffSidebar";
 import { bookkeeperNav } from "../../components/StaffSidebar/configs/bookkeeper";
@@ -26,6 +27,7 @@ import { supabase } from "../../supabaseClient";
 import { UserAuth } from "../../contex/AuthContext";
 import { useNotification } from "../../contex/NotificationContext";
 import { BRAND_GREEN, BAND_FILL, BORDER_SOFT, PESO_FORMAT, colLetter, downloadWorkbook } from "../../utils/excelExport";
+import { formatWithCommas, stripCommas } from "../../utils/numberFormat";
 import IscPayoutPreferencesModal from "./IscPayoutPreferencesModal";
 
 const PAGE_SIZE = 10;
@@ -241,8 +243,6 @@ const Bookkeeper_ISC = () => {
           return monthlyDeposit(r);
         case "average":
           return Number(r.average_share_capital || 0);
-        case "rate":
-          return Number(r.rate || 0);
         case "payout":
           return Number(r.interest_amount || 0);
         default:
@@ -464,9 +464,9 @@ const Bookkeeper_ISC = () => {
                   <input
                     type="text"
                     inputMode="decimal"
-                    value={amountInput}
-                    onChange={(e) => setAmountInput(e.target.value.replace(/[^0-9.]/g, ""))}
-                    placeholder="e.g. 1000000"
+                    value={formatWithCommas(amountInput)}
+                    onChange={(e) => setAmountInput(stripCommas(e.target.value))}
+                    placeholder="e.g. 1,000,000"
                     className="min-w-0 flex-1 bg-transparent px-3 text-sm text-right tabular-nums focus:outline-none"
                   />
                 </div>
@@ -564,6 +564,17 @@ const Bookkeeper_ISC = () => {
                 <p className="text-xs text-gray-500 mt-0.5">Every figure below comes from the ledger — nothing here is editable.</p>
               </div>
               <div className="flex items-center gap-2 flex-wrap">
+                <div className="flex items-center gap-2.5 pl-2.5 pr-4 py-1.5 rounded-xl bg-green-50 border border-green-200 shrink-0">
+                  <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center shrink-0">
+                    <Percent className="w-4 h-4 text-green-700" />
+                  </div>
+                  <div className="leading-tight">
+                    <p className="text-[10px] font-bold uppercase tracking-wide text-green-700/80">ISC Rate</p>
+                    <p className="text-lg font-extrabold text-green-800 tabular-nums">
+                      {rows[0]?.rate === null || rows[0]?.rate === undefined ? "—" : `${Number(rows[0].rate).toFixed(2)}%`}
+                    </p>
+                  </div>
+                </div>
                 <div className="relative shrink-0">
                   <Calendar className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400 pointer-events-none" />
                   <select
@@ -660,15 +671,6 @@ const Bookkeeper_ISC = () => {
                     <th className="p-5 font-bold text-right">
                       <button
                         type="button"
-                        onClick={() => toggleSort("rate")}
-                        className="inline-flex items-center gap-1 w-full justify-end hover:text-white/80 transition-colors"
-                      >
-                        ISC Rate {renderSortIcon("rate")}
-                      </button>
-                    </th>
-                    <th className="p-5 font-bold text-right">
-                      <button
-                        type="button"
                         onClick={() => toggleSort("payout")}
                         className="inline-flex items-center gap-1 w-full justify-end hover:text-white/80 transition-colors"
                       >
@@ -680,7 +682,7 @@ const Bookkeeper_ISC = () => {
                 <tbody>
                   {status === "loading" ? (
                     <tr>
-                      <td colSpan={7} className="p-10 text-center">
+                      <td colSpan={6} className="p-10 text-center">
                         <div className="flex flex-col items-center justify-center gap-2">
                           <Loader2 size={24} className="text-gray-300 animate-spin" />
                           <p className="text-sm text-gray-400">Calculating Interest on Share Capital...</p>
@@ -689,7 +691,7 @@ const Bookkeeper_ISC = () => {
                     </tr>
                   ) : paginated.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="p-10 text-center">
+                      <td colSpan={6} className="p-10 text-center">
                         <div className="flex flex-col items-center justify-center gap-2">
                           <Users size={32} className="text-gray-300" />
                           <p className="text-sm font-medium text-gray-500">
@@ -720,9 +722,6 @@ const Bookkeeper_ISC = () => {
                         <td className="p-5 text-sm text-right text-amber-800 tabular-nums bg-amber-50/70">
                           {formatCurrency(row.average_share_capital)}
                         </td>
-                        <td className="p-5 text-sm text-right text-purple-800 tabular-nums bg-purple-50/70">
-                          {row.rate === null || row.rate === undefined ? "—" : `${Number(row.rate).toFixed(2)}%`}
-                        </td>
                         <td className="p-5 text-sm text-right font-semibold text-green-800 tabular-nums bg-green-50/70">
                           <span className="inline-flex items-center gap-1.5">
                             {formatCurrency(row.interest_amount)}
@@ -746,7 +745,6 @@ const Bookkeeper_ISC = () => {
                       <td className="p-5 text-right text-gray-900 tabular-nums">{formatCurrency(totals.balance)}</td>
                       <td className="p-5 text-right text-gray-900 tabular-nums">{formatCurrency(totals.deposit)}</td>
                       <td className="p-5 text-right text-amber-900 tabular-nums bg-amber-200 ring-1 ring-inset ring-amber-400 font-extrabold">{formatCurrency(totals.average)}</td>
-                      <td className="p-5 text-right text-purple-900/60 bg-purple-50/70">—</td>
                       <td className="p-5 text-right text-green-900 tabular-nums bg-green-100">{formatCurrency(totals.payout)}</td>
                     </tr>
                   </tfoot>

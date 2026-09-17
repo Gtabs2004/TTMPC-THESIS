@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { supabase } from "../../supabaseClient";
 import { resolveAccountFromSessionUser } from "../../utils/sessionIdentity";
+import { formatWithCommas, stripCommas } from "../../utils/numberFormat";
 import { fetchLoanPrefill } from "../../LOANFORMS/loanSubmission";
 import { useMigsLabel } from "../../hooks/useMigsLabel";
 
@@ -417,17 +418,15 @@ export default function LoanCalculatorModal({ open, onClose }) {
                   <div className="relative mt-2">
                     <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-semibold text-gray-400 dark:text-gray-500">₱</span>
                     <input
-                      type="number"
-                      min={selectedType.min}
-                      max={effectiveMax}
-                      step={1}
-                      value={loanAmount === "" ? "" : loanAmount}
+                      type="text"
+                      inputMode="decimal"
+                      value={loanAmount === "" ? "" : formatWithCommas(loanAmount)}
                       onChange={(e) => {
-                        const raw = e.target.value;
+                        const raw = stripCommas(e.target.value);
                         setLoanAmount(raw === "" ? "" : Number(raw));
                       }}
                       onBlur={(e) => {
-                        const raw = e.target.value;
+                        const raw = stripCommas(e.target.value);
                         if (raw === "") return;
                         const clamped = Math.min(Math.max(Number(raw), selectedType.min), effectiveMax);
                         if (clamped !== Number(raw)) setLoanAmount(clamped);

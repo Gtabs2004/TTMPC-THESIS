@@ -34,6 +34,7 @@ import StaffTopbar from "../../components/StaffTopbar";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
 import Breadcrumb from "../../components/Breadcrumb";
 import Pagination from "../../components/Pagination";
+import { formatWithCommas, stripCommas } from "../../utils/numberFormat";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 const PAGE_SIZE = 10;
@@ -568,11 +569,10 @@ const Savings_Details = () => {
             <label className="block mb-4">
               <span className="text-sm font-medium text-gray-700">Amount (₱)</span>
               <input
-                type="number"
-                min="0"
-                step="0.01"
-                value={depositAmount}
-                onChange={(event) => setDepositAmount(event.target.value)}
+                type="text"
+                inputMode="decimal"
+                value={formatWithCommas(depositAmount)}
+                onChange={(event) => setDepositAmount(stripCommas(event.target.value))}
                 placeholder="0.00"
                 className="mt-1 w-full rounded-lg border border-gray-300 px-4 py-2.5 text-lg font-semibold focus:border-green-500 focus:outline-none focus:ring-2 focus:ring-green-200 transition"
               />
@@ -623,11 +623,10 @@ const Savings_Details = () => {
             <label className="block mb-4">
               <span className="text-sm font-medium text-gray-700">Amount (₱)</span>
               <input
-                type="number"
-                min="0"
-                step="0.01"
-                value={withdrawAmount}
-                onChange={(event) => setWithdrawAmount(event.target.value)}
+                type="text"
+                inputMode="decimal"
+                value={formatWithCommas(withdrawAmount)}
+                onChange={(event) => setWithdrawAmount(stripCommas(event.target.value))}
                 placeholder="0.00"
                 className="mt-1 w-full rounded-lg border border-gray-300 px-4 py-2.5 text-lg font-semibold focus:border-rose-500 focus:outline-none focus:ring-2 focus:ring-rose-200 transition"
               />

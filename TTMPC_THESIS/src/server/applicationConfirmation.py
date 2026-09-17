@@ -806,10 +806,11 @@ def seed_initial_cbu_from_membership_payment(
 		return {"seeded": False, "reason": "Could not check capital_build_up for existing rows."}
 
 	paid_up_amount = None
+	payment_key = None
 	try:
 		payment_resp = (
 			supabase.table("membership_payments")
-			.select("amount, payment_status")
+			.select("id, payment_id, amount, payment_status")
 			.eq("application_id", application_id)
 			.eq("payment_type", "INITIAL_PAID_UP_CAPITAL")
 			.eq("payment_status", "paid")
@@ -818,6 +819,7 @@ def seed_initial_cbu_from_membership_payment(
 		)
 		if payment_resp.data:
 			paid_up_amount = payment_resp.data[0].get("amount")
+			payment_key = payment_resp.data[0].get("payment_id") or payment_resp.data[0].get("id")
 	except Exception:
 		pass
 
@@ -836,6 +838,17 @@ def seed_initial_cbu_from_membership_payment(
 		"capital_added": amount,
 		"ending_share_capital": amount,
 		"deposit_account": "Initial Paid-Up Capital",
+		# Same key convention as sync_cbu_from_membership_payment()'s
+		# v_payment_key (payment_id, falling back to id). Setting it here too
+		# means whichever writer runs SECOND -- this seeder or the DB trigger
+		# on membership_payments -- recognizes the payment as already synced
+		# via its `source_payment_id` unique index/EXISTS check, instead of
+		# each one only checking for ITS OWN prior row and neither seeing the
+		# other's (see isc_checks/18_DUPLICATE_PAIDUP.sql -- two members were
+		# already double-charged this way, though the displayed balance
+		# happened to stay correct since both rows landed on the same ending
+		# figure).
+		"source_payment_id": str(payment_key) if payment_key else None,
 	}
 
 	try:
