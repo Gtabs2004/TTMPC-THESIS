@@ -5229,7 +5229,7 @@ async def get_member_lifecycle(member_id: str):
             try:
                 schedules_response = (
                     supabase.table("loan_schedules")
-                    .select("id,schedule_id,loan_id,installment_no,due_date,expected_amount,expected_principal,expected_interest,principal_component,interest_component,schedule_status")
+                    .select("id,schedule_id,loan_id,installment_no,due_date,expected_amount,expected_principal,expected_interest,principal_component,interest_component,remaining_principal,schedule_status")
                     .in_("loan_id", loan_ids)
                     .order("due_date")
                     .execute()
@@ -5269,6 +5269,7 @@ async def get_member_lifecycle(member_id: str):
                     "expected_amount": decimal_to_float(sched.get("expected_amount") or 0),
                     "expected_principal": decimal_to_float(sched.get("expected_principal") or sched.get("principal_component") or 0),
                     "expected_interest": decimal_to_float(sched.get("expected_interest") or sched.get("interest_component") or 0),
+                    "remaining_principal": decimal_to_float(sched.get("remaining_principal") or 0),
                     "schedule_status": sched.get("schedule_status") or "unpaid",
                 }
                 for sched in ordered_schedules

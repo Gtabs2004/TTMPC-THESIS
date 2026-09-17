@@ -181,6 +181,105 @@ const formatCurrency = (value) =>
     maximumFractionDigits: 2,
   })}`;
 
+// Emergency loans use 2% *diminishing* interest: equal principal each month
+// plus interest on the declining balance. The payment therefore shrinks every
+// month, so the flat "amortization x term" narrative used for Consolidated and
+// Bonus does not apply and would print arithmetic that contradicts itself.
+const isDiminishingLoan = (loanType) =>
+  String(loanType || "").trim().toLowerCase().includes("emergency");
+
+// Build the diminishing table straight from the stored schedule rows so the
+// member sees exactly what the cashier will collect. Falls back to
+// expected_amount when the split components are missing on legacy rows.
+const buildDiminishingRows = (schedules) => {
+  if (!Array.isArray(schedules)) return [];
+  return schedules.map((sched, idx) => {
+    const principal = Number(sched.expected_principal || 0);
+    const interest = Number(sched.expected_interest || 0);
+    const componentSum = principal + interest;
+    const total = componentSum > 0 ? componentSum : Number(sched.expected_amount || 0);
+    const balance = Number(sched.remaining_principal ?? 0);
+    return {
+      key: sched.schedule_id || sched.installment_no || idx,
+      installmentNo: Number(sched.installment_no || idx + 1),
+      dueDate: sched.due_date,
+      principal,
+      interest,
+      total,
+      balance,
+      // Opening balance = what was owed before this month's principal payment.
+      openingBalance: balance + principal,
+      isPaid: sched.schedule_status === "Paid",
+    };
+  });
+};
+
+const sumBy = (rows, key) => rows.reduce((acc, row) => acc + Number(row[key] || 0), 0);
+
+// Bare number formatting for the formula column, where a "PHP" on every operand
+// would make the expression unreadable.
+const formatPlain = (value) =>
+  Number(value || 0).toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+
+// Before disbursement there are no loan_schedules rows yet, so project the
+// schedule from the loan terms. Mirrors /api/loans/compute exactly: equal
+// principal in centavos with a final-month cleanup, and interest charged on the
+// balance AFTER that month's principal payment.
+const projectDiminishingRows = (principal, term, monthlyRate) => {
+  const totalCents = Math.round(Number(principal || 0) * 100);
+  const months = Number(term || 0);
+  if (totalCents <= 0 || months <= 0 || !(monthlyRate > 0)) return [];
+
+  const monthlyPrincipalCents = Math.floor(totalCents / months);
+  const rows = [];
+  let balanceCents = totalCents;
+  let accumulatedCents = 0;
+
+  for (let m = 1; m <= months; m += 1) {
+    const principalCents = m < months ? monthlyPrincipalCents : totalCents - accumulatedCents;
+    const endingBalanceCents = balanceCents - principalCents;
+    const interestCents = Math.round(endingBalanceCents * monthlyRate);
+
+    rows.push({
+      key: `projected-${m}`,
+      installmentNo: m,
+      dueDate: null,
+      principal: principalCents / 100,
+      interest: interestCents / 100,
+      total: (principalCents + interestCents) / 100,
+      balance: endingBalanceCents / 100,
+      openingBalance: balanceCents / 100,
+      isPaid: false,
+    });
+
+    balanceCents = endingBalanceCents;
+    accumulatedCents += principalCents;
+  }
+  return rows;
+};
+
+// Recover the monthly rate from the stored first amortization rather than
+// hardcoding 2%, so a rate change in loan_types flows through:
+//   firstAmort = P/term + (P - P/term) * rate
+const inferDiminishingRate = (principal, term, firstAmortization) => {
+  const p = Number(principal || 0);
+  const n = Number(term || 0);
+  const first = Number(firstAmortization || 0);
+  if (p <= 0 || n <= 0 || first <= 0) return 0;
+  const monthlyPrincipal = p / n;
+  const balanceAfter = p - monthlyPrincipal;
+  if (balanceAfter <= 0) return 0;
+  const rate = (first - monthlyPrincipal) / balanceAfter;
+  if (!(rate > 0) || rate >= 0.2) return 0;
+  // firstAmortization is stored already rounded to centavos, so the reverse
+  // derivation lands a hair off (e.g. 1.9999% instead of 2%) and the projected
+  // total drifts a few centavos. Snap to the nearest 0.01% to undo that.
+  return Math.round(rate * 10000) / 10000;
+};
+
 const formatDate = (value) => {
   if (!value) return "N/A";
   const d = new Date(value);
@@ -891,10 +990,139 @@ const Member_Lifecycle = () => {
                       <p><span className="text-gray-500 dark:text-gray-400 font-medium">Applied on:</span> <span className="font-bold text-gray-900 dark:text-white">{formatShortDate(selectedLoan.application_date)}</span></p>
                       <p><span className="text-gray-500 dark:text-gray-400 font-medium">Disbursed on:</span> <span className="font-bold text-gray-900 dark:text-white">{formatShortDate(selectedLoan.disbursal_date)}</span></p>
                       <p><span className="text-gray-500 dark:text-gray-400 font-medium">Term:</span> <span className="font-bold text-gray-900 dark:text-white">{selectedLoan.term} months</span></p>
-                      <p><span className="text-gray-500 dark:text-gray-400 font-medium">Monthly Amortization:</span> <span className="font-bold text-gray-900 dark:text-white">{formatCurrency(selectedLoan.monthly_amortization)}</span></p>
+                      <p>
+                        <span className="text-gray-500 dark:text-gray-400 font-medium">
+                          {isDiminishingLoan(selectedLoan.loan_type) ? "First Amortization:" : "Monthly Amortization:"}
+                        </span>{" "}
+                        <span className="font-bold text-gray-900 dark:text-white">{formatCurrency(selectedLoan.monthly_amortization)}</span>
+                        {isDiminishingLoan(selectedLoan.loan_type) ? (
+                          <span className="block text-[11px] font-medium text-gray-500 dark:text-gray-400">then decreasing each month</span>
+                        ) : null}
+                      </p>
                     </div>
 
-                    {/* Interest breakdown */}
+                    {/* Interest breakdown. Emergency loans are diminishing, so the
+                        flat "amortization x term" narrative below does not hold for
+                        them -- they get a month-by-month table instead. */}
+                    {isDiminishingLoan(selectedLoan.loan_type) ? (
+                      (() => {
+                        const scheduleRows = buildDiminishingRows(selectedLoan.schedules);
+                        const isProjected = scheduleRows.length === 0;
+                        const inferredRate = inferDiminishingRate(
+                          selectedLoan.principal,
+                          selectedLoan.term,
+                          selectedLoan.monthly_amortization
+                        );
+                        const rows = isProjected
+                          ? projectDiminishingRows(selectedLoan.principal, selectedLoan.term, inferredRate)
+                          : scheduleRows;
+                        if (rows.length === 0) return null;
+                        const ratePercentLabel = inferredRate > 0
+                          ? `${(inferredRate * 100).toFixed(2).replace(/\.00$/, "")}%`
+                          : "the monthly rate";
+                        const firstRow = rows[0];
+                        const monthlyPrincipal = firstRow.principal;
+                        const totalPrincipal = sumBy(rows, "principal");
+                        const totalInterest = sumBy(rows, "interest");
+                        const totalPayable = sumBy(rows, "total");
+                        return (
+                          <div className="rounded-xl border border-gray-100 dark:border-gray-700 bg-[#FAF9FB] dark:bg-gray-800 p-4">
+                            <p className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">How Your Payments Are Computed</p>
+                            <p className="mt-2 text-xs text-gray-600 dark:text-gray-300">
+                              This is a <span className="font-bold">diminishing</span> loan. You pay the same principal
+                              every month, but interest is charged only on your remaining balance &mdash; so your
+                              payment gets <span className="font-bold">smaller each month</span>.
+                            </p>
+                            {isProjected ? (
+                              <p className="mt-2 rounded-lg bg-amber-50 dark:bg-amber-900/20 px-3 py-2 text-[11px] font-medium text-amber-800 dark:text-amber-300">
+                                Estimated schedule. Exact due dates and amounts are finalized when your loan is released.
+                              </p>
+                            ) : null}
+
+                            {/* Worked derivation of the first payment. Members kept asking
+                                where the headline amortization figure comes from, so show
+                                the arithmetic step by step instead of just the result. */}
+                            <div className="mt-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-3">
+                              <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                                Where {formatCurrency(firstRow.total)} comes from
+                              </p>
+                              <ol className="mt-2 space-y-2 text-[11px] text-gray-700 dark:text-gray-300">
+                                <li>
+                                  <span className="font-bold">1. Principal per month</span> &mdash; your loan split evenly over the term.
+                                  <div className="mt-0.5 font-mono text-[11px] text-gray-900 dark:text-white">
+                                    {formatPlain(selectedLoan.principal)} &divide; {selectedLoan.term} = {formatPlain(monthlyPrincipal)}
+                                  </div>
+                                </li>
+                                <li>
+                                  <span className="font-bold">2. Balance after that payment</span> &mdash; interest is charged on what remains.
+                                  <div className="mt-0.5 font-mono text-[11px] text-gray-900 dark:text-white">
+                                    {formatPlain(selectedLoan.principal)} &minus; {formatPlain(monthlyPrincipal)} = {formatPlain(firstRow.balance)}
+                                  </div>
+                                </li>
+                                <li>
+                                  <span className="font-bold">3. Interest for month 1</span> &mdash; {ratePercentLabel} of that balance.
+                                  <div className="mt-0.5 font-mono text-[11px] text-gray-900 dark:text-white">
+                                    {formatPlain(firstRow.balance)} &times; {ratePercentLabel} = {formatPlain(firstRow.interest)}
+                                  </div>
+                                </li>
+                                <li>
+                                  <span className="font-bold">4. First payment</span> &mdash; principal plus interest.
+                                  <div className="mt-0.5 font-mono text-[11px] font-bold text-member-green dark:text-green-400">
+                                    {formatPlain(monthlyPrincipal)} + {formatPlain(firstRow.interest)} = {formatPlain(firstRow.total)}
+                                  </div>
+                                </li>
+                              </ol>
+                              <p className="mt-2 border-t border-gray-100 dark:border-gray-700 pt-2 text-[11px] text-gray-600 dark:text-gray-300">
+                                Every following month repeats steps 2&ndash;4 on the smaller balance, which is why
+                                the payment keeps going down.
+                              </p>
+                            </div>
+                            <div className="mt-3 overflow-x-auto">
+                              <table className="w-full min-w-[560px] text-xs">
+                                <thead>
+                                  <tr className="text-left text-[10px] uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                                    <th className="py-2 pr-2 font-bold">Mo</th>
+                                    <th className="py-2 px-2 font-bold text-right">Principal</th>
+                                    <th className="py-2 px-2 font-bold text-right">Interest</th>
+                                    <th className="py-2 px-2 font-bold">How interest was computed</th>
+                                    <th className="py-2 px-2 font-bold text-right">Payment</th>
+                                    <th className="py-2 pl-2 font-bold text-right">Balance</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                                  {rows.map((row) => (
+                                    <tr key={row.key} className={row.isPaid ? "text-gray-400 dark:text-gray-500" : "text-gray-900 dark:text-white"}>
+                                      <td className="py-2 pr-2 font-bold">{row.installmentNo}</td>
+                                      <td className="py-2 px-2 text-right font-mono">{formatCurrency(row.principal)}</td>
+                                      <td className="py-2 px-2 text-right font-mono">{formatCurrency(row.interest)}</td>
+                                      <td className="py-2 px-2 font-mono text-[10px] text-gray-500 dark:text-gray-400 whitespace-nowrap">
+                                        {formatPlain(row.balance)} &times; {ratePercentLabel}
+                                      </td>
+                                      <td className="py-2 px-2 text-right font-mono font-bold">{formatCurrency(row.total)}</td>
+                                      <td className="py-2 pl-2 text-right font-mono">{formatCurrency(row.balance)}</td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                                <tfoot>
+                                  <tr className="border-t-2 border-gray-300 dark:border-gray-600 font-bold text-gray-900 dark:text-white">
+                                    <td className="py-2 pr-2 text-[10px] uppercase tracking-wider">Total</td>
+                                    <td className="py-2 px-2 text-right font-mono">{formatCurrency(totalPrincipal)}</td>
+                                    <td className="py-2 px-2 text-right font-mono text-member-green dark:text-green-400">{formatCurrency(totalInterest)}</td>
+                                    <td className="py-2 px-2 text-[10px] font-medium text-gray-500 dark:text-gray-400">sum of column</td>
+                                    <td className="py-2 px-2 text-right font-mono">{formatCurrency(totalPayable)}</td>
+                                    <td className="py-2 pl-2 text-right font-mono">{formatCurrency(0)}</td>
+                                  </tr>
+                                </tfoot>
+                              </table>
+                            </div>
+                            <p className="mt-3 text-[11px] text-gray-500 dark:text-gray-400">
+                              Total interest is the sum of the interest column &mdash; not the first payment
+                              multiplied by the term, because every payment differs.
+                            </p>
+                          </div>
+                        );
+                      })()
+                    ) : (
                     <div className="rounded-xl border border-gray-100 dark:border-gray-700 bg-[#FAF9FB] dark:bg-gray-800 p-4">
                       <p className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">How Total Interest is Computed</p>
                       <div className="space-y-2">
@@ -918,6 +1146,7 @@ const Member_Lifecycle = () => {
                         </div>
                       </div>
                     </div>
+                    )}
                   </div>
                 ) : null}
               </div>
@@ -940,8 +1169,13 @@ const Member_Lifecycle = () => {
                     <div className="border-t border-gray-100 dark:border-gray-800">
                       <div className="px-5 py-3 bg-[#FAF9FB] dark:bg-gray-800 grid grid-cols-2 gap-3 text-xs">
                         <div>
-                          <p className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Monthly Amortization</p>
+                          <p className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                            {isDiminishingLoan(selectedLoan.loan_type) ? "First Amortization" : "Monthly Amortization"}
+                          </p>
                           <p className="text-sm font-extrabold text-member-green dark:text-green-400">{formatCurrency(selectedLoan.monthly_amortization)}</p>
+                          {isDiminishingLoan(selectedLoan.loan_type) ? (
+                            <p className="text-[10px] font-medium text-gray-500 dark:text-gray-400">decreases monthly</p>
+                          ) : null}
                         </div>
                         <div>
                           <p className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Term</p>
@@ -957,6 +1191,9 @@ const Member_Lifecycle = () => {
                           // running total (principal + total_interest) instead of per-period.
                           const componentSum = Number(sched.expected_principal || 0) + Number(sched.expected_interest || 0);
                           const rawExpected = Number(sched.expected_amount || 0);
+                          // For diminishing loans monthly_amortization is the FIRST (largest)
+                          // payment, so this cap only ever rejects corrupted legacy rows,
+                          // never a legitimately smaller later installment.
                           const monthly = Number(selectedLoan.monthly_amortization || 0);
                           const sanityCap = monthly > 0 ? monthly * 1.5 : Infinity;
                           let perInstallment;
