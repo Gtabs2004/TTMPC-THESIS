@@ -187,6 +187,47 @@ const calculatePenalty = (dueDate, installmentAmount, penaltyRatePercent = null,
   return amount * ratePerMonth * monthsOverdue;
 };
 
+// Map backend/network failures onto messages a cashier can act on. The raw
+// error is preserved in the console for debugging but never shown verbatim,
+// so SQL/stack detail cannot leak into the UI.
+const friendlyPaymentError = (error) => {
+  const raw = String(error?.message || "").toLowerCase();
+  if (!raw) return "Something went wrong while recording the payment. Please try again.";
+  if (raw.includes("already fully paid") || raw.includes("409")) {
+    return "This loan is already fully paid and can no longer accept payments.";
+  }
+  if (raw.includes("no loan schedule")) {
+    return "This loan has no payment schedule yet. Ask the Bookkeeper to generate it first.";
+  }
+  if (raw.includes("loan not found") || raw.includes("404")) {
+    return "This loan could not be found. Refresh the list and try again.";
+  }
+  if (raw.includes("schedule_id") && raw.includes("belong")) {
+    return "This payment no longer matches the loan's current schedule. Refresh and try again.";
+  }
+  if (raw.includes("failed to fetch") || raw.includes("networkerror") || raw.includes("network")) {
+    return "Cannot reach the server. Check your connection and try again.";
+  }
+  if (raw.includes("401") || raw.includes("403") || raw.includes("unauthor") || raw.includes("forbidden")) {
+    return "Your session has expired. Please sign in again to record payments.";
+  }
+  if (raw.includes("duplicate") || raw.includes("unique")) {
+    return "This payment appears to have already been recorded. Refresh to confirm before retrying.";
+  }
+  if (raw.includes("500") || raw.includes("database") || raw.includes("sql") || raw.includes("supabase")) {
+    return "The server could not record the payment. Please try again in a moment.";
+  }
+  return "Something went wrong while recording the payment. Please try again.";
+};
+
+// "Aug 9, 2026" — easier to scan than 8/9/2026 in a dense financial modal.
+const formatLongDate = (value) => {
+  if (!value) return "\u2014";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "\u2014";
+  return d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+};
+
 const getLoanStatus = (remainingBalance, loanAmount) => {
   if (remainingBalance <= 0) return "Fully Paid";
   if (remainingBalance < loanAmount) return "Partially Paid";
@@ -226,6 +267,7 @@ const Cashier_Payments = () => {
   const [isLedgerModalOpen, setIsLedgerModalOpen] = useState(false);
   const [isSubmittingPayment, setIsSubmittingPayment] = useState(false);
   const [formError, setFormError] = useState("");
+  const [paymentReceipt, setPaymentReceipt] = useState(null);
   const [paymentRecords, setPaymentRecords] = useState([]);
   const [loadingLoans, setLoadingLoans] = useState(false);
   const [loansError, setLoansError] = useState("");
@@ -302,13 +344,22 @@ const Cashier_Payments = () => {
 
   // Derive available years + loan types from the loaded loans so the filter
   // dropdowns only offer values that will actually match something.
+  // The three member loan types are always offered, even when no loan of that
+  // type is currently collectible -- otherwise a filter silently disappears
+  // (Bonus loans repay in a single shot, so they are often absent from the
+  // active set). Any other type present in the data is appended after them.
   const availableTypes = useMemo(() => {
-    const set = new Set();
+    const baseTypes = ["consolidated", "bonus", "emergency"];
+    const seen = new Set(baseTypes);
+    const extras = [];
     for (const l of loans) {
-      const t = String(l.loan_type ?? "").trim();
-      if (t) set.add(t);
+      const t = String(l.loan_type ?? "").trim().toLowerCase();
+      if (t && !seen.has(t)) {
+        seen.add(t);
+        extras.push(t);
+      }
     }
-    return Array.from(set).sort();
+    return [...baseTypes, ...extras.sort()];
   }, [loans]);
 
   const availableYears = useMemo(() => {
@@ -461,10 +512,10 @@ const Cashier_Payments = () => {
 
   const selectedLoanPenalty = useMemo(() => {
     if (!selectedLoan) return 0;
-    const installmentAmount =
-      Number(selectedLoan.expected_installment) > 0
-        ? Number(selectedLoan.expected_installment)
-        : Number(selectedLoan.amortization) || 0;
+    // Penalty accrues on the amortization, for the same reason
+    // currentPaymentAmount uses it: expected_installment is unreliable on
+    // legacy rows and would inflate the penalty base.
+    const installmentAmount = Number(selectedLoan.amortization) || 0;
     return calculatePenalty(
       selectedLoan.due_date,
       installmentAmount,
@@ -478,10 +529,11 @@ const Cashier_Payments = () => {
   // installment doesn't over-collect.
   const currentPaymentAmount = useMemo(() => {
     if (!selectedLoan) return 0;
-    const installment =
-      Number(selectedLoan.expected_installment) > 0
-        ? Number(selectedLoan.expected_installment)
-        : Number(selectedLoan.amortization) || 0;
+    // Use the loan's amortization, NOT expected_installment: the latter comes
+    // from loan_schedules.expected_amount, which on legacy rows holds the
+    // running total (principal + total interest) instead of the per-period
+    // amount and would collect several times the real due.
+    const installment = Number(selectedLoan.amortization) || 0;
     const remaining = Number(selectedLoan.remaining_balance) || 0;
     return roundCurrency(Math.max(Math.min(installment, remaining), 0));
   }, [selectedLoan]);
@@ -572,12 +624,29 @@ const Cashier_Payments = () => {
     try {
       const insertedRecord = await processPayment(paymentPayload);
       setPaymentRecords((previous) => [insertedRecord, ...previous]);
-      addNotification("Payment logged and pending Bookkeeper confirmation. Loan balance is unchanged until confirmation.", "success");
+      // Confirmation carries only data we actually have: the reference the
+      // backend echoed back, the member, and the resulting balance.
+      setPaymentReceipt({
+        amount: totalCollected,
+        principal: principalPaid,
+        penalty: penaltyCollected,
+        memberName: selectedLoan.member_name,
+        loanType: selectedLoan.loan_type,
+        remainingBalance: updatedBalancePreview,
+        reference: insertedRecord?.payment_id || paymentPayload.payment_reference,
+        paidAt: insertedRecord?.payment_date || new Date().toISOString(),
+      });
+      addNotification(
+        `Payment of ${formatCurrency(totalCollected)} recorded — pending Bookkeeper confirmation.`,
+        "success"
+      );
       closePaymentModal();
       await fetchLoans();
     } catch (error) {
-      setFormError(error.message || "Failed to submit payment.");
-      addNotification(error.message || "Failed to submit payment.", "error");
+      console.error("Loan payment submission failed:", error);
+      const message = friendlyPaymentError(error);
+      setFormError(message);
+      addNotification(message, "error");
     } finally {
       setIsSubmittingPayment(false);
     }
@@ -688,7 +757,7 @@ const Cashier_Payments = () => {
                               : "bg-white border border-gray-300 text-gray-700 hover:border-green-500"
                           }`}
                         >
-                          {type}
+                          {toTitleCase(type)}
                         </button>
                       ))}
                     </div>
@@ -1032,14 +1101,77 @@ const Cashier_Payments = () => {
             </div>
           )}
 
+          {/* Payment confirmation. Shown after a successful post so the cashier has
+              an unambiguous record that the payment was captured, with the
+              reference the backend returned. */}
+          {paymentReceipt && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+              <div className="w-full max-w-md rounded-2xl bg-white shadow-2xl">
+                <div className="px-6 pt-6 text-center">
+                  <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-green-100">
+                    <CheckCircle2 size={26} className="text-green-600" />
+                  </div>
+                  <h2 className="mt-3 text-lg font-bold text-gray-900">Payment collected successfully</h2>
+                  <p className="mt-1 text-3xl font-extrabold text-green-700 tabular-nums">
+                    {formatCurrency(paymentReceipt.amount)}
+                  </p>
+                  {paymentReceipt.penalty > 0 ? (
+                    <p className="mt-1 text-xs text-gray-500">
+                      {formatCurrency(paymentReceipt.principal)} amortization + {formatCurrency(paymentReceipt.penalty)} penalty
+                    </p>
+                  ) : null}
+                </div>
+
+                <dl className="mt-5 space-y-2 border-t border-gray-100 px-6 pt-4 text-sm">
+                  <div className="flex justify-between gap-3">
+                    <dt className="text-gray-500">Member</dt>
+                    <dd className="truncate font-medium text-gray-900">{paymentReceipt.memberName}</dd>
+                  </div>
+                  <div className="flex justify-between gap-3">
+                    <dt className="text-gray-500">Loan type</dt>
+                    <dd className="font-medium text-gray-900">{toTitleCase(paymentReceipt.loanType)}</dd>
+                  </div>
+                  <div className="flex justify-between gap-3">
+                    <dt className="text-gray-500">Payment date</dt>
+                    <dd className="font-medium text-gray-900 tabular-nums">{formatLongDate(paymentReceipt.paidAt)}</dd>
+                  </div>
+                  <div className="flex justify-between gap-3">
+                    <dt className="text-gray-500">Remaining balance</dt>
+                    <dd className="font-medium text-gray-900 tabular-nums">{formatCurrency(paymentReceipt.remainingBalance)}</dd>
+                  </div>
+                  {paymentReceipt.reference ? (
+                    <div className="flex justify-between gap-3">
+                      <dt className="text-gray-500">Reference</dt>
+                      <dd className="break-all font-mono text-xs font-medium text-gray-900">{paymentReceipt.reference}</dd>
+                    </div>
+                  ) : null}
+                </dl>
+
+                <p className="mx-6 mt-4 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                  Pending Bookkeeper confirmation — the loan balance updates once they validate it.
+                </p>
+
+                <div className="px-6 py-5">
+                  <button
+                    type="button"
+                    onClick={() => setPaymentReceipt(null)}
+                    className="w-full rounded-lg bg-green-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-green-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2"
+                  >
+                    Done
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
           {isPaymentModalOpen && selectedLoan && (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
-              <div className="w-full max-w-2xl rounded-2xl bg-white shadow-2xl">
+              <div className="flex max-h-[calc(100vh-2rem)] w-full max-w-2xl flex-col rounded-2xl bg-white shadow-2xl">
                 {/* Modal Header */}
-                <div className="flex items-start justify-between border-b border-gray-200 bg-linear-to-r from-green-50 to-emerald-50 px-6 py-5">
-                  <div>
-                    <h2 className="text-2xl font-bold text-gray-900">Process Loan Payment</h2>
-                    <p className="text-sm text-gray-600 mt-1">Enter payment details for {selectedLoan.member_name}</p>
+                <div className="flex shrink-0 items-start justify-between gap-3 rounded-t-2xl border-b border-gray-200 bg-linear-to-r from-green-50 to-emerald-50 px-6 py-5">
+                  <div className="min-w-0">
+                    <h2 className="text-xl font-bold text-gray-900 sm:text-2xl">Process Loan Payment</h2>
+                    <p className="mt-0.5 truncate text-sm text-gray-600">{selectedLoan.member_name}</p>
                   </div>
                   <button
                     type="button"
@@ -1051,148 +1183,135 @@ const Cashier_Payments = () => {
                 </div>
 
                 {/* Modal Content */}
-                <div className="overflow-y-auto max-h-[calc(100vh-200px)] p-6">
-                  {/* Status banner — penalty warning takes precedence over no-payment */}
-                  {selectedLoan.is_overdue_for_penalty ? (
-                    <div className="mb-4 rounded-lg border-2 border-red-300 bg-red-50 px-4 py-3 flex items-start gap-3">
-                      <AlertCircle size={20} className="text-red-600 mt-0.5 shrink-0" />
-                      <div className="text-sm">
-                        <p className="font-bold text-red-800">Overdue — Penalty applies</p>
-                        <p className="text-red-700 mt-0.5">
-                          This installment was due {new Date(selectedLoan.due_date).toLocaleDateString()}. The
-                          3-month grace period has lapsed, so a penalty has been added below.
-                          {selectedLoan.last_payment_date
-                            ? ` Last payment recorded: ${new Date(selectedLoan.last_payment_date).toLocaleDateString()}.`
-                            : " No payment has ever been recorded on this loan."}
-                        </p>
-                      </div>
-                    </div>
-                  ) : selectedLoan.is_delayed ? (
-                    <div className="mb-4 rounded-lg border-2 border-yellow-300 bg-yellow-50 px-4 py-3 flex items-start gap-3">
-                      <AlertCircle size={20} className="text-yellow-700 mt-0.5 shrink-0" />
-                      <div className="text-sm">
-                        <p className="font-bold text-yellow-900">No payment in over 1 month</p>
-                        <p className="text-yellow-800 mt-0.5">
-                          Installment due {new Date(selectedLoan.due_date).toLocaleDateString()}.
-                          {selectedLoan.last_payment_date
-                            ? ` Last payment: ${new Date(selectedLoan.last_payment_date).toLocaleDateString()}.`
-                            : " No payment has ever been recorded on this loan."}
-                          {" "}Penalty will start after the 3-month grace period.
-                        </p>
-                      </div>
-                    </div>
+                <div className="min-h-0 flex-1 overflow-y-auto p-6">
+                  {/* Status banner — penalty warning takes precedence over no-payment.
+                      Headline first, supporting dates as muted metadata underneath so the
+                      banner reads at a glance without competing with Total Due. */}
+                  {selectedLoan.is_overdue_for_penalty || selectedLoan.is_delayed ? (
+                    (() => {
+                      const isPenalty = Boolean(selectedLoan.is_overdue_for_penalty);
+                      const tone = isPenalty
+                        ? { wrap: "border-red-200 bg-red-50", icon: "text-red-600", title: "text-red-900", meta: "text-red-700" }
+                        : { wrap: "border-amber-200 bg-amber-50", icon: "text-amber-600", title: "text-amber-900", meta: "text-amber-700" };
+                      const meta = [
+                        selectedLoan.due_date ? `Installment due ${formatLongDate(selectedLoan.due_date)}` : null,
+                        selectedLoan.last_payment_date
+                          ? `Last payment ${formatLongDate(selectedLoan.last_payment_date)}`
+                          : "No payment recorded yet",
+                        isPenalty ? "Grace period lapsed" : "Within 3-month grace period",
+                      ].filter(Boolean);
+                      return (
+                        <div className={`mb-5 flex items-start gap-3 rounded-lg border px-4 py-3 ${tone.wrap}`}>
+                          <AlertCircle size={18} className={`mt-0.5 shrink-0 ${tone.icon}`} />
+                          <div className="min-w-0">
+                            <p className={`text-sm font-semibold ${tone.title}`}>
+                              {isPenalty ? "Overdue — penalty applies" : "Payment attention required"}
+                            </p>
+                            <p className={`mt-1 text-xs leading-relaxed ${tone.meta}`}>
+                              {meta.join(" · ")}
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    })()
                   ) : null}
 
-                  {/* Loan Overview Cards */}
-                  <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-2">
-                    <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
-                      <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">Loan Information</p>
-                      <div className="space-y-2 text-sm">
-                        <div className="flex justify-between">
-                          <span className="text-gray-600">Member ID:</span>
-                          <span className="font-medium text-gray-900">{selectedLoan.member_id}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-gray-600">Loan Type:</span>
-                          <span className="font-medium text-gray-900">{toTitleCase(selectedLoan.loan_type)}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-gray-600">Principal:</span>
-                          <span className="font-semibold text-green-600">{formatCurrency(selectedLoan.loan_amount)}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-gray-600">Total Interest:</span>
-                          <span className="font-semibold text-gray-900">{formatCurrency(selectedLoan.total_interest || Math.max((selectedLoan.amortization || 0) * (selectedLoan.term_months || 0) - (selectedLoan.loan_amount || 0), 0))}</span>
-                        </div>
-                        <div className="flex justify-between border-t border-gray-200 pt-2">
-                          <span className="text-gray-700 font-semibold">Total Payment:</span>
-                          <span className="font-bold text-green-700">{formatCurrency(selectedLoan.total_payable || ((selectedLoan.loan_amount || 0) + (selectedLoan.total_interest || Math.max((selectedLoan.amortization || 0) * (selectedLoan.term_months || 0) - (selectedLoan.loan_amount || 0), 0))))}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-gray-600">Term:</span>
-                          <span className="font-medium text-gray-900">{selectedLoan.term_months} months</span>
-                        </div>
+                  {/* Loan — flat definition list, no card. The loan type leads; the
+                      member UUID drops to muted metadata since it is rarely read but
+                      still required by the workflow. */}
+                  <section className="mb-6">
+                    <h3 className="mb-3 border-b border-gray-200 pb-2 text-[11px] font-bold uppercase tracking-wider text-gray-500">
+                      Loan
+                    </h3>
+
+                    <p className="text-lg font-bold text-gray-900">{toTitleCase(selectedLoan.loan_type)}</p>
+                    {/* Loan reference is what staff quote, so it stays legible; the
+                        member UUID is a lookup key only and drops to the faintest tier. */}
+                    <p className="mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                      <span className="font-mono text-xs font-medium text-gray-600">{selectedLoan.loan_id}</span>
+                      {selectedLoan.member_id ? (
+                        <span className="break-all font-mono text-[10px] text-gray-400">{selectedLoan.member_id}</span>
+                      ) : null}
+                    </p>
+
+                    {/* Column-major (grid-flow-col + 3 rows) so each column reads top
+                        to bottom as a group -- money on the left, loan terms on the
+                        right -- instead of the eye zig-zagging across columns.
+                        Collapses to a single ordered column on small screens. */}
+                    <dl className="mt-4 grid grid-cols-1 gap-x-10 gap-y-2.5 text-sm sm:grid-flow-col sm:grid-cols-2 sm:grid-rows-3">
+                      <div className="flex items-baseline justify-between gap-3 border-b border-gray-100 pb-2">
+                        <dt className="text-gray-500">Principal</dt>
+                        <dd className="font-medium text-gray-900 tabular-nums">{formatCurrency(selectedLoan.loan_amount)}</dd>
+                      </div>
+                      <div className="flex items-baseline justify-between gap-3 border-b border-gray-100 pb-2">
+                        <dt className="text-gray-500">Outstanding Balance</dt>
+                        <dd className="font-medium text-gray-900 tabular-nums">{formatCurrency(selectedLoan.remaining_balance)}</dd>
+                      </div>
+                      <div className="flex items-baseline justify-between gap-3 border-b border-gray-100 pb-2">
+                        <dt className="text-gray-500">Amortization</dt>
+                        <dd className="font-semibold text-gray-900 tabular-nums">{formatCurrency(selectedLoan.amortization)}</dd>
+                      </div>
+                      <div className="flex items-baseline justify-between gap-3 border-b border-gray-100 pb-2">
+                        <dt className="text-gray-500">Interest Rate</dt>
+                        <dd className="font-medium text-gray-900 tabular-nums">{getDisplayedInterestRate(selectedLoan)}</dd>
+                      </div>
+                      <div className="flex items-baseline justify-between gap-3 border-b border-gray-100 pb-2">
+                        <dt className="text-gray-500">Term</dt>
+                        <dd className="font-medium text-gray-900 tabular-nums">{selectedLoan.term_months} months</dd>
+                      </div>
+                      <div className="flex items-baseline justify-between gap-3 border-b border-gray-100 pb-2">
+                        <dt className="text-gray-500">Due Date</dt>
+                        <dd className="font-medium text-gray-900 tabular-nums">
+                          {selectedLoan.due_date ? formatLongDate(selectedLoan.due_date) : "\u2014"}
+                        </dd>
+                      </div>
+                    </dl>
+                  </section>
+
+                  {/* Payment summary. Figures are derived from the schedule, so the
+                      cashier confirms rather than types -- see currentPaymentAmount.
+                      Total Due is the focal point; penalty stays secondary at zero. */}
+                  <section className="mb-6">
+                    <h3 className="mb-3 border-b border-gray-200 pb-2 text-[11px] font-bold uppercase tracking-wider text-gray-500">
+                      Payment Summary
+                    </h3>
+
+                    <div className="space-y-3 text-sm">
+                      <div className="flex items-baseline justify-between gap-3">
+                        <span className="text-gray-600">Payment for this period</span>
+                        <span className="font-medium text-gray-900 tabular-nums">{formatCurrency(currentPaymentAmount)}</span>
+                      </div>
+                      <div className="flex items-baseline justify-between gap-3">
+                        <span className={selectedLoanPenalty > 0 ? "font-medium text-amber-700" : "text-gray-500"}>
+                          Penalty
+                          {selectedLoanPenalty > 0 ? null : (
+                            <span className="ml-1.5 text-xs text-gray-400">(within grace period)</span>
+                          )}
+                        </span>
+                        <span className={`tabular-nums ${selectedLoanPenalty > 0 ? "font-medium text-amber-700" : "text-gray-400"}`}>
+                          {formatCurrency(selectedLoanPenalty)}
+                        </span>
                       </div>
                     </div>
 
-                    <div className="rounded-lg border border-gray-200 bg-blue-50 p-4">
-                      <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">Payment Status</p>
-                      <div className="space-y-2 text-sm">
-                        <div className="flex justify-between">
-                          <span className="text-gray-600">Loan Status:</span>
-                          <span className={`font-semibold ${
-                            selectedLoan.loan_status === "Fully Paid"
-                              ? "text-green-600"
-                              : selectedLoan.loan_status === "Partially Paid"
-                              ? "text-amber-600"
-                              : "text-red-600"
-                          }`}>
-                            {selectedLoan.loan_status}
-                          </span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-gray-600">Due Date:</span>
-                          <span className="font-medium text-gray-900">{new Date(selectedLoan.due_date).toLocaleDateString()}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-gray-600">Interest Rate:</span>
-                          <span className="font-medium text-gray-900">{getDisplayedInterestRate(selectedLoan)}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-gray-600">Amortization:</span>
-                          <span className="font-medium text-gray-900">{formatCurrency(selectedLoan.amortization)}</span>
-                        </div>
-                      </div>
+                    <div className="mt-4 flex items-baseline justify-between gap-3 border-t-2 border-gray-900 pt-4">
+                      <span className="text-sm font-bold uppercase tracking-wide text-gray-900">Total Due</span>
+                      <span className="text-3xl font-extrabold text-green-700 tabular-nums">{formatCurrency(currentTotalDue)}</span>
                     </div>
-                  </div>
 
-                  {/* Amount Due. The figures are derived from the schedule, so the
-                      cashier confirms rather than types -- see currentPaymentAmount. */}
-                  <div className="mb-6 rounded-xl border border-gray-200 bg-white overflow-hidden">
-                    <div className="divide-y divide-gray-100">
-                      <div className="flex items-baseline justify-between px-4 py-3">
-                        <div>
-                          <p className="text-sm font-semibold text-gray-900">Payment Amount</p>
-                          <p className="text-xs text-gray-500">Amortization due this period</p>
-                        </div>
-                        <p className="text-base font-semibold text-gray-900 tabular-nums">{formatCurrency(currentPaymentAmount)}</p>
+                    {/* Flat row, not a card -- it is the consequence of the total above,
+                        so it stays visually attached rather than becoming another box. */}
+                    <div className="mt-4 flex items-baseline justify-between gap-3 border-t border-gray-100 pt-3">
+                      <div>
+                        <p className="text-sm text-gray-600">Remaining loan balance</p>
+                        <p className="text-xs text-gray-400">After this payment</p>
                       </div>
-
-                      <div className="flex items-baseline justify-between px-4 py-3">
-                        <div>
-                          <p className={`text-sm font-semibold ${selectedLoanPenalty > 0 ? "text-amber-800" : "text-gray-500"}`}>
-                            Penalty Applied
-                          </p>
-                          <p className="text-xs text-gray-500">
-                            {selectedLoanPenalty > 0
-                              ? "Accrued after the 3-month grace period"
-                              : "None — within grace period"}
-                          </p>
-                        </div>
-                        <p className={`text-base font-semibold tabular-nums ${selectedLoanPenalty > 0 ? "text-amber-800" : "text-gray-400"}`}>
-                          {selectedLoanPenalty > 0 ? `+ ${formatCurrency(selectedLoanPenalty)}` : formatCurrency(0)}
-                        </p>
-                      </div>
-
-                      <div className="flex items-baseline justify-between bg-green-50 px-4 py-4">
-                        <div>
-                          <p className="text-sm font-bold uppercase tracking-wide text-green-900">Total Due</p>
-                          <p className="text-xs text-green-700">Collect this amount</p>
-                        </div>
-                        <p className="text-2xl font-extrabold text-green-700 tabular-nums">{formatCurrency(currentTotalDue)}</p>
-                      </div>
+                      <p className="text-base font-semibold text-gray-700 tabular-nums">{formatCurrency(updatedBalancePreview)}</p>
                     </div>
-                  </div>
+                  </section>
 
                   {/* Payment Form */}
                   <form onSubmit={handleSubmitPayment} className="space-y-4">
-                    <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm">
-                      <div className="flex items-center justify-between">
-                        <span className="text-gray-600">Remaining balance after this payment</span>
-                        <span className="font-semibold text-gray-900 tabular-nums">{formatCurrency(updatedBalancePreview)}</span>
-                      </div>
-                    </div>
-
                     {formError && (
                       <div className="rounded-lg border border-red-200 bg-red-50 p-4 flex items-start gap-3">
                         <AlertCircle size={18} className="text-red-600 shrink-0 mt-0.5" />
@@ -1200,22 +1319,32 @@ const Cashier_Payments = () => {
                       </div>
                     )}
 
-                    {/* Form Actions */}
-                    <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
+                    {/* Form Actions. Stacks on small screens; the collect button keeps
+                        the amount visible and is disabled while submitting so a second
+                        click cannot double-post the payment. */}
+                    <div className="flex flex-col-reverse gap-3 border-t border-gray-200 pt-4 sm:flex-row sm:justify-end">
                       <button
                         type="button"
                         onClick={closePaymentModal}
                         disabled={isSubmittingPayment}
-                        className="rounded-lg border border-gray-300 px-6 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition disabled:opacity-50"
+                        className="rounded-lg border border-gray-300 px-6 py-2.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:ring-offset-2 disabled:opacity-50"
                       >
                         Cancel
                       </button>
                       <button
                         type="submit"
                         disabled={isSubmittingPayment}
-                        className="rounded-lg bg-green-600 px-6 py-2.5 text-sm font-semibold text-white hover:bg-green-700 transition disabled:opacity-50"
+                        aria-busy={isSubmittingPayment}
+                        className="inline-flex items-center justify-center gap-2 rounded-lg bg-green-600 px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-green-700 active:bg-green-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500 disabled:shadow-none"
                       >
-                        {isSubmittingPayment ? "Logging..." : `Collect ${formatCurrency(currentTotalDue)}`}
+                        {isSubmittingPayment ? (
+                          <>
+                            <Clock size={16} className="animate-spin" />
+                            Collecting payment...
+                          </>
+                        ) : (
+                          `Collect ${formatCurrency(currentTotalDue)}`
+                        )}
                       </button>
                     </div>
                   </form>
