@@ -1,6 +1,7 @@
 ﻿import React, { useEffect, useState } from "react";
 import { supabase } from "../../supabaseClient";
 import { ShoppingCart } from "lucide-react";
+import { formatWithCommas, stripCommas } from "../../utils/numberFormat";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 
@@ -107,11 +108,10 @@ export default function PosSimulator() {
                 Amount (PHP)
               </label>
               <input
-                type="number"
-                step="0.01"
-                min="0.01"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
+                type="text"
+                inputMode="decimal"
+                value={formatWithCommas(amount)}
+                onChange={(e) => setAmount(stripCommas(e.target.value))}
                 className="w-full border border-gray-300 rounded-md p-2 text-sm"
               />
             </div>

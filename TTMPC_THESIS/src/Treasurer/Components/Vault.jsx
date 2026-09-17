@@ -26,6 +26,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { FORECAST_LOAN_TYPE_COLORS } from "../../lib/chartColors";
+import { formatWithCommas, stripCommas } from "../../utils/numberFormat";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 // Shared with LoanDemandForecastCard.jsx via chartColors.js — both forecast
@@ -533,11 +534,10 @@ const UpdateBalanceModal = ({ onClose, onSaved, session, currentBalance }) => {
               Current Vault Balance (PHP)
             </label>
             <input
-              type="number"
-              min="0"
-              step="0.01"
-              value={newBalance}
-              onChange={(e) => setNewBalance(e.target.value)}
+              type="text"
+              inputMode="decimal"
+              value={formatWithCommas(newBalance)}
+              onChange={(e) => setNewBalance(stripCommas(e.target.value))}
               placeholder="0.00"
               className="w-full h-11 rounded-lg border border-gray-300 px-3 text-lg font-bold text-gray-900 tabular-nums focus:outline-none focus:ring-2 focus:ring-green-500"
               autoFocus

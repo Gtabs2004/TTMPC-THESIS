@@ -30,8 +30,10 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
+from starlette.concurrency import run_in_threadpool
 from starlette.middleware.base import BaseHTTPMiddleware
 from supabase import create_client, Client
+from supabase.lib.client_options import SyncClientOptions
 from dotenv import load_dotenv
 from urllib import request as urlrequest
 from urllib.error import HTTPError, URLError
@@ -119,7 +121,18 @@ if not resend_api_key:
     print("Warning: RESEND_API_KEY is missing. Email notifications are disabled.")
 
 # 2. Initialize Supabase
-supabase: Client | None = create_client(url, key) if url and key else None
+# Default postgrest_client_timeout is 120s -- and a stalled HTTP/2 read (seen
+# live via py-spy: a worker parked in httpcore's http2 recv for many minutes
+# querying capital_build_up) can apparently outlast even that. Every
+# `supabase.table(...).execute()` call in this file is a SYNCHRONOUS call made
+# directly inside `async def` routes with no thread offload, so while one is
+# stuck the entire server -- every route, every user -- is frozen, not just
+# the caller. 20s bounds the worst case to something a client can retry
+# instead of an open-ended hang; it does not fix the underlying
+# blocking-call-on-the-event-loop pattern (see run_in_threadpool usage on the
+# cashier CBU routes below for that).
+_SUPABASE_CLIENT_OPTIONS = SyncClientOptions(postgrest_client_timeout=20)
+supabase: Client | None = create_client(url, key, options=_SUPABASE_CLIENT_OPTIONS) if url and key else None
 
 # 3. Rate limiter (100 req/min per IP by default)
 limiter = Limiter(key_func=get_remote_address, default_limits=["100/minute"])
@@ -182,7 +195,19 @@ async def _lifespan(app: FastAPI):
             logger.warning("Could not preload JWT signing keys; will retry on demand.")
 
     asyncio.get_running_loop().run_in_executor(None, _warm_jwks)
-    asyncio.ensure_future(_warm_manage_loans_cache())
+
+    # Off the event loop entirely, same reasoning as _warm_jwks above:
+    # get_bookkeeper_manage_loans() makes a chain of SYNCHRONOUS supabase-py
+    # calls (loans + paginated legacy payments/schedules). Awaited directly
+    # on the main loop via ensure_future, those blocking calls freeze every
+    # route on the server -- not just this one -- for the whole fetch, since
+    # asyncio has no way to run other callbacks while a sync call is in
+    # flight. A dedicated thread with its own event loop keeps the warm-up
+    # off the request-serving loop so the rest of the app stays responsive.
+    def _warm_manage_loans_sync():
+        asyncio.run(_warm_manage_loans_cache())
+
+    asyncio.get_running_loop().run_in_executor(None, _warm_manage_loans_sync)
     yield
 
 
@@ -2981,7 +3006,7 @@ async def get_treasurer_cash_ledger(
 # ============================================================================
 
 @app.get("/api/cashier/cbu/members")
-async def get_cashier_cbu_members():
+def get_cashier_cbu_members():
     if not supabase:
         raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
 
@@ -3004,41 +3029,74 @@ async def get_cashier_cbu_members():
 
         member_rows = member_response.data or []
 
-        cbu_rows = []
+        # Paged, not a single .execute() -- PostgREST silently caps an
+        # unbounded select at its default row limit (1000). This table is
+        # past 1,700 rows, so a single-shot fetch would silently drop
+        # whichever rows fall outside that first page and show stale
+        # balances for any member whose latest row landed in the dropped
+        # slice. Same fix as the legacy-payments/schedules pagination in
+        # get_bookkeeper_manage_loans and the sequence scan in
+        # create_cashier_cbu_deposit below.
+        def _fetch_all_cbu_rows(columns: str) -> list[dict]:
+            rows: list[dict] = []
+            page = 1000
+            offset = 0
+            while True:
+                batch = (
+                    supabase.table("capital_build_up")
+                    .select(columns)
+                    .range(offset, offset + page - 1)
+                    .execute()
+                ).data or []
+                rows.extend(batch)
+                if len(batch) < page:
+                    break
+                offset += page
+            return rows
+
         try:
-            cbu_response = (
-                supabase.table("capital_build_up")
-                .select("id,member_id,transaction_date,starting_share_capital,capital_added,ending_share_capital,cbu_deposit_id")
-                .execute()
+            cbu_rows = _fetch_all_cbu_rows(
+                "id,member_id,transaction_date,starting_share_capital,capital_added,ending_share_capital,cbu_deposit_id"
             )
-            cbu_rows = cbu_response.data or []
         except Exception:
-            cbu_response = (
-                supabase.table("capital_build_up")
-                .select("id,member_id,transaction_date,starting_share_capital,capital_added,ending_share_capital")
-                .execute()
+            cbu_rows = _fetch_all_cbu_rows(
+                "id,member_id,transaction_date,starting_share_capital,capital_added,ending_share_capital"
             )
-            cbu_rows = cbu_response.data or []
 
         # Pick the most recent CBU row per member. Same-day deposits can share
         # an identical `transaction_date` (legacy date-only rows), so we tie-
-        # break on the row `id` — newer inserts get larger UUIDs as text, and
-        # we additionally use `>=` so a later iteration always overrides an
-        # earlier one when timestamps are equal.
+        # break on cbu_deposit_id's numeric suffix, not the row `id` -- `id`
+        # is gen_random_uuid(), unrelated to insertion order, and comparing it
+        # as text once let a stale row win the walk and broke the running-
+        # balance chain (see the 2026-09-04 fix / cbu_backup_*.json). Same
+        # ordering as create_cashier_cbu_deposit's _cbu_row_order below and
+        # isc_v2_02_preview.sql.
+        def _cbu_sort_key(row: dict) -> tuple:
+            raw = str(row.get("cbu_deposit_id") or "")
+            digits = "".join(ch for ch in raw if ch.isdigit())
+            return (
+                str(row.get("transaction_date") or ""),
+                int(digits) if digits else -1,
+                str(row.get("id") or ""),
+            )
+
+        # Exclude rows dated after today -- see the matching guard (and its
+        # full explanation) in create_cashier_cbu_deposit's starting_balance
+        # lookup below. The yearly import pre-creates a Dec-31 snapshot for
+        # the CURRENT year before it's over, so without this guard the
+        # displayed "current balance" freezes at that stale snapshot the
+        # moment the import runs, for every real deposit made the rest of
+        # the year.
+        today_str = datetime.utcnow().date().isoformat()
         latest_cbu_by_member: dict[str, dict] = {}
         for row in cbu_rows:
             member_id = str(row.get("member_id") or "").strip()
             if not member_id:
                 continue
-            previous = latest_cbu_by_member.get(member_id)
-            current_ts = str(row.get("transaction_date") or "")
-            current_id = str(row.get("id") or "")
-            if previous is None:
-                latest_cbu_by_member[member_id] = row
+            if str(row.get("transaction_date") or "")[:10] > today_str:
                 continue
-            previous_ts = str(previous.get("transaction_date") or "")
-            previous_id = str(previous.get("id") or "")
-            if (current_ts, current_id) > (previous_ts, previous_id):
+            previous = latest_cbu_by_member.get(member_id)
+            if previous is None or _cbu_sort_key(row) > _cbu_sort_key(previous):
                 latest_cbu_by_member[member_id] = row
 
         mapped_members = []
@@ -3086,7 +3144,7 @@ async def get_cashier_cbu_members():
 
 
 @app.get("/api/cashier/cbu/members/{member_ref}")
-async def get_cashier_cbu_member(member_ref: str):
+def get_cashier_cbu_member(member_ref: str):
     if not supabase:
         raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
 
@@ -3095,7 +3153,7 @@ async def get_cashier_cbu_member(member_ref: str):
         if not clean_ref:
             raise HTTPException(status_code=400, detail="member_ref is required.")
 
-        members_payload = await get_cashier_cbu_members()
+        members_payload = get_cashier_cbu_members()
         members = members_payload.get("data") or []
 
         target = next(
@@ -3161,7 +3219,7 @@ async def get_cashier_cbu_transactions():
 
 
 @app.post("/api/cashier/cbu/deposits")
-async def create_cashier_cbu_deposit(payload: CashierCBUDepositRequest):
+def create_cashier_cbu_deposit(payload: CashierCBUDepositRequest):
     if not supabase:
         raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
 
@@ -3170,7 +3228,7 @@ async def create_cashier_cbu_deposit(payload: CashierCBUDepositRequest):
         if not member_ref:
             raise HTTPException(status_code=400, detail="member_id is required.")
 
-        members_payload = await get_cashier_cbu_members()
+        members_payload = get_cashier_cbu_members()
         members = members_payload.get("data") or []
         member_row = next(
             (
@@ -3245,8 +3303,25 @@ async def create_cashier_cbu_deposit(payload: CashierCBUDepositRequest):
                 str(row.get("id") or ""),
             )
 
+        # Exclude rows dated AFTER today. The yearly historical import
+        # pre-creates a Dec-31 snapshot for the current year before the year
+        # is over (capital_added=0, ending_share_capital = whatever the
+        # balance was at import time). Sorted purely by date, that
+        # future-dated placeholder always outranks a real deposit made
+        # earlier the same year, so every subsequent deposit would compute
+        # its starting_balance from the STALE placeholder instead of the
+        # true latest real entry -- silently dropping every prior real
+        # deposit from the running-balance chain. Confirmed live: TTMPC-068's
+        # second 2026 deposit ignored her first (see the 2026-09-17 incident
+        # notes / conversation this fix came out of).
+        today_str = datetime.utcnow().date().isoformat()
+        eligible_cbu_rows = [
+            row
+            for row in (latest_cbu_response.data or [])
+            if str(row.get("transaction_date") or "")[:10] <= today_str
+        ]
         latest_cbu_row = max(
-            (latest_cbu_response.data or []),
+            eligible_cbu_rows,
             key=_cbu_row_order,
             default=None,
         )
@@ -3269,14 +3344,33 @@ async def create_cashier_cbu_deposit(payload: CashierCBUDepositRequest):
         # Derive the next sequence from the HIGHEST existing CBUD_nnn suffix,
         # not from a row count. A count undercounts once any row has ever been
         # deleted and collides with an id already in use.
-        sequence_scan_response = (
-            supabase.table("capital_build_up").select("cbu_deposit_id").execute()
-        )
+        #
+        # Paged, not a single .execute() -- PostgREST silently caps an
+        # unbounded select at its default row limit (1000). With this table
+        # past 1,700 rows, a single-shot scan only sees an arbitrary subset,
+        # so the computed "highest" sequence can be lower than the true max
+        # and collide with a real row outside that slice (observed live:
+        # scan settled on 1966 -> next id CBUD_1967 -> already existed,
+        # insert failed with a 500 and the deposit was silently never
+        # recorded). Same fix as the legacy-payments/schedules pagination
+        # above in get_bookkeeper_manage_loans.
         highest_sequence = 0
-        for row in sequence_scan_response.data or []:
-            digits = "".join(ch for ch in str(row.get("cbu_deposit_id") or "") if ch.isdigit())
-            if digits:
-                highest_sequence = max(highest_sequence, int(digits))
+        _seq_page = 1000
+        _seq_offset = 0
+        while True:
+            _seq_batch = (
+                supabase.table("capital_build_up")
+                .select("cbu_deposit_id")
+                .range(_seq_offset, _seq_offset + _seq_page - 1)
+                .execute()
+            ).data or []
+            for row in _seq_batch:
+                digits = "".join(ch for ch in str(row.get("cbu_deposit_id") or "") if ch.isdigit())
+                if digits:
+                    highest_sequence = max(highest_sequence, int(digits))
+            if len(_seq_batch) < _seq_page:
+                break
+            _seq_offset += _seq_page
         next_sequence = highest_sequence + 1
 
         cbu_deposit_id = build_cbu_deposit_id(next_sequence)

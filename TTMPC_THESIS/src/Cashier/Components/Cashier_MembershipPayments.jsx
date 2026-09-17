@@ -11,6 +11,7 @@ import Breadcrumb from "../../components/Breadcrumb";
 import Pagination from "../../components/Pagination";
 import ConfirmDialog from "../../components/ConfirmDialog";
 import { supabase } from "../../supabaseClient";
+import { formatWithCommas, stripCommas } from "../../utils/numberFormat";
 import {
   LayoutDashboard,
   Search,
@@ -611,11 +612,10 @@ const Cashier_MembershipPayments = () => {
                 Amount (₱) <span className="text-red-500">*</span>
               </label>
               <input
-                type="number"
-                step="0.01"
-                min={PAYMENT_TYPE_META[selectedPaymentType].minAmount}
-                value={amountInput}
-                onChange={(e) => setAmountInput(e.target.value)}
+                type="text"
+                inputMode="decimal"
+                value={formatWithCommas(amountInput)}
+                onChange={(e) => setAmountInput(stripCommas(e.target.value))}
                 disabled={submitting}
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
               />

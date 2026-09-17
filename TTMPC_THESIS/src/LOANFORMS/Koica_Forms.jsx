@@ -1,6 +1,7 @@
 ﻿import React, { useState } from 'react';
 import { createUniqueControlNumber, submitUnifiedLoan } from './loanSubmission';
 import { useNotification } from '../contex/NotificationContext';
+import { formatWithCommas, stripCommas } from '../utils/numberFormat';
 
 const Koica_Forms = () => {
   const inputStyles = 'border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-[#66B538] outline-none w-full bg-white text-sm transition-all';
@@ -132,7 +133,7 @@ const Koica_Forms = () => {
               <div><label className={labelStyles}>First Name</label><input name="first_name" value={formData.first_name} onChange={handleChange} className={inputStyles} required /></div>
               <div><label className={labelStyles}>Middle Name</label><input name="middle_name" value={formData.middle_name} onChange={handleChange} className={inputStyles} /></div>
               <div><label className={labelStyles}>Contact No.</label><input name="contact_no" value={formData.contact_no} onChange={handleChange} className={inputStyles} required /></div>
-              <div><label className={labelStyles}>Monthly Income</label><input type="number" name="monthly_income" value={formData.monthly_income} onChange={handleChange} className={inputStyles} required /></div>
+              <div><label className={labelStyles}>Monthly Income</label><input type="text" inputMode="decimal" name="monthly_income" value={formatWithCommas(formData.monthly_income)} onChange={(e) => handleChange({ target: { name: e.target.name, value: stripCommas(e.target.value) } })} className={inputStyles} required /></div>
               <div><label className={labelStyles}>Source of Income</label><input name="source_of_income" value={formData.source_of_income} onChange={handleChange} className={inputStyles} required /></div>
               <div><label className={labelStyles}>Email Address</label><input type="email" name="user_email" value={formData.user_email} onChange={handleChange} className={inputStyles} /></div>
               <div className="md:col-span-3"><label className={labelStyles}>Residence Address</label><input name="residence_address" value={formData.residence_address} onChange={handleChange} className={inputStyles} required /></div>
@@ -143,10 +144,10 @@ const Koica_Forms = () => {
             <h2 className="font-bold text-[#235347] mb-4">Loan Details</h2>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
               <div className="md:col-span-2"><label className={labelStyles}>Loan Amount (Words)</label><input name="loan_amount_words" value={formData.loan_amount_words} onChange={handleChange} className={inputStyles} /></div>
-              <div><label className={labelStyles}>Loan Amount (Numeric)</label><input type="number" name="loan_amount_numeric" value={formData.loan_amount_numeric} onChange={handleChange} className={inputStyles} required /></div>
+              <div><label className={labelStyles}>Loan Amount (Numeric)</label><input type="text" inputMode="decimal" name="loan_amount_numeric" value={formatWithCommas(formData.loan_amount_numeric)} onChange={(e) => handleChange({ target: { name: e.target.name, value: stripCommas(e.target.value) } })} className={inputStyles} required /></div>
               <div><label className={labelStyles}>Loan Purpose</label><input name="loan_purpose" value={formData.loan_purpose} onChange={handleChange} className={inputStyles} required /></div>
               <div><label className={labelStyles}>Term (Months)</label><input type="number" name="loan_term_months" value={formData.loan_term_months} onChange={handleChange} className={inputStyles} required /></div>
-              <div><label className={labelStyles}>Monthly Amortization</label><input type="number" name="monthly_amortization" value={formData.monthly_amortization} onChange={handleChange} className={inputStyles} /></div>
+              <div><label className={labelStyles}>Monthly Amortization</label><input type="text" inputMode="decimal" name="monthly_amortization" value={formatWithCommas(formData.monthly_amortization)} onChange={(e) => handleChange({ target: { name: e.target.name, value: stripCommas(e.target.value) } })} className={inputStyles} /></div>
               <div><label className={labelStyles}>Payment Start Date</label><input type="date" name="payment_start_date" value={formData.payment_start_date} onChange={handleChange} className={inputStyles} /></div>
             </div>
           </section>

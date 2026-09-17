@@ -4,6 +4,7 @@ import { bodNav } from "../../components/StaffSidebar/configs/bod";
 import { NavLink, useNavigate } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
 import { supabase } from "../../supabaseClient";
+import { formatWithCommas, stripCommas } from "../../utils/numberFormat";
 import {
   LayoutDashboard, Users, Archive, CalendarCheck, CreditCard,
   Save, RefreshCw, AlertCircle, CheckCircle2, Percent, Banknote, Shield, FileText,ShieldCheck,
@@ -332,11 +333,10 @@ const Loan_Policies = () => {
                         {draft.service_fee_mode === "flat" ? "Flat amount (₱)" : "Amount per bracket (₱)"}
                       </label>
                       <input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        value={draft.service_fee_per_bracket}
-                        onChange={(e) => handleChange("service_fee_per_bracket", e.target.value)}
+                        type="text"
+                        inputMode="decimal"
+                        value={formatWithCommas(draft.service_fee_per_bracket)}
+                        onChange={(e) => handleChange("service_fee_per_bracket", stripCommas(e.target.value))}
                         disabled={draft.service_fee_mode === "none"}
                         className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-[#66B538] outline-none disabled:bg-gray-100"
                       />
@@ -346,11 +346,10 @@ const Loan_Policies = () => {
                         Bracket size (₱)
                       </label>
                       <input
-                        type="number"
-                        step="0.01"
-                        min="1"
-                        value={draft.service_fee_bracket_size}
-                        onChange={(e) => handleChange("service_fee_bracket_size", e.target.value)}
+                        type="text"
+                        inputMode="decimal"
+                        value={formatWithCommas(draft.service_fee_bracket_size)}
+                        onChange={(e) => handleChange("service_fee_bracket_size", stripCommas(e.target.value))}
                         disabled={draft.service_fee_mode !== "bracket"}
                         className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-[#66B538] outline-none disabled:bg-gray-100"
                       />
@@ -395,11 +394,10 @@ const Loan_Policies = () => {
                   <div className="flex items-center gap-3">
                     <span className="text-sm text-gray-500">₱</span>
                     <input
-                      type="number"
-                      step="0.0001"
-                      min="0"
-                      value={draft.insurance_per_thousand}
-                      onChange={(e) => handleChange("insurance_per_thousand", e.target.value)}
+                      type="text"
+                      inputMode="decimal"
+                      value={formatWithCommas(draft.insurance_per_thousand)}
+                      onChange={(e) => handleChange("insurance_per_thousand", stripCommas(e.target.value))}
                       className="w-40 border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-[#66B538] outline-none"
                     />
                     <span className="text-sm text-gray-500">per ₱1,000 of principal</span>
@@ -414,11 +412,10 @@ const Loan_Policies = () => {
                   <div className="flex items-center gap-3">
                     <span className="text-sm text-gray-500">₱</span>
                     <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={draft.notarial_fee}
-                      onChange={(e) => handleChange("notarial_fee", e.target.value)}
+                      type="text"
+                      inputMode="decimal"
+                      value={formatWithCommas(draft.notarial_fee)}
+                      onChange={(e) => handleChange("notarial_fee", stripCommas(e.target.value))}
                       className="w-40 border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-[#66B538] outline-none"
                     />
                     <span className="text-sm text-gray-500">flat per release</span>
@@ -443,11 +440,10 @@ const Loan_Policies = () => {
                 <h2 className="text-lg font-bold text-gray-900 mb-4">Live Preview</h2>
                 <label className="block text-xs font-semibold text-gray-600 mb-1">Sample Principal (₱)</label>
                 <input
-                  type="number"
-                  step="1000"
-                  min="0"
-                  value={previewPrincipal}
-                  onChange={(e) => setPreviewPrincipal(e.target.value)}
+                  type="text"
+                  inputMode="decimal"
+                  value={formatWithCommas(previewPrincipal)}
+                  onChange={(e) => setPreviewPrincipal(stripCommas(e.target.value))}
                   className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-[#66B538] outline-none mb-4"
                 />
 

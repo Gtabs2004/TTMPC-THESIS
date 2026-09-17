@@ -432,7 +432,7 @@ const M_Dashboard = () => {
                   </p>
                 </div>
                 <div>
-                  <p className="text-xs text-gray-500 font-medium">Watch</p>
+                  <p className="text-xs text-gray-500 font-medium">Medium Risk</p>
                   <p className={`text-2xl font-bold ${creditRiskSnapshot.watch > 0 ? "text-amber-600" : "text-gray-400"}`}>
                     {creditRiskSnapshot.watch}
                   </p>
