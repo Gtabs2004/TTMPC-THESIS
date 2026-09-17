@@ -1,4 +1,6 @@
 ﻿import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { ArrowLeft } from 'lucide-react';
 import { useConfirm } from '../../contex/ConfirmContext';
 import { formatWithCommas, stripCommas } from '../../utils/numberFormat';
 
@@ -9,6 +11,7 @@ const formatCurrency = (value) =>
 
 function Add_Savings() {
   const confirm = useConfirm();
+  const navigate = useNavigate();
   const inputStyles = "border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-green-600 outline-none w-full bg-white text-sm transition-all";
   const labelStyles = "block text-xs font-bold text-gray-700 mb-1";
   const sectionHeader = "bg-green-600 text-white px-4 py-2 flex items-center gap-2 font-bold uppercase tracking-wide";
@@ -36,6 +39,7 @@ function Add_Savings() {
     child_dependents: '0',
     
     annual_income: '',
+    initial_deposit: '',
     
     occupation_type: '',
     employer_name: '',
@@ -54,7 +58,11 @@ function Add_Savings() {
   const [searchingMembers, setSearchingMembers] = useState(false);
   const [memberSearchError, setMemberSearchError] = useState('');
   const [memberOptions, setMemberOptions] = useState([]);
+  const [allMembers, setAllMembers] = useState([]);
+  const [membersLoaded, setMembersLoaded] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
   const [selectedMemberLabel, setSelectedMemberLabel] = useState('');
+  const [selectedMemberId, setSelectedMemberId] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
   const [submitSuccess, setSubmitSuccess] = useState('');
@@ -100,8 +108,9 @@ function Add_Savings() {
     const childDependents = raw.child_dependents ?? '0';
 
     setSelectedMemberLabel(fullName || 'Selected Member');
-    setMemberSearch(surname || fullName);
-    setMemberOptions([]);
+    setSelectedMemberId(String(record?.member_id || raw.membership_number_id || '').trim());
+    setMemberSearch('');
+    setPickerOpen(false);
 
     setFormData((prev) => ({
       ...prev,
@@ -131,16 +140,13 @@ function Add_Savings() {
     }));
   };
 
+  // Load the member list once (on first open of the picker), then filter locally so
+  // typing stays instant and can match any available name/ID field.
   useEffect(() => {
-    const query = String(memberSearch || '').trim();
-    if (query.length < 2) {
-      setMemberOptions([]);
-      setMemberSearchError('');
-      return;
-    }
+    if (!pickerOpen || membersLoaded) return undefined;
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(async () => {
+    (async () => {
       try {
         setSearchingMembers(true);
         setMemberSearchError('');
@@ -148,34 +154,64 @@ function Add_Savings() {
         const response = await fetch(`${API_BASE_URL}/api/personal_data_sheet`, { signal: controller.signal });
         const result = await response.json();
         if (!response.ok || !result?.success) {
-          throw new Error(result?.detail || 'Failed to search members.');
+          throw new Error(result?.detail || 'Failed to load members.');
         }
 
-        const queryLower = query.toLowerCase();
-        const filtered = (result.data || [])
-          .filter((record) => {
-            const raw = record?.raw || {};
-            const lastName = String(raw.surname || raw.last_name || '').toLowerCase();
-            return lastName.includes(queryLower);
-          })
-          .slice(0, 12);
-
-        setMemberOptions(filtered);
+        setAllMembers(result.data || []);
+        setMembersLoaded(true);
       } catch (error) {
         if (error.name !== 'AbortError') {
-          setMemberSearchError(error?.message || 'Unable to search members.');
-          setMemberOptions([]);
+          setMemberSearchError(error?.message || 'Unable to load members.');
+          setAllMembers([]);
         }
       } finally {
         setSearchingMembers(false);
       }
-    }, 300);
+    })();
 
-    return () => {
-      clearTimeout(timeoutId);
-      controller.abort();
+    return () => controller.abort();
+  }, [pickerOpen, membersLoaded]);
+
+  // Match on first name, middle name, last name, full name (either order),
+  // member code and the personal data sheet id.
+  useEffect(() => {
+    const tokens = String(memberSearch || '').trim().toLowerCase().split(/\s+/).filter(Boolean);
+
+    const haystackFor = (record) => {
+      const raw = record?.raw || {};
+      const firstName = String(raw.first_name || '');
+      const middleName = String(raw.middle_name || raw.middle_initial || '');
+      const lastName = String(raw.surname || raw.last_name || '');
+      return [
+        String(record?.full_name || ''),
+        firstName,
+        middleName,
+        lastName,
+        `${firstName} ${lastName}`,
+        `${lastName} ${firstName}`,
+        String(record?.member_id || raw.membership_number_id || ''),
+        String(record?.id || raw.personal_data_sheet_id || ''),
+      ]
+        .join(' ')
+        .toLowerCase();
     };
-  }, [memberSearch]);
+
+    const sorted = [...allMembers].sort((a, b) =>
+      String(a?.full_name || '').localeCompare(String(b?.full_name || ''))
+    );
+
+    if (!tokens.length) {
+      setMemberOptions(sorted);
+      return;
+    }
+
+    setMemberOptions(
+      sorted.filter((record) => {
+        const haystack = haystackFor(record);
+        return tokens.every((token) => haystack.includes(token));
+      })
+    );
+  }, [memberSearch, allMembers]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -187,7 +223,7 @@ function Add_Savings() {
       return;
     }
 
-    const openingBalance = Number(formData.annual_income || 0) || 0;
+    const openingBalance = Number(formData.initial_deposit || 0) || 0;
     const memberLabel = [formData.first_name, formData.surname].filter(Boolean).join(' ').trim()
       || formData.account_name
       || formData.membership_number_id;
@@ -204,8 +240,9 @@ function Add_Savings() {
 
       const payload = {
         membership_number_id: String(formData.membership_number_id || '').trim(),
-        amount: Number(formData.annual_income || 0) || 0,
-        balance: Number(formData.annual_income || 0) || 0,
+        savings_amount: openingBalance,
+        amount: openingBalance,
+        balance: openingBalance,
         account_name: String(formData.account_name || '').trim() || null,
         adult_dependents: Number(formData.adult_dependents || 0) || 0,
         child_dependents: Number(formData.child_dependents || 0) || 0,
@@ -248,7 +285,18 @@ function Add_Savings() {
       
       
       <form onSubmit={handleSubmit} className="px-4">
-        <h2 className="text-center text-2xl font-bold mt-10 mb-2 text-[#1c5035]">SAVINGS DEPOSIT OPENING ACCOUNT</h2>
+        <div className="max-w-6xl mx-auto w-full pt-8">
+          <button
+            type="button"
+            onClick={() => navigate('/Cashier_Savings')}
+            className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-green-700 transition cursor-pointer"
+          >
+            <ArrowLeft size={16} />
+            Back to Savings Accounts
+          </button>
+        </div>
+
+        <h2 className="text-center text-2xl font-bold mt-4 mb-2 text-[#1c5035]">SAVINGS DEPOSIT OPENING ACCOUNT</h2>
 
         {submitError ? (
           <div className="max-w-6xl mx-auto w-full mt-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -269,41 +317,30 @@ function Add_Savings() {
             ACCOUNT INFORMATION
           </div>
           <div className="px-8 pt-6 pb-0">
-            <label className={labelStyles}>Search Member by Last Name</label>
-            <input
-              type="text"
-              value={memberSearch}
-              onChange={(e) => setMemberSearch(e.target.value)}
-              placeholder="Type at least 2 letters of last name"
-              className={inputStyles}
-            />
+            <label className={labelStyles}>Member</label>
+            <button
+              type="button"
+              onClick={() => setPickerOpen(true)}
+              className={`${inputStyles} flex items-center gap-2 text-left cursor-pointer hover:border-green-600`}
+            >
+              <span className="text-gray-400">&#128269;</span>
+              {selectedMemberLabel ? (
+                <span className="flex-1 min-w-0 truncate">
+                  <span className="font-semibold text-gray-800">{selectedMemberLabel}</span>
+                  {selectedMemberId ? (
+                    <span className="text-gray-500"> &middot; {selectedMemberId}</span>
+                  ) : null}
+                </span>
+              ) : (
+                <span className="flex-1 text-gray-400">Search member by name or member ID...</span>
+              )}
+              <span className="text-xs font-semibold text-green-700 shrink-0">
+                {selectedMemberLabel ? 'Change' : 'Select'}
+              </span>
+            </button>
 
-            {searchingMembers ? (
-              <p className="text-xs text-gray-500 mt-2">Searching members...</p>
-            ) : null}
-
-            {memberSearchError ? (
+            {memberSearchError && !pickerOpen ? (
               <p className="text-xs text-red-600 mt-2">{memberSearchError}</p>
-            ) : null}
-
-            {!searchingMembers && memberOptions.length > 0 ? (
-              <div className="mt-2 border border-gray-200 rounded-md max-h-44 overflow-y-auto bg-white">
-                {memberOptions.map((record) => (
-                  <button
-                    key={`${record.member_id}-${record.created_at || ''}`}
-                    type="button"
-                    onClick={() => selectMember(record)}
-                    className="w-full px-3 py-2 text-left text-sm hover:bg-green-50 border-b border-gray-100 last:border-b-0"
-                  >
-                    <p className="font-semibold text-gray-800">{record.full_name || 'Unknown Member'}</p>
-                    <p className="text-xs text-gray-500">ID: {record.member_id || 'N/A'}</p>
-                  </button>
-                ))}
-              </div>
-            ) : null}
-
-            {selectedMemberLabel ? (
-              <p className="text-xs text-green-700 mt-2 font-semibold">Selected: {selectedMemberLabel}</p>
             ) : null}
           </div>
           <div className="p-8 grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -395,18 +432,39 @@ function Add_Savings() {
               <span className="bg-white text-green-600 rounded-full w-6 h-6 flex items-center justify-center text-sm">4</span>
               FINANCIAL INFORMATION
             </div>
-            <div className="p-8 flex-grow flex flex-col justify-center">
-              <label className={labelStyles}>Annual Income (Gross)</label>
-              <div className="relative mt-2 h-20">
-                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-3xl font-bold text-gray-800">₱</span>
-                <input
-                  type="text"
-                  inputMode="decimal"
-                  name="annual_income"
-                  value={formatWithCommas(formData.annual_income)}
-                  onChange={(e) => handleChange({ target: { name: e.target.name, value: stripCommas(e.target.value) } })}
-                  className="w-full h-full border border-gray-300 rounded-md pl-14 pr-4 text-2xl font-semibold focus:ring-2 focus:ring-green-600 outline-none bg-white transition-all"
-                />
+            <div className="p-8 flex-grow flex flex-col justify-center gap-6">
+              <div>
+                <label className={labelStyles}>Initial Deposit <span className="text-red-500">*</span></label>
+                <p className="text-xs text-gray-500 mb-2">Cash received now — becomes the account's opening balance.</p>
+                <div className="relative h-20">
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-3xl font-bold text-gray-800">₱</span>
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    name="initial_deposit"
+                    value={formatWithCommas(formData.initial_deposit)}
+                    onChange={(e) => handleChange({ target: { name: e.target.name, value: stripCommas(e.target.value) } })}
+                    placeholder="0.00"
+                    required
+                    className="w-full h-full border border-gray-300 rounded-md pl-14 pr-4 text-2xl font-semibold focus:ring-2 focus:ring-green-600 outline-none bg-white transition-all"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className={labelStyles}>Annual Income (Gross)</label>
+                <p className="text-xs text-gray-500 mb-2">Member profile information only — not deposited.</p>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-base font-bold text-gray-500">₱</span>
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    name="annual_income"
+                    value={formatWithCommas(formData.annual_income)}
+                    onChange={(e) => handleChange({ target: { name: e.target.name, value: stripCommas(e.target.value) } })}
+                    className={`${inputStyles} pl-8`}
+                  />
+                </div>
               </div>
             </div>
           </div>
@@ -488,6 +546,76 @@ function Add_Savings() {
         </div>
 
       </form>
+
+      {pickerOpen ? (
+        <div
+          className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 p-4 pt-20"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget) setPickerOpen(false);
+          }}
+        >
+          <div className="w-full max-w-xl bg-white rounded-lg shadow-xl overflow-hidden flex flex-col max-h-[80vh]">
+            <div className="flex items-center justify-between px-5 py-3 border-b border-gray-200">
+              <h3 className="font-bold text-[#1c5035]">Select Member</h3>
+              <button
+                type="button"
+                onClick={() => setPickerOpen(false)}
+                className="text-gray-400 hover:text-gray-700 text-xl leading-none cursor-pointer"
+                aria-label="Close member picker"
+              >
+                &times;
+              </button>
+            </div>
+
+            <div className="px-5 py-3 border-b border-gray-100">
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">&#128269;</span>
+                <input
+                  type="text"
+                  autoFocus
+                  value={memberSearch}
+                  onChange={(e) => setMemberSearch(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Escape') setPickerOpen(false);
+                  }}
+                  placeholder="Search member by name or member ID..."
+                  className={`${inputStyles} pl-9`}
+                />
+              </div>
+              {!searchingMembers && !memberSearchError ? (
+                <p className="text-xs text-gray-500 mt-2">
+                  {memberOptions.length} {memberOptions.length === 1 ? 'member' : 'members'}
+                  {memberSearch.trim() ? ' matched' : ' total'}
+                </p>
+              ) : null}
+            </div>
+
+            <div className="flex-1 overflow-y-auto">
+              {searchingMembers ? (
+                <p className="px-5 py-4 text-sm text-gray-500">Loading members...</p>
+              ) : memberSearchError ? (
+                <p className="px-5 py-4 text-sm text-red-600">{memberSearchError}</p>
+              ) : memberOptions.length === 0 ? (
+                <p className="px-5 py-4 text-sm text-gray-500">
+                  {memberSearch.trim() ? 'No members match your search.' : 'No members available.'}
+                </p>
+              ) : (
+                memberOptions.map((record) => (
+                  <button
+                    key={`${record.member_id || record.id}-${record.created_at || ''}`}
+                    type="button"
+                    onClick={() => selectMember(record)}
+                    className="w-full px-5 py-3 text-left hover:bg-green-50 border-b border-gray-100 last:border-b-0 cursor-pointer"
+                  >
+                    <p className="font-semibold text-gray-800 text-sm">{record.full_name || 'Unknown Member'}</p>
+                    <p className="text-xs text-gray-500">Member ID: {record.member_id || 'N/A'}</p>
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
