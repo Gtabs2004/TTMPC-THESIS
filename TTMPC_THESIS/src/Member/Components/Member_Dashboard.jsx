@@ -1106,7 +1106,6 @@ const MemberDashboard = () => {
                 <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center">
                   <History className="w-5 h-5 mr-2 text-member-green dark:text-green-400" /> Recent Transactions
                 </h3>
-                <button className="text-sm font-bold text-member-green dark:text-green-400 hover:underline">View All</button>
               </div>
               
               <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 overflow-hidden">
