@@ -224,7 +224,6 @@ const Cashier_Payments = () => {
   // proceeds to the payment modal. Same selectedLoan is reused so the Pay
   // action in the ledger flows straight into the existing payment flow.
   const [isLedgerModalOpen, setIsLedgerModalOpen] = useState(false);
-  const [paymentAmount, setPaymentAmount] = useState("");
   const [isSubmittingPayment, setIsSubmittingPayment] = useState(false);
   const [formError, setFormError] = useState("");
   const [paymentRecords, setPaymentRecords] = useState([]);
@@ -474,16 +473,34 @@ const Cashier_Payments = () => {
     );
   }, [selectedLoan]);
 
+  // The amount due for the CURRENT period: this installment, never the whole
+  // outstanding balance. Capped at the remaining balance so a final partial
+  // installment doesn't over-collect.
+  const currentPaymentAmount = useMemo(() => {
+    if (!selectedLoan) return 0;
+    const installment =
+      Number(selectedLoan.expected_installment) > 0
+        ? Number(selectedLoan.expected_installment)
+        : Number(selectedLoan.amortization) || 0;
+    const remaining = Number(selectedLoan.remaining_balance) || 0;
+    return roundCurrency(Math.max(Math.min(installment, remaining), 0));
+  }, [selectedLoan]);
+
+  // What the cashier collects = this period's amortization + any penalty that
+  // has actually accrued under the 3-month grace rule.
+  const currentTotalDue = useMemo(
+    () => roundCurrency(currentPaymentAmount + selectedLoanPenalty),
+    [currentPaymentAmount, selectedLoanPenalty]
+  );
+
   const updatedBalancePreview = useMemo(() => {
     if (!selectedLoan) return 0;
-    const numericPayment = Number(paymentAmount) || 0;
-    const totalDue = selectedLoan.remaining_balance + selectedLoanPenalty;
-    return Math.max(totalDue - numericPayment, 0);
-  }, [selectedLoan, selectedLoanPenalty, paymentAmount]);
+    const remaining = Number(selectedLoan.remaining_balance) || 0;
+    return Math.max(roundCurrency(remaining - currentPaymentAmount), 0);
+  }, [selectedLoan, currentPaymentAmount]);
 
   const openPaymentModal = (loan) => {
     setSelectedLoan(loan);
-    setPaymentAmount("");
     setFormError("");
     setIsPaymentModalOpen(true);
   };
@@ -491,7 +508,6 @@ const Cashier_Payments = () => {
   const closePaymentModal = () => {
     setIsPaymentModalOpen(false);
     setSelectedLoan(null);
-    setPaymentAmount("");
     setFormError("");
   };
 
@@ -513,7 +529,6 @@ const Cashier_Payments = () => {
   const proceedFromLedgerToPayment = () => {
     if (!selectedLoan) return;
     setIsLedgerModalOpen(false);
-    setPaymentAmount(String(selectedLoan.amortization || ""));
     setFormError("");
     setIsPaymentModalOpen(true);
   };
@@ -522,29 +537,26 @@ const Cashier_Payments = () => {
     event.preventDefault();
     if (!selectedLoan || isSubmittingPayment) return;
 
-    const parsedPaymentAmount = Number(paymentAmount);
-    const totalDue = selectedLoan.remaining_balance + selectedLoanPenalty;
+    // Amount is derived from the schedule, not typed in: this period's
+    // amortization plus any accrued penalty.
+    const principalPaid = currentPaymentAmount;
+    const penaltyCollected = roundCurrency(selectedLoanPenalty);
+    const totalCollected = currentTotalDue;
 
-    if (!Number.isFinite(parsedPaymentAmount) || parsedPaymentAmount <= 0) {
-      setFormError("Enter a valid payment amount greater than zero.");
-      return;
-    }
-
-    if (parsedPaymentAmount > totalDue) {
-      setFormError("Payment cannot exceed current balance plus penalty.");
+    if (!Number.isFinite(totalCollected) || totalCollected <= 0) {
+      setFormError("This loan has no amount due for the current period.");
       return;
     }
 
     const ok = await confirm({
       title: "Log Payment",
-      message: `Log a payment of ${formatCurrency(parsedPaymentAmount)} for this loan? This will be sent to the Bookkeeper for review; the loan balance stays unchanged until they confirm it.`,
+      message: penaltyCollected > 0
+        ? `Log ${formatCurrency(totalCollected)} for this loan (${formatCurrency(principalPaid)} amortization + ${formatCurrency(penaltyCollected)} penalty)? This will be sent to the Bookkeeper for review; the loan balance stays unchanged until they confirm it.`
+        : `Log a payment of ${formatCurrency(totalCollected)} for this loan? This will be sent to the Bookkeeper for review; the loan balance stays unchanged until they confirm it.`,
       confirmLabel: "Log Payment",
       tone: "default",
     });
     if (!ok) return;
-
-    const penaltyCollected = Math.min(selectedLoanPenalty, parsedPaymentAmount);
-    const principalPaid = Math.max(parsedPaymentAmount - penaltyCollected, 0);
     const nextSequence = paymentRecords.length + 1;
     const paymentPayload = {
       loan_id: selectedLoan.loan_id,
@@ -781,15 +793,6 @@ const Cashier_Payments = () => {
                       </button>
                     </th>
                     <th className="p-5 font-bold whitespace-nowrap">
-                      <button
-                        onClick={() => handleSort("loan_status")}
-                        className="flex items-center gap-2 font-semibold hover:text-green-100 transition group"
-                      >
-                        Status
-                        <ArrowUpDown size={14} className="opacity-0 group-hover:opacity-100 transition" />
-                      </button>
-                    </th>
-                    <th className="p-5 font-bold whitespace-nowrap">
                       Action
                     </th>
                   </tr>
@@ -797,7 +800,7 @@ const Cashier_Payments = () => {
                 <tbody>
                   {paginatedLoans.length === 0 ? (
                     <tr>
-                      <td colSpan={13} className="p-10 text-center">
+                      <td colSpan={7} className="p-10 text-center">
                         <div className="flex flex-col items-center justify-center gap-2">
                           <AlertCircle size={32} className="text-gray-300" />
                           <p className="text-sm font-medium text-gray-500">
@@ -863,19 +866,6 @@ const Cashier_Payments = () => {
                           {formatCurrency(loan.remaining_balance)}
                         </td>
                         <td className="px-3 py-3 whitespace-nowrap">
-                          <span
-                            className={`badge-animated inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                              loan.loan_status === "Fully Paid"
-                                ? "bg-green-100 text-green-700"
-                                : loan.loan_status === "Partially Paid"
-                                ? "bg-amber-100 text-amber-700"
-                                : "bg-red-100 text-red-700"
-                            }`}
-                          >
-                            {loan.loan_status}
-                          </span>
-                        </td>
-                        <td className="px-3 py-3 whitespace-nowrap">
                           <button
                             type="button"
                             onClick={(e) => { e.stopPropagation(); openLedgerModal(loan); }}
@@ -892,7 +882,7 @@ const Cashier_Payments = () => {
                   {paginatedLoans.length > 0 && paginatedLoans.length < PAGE_SIZE &&
                     Array.from({ length: PAGE_SIZE - paginatedLoans.length }).map((_, idx) => (
                       <tr key={`spacer-${idx}`} className="border-b border-gray-100">
-                        <td colSpan={13} className="px-3 py-3">&nbsp;</td>
+                        <td colSpan={7} className="px-3 py-3">&nbsp;</td>
                       </tr>
                     ))}
                 </tbody>
@@ -937,12 +927,18 @@ const Cashier_Payments = () => {
                       <div><span className="text-gray-500">Next Unpaid Due: </span><span className="font-medium text-gray-900">{selectedLoan.due_date ? new Date(selectedLoan.due_date).toLocaleDateString() : "—"}</span></div>
                       <div><span className="text-gray-500">Remaining Balance: </span><span className="font-semibold text-gray-900">{formatCurrency(selectedLoan.remaining_balance)}</span></div>
                       <div>
-                        <span className="text-gray-500">Status: </span>
-                        <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${
-                          selectedLoan.loan_status === "Fully Paid" ? "bg-green-100 text-green-700"
-                          : selectedLoan.loan_status === "Partially Paid" ? "bg-amber-100 text-amber-700"
-                          : "bg-red-100 text-red-700"
-                        }`}>{selectedLoan.loan_status}</span>
+                        <span className="text-gray-500">Delay Status: </span>
+                        {(() => {
+                          const key = resolveDelayStatus(selectedLoan);
+                          const meta = DELAY_STATUS_META[key];
+                          const Icon = key === "on_time" ? CheckCircle2 : AlertCircle;
+                          return (
+                            <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold ${meta.className}`}>
+                              <Icon size={12} />
+                              {formatDelayLabel(key, selectedLoan.missed_count)}
+                            </span>
+                          );
+                        })()}
                       </div>
                     </div>
                   </div>
@@ -1150,66 +1146,52 @@ const Cashier_Payments = () => {
                     </div>
                   </div>
 
-                  {/* Balance Summary */}
-                  <div className="mb-6 rounded-lg border-2 border-yellow-300 bg-yellow-50 p-4">
-                    <p className="text-xs font-semibold text-yellow-900 uppercase tracking-wide mb-3">Balance Summary</p>
-                    <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-                      <div>
-                        <p className="text-xs text-yellow-700 mb-1">Current Balance</p>
-                        <p className="text-xl font-bold text-yellow-900">{formatCurrency(selectedLoan.remaining_balance)}</p>
+                  {/* Amount Due. The figures are derived from the schedule, so the
+                      cashier confirms rather than types -- see currentPaymentAmount. */}
+                  <div className="mb-6 rounded-xl border border-gray-200 bg-white overflow-hidden">
+                    <div className="divide-y divide-gray-100">
+                      <div className="flex items-baseline justify-between px-4 py-3">
+                        <div>
+                          <p className="text-sm font-semibold text-gray-900">Payment Amount</p>
+                          <p className="text-xs text-gray-500">Amortization due this period</p>
+                        </div>
+                        <p className="text-base font-semibold text-gray-900 tabular-nums">{formatCurrency(currentPaymentAmount)}</p>
                       </div>
-                      <div>
-                        <p className="text-xs text-yellow-700 mb-1">
-                          Penalty {selectedLoanPenalty > 0 ? "(applies)" : "(none yet)"}
+
+                      <div className="flex items-baseline justify-between px-4 py-3">
+                        <div>
+                          <p className={`text-sm font-semibold ${selectedLoanPenalty > 0 ? "text-amber-800" : "text-gray-500"}`}>
+                            Penalty Applied
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            {selectedLoanPenalty > 0
+                              ? "Accrued after the 3-month grace period"
+                              : "None — within grace period"}
+                          </p>
+                        </div>
+                        <p className={`text-base font-semibold tabular-nums ${selectedLoanPenalty > 0 ? "text-amber-800" : "text-gray-400"}`}>
+                          {selectedLoanPenalty > 0 ? `+ ${formatCurrency(selectedLoanPenalty)}` : formatCurrency(0)}
                         </p>
-                        <p className="text-xl font-bold text-yellow-900">{formatCurrency(selectedLoanPenalty)}</p>
                       </div>
-                      <div className="rounded bg-white p-2 border border-yellow-200">
-                        <p className="text-xs text-yellow-700 mb-1">Total Due</p>
-                        <p className="text-xl font-bold text-yellow-900">{formatCurrency(selectedLoan.remaining_balance + selectedLoanPenalty)}</p>
+
+                      <div className="flex items-baseline justify-between bg-green-50 px-4 py-4">
+                        <div>
+                          <p className="text-sm font-bold uppercase tracking-wide text-green-900">Total Due</p>
+                          <p className="text-xs text-green-700">Collect this amount</p>
+                        </div>
+                        <p className="text-2xl font-extrabold text-green-700 tabular-nums">{formatCurrency(currentTotalDue)}</p>
                       </div>
                     </div>
                   </div>
 
                   {/* Payment Form */}
                   <form onSubmit={handleSubmitPayment} className="space-y-4">
-                    <div>
-                      <label htmlFor="payment-amount" className="mb-2 block text-sm font-semibold text-gray-900">
-                        Payment Amount
-                      </label>
-                      <input
-                        id="payment-amount"
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        max={selectedLoan.remaining_balance + selectedLoanPenalty}
-                        value={paymentAmount}
-                        onChange={(event) => {
-                          setPaymentAmount(event.target.value);
-                          setFormError("");
-                        }}
-                        className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm font-semibold focus:border-green-500 focus:outline-none focus:ring-2 focus:ring-green-200 transition"
-                        placeholder="Enter amount"
-                        required
-                      />
-                    </div>
-
-                    {/* Updated Balance Preview */}
-                    {paymentAmount && (
-                      <div className="rounded-lg border border-green-300 bg-green-50 p-4">
-                        <p className="text-xs font-semibold text-green-900 uppercase tracking-wide mb-2">Preview</p>
-                        <div className="grid grid-cols-2 gap-4 text-sm">
-                          <div>
-                            <p className="text-gray-600 mb-1">Payment Amount</p>
-                            <p className="font-bold text-green-600">{formatCurrency(Number(paymentAmount) || 0)}</p>
-                          </div>
-                          <div>
-                            <p className="text-gray-600 mb-1">Remaining After Payment</p>
-                            <p className="font-bold text-gray-900">{formatCurrency(updatedBalancePreview)}</p>
-                          </div>
-                        </div>
+                    <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm">
+                      <div className="flex items-center justify-between">
+                        <span className="text-gray-600">Remaining balance after this payment</span>
+                        <span className="font-semibold text-gray-900 tabular-nums">{formatCurrency(updatedBalancePreview)}</span>
                       </div>
-                    )}
+                    </div>
 
                     {formError && (
                       <div className="rounded-lg border border-red-200 bg-red-50 p-4 flex items-start gap-3">
@@ -1233,7 +1215,7 @@ const Cashier_Payments = () => {
                         disabled={isSubmittingPayment}
                         className="rounded-lg bg-green-600 px-6 py-2.5 text-sm font-semibold text-white hover:bg-green-700 transition disabled:opacity-50"
                       >
-                        {isSubmittingPayment ? "Logging..." : "Submit Payment"}
+                        {isSubmittingPayment ? "Logging..." : `Collect ${formatCurrency(currentTotalDue)}`}
                       </button>
                     </div>
                   </form>
