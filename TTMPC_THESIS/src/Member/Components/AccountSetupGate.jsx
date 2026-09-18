@@ -148,13 +148,11 @@ export default function AccountSetupGate() {
 
   const needsEmail = Boolean(status.is_email_dummy);
   const needsPassword = Boolean(status.is_temporary);
-  const needsProfile = Boolean(status.profile_incomplete);
-  if (!needsEmail && !needsPassword && !needsProfile) return null;
+  if (!needsEmail && !needsPassword) return null;
 
   const steps = [
     { key: "email", label: "Email", done: !needsEmail },
     { key: "password", label: "Password", done: !needsPassword },
-    { key: "profile", label: "Profile", done: !needsProfile },
   ];
 
   return (
@@ -166,13 +164,8 @@ export default function AccountSetupGate() {
     >
       {needsEmail ? (
         <EmailStep currentEmail={status.email} onDone={refresh} />
-      ) : needsPassword ? (
-        <PasswordStep currentEmail={status.email} onDone={refresh} />
       ) : (
-        <ProfileStep
-          missing={status.missing_profile_fields || []}
-          onDone={refresh}
-        />
+        <PasswordStep currentEmail={status.email} onDone={refresh} />
       )}
     </Shell>
   );
@@ -582,148 +575,3 @@ function PasswordStep({ currentEmail, onDone }) {
   );
 }
 
-function ProfileStep({ missing, onDone }) {
-  const [contact, setContact] = useState("");
-  const [address, setAddress] = useState("");
-  const [birth, setBirth] = useState("");
-  const [occupation, setOccupation] = useState("");
-  const [dependents, setDependents] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState("");
-
-  const needsContact = missing.includes("contact_number");
-  const needsAddress = missing.includes("permanent_address");
-  const needsBirth = missing.includes("date_of_birth");
-  const needsOccupation = missing.includes("occupation");
-  const needsDependents = missing.includes("number_of_dependents");
-
-  const submit = async (e) => {
-    e.preventDefault();
-    setErr("");
-    if (needsContact && !contact.trim()) {
-      setErr("Enter your mobile number.");
-      return;
-    }
-    if (needsAddress && !address.trim()) {
-      setErr("Enter your permanent address.");
-      return;
-    }
-    if (needsBirth && !birth.trim()) {
-      setErr("Enter your date of birth.");
-      return;
-    }
-    if (needsOccupation && !occupation.trim()) {
-      setErr("Enter your occupation.");
-      return;
-    }
-    // Explicit "" check, not falsiness: "0" dependents is a valid answer.
-    if (needsDependents && dependents.trim() === "") {
-      setErr("Enter your number of dependents.");
-      return;
-    }
-
-    setBusy(true);
-    try {
-      const res = await fetch(`${API_BASE}/api/account/onboarding/profile`, {
-        method: "POST",
-        headers: await authHeaders(),
-        body: JSON.stringify({
-          contact_number: contact.trim(),
-          permanent_address: address.trim(),
-          date_of_birth: birth.trim(),
-          occupation: occupation.trim(),
-          number_of_dependents: dependents.trim(),
-        }),
-      });
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(body.detail || "Could not save your profile.");
-      await onDone();
-    } catch (e2) {
-      setErr(e2.message);
-      setBusy(false);
-    }
-  };
-
-  return (
-    <form onSubmit={submit}>
-      <p className="text-sm font-bold text-gray-900 dark:text-white">
-        Complete your profile
-      </p>
-      <p className="mt-1 text-xs text-gray-600 dark:text-gray-400">
-        Your membership details come from the cooperative. We need these details
-        from you — they are used when your loan applications are evaluated.
-      </p>
-
-      <div className="mt-4 grid gap-3 sm:grid-cols-2">
-        {needsContact ? (
-          <Field label="Mobile number">
-            <input
-              type="tel"
-              value={contact}
-              onChange={(e) => setContact(e.target.value)}
-              placeholder="09xxxxxxxxx"
-              className={inputClass}
-              autoComplete="tel"
-            />
-          </Field>
-        ) : null}
-
-        {needsBirth ? (
-          <Field label="Date of birth">
-            <input
-              type="date"
-              value={birth}
-              onChange={(e) => setBirth(e.target.value)}
-              className={inputClass}
-              autoComplete="bday"
-            />
-          </Field>
-        ) : null}
-
-        {needsOccupation ? (
-          <Field label="Occupation">
-            <input
-              type="text"
-              value={occupation}
-              onChange={(e) => setOccupation(e.target.value)}
-              placeholder="e.g. Public School Teacher"
-              className={inputClass}
-              autoComplete="organization-title"
-            />
-          </Field>
-        ) : null}
-
-        {needsDependents ? (
-          <Field label="Number of dependents">
-            <input
-              type="number"
-              min="0"
-              max="20"
-              value={dependents}
-              onChange={(e) => setDependents(e.target.value)}
-              placeholder="0"
-              className={inputClass}
-            />
-          </Field>
-        ) : null}
-
-        {needsAddress ? (
-          <Field label="Permanent address">
-            <textarea
-              rows={2}
-              value={address}
-              onChange={(e) => setAddress(e.target.value)}
-              placeholder="House/street, barangay, municipality, province"
-              className={inputClass}
-            />
-          </Field>
-        ) : null}
-      </div>
-
-      <ErrorText>{err}</ErrorText>
-      <div className="mt-5">
-        <SubmitButton busy={busy}>Save and continue</SubmitButton>
-      </div>
-    </form>
-  );
-}
