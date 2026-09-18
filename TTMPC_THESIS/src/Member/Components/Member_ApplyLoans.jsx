@@ -12,8 +12,6 @@ import {
   Activity,
   Search,
   Bell,
-  Menu,
-  X,
   History,
   User,
   Receipt,
@@ -118,7 +116,6 @@ const Member_ApplyLoans = () => {
   const navigate = useNavigate();
   const [memberLabel, setMemberLabel] = useState("Member");
   const [avatarUrl, setAvatarUrl] = useState("");
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isCalculatorOpen, setIsCalculatorOpen] = useState(false);
   const { isDark, toggleTheme } = useTheme();
   const [memberId, setMemberId] = useState(null);
@@ -205,26 +202,12 @@ const Member_ApplyLoans = () => {
   return (
     <div className="relative flex h-screen overflow-hidden bg-[#F8F9FA] dark:bg-gray-950">
       <style>{styles}</style>
-      {isSidebarOpen ? (
-        <button
-          aria-label="Close sidebar overlay"
-          onClick={() => setIsSidebarOpen(false)}
-          className="fixed inset-0 z-20 bg-black/30 lg:hidden"
-        />
-      ) : null}
-      {/* Sidebar */}
+      {/* Sidebar — desktop only. Mobile navigation is MemberMobileNav's fixed
+          bottom bar, rendered once by MemberLayout for every Member route;
+          this drawer duplicated the same links via a hamburger toggle. */}
       <aside
-        className={`fixed inset-y-0 left-0 z-30 w-64 transform bg-white p-4 flex flex-col border-r border-gray-200 dark:bg-gray-900 dark:border-gray-800 transition-transform duration-200 ease-out lg:fixed lg:translate-x-0 ${
-          isSidebarOpen ? 'translate-x-0' : '-translate-x-full'
-        }`}
+        className="hidden lg:flex fixed inset-y-0 left-0 z-30 w-64 bg-white p-4 flex-col border-r border-gray-200 dark:bg-gray-900 dark:border-gray-800"
       >
-        <button
-          aria-label="Close sidebar"
-          onClick={() => setIsSidebarOpen(false)}
-          className="absolute right-3 top-3 rounded-md p-1 text-gray-500 hover:bg-gray-100 lg:hidden"
-        >
-          <X className="h-5 w-5" />
-        </button>
         <div className="flex flex-row items-start gap-2 mb-6">
           <img src="/img/ttmpc logo.png" alt="Logo" className="h-12 w-auto" />
           <div className="flex flex-col">
@@ -290,14 +273,7 @@ const Member_ApplyLoans = () => {
       <div className="min-w-0 flex-1 flex flex-col overflow-hidden lg:ml-64">
         {/* Header */}
         <header className="bg-white dark:bg-gray-900 h-16 shrink-0 shadow-sm flex items-center justify-between px-4 sm:px-6 lg:px-8 z-10 border-b border-gray-100 dark:border-gray-800">
-          <div className="flex items-center gap-2 sm:gap-3">
-            <button
-              aria-label="Open sidebar"
-              onClick={() => setIsSidebarOpen(true)}
-              className="rounded-md p-2 text-gray-600 hover:bg-gray-100 lg:hidden"
-            >
-              <Menu className="h-5 w-5" />
-            </button>
+          <div className="flex items-center gap-2 sm:gap-3 pl-2 sm:pl-0">
             <h1 className="text-base sm:text-lg font-extrabold text-[#1a4a2f] dark:text-green-400 lg:hidden">Apply for Loans</h1>
           </div>
 
