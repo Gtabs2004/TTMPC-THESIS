@@ -63,9 +63,13 @@ from pypdf.generic import DecodedStreamObject, DictionaryObject, NameObject
 from risk_model import (
     ModelNotAvailableError,
     model_info as risk_model_info,
+    model_version as risk_model_version,
     score as risk_score,
     score_many as risk_score_many,
     occupation_tier as risk_occupation_tier,
+    band as risk_band,
+    thresholds as risk_thresholds,
+    BAND_META as RISK_BAND_META,
 )
 from risk_features import assemble_many as risk_assemble_many, fetch_member_context as risk_fetch_context
 from demand_model import (
@@ -153,7 +157,8 @@ class _MaxBodySizeMiddleware(BaseHTTPMiddleware):
 
 
 async def _warm_manage_loans_cache():
-    """Pre-populate the manage-loans cache so the first Bookkeeper page load is instant."""
+    """Pre-populate the manage-loans + dashboard-summary caches so the first
+    Bookkeeper page load is instant."""
     import asyncio
     try:
         # 2s wasn't enough on Railway — the container's outbound connection
@@ -167,6 +172,19 @@ async def _warm_manage_loans_cache():
         logger.info("Bookkeeper manage-loans cache warmed on startup.")
     except Exception as e:
         logger.warning(f"Cache warm-up failed (non-fatal): {e}")
+
+    try:
+        # Same cold-connection race as above, but for dashboard-summary — the
+        # Bookkeeper Dashboard hits this endpoint first now, so an unwarmed
+        # cache here means the exact same class of first-request 500 the
+        # manage-loans warm-up above exists to avoid. Runs after the
+        # manage-loans warm-up (not concurrently) so it lands on a connection
+        # that has already proven itself, rather than racing a second
+        # first-call against the same cold pool.
+        await get_bookkeeper_dashboard_summary()
+        logger.info("Bookkeeper dashboard-summary cache warmed on startup.")
+    except Exception as e:
+        logger.warning(f"Dashboard-summary cache warm-up failed (non-fatal): {e}")
 
 
 @asynccontextmanager
@@ -4796,6 +4814,477 @@ async def get_bookkeeper_manage_loans():
         return payload
     except Exception as err:
         raise HTTPException(status_code=500, detail=f"Failed to load manage loans data: {err}")
+
+
+# 90-second in-memory cache for /api/bookkeeper/dashboard-summary. This
+# endpoint exists so the Bookkeeper Dashboard (bookkeeperDashboard.jsx) never
+# has to pull the full manage-loans / membership-records / credit-risk-queue
+# payloads (loan-by-loan payment history, all schedules, all members, all
+# CBU rows) just to render ~9 numbers and two chart aggregates. Every value
+# below is scoped to reproduce EXACTLY what the dashboard already computes
+# client-side today — this is a performance change, not a behavior change.
+_DASHBOARD_SUMMARY_CACHE: dict = {"payload": None, "expires_at": 0.0}
+_DASHBOARD_SUMMARY_CACHE_TTL_SECONDS = 90.0
+
+# Same "visible" loan_status set as /api/bookkeeper/manage-loans — the
+# dashboard's Total Loans stat must count the identical population. Keep this
+# in sync with `visible_statuses` above if that set ever changes.
+_DASHBOARD_VISIBLE_LOAN_STATUSES = {
+    "approved",
+    "ready for disbursement",
+    "to be disbursed",
+    "released",
+    "partially paid",
+    "fully paid",
+}
+
+
+@app.get("/api/bookkeeper/dashboard-summary")
+async def get_bookkeeper_dashboard_summary():
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+
+    import time as _time
+    now = _time.monotonic()
+    cached = _DASHBOARD_SUMMARY_CACHE
+    if cached["payload"] is not None and cached["expires_at"] > now:
+        return cached["payload"]
+
+    try:
+        # --- Total Loans ------------------------------------------------
+        # Same population as manage-loans's `totalLoans = loans.length`, but
+        # we only need control_number + loan_status here, not the full
+        # member/loan_type join or payment/schedule fan-out.
+        loans_resp = (
+            supabase.table("loans")
+            .select("control_number,loan_status")
+            .execute()
+        )
+        total_loans = sum(
+            1
+            for row in (loans_resp.data or [])
+            if str(row.get("loan_status") or "").strip().lower() in _DASHBOARD_VISIBLE_LOAN_STATUSES
+        )
+
+        # --- Payments this month / last month -----------------------------
+        # Mirrors the dashboard's current `sumForKey`: it sums amount_paid for
+        # ALL payments in the window, regardless of confirmation_status. That
+        # is intentionally reproduced here as-is (not tightened to
+        # "validated only") to keep the stat card's number unchanged.
+        today = date.today()
+        current_month_start = today.replace(day=1)
+        if current_month_start.month == 1:
+            prev_month_start = current_month_start.replace(year=current_month_start.year - 1, month=12)
+        else:
+            prev_month_start = current_month_start.replace(month=current_month_start.month - 1)
+        next_month_start = (
+            current_month_start.replace(year=current_month_start.year + 1, month=1)
+            if current_month_start.month == 12
+            else current_month_start.replace(month=current_month_start.month + 1)
+        )
+
+        def _sum_amount_paid_in_range(start: date, end: date) -> float:
+            total = Decimal("0")
+            # Live payments for the window.
+            live_resp = (
+                supabase.table("loan_payments")
+                .select("amount_paid,payment_date")
+                .gte("payment_date", start.isoformat())
+                .lt("payment_date", end.isoformat())
+                .execute()
+            )
+            for row in live_resp.data or []:
+                total += Decimal(str(row.get("amount_paid") or 0))
+            # Legacy payments for the same window (dashboard's allPayments
+            # includes both live and legacy rows).
+            legacy_resp = (
+                supabase.table("loan_payments_legacy")
+                .select("amount_paid,payment_date")
+                .gte("payment_date", start.isoformat())
+                .lt("payment_date", end.isoformat())
+                .execute()
+            )
+            for row in legacy_resp.data or []:
+                total += Decimal(str(row.get("amount_paid") or 0))
+            return decimal_to_float(total)
+
+        payments_this_month = _sum_amount_paid_in_range(current_month_start, next_month_start)
+        payments_last_month = _sum_amount_paid_in_range(prev_month_start, current_month_start)
+
+        # --- Total Share Capital ------------------------------------------
+        # Same figure as fetchShareCapital(): sum of paid_up_capital across
+        # membership-records. Recomputed narrowly here instead of reusing
+        # /api/secretary/membership-records so the dashboard doesn't pull
+        # personal_data_sheet/member rows it never displays.
+        total_share_capital = _compute_total_share_capital()
+
+        # --- Recent Activity (top 5) ---------------------------------------
+        # The dashboard sorts ALL payments by date_paid desc and takes 5,
+        # excluding future-dated ones. Pulling only the most recent handful
+        # from each table (ordered, limited) and merging avoids fetching the
+        # full payments history just to keep 5 rows.
+        recent_activities = _fetch_recent_activity(limit=5)
+
+        # --- Credit Risk Snapshot -------------------------------------------
+        credit_risk_snapshot = _compute_credit_risk_snapshot()
+
+        # --- Yearly Collections + Repayment Behavior ------------------------
+        # Both charts need the full payment history (all years), so there is
+        # no way to shrink this below "every payment" the way the stat cards
+        # were shrunk. What IS avoidable is everything manage-loans also does
+        # around payments: member/loan_type joins, remaining-balance running
+        # totals, payment_history/is_legacy assembly. This helper fetches only
+        # (loan_id, amount_paid, payment_date) from both payment tables and
+        # (loan_id, due_date) from schedules — the minimum columns these two
+        # charts need — instead of reusing the heavy manage-loans payload.
+        yearly_collections, repayment_behavior_by_year = _compute_payment_charts()
+
+        payload = {
+            "success": True,
+            "data": {
+                "server_time": datetime.utcnow().isoformat(),
+                "stats": {
+                    "total_loans": total_loans,
+                    "payments_this_month": payments_this_month,
+                    "payments_last_month": payments_last_month,
+                    "share_capital": total_share_capital,
+                },
+                "recent_activities": recent_activities,
+                "credit_risk": credit_risk_snapshot,
+                "yearly_collections": yearly_collections,
+                "repayment_behavior_by_year": repayment_behavior_by_year,
+            },
+        }
+        _DASHBOARD_SUMMARY_CACHE["payload"] = payload
+        _DASHBOARD_SUMMARY_CACHE["expires_at"] = _time.monotonic() + _DASHBOARD_SUMMARY_CACHE_TTL_SECONDS
+        return payload
+    except Exception as err:
+        raise HTTPException(status_code=500, detail=f"Failed to load dashboard summary: {err}")
+
+
+def _compute_total_share_capital() -> float:
+    """Sum of paid_up_capital across members — same figure the dashboard's
+    fetchShareCapital() derives from /api/secretary/membership-records, but
+    computed directly against `member` + latest-per-member `capital_build_up`
+    without also reading personal_data_sheet (the dashboard never needed the
+    PDS-only applicant rows; those exist for the Membership Records page).
+    """
+    members_resp = (
+        supabase.table("member")
+        .select("id,share_capital_amount,initial_paid_up_capital")
+        .execute()
+    )
+    member_rows = members_resp.data or []
+
+    # capital_build_up is indexed on (member_id, transaction_date DESC), so
+    # ordering + taking the first row per member is index-backed, not a
+    # sequential scan.
+    cbu_resp = (
+        supabase.table("capital_build_up")
+        .select("member_id,ending_share_capital,transaction_date")
+        .order("transaction_date", desc=True)
+        .limit(5000)
+        .execute()
+    )
+    latest_cbu_by_member: dict[str, Decimal] = {}
+    for row in cbu_resp.data or []:
+        member_id = str(row.get("member_id") or "").strip()
+        if member_id and member_id not in latest_cbu_by_member:
+            latest_cbu_by_member[member_id] = Decimal(str(row.get("ending_share_capital") or 0))
+
+    total = Decimal("0")
+    for row in member_rows:
+        member_id = str(row.get("id") or "").strip()
+        amount_value = row.get("share_capital_amount")
+        if amount_value is None:
+            amount_value = latest_cbu_by_member.get(member_id, Decimal("0"))
+        else:
+            amount_value = Decimal(str(amount_value))
+
+        paid_up_value = row.get("initial_paid_up_capital")
+        paid_up_value = Decimal(str(paid_up_value)) if paid_up_value is not None else amount_value
+        total += paid_up_value
+
+    return decimal_to_float(total)
+
+
+def _fetch_recent_activity(limit: int = 5) -> list[dict]:
+    """Most recent (past-dated) payments across live + legacy tables, newest
+    first — same population as the dashboard's `recentActivities`, fetched
+    narrowly instead of via the full manage-loans payload.
+    """
+    now_iso = datetime.utcnow().isoformat()
+
+    live_resp = (
+        supabase.table("loan_payments")
+        .select("id,loan_id,amount_paid,penalties,payment_date,payment_reference")
+        .lte("payment_date", now_iso)
+        .order("payment_date", desc=True)
+        .limit(limit)
+        .execute()
+    )
+    legacy_resp = (
+        supabase.table("loan_payments_legacy")
+        .select("id,loan_id,amount_paid,payment_date,payment_code,or_cdv_no")
+        .lte("payment_date", now_iso)
+        .order("payment_date", desc=True)
+        .limit(limit)
+        .execute()
+    )
+
+    candidates: list[dict] = []
+    for row in live_resp.data or []:
+        candidates.append({
+            "payment_id": row.get("payment_reference") or row.get("id"),
+            "loan_id": row.get("loan_id"),
+            "date_paid": row.get("payment_date"),
+            "amount_paid": decimal_to_float(row.get("amount_paid") or 0),
+            "penalties": decimal_to_float(row.get("penalties") or 0),
+        })
+    for row in legacy_resp.data or []:
+        candidates.append({
+            "payment_id": row.get("payment_code") or row.get("or_cdv_no") or row.get("id"),
+            "loan_id": row.get("loan_id"),
+            "date_paid": row.get("payment_date"),
+            "amount_paid": decimal_to_float(row.get("amount_paid") or 0),
+            "penalties": 0.0,
+        })
+
+    def _sort_key(item: dict):
+        t = parse_date_value(item.get("date_paid"))
+        return t or date.min
+
+    candidates.sort(key=_sort_key, reverse=True)
+    top = candidates[:limit]
+
+    if not top:
+        return []
+
+    # Resolve member names for the top rows only (never for the full
+    # payments history) — one bulk loans lookup + one bulk member lookup.
+    loan_ids = sorted({str(item["loan_id"]) for item in top if item.get("loan_id")})
+    member_by_loan: dict[str, dict] = {}
+    if loan_ids:
+        loans_resp = (
+            supabase.table("loans")
+            .select("control_number,member_id,member:member_id(first_name,last_name)")
+            .in_("control_number", loan_ids)
+            .execute()
+        )
+        for row in loans_resp.data or []:
+            member_by_loan[str(row.get("control_number") or "")] = row.get("member") or {}
+
+    results = []
+    for item in top:
+        member = member_by_loan.get(str(item.get("loan_id") or ""), {})
+        member_name = f"{member.get('first_name') or ''} {member.get('last_name') or ''}".strip() or "Member"
+        results.append({
+            "payment_id": item.get("payment_id"),
+            "member_name": member_name,
+            "amount_paid": item.get("amount_paid"),
+            "date_paid": item.get("date_paid"),
+            "is_late": item.get("penalties", 0) > 0,
+        })
+    return results
+
+
+def _compute_credit_risk_snapshot() -> dict:
+    """Band counts + top-3 high-risk applicants for the dashboard snippet.
+
+    Reads from risk_assessments (already-scored loans) joined against the
+    current in-review queue, instead of re-running feature assembly +
+    prediction. See get_credit_risk_queue()'s own caching for the full-detail
+    Credit Risk page; this only needs counts, not drivers/explanations.
+    """
+    try:
+        loans_resp = (
+            supabase.table("loans")
+            .select(
+                "control_number,member_id,loan_amount,principal_amount,application_status,loan_status,"
+                "member:member_id(first_name,last_name),loan_type:loan_type_id(code,name)"
+            )
+            .in_("application_status", sorted(_CREDIT_RISK_QUEUE_STATUSES))
+            .execute()
+        )
+        review_loans = loans_resp.data or []
+        # application_status may be null on some rows with only loan_status
+        # set — same fallback the full queue endpoint uses.
+        fallback_resp = (
+            supabase.table("loans")
+            .select(
+                "control_number,member_id,loan_amount,principal_amount,application_status,loan_status,"
+                "member:member_id(first_name,last_name),loan_type:loan_type_id(code,name)"
+            )
+            .is_("application_status", "null")
+            .in_("loan_status", sorted(_CREDIT_RISK_QUEUE_STATUSES))
+            .execute()
+        )
+        seen = {str(r.get("control_number")) for r in review_loans}
+        for row in fallback_resp.data or []:
+            if str(row.get("control_number")) not in seen:
+                review_loans.append(row)
+    except Exception:
+        return {"total": 0, "queue_total": 0, "high": 0, "watch": 0, "low": 0, "top_high": [], "model_version": None}
+
+    control_numbers = [str(l.get("control_number")) for l in review_loans if l.get("control_number")]
+    scored_by_loan: dict[str, dict] = {}
+    if control_numbers:
+        assessments_resp = (
+            supabase.table("risk_assessments")
+            .select("loan_control_number,risk_probability,model_version,scored_at")
+            .in_("loan_control_number", control_numbers)
+            .execute()
+        )
+        for row in assessments_resp.data or []:
+            scored_by_loan[str(row.get("loan_control_number"))] = row
+
+    try:
+        thr = risk_thresholds()
+        current_model_version = risk_model_version()
+    except ModelNotAvailableError:
+        thr = None
+        current_model_version = None
+
+    high, watch, low = [], [], []
+    model_version_seen = None
+    for loan in review_loans:
+        cn = str(loan.get("control_number") or "")
+        assessment = scored_by_loan.get(cn)
+        if not assessment or thr is None:
+            continue
+        probability = float(assessment.get("risk_probability") or 0.0)
+        current_band = risk_band(probability, thr)
+        model_version_seen = model_version_seen or assessment.get("model_version") or current_model_version
+        member = loan.get("member") or {}
+        loan_type = (loan.get("loan_type") or {}).get("name") or (loan.get("loan_type") or {}).get("code") or "N/A"
+        row_out = {
+            "loan_id": cn,
+            "member_name": f"{member.get('first_name') or ''} {member.get('last_name') or ''}".strip() or "Unknown",
+            "loan_type": loan_type,
+            "loan_amount": decimal_to_float(loan.get("loan_amount") or loan.get("principal_amount") or 0),
+            "probability": probability,
+        }
+        if current_band == "RED":
+            high.append(row_out)
+        elif current_band == "AMBER":
+            watch.append(row_out)
+        else:
+            low.append(row_out)
+
+    top_high = sorted(high, key=lambda r: r["probability"], reverse=True)[:3]
+    scored_total = len(high) + len(watch) + len(low)
+
+    return {
+        "total": scored_total,
+        "queue_total": len(review_loans),
+        "high": len(high),
+        "watch": len(watch),
+        "low": len(low),
+        "top_high": top_high,
+        "model_version": model_version_seen,
+    }
+
+
+def _fetch_all_paginated(table_name: str, columns: str, order_col: str) -> list[dict]:
+    """Page through a whole table 1000 rows at a time (Supabase's page cap).
+    Used only for the two narrow columns each of these tables needs — never
+    the wide selects manage-loans does — but the underlying tables (6k+ rows)
+    still require pagination to read in full.
+    """
+    rows: list[dict] = []
+    page = 1000
+    offset = 0
+    while True:
+        batch = (
+            supabase.table(table_name)
+            .select(columns)
+            .order(order_col)
+            .range(offset, offset + page - 1)
+            .execute()
+        ).data or []
+        if not batch:
+            break
+        rows.extend(batch)
+        if len(batch) < page:
+            break
+        offset += page
+    return rows
+
+
+def _compute_payment_charts() -> tuple[list[dict], dict[str, list[dict]]]:
+    """Yearly Collections totals + Repayment Behavior (days_offset) buckets,
+    for every year the cooperative has data — same population the dashboard's
+    yearlyBarData/monthlyBehaviorData use today, but built from three narrow
+    selects (payment amount/date, schedule due dates) instead of the full
+    manage-loans response with its member/loan_type joins and payment_history
+    assembly.
+    """
+    live_payments = _fetch_all_paginated(
+        "loan_payments", "loan_id,amount_paid,payment_date", "payment_date"
+    )
+    legacy_payments = _fetch_all_paginated(
+        "loan_payments_legacy", "loan_id,amount_paid,payment_date", "payment_date"
+    )
+    schedules = _fetch_all_paginated(
+        "loan_schedules", "loan_id,due_date", "due_date"
+    )
+
+    due_dates_by_loan: dict[str, list[date]] = {}
+    for row in schedules:
+        loan_id = str(row.get("loan_id") or "")
+        d = parse_date_value(row.get("due_date"))
+        if loan_id and d:
+            due_dates_by_loan.setdefault(loan_id, []).append(d)
+    for loan_id in due_dates_by_loan:
+        due_dates_by_loan[loan_id].sort()
+
+    # --- Yearly Collections ---------------------------------------------
+    totals_by_year: dict[str, Decimal] = {}
+    for row in live_payments:
+        year = str(row.get("payment_date") or "")[:4]
+        if len(year) == 4:
+            totals_by_year[year] = totals_by_year.get(year, Decimal("0")) + Decimal(str(row.get("amount_paid") or 0))
+    for row in legacy_payments:
+        year = str(row.get("payment_date") or "")[:4]
+        if len(year) == 4:
+            totals_by_year[year] = totals_by_year.get(year, Decimal("0")) + Decimal(str(row.get("amount_paid") or 0))
+
+    yearly_collections = [
+        {"year": year, "total": decimal_to_float(total)}
+        for year, total in sorted(totals_by_year.items(), key=lambda kv: int(kv[0]))
+    ]
+
+    # --- Repayment Behavior (days_offset, bucketed by year + month) -----
+    # Same pairing rule as manage-loans: nearest reconstructed due date,
+    # signed offset in days. >90 days late = delinquent (cooperative's rule).
+    DELINQUENT_DAY_THRESHOLD = 90
+    behavior_by_year: dict[str, list[dict]] = {}
+
+    def _bucket_for(year: str) -> list[dict]:
+        if year not in behavior_by_year:
+            behavior_by_year[year] = [
+                {"month": m, "on_time": 0, "late": 0} for m in range(1, 13)
+            ]
+        return behavior_by_year[year]
+
+    for row in live_payments + legacy_payments:
+        loan_id = str(row.get("loan_id") or "")
+        paid_on = parse_date_value(row.get("payment_date"))
+        if not paid_on:
+            continue
+        due_dates = due_dates_by_loan.get(loan_id)
+        if not due_dates:
+            continue
+        nearest = min(due_dates, key=lambda d: abs((paid_on - d).days))
+        days_offset = (paid_on - nearest).days
+        year = str(paid_on.year)
+        bucket = _bucket_for(year)[paid_on.month - 1]
+        if days_offset > DELINQUENT_DAY_THRESHOLD:
+            bucket["late"] += 1
+        else:
+            bucket["on_time"] += 1
+
+    return yearly_collections, behavior_by_year
 
 
 @app.get("/api/bookkeeper/loan-ledger/{loan_id}")
@@ -10819,6 +11308,15 @@ _CREDIT_RISK_QUEUE_STATUSES = {
 _CREDIT_RISK_QUEUE_CACHE: dict = {"payload": None, "expires_at": 0.0}
 _CREDIT_RISK_QUEUE_CACHE_TTL_SECONDS = 60.0
 
+# How long a risk_assessments row is trusted without rescoring. `member` has
+# no updated_at, so a loan's underlying financial context (a new payment, a
+# new CBU entry) can change without any timestamp we can compare against —
+# a pure time-based TTL is the simplest correct answer available, matching
+# every other cache in this file. A loan is rescored immediately regardless
+# of this TTL if the stored model_version no longer matches the loaded
+# model, so a model upgrade is never served stale.
+_RISK_SCORE_STALE_AFTER = timedelta(hours=12)
+
 
 def _persist_risk_scores(
     loans: list[dict],
@@ -10871,34 +11369,56 @@ async def get_credit_risk_queue():
         return _CREDIT_RISK_QUEUE_CACHE["payload"]
 
     try:
-        loans_resp = (
+        # Filter to review statuses in the query itself instead of fetching
+        # every loan (previously unbounded) and filtering in Python. Two
+        # queries because application_status is nullable and the review set
+        # must also match on loan_status for rows where it's null — same
+        # fallback semantics as before, just pushed down to Postgres.
+        select_cols = (
+            "control_number,member_id,loan_amount,principal_amount,monthly_amortization,"
+            "term,interest_rate,application_status,loan_status,application_date,disbursal_date,"
+            "raw_payload,"
+            "member:member_id(first_name,last_name,membership_id,is_bona_fide),"
+            "loan_type:loan_type_id(code,name)"
+        )
+        by_app_status_resp = (
             supabase.table("loans")
-            .select(
-                "control_number,member_id,loan_amount,principal_amount,monthly_amortization,"
-                "term,interest_rate,application_status,loan_status,application_date,disbursal_date,"
-                "raw_payload,"
-                "member:member_id(first_name,last_name,membership_id,is_bona_fide),"
-                "loan_type:loan_type_id(code,name)"
-            )
+            .select(select_cols)
+            .in_("application_status", sorted(_CREDIT_RISK_QUEUE_STATUSES))
             .order("application_date", desc=True)
             .execute()
         )
-        loan_rows = loans_resp.data or []
+        loan_rows = list(by_app_status_resp.data or [])
+        by_loan_status_resp = (
+            supabase.table("loans")
+            .select(select_cols)
+            .is_("application_status", "null")
+            .in_("loan_status", sorted(_CREDIT_RISK_QUEUE_STATUSES))
+            .order("application_date", desc=True)
+            .execute()
+        )
+        seen_cns = {str(r.get("control_number")) for r in loan_rows}
+        for row in by_loan_status_resp.data or []:
+            if str(row.get("control_number")) not in seen_cns:
+                loan_rows.append(row)
     except Exception as err:
         raise HTTPException(status_code=500, detail=f"Failed to load loans: {err}")
 
-    # Keep only loans in a review status. Use application_status if present,
-    # else fall back to loan_status.
+    # Both queries already match the review-status set — this local filter is
+    # now just a safety net (e.g. mixed-case status values) rather than the
+    # only filter, so it can't silently regress into "everything" again.
     filtered: list[dict] = []
     for row in loan_rows:
         status = str(row.get("application_status") or row.get("loan_status") or "").strip().lower()
         if status in _CREDIT_RISK_QUEUE_STATUSES:
             filtered.append(row)
 
-    # Assemble features for the whole queue in one pass. fetch_member_context
-    # issues a fixed number of bulk queries no matter how many loans are in
-    # review, and score_many puts every loan's 21 occlusion probes through a
-    # single predict_proba call — so this stays flat as the queue grows.
+    # Cache-through against risk_assessments: a loan already scored recently
+    # enough, by the currently-loaded model, doesn't need its features
+    # reassembled or run through the model again — band/label/action are
+    # cheap, pure functions of the stored probability. Only loans that are
+    # unscored, stale, or scored by a different model version go through
+    # the full assemble+predict path.
     model_version: str | None = None
     thresholds_used: dict | None = None
     scored_rows: list[dict] = []
@@ -10920,36 +11440,106 @@ async def get_credit_risk_queue():
         }
 
     if filtered:
+        current_model_version: str | None = None
         try:
-            member_ids = [str(l.get("member_id")) for l in filtered if l.get("member_id")]
-            ctx = risk_fetch_context(supabase, member_ids)
-            feature_rows = risk_assemble_many(supabase, filtered, ctx=ctx)
-            results = risk_score_many(feature_rows)
+            current_model_version = risk_model_version()
+        except Exception:
+            current_model_version = None
 
-            for loan, features, result in zip(filtered, feature_rows, results):
-                if not model_version:
-                    model_version = result.get("model_version")
-                if thresholds_used is None:
-                    thresholds_used = result.get("thresholds")
-                scored_rows.append({
-                    **_row_shell(loan),
-                    "probability": result["probability"],
-                    "band": result["band"],
-                    "risk_label": result["risk_label"],
-                    "action": result["action"],
-                    "band_share": result["band_share"],
-                    "band_bad_rate_per_100": result["band_bad_rate_per_100"],
-                    "flagged": result["flagged"],
-                    "operating_point": result["operating_point"],
-                    "drivers": result["drivers"],
-                })
+        cached_by_loan: dict[str, dict] = {}
+        try:
+            control_numbers = [str(l.get("control_number")) for l in filtered if l.get("control_number")]
+            if control_numbers:
+                existing_resp = (
+                    supabase.table("risk_assessments")
+                    .select("loan_control_number,risk_probability,model_version,scored_at,features_used")
+                    .in_("loan_control_number", control_numbers)
+                    .execute()
+                )
+                for row in existing_resp.data or []:
+                    cached_by_loan[str(row.get("loan_control_number"))] = row
+        except Exception:
+            cached_by_loan = {}
 
-            # Handoff §4: log every score with its input row and model version.
-            # The queue scores the whole review list on each cache miss, so the
-            # audit trail is written here too, not only on the single-loan
-            # endpoint — otherwise most scores a reviewer actually looks at
-            # would leave no record behind.
-            _persist_risk_scores(filtered, feature_rows, results)
+        stale_cutoff = datetime.utcnow() - _RISK_SCORE_STALE_AFTER
+        fresh_loans: list[dict] = []
+        to_score: list[dict] = []
+        for loan in filtered:
+            cn = str(loan.get("control_number") or "")
+            cached = cached_by_loan.get(cn)
+            is_fresh = False
+            if cached and current_model_version and cached.get("model_version") == current_model_version:
+                raw_scored_at = str(cached.get("scored_at") or "")
+                try:
+                    parsed_ts = datetime.fromisoformat(raw_scored_at.replace("Z", "+00:00")).replace(tzinfo=None)
+                    is_fresh = parsed_ts >= stale_cutoff
+                except ValueError:
+                    is_fresh = False
+            if is_fresh:
+                fresh_loans.append(loan)
+            else:
+                to_score.append(loan)
+
+        try:
+            if to_score:
+                member_ids = [str(l.get("member_id")) for l in to_score if l.get("member_id")]
+                ctx = risk_fetch_context(supabase, member_ids)
+                feature_rows = risk_assemble_many(supabase, to_score, ctx=ctx)
+                results = risk_score_many(feature_rows)
+
+                for loan, features, result in zip(to_score, feature_rows, results):
+                    if not model_version:
+                        model_version = result.get("model_version")
+                    if thresholds_used is None:
+                        thresholds_used = result.get("thresholds")
+                    scored_rows.append({
+                        **_row_shell(loan),
+                        "probability": result["probability"],
+                        "band": result["band"],
+                        "risk_label": result["risk_label"],
+                        "action": result["action"],
+                        "band_share": result["band_share"],
+                        "band_bad_rate_per_100": result["band_bad_rate_per_100"],
+                        "flagged": result["flagged"],
+                        "operating_point": result["operating_point"],
+                        "drivers": result["drivers"],
+                    })
+
+                # Handoff §4: log every freshly-scored loan with its input row
+                # and model version. Loans served from cache were already
+                # logged the last time they were scored, so re-logging them
+                # here would only bump scored_at without new information.
+                _persist_risk_scores(to_score, feature_rows, results)
+
+            if fresh_loans:
+                thr = risk_thresholds()
+                for loan in fresh_loans:
+                    cn = str(loan.get("control_number") or "")
+                    cached = cached_by_loan[cn]
+                    probability = float(cached.get("risk_probability") or 0.0)
+                    current_band = risk_band(probability, thr)
+                    meta = RISK_BAND_META.get(current_band, {})
+                    if not model_version:
+                        model_version = cached.get("model_version")
+                    if thresholds_used is None:
+                        thresholds_used = thr
+                    scored_rows.append({
+                        **_row_shell(loan),
+                        "probability": probability,
+                        "band": current_band,
+                        "risk_label": meta.get("label"),
+                        "action": meta.get("action"),
+                        "band_share": meta.get("share"),
+                        "band_bad_rate_per_100": meta.get("bad_rate_per_100"),
+                        "flagged": None,
+                        "operating_point": None,
+                        # Drivers require the live occlusion pass over the
+                        # model; not recomputed for a cache hit. The full
+                        # explanation is available by re-scoring the single
+                        # loan (POST /api/risk/predict) if a reviewer opens it.
+                        "drivers": [],
+                        "from_cache": True,
+                    })
         except ModelNotAvailableError as e:
             # Model isn't loaded — return unscored rows so the UI can still
             # show the queue with a "model unavailable" note per row.

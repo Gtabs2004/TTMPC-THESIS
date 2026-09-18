@@ -64,8 +64,6 @@ const formatPesoCompact = (value) => {
   return `${PESO}${n.toFixed(0)}`;
 };
 
-const monthKey = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-
 const timeAgo = (iso) => {
   if (!iso) return "";
   const then = new Date(iso).getTime();
@@ -83,96 +81,73 @@ const timeAgo = (iso) => {
 const Dashboard = () => {
     const navigate = useNavigate();
 
-  const [loans, setLoans] = useState([]);
-  const [shareCapitalTotal, setShareCapitalTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
-  const [creditRiskQueue, setCreditRiskQueue] = useState([]);
-  const [creditRiskModelVersion, setCreditRiskModelVersion] = useState(null);
+  const [summary, setSummary] = useState(null);
+  const [chartYear, setChartYear] = useState("");
+
+  // Slim, last-resort fallback for Total Share Capital only — mirrors the
+  // single aggregate dashboard-summary computes server-side (latest
+  // capital_build_up row per member), not the old 2000-row membership-records
+  // scan. Used only if the summary endpoint itself is unreachable.
+  async function fetchShareCapitalFallback() {
+    try {
+      const { data: cbuRows } = await supabase
+        .from("capital_build_up")
+        .select("member_id, ending_share_capital, transaction_date")
+        .order("transaction_date", { ascending: false })
+        .limit(2000);
+      const latestByMember = new Map();
+      (cbuRows || []).forEach((row) => {
+        if (!row?.member_id) return;
+        if (!latestByMember.has(row.member_id)) {
+          latestByMember.set(row.member_id, Number(row.ending_share_capital || 0));
+        }
+      });
+      return Array.from(latestByMember.values()).reduce((s, v) => s + v, 0);
+    } catch {
+      return 0;
+    }
+  }
 
   useEffect(() => {
     let cancelled = false;
 
-    async function fetchShareCapital() {
-      try {
-        const capRes = await fetch(`${API_BASE_URL}/api/secretary/membership-records`);
-        const capJson = await capRes.json();
-        const records = Array.isArray(capJson)
-          ? capJson
-          : Array.isArray(capJson?.data)
-            ? capJson.data
-            : Array.isArray(capJson?.records)
-              ? capJson.records
-              : [];
-        return records.reduce((sum, r) => sum + Number(r?.paid_up_capital || 0), 0);
-      } catch {
-        console.warn("Share capital API failed, falling back to CBU query");
-        const { data: cbuRows } = await supabase
-          .from("capital_build_up")
-          .select("member_id, ending_share_capital, transaction_date")
-          .order("transaction_date", { ascending: false })
-          .limit(2000);
-        const latestByMember = new Map();
-        (cbuRows || []).forEach((row) => {
-          if (!row?.member_id) return;
-          if (!latestByMember.has(row.member_id)) {
-            latestByMember.set(row.member_id, Number(row.ending_share_capital || 0));
-          }
-        });
-        return Array.from(latestByMember.values()).reduce((s, v) => s + v, 0);
-      }
-    }
-
+    // Single dashboard-summary call replaces the old 3-endpoint fan-out
+    // (manage-loans + membership-records + credit-risk/queue), each of which
+    // pulled thousands of rows just to compute the handful of numbers and
+    // two chart aggregates this page shows. See /api/bookkeeper/dashboard-summary.
     async function fetchData() {
       try {
-        // Fire both requests in parallel — share capital no longer waits for loans
-        const [loansRes, totalCapital] = await Promise.all([
-          fetch(`${API_BASE_URL}/api/bookkeeper/manage-loans`),
-          fetchShareCapital(),
-        ]);
-
-        const loansJson = await loansRes.json();
-        if (!loansRes.ok || !loansJson?.success) {
-          throw new Error(loansJson?.detail || "Failed to load loans data.");
+        const res = await fetch(`${API_BASE_URL}/api/bookkeeper/dashboard-summary`);
+        const json = await res.json();
+        if (!res.ok || !json?.success) {
+          throw new Error(json?.detail || "Failed to load dashboard summary.");
         }
-        const rows = Array.isArray(loansJson?.data?.rows) ? loansJson.data.rows : [];
-
         if (cancelled) return;
-        setLoans(rows);
-        setShareCapitalTotal(totalCapital);
+        setSummary(json.data);
         setLoadError("");
       } catch (err) {
         if (cancelled) return;
-        console.error("Dashboard load failed:", err);
+        console.error("Dashboard summary load failed:", err);
+        // Emergency fallback — only for the one figure with a legitimate
+        // direct-Supabase path today. Everything else stays blank/last-known
+        // rather than re-fetching the full heavy payloads client-side.
+        const fallbackCapital = await fetchShareCapitalFallback();
+        if (cancelled) return;
+        setSummary((prev) => ({
+          ...(prev || { stats: {}, recent_activities: [], credit_risk: {}, yearly_collections: [], repayment_behavior_by_year: {} }),
+          stats: { ...(prev?.stats || {}), share_capital: fallbackCapital },
+        }));
         setLoadError(err?.message || "Unable to load dashboard data.");
       } finally {
         if (!cancelled) setLoading(false);
       }
     }
 
-    // Separate fetch for Credit Risk — cached backend so it's cheap, and
-    // decoupled from the main loans fetch so a slow /score-loan doesn't hold
-    // up the rest of the dashboard.
-    async function fetchCreditRisk() {
-      try {
-        const res = await fetch(`${API_BASE_URL}/api/credit-risk/queue`);
-        const json = await res.json();
-        if (!res.ok || !json?.success) return;
-        if (cancelled) return;
-        const data = json?.data || {};
-        setCreditRiskQueue(Array.isArray(data.rows) ? data.rows : []);
-        setCreditRiskModelVersion(data.model_version || null);
-      } catch (err) {
-        // Silent-fail — dashboard still works without the credit risk card.
-        console.warn("Credit risk queue fetch failed:", err);
-      }
-    }
-
     fetchData();
-    fetchCreditRisk();
-    // 60s poll (was 15s) — endpoint takes 8-15s cold and the tighter interval
-    // caused request pile-up on the Bookkeeper's browser. Backend now caches
-    // responses for 30s so the second poll is near-instant.
+    // 60s poll — matches the endpoint's own 90s server-side cache, so most
+    // polls are served from cache rather than re-querying Supabase.
     const intervalId = window.setInterval(fetchData, 60000);
     return () => {
       cancelled = true;
@@ -180,80 +155,53 @@ const Dashboard = () => {
     };
   }, []);
 
-  const allPayments = useMemo(
-    () => loans.flatMap((loan) => (loan.payment_history || []).map((p) => ({ ...p, loan }))),
-    [loans]
-  );
-
   const stats = useMemo(() => {
-    // Total loans = every loan the bookkeeper is tracking (approved onward,
-    // filtered upstream). Previously we hid delinquent + zero-balance rows.
-    const totalLoans = loans.length;
-
-    const currentKey = monthKey(new Date());
-    const prevDate = new Date();
-    prevDate.setMonth(prevDate.getMonth() - 1);
-    const prevKey = monthKey(prevDate);
-
-    const sumForKey = (key) =>
-      allPayments
-        .filter((p) => String(p.date_paid || "").slice(0, 7) === key)
-        .reduce((s, p) => s + Number(p.amount_paid || 0), 0);
-
-    const paymentsThisMonth = sumForKey(currentKey);
-    const paymentsLastMonth = sumForKey(prevKey);
+    const s = summary?.stats || {};
+    const paymentsThisMonth = Number(s.payments_this_month || 0);
+    const paymentsLastMonth = Number(s.payments_last_month || 0);
     const monthChangePct = paymentsLastMonth > 0
       ? ((paymentsThisMonth - paymentsLastMonth) / paymentsLastMonth) * 100
       : 0;
-
     return {
-      totalLoans,
+      totalLoans: s.total_loans || 0,
       paymentsThisMonth,
       paymentsLastMonth,
       monthChangePct,
-      shareCapital: shareCapitalTotal,
+      shareCapital: Number(s.share_capital || 0),
     };
-  }, [loans, allPayments, shareCapitalTotal]);
+  }, [summary]);
 
-  // Credit Risk snapshot for the dashboard snippet. Bucketed by
-  // probability so the card mirrors the full Credit Risk page classification.
+  // Credit Risk snapshot for the dashboard snippet — counts/top-3 now come
+  // straight from the backend (dashboard-summary reads risk_assessments
+  // directly), so there's no client-side band bucketing left to do here.
   const creditRiskSnapshot = useMemo(() => {
-    const scored = creditRiskQueue.filter((r) => r.probability != null);
-    // Bands come from the backend, which reads its cut-offs from the model
-    // file. Never re-derive them from the probability here: the model's scores
-    // are low in absolute terms (most fall between 0.05 and 0.35), so a
-    // plausible-looking 0.3/0.6 split would count every application as low risk.
-    const high = scored.filter((r) => r.band === "RED");
-    const watch = scored.filter((r) => r.band === "AMBER");
-    const low = scored.filter((r) => r.band === "GREEN");
-    const topHigh = [...high]
-      .sort((a, b) => (b.probability || 0) - (a.probability || 0))
-      .slice(0, 3);
+    const cr = summary?.credit_risk || {};
     return {
-      total: scored.length,
-      queueTotal: creditRiskQueue.length,
-      high: high.length,
-      watch: watch.length,
-      low: low.length,
-      topHigh,
-      modelVersion: creditRiskModelVersion,
+      total: cr.total || 0,
+      queueTotal: cr.queue_total || 0,
+      high: cr.high || 0,
+      watch: cr.watch || 0,
+      low: cr.low || 0,
+      topHigh: (cr.top_high || []).map((r) => ({
+        loan_id: r.loan_id,
+        member_name: r.member_name,
+        loan_type: r.loan_type,
+        loan_amount: r.loan_amount,
+        probability: r.probability,
+      })),
+      modelVersion: cr.model_version || null,
     };
-  }, [creditRiskQueue, creditRiskModelVersion]);
+  }, [summary]);
 
   // Yearly Collections — one bar per fiscal year across all migrated + live
   // payments. TTMPC's legacy data spans ~2015-2026, so a static "this year vs
   // last year" is not enough context for the panelists.
   const yearlyBarData = useMemo(() => {
-    const byYear = new Map();
-    allPayments.forEach((p) => {
-      const y = String(p.date_paid || "").slice(0, 4);
-      if (!y || y.length !== 4) return;
-      byYear.set(y, (byYear.get(y) || 0) + Number(p.amount_paid || 0));
-    });
-    return Array.from(byYear.entries())
-      .sort(([a], [b]) => Number(a) - Number(b))
-      .map(([year, total]) => ({ name: year, value: Math.round(total) }));
-  }, [allPayments]);
+    return (summary?.yearly_collections || []).map((row) => ({
+      name: row.year,
+      value: Math.round(Number(row.total || 0)),
+    }));
+  }, [summary]);
 
   const collectionsChangePct = useMemo(() => {
     if (yearlyBarData.length < 2) return 0;
@@ -264,23 +212,15 @@ const Dashboard = () => {
   }, [yearlyBarData]);
 
   // Repayment behavior — monthly buckets for a user-picked year. TTMPC's 3-
-  // month rule = delinquent when >90 days past due. Legacy due dates are
-  // reconstructed but paired within a 180-day window so real late payments
-  // register while renewal-era payments (long after original term) are
-  // excluded from the ratio.
-  const DELINQUENT_DAY_THRESHOLD = 90;
+  // month rule = delinquent when >90 days past due. Bucketing itself now
+  // happens server-side (_compute_payment_charts); this just picks the
+  // selected year's 12 months out of repayment_behavior_by_year.
+  const behaviorByYear = useMemo(() => summary?.repayment_behavior_by_year || {}, [summary]);
 
   const availableYears = useMemo(() => {
-    const set = new Set();
-    allPayments.forEach((p) => {
-      if (p.days_offset === null || p.days_offset === undefined) return;
-      const y = String(p.date_paid || "").slice(0, 4);
-      if (y.length === 4) set.add(y);
-    });
-    return Array.from(set).sort((a, b) => Number(b) - Number(a));
-  }, [allPayments]);
+    return Object.keys(behaviorByYear).sort((a, b) => Number(b) - Number(a));
+  }, [behaviorByYear]);
 
-  const [chartYear, setChartYear] = useState("");
   useEffect(() => {
     if (!chartYear && availableYears.length) {
       // Default to the most recent year that has data.
@@ -290,64 +230,31 @@ const Dashboard = () => {
 
   const monthlyBehaviorData = useMemo(() => {
     const monthLabels = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-    const buckets = monthLabels.map((label, idx) => ({
-      name: label,
-      monthIdx: idx,
-      onTime: 0,
-      late: 0,
-    }));
-    if (!chartYear) return [];
-    allPayments.forEach((p) => {
-      if (p.days_offset === null || p.days_offset === undefined) return;
-      const iso = String(p.date_paid || "");
-      if (iso.slice(0, 4) !== chartYear) return;
-      const monthNum = Number(iso.slice(5, 7));
-      if (!monthNum) return;
-      const bucket = buckets[monthNum - 1];
-      if (Number(p.days_offset) > DELINQUENT_DAY_THRESHOLD) bucket.late += 1;
-      else bucket.onTime += 1;
-    });
-    return buckets.map((b) => {
-      const total = b.onTime + b.late;
+    const buckets = behaviorByYear[chartYear] || [];
+    return monthLabels.map((label, idx) => {
+      const b = buckets[idx] || { on_time: 0, late: 0 };
+      const total = (b.on_time || 0) + (b.late || 0);
       return {
-        name: b.name,
-        onTimePct: total > 0 ? Math.round((b.onTime / total) * 100) : 0,
+        name: label,
+        onTimePct: total > 0 ? Math.round((b.on_time / total) * 100) : 0,
         latePct: total > 0 ? Math.round((b.late / total) * 100) : 0,
-        onTimeCount: b.onTime,
-        lateCount: b.late,
+        onTimeCount: b.on_time || 0,
+        lateCount: b.late || 0,
         total,
       };
     });
-  }, [allPayments, chartYear]);
+  }, [behaviorByYear, chartYear]);
 
   const recentActivities = useMemo(() => {
-    // Exclude future-dated payments — Recent Activity should reflect payments
-    // that actually happened. The dataset carries simulated payments dated
-    // 2026-2028; without this filter they all render as "Just now" (timeAgo
-    // clamps negative deltas to 0) and drown out real recent activity.
-    const now = Date.now();
-    const sorted = [...allPayments]
-      .filter((p) => {
-        const t = new Date(p.date_paid || 0).getTime();
-        return Number.isFinite(t) && t > 0 && t <= now;
-      })
-      .sort((a, b) => {
-        const da = new Date(a.date_paid || 0).getTime();
-        const db = new Date(b.date_paid || 0).getTime();
-        return db - da;
-      });
-    return sorted.slice(0, 5).map((p, idx) => {
-      const isLate = Number(p.penalties || 0) > 0;
-      return {
-        id: `${p.payment_id || p.loan?.loan_id || "payment"}-${idx}`,
-        title: isLate ? "Late payment received" : "Payment received",
-        name: p.loan?.member_name || "Member",
-        amount: formatPeso(p.amount_paid),
-        time: timeAgo(p.date_paid),
-        color: isLate ? "bg-red-400" : "bg-green-500",
-      };
-    });
-  }, [allPayments]);
+    return (summary?.recent_activities || []).map((p, idx) => ({
+      id: `${p.payment_id || "payment"}-${idx}`,
+      title: p.is_late ? "Late payment received" : "Payment received",
+      name: p.member_name || "Member",
+      amount: formatPeso(p.amount_paid),
+      time: timeAgo(p.date_paid),
+      color: p.is_late ? "bg-red-400" : "bg-green-500",
+    }));
+  }, [summary]);
 
   const renderTrend = (pct) => {
     const positive = pct >= 0;
