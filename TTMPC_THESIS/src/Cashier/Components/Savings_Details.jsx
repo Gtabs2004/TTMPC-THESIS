@@ -35,6 +35,7 @@ import LoanNotificationBell from "../../components/LoanNotificationBell";
 import Breadcrumb from "../../components/Breadcrumb";
 import Pagination from "../../components/Pagination";
 import { formatWithCommas, stripCommas } from "../../utils/numberFormat";
+import { authHeaders } from "../../utils/authHeaders";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 const PAGE_SIZE = 10;
@@ -118,7 +119,7 @@ const useSavingsAccount = (accountParam) => {
       )}/${kind}`;
       const response = await fetch(url, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...(await authHeaders()) },
         body: JSON.stringify({ amount: Number(amount) }),
       });
       const result = await response.json().catch(() => ({}));

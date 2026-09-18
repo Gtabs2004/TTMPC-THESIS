@@ -6,6 +6,7 @@ import { UserAuth } from "../../contex/AuthContext";
 import { useConfirm } from "../../contex/ConfirmContext";
 import { useNotification } from "../../contex/NotificationContext";
 import { formatWithCommas, stripCommas } from "../../utils/numberFormat";
+import { authHeaders } from "../../utils/authHeaders";
 import StaffTopbar from "../../components/StaffTopbar";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
 import Breadcrumb from "../../components/Breadcrumb";
@@ -122,6 +123,7 @@ const Cashier_CBU_Deposit = () => {
         headers: {
           "Content-Type": "application/json",
           Accept: "application/json",
+          ...(await authHeaders()),
         },
         body: JSON.stringify({
           member_id: selectedMember.member_uuid || selectedMember.member_id,
