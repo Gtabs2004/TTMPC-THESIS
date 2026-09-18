@@ -9,6 +9,7 @@ import Breadcrumb from "../../components/Breadcrumb";
 import Pagination from "../../components/Pagination";
 // Adjust path to AuthContext if needed
 import LoanNotificationBell from "../../components/LoanNotificationBell";
+import { authHeaders } from "../../utils/authHeaders";
 import { 
   LayoutDashboard, 
   Search,
@@ -498,6 +499,7 @@ const Cashier_Payments = () => {
       headers: {
         "Content-Type": "application/json",
         "Accept": "application/json",
+        ...(await authHeaders()),
       },
       body: JSON.stringify(paymentPayload),
     });

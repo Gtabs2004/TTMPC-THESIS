@@ -254,7 +254,6 @@ const AuditLogViewer = ({ showActorRoleFilter = true, onError }) => {
       return [
         formatLogId(r.id),
         formatAuditTimestamp(r.occurred_at),
-        r.actor_email || "—",
         formatRole(r.actor_role),
         moduleInfo.label,
         ACTION_LABEL[r.action] || r.action,
@@ -270,7 +269,7 @@ const AuditLogViewer = ({ showActorRoleFilter = true, onError }) => {
     setExporting("csv");
     try {
       const bodyRows = await fetchExportRows();
-      const header = ["Log ID", "Date & Time", "User", "Role", "Module", "Action Type", "Record", "Status"];
+      const header = ["Log ID", "Date & Time", "Role", "Module", "Action Type", "Record", "Status"];
       const lines = [header, ...bodyRows].map((cells) =>
         cells.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(",")
       );
@@ -316,8 +315,8 @@ const AuditLogViewer = ({ showActorRoleFilter = true, onError }) => {
 
       autoTable(doc, {
         startY: 30,
-        head: [["Log ID", "Date & Time", "User", "Role", "Module", "Action Type", "Record", "Status"]],
-        body: bodyRows.length ? bodyRows : [["No data", "", "", "", "", "", "", ""]],
+        head: [["Log ID", "Date & Time", "Role", "Module", "Action Type", "Record", "Status"]],
+        body: bodyRows.length ? bodyRows : [["No data", "", "", "", "", "", ""]],
         theme: "grid",
         headStyles: { fillColor: [22, 101, 52], textColor: 255, fontStyle: "bold", fontSize: 9 },
         bodyStyles: { fontSize: 8.5, textColor: [30, 41, 59] },
@@ -493,7 +492,6 @@ const AuditLogViewer = ({ showActorRoleFilter = true, onError }) => {
               <tr className="bg-primary-deep text-[10px] uppercase tracking-wider text-white font-extrabold">
                 <th className="p-5 font-bold">Log ID</th>
                 <th className="p-5 font-bold">Date &amp; Time</th>
-                <th className="p-5 font-bold">User</th>
                 <th className="p-5 font-bold">Role</th>
                 <th className="p-5 font-bold">Module</th>
                 <th className="p-5 font-bold">Action Type</th>
@@ -504,7 +502,7 @@ const AuditLogViewer = ({ showActorRoleFilter = true, onError }) => {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={8} className="p-10 text-center">
+                  <td colSpan={7} className="p-10 text-center">
                     <div className="flex flex-col items-center justify-center gap-2">
                       <Loader2 size={24} className="text-gray-300 animate-spin" />
                       <p className="text-sm text-gray-400">Loading...</p>
@@ -513,7 +511,7 @@ const AuditLogViewer = ({ showActorRoleFilter = true, onError }) => {
                 </tr>
               ) : rows.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="p-10 text-center">
+                  <td colSpan={7} className="p-10 text-center">
                     <div className="flex flex-col items-center justify-center gap-2">
                       <ClipboardList size={32} className="text-gray-300" />
                       <p className="text-sm font-medium text-gray-500">No audit entries match these filters.</p>
@@ -528,7 +526,6 @@ const AuditLogViewer = ({ showActorRoleFilter = true, onError }) => {
                   <tr key={r.id} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
                     <td className="p-5 font-medium text-gray-900">{formatLogId(r.id)}</td>
                     <td className="p-5 text-gray-500">{formatAuditTimestamp(r.occurred_at)}</td>
-                    <td className="p-5 font-medium text-gray-700">{r.actor_email || "—"}</td>
                     <td className="p-5 text-gray-500">{formatRole(r.actor_role)}</td>
                     <td className="p-5">
                       <span className={`px-2.5 py-1 rounded-md text-[10px] font-bold tracking-wide ${moduleInfo.className}`}>
