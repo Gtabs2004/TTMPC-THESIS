@@ -6832,6 +6832,55 @@ async def post_savings_account_withdraw(account_number: str, payload: CashierSav
 # ---------------------------------------------------------------------------
 from migs_engine import compute_migs_score, result_to_dict  # noqa: E402
 
+
+class MigsOutsideLoanRequest(BaseModel):
+    """Bookkeeper's declaration for the 'Loans from Other PLIs' criterion."""
+
+    has_outside_loan: bool
+    year: int | None = None
+    note: str | None = None
+    declared_by: str | None = None
+    declared_by_email: str | None = None
+
+
+def _load_outside_loan_declarations(year: int) -> dict[str, bool]:
+    """member_id -> declared has_outside_loan for `year`.
+
+    "Loans from Other PLIs" is the one MIGS criterion with no system source --
+    every other one is derived from a ledger. It is entered by the bookkeeper
+    and stored in migs_outside_loan_declaration (see
+    migs_outside_loan_schema.sql for why it is NOT a column on the snapshot
+    table: recompute-all delete+inserts that table and would wipe it).
+
+    A member absent from this map has not been asked. Callers pass None for
+    them, and score_outside_loan() applies its documented default of 10/10 --
+    identical to the behaviour before this was wired, so no score moves until
+    a bookkeeper actually answers.
+
+    Never raises: a missing table (migration not yet applied) degrades to "no
+    declarations", which is exactly the old hardcoded-None behaviour.
+    """
+    if not supabase:
+        return {}
+    try:
+        response = (
+            supabase.table("migs_outside_loan_declaration")
+            .select("member_id,has_outside_loan")
+            .eq("year", year)
+            .execute()
+        )
+    except Exception as exc:  # noqa: BLE001
+        print(f"[migs] outside-loan declarations unavailable for {year}: {exc}")
+        return {}
+
+    declarations: dict[str, bool] = {}
+    for row in response.data or []:
+        member_id = row.get("member_id")
+        if member_id is not None:
+            declarations[str(member_id)] = bool(row.get("has_outside_loan"))
+    return declarations
+
+
 # ============================================================================
 # SECTION: MIGS Scoring (Member In Good Standing)
 # Endpoints wrapping migs_engine.py: list members with MIGS scores, recompute
@@ -7146,6 +7195,9 @@ async def list_migs_members(year: int | None = None):
             print(f"[migs] GA attendance lookup failed: {exc}")
 
         # --- Compose response --------------------------------------------
+        # One query for the whole page rather than one per member.
+        outside_loan_by_member = _load_outside_loan_declarations(target_year)
+
         rows = []
         for m in members:
             mid = m.get("id")
@@ -7167,13 +7219,16 @@ async def list_migs_members(year: int | None = None):
             grocery_v = grocery_by_member.get(mid, 0.0)
 
             attendance_v = ga_present_by_member.get(mid, False)
+            # None when no declaration exists -- score_outside_loan() then
+            # applies its 10/10 default, unchanged from before this was wired.
+            outside_loan_v = outside_loan_by_member.get(str(mid))
             result = compute_migs_score(
                 cbu_added=capital_v,
                 loan_availed=loan_v,
                 savings_balance=savings_v,
                 late_payment_count=late_v,
                 groceries_availed=grocery_v,
-                has_outside_loan=None,
+                has_outside_loan=outside_loan_v,
                 assembly_present=attendance_v,
             )
 
@@ -7188,7 +7243,7 @@ async def list_migs_members(year: int | None = None):
                 "savings_balance": savings_v,
                 "late_payment_count": late_v,
                 "groceries_availed": grocery_v,
-                "has_outside_loan": None,
+                "has_outside_loan": outside_loan_v,
                 "assembly_attendance": "Present" if attendance_v else "Absent",
                 # Live score + classification.
                 "migs_score": result.total_score,
@@ -7277,7 +7332,10 @@ async def recompute_all_migs(year: int | None = None):
             savings_balance=m.get("savings_balance") or 0,
             late_payment_count=m.get("late_payment_count") or 0,
             groceries_availed=m.get("groceries_availed") or 0,
-            has_outside_loan=None,
+            # list_migs_members already resolved the declaration for this year
+            # (and left it None where nobody has answered), so the snapshot
+            # scores the same value the screen showed.
+            has_outside_loan=m.get("has_outside_loan"),
             assembly_present=(m.get("assembly_attendance") == "Present"),
         )
         bp = {c.criterion: c.score for c in result.breakdown}
@@ -7689,6 +7747,10 @@ async def get_migs_member_detail(member_key: str, year: int | None = None):
         except Exception as exc:  # noqa: BLE001
             print(f"[migs detail] grocery lookup failed: {exc}")
 
+        # --- Loans from other PLIs (bookkeeper-declared) ------------------
+        # None when unanswered; score_outside_loan() then defaults to 10/10.
+        outside_loan_declared = _load_outside_loan_declarations(target_year).get(str(mid))
+
         # --- Score using the engine (safe defaults for unwired modules) ---
         result = compute_migs_score(
             cbu_added=capital,
@@ -7696,7 +7758,7 @@ async def get_migs_member_detail(member_key: str, year: int | None = None):
             savings_balance=savings,
             late_payment_count=late_count,
             groceries_availed=groceries,
-            has_outside_loan=None,
+            has_outside_loan=outside_loan_declared,
             assembly_present=attendance_present,
         )
         scored = result_to_dict(result)
@@ -7753,6 +7815,10 @@ async def get_migs_member_detail(member_key: str, year: int | None = None):
                 "savings_balance": savings,
                 "late_payment_count": late_count,
                 "groceries_availed": groceries,
+                # null = the bookkeeper has not been asked yet. The UI must
+                # show that differently from an explicit false, even though
+                # both score 10/10.
+                "has_outside_loan": outside_loan_declared,
                 "migs_score": scored["total_score"],
                 "migs_status": scored["status"],
                 "loan_multiplier": scored["loan_multiplier"],
@@ -7765,6 +7831,91 @@ async def get_migs_member_detail(member_key: str, year: int | None = None):
         raise err
     except Exception as err:
         raise HTTPException(status_code=500, detail=f"Failed to load MIGS member detail: {err}")
+
+
+@app.post("/api/migs/members/{member_key}/outside-loan")
+async def declare_migs_outside_loan(member_key: str, payload: MigsOutsideLoanRequest):
+    """Record the bookkeeper's 'Loans from Other PLIs' answer for a member.
+
+    The only MIGS criterion a person supplies -- everything else is derived
+    from a ledger. Stored in migs_outside_loan_declaration, one row per member
+    per year, deliberately apart from the snapshot table that recompute-all
+    rebuilds (see migs_outside_loan_schema.sql).
+
+    Scoring is untouched and still lives in migs_engine.score_outside_loan():
+    true -> 0 of 10, false -> 10 of 10.
+    """
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+
+    clean_key = str(member_key or "").strip()
+    if not clean_key:
+        raise HTTPException(status_code=400, detail="member_key is required.")
+
+    target_year = payload.year or datetime.utcnow().year
+
+    # member_key arrives as either the membership_id text (TTMPC-266, what the
+    # UI has in the URL) or the member.id uuid. Resolve to the uuid the table
+    # is keyed on -- these are two different keys that look interchangeable
+    # and are not.
+    try:
+        member_response = (
+            supabase.table("member")
+            .select("id,membership_id")
+            .or_(f"membership_id.eq.{clean_key},id.eq.{clean_key}")
+            .limit(1)
+            .execute()
+        )
+    except Exception:
+        # `id.eq.<non-uuid>` is a cast error in Postgres, so fall back to
+        # matching on membership_id alone.
+        member_response = (
+            supabase.table("member")
+            .select("id,membership_id")
+            .eq("membership_id", clean_key)
+            .limit(1)
+            .execute()
+        )
+
+    member_row = (member_response.data or [None])[0]
+    if not member_row:
+        raise HTTPException(status_code=404, detail=f"Member '{clean_key}' not found.")
+
+    record = {
+        "member_id": member_row["id"],
+        "year": target_year,
+        "has_outside_loan": bool(payload.has_outside_loan),
+        "declared_by_email": (payload.declared_by_email or "").strip() or None,
+        "note": (payload.note or "").strip() or None,
+    }
+    if payload.declared_by:
+        record["declared_by"] = payload.declared_by
+
+    try:
+        supabase.table("migs_outside_loan_declaration").upsert(
+            record, on_conflict="member_id,year"
+        ).execute()
+    except Exception as err:
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                f"Failed to save the outside-loan declaration: {err}. "
+                "If the table is missing, apply migs_outside_loan_schema.sql."
+            ),
+        )
+
+    return {
+        "success": True,
+        "data": {
+            "member_id": member_row["id"],
+            "membership_id": member_row.get("membership_id"),
+            "year": target_year,
+            "has_outside_loan": bool(payload.has_outside_loan),
+            # Mirrors score_outside_loan(); shown so the caller can confirm the
+            # points moved the way they expected.
+            "pli_points": 0 if payload.has_outside_loan else 10,
+        },
+    }
 
 
 # ---------------------------------------------------------------------------

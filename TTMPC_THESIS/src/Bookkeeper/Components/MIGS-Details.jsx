@@ -30,6 +30,11 @@ import {
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 
+// Must match the criterion label the engine emits
+// (migs_engine.py compute_migs_score). It is the only bookkeeper-entered
+// criterion -- the other six are derived from ledgers.
+const OUTSIDE_LOAN_CRITERION = "Loans from Other PLIs";
+
 const MIGSDetails = () => {
     const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -97,6 +102,53 @@ const MIGSDetails = () => {
     }
   };
 
+  // `value` is the answer being recorded, so each button on the row is an
+  // explicit statement. It is NOT driven by the confirm dialog's boolean:
+  // ConfirmDialog resolves false for Escape, the backdrop, and the X as well
+  // as for Cancel, so treating false as "No outside loan" would silently
+  // record an answer nobody gave -- and this answer is worth 10 points, enough
+  // to cross the MIGS threshold on its own.
+  const handleDeclareOutsideLoan = async (value) => {
+    if (busy) return;
+    const current = memberData?.has_outside_loan;
+    if (current === value) return; // already recorded that way
+
+    const ok = await confirm({
+      title: "Loans from Other PLIs",
+      message: value
+        ? `Record that ${memberData?.full_name || "this member"} HAS a loan with another Private Lending Institution? This scores 0 of 10 points.`
+        : `Record that ${memberData?.full_name || "this member"} has NO loan with another Private Lending Institution? This scores 10 of 10 points.`,
+      confirmLabel: value ? "Record: has outside loan" : "Record: no outside loan",
+      tone: "warning",
+    });
+    if (!ok) return;
+
+    setBusy(true);
+    try {
+      const year = new Date().getFullYear();
+      const res = await fetch(
+        `${API_BASE_URL}/api/migs/members/${encodeURIComponent(memberId)}/outside-loan`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ has_outside_loan: value, year }),
+        }
+      );
+      const result = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(result?.detail || "Failed to save the declaration.");
+      const fresh = await fetchMember();
+      setMemberData(fresh);
+      showToast(
+        `Recorded: ${value ? "has an outside loan" : "no outside loan"}. ` +
+          `Score is now ${fresh?.migs_score ?? "—"} (${fresh?.migs_status ?? "—"}).`
+      );
+    } catch (err) {
+      showToast(err?.message || "Failed to save the declaration.", "error");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const handleFinalizeScore = async () => {
     if (busy) return;
     const ok = await confirm({
@@ -157,64 +209,79 @@ const MIGSDetails = () => {
           ) : error ? (
             <p className="text-center text-red-600">{error}</p>
           ) : memberData ? (
-            <div className="max-w-5xl">
+            <div className="max-w-[1600px]">
               {/* Member Header */}
-              <div className="bg-white rounded-xl p-6 mb-6 border border-gray-200">
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center">
+              {/* items-center (was items-start) so the badge sits on the
+                  member's optical centre instead of riding the top edge. */}
+              <div className="bg-white rounded-xl px-6 py-5 mb-5 border border-gray-200">
+                <div className="flex items-center justify-between gap-4 flex-wrap">
+                  <div className="flex items-center gap-4 min-w-0">
+                    <div className="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center shrink-0">
                       <span className="text-lg font-bold text-green-700">
                         {(memberData.full_name || "?").charAt(0)}
                       </span>
                     </div>
-                    <div>
-                      <h1 className="text-2xl font-bold text-gray-900">{memberData.full_name || "Unknown Member"}</h1>
-                      <p className="text-gray-600">
-                        # {memberData.member_id || "—"}
-                        <span className="text-gray-400 ml-4">{memberData.year || ""}</span>
+                    <div className="min-w-0">
+                      <h1 className="text-2xl leading-tight font-bold text-gray-900 truncate">
+                        {memberData.full_name || "Unknown Member"}
+                      </h1>
+                      {/* ID and year demoted to a single secondary line, with
+                          a dot separator instead of a bare ml-4 gap. */}
+                      <p className="mt-1 flex items-center gap-2 text-xs text-gray-500">
+                        <span className="font-mono">#{memberData.member_id || "—"}</span>
+                        {memberData.year ? (
+                          <>
+                            <span className="text-gray-300">•</span>
+                            <span>{memberData.year}</span>
+                          </>
+                        ) : null}
                       </p>
                     </div>
                   </div>
-                  <div className="text-right">
-                    {memberData.migs_status ? (
-                      <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-full font-semibold text-sm ${
-                        memberData.migs_status === "MIGS Qualified"
-                          ? "bg-green-100 text-green-700"
-                          : "bg-red-100 text-red-700"
-                      }`}>
-                        <span>✓</span>
-                        {memberData.migs_status}
-                      </div>
-                    ) : (
-                      <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full font-semibold text-sm bg-gray-100 text-gray-500 border border-gray-200">
-                        Not scored yet
-                      </div>
-                    )}
-                  </div>
+                  {memberData.migs_status ? (
+                    <div className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full font-semibold text-sm border shrink-0 ${
+                      memberData.migs_status === "MIGS Qualified"
+                        ? "bg-green-100 text-green-700 border-green-200"
+                        : "bg-red-100 text-red-700 border-red-200"
+                    }`}>
+                      <span className="leading-none">
+                        {memberData.migs_status === "MIGS Qualified" ? "✓" : "○"}
+                      </span>
+                      {memberData.migs_status}
+                    </div>
+                  ) : (
+                    <div className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full font-semibold text-sm bg-gray-100 text-gray-500 border border-gray-200 shrink-0">
+                      Not scored yet
+                    </div>
+                  )}
                 </div>
               </div>
 
               {/* Scoring Breakdown */}
-              <div className="grid grid-cols-3 gap-6 mb-6">
+              {/* Stacks below lg so the table keeps its width on a laptop
+                  instead of being squeezed into a third of the viewport. */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 mb-6 items-start">
                 {/* Left: Scoring Breakdown Table */}
-                <div className="col-span-2">
+                <div className="lg:col-span-2 min-w-0">
                   <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-                    <div className="p-6 border-b border-gray-200">
-                      <div className="flex items-center gap-2 mb-2">
-                        
-                        <h2 className="text-xl font-bold text-gray-900">Scoring Breakdown</h2>
-                      </div>
+                    <div className="px-5 py-3 border-b border-gray-200">
+                      <h2 className="text-base font-bold text-gray-900">Scoring Breakdown</h2>
                     </div>
 
                     <div className="overflow-x-auto">
                       <table className="w-full text-sm">
                         <thead>
+                          {/* Value is right-aligned so the peso amounts stack;
+                              Progress gets a fixed width so every bar in the
+                              column is identical regardless of row content. */}
                           <tr className="bg-primary-deep text-[10px] uppercase tracking-wider text-white font-extrabold">
-                            <th className="p-5 font-bold">Criterion</th>
-                            <th className="p-5 font-bold">Value</th>
-                            <th className="p-5 font-bold text-center">Score</th>
-                            <th className="p-5 font-bold text-center">Progress</th>
-                            <th className="p-5 font-bold text-center"></th>
+                            <th className="px-5 py-2.5 font-bold w-full">Criterion</th>
+                            <th className="px-3 py-2.5 font-bold text-right w-[130px]">Value</th>
+                            <th className="px-3 py-2.5 font-bold text-right whitespace-nowrap w-[80px]">Score</th>
+                            <th className="px-3 py-2.5 font-bold text-left w-[124px]">Progress</th>
+                            <th className="px-3 py-2.5 font-bold text-right w-[92px]">
+                              <span className="sr-only">Actions</span>
+                            </th>
                           </tr>
                         </thead>
                         <tbody>
@@ -226,46 +293,107 @@ const MIGSDetails = () => {
                               item.criterion.toLowerCase().includes("groceries");
                             const formattedValue =
                               item.value == null
-                                ? <span className="text-gray-400 italic text-xs">Not wired yet</span>
+                                ? <span className="text-gray-400 text-xs">Not wired yet</span>
                                 : typeof item.value === "number"
                                 ? isCurrency
                                   ? `₱${item.value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
                                   : item.value.toLocaleString()
                                 : item.value;
+
+                            // "Loans from Other PLIs" is the one criterion a
+                            // person supplies; everything else is derived.
+                            const isOutsideLoanRow = item.criterion === OUTSIDE_LOAN_CRITERION;
+                            const declared = memberData.has_outside_loan;
+                            // Unanswered and "confirmed none" both score 10/10,
+                            // so they must never look the same on screen.
+                            const outsideLoanLabel = !isOutsideLoanRow ? null : declared == null ? (
+                              <span className="text-amber-600 text-xs font-medium">Not recorded</span>
+                            ) : declared ? (
+                              <span className="text-red-600 text-xs font-semibold">Has outside loan</span>
+                            ) : (
+                              <span className="text-gray-700 text-xs">None</span>
+                            );
+
                             return (
-                              <tr key={index} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
-                                <td className="p-5 font-medium text-gray-800">{item.criterion}</td>
-                                <td className="p-5 text-gray-700">{formattedValue}</td>
-                                <td className="p-5 text-center">
+                              <tr key={index} className="border-b border-gray-100 last:border-0 hover:bg-gray-50 transition-colors">
+                                <td className="px-5 py-2.5 font-medium text-gray-800 w-full">{item.criterion}</td>
+                                <td className="px-3 py-2.5 text-right text-gray-700 tabular-nums whitespace-nowrap">
+                                  {isOutsideLoanRow ? outsideLoanLabel : formattedValue}
+                                </td>
+                                {/* Earned score carries the weight; the max is
+                                    deliberately smaller and lighter. */}
+                                <td className="px-3 py-2.5 text-right whitespace-nowrap">
                                   {item.score == null ? (
                                     <span className="text-gray-400 italic text-xs">— / {item.max_score}</span>
                                   ) : (
-                                    <span className="font-bold text-gray-800">
-                                      {item.score} <span className="text-gray-400">/ {item.max_score}</span>
+                                    <span className="tabular-nums">
+                                      <span className="font-bold text-gray-900 text-base">{item.score}</span>
+                                      <span className="text-gray-400 text-xs"> / {item.max_score}</span>
                                     </span>
                                   )}
                                 </td>
-                                <td className="p-5">
+                                <td className="px-3 py-2.5">
                                   {item.progress == null ? (
                                     <span className="text-gray-400 italic text-xs">Pending</span>
                                   ) : (
+                                    // Fixed-width track (not flex-1) so bars are
+                                    // comparable row to row; the 0% track stays
+                                    // visible because the rail is always drawn.
                                     <div className="flex items-center gap-2">
-                                      <div className="flex-1 bg-gray-200 rounded-full h-2">
-                                        <div
-                                          className="bg-green-600 h-2 rounded-full transition-all"
-                                          style={{ width: `${item.progress}%` }}
-                                        ></div>
-                                      </div>
-                                      <span className="text-xs font-semibold text-gray-600 w-8 text-right">
+                                      <span className="block w-14 shrink-0 bg-gray-200 rounded-full h-1.5 overflow-hidden">
+                                        <span
+                                          className="block bg-green-600 h-full rounded-full transition-all"
+                                          style={{ width: `${Math.max(0, Math.min(100, Number(item.progress)))}%` }}
+                                        />
+                                      </span>
+                                      <span className="text-[11px] font-semibold text-gray-500 tabular-nums w-9 text-right">
                                         {item.progress}%
                                       </span>
                                     </div>
                                   )}
                                 </td>
-                                <td className="p-5 text-center">
-                                  <button className="p-1.5 rounded-lg hover:bg-gray-200 transition-colors" disabled title="Override coming soon">
-                                    <Edit2 className="w-4 h-4 text-gray-400" />
-                                  </button>
+                                <td className="px-3 py-2.5 text-right">
+                                  {/* Only the PLI row is editable. Every other
+                                      criterion is derived from a ledger, so an
+                                      override there would silently disagree
+                                      with the books. */}
+                                  {isOutsideLoanRow ? (
+                                    <div className="inline-flex items-center gap-1">
+                                      <button
+                                        onClick={() => handleDeclareOutsideLoan(false)}
+                                        disabled={busy}
+                                        title="Record: no loan with another PLI (10 of 10)"
+                                        className={`px-2 h-7 rounded-md border text-[11px] font-semibold focus:outline-none focus:ring-2 focus:ring-green-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                                          declared === false
+                                            ? "bg-green-600 text-white border-green-600"
+                                            : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"
+                                        }`}
+                                      >
+                                        No
+                                      </button>
+                                      <button
+                                        onClick={() => handleDeclareOutsideLoan(true)}
+                                        disabled={busy}
+                                        title="Record: has a loan with another PLI (0 of 10)"
+                                        className={`px-2 h-7 rounded-md border text-[11px] font-semibold focus:outline-none focus:ring-2 focus:ring-red-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                                          declared === true
+                                            ? "bg-red-600 text-white border-red-600"
+                                            : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"
+                                        }`}
+                                      >
+                                        Yes
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <button
+                                      className="inline-flex items-center justify-center w-8 h-8 rounded-lg text-gray-300 cursor-not-allowed"
+                                      disabled
+                                      title="Derived from the ledger — not editable"
+                                    >
+                                      <Edit2 className="w-4 h-4" />
+                                      <span className="sr-only">{item.criterion} is not editable</span>
+                                    </button>
+                                  )}
                                 </td>
                               </tr>
                             );
@@ -277,60 +405,68 @@ const MIGSDetails = () => {
                 </div>
 
                 {/* Right: Total Score Card */}
-                <div className="col-span-1">
+                <div className="lg:col-span-1 min-w-0">
                   <div className="bg-white rounded-xl border border-gray-200 p-6">
-                    <div className="flex items-center gap-2 mb-4">
-                      
-                      <h3 className="font-bold text-gray-900">Total Score</h3>
-                    </div>
+                    <h3 className="font-bold text-gray-900 text-base mb-4">Total Score</h3>
 
-                    <div className="text-center mb-6">
+                    {/* Score and its meter share one block -- the caption sat
+                        in a separate grey panel before, reading as unrelated
+                        to the number above it. mb-3 not mb-6 for that reason. */}
+                    <div className="text-center mb-3">
                       {memberData.migs_score == null ? (
                         <div className="inline-flex flex-col items-center">
-                          <span className="text-5xl font-bold text-gray-300">—</span>
-                          <span className="text-xs text-gray-400 mt-1 uppercase tracking-wider">Pending score</span>
+                          <span className="text-5xl font-bold text-gray-300 leading-none">—</span>
+                          <span className="text-[11px] text-gray-400 mt-2 uppercase tracking-wider">Pending score</span>
                         </div>
                       ) : (
-                        <div className="inline-flex items-center justify-center">
-                          <span className="text-5xl font-bold text-green-700">{memberData.migs_score}</span>
-                          <div className="ml-2 flex flex-col">
-                            <span className="text-gray-400">/</span>
-                            <span className="text-gray-500 text-lg">100</span>
-                          </div>
+                        <div className="inline-flex items-baseline justify-center gap-1 tabular-nums">
+                          <span className="text-5xl leading-none font-bold text-green-700">
+                            {memberData.migs_score}
+                          </span>
+                          <span className="text-lg font-semibold text-gray-400">/ 100</span>
                         </div>
                       )}
                     </div>
 
-                    <div className="bg-gray-50 rounded-lg p-4 mb-6">
-                      <div className="w-full bg-gray-200 rounded-full h-3 mb-2">
+                    <div className="mb-5">
+                      <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
                         <div
-                          className="bg-green-600 h-3 rounded-full transition-all"
-                          style={{ width: `${memberData.migs_score || 0}%` }}
+                          className="bg-green-600 h-full rounded-full transition-all"
+                          style={{ width: `${Math.max(0, Math.min(100, Number(memberData.migs_score) || 0))}%` }}
                         ></div>
                       </div>
-                      <p className="text-xs text-gray-600 text-center font-medium">
+                      <p className="text-[11px] text-gray-500 text-center font-medium mt-1.5">
                         {memberData.migs_score == null
                           ? "Scoring engine pending"
                           : `${memberData.migs_score}% Complete`}
                       </p>
                     </div>
 
-                    <div className="text-center mb-6">
-                      {memberData.migs_status == null ? (
-                        <div className="inline-flex items-center gap-2 px-4 py-2 rounded-lg font-semibold text-sm bg-gray-100 text-gray-500 border border-gray-200">
-                          Not classified
-                        </div>
-                      ) : (
-                        <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg font-semibold text-sm ${
-                          memberData.migs_status === "MIGS Qualified"
-                            ? "bg-green-50 text-green-700 border border-green-200"
-                            : "bg-red-50 text-red-700 border border-red-200"
-                        }`}>
-                          <span>✓</span>
-                          Classification
-                        </div>
-                      )}
-                      <p className="text-xs text-gray-500 mt-2 font-medium">
+                    {/* The verdict and its explanation now sit inside one
+                        tinted block, so the sentence reads as the result's
+                        caption rather than as floating text beneath a pill. */}
+                    <div className={`rounded-lg border px-4 py-3 text-center ${
+                      memberData.migs_status == null
+                        ? "bg-gray-50 border-gray-200"
+                        : memberData.migs_status === "MIGS Qualified"
+                        ? "bg-green-50 border-green-200"
+                        : "bg-red-50 border-red-200"
+                    }`}>
+                      <p className={`inline-flex items-center gap-1.5 font-semibold text-sm ${
+                        memberData.migs_status == null
+                          ? "text-gray-500"
+                          : memberData.migs_status === "MIGS Qualified"
+                          ? "text-green-700"
+                          : "text-red-700"
+                      }`}>
+                        {memberData.migs_status != null && (
+                          <span className="leading-none">
+                            {memberData.migs_status === "MIGS Qualified" ? "✓" : "○"}
+                          </span>
+                        )}
+                        {memberData.migs_status == null ? "Not classified" : memberData.migs_status}
+                      </p>
+                      <p className="text-[11px] text-gray-500 mt-1">
                         {memberData.migs_status == null
                           ? "Awaiting MIGS scoring engine"
                           : memberData.migs_status === "MIGS Qualified"
@@ -339,25 +475,27 @@ const MIGSDetails = () => {
                       </p>
                     </div>
 
-                    <hr className="my-6" />
+                    <hr className="my-5 border-gray-200" />
 
                     <div>
-                      <h4 className="font-bold text-gray-900 mb-3 text-sm">Actions</h4>
+                      <h4 className="font-bold text-gray-900 mb-2.5 text-xs uppercase tracking-wider">Actions</h4>
+                      {/* Primary first: Finalize is the action this screen
+                          exists for, Recalculate is the way back. */}
                       <div className="space-y-2">
-                        <button
-                          onClick={handleRecalculate}
-                          disabled={busy}
-                          className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-700 font-semibold hover:bg-gray-50 transition-colors text-sm disabled:opacity-50"
-                        >
-                          {busy ? "Working…" : "Recalculate"}
-                        </button>
                         <button
                           onClick={handleFinalizeScore}
                           disabled={busy}
-                          className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-green-600 text-white font-semibold hover:bg-green-700 transition-colors text-sm disabled:opacity-50"
+                          className="w-full h-10 flex items-center justify-center gap-1.5 rounded-lg bg-green-600 text-white font-semibold text-sm hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-600 focus:ring-offset-1 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
                         >
-                          <span>✓</span>
-                          Finalize Score
+                          <span className="leading-none">✓</span>
+                          {busy ? "Working…" : "Finalize Score"}
+                        </button>
+                        <button
+                          onClick={handleRecalculate}
+                          disabled={busy}
+                          className="w-full h-10 flex items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white text-gray-700 font-semibold text-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-1 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                        >
+                          {busy ? "Working…" : "Recalculate"}
                         </button>
                       </div>
                       {toast && (

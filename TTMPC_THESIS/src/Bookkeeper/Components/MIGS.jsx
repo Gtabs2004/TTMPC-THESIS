@@ -35,6 +35,16 @@ import {
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 const ITEMS_PER_PAGE = 10;
 
+// The MIGS pass mark (migs_engine.py MIGS_THRESHOLD). Used only to tint the
+// score meter -- the classification itself still comes from migs_status off
+// the server, never from re-deriving it here.
+const MIGS_THRESHOLD = 50;
+
+// One class string for all three filter selects. h-10 matches the search
+// input so the toolbar shares a single baseline.
+const FILTER_SELECT_CLASS =
+  "h-10 pl-3 pr-8 rounded-lg border border-gray-200 bg-white text-sm font-medium text-gray-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#2C7A3F] focus:border-transparent transition-colors";
+
 const MIGS = () => {
     const navigate = useNavigate();
   const { addNotification } = useNotification();
@@ -163,8 +173,19 @@ const MIGS = () => {
     return status === "MIGS Qualified" ? "✓" : "○";
   };
 
+  // Same peso formatting as the ISC pages (ISC_Distribution.jsx:42) so the
+  // portal reads consistently. A bare toLocaleString() drops the centavos --
+  // it rendered 337,758.2 instead of 337,758.20.
+  const formatCurrency = (value) =>
+    value === null || value === undefined
+      ? "—"
+      : `₱${Number(value).toLocaleString(undefined, {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        })}`;
+
   return (
-    <div className="flex min-h-screen bg-gray-100">
+    <div className="flex min-h-screen bg-gray-50">
       {computing && (
         <div className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm flex items-center justify-center">
           <div className="bg-white rounded-xl shadow-2xl px-8 py-7 max-w-sm w-full mx-4 border border-gray-200">
@@ -192,10 +213,10 @@ const MIGS = () => {
 
       <StaffSidebar portal="Bookkeeper" items={bookkeeperNav} />
 
-      <div className="flex min-h-screen bg-gray-50">
+      <div className="flex-1 flex flex-col h-screen overflow-y-auto min-w-0">
         <StaffTopbar portal="Bookkeeper" notifications={<LoanNotificationBell role="bookkeeper" />} />
 
-        <main className="p-8 flex-1 overflow-y-auto">
+        <main className="p-8 min-w-0">
           <div className="flex items-center justify-between mb-6">
             <div>
               <Breadcrumb portal="Bookkeeper" page="MIGS Scoring" />
@@ -227,23 +248,26 @@ const MIGS = () => {
 
           {/* Table Section (filters toolbar + table share this card) */}
           <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-            <div className="p-5 border-b border-gray-100 flex flex-wrap gap-4 items-center justify-between">
-              <div className="relative flex-1 max-w-xs">
-                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400" />
+            {/* Filter toolbar. Every control is h-10 so the row has one
+                baseline; the selects share a single class string rather than
+                three near-identical copies that drift apart on edit. */}
+            <div className="px-5 py-4 border-b border-gray-100 flex flex-wrap gap-3 items-center justify-between">
+              <div className="relative flex-1 min-w-[220px] max-w-xs">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
                 <input
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   type="text"
-                  className="bg-gray-50 w-full h-10 rounded-lg border border-gray-200 pl-10 pr-4 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-[#2C7A3F]"
+                  className="bg-gray-50 w-full h-10 rounded-lg border border-gray-200 pl-9 pr-3 text-sm text-gray-700 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#2C7A3F] focus:border-transparent focus:bg-white transition-colors"
                   placeholder="Search by name or ID..."
                 />
               </div>
 
-              <div className="flex gap-4 items-center">
+              <div className="flex flex-wrap gap-2 items-center">
                 <select
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value)}
-                  className="px-4 py-2 rounded-lg border border-gray-200 bg-white text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#2C7A3F]"
+                  className={FILTER_SELECT_CLASS}
                 >
                   <option>All Status</option>
                   <option>Pending</option>
@@ -254,7 +278,7 @@ const MIGS = () => {
                 <select
                   value={yearFilter}
                   onChange={(e) => setYearFilter(e.target.value)}
-                  className="px-4 py-2 rounded-lg border border-gray-200 bg-white text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#2C7A3F]"
+                  className={FILTER_SELECT_CLASS}
                 >
                   <option>2026</option>
                   <option>2025</option>
@@ -265,7 +289,7 @@ const MIGS = () => {
                 <select
                   value={sortBy}
                   onChange={(e) => setSortBy(e.target.value)}
-                  className="px-4 py-2 rounded-lg border border-gray-200 bg-white text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#2C7A3F]"
+                  className={FILTER_SELECT_CLASS}
                 >
                   <option>Name A-Z</option>
                   <option>Name Z-A</option>
@@ -278,15 +302,18 @@ const MIGS = () => {
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
+                  {/* Money columns are right-aligned so digits line up
+                      column-wise and can be scanned; everything else keeps
+                      its existing alignment. */}
                   <tr className="bg-primary-deep text-[10px] uppercase tracking-wider text-white font-extrabold">
-                    <th className="p-5 font-bold">Member Name</th>
-                    <th className="p-5 font-bold">ID</th>
-                    <th className="p-5 font-bold text-center">Capital</th>
-                    <th className="p-5 font-bold text-center">Loan</th>
-                    <th className="p-5 font-bold text-center">Savings</th>
-                    <th className="p-5 font-bold text-center">Score</th>
-                    <th className="p-5 font-bold text-center">Status</th>
-                    <th className="p-5 font-bold text-center">Action</th>
+                    <th className="px-5 py-3.5 font-bold">Member Name</th>
+                    <th className="px-4 py-3.5 font-bold">ID</th>
+                    <th className="px-4 py-3.5 font-bold text-right">Capital</th>
+                    <th className="px-4 py-3.5 font-bold text-right">Loan</th>
+                    <th className="px-4 py-3.5 font-bold text-right">Savings</th>
+                    <th className="px-4 py-3.5 font-bold text-center w-[132px]">Score</th>
+                    <th className="px-4 py-3.5 font-bold text-center">Status</th>
+                    <th className="px-5 py-3.5 font-bold text-right">Action</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -310,41 +337,58 @@ const MIGS = () => {
                     </tr>
                   ) : (
                     paginatedRows.map((r) => (
-                      <tr key={String(r.id || r.member_id)} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
-                        <td className="p-5 text-sm font-medium text-gray-800">{r.full_name}</td>
-                        <td className="p-5 text-sm text-gray-600 font-mono text-[12px]">{r.member_id}</td>
-                        <td className="p-5 text-sm text-center text-gray-700">₱{(r.capital || 0).toLocaleString()}</td>
-                        <td className="p-5 text-sm text-center text-gray-700">₱{(r.loan_balance || 0).toLocaleString()}</td>
-                        <td className="p-5 text-sm text-center text-gray-700">₱{(r.savings_balance || 0).toLocaleString()}</td>
-                        <td className="p-5 text-sm text-center">
+                      <tr key={String(r.id || r.member_id)} className="border-b border-gray-100 last:border-0 hover:bg-gray-50 transition-colors">
+                        <td className="px-5 py-4 text-sm font-medium text-gray-800">{r.full_name}</td>
+                        <td className="px-4 py-4 text-[12px] text-gray-500 font-mono whitespace-nowrap">{r.member_id}</td>
+                        {/* tabular-nums keeps digits a fixed width so the
+                            right-aligned amounts stack cleanly down the column. */}
+                        <td className="px-4 py-4 text-sm text-right text-gray-700 tabular-nums whitespace-nowrap">{formatCurrency(r.capital)}</td>
+                        <td className="px-4 py-4 text-sm text-right text-gray-700 tabular-nums whitespace-nowrap">{formatCurrency(r.loan_balance)}</td>
+                        <td className="px-4 py-4 text-sm text-right text-gray-700 tabular-nums whitespace-nowrap">{formatCurrency(r.savings_balance)}</td>
+                        <td className="px-4 py-4 text-sm">
                           {r.migs_score == null ? (
-                            <span className="text-gray-400 text-xs italic">Not scored</span>
+                            <span className="block text-center text-gray-400 text-xs italic">Not scored</span>
                           ) : (
-                            <div className="flex items-center justify-center gap-1">
-                              <span className="font-bold text-gray-800">{r.migs_score}</span>
-                              <span className="text-gray-400">/</span>
-                              <span className="text-gray-500">100</span>
+                            // Score, then a thin meter of the same value. The
+                            // tint follows MIGS_THRESHOLD purely as a visual
+                            // cue; the badge beside it remains the source of
+                            // truth for classification.
+                            <div className="flex flex-col items-center gap-1.5">
+                              <span className="tabular-nums leading-none">
+                                <span className="font-bold text-gray-900 text-[15px]">{r.migs_score}</span>
+                                <span className="text-gray-400 text-xs"> / 100</span>
+                              </span>
+                              <span className="block w-16 h-1 rounded-full bg-gray-100 overflow-hidden">
+                                <span
+                                  className={`block h-full rounded-full ${
+                                    r.migs_score >= MIGS_THRESHOLD ? "bg-[#2C7A3F]" : "bg-red-400"
+                                  }`}
+                                  style={{ width: `${Math.max(0, Math.min(100, Number(r.migs_score)))}%` }}
+                                />
+                              </span>
                             </div>
                           )}
                         </td>
-                        <td className="p-5 text-sm text-center">
+                        <td className="px-4 py-4 text-sm text-center">
                           {r.migs_status == null ? (
-                            <span className="inline-flex px-3 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-500 border border-gray-200">
+                            <span className="inline-flex items-center justify-center px-2.5 py-1 rounded-full text-[11px] font-semibold bg-gray-100 text-gray-500 border border-gray-200 whitespace-nowrap">
                               Pending
                             </span>
                           ) : (
-                            <span className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold border ${getMIGSStatusColor(r.migs_status)}`}>
-                              <span>{getMIGSStatusIcon(r.migs_status)}</span>
+                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold border whitespace-nowrap ${getMIGSStatusColor(r.migs_status)}`}>
+                              <span className="leading-none">{getMIGSStatusIcon(r.migs_status)}</span>
                               {r.migs_status === "MIGS Qualified" ? "MIGS Qualified" : "Non-MIGS"}
                             </span>
                           )}
                         </td>
-                        <td className="p-5 text-sm text-center">
+                        <td className="px-5 py-4 text-sm text-right">
+                          {/* Bordered pill rather than bare text: a bigger,
+                              more obvious hit area, and it reads as a control. */}
                           <button
                             onClick={() => navigate(`/migs-evaluate?member_id=${encodeURIComponent(String(r.member_id || ""))}`)}
-                            className="btn-enhanced text-member-green font-bold hover:text-[#0d4a1a] transition-colors flex items-center justify-center gap-1"
+                            className="inline-flex items-center gap-1.5 px-3 h-8 rounded-lg border border-gray-200 text-[#2C7A3F] text-xs font-semibold hover:bg-green-50 hover:border-[#2C7A3F] focus:outline-none focus:ring-2 focus:ring-[#2C7A3F] transition-colors"
                           >
-                            <Eye className="w-4 h-4" />
+                            <Eye className="w-3.5 h-3.5" />
                             Evaluate
                           </button>
                         </td>
@@ -357,7 +401,9 @@ const MIGS = () => {
           </div>
 
           {!loading && filtered.length > 0 ? (
-            <Pagination page={currentPage} totalPages={totalPages} onChange={setCurrentPage} />
+            <div className="mt-4">
+              <Pagination page={currentPage} totalPages={totalPages} onChange={setCurrentPage} />
+            </div>
           ) : null}
         </main>
       </div>
