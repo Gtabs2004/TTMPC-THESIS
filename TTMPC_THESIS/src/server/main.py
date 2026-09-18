@@ -186,6 +186,17 @@ async def _warm_manage_loans_cache():
     except Exception as e:
         logger.warning(f"Dashboard-summary cache warm-up failed (non-fatal): {e}")
 
+    try:
+        # Same reasoning again — BOD's Manage Member page hits this on load,
+        # and it was the slowest of the three uncached (CSV read + full
+        # loans-table scan for clustering, ~2-4s even once the connection is
+        # warm). member-loan-summary needs no separate warm-up: it reuses
+        # get_bookkeeper_manage_loans()'s cache, already warmed above.
+        await get_personal_datasheet_records()
+        logger.info("Personal datasheet cache warmed on startup.")
+    except Exception as e:
+        logger.warning(f"Personal datasheet cache warm-up failed (non-fatal): {e}")
+
 
 @asynccontextmanager
 async def _lifespan(app: FastAPI):
@@ -5287,6 +5298,34 @@ def _compute_payment_charts() -> tuple[list[dict], dict[str, list[dict]]]:
     return yearly_collections, behavior_by_year
 
 
+@app.get("/api/bod/member-loan-summary")
+async def get_bod_member_loan_summary():
+    """Per-member {activeCount, paidCount} only — for BOD Manage Member, which
+    previously fetched the FULL manage-loans payload (payment_history,
+    schedules, member/loan_type joins — ~15s cold) just to derive these two
+    counts per row. Reuses get_bookkeeper_manage_loans()'s own cached payload
+    (its repayment-status logic is the single source of truth for "active" vs
+    "paid" — not reimplemented here) and returns only the narrow map the UI
+    actually renders.
+    """
+    manage_loans_payload = await get_bookkeeper_manage_loans()
+    loan_rows = (manage_loans_payload.get("data") or {}).get("rows") or []
+
+    summary: dict[str, dict] = {}
+    for loan in loan_rows:
+        membership_id = str(loan.get("membership_id") or "").strip()
+        if not membership_id:
+            continue
+        entry = summary.setdefault(membership_id, {"active_count": 0, "paid_count": 0})
+        status = str(loan.get("status") or "").strip().lower()
+        if status == "fully paid":
+            entry["paid_count"] += 1
+        else:
+            entry["active_count"] += 1
+
+    return {"success": True, "data": summary}
+
+
 @app.get("/api/bookkeeper/loan-ledger/{loan_id}")
 async def get_bookkeeper_loan_ledger(loan_id: str):
     if not supabase:
@@ -6136,14 +6175,28 @@ _PLACEHOLDER_NAME_MARKERS = ("HISTORICAL BORROWER", "UNKNOWN")
 _SYNTHETIC_EMAIL_DOMAIN = "@ttmpc.local"
 
 
-def _load_member_clusters(membership_ids: list[str]) -> dict[str, str]:
-    """Map membership_id -> cluster key for the given ids.
+# Inputs to _load_member_clusters (CSV roster, member names, legacy-loan
+# borrower set) change only when membership/loans data changes, not on every
+# page view — but the function was re-reading the CSV from disk and paging
+# through the ENTIRE loans table's raw_payload on every single call to
+# /api/personal_data_sheet, regardless of which membership_ids were asked
+# for. That work is identical across requests (it always ends up scanning
+# every loan), so it's cached here rather than parameterized per-request.
+_MEMBER_CLUSTER_INPUTS_CACHE: dict = {"payload": None, "expires_at": 0.0}
+_MEMBER_CLUSTER_INPUTS_CACHE_TTL_SECONDS = 300.0  # 5 min — clustering is a display label, not live data
+
+
+def _load_member_cluster_inputs() -> tuple[set[str], dict[str, str], set[str]]:
+    """(legacy_roster, member_names, borrowers_with_legacy_loans) — cached.
 
     Falls back to a usable answer rather than raising: clustering is a display
     aid, and a failure here must not take down the member list.
     """
-    if not membership_ids:
-        return {}
+    import time as _time
+    now = _time.monotonic()
+    cached = _MEMBER_CLUSTER_INPUTS_CACHE
+    if cached["payload"] is not None and cached["expires_at"] > now:
+        return cached["payload"]
 
     legacy_roster = {
         (row.get("MemberID") or "").strip()
@@ -6168,6 +6221,10 @@ def _load_member_clusters(membership_ids: list[str]) -> dict[str, str]:
                 f"{row.get('last_name') or ''} {row.get('first_name') or ''}".upper()
             )
 
+        # Only member_id + a boolean flag inside raw_payload are needed here —
+        # raw_payload can't be narrowed further in a Postgrest select (it's a
+        # single jsonb column), so this still pulls the whole column, but at
+        # least it's paid once per TTL window instead of once per page view.
         offset = 0
         while True:
             batch = (
@@ -6188,6 +6245,19 @@ def _load_member_clusters(membership_ids: list[str]) -> dict[str, str]:
     except Exception:
         # Without loan data we can still separate roster from non-roster.
         pass
+
+    result = (legacy_roster, member_names, borrowers_with_legacy_loans)
+    _MEMBER_CLUSTER_INPUTS_CACHE["payload"] = result
+    _MEMBER_CLUSTER_INPUTS_CACHE["expires_at"] = _time.monotonic() + _MEMBER_CLUSTER_INPUTS_CACHE_TTL_SECONDS
+    return result
+
+
+def _load_member_clusters(membership_ids: list[str]) -> dict[str, str]:
+    """Map membership_id -> cluster key for the given ids."""
+    if not membership_ids:
+        return {}
+
+    legacy_roster, member_names, borrowers_with_legacy_loans = _load_member_cluster_inputs()
 
     clusters: dict[str, str] = {}
     for membership_id in membership_ids:
@@ -6211,10 +6281,24 @@ def _load_member_clusters(membership_ids: list[str]) -> dict[str, str]:
     return clusters
 
 
+# 90s cache — same rationale as manage-loans/dashboard-summary. This endpoint
+# previously took 1.8-3.2s on EVERY call (uncached CSV read + full loans-table
+# scan inside _load_member_clusters, run fresh per request); caching the
+# response itself means only the first viewer in a 90s window pays that cost.
+_PERSONAL_DATA_SHEET_CACHE: dict = {"payload": None, "expires_at": 0.0}
+_PERSONAL_DATA_SHEET_CACHE_TTL_SECONDS = 90.0
+
+
 @app.get("/api/personal_data_sheet")
 async def get_personal_datasheet_records():
     if not supabase:
         raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+
+    import time as _time
+    now = _time.monotonic()
+    cached = _PERSONAL_DATA_SHEET_CACHE
+    if cached["payload"] is not None and cached["expires_at"] > now:
+        return cached["payload"]
 
     try:
         rows = []
@@ -6311,7 +6395,10 @@ async def get_personal_datasheet_records():
                 }
             )
 
-        return {"success": True, "data": normalized}
+        payload = {"success": True, "data": normalized}
+        _PERSONAL_DATA_SHEET_CACHE["payload"] = payload
+        _PERSONAL_DATA_SHEET_CACHE["expires_at"] = _time.monotonic() + _PERSONAL_DATA_SHEET_CACHE_TTL_SECONDS
+        return payload
     except Exception as err:
         raise HTTPException(status_code=500, detail=f"Failed to load personal datasheet records: {err}")
 
