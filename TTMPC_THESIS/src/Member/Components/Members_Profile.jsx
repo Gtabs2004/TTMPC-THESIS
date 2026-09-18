@@ -1175,7 +1175,7 @@ const Members_Profile = () => {
                                 onClick={(e) => { e.stopPropagation(); setEditingSection(section.id); }}
                                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-member-green text-member-green hover:bg-[#EAF1EB] dark:border-green-500 dark:text-green-400 dark:hover:bg-green-900/30 transition-colors text-xs font-bold"
                               >
-                                <Pencil className="w-3.5 h-3.5" /> Edit Section
+                                <Pencil className="w-3.5 h-3.5" /> Edit 
                               </button>
                             ) : null}
                           </div>
