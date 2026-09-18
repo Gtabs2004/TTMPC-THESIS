@@ -19,7 +19,8 @@ import {
   ShieldCheck,
   AlertTriangle,
   CalendarDays,
-  History
+  History,
+  Loader2
 } from "lucide-react";
 import NotificationBell from "../../components/NotificationBell";
 
@@ -42,35 +43,31 @@ const BOD_Manage_Member = () => {
       setLoading(true);
 
       try {
-        const [memberRes, loansRes] = await Promise.all([
+        // member-loan-summary returns only {activeCount, paidCount} per
+        // member (reusing manage-loans' own cache server-side) instead of
+        // this page pulling the full manage-loans payload — payment_history,
+        // schedules, member/loan_type joins — just to derive two counts.
+        const [memberRes, loanSummaryRes] = await Promise.all([
           fetch(`${API_BASE_URL}/api/personal_data_sheet`, { method: "GET", headers: { Accept: "application/json" } }),
-          fetch(`${API_BASE_URL}/api/bookkeeper/manage-loans`, { method: "GET", headers: { Accept: "application/json" } }),
+          fetch(`${API_BASE_URL}/api/bod/member-loan-summary`, { method: "GET", headers: { Accept: "application/json" } }),
         ]);
 
         const memberPayload = await memberRes.json().catch(() => ({}));
-        const loansPayload = await loansRes.json().catch(() => ({}));
+        const loanSummaryPayload = await loanSummaryRes.json().catch(() => ({}));
 
         if (!memberRes.ok || !memberPayload?.success) {
           throw new Error(memberPayload?.detail || memberPayload?.message || "Failed to load personal datasheet.");
         }
 
         const memberRows = Array.isArray(memberPayload.data) ? memberPayload.data : [];
-        const loanRows = Array.isArray(loansPayload?.data?.rows) ? loansPayload.data.rows : [];
+        const loanSummaryByMember = loanSummaryPayload?.success && loanSummaryPayload?.data ? loanSummaryPayload.data : {};
 
         const nextSummary = {};
-        loanRows.forEach((loan) => {
-          const memberId = String(loan.membership_id || "").trim();
-          if (!memberId) return;
-          if (!nextSummary[memberId]) {
-            nextSummary[memberId] = { paidCount: 0, activeCount: 0 };
-          }
-
-          const status = String(loan.status || "").toLowerCase();
-          if (status.includes("fully")) {
-            nextSummary[memberId].paidCount += 1;
-          } else {
-            nextSummary[memberId].activeCount += 1;
-          }
+        Object.entries(loanSummaryByMember).forEach(([memberId, counts]) => {
+          nextSummary[memberId] = {
+            activeCount: Number(counts?.active_count || 0),
+            paidCount: Number(counts?.paid_count || 0),
+          };
         });
 
         setRows(memberRows);
@@ -120,58 +117,65 @@ const BOD_Manage_Member = () => {
           <Breadcrumb portal="BOD" page="Manage Member" />
           <h1 className="font-bold text-2xl mb-6">Manage Member</h1>
           <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
-            {!loading ? (
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="bg-primary-deep text-[10px] uppercase tracking-wider text-white font-extrabold">
-                    <th className="p-5 font-bold">Member ID</th>
-                    <th className="p-5 font-bold text-center">Name</th>
-                    <th className="p-5 font-bold text-center">Email</th>
-                    <th className="p-5 font-bold text-center">Contact</th>
-                    <th className="p-5 font-bold text-center">Address</th>
-                    <th className="p-5 font-bold text-center">Active Loans</th>
-                    <th className="p-5 font-bold text-center">Paid Loans</th>
-                    <th className="p-5 font-bold text-center">Action</th>
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-primary-deep text-[10px] uppercase tracking-wider text-white font-extrabold">
+                  <th className="p-5 font-bold">Member ID</th>
+                  <th className="p-5 font-bold text-center">Name</th>
+                  <th className="p-5 font-bold text-center">Email</th>
+                  <th className="p-5 font-bold text-center">Contact</th>
+                  <th className="p-5 font-bold text-center">Address</th>
+                  <th className="p-5 font-bold text-center">Active Loans</th>
+                  <th className="p-5 font-bold text-center">Paid Loans</th>
+                  <th className="p-5 font-bold text-center">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {loading ? (
+                  <tr>
+                    <td colSpan={8} className="p-10 text-center">
+                      <div className="flex flex-col items-center justify-center gap-2">
+                        <Loader2 size={24} className="text-gray-300 animate-spin" />
+                        <p className="text-sm text-gray-400">Loading members...</p>
+                      </div>
+                    </td>
                   </tr>
-                </thead>
-                <tbody>
-                  {filtered.length === 0 ? (
-                    <tr>
-                      <td colSpan={8} className="p-10 text-center">
-                        <div className="flex flex-col items-center justify-center gap-2">
-                          <Users size={32} className="text-gray-300" />
-                          <p className="text-sm font-medium text-gray-500">No personal datasheet records found.</p>
-                        </div>
-                      </td>
-                    </tr>
-                  ) : (
-                    paginatedRows.map((r) => {
-                      const summary = loanSummaryByMemberId[String(r.member_id || "").trim()] || { paidCount: 0, activeCount: 0 };
+                ) : filtered.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} className="p-10 text-center">
+                      <div className="flex flex-col items-center justify-center gap-2">
+                        <Users size={32} className="text-gray-300" />
+                        <p className="text-sm font-medium text-gray-500">No personal datasheet records found.</p>
+                      </div>
+                    </td>
+                  </tr>
+                ) : (
+                  paginatedRows.map((r) => {
+                    const summary = loanSummaryByMemberId[String(r.member_id || "").trim()] || { paidCount: 0, activeCount: 0 };
 
-                      return (
-                        <tr key={String(r.id)} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
-                          <td className="p-5 text-sm font-semibold text-gray-800">{r.member_id}</td>
-                          <td className="p-5 text-sm text-gray-700 text-center">{r.full_name}</td>
-                          <td className="p-5 text-sm text-gray-700 text-center">{r.email}</td>
-                          <td className="p-5 text-sm text-gray-700 text-center">{r.contact_number}</td>
-                          <td className="p-5 text-sm text-gray-700 text-center">{r.address}</td>
-                          <td className="p-5 text-sm text-gray-700 text-center">{summary.activeCount}</td>
-                          <td className="p-5 text-sm text-gray-700 text-center">{summary.paidCount}</td>
-                          <td className="p-5 text-sm text-center">
-                            <button
-                              onClick={() => navigate(`/member_details?member_id=${encodeURIComponent(String(r.member_id || ""))}&portal=bod`, { state: { member: r, portal: "bod" } })}
-                              className="text-member-green font-bold hover:underline transition-all"
-                            >
-                              View
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
-            ) : null}
+                    return (
+                      <tr key={String(r.id)} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
+                        <td className="p-5 text-sm font-semibold text-gray-800">{r.member_id}</td>
+                        <td className="p-5 text-sm text-gray-700 text-center">{r.full_name}</td>
+                        <td className="p-5 text-sm text-gray-700 text-center">{r.email}</td>
+                        <td className="p-5 text-sm text-gray-700 text-center">{r.contact_number}</td>
+                        <td className="p-5 text-sm text-gray-700 text-center">{r.address}</td>
+                        <td className="p-5 text-sm text-gray-700 text-center">{summary.activeCount}</td>
+                        <td className="p-5 text-sm text-gray-700 text-center">{summary.paidCount}</td>
+                        <td className="p-5 text-sm text-center">
+                          <button
+                            onClick={() => navigate(`/member_details?member_id=${encodeURIComponent(String(r.member_id || ""))}&portal=bod`, { state: { member: r, portal: "bod" } })}
+                            className="text-member-green font-bold hover:underline transition-all"
+                          >
+                            View
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
           </div>
 
           <Pagination page={currentPage} totalPages={totalPages} onChange={setCurrentPage} />
