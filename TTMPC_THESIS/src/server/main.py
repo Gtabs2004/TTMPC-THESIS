@@ -80,6 +80,7 @@ from demand_model import (
 from services.notification_service import dispatch_loan_status_email as _dispatch_loan_status_email
 from services.loan_notification_service import create_loan_notification as _create_loan_notification
 from services.auth_dependencies import get_current_user as _get_current_user
+from services.auth_dependencies import get_current_user_optional as _get_current_user_optional
 from services.account_otp_service import (
     OTP_TTL_SECONDS as _OTP_TTL_SECONDS,
     issue_otp as _issue_otp,
@@ -3236,8 +3237,66 @@ async def get_cashier_cbu_transactions():
         raise HTTPException(status_code=500, detail=f"Failed to load CBU transactions: {err}")
 
 
+# The audit_log triggers on cashier-transaction tables (loan_payments,
+# capital_build_up, savings_ledger, membership_payments,
+# disbursement_confirmations) resolve the actor via Postgres's own
+# auth.uid()/auth.role() session context (audit_resolve_actor() in
+# audit_log_schema.sql). That context is always 'service_role' for a
+# backend-initiated write, since this file's `supabase` client authenticates
+# with the service role key regardless of which staff member is calling — so
+# every one of those rows landed with actor_role='service_role' ("System" in
+# the UI) no matter who actually pressed the button.
+#
+# Rather than threading a real user session through Supabase for every write
+# (a much bigger change), this patches the actor fields on the row the
+# trigger already wrote, right after the endpoint has verified who called it.
+# Safe to call unconditionally: if the endpoint wasn't reached with a valid
+# bearer token, current_user is never populated and this function isn't
+# invoked at all (see call sites below).
+def _correct_audit_actor(entity_type: str, entity_id: str, current_user: dict) -> None:
+    if not supabase or not current_user or not current_user.get("id"):
+        return
+    try:
+        role = None
+        role_resp = (
+            supabase.table("member_account")
+            .select("role")
+            .or_(f"auth_user_id.eq.{current_user['id']},email.eq.{current_user.get('email', '')}")
+            .limit(1)
+            .execute()
+        )
+        if role_resp.data:
+            role = role_resp.data[0].get("role")
+
+        latest = (
+            supabase.table("audit_log")
+            .select("id")
+            .eq("entity_type", entity_type)
+            .eq("entity_id", entity_id)
+            .order("occurred_at", desc=True)
+            .limit(1)
+            .execute()
+        )
+        row_id = (latest.data or [None])[0]
+        if not row_id:
+            return
+        supabase.table("audit_log").update({
+            "actor_user_id": current_user["id"],
+            "actor_role": role,
+            "actor_email": current_user.get("email"),
+        }).eq("id", row_id["id"]).execute()
+    except Exception:
+        # Best-effort correction — the underlying transaction already
+        # succeeded, and a failure here should never surface as an error on
+        # the action itself. The row simply keeps its service_role attribution.
+        pass
+
+
 @app.post("/api/cashier/cbu/deposits")
-def create_cashier_cbu_deposit(payload: CashierCBUDepositRequest):
+def create_cashier_cbu_deposit(
+    payload: CashierCBUDepositRequest,
+    current_user: dict | None = _Depends(_get_current_user_optional),
+):
     if not supabase:
         raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
 
@@ -3463,6 +3522,7 @@ def create_cashier_cbu_deposit(payload: CashierCBUDepositRequest):
         # write look like a successful deposit.
         insert_response = supabase.table("capital_build_up").insert(insert_payload).execute()
         inserted_row = (insert_response.data or [None])[0]
+        _correct_audit_actor("cbu", (inserted_row or {}).get("cbu_deposit_id") or cbu_deposit_id, current_user)
 
         return {
             "success": True,
@@ -3631,6 +3691,13 @@ async def disburse_cashier_loan(loan_id: str, payload: CashierDisbursementReques
             .eq("control_number", clean_loan_id)
             .execute()
         )
+        # cashier_id/cashier_email already flow through this payload (see
+        # confirmation_record below) straight from the signed-in cashier's own
+        # Supabase session — same identity _get_current_user would extract
+        # from a bearer token, just already provided. Used only to correct
+        # the audit_log rows the triggers above just wrote as service_role.
+        _disbursement_actor = {"id": payload.cashier_id, "email": payload.cashier_email}
+        _correct_audit_actor("loan", clean_loan_id, _disbursement_actor)
 
         updated_loan_response = (
             supabase.table("loans")
@@ -3690,7 +3757,12 @@ async def disburse_cashier_loan(loan_id: str, payload: CashierDisbursementReques
             "loan_status": (updated_loan or {}).get("loan_status") or "released",
         }
         try:
-            supabase.table("disbursement_confirmations").insert(confirmation_record).execute()
+            _confirmation_insert = (
+                supabase.table("disbursement_confirmations").insert(confirmation_record).execute()
+            )
+            _confirmation_row = (_confirmation_insert.data or [None])[0]
+            if _confirmation_row and _confirmation_row.get("id"):
+                _correct_audit_actor("disbursement", str(_confirmation_row["id"]), _disbursement_actor)
         except Exception as confirm_err:
             err_text = str(confirm_err).lower()
             # A uniqueness violation means this disbursement was already confirmed
@@ -3751,7 +3823,10 @@ async def disburse_cashier_loan(loan_id: str, payload: CashierDisbursementReques
 
 
 @app.post("/api/cashier/loan-payments")
-async def create_cashier_loan_payment(payload: CashierLoanPaymentCreateRequest):
+async def create_cashier_loan_payment(
+    payload: CashierLoanPaymentCreateRequest,
+    current_user: dict | None = _Depends(_get_current_user_optional),
+):
     if not supabase:
         raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
 
@@ -3861,6 +3936,9 @@ async def create_cashier_loan_payment(payload: CashierLoanPaymentCreateRequest):
                 inserted_row = (inserted_response.data or [{}])[0]
             else:
                 raise
+
+        if inserted_row.get("id"):
+            _correct_audit_actor("payment", str(inserted_row["id"]), current_user)
 
         return {
             "success": True,
@@ -7088,7 +7166,11 @@ async def get_savings_account_ledger(
 
 
 @app.post("/api/savings/accounts/{account_number}/deposit")
-async def post_savings_account_deposit(account_number: str, payload: CashierSavingsDepositRequest):
+async def post_savings_account_deposit(
+    account_number: str,
+    payload: CashierSavingsDepositRequest,
+    current_user: dict | None = _Depends(_get_current_user_optional),
+):
     """New-table-native deposit. Writes savings_ledger credit (trigger updates
     savings_accounts.balance) and mirrors to legacy Savings_Transactions when
     a legacy_savings_id bridge exists."""
@@ -7160,7 +7242,7 @@ async def post_savings_account_deposit(account_number: str, payload: CashierSavi
 
         # Canonical write: ledger credit. Trigger updates savings_accounts.balance.
         try:
-            supabase.table("savings_ledger").insert({
+            _ledger_insert = supabase.table("savings_ledger").insert({
                 "account_number": account_number,
                 "entry_type": "credit",
                 "amount": decimal_to_float(amount),
@@ -7169,6 +7251,9 @@ async def post_savings_account_deposit(account_number: str, payload: CashierSavi
                 "remarks": "Cashier deposit",
                 "posted_by": "cashier",
             }).execute()
+            _ledger_row = (_ledger_insert.data or [None])[0]
+            if _ledger_row and _ledger_row.get("id"):
+                _correct_audit_actor("savings", str(_ledger_row["id"]), current_user)
         except Exception as exc:  # noqa: BLE001
             raise HTTPException(status_code=500, detail=f"Failed to post ledger credit: {exc}")
 
@@ -7228,7 +7313,11 @@ async def post_savings_account_deposit(account_number: str, payload: CashierSavi
 
 
 @app.post("/api/savings/accounts/{account_number}/withdraw")
-async def post_savings_account_withdraw(account_number: str, payload: CashierSavingsWithdrawRequest):
+async def post_savings_account_withdraw(
+    account_number: str,
+    payload: CashierSavingsWithdrawRequest,
+    current_user: dict | None = _Depends(_get_current_user_optional),
+):
     """New-table-native withdrawal request. Inserts a pending_verification queue
     row only; no balance change until Bookkeeper confirms."""
     if not supabase:
@@ -7294,6 +7383,8 @@ async def post_savings_account_withdraw(account_number: str, payload: CashierSav
             queued = (queue_response.data or [None])[0]
         except Exception as exc:  # noqa: BLE001
             raise HTTPException(status_code=500, detail=f"Failed to queue withdrawal: {exc}")
+
+        _correct_audit_actor("withdrawal", transaction_id, current_user)
 
         return {
             "success": True,
@@ -11857,6 +11948,11 @@ async def create_membership_payment(payload: MembershipPaymentCreateRequest):
         raise HTTPException(status_code=500, detail=f"Failed to record payment: {err}")
 
     saved = (insert_resp.data or [insert_row])[0]
+    if payload.processed_by:
+        _correct_audit_actor(
+            "membership_payment", payment_id,
+            {"id": payload.processed_by, "email": payload.processed_by_name},
+        )
     return {"success": True, "message": "Membership fee recorded successfully.", "data": saved}
 
 
