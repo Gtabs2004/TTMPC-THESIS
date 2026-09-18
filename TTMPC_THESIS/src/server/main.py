@@ -13891,42 +13891,12 @@ _DEPENDENTS_FALLBACK_COLUMN = "DependentCount"
 
 
 def _profile_missing_fields(membership_id: str | None) -> list[str]:
-    """Which required personal_data_sheet fields are still blank.
-
-    A bulk-imported member typically has a name and nothing else, so this is
-    what forces them through the profile step on first login. Returns [] when
-    we cannot read the row -- an unreadable PDS must not lock a member out of
-    the portal.
+    """Disabled: the account-setup gate no longer blocks login on profile
+    fields. Members fill these in from their profile page instead. Always
+    returns [] so `profile_incomplete` in the security-status response stays
+    false regardless of what's on file.
     """
-    if not supabase or not membership_id:
-        return []
-    try:
-        resp = (
-            supabase.table("personal_data_sheet")
-            .select(", ".join((*_REQUIRED_PROFILE_FIELDS, _DEPENDENTS_FALLBACK_COLUMN)))
-            .eq("membership_number_id", membership_id)
-            .limit(1)
-            .execute()
-        )
-    except Exception:
-        return []
-
-    rows = resp.data or []
-    if not rows:
-        # No PDS row at all: every required field is outstanding.
-        return list(_REQUIRED_PROFILE_FIELDS)
-
-    row = rows[0]
-
-    def _is_blank(field: str) -> bool:
-        value = row.get(field)
-        if field == "number_of_dependents" and (value is None or str(value).strip() == ""):
-            value = row.get(_DEPENDENTS_FALLBACK_COLUMN)
-        # str() rather than falsiness: 0 dependents is a real answer, and
-        # `not 0` would keep asking the member for it forever.
-        return str(value if value is not None else "").strip() == ""
-
-    return [f for f in _REQUIRED_PROFILE_FIELDS if _is_blank(f)]
+    return []
 
 
 @app.get("/api/account/security-status")

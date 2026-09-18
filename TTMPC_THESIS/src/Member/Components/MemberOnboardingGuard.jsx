@@ -81,10 +81,11 @@ export default function MemberOnboardingGuard({ children }) {
           return;
         }
 
-        // An account is "set up" once it has a real email, a password the
-        // member chose, and the required profile fields on file.
-        const setupIncomplete =
-          body.is_email_dummy || body.is_temporary || body.profile_incomplete;
+        // An account is "set up" once it has a real email and a password the
+        // member chose. Profile completion is no longer required to unlock
+        // the portal -- members fill those fields in later from their
+        // profile page.
+        const setupIncomplete = body.is_email_dummy || body.is_temporary;
 
         // The dashboard and the three setup destinations stay reachable: the
         // dashboard renders AccountSetupGate, a blocking overlay that walks the
