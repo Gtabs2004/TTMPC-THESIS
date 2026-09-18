@@ -235,3 +235,17 @@ def get_current_user(authorization: str = Header(None)) -> dict[str, Any]:
         "id": str(user_id),
         "email": (claims.get("email") or "").lower(),
     }
+
+
+def get_current_user_optional(authorization: str = Header(None)) -> dict[str, Any] | None:
+    """Like get_current_user, but never raises — returns None on any failure.
+
+    For endpoints where identifying the caller only improves a side effect
+    (e.g. attributing an audit_log row to the real actor instead of
+    service_role) and must never block the actual action a missing, expired,
+    or malformed token would otherwise fail on.
+    """
+    try:
+        return get_current_user(authorization)
+    except HTTPException:
+        return None

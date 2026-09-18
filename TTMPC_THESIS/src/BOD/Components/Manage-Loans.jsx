@@ -175,7 +175,7 @@ const BOD_Manage_Loans = () => {
     <div className="flex min-h-screen bg-gray-50">
       <StaffSidebar portal="BOD" items={bodNav} />
 
-      <div className="flex-1 min-w-0 flex flex-col">
+      <div className="flex-1 min-w-0 flex flex-col h-screen overflow-hidden">
         <StaffTopbar
           portal="BOD"
           notifications={<NotificationBell />}
