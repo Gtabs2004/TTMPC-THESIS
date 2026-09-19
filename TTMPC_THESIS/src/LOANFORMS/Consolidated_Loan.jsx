@@ -387,7 +387,11 @@ function Consolidated_Loan() {
   // DEV/SIMULATION: forces the 6-month payment requirement to pass
   const overrideSixMonthsPaid = () => setSixMonthOverride(true);
 
-  const sixMonthsPaid = sixMonthOverride || (existingLoan?.paidMonths ?? 0) >= MIN_PAID_MONTHS_FOR_RENEWAL;
+  // Real override: the Bookkeeper approved an early renewal for this loan.
+  // Unlike the simulation above it does NOT pretend any payments were made, so
+  // the existing balance is still deducted in full (see simulatedRemainingBalance).
+  const renewalOverrideApproved = Boolean(eligibility?.override_applied);
+  const sixMonthsPaid = renewalOverrideApproved || sixMonthOverride || (existingLoan?.paidMonths ?? 0) >= MIN_PAID_MONTHS_FOR_RENEWAL;
   const simulatedRemainingBalance = (() => {
     const balance = Number(existingLoan?.remainingBalance || 0);
     const monthly = Number(existingLoan?.monthlyAmortization || 0);
@@ -1154,7 +1158,7 @@ function Consolidated_Loan() {
                   <span className="font-semibold text-gray-700">Renewal</span>
                   {isRenewal && existingLoan && (
                     <span className={`ml-1 inline-flex items-center text-[10px] font-semibold px-1.5 py-0.5 rounded ${sixMonthsPaid ? 'bg-[#E9F7DE] text-[#2E7D32]' : 'bg-red-50 text-red-600'}`}>
-                      {sixMonthsPaid ? '✓ 6-month rule' : '✕ 6-month rule'}
+                      {renewalOverrideApproved ? '✓ Override approved' : sixMonthsPaid ? '✓ 6-month rule' : '✕ 6-month rule'}
                     </span>
                   )}
                 </label>

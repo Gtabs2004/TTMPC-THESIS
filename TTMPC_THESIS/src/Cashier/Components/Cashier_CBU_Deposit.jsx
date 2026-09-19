@@ -275,6 +275,7 @@ const Cashier_CBU_Deposit = () => {
                   className="w-full rounded-lg border border-gray-300 bg-gray-50 h-11 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-60"
                 >
                   <option value="Cash">Cash</option>
+                  <option value="Check">Check</option>
                   <option value="GCash">GCash</option>
                   <option value="Bank Transfer">Bank Transfer</option>
                 </select>

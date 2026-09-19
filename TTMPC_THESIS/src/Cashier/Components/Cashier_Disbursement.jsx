@@ -9,6 +9,7 @@ import StaffTopbar from "../../components/StaffTopbar";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
 import Breadcrumb from "../../components/Breadcrumb";
 import Pagination from "../../components/Pagination";
+import { apiErrorMessage } from "../../utils/apiError";
 import {
   LayoutDashboard,
   Search,
@@ -71,7 +72,7 @@ const Cashier_Disbursement = () => {
   const [showFilters, setShowFilters] = useState(false);
 
   // Pre-disbursement preview state. Holds the loan being released plus the
-  // deduction breakdown fetched from /api/loans/compute. Showing this to the
+  // deduction breakdown fetched from /api/cashier/disbursements/{id}/preview. Showing this to the
   // cashier before commit is the audit trail for the 2% CBU retention,
   // service fee, insurance, and notarial fee.
   const [previewLoan, setPreviewLoan] = useState(null);
@@ -96,7 +97,7 @@ const Cashier_Disbursement = () => {
 
       const result = await response.json().catch(() => ({}));
       if (!response.ok) {
-        throw new Error(result?.detail || result?.message || "Failed to fetch ready disbursement loans.");
+        throw new Error(apiErrorMessage(result, "Failed to fetch ready disbursement loans."));
       }
 
       setReadyLoans(result?.data || []);
@@ -108,16 +109,6 @@ const Cashier_Disbursement = () => {
     }
   };
 
-  // Map the cashier's loan_type label (e.g., "Consolidated Loan") to the
-  // lowercase code expected by /api/loans/compute.
-  const resolveComputeLoanType = (label) => {
-    const normalized = String(label || "").toLowerCase();
-    if (normalized.includes("consolidated")) return "consolidated";
-    if (normalized.includes("emergency")) return "emergency";
-    if (normalized.includes("bonus")) return "bonus";
-    return null;
-  };
-
   const openDisbursementPreview = async (loan) => {
     setErrorMessage("");
     setFeedbackMessage("");
@@ -125,29 +116,19 @@ const Cashier_Disbursement = () => {
     setPreviewDeductions(null);
     setPreviewError("");
 
-    const computeType = resolveComputeLoanType(loan.loan_type);
-    const principal = Number(loan.principal_amount || loan.loan_amount || 0);
-    const term = Number(loan.term_months || loan.term || 0);
-
-    if (!computeType || principal <= 0 || term <= 0) {
-      setPreviewError("Unable to compute deductions for this loan (missing type, principal, or term).");
-      return;
-    }
-
     setPreviewLoading(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/api/loans/compute`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Accept: "application/json" },
-        body: JSON.stringify({
-          loan_type: computeType,
-          principal,
-          term_months: term,
-        }),
-      });
+      // Fees are computed server-side from the stored loan. This used to call
+      // /api/loans/compute, which validates *applications* (Bonus needs a member
+      // category; Consolidated rejects 72-month terms) and so blocked those
+      // loans from ever being released.
+      const response = await fetch(
+        `${API_BASE_URL}/api/cashier/disbursements/${encodeURIComponent(loan.loan_id)}/preview`,
+        { method: "GET", headers: { Accept: "application/json" } }
+      );
       const result = await response.json().catch(() => ({}));
       if (!response.ok) {
-        throw new Error(result?.detail || result?.message || "Failed to compute deductions.");
+        throw new Error(apiErrorMessage(result, "Failed to compute deductions."));
       }
       setPreviewDeductions(result?.data || null);
     } catch (error) {
@@ -202,13 +183,31 @@ const Cashier_Disbursement = () => {
 
       const result = await response.json().catch(() => ({}));
       if (!response.ok) {
-        throw new Error(result?.detail || result?.message || "Failed to disburse loan.");
+        throw new Error(apiErrorMessage(result, "Failed to disburse loan."));
       }
 
       const firstDueDate = result?.data?.first_due_date || "N/A";
       setFeedbackMessage(
         `Loan disbursed. Schedule created with first due date ${firstDueDate}. Grace period is 3 days and delayed flag starts after 1 month.`
       );
+
+      // The server reads back what the release should have written. The loan is
+      // already released at this point, so anything missing is a warning to
+      // follow up on, not a failed disbursement.
+      const records = result?.data?.records;
+      let releaseWarning = "";
+      if (records) {
+        const missing = [];
+        if (!records.loan_released) missing.push("the loan status/disbursal date");
+        if (!records.schedule_ready) missing.push("the payment schedule");
+        if (!records.confirmation_saved) missing.push("the disbursement confirmation record");
+        if (previewDeductions?.deductions?.cbu_deduction > 0 && !records.cbu_retention_credited) {
+          missing.push("the CBU retention credit");
+        }
+        if (missing.length) {
+          releaseWarning = `Loan released, but ${missing.join(", ")} could not be verified. Please check the loan and notify the administrator.`;
+        }
+      }
       if (result?.data?.confirmation) {
         // Attach the deduction breakdown that the cashier already saw and
         // approved so the post-release receipt shows the same numbers.
@@ -221,6 +220,8 @@ const Cashier_Disbursement = () => {
       setPreviewDeductions(null);
       setPreviewError("");
       await fetchReadyLoans();
+      // After the refetch, which clears any earlier error message.
+      if (releaseWarning) setErrorMessage(releaseWarning);
     } catch (error) {
       setErrorMessage(error.message || "Disbursement failed.");
     } finally {

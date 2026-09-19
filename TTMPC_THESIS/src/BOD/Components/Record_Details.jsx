@@ -4,7 +4,7 @@ import { ChevronLeft } from 'lucide-react';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 
-const Record_Details = () => {
+const Record_Details = ({ backPath = '/membership-records' }) => {
   const { id } = useParams();
   const navigate = useNavigate();
   
@@ -117,7 +117,7 @@ const Record_Details = () => {
     <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-8">
       <div className="w-full max-w-4xl">
         <button 
-          onClick={() => navigate('/membership-records')}
+          onClick={() => navigate(backPath)}
           className="flex items-center gap-2 text-green-700 font-semibold hover:text-green-800 mb-6 transition-colors"
         >
           <ChevronLeft size={20} />
@@ -270,7 +270,7 @@ const Record_Details = () => {
         {/* Action Buttons */}
         <div className="flex justify-end gap-4 mt-10 pt-6 border-t border-gray-200">
           <button
-            onClick={() => navigate('/membership-records')}
+            onClick={() => navigate(backPath)}
             className="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 font-medium hover:bg-gray-50 transition-colors"
           >
             Cancel

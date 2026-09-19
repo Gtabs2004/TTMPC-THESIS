@@ -211,7 +211,7 @@ const Secretary_Records = () => {
                     <td className="p-5">
                       <div className="flex items-center gap-2">
                         <button
-                          onClick={() => navigate(`/record-details/${member.member_uuid}`)}
+                          onClick={() => navigate(`/secretary-record-details/${member.member_uuid}`)}
                           className="btn-enhanced text-[#1e9e4a] hover:text-green-800 transition-colors p-1"
                           title="View record"
                         >
