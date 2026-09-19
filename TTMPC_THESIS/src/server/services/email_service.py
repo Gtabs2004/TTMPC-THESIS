@@ -41,7 +41,7 @@ def _resend_api_key() -> str | None:
 
 
 def _resend_from_email() -> str:
-    return os.environ.get("RESEND_FROM_EMAIL", "onboarding@resend.dev")
+    return os.environ.get("RESEND_FROM_EMAIL", "notifications@ttmpc-thesis.me")
 
 
 def is_valid_email(value: str | None) -> bool:
