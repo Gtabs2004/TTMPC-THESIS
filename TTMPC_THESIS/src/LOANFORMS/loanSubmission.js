@@ -1,5 +1,6 @@
 import { supabase } from '../supabaseClient';
 import { invalidate } from '../Member/memberDataCache';
+import { consumeOverride } from '../utils/renewalOverrides';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000';
 
@@ -805,6 +806,17 @@ export async function submitUnifiedLoan({
     loanId: controlNumber,
     actorUserId: user?.id || null,
   });
+
+  // Non-blocking: if this renewal went through on a Bookkeeper 6-month-rule
+  // override, mark the override as spent so one approval can't unlock a second
+  // renewal. A no-op on the server when no override applies.
+  const overrideLoanType = String(loanTypeCode || '').trim().toLowerCase();
+  if (
+    normalizedApplicationType === 'renewal' &&
+    ['consolidated', 'emergency', 'bonus'].includes(overrideLoanType)
+  ) {
+    consumeOverride(overrideLoanType, controlNumber).catch(() => {});
+  }
 
   // Bust member-portal caches so the new loan shows up immediately when
   // the user returns to the dashboard or loans page.

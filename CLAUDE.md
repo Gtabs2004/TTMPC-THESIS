@@ -90,6 +90,13 @@ Annual dividend feature: a bookkeeper-chosen basis period (average share capital
 - **Schema/migrations:** `src/server/isc_v2_01_schema.sql` through `isc_v2_06_allow_historical_years.sql` are the current, applied migration chain (each is incremental — apply in order), plus point fixes `isc_fix_double_reversal.sql`, `isc_fix_posted_by_fk.sql`, `isc_fix_stale_balance.sql`. The original `isc_dividend_schema.sql` is superseded by the v2 chain; don't reapply it. `src/server/isc_checks/*.sql` are ad-hoc verification queries, not migrations.
 - Design rationale (segregation of duties: bookkeeper posts, only Manager reverses and never their own posting; exclusion-constraint overlap prevention; rounding rules) is in `ISC_DIVIDEND_PLAN.md` at the repo root — read it before changing ISC behavior.
 
+### 6-Month Renewal Rule Override
+A member with an active loan can't renew until 6 monthly payments are recorded (`RENEWAL_MIN_PAYMENTS`). For urgent need they can request an override; the Bookkeeper approves or rejects it; approval unlocks Renewal for that one loan for 30 days or until spent on a renewal application.
+- **Table/migration:** `src/server/loan_renewal_override_schema.sql` (`loan_renewal_override_requests`) — must be applied in Supabase. Rows are never deleted; it is the history ledger. RLS is on with no client policies: all access goes through FastAPI on the service-role key.
+- **Backend:** "6-Month Renewal Rule Override" section of `main.py` (`/api/member/renewal-override*`, `/api/bookkeeper/renewal-override-requests*`). Identity comes from the verified JWT, never the body; a Bookkeeper can't review their own request. State changes are mirrored into `audit_log` (`entity_type='loan'`, `context.kind='renewal_override'`) and the `loan_notifications` bell feed.
+- **Frontend:** member request UI is in `Member_ApplyLoans.jsx` + `RenewalOverrideModal.jsx`; Bookkeeper queue/history is `Bookkeeper/Components/Renewal_Overrides.jsx` (`/bookkeeper-renewal-overrides`). `useLoanEligibility` layers approved overrides onto the `get_loan_eligibility` RPC result (`can_renew`, `override_applied`); the loan forms' `sixMonthsPaid` gate honors it. `submitUnifiedLoan` calls `/consume` after a renewal so one approval can't be reused.
+- The override waives the 6-month rule only — not the Bonus May/November window, and it does not pretend payments were made (the existing balance is still deducted in full).
+
 ### Email Notifications
 Sent via Resend API through FastAPI endpoints (`/api/send-status-email`, `/api/loans/notifications/dispatch`, `/api/loans/notifications/member`, `/api/loans/email/dispatch`). Templates in `src/server/services/loan_email_templates.py`.
 

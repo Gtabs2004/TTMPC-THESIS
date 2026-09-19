@@ -10,6 +10,8 @@ import Pagination from "../../components/Pagination";
 // Adjust path to AuthContext if needed
 import LoanNotificationBell from "../../components/LoanNotificationBell";
 import { authHeaders } from "../../utils/authHeaders";
+import { apiErrorMessage } from "../../utils/apiError";
+import { formatWithCommas, stripCommas } from "../../utils/numberFormat";
 import { 
   LayoutDashboard, 
   Search,
@@ -42,6 +44,15 @@ const formatCurrency = (value) =>
   }).format(value || 0);
 
 const roundCurrency = (value) => Number((value || 0).toFixed(2));
+
+// What the payment field starts at: this period's amortization, capped at what
+// is still owed. It is only a starting point -- the cashier overwrites it with
+// the amount the member actually hands over (partial, exact, or advance).
+const getDefaultPaymentAmount = (loan) => {
+  const installment = Number(loan?.amortization) || 0;
+  const remaining = Number(loan?.remaining_balance) || 0;
+  return roundCurrency(Math.max(Math.min(installment, remaining), 0));
+};
 
 const formatSequenceId = (prefix, sequenceNumber) => {
   const numericValue = Math.max(Number(sequenceNumber) || 1, 1);
@@ -197,6 +208,8 @@ const friendlyPaymentError = (error) => {
   if (raw.includes("already fully paid") || raw.includes("409")) {
     return "This loan is already fully paid and can no longer accept payments.";
   }
+  // Server-side amount check: the message is already written for the cashier.
+  if (raw.includes("outstanding balance")) return error.message;
   if (raw.includes("no loan schedule")) {
     return "This loan has no payment schedule yet. Ask the Bookkeeper to generate it first.";
   }
@@ -268,6 +281,8 @@ const Cashier_Payments = () => {
   const [isLedgerModalOpen, setIsLedgerModalOpen] = useState(false);
   const [isSubmittingPayment, setIsSubmittingPayment] = useState(false);
   const [formError, setFormError] = useState("");
+  // Amount the cashier is collecting, as plain numeric text (no commas).
+  const [paymentAmountInput, setPaymentAmountInput] = useState("");
   const [paymentReceipt, setPaymentReceipt] = useState(null);
   const [paymentRecords, setPaymentRecords] = useState([]);
   const [loadingLoans, setLoadingLoans] = useState(false);
@@ -506,7 +521,7 @@ const Cashier_Payments = () => {
 
     const result = await response.json().catch(() => ({}));
     if (!response.ok) {
-      throw new Error(result?.detail || result?.message || "Failed to submit payment.");
+      throw new Error(apiErrorMessage(result, "Failed to submit payment."));
     }
 
     return result?.data || paymentPayload;
@@ -526,19 +541,37 @@ const Cashier_Payments = () => {
     );
   }, [selectedLoan]);
 
-  // The amount due for the CURRENT period: this installment, never the whole
-  // outstanding balance. Capped at the remaining balance so a final partial
-  // installment doesn't over-collect.
+  // What the schedule says is due for the CURRENT period: this installment,
+  // never the whole outstanding balance, capped at the remaining balance.
+  // Uses the loan's amortization, NOT expected_installment: the latter comes
+  // from loan_schedules.expected_amount, which on legacy rows holds the
+  // running total (principal + total interest) instead of the per-period
+  // amount and would collect several times the real due.
+  const scheduledPaymentAmount = useMemo(
+    () => getDefaultPaymentAmount(selectedLoan),
+    [selectedLoan]
+  );
+
+  const outstandingBalance = Number(selectedLoan?.remaining_balance) || 0;
+
+  // The amount the cashier actually entered. Everything downstream (penalty
+  // total, balance preview, confirmation text, receipt, API payload) reads
+  // this, so what is typed is what gets recorded.
   const currentPaymentAmount = useMemo(() => {
-    if (!selectedLoan) return 0;
-    // Use the loan's amortization, NOT expected_installment: the latter comes
-    // from loan_schedules.expected_amount, which on legacy rows holds the
-    // running total (principal + total interest) instead of the per-period
-    // amount and would collect several times the real due.
-    const installment = Number(selectedLoan.amortization) || 0;
-    const remaining = Number(selectedLoan.remaining_balance) || 0;
-    return roundCurrency(Math.max(Math.min(installment, remaining), 0));
-  }, [selectedLoan]);
+    const parsed = Number(paymentAmountInput);
+    return Number.isFinite(parsed) && parsed > 0 ? roundCurrency(parsed) : 0;
+  }, [paymentAmountInput]);
+
+  const paymentAmountError = useMemo(() => {
+    if (!selectedLoan) return "";
+    if (paymentAmountInput === "" || paymentAmountInput === ".") return "Enter the amount received.";
+    if (!(Number(paymentAmountInput) > 0)) return "Amount must be greater than zero.";
+    if ((paymentAmountInput.split(".")[1] || "").length > 2) return "Use at most 2 decimal places.";
+    if (currentPaymentAmount > roundCurrency(outstandingBalance)) {
+      return `Amount cannot exceed the outstanding balance of ${formatCurrency(outstandingBalance)}.`;
+    }
+    return "";
+  }, [selectedLoan, paymentAmountInput, currentPaymentAmount, outstandingBalance]);
 
   // What the cashier collects = this period's amortization + any penalty that
   // has actually accrued under the 3-month grace rule.
@@ -555,6 +588,7 @@ const Cashier_Payments = () => {
 
   const openPaymentModal = (loan) => {
     setSelectedLoan(loan);
+    setPaymentAmountInput(String(getDefaultPaymentAmount(loan)));
     setFormError("");
     setIsPaymentModalOpen(true);
   };
@@ -562,6 +596,7 @@ const Cashier_Payments = () => {
   const closePaymentModal = () => {
     setIsPaymentModalOpen(false);
     setSelectedLoan(null);
+    setPaymentAmountInput("");
     setFormError("");
   };
 
@@ -583,6 +618,7 @@ const Cashier_Payments = () => {
   const proceedFromLedgerToPayment = () => {
     if (!selectedLoan) return;
     setIsLedgerModalOpen(false);
+    setPaymentAmountInput(String(getDefaultPaymentAmount(selectedLoan)));
     setFormError("");
     setIsPaymentModalOpen(true);
   };
@@ -591,22 +627,30 @@ const Cashier_Payments = () => {
     event.preventDefault();
     if (!selectedLoan || isSubmittingPayment) return;
 
-    // Amount is derived from the schedule, not typed in: this period's
-    // amortization plus any accrued penalty.
+    // The amount the cashier entered, plus any accrued penalty.
+    if (paymentAmountError) {
+      setFormError(paymentAmountError);
+      return;
+    }
     const principalPaid = currentPaymentAmount;
     const penaltyCollected = roundCurrency(selectedLoanPenalty);
     const totalCollected = currentTotalDue;
 
     if (!Number.isFinite(totalCollected) || totalCollected <= 0) {
-      setFormError("This loan has no amount due for the current period.");
+      setFormError("Enter the amount received before logging the payment.");
       return;
     }
+
+    const differsFromSchedule = Math.abs(principalPaid - scheduledPaymentAmount) >= 0.005;
+    const scheduleNote = differsFromSchedule
+      ? ` This differs from the scheduled amortization of ${formatCurrency(scheduledPaymentAmount)}.`
+      : "";
 
     const ok = await confirm({
       title: "Log Payment",
       message: penaltyCollected > 0
-        ? `Log ${formatCurrency(totalCollected)} for this loan (${formatCurrency(principalPaid)} amortization + ${formatCurrency(penaltyCollected)} penalty)? This will be sent to the Bookkeeper for review; the loan balance stays unchanged until they confirm it.`
-        : `Log a payment of ${formatCurrency(totalCollected)} for this loan? This will be sent to the Bookkeeper for review; the loan balance stays unchanged until they confirm it.`,
+        ? `Log ${formatCurrency(totalCollected)} for this loan (${formatCurrency(principalPaid)} payment + ${formatCurrency(penaltyCollected)} penalty)?${scheduleNote} This will be sent to the Bookkeeper for review; the loan balance stays unchanged until they confirm it.`
+        : `Log a payment of ${formatCurrency(totalCollected)} for this loan?${scheduleNote} This will be sent to the Bookkeeper for review; the loan balance stays unchanged until they confirm it.`,
       confirmLabel: "Log Payment",
       tone: "default",
     });
@@ -1119,7 +1163,7 @@ const Cashier_Payments = () => {
                   </p>
                   {paymentReceipt.penalty > 0 ? (
                     <p className="mt-1 text-xs text-gray-500">
-                      {formatCurrency(paymentReceipt.principal)} amortization + {formatCurrency(paymentReceipt.penalty)} penalty
+                      {formatCurrency(paymentReceipt.principal)} payment + {formatCurrency(paymentReceipt.penalty)} penalty
                     </p>
                   ) : null}
                 </div>
@@ -1270,18 +1314,78 @@ const Cashier_Payments = () => {
                     </dl>
                   </section>
 
-                  {/* Payment summary. Figures are derived from the schedule, so the
-                      cashier confirms rather than types -- see currentPaymentAmount.
-                      Total Due is the focal point; penalty stays secondary at zero. */}
+                  {/* Payment summary. The amount starts at the scheduled amortization
+                      but is editable: the cashier records what the member actually
+                      hands over, and every figure below (and the record sent to the
+                      server) follows it -- see currentPaymentAmount.
+                      Total to Collect is the focal point; penalty stays secondary at zero. */}
                   <section className="mb-6">
                     <h3 className="mb-3 border-b border-gray-200 pb-2 text-[11px] font-bold uppercase tracking-wider text-gray-500">
                       Payment Summary
                     </h3>
 
                     <div className="space-y-3 text-sm">
-                      <div className="flex items-baseline justify-between gap-3">
-                        <span className="text-gray-600">Payment for this period</span>
-                        <span className="font-medium text-gray-900 tabular-nums">{formatCurrency(currentPaymentAmount)}</span>
+                      <div>
+                        <label htmlFor="payment-amount" className="mb-1.5 block text-gray-600">
+                          Payment amount
+                        </label>
+                        <div
+                          className={`flex h-11 items-stretch overflow-hidden rounded-lg border bg-white focus-within:ring-2 ${
+                            paymentAmountError
+                              ? "border-red-300 focus-within:ring-red-200"
+                              : "border-gray-300 focus-within:ring-green-200"
+                          }`}
+                        >
+                          <span className="flex items-center border-r border-gray-200 bg-gray-50 px-3 text-sm font-semibold text-gray-500">
+                            &#8369;
+                          </span>
+                          <input
+                            id="payment-amount"
+                            form="cashier-payment-form"
+                            type="text"
+                            inputMode="decimal"
+                            autoComplete="off"
+                            value={formatWithCommas(paymentAmountInput)}
+                            onChange={(event) => {
+                              setPaymentAmountInput(stripCommas(event.target.value));
+                              setFormError("");
+                            }}
+                            onFocus={(event) => event.target.select()}
+                            disabled={isSubmittingPayment}
+                            aria-invalid={Boolean(paymentAmountError)}
+                            aria-describedby="payment-amount-hint"
+                            placeholder="0.00"
+                            className="min-w-0 flex-1 bg-transparent px-3 text-base font-semibold tabular-nums text-gray-900 focus:outline-none disabled:opacity-60"
+                          />
+                        </div>
+                        <div id="payment-amount-hint" className="mt-1.5 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-xs">
+                          {paymentAmountError ? (
+                            <span role="alert" className="font-medium text-red-600">{paymentAmountError}</span>
+                          ) : currentPaymentAmount < scheduledPaymentAmount ? (
+                            <span className="font-medium text-amber-700">
+                              Partial payment. Scheduled amortization is {formatCurrency(scheduledPaymentAmount)}.
+                            </span>
+                          ) : currentPaymentAmount > scheduledPaymentAmount ? (
+                            <span className="font-medium text-blue-700">
+                              Above the scheduled amortization of {formatCurrency(scheduledPaymentAmount)}.
+                            </span>
+                          ) : (
+                            <span className="text-gray-500">Matches the scheduled amortization.</span>
+                          )}
+                          {currentPaymentAmount !== scheduledPaymentAmount && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setPaymentAmountInput(String(scheduledPaymentAmount));
+                                setFormError("");
+                              }}
+                              disabled={isSubmittingPayment}
+                              className="font-semibold text-green-700 underline-offset-2 hover:underline disabled:opacity-50"
+                            >
+                              Use scheduled amount
+                            </button>
+                          )}
+                        </div>
                       </div>
                       <div className="flex items-baseline justify-between gap-3">
                         <span className={selectedLoanPenalty > 0 ? "font-medium text-amber-700" : "text-gray-500"}>
@@ -1297,7 +1401,7 @@ const Cashier_Payments = () => {
                     </div>
 
                     <div className="mt-4 flex items-baseline justify-between gap-3 border-t-2 border-gray-900 pt-4">
-                      <span className="text-sm font-bold uppercase tracking-wide text-gray-900">Total Due</span>
+                      <span className="text-sm font-bold uppercase tracking-wide text-gray-900">Total to Collect</span>
                       <span className="text-3xl font-extrabold text-green-700 tabular-nums">{formatCurrency(currentTotalDue)}</span>
                     </div>
 
@@ -1313,7 +1417,7 @@ const Cashier_Payments = () => {
                   </section>
 
                   {/* Payment Form */}
-                  <form onSubmit={handleSubmitPayment} className="space-y-4">
+                  <form id="cashier-payment-form" onSubmit={handleSubmitPayment} className="space-y-4">
                     {formError && (
                       <div className="rounded-lg border border-red-200 bg-red-50 p-4 flex items-start gap-3">
                         <AlertCircle size={18} className="text-red-600 shrink-0 mt-0.5" />
@@ -1335,7 +1439,7 @@ const Cashier_Payments = () => {
                       </button>
                       <button
                         type="submit"
-                        disabled={isSubmittingPayment}
+                        disabled={isSubmittingPayment || Boolean(paymentAmountError)}
                         aria-busy={isSubmittingPayment}
                         className="inline-flex items-center justify-center gap-2 rounded-lg bg-green-600 px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-green-700 active:bg-green-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500 disabled:shadow-none"
                       >

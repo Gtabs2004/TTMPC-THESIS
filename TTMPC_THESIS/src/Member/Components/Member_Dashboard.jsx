@@ -855,22 +855,7 @@ const MemberDashboard = () => {
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
             <h1 className="hidden lg:block font-extrabold text-[#1a4a2f] dark:text-green-400 text-2xl">Dashboard</h1>
 
-            <div className="flex justify-center sm:justify-start gap-3">
-              <button
-                type="button"
-                onClick={() => navigate('/member-apply-loans')}
-                className="inline-flex items-center gap-2 rounded-lg bg-member-green hover:bg-[#154718] text-white text-xs font-bold px-4 py-2 shadow-sm cursor-pointer"
-              >
-                <FileText className="w-4 h-4" /> Apply for Loans
-              </button>
-              <button
-                type="button"
-                onClick={() => setIsCalculatorOpen(true)}
-                className="inline-flex items-center gap-2 rounded-lg bg-member-green hover:bg-[#154718] text-white text-xs font-bold px-4 py-2 shadow-sm cursor-pointer"
-              >
-                <Calculator className="w-4 h-4" /> Loan Calculator
-              </button>
-            </div>
+          
           </div>
 
           {isTemporaryAccount ? (

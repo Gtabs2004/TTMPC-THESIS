@@ -53,6 +53,27 @@ export const AuthContextProvider = ({ children }) => {
     return { account: data || null, error: null };
   };
 
+  // The authenticated user's own row. auth_user_id is the reliable key:
+  // member_account.email can drift from the auth email (e.g. after an email
+  // change), which made an email-only lookup report "profile is missing" for
+  // an account that exists.
+  const getAccountByAuthUserId = async (authUserId) => {
+    if (!authUserId) return { account: null, error: null };
+
+    const { data, error } = await supabase
+      .from("member_account")
+      .select("user_id, auth_user_id, email, role, membership_id")
+      .eq("auth_user_id", authUserId)
+      .limit(1)
+      .maybeSingle();
+
+    if (error) {
+      return { account: null, error };
+    }
+
+    return { account: data || null, error: null };
+  };
+
   // Ensure personal_data_sheet record exists by backfilling from member_applications (first login only)
   const ensurePersonalDataSheetExists = async (email, membershipId, isTemporary) => {
     try {
@@ -199,7 +220,12 @@ export const AuthContextProvider = ({ children }) => {
       const authenticatedEmail =
         authAttempt.data?.user?.email?.trim().toLowerCase() || normalizedEmail;
 
-      const profileAfterAuth = await getAccountByEmail(authenticatedEmail);
+      // Match on the auth user id first; fall back to email for legacy rows
+      // that were never linked (auth_user_id is null).
+      let profileAfterAuth = await getAccountByAuthUserId(data?.user?.id);
+      if (!profileAfterAuth.error && !profileAfterAuth.account) {
+        profileAfterAuth = await getAccountByEmail(authenticatedEmail);
+      }
       const memberAccount = profileAfterAuth.account;
       const memberError = profileAfterAuth.error;
 

@@ -17,7 +17,6 @@ const MemberApprovalDetails = () => {
   // Modal State
   const [activeModal, setActiveModal] = useState(null); // 'revise', 'proceed', or null
   const [remarks, setRemarks] = useState('');
-  const [sendSms, setSendSms] = useState(true);
   const [sendEmail, setSendEmail] = useState(true);
   const [memberRow, setMemberRow] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -307,7 +306,6 @@ const MemberApprovalDetails = () => {
     if (notifying) return;
     setActiveModal(null);
     setRemarks('');
-    setSendSms(true);
     setSendEmail(true);
     setActionError('');
     setNotifyMessage('');
@@ -792,11 +790,6 @@ const MemberApprovalDetails = () => {
 
             <div className="mb-8">
               <h4 className="text-[10px] font-bold text-green-700 uppercase tracking-wider mb-3">Notification Options</h4>
-              <CustomCheckbox 
-                checked={sendSms} 
-                onChange={() => setSendSms(!sendSms)} 
-                label="Send SMS Notification" 
-              />
               <CustomCheckbox 
                 checked={sendEmail} 
                 onChange={() => setSendEmail(!sendEmail)} 
