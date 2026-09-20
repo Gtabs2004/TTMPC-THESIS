@@ -254,12 +254,13 @@ const Secretary_Attendance = () => {
       };
 
       // A member qualifies for "Reschedule Training" if the secretary marked
-      // them Absent or explicitly Rescheduled at the Training stage AND a
-      // meeting_date was recorded (i.e. a real session was scheduled).
+      // them Absent or explicitly Rescheduled at the Training stage — whether
+      // or not a meeting_date happens to be recorded yet. This mirrors the
+      // BOD portal's fetchRescheduledAppIds() logic so both views agree on
+      // who belongs in the Reschedule bucket.
       const trainingStatusLower = String(attendanceLog?.attendance_status || "").toLowerCase();
       const wasAbsentAtTraining =
-        (trainingStatusLower === "absent" || trainingStatusLower === "rescheduled") &&
-        !!attendanceLog?.meeting_date;
+        trainingStatusLower === "absent" || trainingStatusLower === "rescheduled";
 
       // A member belongs to the Reschedule Training tab as soon as they were
       // marked Absent at the Training stage (regardless of whether a new date
