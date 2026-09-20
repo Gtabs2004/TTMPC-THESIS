@@ -48,10 +48,17 @@ const roundCurrency = (value) => Number((value || 0).toFixed(2));
 // What the payment field starts at: this period's amortization, capped at what
 // is still owed. It is only a starting point -- the cashier overwrites it with
 // the amount the member actually hands over (partial, exact, or advance).
+// What this period actually owes: the installment, plus anything carried
+// forward from earlier periods, less any advance credit. Prefilling the bare
+// amortization when arrears exist would under-collect by exactly the shortfall
+// and leave the member permanently a period behind.
 const getDefaultPaymentAmount = (loan) => {
   const installment = Number(loan?.amortization) || 0;
+  const arrears = Number(loan?.carried_arrears) || 0;
+  const credit = Number(loan?.applied_credit) || 0;
   const remaining = Number(loan?.remaining_balance) || 0;
-  return roundCurrency(Math.max(Math.min(installment, remaining), 0));
+  const dueThisPeriod = Math.max(installment + arrears - credit, 0);
+  return roundCurrency(Math.max(Math.min(dueThisPeriod, remaining), 0));
 };
 
 const formatSequenceId = (prefix, sequenceNumber) => {
@@ -280,6 +287,9 @@ const Cashier_Payments = () => {
   // action in the ledger flows straight into the existing payment flow.
   const [isLedgerModalOpen, setIsLedgerModalOpen] = useState(false);
   const [isSubmittingPayment, setIsSubmittingPayment] = useState(false);
+  // Holds the reference for the in-flight submission so a retry reuses it and
+  // is deduped server-side. Cleared once the payment lands or the modal closes.
+  const submissionReferenceRef = useRef(null);
   const [formError, setFormError] = useState("");
   // Amount the cashier is collecting, as plain numeric text (no commas).
   const [paymentAmountInput, setPaymentAmountInput] = useState("");
@@ -441,6 +451,11 @@ const Cashier_Payments = () => {
           last_payment_date: loan.last_payment_date || null,
           expected_installment: Number(loan.expected_installment || 0),
           penalty_rate_percent: Number(loan.penalty_rate_percent || 0),
+          accrued_penalty: loan.accrued_penalty === undefined || loan.accrued_penalty === null
+            ? null
+            : Number(loan.accrued_penalty),
+          zero_payment_streak: Number(loan.zero_payment_streak || 0),
+          is_legacy: Boolean(loan.is_legacy),
           is_delayed: Boolean(loan.is_delayed),
           is_overdue_for_penalty: Boolean(loan.is_overdue_for_penalty),
           missed_count: Number(loan.missed_count || 0),
@@ -527,11 +542,16 @@ const Cashier_Payments = () => {
     return result?.data || paymentPayload;
   }
 
+  // The server decides what penalty is chargeable -- it is the only side that
+  // can see payment history, the consecutive zero-payment streak, and whether
+  // the loan is legacy (legacy loans are exempt). The local formula is kept
+  // only as a fallback for responses predating `accrued_penalty`.
   const selectedLoanPenalty = useMemo(() => {
     if (!selectedLoan) return 0;
-    // Penalty accrues on the amortization, for the same reason
-    // currentPaymentAmount uses it: expected_installment is unreliable on
-    // legacy rows and would inflate the penalty base.
+    if (selectedLoan.accrued_penalty !== undefined && selectedLoan.accrued_penalty !== null) {
+      return Number(selectedLoan.accrued_penalty) || 0;
+    }
+    if (selectedLoan.is_legacy) return 0;
     const installmentAmount = Number(selectedLoan.amortization) || 0;
     return calculatePenalty(
       selectedLoan.due_date,
@@ -553,6 +573,15 @@ const Cashier_Payments = () => {
   );
 
   const outstandingBalance = Number(selectedLoan?.remaining_balance) || 0;
+
+  // Carry-forward from earlier periods, computed by the backend and attached
+  // to the current schedule row: arrears ADD to what is due, credit REDUCES it.
+  const priorOutstanding = Number(selectedLoan?.carried_arrears) || 0;
+  const priorCredit = Number(selectedLoan?.applied_credit) || 0;
+  // scheduledPaymentAmount already nets arrears and credit (see
+  // getDefaultPaymentAmount), so this is that same figure -- adding the
+  // carry-forward again here would double-count it.
+  const totalAmountDueThisPeriod = scheduledPaymentAmount;
 
   // The amount the cashier actually entered. Everything downstream (penalty
   // total, balance preview, confirmation text, receipt, API payload) reads
@@ -656,19 +685,33 @@ const Cashier_Payments = () => {
     });
     if (!ok) return;
     const nextSequence = paymentRecords.length + 1;
+    // One reference per submission attempt, not per list position: a
+    // length-based sequence collides whenever two cashiers submit at once or
+    // the list is stale, which would let the server's duplicate guard reject a
+    // legitimate second payment. The random suffix makes each attempt distinct
+    // while a retry of THIS attempt reuses the same value and is deduped.
+    if (!submissionReferenceRef.current) {
+      const unique = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`.toUpperCase();
+      submissionReferenceRef.current = {
+        payment: `TTMPCLP-${unique}`,
+        transaction: `TTMPCLP_TXN_${unique}`,
+      };
+    }
     const paymentPayload = {
       loan_id: selectedLoan.loan_id,
       schedule_id: selectedLoan.schedule_id || formatSequenceId("TTMPCLP_SI_", nextSequence),
       payment_amount: roundCurrency(principalPaid),
       penalties: roundCurrency(penaltyCollected),
       deficiency: getMissedDueDates(selectedLoan.due_date),
-      payment_reference: formatSequenceId("TTMPCLP-", nextSequence),
-      transaction_reference: formatSequenceId("TTMPCLP_TXN_", nextSequence),
+      payment_reference: submissionReferenceRef.current.payment,
+      transaction_reference: submissionReferenceRef.current.transaction,
     };
 
     setIsSubmittingPayment(true);
     try {
       const insertedRecord = await processPayment(paymentPayload);
+      // This attempt landed; the next payment must not reuse its reference.
+      submissionReferenceRef.current = null;
       setPaymentRecords((previous) => [insertedRecord, ...previous]);
       // Confirmation carries only data we actually have: the reference the
       // backend echoed back, the member, and the resulting balance.
@@ -1363,14 +1406,16 @@ const Cashier_Payments = () => {
                             <span role="alert" className="font-medium text-red-600">{paymentAmountError}</span>
                           ) : currentPaymentAmount < scheduledPaymentAmount ? (
                             <span className="font-medium text-amber-700">
-                              Partial payment. Scheduled amortization is {formatCurrency(scheduledPaymentAmount)}.
+                              Partial payment. {priorOutstanding > 0 ? "Amount due this period" : "Scheduled amortization"} is {formatCurrency(scheduledPaymentAmount)}.
                             </span>
                           ) : currentPaymentAmount > scheduledPaymentAmount ? (
                             <span className="font-medium text-blue-700">
-                              Above the scheduled amortization of {formatCurrency(scheduledPaymentAmount)}.
+                              Above the {priorOutstanding > 0 ? "amount due this period" : "scheduled amortization"} of {formatCurrency(scheduledPaymentAmount)}.
                             </span>
                           ) : (
-                            <span className="text-gray-500">Matches the scheduled amortization.</span>
+                            <span className="text-gray-500">
+                              Matches the {priorOutstanding > 0 ? "amount due this period" : "scheduled amortization"}.
+                            </span>
                           )}
                           {currentPaymentAmount !== scheduledPaymentAmount && (
                             <button
@@ -1382,11 +1427,35 @@ const Cashier_Payments = () => {
                               disabled={isSubmittingPayment}
                               className="font-semibold text-green-700 underline-offset-2 hover:underline disabled:opacity-50"
                             >
-                              Use scheduled amount
+                              {priorOutstanding > 0 ? "Use full amount due" : "Use scheduled amount"}
                             </button>
                           )}
                         </div>
                       </div>
+                      {/* Carry-forward from earlier periods. Shown only when
+                          non-zero so the common case stays uncluttered. */}
+                      {priorOutstanding > 0 && (
+                        <div className="flex items-baseline justify-between gap-3">
+                          <span className="font-medium text-red-700">
+                            Previous outstanding
+                            <span className="ml-1.5 text-xs text-red-500">(carried forward)</span>
+                          </span>
+                          <span className="font-medium text-red-700 tabular-nums">
+                            +{formatCurrency(priorOutstanding)}
+                          </span>
+                        </div>
+                      )}
+                      {priorCredit > 0 && (
+                        <div className="flex items-baseline justify-between gap-3">
+                          <span className="font-medium text-green-700">
+                            Previous credit
+                            <span className="ml-1.5 text-xs text-green-600">(advance payment)</span>
+                          </span>
+                          <span className="font-medium text-green-700 tabular-nums">
+                            -{formatCurrency(priorCredit)}
+                          </span>
+                        </div>
+                      )}
                       <div className="flex items-baseline justify-between gap-3">
                         <span className={selectedLoanPenalty > 0 ? "font-medium text-amber-700" : "text-gray-500"}>
                           Penalty
@@ -1398,6 +1467,14 @@ const Cashier_Payments = () => {
                           {formatCurrency(selectedLoanPenalty)}
                         </span>
                       </div>
+                      {(priorOutstanding > 0 || priorCredit > 0) && (
+                        <div className="flex items-baseline justify-between gap-3 border-t border-gray-200 pt-2">
+                          <span className="font-semibold text-gray-900">Total amount due this period</span>
+                          <span className="font-semibold text-gray-900 tabular-nums">
+                            {formatCurrency(totalAmountDueThisPeriod)}
+                          </span>
+                        </div>
+                      )}
                     </div>
 
                     <div className="mt-4 flex items-baseline justify-between gap-3 border-t-2 border-gray-900 pt-4">
