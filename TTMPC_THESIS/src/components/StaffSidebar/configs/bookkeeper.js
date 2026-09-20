@@ -11,6 +11,7 @@ import {
   BarChart3,
   History,
   Coins,
+  Unlock,
 } from "lucide-react";
 
 // Bookkeeper portal navigation. Same list on every Bookkeeper page.
@@ -19,6 +20,7 @@ export const bookkeeperNav = [
   { name: "Manage Member",  icon: Users,           path: "/manage-member" },
   { name: "Loan Approval",  icon: FileText,        path: "/bookkeeper-loan-approval" },
   { name: "Manage Loans",   icon: Briefcase,       path: "/manage-loans" },
+  { name: "Renewal Overrides", icon: Unlock,       path: "/bookkeeper-renewal-overrides" },
   { name: "Credit Risk",    icon: Brain,           path: "/bookkeeper-credit-risk" },
   { name: "Payments",       icon: Wallet,          path: "/payments" },
   {

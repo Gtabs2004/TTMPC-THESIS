@@ -6,6 +6,7 @@ import { formatTinNumber, TIN_FORMATTED_MAX_LENGTH } from './tinFormat';
 import { supabase } from '../supabaseClient';
 import { resolveAccountFromSessionUser } from '../utils/sessionIdentity';
 import { useMigsLabel } from '../hooks/useMigsLabel';
+import { useActiveRenewalOverride } from '../hooks/useActiveRenewalOverride';
 import { useNotification } from '../contex/NotificationContext';
 import { Loader2, ShieldCheck, Trash2, Plus, CheckCircle2, ImagePlus } from 'lucide-react';
 import MobileFormStepper from '../components/MobileFormStepper';
@@ -266,6 +267,7 @@ function Consolidated_Up() {
   const [existingLoan, setExistingLoan] = useState(null);
   const [borrowerMemberId, setBorrowerMemberId] = useState(null);
   const { data: migsLabel, status: migsLabelStatus } = useMigsLabel(borrowerMemberId);
+  const activeRenewalOverride = useActiveRenewalOverride('consolidated');
   const [renewalError, setRenewalError] = useState('');
   const [sixMonthOverride, setSixMonthOverride] = useState(false);
 
@@ -357,7 +359,11 @@ function Consolidated_Up() {
 
   const overrideSixMonthsPaid = () => setSixMonthOverride(true);
 
-  const sixMonthsPaid = sixMonthOverride || (existingLoan?.paidMonths ?? 0) >= MIN_PAID_MONTHS_FOR_RENEWAL;
+  // Real override: the Bookkeeper approved an early renewal for this loan.
+  // Unlike the simulation it does NOT pretend any payments were made, so the
+  // existing balance is still deducted in full (see simulatedRemainingBalance).
+  const renewalOverrideApproved = Boolean(activeRenewalOverride) && activeRenewalOverride.loan_id === existingLoan?.controlNumber;
+  const sixMonthsPaid = renewalOverrideApproved || sixMonthOverride || (existingLoan?.paidMonths ?? 0) >= MIN_PAID_MONTHS_FOR_RENEWAL;
   const simulatedRemainingBalance = (() => {
     const balance = Number(existingLoan?.remainingBalance || 0);
     const monthly = Number(existingLoan?.monthlyAmortization || 0);
@@ -999,7 +1005,7 @@ function Consolidated_Up() {
                   <span className="font-semibold text-gray-700">Renewal</span>
                   {isRenewal && existingLoan && (
                     <span className={`ml-1 inline-flex items-center text-[10px] font-semibold px-1.5 py-0.5 rounded ${sixMonthsPaid ? 'bg-[#E9F7DE] text-[#2E7D32]' : 'bg-red-50 text-red-600'}`}>
-                      {sixMonthsPaid ? '✓ 6-month rule' : '✕ 6-month rule'}
+                      {renewalOverrideApproved ? '✓ Override approved' : sixMonthsPaid ? '✓ 6-month rule' : '✕ 6-month rule'}
                     </span>
                   )}
                 </label>

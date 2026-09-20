@@ -16,6 +16,7 @@ import AuditTrail from "./Bookkeeper/Components/Audit_Log";
 import LoanApplication from "./Bookkeeper/Components/Loan-Application";
 import MIGS from "./Bookkeeper/Components/MIGS";
 import BookkeeperPayments from "./Bookkeeper/Components/Payments";
+import BookkeeperRenewalOverrides from "./Bookkeeper/Components/Renewal_Overrides";
 import BookkeeperSavingsTransactions from "./Bookkeeper/Components/Savings-Transactions";
 import BookkeeperSavingsAccounts from "./Bookkeeper/Components/Bookkeeper_Savings_Accounts";
 import Bookkeeper_CBU from "./Bookkeeper/Components/Bookkeeper_CBU";
@@ -139,6 +140,7 @@ export const router = createBrowserRouter([
     {path: "/migs", element: bookkeeperGuarded(<MIGS/>)},
     {path: "/migs-evaluate", element: bookkeeperGuarded(<MIGSDetails/>)},
     {path: "/payments", element: bookkeeperGuarded(<BookkeeperPayments/>)},
+    {path: "/bookkeeper-renewal-overrides", element: bookkeeperGuarded(<BookkeeperRenewalOverrides/>)},
     {path: "/bookkeeper-savings-transactions", element: bookkeeperGuarded(<BookkeeperSavingsTransactions/>)},
     {path: "/bookkeeper-savings-accounts", element: bookkeeperGuarded(<BookkeeperSavingsAccounts/>)},
     {path: "/bookkeeper-cbu", element: bookkeeperGuarded(<Bookkeeper_CBU/>)},
@@ -224,6 +226,7 @@ export const router = createBrowserRouter([
     {path: "/secretary-records", element: bodGuarded(<BOD_Secretary_Records/>)},
     {path: "/membership-records", element: bodGuarded(<BOD_Secretary_Records/>)},
     {path: "/record-details/:id", element: bodGuarded(<Record_Details/>)},
+    {path: "/secretary-record-details/:id", element: secretaryGuarded(<Record_Details backPath="/Secretary_Records"/>)},
     {path: "/treasurer-approval", element: treasurerGuarded(<Treasurer_Approval/>)},
     {path:"/treasurer-approval/:id", element: treasurerGuarded(<Treasurer_ApprovalDetails/>)},
     {path: "/Cashier_CBU", element: cashierGuarded(<Cashier_CBU/>)},

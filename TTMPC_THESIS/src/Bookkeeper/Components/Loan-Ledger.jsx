@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useState } from "react";
+﻿import React, { memo, useEffect, useMemo, useState } from "react";
 import { NavLink, useLocation, useNavigate, useParams } from "react-router-dom";
 import StaffSidebar from "../../components/StaffSidebar";
 import { bookkeeperNav } from "../../components/StaffSidebar/configs/bookkeeper";
@@ -35,12 +35,21 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000
 import StaffTopbar from "../../components/StaffTopbar";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
 import Breadcrumb from "../../components/Breadcrumb";
-const formatCurrency = (value) =>
-  new Intl.NumberFormat("en-PH", {
-    style: "currency",
-    currency: "PHP",
-    minimumFractionDigits: 2,
-  }).format(Number(value || 0));
+// Formatters are built once. `new Intl.NumberFormat(...)` per call is slow, and
+// the ledger formats several currency cells per row on every render.
+const CURRENCY_FORMAT = new Intl.NumberFormat("en-PH", {
+  style: "currency",
+  currency: "PHP",
+  minimumFractionDigits: 2,
+});
+const formatCurrency = (value) => CURRENCY_FORMAT.format(Number(value || 0));
+
+const DATE_FORMAT = new Intl.DateTimeFormat("en-PH", { year: "numeric", month: "short", day: "numeric" });
+const formatDate = (value) => {
+  if (!value) return "—";
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? "—" : DATE_FORMAT.format(d);
+};
 
 const getStatusStyle = (status) => {
   const key = String(status || "").toLowerCase();
@@ -51,12 +60,64 @@ const getStatusStyle = (status) => {
   return "bg-gray-100 text-gray-700";
 };
 
+// One ledger entry, with everything the table shows already formatted. Built
+// once per history change (useMemo below) so rows render as plain text.
+const toPaymentRow = (entry, index) => {
+  const paid = Number(entry.payment_amount || entry.amount_paid || 0);
+  const penalty = Number(entry.penalty || entry.penalties || 0);
+  const status = entry.status || entry.confirmation_status || "";
+  return {
+    // index keeps keys unique even if two payments share a reference and date
+    key: `${entry.reference_no || entry.payment_id || "entry"}-${entry.date_paid || ""}-${index}`,
+    date: formatDate(entry.date_paid),
+    reference: entry.reference_no || entry.payment_id || "—",
+    paid,
+    paidText: formatCurrency(paid),
+    penalty,
+    penaltyText: penalty > 0 ? formatCurrency(penalty) : "—",
+    remainingText: formatCurrency(entry.remaining_after),
+    status,
+    statusStyle: getStatusStyle(status),
+  };
+};
+
+// Stable empty array so the renewal memo below isn't recomputed every render.
+const NO_RENEWALS = [];
+
+// Column widths shared by the ledger header, body and footer so every row lines
+// up. Numeric columns are right-aligned (headers included).
+const PAYMENT_COLUMNS = ["15%", "23%", "17%", "13%", "20%", "12%"];
+const RENEWAL_COLUMNS = ["21%", "16%", "9%", "16%", "16%", "11%", "11%"];
+
+const PaymentRow = memo(function PaymentRow({ row }) {
+  return (
+    <tr className="border-b border-gray-100 transition-colors hover:bg-gray-50/60">
+      <td className="px-4 py-3 whitespace-nowrap text-gray-700">{row.date}</td>
+      <td className="px-4 py-3 truncate font-mono text-xs text-gray-700" title={row.reference}>{row.reference}</td>
+      <td className="px-4 py-3 text-right tabular-nums whitespace-nowrap font-medium text-gray-800">{row.paidText}</td>
+      <td className={`px-4 py-3 text-right tabular-nums whitespace-nowrap ${row.penalty > 0 ? "font-medium text-red-600" : "text-gray-400"}`}>
+        {row.penaltyText}
+      </td>
+      <td className="px-4 py-3 text-right tabular-nums whitespace-nowrap text-gray-700">{row.remainingText}</td>
+      <td className="px-4 py-3">
+        {row.status ? (
+          <span className={`inline-flex whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-semibold ${row.statusStyle}`}>
+            {row.status}
+          </span>
+        ) : (
+          <span className="text-gray-400">—</span>
+        )}
+      </td>
+    </tr>
+  );
+});
+
 const LoanLedger = () => {
     const navigate = useNavigate();
   const location = useLocation();
   const { loanId } = useParams();
   const isManagerView = location.state?.readOnly === true;
-  const renewalHistory = location.state?.renewals || [];
+  const renewalHistory = location.state?.renewals || NO_RENEWALS;
   // True when this ledger was opened by clicking a renewal history row.
   // The successor's application_date is passed as closingDate so we can
   // show "Closing Date" instead of "Due Date".
@@ -306,6 +367,36 @@ const LoanLedger = () => {
     fetchLedger();
   }, [loanId]);
 
+  const paymentRows = useMemo(
+    () => (selectedLoan.payment_history || []).map(toPaymentRow),
+    [selectedLoan.payment_history],
+  );
+
+  const paymentTotals = useMemo(
+    () => paymentRows.reduce(
+      (acc, row) => ({ paid: acc.paid + row.paid, penalty: acc.penalty + row.penalty }),
+      { paid: 0, penalty: 0 },
+    ),
+    [paymentRows],
+  );
+
+  // Closing date = the date a renewed loan was superseded. Best signal is its
+  // last payment (payments stop when it is renewed); fallback is the
+  // successor's application date (works for system loans).
+  const renewalRows = useMemo(
+    () => renewalHistory.map((loan, idx) => {
+      let lastPay = null;
+      for (const p of loan.payment_history || []) {
+        if (p.date_paid && (!lastPay || p.date_paid > lastPay)) lastPay = p.date_paid;
+      }
+      const successorApplied = idx === 0
+        ? selectedLoan.application_date
+        : renewalHistory[idx - 1]?.application_date;
+      return { loan, closingDate: lastPay || successorApplied || null };
+    }),
+    [renewalHistory, selectedLoan.application_date],
+  );
+
 
   return (
     <div className="flex min-h-screen bg-gray-50">
@@ -452,20 +543,24 @@ const LoanLedger = () => {
             </div>
           </div>
 
-          <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-sm">
-            <table className="min-w-full text-sm">
+          <div className="max-h-[36rem] overflow-auto rounded-xl border border-gray-200 bg-white shadow-sm">
+            <table className="w-full min-w-[46rem] table-fixed border-collapse text-left text-sm">
+              <colgroup>
+                {PAYMENT_COLUMNS.map((width, i) => <col key={i} style={{ width }} />)}
+              </colgroup>
               <thead>
-                <tr className="bg-primary-deep text-[10px] uppercase tracking-wider text-white font-extrabold">
-                  <th className="p-5 font-bold">Date</th>
-                  <th className="p-5 font-bold">Reference No.</th>
-                  <th className="p-5 font-bold">Payment Amount</th>
-                  <th className="p-5 font-bold">Penalty</th>
-                  <th className="p-5 font-bold">Remaining After Payment</th>
-                  <th className="p-5 font-bold">Status</th>
+                <tr className="text-[10px] uppercase tracking-wider text-white font-extrabold">
+                  {/* sticky per-cell: keeps the header visible while a long history scrolls */}
+                  <th className="sticky top-0 z-10 bg-primary-deep px-4 py-3 align-bottom font-bold">Date</th>
+                  <th className="sticky top-0 z-10 bg-primary-deep px-4 py-3 align-bottom font-bold">Reference No.</th>
+                  <th className="sticky top-0 z-10 bg-primary-deep px-4 py-3 align-bottom text-right font-bold">Payment Amount</th>
+                  <th className="sticky top-0 z-10 bg-primary-deep px-4 py-3 align-bottom text-right font-bold">Penalty</th>
+                  <th className="sticky top-0 z-10 bg-primary-deep px-4 py-3 align-bottom text-right font-bold">Remaining After Payment</th>
+                  <th className="sticky top-0 z-10 bg-primary-deep px-4 py-3 align-bottom font-bold">Status</th>
                 </tr>
               </thead>
               <tbody>
-                {selectedLoan.payment_history.length === 0 && (
+                {paymentRows.length === 0 && (
                   <tr>
                     <td colSpan={6} className="p-10 text-center">
                       <div className="flex flex-col items-center justify-center gap-2">
@@ -476,70 +571,75 @@ const LoanLedger = () => {
                   </tr>
                 )}
 
-                {selectedLoan.payment_history.map((entry) => (
-                  <tr key={`${entry.reference_no || entry.payment_id}-${entry.date_paid}`} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
-                    <td className="p-5 text-gray-700">{new Date(entry.date_paid).toLocaleDateString()}</td>
-                    <td className="p-5 text-gray-700">{entry.reference_no || entry.payment_id || "-"}</td>
-                    <td className="p-5 text-gray-700">{formatCurrency(entry.payment_amount || entry.amount_paid)}</td>
-                    <td className="p-5 text-gray-700">{formatCurrency(entry.penalty || entry.penalties)}</td>
-                    <td className="p-5 text-gray-700">{formatCurrency(entry.remaining_after)}</td>
-                    <td className="p-5">
-                      <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${getStatusStyle(entry.status || entry.confirmation_status)}`}>
-                        {entry.status || entry.confirmation_status}
-                      </span>
-                    </td>
-                  </tr>
+                {paymentRows.map((row) => (
+                  <PaymentRow key={row.key} row={row} />
                 ))}
               </tbody>
+              {paymentRows.length > 0 && (
+                <tfoot>
+                  <tr className="border-t-2 border-gray-200 bg-gray-50 text-sm font-bold text-gray-800">
+                    <td colSpan={2} className="px-4 py-3 text-[10px] uppercase tracking-wider text-gray-500">
+                      Totals ({paymentRows.length} {paymentRows.length === 1 ? "entry" : "entries"})
+                    </td>
+                    <td className="px-4 py-3 text-right tabular-nums whitespace-nowrap">{formatCurrency(paymentTotals.paid)}</td>
+                    <td className="px-4 py-3 text-right tabular-nums whitespace-nowrap">
+                      {paymentTotals.penalty > 0 ? formatCurrency(paymentTotals.penalty) : "—"}
+                    </td>
+                    <td className="px-4 py-3 text-right tabular-nums whitespace-nowrap">
+                      {isRenewed ? "" : formatCurrency(selectedLoan.remaining_balance)}
+                    </td>
+                    <td />
+                  </tr>
+                </tfoot>
+              )}
             </table>
           </div>
 
-          {renewalHistory.length > 0 && (
+          {renewalRows.length > 0 && (
             <div className="mt-5 rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
               <div className="px-4 py-3 border-b border-gray-100 bg-gray-50">
-                <h2 className="text-sm font-semibold text-gray-700">Renewal History ({renewalHistory.length})</h2>
+                <h2 className="text-sm font-semibold text-gray-700">Renewal History ({renewalRows.length})</h2>
                 <p className="text-xs text-gray-500 mt-0.5">Previous loans of the same type by this member, newest first</p>
               </div>
               <div className="overflow-x-auto">
-                <table className="min-w-full text-sm">
+                <table className="w-full min-w-[46rem] table-fixed border-collapse text-left text-sm">
+                  <colgroup>
+                    {RENEWAL_COLUMNS.map((width, i) => <col key={i} style={{ width }} />)}
+                  </colgroup>
                   <thead>
                     <tr className="bg-primary-deep text-[10px] uppercase tracking-wider text-white font-extrabold">
-                      <th className="p-5 font-bold">Loan ID</th>
-                      <th className="p-5 font-bold">Loan Amount</th>
-                      <th className="p-5 font-bold">Term</th>
-                      <th className="p-5 font-bold">Amortization</th>
-                      <th className="p-5 font-bold">Last Payment</th>
-                      <th className="p-5 font-bold">Status</th>
-                      <th className="p-5 font-bold">Action</th>
+                      <th className="px-4 py-3 align-bottom font-bold">Loan ID</th>
+                      <th className="px-4 py-3 align-bottom text-right font-bold">Loan Amount</th>
+                      <th className="px-4 py-3 align-bottom text-right font-bold">Term</th>
+                      <th className="px-4 py-3 align-bottom text-right font-bold">Amortization</th>
+                      <th className="px-4 py-3 align-bottom font-bold">Last Payment</th>
+                      <th className="px-4 py-3 align-bottom font-bold">Status</th>
+                      <th className="px-4 py-3 align-bottom font-bold">Action</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {renewalHistory.map((r, idx) => {
-                      // Closing date = the date this loan was superseded.
-                      // Best signal: last payment date on this loan (payments stopped when renewed).
-                      // Fallback: successor's application_date (works for system loans).
-                      const lastPay = (r.payment_history || [])
-                        .map((p) => p.date_paid)
-                        .filter(Boolean)
-                        .sort()
-                        .at(-1) || null;
-                      const successor = idx === 0 ? selectedLoan : renewalHistory[idx - 1];
-                      const closingDateVal = lastPay || successor?.application_date || null;
-                      return (
-                      <tr key={r.loan_id} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
-                        <td className="p-5 font-mono font-bold text-green-700 cursor-pointer" onClick={() => navigate(`/bookkeeper-loan-ledger/${r.loan_id}`, { state: { loan: r, isRenewed: true, closingDate: closingDateVal } })}>{r.loan_id}</td>
-                        <td className="p-5 text-gray-700">{formatCurrency(r.loan_amount)}</td>
-                        <td className="p-5 text-gray-700">{r.term_months ?? "—"} mo</td>
-                        <td className="p-5 text-gray-700">{formatCurrency(r.amortization)}</td>
-                        <td className="p-5 text-gray-500 text-sm">
-                          {closingDateVal ? new Date(closingDateVal).toLocaleDateString("en-PH", { year: "numeric", month: "short", day: "numeric" }) : "—"}
+                    {renewalRows.map(({ loan: r, closingDate: closingDateVal }) => (
+                      <tr key={r.loan_id} className="border-b border-gray-100 last:border-b-0 hover:bg-gray-50/60 transition-colors">
+                        <td className="px-4 py-3">
+                          <button
+                            type="button"
+                            className="max-w-full truncate font-mono font-bold text-green-700 hover:underline"
+                            title={r.loan_id}
+                            onClick={() => navigate(`/bookkeeper-loan-ledger/${r.loan_id}`, { state: { loan: r, isRenewed: true, closingDate: closingDateVal } })}
+                          >
+                            {r.loan_id}
+                          </button>
                         </td>
-                        <td className="p-5">
-                          <span className="inline-flex rounded-full px-3 py-1 text-xs font-semibold bg-blue-100 text-blue-700">
+                        <td className="px-4 py-3 text-right tabular-nums whitespace-nowrap text-gray-700">{formatCurrency(r.loan_amount)}</td>
+                        <td className="px-4 py-3 text-right tabular-nums whitespace-nowrap text-gray-700">{r.term_months ?? "—"} mo</td>
+                        <td className="px-4 py-3 text-right tabular-nums whitespace-nowrap text-gray-700">{formatCurrency(r.amortization)}</td>
+                        <td className="px-4 py-3 whitespace-nowrap text-gray-600">{formatDate(closingDateVal)}</td>
+                        <td className="px-4 py-3">
+                          <span className="inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold bg-blue-100 text-blue-700">
                             Renewed
                           </span>
                         </td>
-                        <td className="p-5">
+                        <td className="px-4 py-3">
                           <button
                             type="button"
                             disabled={downloadingId === r.loan_id}
@@ -551,7 +651,7 @@ const LoanLedger = () => {
                           </button>
                         </td>
                       </tr>
-                    ); })}
+                    ))}
                   </tbody>
                 </table>
               </div>

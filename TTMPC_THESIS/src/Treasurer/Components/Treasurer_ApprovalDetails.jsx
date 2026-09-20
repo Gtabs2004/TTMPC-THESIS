@@ -110,7 +110,6 @@ const Treasurer_ApprovalDetails = () => {
   const [actionError, setActionError] = useState('');
   const [activeModal, setActiveModal] = useState(null);
   const [remarks, setRemarks] = useState('');
-  const [sendSms, setSendSms] = useState(true);
   const [sendEmail, setSendEmail] = useState(true);
   const [loanDetails, setLoanDetails] = useState(null);
   const [vaultBalance, setVaultBalance] = useState(null);
@@ -533,7 +532,6 @@ const Treasurer_ApprovalDetails = () => {
     setActiveModal(null);
     setActionError('');
     setRemarks('');
-    setSendSms(true);
     setSendEmail(true);
   };
 
@@ -1320,7 +1318,7 @@ const Treasurer_ApprovalDetails = () => {
         {/* Shared Notification Options */}
         <div className="mt-6">
           <h4 className="text-[10px] font-bold text-green-700 uppercase tracking-wider mb-3">Notification Options</h4>
-          <p className="text-xs text-gray-500">Email/SMS sending is disabled for this flow.</p>
+          <p className="text-xs text-gray-500">Email sending is disabled for this flow.</p>
         </div>
       </ConfirmDialog>
 

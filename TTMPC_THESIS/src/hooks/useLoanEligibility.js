@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "../supabaseClient";
+import { fetchActiveOverrides } from "../utils/renewalOverrides";
 
 const VALID_SIM_STATES = new Set(["clean", "active_recent", "active_renewable"]);
 const VALID_LOAN_TYPES = new Set(["consolidated", "bonus", "emergency"]);
@@ -59,6 +60,55 @@ const fabricateEligibility = (simState, loanType) => {
   return { per_type, simulation_active: true };
 };
 
+const formatOverrideDate = (iso) => {
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime())
+    ? ""
+    : d.toLocaleDateString("en-PH", { year: "numeric", month: "short", day: "numeric" });
+};
+
+/**
+ * Unlocks Renewal on any bucket the Bookkeeper has approved a 6-month-rule
+ * override for. The RPC only knows about payment counts, so this layers the
+ * override on top. The backend only returns overrides that are approved,
+ * unexpired, unused and still tied to the member's current active loan.
+ * Any failure leaves the RPC result untouched (i.e. the normal rule applies).
+ */
+const applyRenewalOverrides = async (result) => {
+  const perType = result?.per_type;
+  if (!perType) return result;
+
+  // Skip the extra round-trip unless something is actually blocked by the rule.
+  const blocked = Object.values(perType).some((b) => b && b.active_loan_id && !b.can_renew);
+  if (!blocked) return result;
+
+  let overrides = [];
+  try {
+    overrides = await fetchActiveOverrides();
+  } catch {
+    return result;
+  }
+  if (!overrides.length) return result;
+
+  const next = { ...perType };
+  for (const o of overrides) {
+    const bucket = next[o.loan_type];
+    if (!bucket || bucket.can_renew || bucket.active_loan_id !== o.loan_id) continue;
+    const until = formatOverrideDate(o.expires_at);
+    next[o.loan_type] = {
+      ...bucket,
+      can_renew: true,
+      override_applied: true,
+      override_request_id: o.id,
+      override_expires_at: o.expires_at,
+      reason:
+        `Active ${o.loan_type} loan ${o.loan_id} in repayment. ` +
+        `Early renewal approved by the Bookkeeper${until ? ` until ${until}` : ""}.`,
+    };
+  }
+  return { ...result, per_type: next };
+};
+
 /**
  * Loan eligibility hook — calls Supabase RPC directly (no FastAPI round-trip).
  *
@@ -110,12 +160,14 @@ export const useLoanEligibility = (memberId, { allowSimulation = false, loanType
 
       if (rpcError) throw new Error(rpcError.message || "Failed to load loan eligibility.");
 
+      const withOverrides = await applyRenewalOverrides(result);
+
       // If caller asked for a single loan type, extract just that bucket
       if (normalizedType) {
-        const bucket = result?.per_type?.[normalizedType] ?? null;
+        const bucket = withOverrides?.per_type?.[normalizedType] ?? null;
         setData(bucket);
       } else {
-        setData(result);
+        setData(withOverrides);
       }
       setStatus("ready");
     } catch (err) {

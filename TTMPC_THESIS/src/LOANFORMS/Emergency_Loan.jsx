@@ -351,7 +351,11 @@ function Emergency_Loan() {
     return () => { isMounted = false; };
   }, [isRenewal]);
 
-  const sixMonthsPaid = sixMonthOverride || (existingLoan?.paidMonths ?? 0) >= MIN_PAID_MONTHS_FOR_RENEWAL;
+  // Real override: the Bookkeeper approved an early renewal for this loan.
+  // Unlike the simulation it does NOT pretend any payments were made, so the
+  // existing balance is still deducted in full (see simulatedRemainingBalance).
+  const renewalOverrideApproved = Boolean(eligibility?.override_applied);
+  const sixMonthsPaid = renewalOverrideApproved || sixMonthOverride || (existingLoan?.paidMonths ?? 0) >= MIN_PAID_MONTHS_FOR_RENEWAL;
   const simulatedRemainingBalance = (() => {
     const balance = Number(existingLoan?.remainingBalance || 0);
     const monthly = Number(existingLoan?.monthlyAmortization || 0);
