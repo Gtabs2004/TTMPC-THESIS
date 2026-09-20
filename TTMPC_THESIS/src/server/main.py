@@ -17,6 +17,9 @@ import json
 import io
 import calendar
 import logging
+import time
+from functools import lru_cache
+from uuid import uuid4
 from html import escape as _html_escape
 from contextlib import asynccontextmanager
 from datetime import date, datetime, timedelta
@@ -960,6 +963,145 @@ def parse_date_value(value: str | None) -> date | None:
         return None
 
 
+def count_consecutive_zero_payment_periods(
+    schedules: list[dict],
+    payment_dates: list[date],
+    as_of: date,
+) -> int:
+    """How many consecutive elapsed billing periods ended with no payment at all.
+
+    A "period" is one unpaid schedule whose due date has passed. Counting runs
+    backwards from the most recent elapsed period and stops at the first period
+    that saw any payment, so a single partial payment breaks the streak.
+    """
+    elapsed_dues = sorted(
+        d for d in (parse_date_value(s.get("due_date")) for s in schedules) if d and d <= as_of
+    )
+    if not elapsed_dues:
+        return 0
+
+    streak = 0
+    for index in range(len(elapsed_dues) - 1, -1, -1):
+        period_end = elapsed_dues[index]
+        period_start = elapsed_dues[index - 1] if index > 0 else None
+        paid_in_period = any(
+            (period_start is None or pay_date > period_start) and pay_date <= period_end
+            for pay_date in payment_dates
+        )
+        if paid_in_period:
+            break
+        streak += 1
+    return streak
+
+
+# Canonical penalty accrual. Two gates must BOTH pass before anything accrues:
+#   1. the member went >= 3 consecutive billing periods with zero payment, and
+#   2. the 3-month grace past the earliest unpaid due date has lapsed.
+# Legacy loans (any loan_payments_legacy row) are exempt entirely -- historical
+# delinquency on migrated loans is not chargeable retroactively.
+PENALTY_ZERO_PAYMENT_PERIODS = 3
+PENALTY_GRACE_MONTHS = 3
+
+
+def compute_loan_penalty(
+    *,
+    loan_type_code: str,
+    remaining_balance: Decimal,
+    earliest_unpaid_due: date | None,
+    schedules: list[dict],
+    payment_dates: list[date],
+    is_legacy: bool,
+    as_of: date | None = None,
+) -> Decimal:
+    if is_legacy or not earliest_unpaid_due:
+        return Decimal("0")
+
+    today = as_of or datetime.utcnow().date()
+
+    zero_streak = count_consecutive_zero_payment_periods(schedules, payment_dates, today)
+    if zero_streak < PENALTY_ZERO_PAYMENT_PERIODS:
+        return Decimal("0")
+
+    grace_end = add_months(earliest_unpaid_due, PENALTY_GRACE_MONTHS)
+    if today <= grace_end:
+        return Decimal("0")
+
+    months_overdue = (today.year - grace_end.year) * 12 + (today.month - grace_end.month)
+    if today.day < grace_end.day:
+        months_overdue -= 1
+    if months_overdue <= 0:
+        return Decimal("0")
+
+    # 1% for bonus loans (incl. NONMEMBER_BONUS), 2% for everything else.
+    rate = Decimal("0.01") if "bonus" in str(loan_type_code).strip().lower() else Decimal("0.02")
+    return max(remaining_balance, Decimal("0")) * rate * Decimal(months_overdue)
+
+
+def _server_side_penalty_for_loan(*, loan_id: str, loan_row: dict, schedules: list[dict]) -> Decimal:
+    """Authoritative penalty for one loan, read straight from the database.
+
+    Used on the write path so a client-supplied penalty is never trusted.
+    Returns 0 rather than raising if history can't be read -- a lookup failure
+    must not block the cashier from recording money that was actually handed over.
+    """
+    try:
+        today = datetime.utcnow().date()
+
+        legacy_rows = (
+            supabase.table("loan_payments_legacy")
+            .select("id")
+            .eq("loan_id", loan_id)
+            .limit(1)
+            .execute()
+        ).data or []
+        if legacy_rows:
+            return Decimal("0")
+
+        payment_rows = (
+            supabase.table("loan_payments")
+            .select("amount_paid,payment_date,confirmation_status")
+            .eq("loan_id", loan_id)
+            .execute()
+        ).data or []
+
+        already_paid = Decimal("0")
+        payment_dates: list[date] = []
+        for row in payment_rows:
+            if not is_validated_payment_status(row.get("confirmation_status")):
+                continue
+            already_paid += Decimal(str(row.get("amount_paid") or 0))
+            parsed = parse_date_value(row.get("payment_date"))
+            if parsed:
+                payment_dates.append(parsed)
+
+        remaining_balance = max(_loan_total_payable(loan_row) - already_paid, Decimal("0"))
+        if remaining_balance <= 0:
+            return Decimal("0")
+
+        unpaid = [
+            s for s in schedules
+            if "paid" not in str(s.get("schedule_status") or "").strip().lower()
+        ]
+        earliest_unpaid_due = None
+        for sched in unpaid:
+            due = parse_date_value(sched.get("due_date"))
+            if due and due < today and (earliest_unpaid_due is None or due < earliest_unpaid_due):
+                earliest_unpaid_due = due
+
+        loan_type_name = (loan_row.get("loan_type") or {}).get("name")
+        return accrue_loan_penalties(
+            loan_id=loan_id,
+            loan_type_code=resolve_loan_type_code(normalize_cashier_loan_type(loan_type_name)),
+            remaining_balance=remaining_balance,
+            schedules=unpaid,
+            payment_dates=payment_dates,
+            is_legacy=False,
+            as_of=today,
+        )
+    except Exception:
+        return Decimal("0")
+
+
 def build_cbu_deposit_id(sequence_number: int) -> str:
     safe_seq = max(int(sequence_number), 1)
     return f"CBUD_{safe_seq:03d}"
@@ -1042,6 +1184,192 @@ def resolve_personal_data_sheet_by_ref(member_ref: str) -> dict | None:
         return None
 
 
+def accrue_loan_penalties(
+    *,
+    loan_id: str,
+    loan_type_code: str,
+    remaining_balance: Decimal,
+    schedules: list[dict],
+    payment_dates: list[date],
+    is_legacy: bool,
+    as_of: date | None = None,
+) -> Decimal:
+    """Write one penalty row per overdue period, then return the unpaid total.
+
+    Each row holds that single month's charge, so the accumulated penalty is the
+    SUM of unpaid rows and keeps growing for every month the loan stays unpaid
+    (spec 10). The unique key on (loan_id, period_due_date) makes repeated calls
+    idempotent, so refreshing a screen cannot create duplicates (spec 11).
+
+    Both gates still apply: 3+ consecutive zero-payment periods AND the 3-month
+    grace past the earliest unpaid due date.
+    """
+    today = as_of or datetime.utcnow().date()
+
+    if is_legacy or remaining_balance <= 0:
+        return _unpaid_penalty_total(loan_id)
+
+    unpaid = [
+        s for s in schedules
+        if "paid" not in str(s.get("schedule_status") or "").strip().lower()
+    ]
+    streak = count_consecutive_zero_payment_periods(unpaid, payment_dates, today)
+    if streak < PENALTY_ZERO_PAYMENT_PERIODS:
+        return _unpaid_penalty_total(loan_id)
+
+    earliest_unpaid_due = None
+    for sched in unpaid:
+        due = parse_date_value(sched.get("due_date"))
+        if due and due < today and (earliest_unpaid_due is None or due < earliest_unpaid_due):
+            earliest_unpaid_due = due
+    if not earliest_unpaid_due:
+        return _unpaid_penalty_total(loan_id)
+
+    grace_end = add_months(earliest_unpaid_due, PENALTY_GRACE_MONTHS)
+    if today <= grace_end:
+        return _unpaid_penalty_total(loan_id)
+
+    rate = Decimal("0.01") if "bonus" in str(loan_type_code).strip().lower() else Decimal("0.02")
+
+    # One charge per elapsed month past the grace, each for that month alone.
+    period = grace_end
+    charges: list[dict] = []
+    while True:
+        period = add_months(period, 1)
+        if period > today:
+            break
+        charges.append({
+            "loan_id": loan_id,
+            "period_due_date": period.isoformat(),
+            "amount": decimal_to_float(money(remaining_balance * rate)),
+            "basis_balance": decimal_to_float(money(remaining_balance)),
+            "rate_percent": decimal_to_float(rate * Decimal("100")),
+        })
+
+    for charge in charges:
+        try:
+            supabase.table("loan_penalties").upsert(
+                charge, on_conflict="loan_id,period_due_date"
+            ).execute()
+        except Exception:
+            # Table not migrated yet, or the row already exists -- neither is
+            # worth failing a payment over.
+            pass
+
+    return _unpaid_penalty_total(loan_id)
+
+
+@lru_cache(maxsize=512)
+def _unpaid_penalty_total_cached(loan_id: str, cache_bucket: int) -> Decimal:
+    try:
+        rows = (
+            supabase.table("loan_penalties")
+            .select("amount,paid_amount,is_paid")
+            .eq("loan_id", loan_id)
+            .eq("is_paid", False)
+            .execute()
+        ).data or []
+        return sum(
+            (Decimal(str(r.get("amount") or 0)) - Decimal(str(r.get("paid_amount") or 0)))
+            for r in rows
+        ) or Decimal("0")
+    except Exception:
+        return Decimal("0")
+
+
+def _unpaid_penalty_total(loan_id: str) -> Decimal:
+    """Accumulated unpaid penalty for a loan: the sum of its unsettled charges.
+
+    Cached in 5-second buckets so the several early-return paths in
+    accrue_loan_penalties() don't each issue their own query for the same loan
+    within one request. Short enough that a settlement is reflected promptly.
+    """
+    return _unpaid_penalty_total_cached(loan_id, int(time.time()) // 5)
+
+
+def allocate_payment(
+    *,
+    payment_amount: Decimal,
+    penalty_due: Decimal,
+    arrears_due: Decimal,
+    current_due: Decimal,
+) -> dict[str, Decimal]:
+    """Split a payment: penalty -> arrears -> current installment -> credit.
+
+    Charges are cleared first, then the oldest debt, then the current period;
+    whatever survives becomes credit against the next installment (spec 13/14).
+    """
+    remaining = max(payment_amount, Decimal("0"))
+
+    to_penalty = min(remaining, max(penalty_due, Decimal("0")))
+    remaining -= to_penalty
+
+    to_arrears = min(remaining, max(arrears_due, Decimal("0")))
+    remaining -= to_arrears
+
+    to_current = min(remaining, max(current_due, Decimal("0")))
+    remaining -= to_current
+
+    return {
+        "penalty": money(to_penalty),
+        "arrears": money(to_arrears),
+        "current": money(to_current),
+        "credit": money(remaining),
+    }
+
+
+def settle_penalties_with_payment(loan_id: str, amount: Decimal, payment_id: str | None) -> None:
+    """Apply `amount` to the oldest unpaid penalty rows first."""
+    if amount <= 0:
+        return
+    try:
+        rows = (
+            supabase.table("loan_penalties")
+            .select("id,amount,paid_amount")
+            .eq("loan_id", loan_id)
+            .eq("is_paid", False)
+            .order("period_due_date")
+            .execute()
+        ).data or []
+    except Exception:
+        return
+
+    left = amount
+    for row in rows:
+        if left <= 0:
+            break
+        owed = Decimal(str(row.get("amount") or 0)) - Decimal(str(row.get("paid_amount") or 0))
+        if owed <= 0:
+            continue
+        applied = min(left, owed)
+        left -= applied
+        new_paid = Decimal(str(row.get("paid_amount") or 0)) + applied
+        update = {"paid_amount": decimal_to_float(money(new_paid))}
+        if new_paid + Decimal("0.005") >= Decimal(str(row.get("amount") or 0)):
+            update["is_paid"] = True
+            update["paid_at"] = datetime.utcnow().isoformat()
+            if payment_id:
+                update["paid_by_payment_id"] = payment_id
+        try:
+            supabase.table("loan_penalties").update(update).eq("id", row.get("id")).execute()
+        except Exception:
+            pass
+
+
+def current_installment_no_can_roll(schedule_row: dict, term_months: int) -> bool:
+    """True when a later installment exists to carry a shortfall into.
+
+    On the final installment there is nothing to roll forward to, so the period
+    must stay open for the remaining amount instead of being closed as
+    partially_paid -- otherwise the shortfall would drop off the schedule.
+    """
+    try:
+        installment_no = int(schedule_row.get("installment_no") or 1)
+    except (TypeError, ValueError):
+        return False
+    return term_months > 0 and installment_no < term_months
+
+
 def build_single_schedule_row(
     loan_type: str,
     principal: Decimal,
@@ -1052,6 +1380,8 @@ def build_single_schedule_row(
     installment_no: int,
     remaining_principal_before: Decimal,
     start_sequence_number: int,
+    carried_arrears: Decimal = Decimal("0"),
+    applied_credit: Decimal = Decimal("0"),
 ) -> dict:
     if term_months <= 0:
         raise ValueError("term_months must be greater than zero")
@@ -1094,6 +1424,16 @@ def build_single_schedule_row(
         expected_amount = money(principal_component + interest_component)
         remaining_after = max(remaining_principal_before - principal_component, Decimal("0"))
 
+    # Net the two carry-forwards against each other -- a period either fell
+    # short or ran over, never both -- so the row records one or the other.
+    net_carry = money(max(carried_arrears, Decimal("0")) - max(applied_credit, Decimal("0")))
+    row_arrears = net_carry if net_carry > 0 else Decimal("0")
+    row_credit = -net_carry if net_carry < 0 else Decimal("0")
+
+    # Credit can only offset what this installment actually asks for; anything
+    # beyond that stays as credit for the installment after this one.
+    row_credit = min(row_credit, expected_amount)
+
     return {
         "schedule_id": build_sequence_id("TTMPCLP_SI_", start_sequence_number),
         "loan_id": loan_id,
@@ -1107,6 +1447,8 @@ def build_single_schedule_row(
         "remaining_principal": decimal_to_float(remaining_after),
         "principal_component": decimal_to_float(principal_component),
         "interest_component": decimal_to_float(interest_component),
+        "carried_arrears": decimal_to_float(row_arrears),
+        "applied_credit": decimal_to_float(row_credit),
         "schedule_status": "Unpaid",
     }
 
@@ -1521,7 +1863,7 @@ async def get_cashier_loans_for_payments():
         # paged read only if we somehow have no active-id set to filter by.
         schedules_by_loan: dict[str, list[dict]] = {}
         try:
-            wide_cols = "id,schedule_id,loan_id,installment_no,due_date,expected_amount,expected_principal,expected_interest,penalty,remaining_principal,schedule_status"
+            wide_cols = "id,schedule_id,loan_id,installment_no,due_date,expected_amount,expected_principal,expected_interest,penalty,remaining_principal,schedule_status,carried_arrears,applied_credit"
             narrow_cols = "id,loan_id,installment_no,due_date,expected_amount,principal_component,interest_component,schedule_status"
 
             def _fetch_schedules(cols: str):
@@ -1674,8 +2016,12 @@ async def get_cashier_loans_for_payments():
 
         confirmed_paid_by_loan: dict[str, Decimal] = {}
         last_payment_date_by_loan: dict[str, str] = {}
+        payment_dates_by_loan: dict[str, list[date]] = {}
+        legacy_loan_ids: set[str] = set()
         for payment in payments_rows:
             loan_key = str(payment.get("loan_id") or "")
+            if payment.get("_is_legacy") and loan_key:
+                legacy_loan_ids.add(loan_key)
             status = str(payment.get("confirmation_status") or "confirmed").strip().lower()
             is_confirmed = status in {"validated", "confirmed", "bookkeeper_confirmed", "approved"}
             if not is_confirmed:
@@ -1685,6 +2031,31 @@ async def get_cashier_loans_for_payments():
             pay_date = payment.get("payment_date")
             if loan_key and pay_date and loan_key not in last_payment_date_by_loan:
                 last_payment_date_by_loan[loan_key] = pay_date
+            parsed_pay_date = parse_date_value(pay_date)
+            if loan_key and parsed_pay_date:
+                payment_dates_by_loan.setdefault(loan_key, []).append(parsed_pay_date)
+
+        # Accumulated unpaid penalty for every loan in ONE query, rather than a
+        # per-loan lookup inside the render loop below (that was ~445 sequential
+        # round-trips and made the cashier page crawl).
+        unpaid_penalty_by_loan: dict[str, Decimal] = {}
+        try:
+            _penalty_rows = (
+                supabase.table("loan_penalties")
+                .select("loan_id,amount,paid_amount")
+                .eq("is_paid", False)
+                .execute()
+            ).data or []
+            for _row in _penalty_rows:
+                _lid = str(_row.get("loan_id") or "")
+                if not _lid:
+                    continue
+                _owed = Decimal(str(_row.get("amount") or 0)) - Decimal(str(_row.get("paid_amount") or 0))
+                if _owed > 0:
+                    unpaid_penalty_by_loan[_lid] = unpaid_penalty_by_loan.get(_lid, Decimal("0")) + _owed
+        except Exception:
+            # Table not migrated yet -- every loan simply shows no penalty.
+            unpaid_penalty_by_loan = {}
 
         mapped_loans = []
         for loan in loans_rows:
@@ -1760,6 +2131,26 @@ async def get_cashier_loans_for_payments():
             is_overdue_for_penalty = bool(penalty_start_deadline and today_date > penalty_start_deadline)
             last_payment_iso = last_payment_date_by_loan.get(control_number)
 
+            # Penalty is computed here, server-side, and sent to the cashier UI
+            # for display. The browser must never decide what is chargeable.
+            is_legacy_loan = control_number in legacy_loan_ids
+            unpaid_schedules = [
+                s for s in schedules
+                if "paid" not in str(s.get("schedule_status") or "").strip().lower()
+            ]
+            zero_payment_streak = count_consecutive_zero_payment_periods(
+                unpaid_schedules,
+                payment_dates_by_loan.get(control_number, []),
+                today_date,
+            )
+            # Read-only here: the accumulated unpaid penalty comes from the
+            # penalties pre-loaded for every loan in ONE query above. Accrual
+            # (which writes rows) deliberately does NOT run on this listing --
+            # it would mean a query per loan, and this endpoint renders the
+            # whole cashier table. Rows are written on the payment path instead,
+            # where a single loan is in play.
+            accrued_penalty = unpaid_penalty_by_loan.get(control_number, Decimal("0"))
+
             is_migs = bool(member.get("is_bona_fide"))
             # Use the same sanitizer used by disbursement/treasurer endpoints so legacy
             # snapshots (e.g., 83 stored where 0.83 was meant) don't bleed into the UI.
@@ -1806,7 +2197,12 @@ async def get_cashier_loans_for_payments():
                     "missed_count": missed_count,
                     "last_payment_date": last_payment_iso,
                     "expected_installment": decimal_to_float(next_schedule.get("expected_amount") or 0),
+                    "carried_arrears": decimal_to_float(Decimal(str(next_schedule.get("carried_arrears") or 0))),
+                    "applied_credit": decimal_to_float(Decimal(str(next_schedule.get("applied_credit") or 0))),
                     "penalty_rate_percent": decimal_to_float(next_schedule.get("penalty") or 0),
+                    "accrued_penalty": decimal_to_float(accrued_penalty),
+                    "zero_payment_streak": zero_payment_streak,
+                    "is_legacy": is_legacy_loan,
                     "remaining_balance": decimal_to_float(remaining_balance),
                     "total_payable": decimal_to_float(total_payable_amount),
                     "total_interest": decimal_to_float(total_interest_amount),
@@ -3961,13 +4357,29 @@ async def create_cashier_loan_payment(
         if not loan_id:
             raise HTTPException(status_code=400, detail="loan_id is required.")
 
-        loan_response = (
-            supabase.table("loans")
-            .select("control_number,loan_status,principal_amount,loan_amount,total_interest,monthly_amortization,term")
-            .eq("control_number", loan_id)
-            .limit(1)
-            .execute()
+        # The loan_type join only feeds the penalty rate (bonus = 1%, else 2%).
+        # It must never block recording money the member actually handed over,
+        # so a join failure falls back to the plain columns.
+        _loan_cols_base = (
+            "control_number,loan_status,principal_amount,loan_amount,total_interest,"
+            "monthly_amortization,term"
         )
+        try:
+            loan_response = (
+                supabase.table("loans")
+                .select(f"{_loan_cols_base},loan_type:loan_type_id(name)")
+                .eq("control_number", loan_id)
+                .limit(1)
+                .execute()
+            )
+        except Exception:
+            loan_response = (
+                supabase.table("loans")
+                .select(_loan_cols_base)
+                .eq("control_number", loan_id)
+                .limit(1)
+                .execute()
+            )
         if not loan_response.data:
             raise HTTPException(status_code=404, detail="Loan not found.")
 
@@ -4053,12 +4465,22 @@ async def create_cashier_loan_payment(
         if deficiency_value is None:
             deficiency_value = compute_missed_due_dates(selected_schedule.get("due_date"))
 
+        # Penalty is recomputed here and the client's figure is ignored. A
+        # browser must not be able to decide what is chargeable, and the
+        # cashier screen has no way to know whether the loan is legacy-exempt
+        # or whether the zero-payment streak has actually been reached.
+        server_penalty = _server_side_penalty_for_loan(
+            loan_id=loan_id,
+            loan_row=loan_row_for_status,
+            schedules=schedules,
+        )
+
         insert_payload = {
             "loan_id": loan_id,
             "schedule_id": selected_schedule.get("id"),
             "amount_paid": decimal_to_float(money(Decimal(str(payload.payment_amount)))),
             "payment_date": datetime.utcnow().isoformat(),
-            "penalties": decimal_to_float(money(Decimal(str(payload.penalties)))),
+            "penalties": decimal_to_float(money(server_penalty)),
             "deficiency": decimal_to_float(money(Decimal(str(deficiency_value)))),
             "confirmation_status": "pending_bookkeeper",
             "entered_by_role": "cashier",
@@ -4066,13 +4488,51 @@ async def create_cashier_loan_payment(
             "transaction_reference": transaction_reference,
         }
 
+        # Duplicate-submit guard: a double click, a retried request or a refresh
+        # mid-submit must not debit the member twice. payment_reference is unique
+        # per submission, so an existing row means this exact payment already
+        # landed -- return it instead of inserting a second one.
+        if payload.payment_reference:
+            try:
+                existing = (
+                    supabase.table("loan_payments")
+                    .select("*")
+                    .eq("payment_reference", payment_reference)
+                    .limit(1)
+                    .execute()
+                ).data or []
+                if existing:
+                    return {
+                        "success": True,
+                        "message": "This payment was already recorded.",
+                        "data": {"payment": existing[0], "duplicate": True},
+                    }
+            except Exception:
+                pass
+
         inserted_row = None
         try:
             inserted_response = supabase.table("loan_payments").insert(insert_payload).execute()
             inserted_row = (inserted_response.data or [{}])[0]
         except Exception as insert_err:
-            # Fallback for environments where new optional columns are not migrated yet.
             message = str(insert_err).lower()
+            # Unique violation on payment_reference -- a concurrent duplicate won
+            # the race. Return that row rather than erroring or double-charging.
+            if "duplicate" in message or "unique" in message:
+                existing = (
+                    supabase.table("loan_payments")
+                    .select("*")
+                    .eq("payment_reference", payment_reference)
+                    .limit(1)
+                    .execute()
+                ).data or []
+                if existing:
+                    return {
+                        "success": True,
+                        "message": "This payment was already recorded.",
+                        "data": {"payment": existing[0], "duplicate": True},
+                    }
+            # Fallback for environments where new optional columns are not migrated yet.
             if any(token in message for token in ["confirmation_status", "payment_reference", "transaction_reference"]):
                 fallback_payload = {
                     "loan_id": loan_id,
@@ -4080,7 +4540,7 @@ async def create_cashier_loan_payment(
                     "transaction_id": None,
                     "amount_paid": decimal_to_float(money(Decimal(str(payload.payment_amount)))),
                     "payment_date": datetime.utcnow().isoformat(),
-                    "penalties": decimal_to_float(money(Decimal(str(payload.penalties)))),
+                    "penalties": decimal_to_float(money(server_penalty)),
                     "deficiency": decimal_to_float(money(Decimal(str(deficiency_value)))),
                 }
                 inserted_response = supabase.table("loan_payments").insert(fallback_payload).execute()
@@ -4109,6 +4569,9 @@ async def create_cashier_loan_payment(
     except HTTPException as err:
         raise err
     except Exception as err:
+        # Full traceback to the server console: the cashier only ever sees a
+        # sanitised message, so without this a failure here is undiagnosable.
+        logging.exception("Cashier payment creation failed for loan %s", payload.loan_id)
         raise HTTPException(status_code=500, detail=f"Failed to create cashier payment: {err}")
 
 
@@ -10193,7 +10656,10 @@ async def approve_bookkeeper_payment(payment_id: str, payload: BookkeeperPayment
         schedule_internal_id = str(payment_row.get("schedule_id") or "").strip()
         current_schedule_response = (
             supabase.table("loan_schedules")
-            .select("id,schedule_id,loan_id,installment_no,due_date,remaining_principal,schedule_status,expected_amount")
+            .select(
+                "id,schedule_id,loan_id,installment_no,due_date,remaining_principal,"
+                "schedule_status,expected_amount,carried_arrears,applied_credit"
+            )
             .eq("id", schedule_internal_id)
             .limit(1)
             .execute()
@@ -10239,6 +10705,13 @@ async def approve_bookkeeper_payment(payment_id: str, payload: BookkeeperPayment
         if installment_due > 0 and schedule_expected_amount > 0:
             installment_due = min(installment_due, schedule_expected_amount)
 
+        # What this installment actually asks for, once carry-forwards from
+        # earlier periods are applied: arrears add to it, credit reduces it.
+        schedule_arrears = Decimal(str(current_schedule.get("carried_arrears") or 0))
+        schedule_credit = Decimal(str(current_schedule.get("applied_credit") or 0))
+        if installment_due > 0:
+            installment_due = max(installment_due + schedule_arrears - schedule_credit, Decimal("0"))
+
         schedule_paid_response = (
             supabase.table("loan_payments")
             .select("amount_paid")
@@ -10256,6 +10729,34 @@ async def approve_bookkeeper_payment(payment_id: str, payload: BookkeeperPayment
             or paid_toward_installment + Decimal("0.50") >= installment_due
         )
 
+        # Split this payment: penalty -> arrears -> current -> credit.
+        outstanding_penalty = _unpaid_penalty_total(loan_id)
+        base_installment = max(installment_due - schedule_arrears + schedule_credit, Decimal("0"))
+        allocation = allocate_payment(
+            payment_amount=payment_amount,
+            penalty_due=outstanding_penalty,
+            arrears_due=schedule_arrears,
+            current_due=base_installment,
+        )
+        settle_penalties_with_payment(loan_id, allocation["penalty"], payment_row.get("id"))
+
+        # What rolls into the next installment. A shortfall becomes arrears that
+        # ADD to next month's bill; an overpayment becomes credit that REDUCES
+        # it. These are different financial concepts and never mix: one of the
+        # two is always zero.
+        carry_arrears_forward = Decimal("0")
+        carry_credit_forward = Decimal("0")
+        if installment_due > 0:
+            difference = money(paid_toward_installment - installment_due)
+            if difference > Decimal("0.50"):
+                carry_credit_forward = difference
+            elif difference < Decimal("-0.50"):
+                carry_arrears_forward = -difference
+
+        # The period closes either way once it has been settled: covered ->
+        # Paid, short -> partially_paid with the shortfall carried forward.
+        # Leaving a short period open would double-bill it, since the arrears
+        # are already added to the next installment.
         if installment_covered:
             (
                 supabase.table("loan_schedules")
@@ -10263,11 +10764,35 @@ async def approve_bookkeeper_payment(payment_id: str, payload: BookkeeperPayment
                 .eq("id", schedule_internal_id)
                 .execute()
             )
+        elif carry_arrears_forward > 0 and current_installment_no_can_roll(current_schedule, term_months):
+            try:
+                (
+                    supabase.table("loan_schedules")
+                    .update({"schedule_status": "partially_paid"})
+                    .eq("id", schedule_internal_id)
+                    .execute()
+                )
+            except Exception:
+                # The DB rejected 'partially_paid' (constraint not migrated).
+                # Keep the installment open for the shortfall rather than
+                # closing it -- the money is still owed either way. This is
+                # logged loudly because a silently dropped shortfall is a
+                # financial error, not a cosmetic one.
+                logging.exception(
+                    "Could not mark schedule %s partially_paid; leaving it open. "
+                    "Shortfall of %s on loan %s stays on the current installment.",
+                    schedule_internal_id, carry_arrears_forward, loan_id,
+                )
+                carry_arrears_forward = Decimal("0")
 
         payment_update_payload = {
             "confirmation_status": "validated",
             "reviewed_at": datetime.utcnow().isoformat(),
             "confirmed_at": datetime.utcnow().isoformat(),
+            "applied_to_penalty": decimal_to_float(allocation["penalty"]),
+            "applied_to_arrears": decimal_to_float(allocation["arrears"]),
+            "applied_to_current": decimal_to_float(allocation["current"]),
+            "applied_to_credit": decimal_to_float(allocation["credit"]),
         }
         if payload.validated_by:
             payment_update_payload["validated_by"] = payload.validated_by
@@ -10276,25 +10801,31 @@ async def approve_bookkeeper_payment(payment_id: str, payload: BookkeeperPayment
         if payload.notes:
             payment_update_payload["validation_notes"] = payload.notes
 
-        try:
-            (
-                supabase.table("loan_payments")
-                .update(payment_update_payload)
-                .eq("id", payment_row.get("id"))
-                .execute()
-            )
-        except Exception:
-            # Backward-compatible fallback for DBs where check constraint still allows confirmed but not validated.
-            (
-                supabase.table("loan_payments")
-                .update({"confirmation_status": "confirmed"})
-                .eq("id", payment_row.get("id"))
-                .execute()
-            )
+        # Each fallback drops one thing the DB may not support yet: first the
+        # allocation columns, then the 'validated' status value itself.
+        _payment_update_attempts = [
+            payment_update_payload,
+            {k: v for k, v in payment_update_payload.items() if not k.startswith("applied_to_")},
+            {"confirmation_status": "confirmed"},
+        ]
+        for _attempt in _payment_update_attempts:
+            try:
+                (
+                    supabase.table("loan_payments")
+                    .update(_attempt)
+                    .eq("id", payment_row.get("id"))
+                    .execute()
+                )
+                break
+            except Exception:
+                continue
 
         created_next_schedule = None
         current_installment_no = int(current_schedule.get("installment_no") or 1)
-        if installment_covered and remaining_loan_balance > 0 and current_installment_no < term_months:
+        # The next installment opens when this period settled -- whether it was
+        # fully covered, or closed short with the shortfall carried forward.
+        period_settled = installment_covered or carry_arrears_forward > 0
+        if period_settled and remaining_loan_balance > 0 and current_installment_no < term_months:
             next_installment_no = current_installment_no + 1
 
             next_due_date = parse_date_value(current_schedule.get("due_date"))
@@ -10304,8 +10835,22 @@ async def approve_bookkeeper_payment(payment_id: str, payload: BookkeeperPayment
                 next_due_date = add_months(next_due_date, 1)
 
             remaining_before = Decimal(str(current_schedule.get("remaining_principal") or remaining_loan_balance))
-            schedule_count_response = supabase.table("loan_schedules").select("id").execute()
-            next_sequence_number = len(schedule_count_response.data or []) + 1
+            # schedule_id is UNIQUE, so this number must be too. Counting rows
+            # cannot provide that: PostgREST caps a select at 1000, so with
+            # thousands of schedules the count always came back 1000 and every
+            # new row tried to claim TTMPCLP_SI_1001 -- the insert threw, and
+            # the legacy fallback (which drops carried_arrears/applied_credit)
+            # silently took over. Use an exact count instead.
+            try:
+                schedule_count_response = (
+                    supabase.table("loan_schedules")
+                    .select("id", count="exact")
+                    .limit(1)
+                    .execute()
+                )
+                next_sequence_number = int(schedule_count_response.count or 0) + 1
+            except Exception:
+                next_sequence_number = 0
 
             next_schedule_row = build_single_schedule_row(
                 loan_type=normalized_loan_type,
@@ -10317,17 +10862,48 @@ async def approve_bookkeeper_payment(payment_id: str, payload: BookkeeperPayment
                 installment_no=next_installment_no,
                 remaining_principal_before=remaining_before,
                 start_sequence_number=next_sequence_number,
+                carried_arrears=carry_arrears_forward,
+                applied_credit=carry_credit_forward,
             )
 
-            try:
-                insert_next_response = supabase.table("loan_schedules").insert(next_schedule_row).execute()
-                created_next_schedule = (insert_next_response.data or [None])[0]
-            except Exception:
+            # A colliding schedule_id must not drop us into the legacy fallback
+            # below, which loses carried_arrears/applied_credit. Retry with a
+            # fresh unique id instead.
+            insert_error: Exception | None = None
+            for _attempt in range(3):
+                try:
+                    insert_next_response = (
+                        supabase.table("loan_schedules").insert(next_schedule_row).execute()
+                    )
+                    created_next_schedule = (insert_next_response.data or [None])[0]
+                    insert_error = None
+                    break
+                except Exception as sched_err:
+                    insert_error = sched_err
+                    if "duplicate" in str(sched_err).lower() or "unique" in str(sched_err).lower():
+                        next_schedule_row["schedule_id"] = f"TTMPCLP_SI_{uuid4().hex[:12].upper()}"
+                        continue
+                    break
+
+            if insert_error is not None:
+                logging.warning(
+                    "Next schedule insert failed for loan %s installment %s (%s); "
+                    "folding arrears into expected_amount instead.",
+                    loan_id, next_installment_no, insert_error,
+                )
+                # Pre-migration DBs lack carried_arrears/applied_credit. Fold any
+                # arrears into expected_amount so the shortfall is still billed
+                # rather than silently dropped.
+                legacy_expected = (
+                    Decimal(str(next_schedule_row["expected_amount"]))
+                    + carry_arrears_forward
+                    - carry_credit_forward
+                )
                 legacy_next_row = {
                     "loan_id": next_schedule_row["loan_id"],
                     "installment_no": next_schedule_row["installment_no"],
                     "due_date": next_schedule_row["due_date"],
-                    "expected_amount": next_schedule_row["expected_amount"],
+                    "expected_amount": decimal_to_float(max(legacy_expected, Decimal("0"))),
                     "principal_component": next_schedule_row["principal_component"],
                     "interest_component": next_schedule_row["interest_component"],
                     "schedule_status": "Unpaid",
@@ -10357,7 +10933,12 @@ async def approve_bookkeeper_payment(payment_id: str, payload: BookkeeperPayment
             "message": (
                 "Payment validated. Current due marked paid and next due generated if balance remains."
                 if installment_covered
-                else "Payment validated. It is less than the installment due, so the installment stays open for the remaining amount."
+                else (
+                    f"Payment validated. It falls short by {decimal_to_float(carry_arrears_forward):,.2f}, "
+                    "which has been carried forward to the next installment."
+                    if carry_arrears_forward > 0
+                    else "Payment validated. It is less than the installment due, so the installment stays open for the remaining amount."
+                )
             ),
             "data": {
                 "payment_id": payment_row.get("payment_reference") or payment_row.get("id"),
@@ -10365,6 +10946,8 @@ async def approve_bookkeeper_payment(payment_id: str, payload: BookkeeperPayment
                 "installment_covered": installment_covered,
                 "installment_due": decimal_to_float(installment_due),
                 "paid_toward_installment": decimal_to_float(paid_toward_installment),
+                "carried_arrears": decimal_to_float(carry_arrears_forward),
+                "applied_credit": decimal_to_float(carry_credit_forward),
                 "remaining_balance": decimal_to_float(remaining_loan_balance),
                 "loan_status": loan_status_update,
                 "next_schedule_id": (
