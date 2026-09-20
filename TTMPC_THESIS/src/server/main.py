@@ -23,6 +23,7 @@ from datetime import date, datetime, timedelta
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from typing import Annotated, Any, Literal, Union
 from fastapi import BackgroundTasks, Body, FastAPI, HTTPException, Request, Response
+from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -287,9 +288,17 @@ app.add_middleware(_MaxBodySizeMiddleware)
 @app.exception_handler(RequestValidationError)
 async def _validation_exception_handler(request: Request, exc: RequestValidationError):
     """Return a structured 422 with all field errors instead of FastAPI's default."""
+    # A model_validator/field_validator that raises ValueError leaves that
+    # exception object in the error's `ctx`. Handing it to JSONResponse raw
+    # raised TypeError inside this handler, so every such validation failure
+    # (e.g. a 72-month Consolidated loan on /api/loans/compute) came back as a
+    # bare 500 "Internal Server Error" instead of a readable 422.
     return JSONResponse(
         status_code=422,
-        content={"detail": exc.errors(), "body": None},
+        content={
+            "detail": jsonable_encoder(exc.errors(), custom_encoder={Exception: str}),
+            "body": None,
+        },
     )
 
 
@@ -3557,6 +3566,76 @@ def create_cashier_cbu_deposit(
         raise HTTPException(status_code=500, detail=f"Failed to create CBU deposit: {err}")
 
 
+@app.get("/api/cashier/disbursements/{loan_id}/preview")
+async def preview_cashier_disbursement(loan_id: str):
+    """Deduction breakdown for releasing an EXISTING loan.
+
+    The Review & Disburse dialog used to call /api/loans/compute for this. That
+    endpoint validates a loan *application* (Bonus needs a member_category,
+    Consolidated only allows 12-60 month terms, Emergency only 6/12), so the
+    preview failed for Bonus loans and for 72-month Consolidated loans and the
+    cashier could not release them. Fees depend only on the loan type and
+    principal, so they are computed here straight from the stored loan.
+    """
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+
+    clean_loan_id = str(loan_id or "").strip()
+    if not clean_loan_id:
+        raise HTTPException(status_code=400, detail="loan_id is required.")
+
+    try:
+        loan_response = (
+            supabase.table("loans")
+            .select("control_number,loan_amount,principal_amount,loan_type:loan_type_id(name,code)")
+            .eq("control_number", clean_loan_id)
+            .limit(1)
+            .execute()
+        )
+    except Exception as err:
+        raise HTTPException(status_code=500, detail=f"Failed to load loan for preview: {err}")
+    loan_row = (loan_response.data or [None])[0]
+    if not loan_row:
+        raise HTTPException(status_code=404, detail="Loan not found.")
+
+    principal = Decimal(str(loan_row.get("principal_amount") or loan_row.get("loan_amount") or 0))
+    if principal <= 0:
+        raise HTTPException(status_code=400, detail="Loan principal is missing or invalid.")
+
+    loan_type_row = loan_row.get("loan_type") or {}
+    type_code = str(loan_type_row.get("code") or "").strip().upper()
+    if not type_code:
+        type_name = str(loan_type_row.get("name") or "").strip().lower()
+        normalized = normalize_cashier_loan_type(type_name)
+        if normalized == "bonus":
+            type_code = "NONMEMBER_BONUS" if "non" in type_name and "member" in type_name else "BONUS"
+        else:
+            type_code = resolve_loan_type_code(normalized)
+
+    policy = resolve_fee_policy(type_code)
+    service_fee = compute_service_fee(policy, principal)
+    insurance_fee = money((principal * policy["insurance_per_thousand"]) / Decimal("1000"))
+    cbu_deduction = money(principal * policy["cbu_rate"])
+    notarial_fee = money(policy["notarial_fee"])
+    total_deductions = money(service_fee + cbu_deduction + insurance_fee + notarial_fee)
+
+    return {
+        "success": True,
+        "data": {
+            "loan_type": type_code,
+            "principal": decimal_to_float(money(principal)),
+            "deductions": {
+                "service_fee": decimal_to_float(service_fee),
+                "cbu_deduction": decimal_to_float(cbu_deduction),
+                "insurance_fee": decimal_to_float(insurance_fee),
+                "notarial_fee": decimal_to_float(notarial_fee),
+            },
+            "total_deductions": decimal_to_float(total_deductions),
+            "net_proceeds": decimal_to_float(money(principal - total_deductions)),
+        },
+    }
+
+
 @app.post("/api/cashier/disbursements/{loan_id}/disburse")
 async def disburse_cashier_loan(loan_id: str, payload: CashierDisbursementRequest, background_tasks: BackgroundTasks):
     if not supabase:
@@ -3746,12 +3825,11 @@ async def disburse_cashier_loan(loan_id: str, payload: CashierDisbursementReques
             prior = None
 
         if prior:
+            # A plain string: the frontend renders `detail` directly, and an
+            # object here surfaced as "[object Object]".
             raise HTTPException(
                 status_code=409,
-                detail={
-                    "message": "This disbursement has already been confirmed.",
-                    "existing_confirmation": prior,
-                },
+                detail=f"This disbursement has already been confirmed (reference {prior.get('reference_number')}).",
             )
 
         confirmation_record = {
@@ -3767,11 +3845,13 @@ async def disburse_cashier_loan(loan_id: str, payload: CashierDisbursementReques
             "cashier_name": cashier_display,
             "loan_status": (updated_loan or {}).get("loan_status") or "released",
         }
+        confirmation_saved = False
         try:
             _confirmation_insert = (
                 supabase.table("disbursement_confirmations").insert(confirmation_record).execute()
             )
             _confirmation_row = (_confirmation_insert.data or [None])[0]
+            confirmation_saved = bool(_confirmation_row)
             if _confirmation_row and _confirmation_row.get("id"):
                 _correct_audit_actor("disbursement", str(_confirmation_row["id"]), _disbursement_actor)
         except Exception as confirm_err:
@@ -3781,13 +3861,14 @@ async def disburse_cashier_loan(loan_id: str, payload: CashierDisbursementReques
             if "duplicate key" in err_text or "unique constraint" in err_text:
                 raise HTTPException(
                     status_code=409,
-                    detail={
-                        "message": "This disbursement has already been confirmed.",
-                        "reference_number": reference_number,
-                    },
+                    detail=f"This disbursement has already been confirmed (reference {reference_number}).",
                 )
-            # Table may not exist yet in legacy DBs; surface confirmation client-side regardless.
-            pass
+            # Non-fatal: the loan is already released and the receipt is still
+            # returned to the client. But never silently -- the response's
+            # `records.confirmation_saved` flag tells the cashier it was not stored.
+            logger.warning(
+                "disbursement_confirmations insert failed for loan %s: %s", clean_loan_id, confirm_err
+            )
 
         # Member-facing email is sent earlier in the workflow, when the
         # Treasurer confirms disbursement (frontend → /api/loans/email/dispatch
@@ -3809,10 +3890,44 @@ async def disburse_cashier_loan(loan_id: str, payload: CashierDisbursementReques
         except Exception:
             pass
 
+        # Read back what the release should have written, so the cashier is told
+        # about a partial write instead of assuming everything landed.
+        cbu_credit_row = None
+        if loan_row.get("member_id"):
+            try:
+                _cbu_resp = (
+                    supabase.table("capital_build_up")
+                    .select("capital_added")
+                    .eq("source_loan_id", clean_loan_id)
+                    .limit(1)
+                    .execute()
+                )
+                cbu_credit_row = (_cbu_resp.data or [None])[0]
+            except Exception as cbu_err:
+                logger.warning("CBU retention check failed for loan %s: %s", clean_loan_id, cbu_err)
+
+        release_records = {
+            "loan_released": (
+                str((updated_loan or {}).get("loan_status") or "").strip().lower() == "released"
+                and bool((updated_loan or {}).get("disbursal_date"))
+            ),
+            "schedule_ready": has_existing_schedule or bool(created_schedules),
+            "confirmation_saved": confirmation_saved,
+            "cbu_retention_credited": bool(cbu_credit_row),
+            "cbu_retention_amount": (
+                decimal_to_float(cbu_credit_row.get("capital_added")) if cbu_credit_row else None
+            ),
+        }
+        if not all(
+            release_records[k] for k in ("loan_released", "schedule_ready", "confirmation_saved")
+        ):
+            logger.warning("Incomplete disbursement records for loan %s: %s", clean_loan_id, release_records)
+
         return {
             "success": True,
             "message": "Loan disbursed successfully. Only the next due schedule is created.",
             "data": {
+                "records": release_records,
                 "loan": updated_loan,
                 "schedule_created": not has_existing_schedule,
                 "created_schedule_count": len(created_schedules),
@@ -3848,7 +3963,7 @@ async def create_cashier_loan_payment(
 
         loan_response = (
             supabase.table("loans")
-            .select("control_number,loan_status")
+            .select("control_number,loan_status,principal_amount,loan_amount,total_interest,monthly_amortization,term")
             .eq("control_number", loan_id)
             .limit(1)
             .execute()
@@ -3860,6 +3975,31 @@ async def create_cashier_loan_payment(
         loan_status_lc = str(loan_row_for_status.get("loan_status") or "").strip().lower()
         if loan_status_lc in ("fully paid", "completed", "closed"):
             raise HTTPException(status_code=409, detail="This loan is already fully paid.")
+
+        # The cashier now types the amount received, so it is checked here rather
+        # than trusted: it can't exceed what is still owed. Balance = total
+        # payable minus validated payments -- the same figure the approve step
+        # uses. Skipped when the loan's totals aren't on record.
+        entered_amount = money(Decimal(str(payload.payment_amount)))
+        total_payable = _loan_total_payable(loan_row_for_status)
+        if total_payable > 0:
+            validated_rows = (
+                supabase.table("loan_payments")
+                .select("amount_paid")
+                .eq("loan_id", loan_id)
+                .in_("confirmation_status", ["validated", "confirmed", "bookkeeper_confirmed", "approved"])
+                .execute()
+            ).data or []
+            already_paid = sum(Decimal(str(r.get("amount_paid") or 0)) for r in validated_rows)
+            outstanding_balance = max(total_payable - already_paid, Decimal("0"))
+            if entered_amount > money(outstanding_balance):
+                raise HTTPException(
+                    status_code=400,
+                    detail=(
+                        f"Payment amount {entered_amount:,.2f} exceeds the loan's outstanding balance "
+                        f"of {money(outstanding_balance):,.2f}."
+                    ),
+                )
 
         try:
             schedules_response = (
@@ -3970,6 +4110,22 @@ async def create_cashier_loan_payment(
         raise err
     except Exception as err:
         raise HTTPException(status_code=500, detail=f"Failed to create cashier payment: {err}")
+
+
+def _loan_total_payable(loan_row: dict) -> Decimal:
+    """Principal plus total interest for a loans row.
+
+    total_interest is missing on some legacy rows; fall back to
+    monthly_amortization * term - principal, as the payment approval does.
+    """
+    principal = Decimal(str(loan_row.get("principal_amount") or loan_row.get("loan_amount") or 0))
+    total_interest = Decimal(str(loan_row.get("total_interest") or 0))
+    if total_interest <= 0:
+        monthly = Decimal(str(loan_row.get("monthly_amortization") or 0))
+        term = int(loan_row.get("term") or 0)
+        if monthly > 0 and term > 0:
+            total_interest = max(monthly * term - principal, Decimal("0"))
+    return principal + total_interest
 
 
 def is_validated_payment_status(status_value: str | None) -> bool:
@@ -4276,6 +4432,540 @@ async def get_loan_eligibility(
         raise
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Eligibility lookup failed: {exc}") from exc
+
+
+# ============================================================================
+# SECTION: 6-Month Renewal Rule Override
+#
+# A member with an active loan cannot renew until RENEWAL_MIN_PAYMENTS monthly
+# payments are recorded. If they have an urgent need they file a request
+# (member side); the Bookkeeper approves or rejects it (bookkeeper side). An
+# approved request unlocks Renewal for that one active loan until it expires
+# (RENEWAL_OVERRIDE_VALIDITY_DAYS) or is spent on a renewal application.
+#
+# Identity always comes from the verified JWT, never the request body. The
+# loan_renewal_override_requests table is the history ledger (rows are never
+# deleted); every state change is also mirrored into audit_log and the
+# loan_notifications bell feed. Schema: loan_renewal_override_schema.sql.
+# ============================================================================
+
+RENEWAL_OVERRIDE_TABLE = "loan_renewal_override_requests"
+RENEWAL_OVERRIDE_VALIDITY_DAYS = 30
+RENEWAL_OVERRIDE_REASON_MIN = 20
+RENEWAL_OVERRIDE_REASON_MAX = 1000
+RENEWAL_OVERRIDE_STATUSES = {"pending", "approved", "rejected", "cancelled", "used"}
+# Columns a member may see on their own requests (no reviewer/requester ids).
+RENEWAL_OVERRIDE_MEMBER_COLUMNS = (
+    "id,loan_type,loan_id,payments_made,required_payments,reason,status,"
+    "review_note,reviewed_at,expires_at,used_at,created_at"
+)
+
+
+class _RenewalOverrideLoanTypeModel(BaseModel):
+    loan_type: Literal["consolidated", "bonus", "emergency"]
+
+    @field_validator("loan_type", mode="before")
+    @classmethod
+    def _normalize_loan_type(cls, value):
+        return str(value or "").strip().lower()
+
+
+# The "reason is long enough" / "rejection needs a note" rules are checked in
+# the endpoints and raised as HTTPException(400) rather than as pydantic
+# validators: the app's 422 handler returns exc.errors() verbatim, and a
+# validator's ValueError lands in that payload as a non-serialisable object.
+class RenewalOverrideCreate(_RenewalOverrideLoanTypeModel):
+    reason: str = Field(..., max_length=RENEWAL_OVERRIDE_REASON_MAX)
+
+
+class RenewalOverrideConsume(_RenewalOverrideLoanTypeModel):
+    application_control_number: str = Field(..., min_length=1, max_length=100)
+
+
+class RenewalOverrideReview(BaseModel):
+    action: Literal["approved", "rejected"]
+    note: str | None = Field(default=None, max_length=RENEWAL_OVERRIDE_REASON_MAX)
+
+
+def _override_now() -> datetime:
+    return datetime.utcnow()
+
+
+def _override_iso(moment: datetime) -> str:
+    # Explicit "Z" so timestamptz never depends on the session time zone.
+    return moment.isoformat() + "Z"
+
+
+def _override_account(current_user: dict) -> dict:
+    """The calling member's account, resolved from the verified JWT."""
+    try:
+        resp = (
+            supabase.table("member_account")
+            .select("user_id, membership_id, email")
+            .eq("auth_user_id", current_user["id"])
+            .limit(1)
+            .execute()
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Could not read account record: {exc}")
+    account = (resp.data or [None])[0]
+    member_id = str((account or {}).get("user_id") or "").strip()
+    if not member_id:
+        raise HTTPException(status_code=403, detail="No member profile is linked to this account.")
+    return {
+        "member_id": member_id,
+        "membership_id": account.get("membership_id"),
+    }
+
+
+def _override_active_loan(member_id: str, loan_type: str) -> tuple[str | None, dict]:
+    """(active loan control_number, eligibility bucket) for one loan type."""
+    bucket = _compute_bucket_for_type(member_id, loan_type)
+    return bucket.get("active_loan_id"), bucket
+
+
+def _override_audit(
+    action: str,
+    row: dict,
+    current_user: dict,
+    *,
+    before: dict | None = None,
+    after: dict | None = None,
+) -> None:
+    """Mirror an override state change into audit_log. Best-effort: the request
+    row already carries the full history, so a failure here must never undo or
+    block the action itself."""
+    if not supabase or not current_user or not current_user.get("id"):
+        return
+    try:
+        role = _resolve_staff_role(current_user["id"], current_user.get("email") or "") or None
+        supabase.table("audit_log").insert({
+            "actor_user_id": current_user["id"],
+            "actor_role": role,
+            "actor_email": current_user.get("email") or None,
+            "entity_type": "loan",
+            "entity_id": str(row.get("loan_id") or ""),
+            "action": action,
+            "before": before,
+            "after": after,
+            "context": {
+                "kind": "renewal_override",
+                "override_request_id": row.get("id"),
+                "member_id": row.get("member_id"),
+                "membership_id": row.get("membership_id"),
+                "member_name": row.get("member_name"),
+                "loan_type": row.get("loan_type"),
+                "reason": row.get("reason"),
+                "review_note": row.get("review_note"),
+            },
+        }).execute()
+    except Exception as err:
+        logger.warning("renewal override audit_log write failed: %s", err)
+
+
+def _override_notify(
+    *,
+    recipient_role: str,
+    notification_type: str,
+    severity: str,
+    title: str,
+    message: str,
+    loan_id: str,
+    redirect_url: str,
+    recipient_member_id: str | None = None,
+    actor_user_id: str | None = None,
+) -> None:
+    """Drop a bell notification. Best-effort, never raises."""
+    try:
+        supabase.table("loan_notifications").insert({
+            "recipient_role": recipient_role,
+            "recipient_member_id": recipient_member_id,
+            "title": title,
+            "message": message,
+            "notification_type": notification_type,
+            "severity": severity,
+            "loan_id": loan_id,
+            "redirect_url": redirect_url,
+            "is_read": False,
+            "created_by": actor_user_id,
+        }).execute()
+    except Exception as err:
+        logger.warning("renewal override notification failed: %s", err)
+
+
+def _require_bookkeeper(current_user: dict) -> None:
+    role = _resolve_staff_role(current_user["id"], current_user.get("email") or "")
+    if role != "bookkeeper":
+        raise HTTPException(status_code=403, detail="Only the Bookkeeper can review renewal override requests.")
+
+
+@app.post("/api/member/renewal-override-requests")
+def create_renewal_override_request(
+    body: RenewalOverrideCreate,
+    current_user: dict = _Depends(_get_current_user),
+):
+    """Member asks the Bookkeeper to waive the 6-month rule for one active loan."""
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+
+    reason = body.reason.strip()
+    if len(reason) < RENEWAL_OVERRIDE_REASON_MIN:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Please explain the urgent need in at least {RENEWAL_OVERRIDE_REASON_MIN} characters.",
+        )
+
+    account = _override_account(current_user)
+    member_id = account["member_id"]
+
+    member_row = resolve_member_by_ref(member_id) or {}
+    raw_status = str(member_row.get("member_status") or "").strip().lower()
+    if raw_status in {"inactive", "suspended", "terminated"} or member_row.get("is_active") is False:
+        raise HTTPException(
+            status_code=403,
+            detail=f"Member account is {raw_status or 'deactivated'} and is not eligible to apply for loans.",
+        )
+
+    if body.loan_type == "bonus" and not _bonus_window_open():
+        # The override waives the 6-month rule only, never the release window.
+        raise HTTPException(status_code=400, detail=BONUS_WINDOW_REASON)
+
+    try:
+        active_loan_id, bucket = _override_active_loan(member_id, body.loan_type)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Could not check loan eligibility: {exc}")
+
+    if not active_loan_id:
+        raise HTTPException(
+            status_code=400,
+            detail=f"You have no active {body.loan_type} loan, so there is nothing to override.",
+        )
+    if bucket.get("can_renew"):
+        raise HTTPException(
+            status_code=400,
+            detail="You already meet the 6-month requirement for this loan. You can apply for Renewal directly.",
+        )
+
+    payments_made = int(bucket.get("payments_made") or 0)
+    member_name = resolve_member_full_name(member_row) if member_row else ""
+    record = {
+        "member_id": member_id,
+        "membership_id": account.get("membership_id") or member_row.get("membership_id"),
+        "member_name": member_name,
+        "requested_by_user_id": current_user["id"],
+        "requested_by_email": current_user.get("email") or None,
+        "loan_type": body.loan_type,
+        "loan_id": active_loan_id,
+        "payments_made": payments_made,
+        "required_payments": RENEWAL_MIN_PAYMENTS,
+        "reason": reason,
+        "status": "pending",
+    }
+
+    try:
+        inserted = supabase.table(RENEWAL_OVERRIDE_TABLE).insert(record).execute()
+    except Exception as exc:
+        message = str(exc).lower()
+        if "uq_renewal_override_one_pending" in message or "duplicate key" in message:
+            raise HTTPException(
+                status_code=409,
+                detail=f"You already have a pending {body.loan_type} override request. Please wait for the Bookkeeper's decision.",
+            )
+        raise HTTPException(status_code=500, detail=f"Could not save the request: {exc}")
+
+    row = (inserted.data or [None])[0]
+    if not row:
+        raise HTTPException(status_code=500, detail="Could not save the request.")
+
+    _override_audit("create", row, current_user, after={"status": "pending", "payments_made": payments_made})
+    _override_notify(
+        recipient_role="bookkeeper",
+        notification_type="renewal_override_request",
+        severity="warning",
+        title="6-month rule override requested",
+        message=(
+            f"{member_name or 'A member'} is asking to renew their {body.loan_type} loan "
+            f"{active_loan_id} early ({payments_made} of {RENEWAL_MIN_PAYMENTS} payments made). "
+            f"Please review the request."
+        ),
+        loan_id=active_loan_id,
+        redirect_url="/bookkeeper-renewal-overrides",
+        actor_user_id=current_user["id"],
+    )
+
+    return {"success": True, "data": {k: row.get(k) for k in RENEWAL_OVERRIDE_MEMBER_COLUMNS.split(",")}}
+
+
+@app.get("/api/member/renewal-override-requests")
+def list_my_renewal_override_requests(current_user: dict = _Depends(_get_current_user)):
+    """The calling member's own requests, newest first."""
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+    account = _override_account(current_user)
+    try:
+        resp = (
+            supabase.table(RENEWAL_OVERRIDE_TABLE)
+            .select(RENEWAL_OVERRIDE_MEMBER_COLUMNS)
+            .eq("member_id", account["member_id"])
+            .order("created_at", desc=True)
+            .limit(50)
+            .execute()
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Could not load your requests: {exc}")
+    return {"success": True, "data": resp.data or []}
+
+
+@app.post("/api/member/renewal-override-requests/{request_id}/cancel")
+def cancel_renewal_override_request(request_id: int, current_user: dict = _Depends(_get_current_user)):
+    """Member withdraws their own pending request."""
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+    account = _override_account(current_user)
+    try:
+        resp = (
+            supabase.table(RENEWAL_OVERRIDE_TABLE)
+            .update({"status": "cancelled"})
+            .eq("id", request_id)
+            .eq("member_id", account["member_id"])
+            .eq("status", "pending")
+            .execute()
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Could not cancel the request: {exc}")
+    row = (resp.data or [None])[0]
+    if not row:
+        raise HTTPException(status_code=404, detail="No pending request found to cancel.")
+    _override_audit("update", row, current_user, before={"status": "pending"}, after={"status": "cancelled"})
+    return {"success": True}
+
+
+@app.get("/api/member/renewal-overrides/active")
+def get_active_renewal_overrides(current_user: dict = _Depends(_get_current_user)):
+    """Approved, unexpired, unused overrides that still apply to the member's
+    current active loan. The loan forms use this to unlock Renewal."""
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+    account = _override_account(current_user)
+    member_id = account["member_id"]
+    try:
+        resp = (
+            supabase.table(RENEWAL_OVERRIDE_TABLE)
+            .select("id,loan_type,loan_id,expires_at,reviewed_at")
+            .eq("member_id", member_id)
+            .eq("status", "approved")
+            .gt("expires_at", _override_iso(_override_now()))
+            .execute()
+        )
+        rows = resp.data or []
+        if not rows:
+            return {"success": True, "data": []}
+        # An override is tied to one specific loan; once that loan is no longer
+        # the active one (renewed, paid off) it stops applying.
+        buckets = _compute_all_buckets(member_id)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Could not load active overrides: {exc}")
+
+    active = [
+        r for r in rows
+        if (buckets.get(r["loan_type"]) or {}).get("active_loan_id") == r["loan_id"]
+    ]
+    return {"success": True, "data": active}
+
+
+@app.post("/api/member/renewal-overrides/consume")
+def consume_renewal_override(
+    body: RenewalOverrideConsume,
+    current_user: dict = _Depends(_get_current_user),
+):
+    """Spend the member's approved override on a submitted renewal application,
+    so one approval cannot be reused for several renewals. Idempotent and
+    harmless when no override applies (normal renewals call this too)."""
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+    account = _override_account(current_user)
+    member_id = account["member_id"]
+    try:
+        resp = (
+            supabase.table(RENEWAL_OVERRIDE_TABLE)
+            .select("*")
+            .eq("member_id", member_id)
+            .eq("loan_type", body.loan_type)
+            .eq("status", "approved")
+            .gt("expires_at", _override_iso(_override_now()))
+            .order("reviewed_at", desc=True)
+            .limit(1)
+            .execute()
+        )
+        candidate = (resp.data or [None])[0]
+        if not candidate:
+            return {"success": True, "consumed": False}
+
+        active_loan_id, _bucket = _override_active_loan(member_id, body.loan_type)
+        if active_loan_id != candidate["loan_id"]:
+            return {"success": True, "consumed": False}
+
+        updated = (
+            supabase.table(RENEWAL_OVERRIDE_TABLE)
+            .update({
+                "status": "used",
+                "used_at": _override_iso(_override_now()),
+                "used_application_id": body.application_control_number,
+            })
+            .eq("id", candidate["id"])
+            .eq("status", "approved")
+            .execute()
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Could not record override use: {exc}")
+
+    row = (updated.data or [None])[0]
+    if not row:
+        return {"success": True, "consumed": False}
+    _override_audit(
+        "update",
+        row,
+        current_user,
+        before={"status": "approved"},
+        after={"status": "used", "used_application_id": body.application_control_number},
+    )
+    return {"success": True, "consumed": True}
+
+
+@app.get("/api/bookkeeper/renewal-override-requests")
+def list_renewal_override_requests(
+    status: str = "pending",
+    current_user: dict = _Depends(_get_current_user),
+):
+    """Bookkeeper queue / history. status = pending|approved|rejected|cancelled|used|all."""
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+    _require_bookkeeper(current_user)
+
+    wanted = (status or "pending").strip().lower()
+    if wanted != "all" and wanted not in RENEWAL_OVERRIDE_STATUSES:
+        raise HTTPException(status_code=400, detail="Invalid status filter.")
+
+    try:
+        query = supabase.table(RENEWAL_OVERRIDE_TABLE).select("*").order("created_at", desc=True).limit(200)
+        if wanted != "all":
+            query = query.eq("status", wanted)
+        rows = query.execute().data or []
+        pending = (
+            supabase.table(RENEWAL_OVERRIDE_TABLE)
+            .select("id", count="exact")
+            .eq("status", "pending")
+            .execute()
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Could not load override requests: {exc}")
+
+    return {
+        "success": True,
+        "data": rows,
+        "pending_count": getattr(pending, "count", None) or 0,
+    }
+
+
+@app.post("/api/bookkeeper/renewal-override-requests/{request_id}/review")
+def review_renewal_override_request(
+    request_id: int,
+    body: RenewalOverrideReview,
+    current_user: dict = _Depends(_get_current_user),
+):
+    """Bookkeeper approves (unlocks Renewal) or rejects a pending request."""
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+    _require_bookkeeper(current_user)
+
+    note = (body.note or "").strip() or None
+    if body.action == "rejected" and not note:
+        raise HTTPException(status_code=400, detail="A note is required when rejecting a request.")
+
+    try:
+        found = (
+            supabase.table(RENEWAL_OVERRIDE_TABLE)
+            .select("*")
+            .eq("id", request_id)
+            .limit(1)
+            .execute()
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Could not load the request: {exc}")
+    req = (found.data or [None])[0]
+    if not req:
+        raise HTTPException(status_code=404, detail="Request not found.")
+    if req.get("status") != "pending":
+        raise HTTPException(status_code=409, detail=f"This request is already {req.get('status')}.")
+    if str(req.get("requested_by_user_id") or "") == current_user["id"]:
+        raise HTTPException(status_code=403, detail="You cannot review your own request.")
+
+    now = _override_now()
+    patch: dict[str, Any] = {
+        "status": body.action,
+        "reviewed_by_user_id": current_user["id"],
+        "reviewed_by_email": current_user.get("email") or None,
+        "reviewed_at": _override_iso(now),
+        "review_note": note,
+    }
+
+    if body.action == "approved":
+        if req["loan_type"] == "bonus" and not _bonus_window_open():
+            raise HTTPException(status_code=409, detail=BONUS_WINDOW_REASON)
+        try:
+            active_loan_id, _bucket = _override_active_loan(req["member_id"], req["loan_type"])
+        except Exception as exc:
+            raise HTTPException(status_code=500, detail=f"Could not verify the member's active loan: {exc}")
+        if active_loan_id != req["loan_id"]:
+            raise HTTPException(
+                status_code=409,
+                detail="The loan this request was filed for is no longer the member's active loan. Reject it instead.",
+            )
+        patch["expires_at"] = _override_iso(now + timedelta(days=RENEWAL_OVERRIDE_VALIDITY_DAYS))
+
+    try:
+        updated = (
+            supabase.table(RENEWAL_OVERRIDE_TABLE)
+            .update(patch)
+            .eq("id", request_id)
+            .eq("status", "pending")
+            .execute()
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Could not save the decision: {exc}")
+    row = (updated.data or [None])[0]
+    if not row:
+        # Someone else decided it between our read and this write.
+        raise HTTPException(status_code=409, detail="This request was already decided.")
+
+    approved = body.action == "approved"
+    _override_audit(
+        "approve" if approved else "reject",
+        row,
+        current_user,
+        before={"status": "pending"},
+        after={"status": body.action, "expires_at": row.get("expires_at")},
+    )
+    loan_label = f"{req['loan_type']} loan {req['loan_id']}"
+    _override_notify(
+        recipient_role="member",
+        recipient_member_id=str(req["member_id"]),
+        notification_type="member_renewal_override_approved" if approved else "member_renewal_override_rejected",
+        severity="success" if approved else "danger",
+        title="Early renewal approved" if approved else "Early renewal request declined",
+        message=(
+            f"The Bookkeeper approved your request to renew your {loan_label} early. "
+            f"You can apply for Renewal for the next {RENEWAL_OVERRIDE_VALIDITY_DAYS} days."
+            if approved else
+            f"The Bookkeeper declined your request to renew your {loan_label} early."
+            + (f" Reason: {note}" if note else "")
+        ),
+        loan_id=req["loan_id"],
+        redirect_url="/member-apply-loans",
+        actor_user_id=current_user["id"],
+    )
+
+    return {"success": True, "data": row}
 
 
 @app.get("/api/member/{member_key}/debt-capacity")
@@ -9503,7 +10193,7 @@ async def approve_bookkeeper_payment(payment_id: str, payload: BookkeeperPayment
         schedule_internal_id = str(payment_row.get("schedule_id") or "").strip()
         current_schedule_response = (
             supabase.table("loan_schedules")
-            .select("id,schedule_id,loan_id,installment_no,due_date,remaining_principal,schedule_status")
+            .select("id,schedule_id,loan_id,installment_no,due_date,remaining_principal,schedule_status,expected_amount")
             .eq("id", schedule_internal_id)
             .limit(1)
             .execute()
@@ -9533,13 +10223,46 @@ async def approve_bookkeeper_payment(payment_id: str, payload: BookkeeperPayment
         total_payable_amount = principal_amount + total_interest_amount
         remaining_loan_balance = max(total_payable_amount - total_validated_after, Decimal("0"))
 
-        schedule_update_payload = {"schedule_status": "Paid"}
-        (
-            supabase.table("loan_schedules")
-            .update(schedule_update_payload)
-            .eq("id", schedule_internal_id)
+        # The cashier records whatever the member actually paid, so a payment can
+        # fall short of the installment. Only mark the installment Paid (and roll
+        # on to the next one) once validated payments against THIS schedule cover
+        # it. A short payment stays on the books -- it reduces the balance above --
+        # and the installment remains open for the shortfall.
+        #
+        # The installment is capped at the loan's monthly_amortization (and at the
+        # schedule's own expected_amount when that is lower, e.g. later Emergency
+        # installments): expected_amount alone is unreliable on legacy rows, where
+        # it holds a running total. With no known amortization, behave as before.
+        loan_monthly_amortization = Decimal(str(loan_row.get("monthly_amortization") or 0))
+        schedule_expected_amount = Decimal(str(current_schedule.get("expected_amount") or 0))
+        installment_due = loan_monthly_amortization if loan_monthly_amortization > 0 else Decimal("0")
+        if installment_due > 0 and schedule_expected_amount > 0:
+            installment_due = min(installment_due, schedule_expected_amount)
+
+        schedule_paid_response = (
+            supabase.table("loan_payments")
+            .select("amount_paid")
+            .eq("schedule_id", schedule_internal_id)
+            .in_("confirmation_status", ["validated", "confirmed", "bookkeeper_confirmed", "approved"])
             .execute()
         )
+        paid_toward_installment = payment_amount + sum(
+            Decimal(str(row.get("amount_paid") or 0)) for row in (schedule_paid_response.data or [])
+        )
+        installment_covered = (
+            installment_due <= 0
+            or remaining_loan_balance <= 0
+            # Half a peso of tolerance for centavo rounding between the schedule and the UI.
+            or paid_toward_installment + Decimal("0.50") >= installment_due
+        )
+
+        if installment_covered:
+            (
+                supabase.table("loan_schedules")
+                .update({"schedule_status": "Paid"})
+                .eq("id", schedule_internal_id)
+                .execute()
+            )
 
         payment_update_payload = {
             "confirmation_status": "validated",
@@ -9571,7 +10294,7 @@ async def approve_bookkeeper_payment(payment_id: str, payload: BookkeeperPayment
 
         created_next_schedule = None
         current_installment_no = int(current_schedule.get("installment_no") or 1)
-        if remaining_loan_balance > 0 and current_installment_no < term_months:
+        if installment_covered and remaining_loan_balance > 0 and current_installment_no < term_months:
             next_installment_no = current_installment_no + 1
 
             next_due_date = parse_date_value(current_schedule.get("due_date"))
@@ -9631,10 +10354,17 @@ async def approve_bookkeeper_payment(payment_id: str, payload: BookkeeperPayment
 
         return {
             "success": True,
-            "message": "Payment validated. Current due marked paid and next due generated if balance remains.",
+            "message": (
+                "Payment validated. Current due marked paid and next due generated if balance remains."
+                if installment_covered
+                else "Payment validated. It is less than the installment due, so the installment stays open for the remaining amount."
+            ),
             "data": {
                 "payment_id": payment_row.get("payment_reference") or payment_row.get("id"),
                 "loan_id": loan_id,
+                "installment_covered": installment_covered,
+                "installment_due": decimal_to_float(installment_due),
+                "paid_toward_installment": decimal_to_float(paid_toward_installment),
                 "remaining_balance": decimal_to_float(remaining_loan_balance),
                 "loan_status": loan_status_update,
                 "next_schedule_id": (
@@ -13657,8 +14387,10 @@ def account_email_confirm(
 
     if account:
         try:
+            # email is synced too: sign-in and password recovery look the
+            # account up by it, so a stale value locks the member out.
             supabase.table("member_account").update(
-                {"is_email_dummy": False, "pending_email": None}
+                {"email": new_email, "is_email_dummy": False, "pending_email": None}
             ).eq("auth_user_id", user_id).execute()
         except Exception:
             pass

@@ -24,7 +24,9 @@ import {
   Scroll
 } from "lucide-react";
 import LoanCalculatorModal from "./LoanCalculatorModal";
+import RenewalOverrideModal from "./RenewalOverrideModal";
 import { useLoanEligibility } from "../../hooks/useLoanEligibility";
+import { cancelOverrideRequest, fetchMyOverrideRequests } from "../../utils/renewalOverrides";
 
 const selectorOptions = [
   {
@@ -142,6 +144,42 @@ const Member_ApplyLoans = () => {
   const anyFullyBlocked = eligibilityReady && Object.values(perType).some(
     (b) => !b?.can_apply_new && !b?.can_renew,
   );
+
+  // 6-month rule override requests. A locked loan type with an active loan can
+  // ask the Bookkeeper to unlock Renewal early; an approved request shows up
+  // in `eligibility` itself (can_renew flips to true), so only the pending /
+  // declined states need handling here.
+  const [overrideRequests, setOverrideRequests] = useState([]);
+  const [overrideModalType, setOverrideModalType] = useState(null);
+  const [overrideActionError, setOverrideActionError] = useState("");
+  const [cancellingId, setCancellingId] = useState(null);
+
+  const loadOverrideRequests = () =>
+    fetchMyOverrideRequests().then(setOverrideRequests).catch(() => {});
+
+  useEffect(() => {
+    if (memberId) loadOverrideRequests();
+  }, [memberId]);
+
+  // Newest request per loan type, and only if it is for the loan that is
+  // currently active (an older request for a since-renewed loan is history).
+  const latestOverrideFor = (key, bucket) =>
+    overrideRequests.find(
+      (r) => r.loan_type === key && r.loan_id === bucket?.active_loan_id,
+    ) || null;
+
+  const handleCancelOverride = async (requestId) => {
+    setCancellingId(requestId);
+    setOverrideActionError("");
+    try {
+      await cancelOverrideRequest(requestId);
+      await loadOverrideRequests();
+    } catch (err) {
+      setOverrideActionError(err?.message || "Could not cancel the request.");
+    } finally {
+      setCancellingId(null);
+    }
+  };
 
   useEffect(() => {
     let isMounted = true;
@@ -306,7 +344,7 @@ const Member_ApplyLoans = () => {
                   onClick={() => setIsCalculatorOpen(true)}
                   className="inline-flex w-full items-center justify-center gap-1.5 rounded-full border border-member-green px-3 py-2 text-[11px] font-bold text-member-green hover:bg-[#EAF1EB] dark:border-green-500 dark:text-green-400 dark:hover:bg-green-900/30 sm:w-auto sm:py-1"
                 >
-                  <Calculator className="w-3.5 h-3.5" /> Simulate Before Applying
+                  <Calculator className="w-3.5 h-3.5" /> Loan Calculator
                 </button>
                
               </div>
@@ -334,14 +372,57 @@ const Member_ApplyLoans = () => {
                       const locked = !bucket.can_apply_new && !bucket.can_renew;
                       const partial = !bucket.can_apply_new && bucket.can_renew;
                       if (!locked && !partial) return null;
+                      // Only an active loan blocked by the 6-month rule can be
+                      // overridden (not, say, a closed Bonus window).
+                      const canRequestOverride = locked && Boolean(bucket.active_loan_id);
+                      const request = canRequestOverride ? latestOverrideFor(key, bucket) : null;
+                      const isPending = request?.status === "pending";
+                      const isDeclined = request?.status === "rejected";
                       return (
                         <li key={key}>
                           <span className="font-bold capitalize">{key}:</span>{" "}
                           <span>{bucket.reason}</span>
+                          {canRequestOverride && (
+                            <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1.5">
+                              {isPending ? (
+                                <>
+                                  <span className="font-semibold">
+                                    Early renewal request sent. Waiting for the Bookkeeper.
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleCancelOverride(request.id)}
+                                    disabled={cancellingId === request.id}
+                                    className="rounded-md border border-current px-2 py-1 text-[11px] font-bold hover:bg-white/60 disabled:opacity-50"
+                                  >
+                                    {cancellingId === request.id ? "Cancelling..." : "Cancel request"}
+                                  </button>
+                                </>
+                              ) : (
+                                <>
+                                  {isDeclined && (
+                                    <span className="font-semibold">
+                                      Declined{request.review_note ? `: ${request.review_note}` : "."}
+                                    </span>
+                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={() => setOverrideModalType(key)}
+                                    className="rounded-md border border-current px-2 py-1 text-[11px] font-bold hover:bg-white/60"
+                                  >
+                                    {isDeclined ? "Request again" : "Request early renewal"}
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          )}
                         </li>
                       );
                     })}
                   </ul>
+                  {overrideActionError && (
+                    <p className="mt-2 text-xs font-semibold">{overrideActionError}</p>
+                  )}
                   {eligibility?.simulation_active && (
                     <p className="mt-2 text-[10px] font-bold uppercase tracking-wider">Simulation Mode</p>
                   )}
@@ -394,6 +475,16 @@ const Member_ApplyLoans = () => {
       </div>
 
       <LoanCalculatorModal open={isCalculatorOpen} onClose={() => setIsCalculatorOpen(false)} />
+      <RenewalOverrideModal
+        open={Boolean(overrideModalType)}
+        onClose={() => setOverrideModalType(null)}
+        loanType={overrideModalType}
+        bucket={overrideModalType ? bucketFor(overrideModalType) : null}
+        onSubmitted={() => {
+          setOverrideActionError("");
+          loadOverrideRequests();
+        }}
+      />
     </div>
   );
 };

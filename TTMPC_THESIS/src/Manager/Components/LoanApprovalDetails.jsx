@@ -126,7 +126,6 @@ const LoanApprovalDetails = () => {
   const [coMakerSearch, setCoMakerSearch] = useState(['', '']);
   const [coMakerMemberOptions, setCoMakerMemberOptions] = useState([]);
   const [coMakerMemberLoading, setCoMakerMemberLoading] = useState(false);
-  const [sendSms, setSendSms] = useState(true);
   const [sendEmail, setSendEmail] = useState(true);
   // BOD-specific approval inputs
   const [bodResolutionNo, setBodResolutionNo] = useState('');
@@ -913,7 +912,6 @@ const LoanApprovalDetails = () => {
     setActionError('');
     setRemarks('');
     setBookkeeperInternalRemarks('');
-    setSendSms(true);
     setSendEmail(true);
   };
 
@@ -2609,11 +2607,6 @@ const LoanApprovalDetails = () => {
                 checked={sendEmail}
                 onChange={() => setSendEmail((prev) => !prev)}
                 label="Send email update"
-              />
-              <CustomCheckbox
-                checked={false}
-                onChange={() => {}}
-                label="Send SMS update (unavailable)"
               />
             </div>
           </div>
