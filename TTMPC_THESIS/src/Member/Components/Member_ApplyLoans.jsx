@@ -377,44 +377,14 @@ const Member_ApplyLoans = () => {
                       const canRequestOverride = locked && Boolean(bucket.active_loan_id);
                       const request = canRequestOverride ? latestOverrideFor(key, bucket) : null;
                       const isPending = request?.status === "pending";
-                      const isDeclined = request?.status === "rejected";
                       return (
                         <li key={key}>
                           <span className="font-bold capitalize">{key}:</span>{" "}
                           <span>{bucket.reason}</span>
-                          {canRequestOverride && (
-                            <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1.5">
-                              {isPending ? (
-                                <>
-                                  <span className="font-semibold">
-                                    Early renewal request sent. Waiting for the Bookkeeper.
-                                  </span>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleCancelOverride(request.id)}
-                                    disabled={cancellingId === request.id}
-                                    className="rounded-md border border-current px-2 py-1 text-[11px] font-bold hover:bg-white/60 disabled:opacity-50"
-                                  >
-                                    {cancellingId === request.id ? "Cancelling..." : "Cancel request"}
-                                  </button>
-                                </>
-                              ) : (
-                                <>
-                                  {isDeclined && (
-                                    <span className="font-semibold">
-                                      Declined{request.review_note ? `: ${request.review_note}` : "."}
-                                    </span>
-                                  )}
-                                  <button
-                                    type="button"
-                                    onClick={() => setOverrideModalType(key)}
-                                    className="rounded-md border border-current px-2 py-1 text-[11px] font-bold hover:bg-white/60"
-                                  >
-                                    {isDeclined ? "Request again" : "Request early renewal"}
-                                  </button>
-                                </>
-                              )}
-                            </div>
+                          {/* The action lives on the loan card below, next to the
+                              loan it applies to -- the banner only explains why. */}
+                          {canRequestOverride && isPending && (
+                            <span className="ml-1 font-semibold">Early renewal requested.</span>
                           )}
                         </li>
                       );
@@ -439,33 +409,83 @@ const Member_ApplyLoans = () => {
                 const disabledReason = bonusClosed
                   ? BONUS_WINDOW_MESSAGE
                   : (bucket?.reason || "This loan type is locked while you have an active one.");
+                // Only an active loan blocked by the 6-month rule can be
+                // overridden -- not a closed Bonus window.
+                const canRequestOverride =
+                  disabled && !bonusClosed && Boolean(bucket?.active_loan_id) && !bucket?.can_renew;
+                const request = canRequestOverride ? latestOverrideFor(item.key, bucket) : null;
+                const isPending = request?.status === "pending";
+                const isDeclined = request?.status === "rejected";
+
                 return (
-                  <button
+                  // The card is a wrapper, not a button: the override action
+                  // sits on the loan it belongs to, and a button cannot nest
+                  // inside another button.
+                  <div
                     key={item.key}
-                    type="button"
-                    onClick={() => {
-                      if (disabled) return;
-                      navigate(item.path);
-                    }}
-                    disabled={disabled}
-                    aria-disabled={disabled}
-                    title={disabled ? disabledReason : ""}
                     className={`min-h-36 bg-white rounded-2xl flex flex-col items-center justify-center shadow-sm border border-slate-100 transition-all group p-4 sm:p-6 dark:bg-gray-800 dark:border-gray-700 ${
-                      disabled
-                        ? "opacity-50 grayscale cursor-not-allowed"
-                        : "cursor-pointer hover:shadow-lg hover:border-[#A0D284]"
+                      disabled ? "opacity-75" : "hover:shadow-lg hover:border-[#A0D284]"
                     }`}
                   >
-                    <div className={`${item.tone} p-3 sm:p-4 rounded-full mb-2 sm:mb-3 ${disabled ? "" : "group-hover:scale-110"} transition-transform duration-300`}>
-                      <Icon size={28} strokeWidth={2} className="sm:h-8 sm:w-8" />
-                    </div>
-                    <h1 className="font-bold text-slate-800 text-sm text-center dark:text-gray-200">{item.label}</h1>
-                    {disabled && (
-                      <span className="mt-2 text-[10px] font-bold uppercase tracking-wider text-red-600 dark:text-red-400">
-                        {!eligibilityReady ? 'Checking...' : bonusClosed ? 'Window closed' : 'Locked'}
-                      </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (disabled) return;
+                        navigate(item.path);
+                      }}
+                      disabled={disabled}
+                      aria-disabled={disabled}
+                      title={disabled ? disabledReason : ""}
+                      className={`flex flex-col items-center justify-center w-full ${
+                        disabled ? "grayscale cursor-not-allowed" : "cursor-pointer"
+                      }`}
+                    >
+                      <div className={`${item.tone} p-3 sm:p-4 rounded-full mb-2 sm:mb-3 ${disabled ? "" : "group-hover:scale-110"} transition-transform duration-300`}>
+                        <Icon size={28} strokeWidth={2} className="sm:h-8 sm:w-8" />
+                      </div>
+                      <h1 className="font-bold text-slate-800 text-sm text-center dark:text-gray-200">{item.label}</h1>
+                      {disabled && (
+                        <span className="mt-2 text-[10px] font-bold uppercase tracking-wider text-red-600 dark:text-red-400">
+                          {!eligibilityReady ? 'Checking...' : bonusClosed ? 'Window closed' : 'Locked'}
+                        </span>
+                      )}
+                    </button>
+
+                    {canRequestOverride && (
+                      <div className="mt-3 w-full border-t border-slate-100 pt-3 text-center dark:border-gray-700">
+                        {isPending ? (
+                          <>
+                            <p className="text-[10px] font-semibold text-amber-700 dark:text-amber-300">
+                              Early renewal requested. Waiting for the Bookkeeper.
+                            </p>
+                            <button
+                              type="button"
+                              onClick={() => handleCancelOverride(request.id)}
+                              disabled={cancellingId === request.id}
+                              className="mt-1.5 rounded-md border border-slate-300 px-2 py-1 text-[11px] font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
+                            >
+                              {cancellingId === request.id ? "Cancelling..." : "Cancel request"}
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            {isDeclined && (
+                              <p className="mb-1.5 text-[10px] font-semibold text-red-600 dark:text-red-400">
+                                Declined{request.review_note ? `: ${request.review_note}` : "."}
+                              </p>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => setOverrideModalType(item.key)}
+                              className="rounded-md border border-[#2C7A3F] px-2.5 py-1 text-[11px] font-bold text-[#2C7A3F] hover:bg-[#EAF6DF] dark:border-green-500 dark:text-green-400 dark:hover:bg-green-900/30"
+                            >
+                              {isDeclined ? "Request again" : "Request early renewal"}
+                            </button>
+                          </>
+                        )}
+                      </div>
                     )}
-                  </button>
+                  </div>
                 );
               })}
             </div>

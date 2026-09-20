@@ -67,7 +67,7 @@ function OverrideForm({ onClose, loanType, bucket, onSubmitted }) {
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
             <h2 id="renewal-override-title" className="text-lg font-bold text-gray-900 dark:text-white">
-              Request early renewal
+              Request early {typeLabel} renewal
             </h2>
             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
               {typeLabel} Loan {bucket?.active_loan_id || ""}
