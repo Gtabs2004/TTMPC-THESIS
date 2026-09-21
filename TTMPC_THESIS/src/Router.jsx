@@ -85,7 +85,6 @@ import Treasurer_Dashboard from "./Treasurer/Components/Treasurer_Dashboard";
 import TreasurerAccounting from "./Treasurer/Components/Accounting";
 import Disbursement from "./Treasurer/Components/Disbursement";
 import TreasurerPayments from "./Treasurer/Components/Treasurer_Payments";
-import Schedule from "./Treasurer/Components/Schedule";
 import TreasurerVault from "./Treasurer/Components/Vault";
 import Cashier_Dashboard from "./Cashier/Components/Cashier_Dashboard";
 import Cashier_Savings from "./Cashier/Components/Cashier_Savings";
@@ -205,7 +204,6 @@ export const router = createBrowserRouter([
     {path: "/treasurer-accounting", element: treasurerGuarded(<TreasurerAccounting/>)},
     {path: "/disbursement", element: treasurerGuarded(<Disbursement/>)},
     {path: "/treasurer-payments", element: treasurerGuarded(<TreasurerPayments/>)},
-    {path: "/schedule", element: treasurerGuarded(<Schedule/>)},
     {path: "/treasurer-vault", element: treasurerGuarded(<TreasurerVault/>)},
     {path: "/Cashier_Dashboard", element: cashierGuarded(<Cashier_Dashboard/>)},
     {path: "/Cashier_Savings", element: cashierGuarded(<Cashier_Savings/>)},
