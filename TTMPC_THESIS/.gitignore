@@ -36,3 +36,5 @@ __pycache__/
 
 # Local schema dump
 src/server/schema_dump.json
+# PWA dev service worker output (generated)
+dev-dist

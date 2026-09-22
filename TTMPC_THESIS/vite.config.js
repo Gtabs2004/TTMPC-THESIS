@@ -91,9 +91,11 @@ export default defineConfig({
         ],
       },
       devOptions: {
-        // Enable service worker in dev so you can test install prompts on
-        // localhost during development (Chrome allows install from localhost).
-        enabled: true,
+        // Service worker is OFF in dev: generating it made `npm run dev` slow
+        // to start, and the cached shell served stale UI after edits.
+        // Flip to true (or run with VITE_DEV_PWA=1) only when you specifically
+        // need to test the install prompt on localhost.
+        enabled: process.env.VITE_DEV_PWA === '1',
         type: 'module',
       },
     }),
