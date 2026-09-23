@@ -1,6 +1,7 @@
 ﻿import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
 import { StatCard, StatCardRow } from "../../components/StatCard";
+import { TableToolbar } from "../../components/TableToolbar";
 import StaffSidebar from "../../components/StaffSidebar";
 import { bookkeeperNav } from "../../components/StaffSidebar/configs/bookkeeper";
 import { UserAuth } from "../../contex/AuthContext";
@@ -301,34 +302,17 @@ const Grocery_Ledger = () => {
           </StatCardRow>
 
           {/* Transaction Ledger List */}
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
-            
-            {/* Header & Filters */}
-            <div className="flex justify-between items-center mb-6">
-              <div>
-                <h2 className="text-lg font-bold text-[#1a3b47]">Transaction Ledger</h2>
-                <p className="text-sm text-gray-500">Grouped by {activeFilter.toLowerCase()} — click a member to expand transactions</p>
-              </div>
-              
-              <div className="flex bg-gray-50 border border-gray-200 rounded-full p-1">
-                {['Daily', 'Weekly', 'Monthly', 'Yearly'].map(filter => (
-                  <button 
-                    key={filter}
-                    onClick={() => setActiveFilter(filter)}
-                    className={`px-4 py-1.5 text-xs font-medium rounded-full transition-colors ${
-                      activeFilter === filter 
-                        ? 'bg-white text-gray-900 shadow-sm' 
-                        : 'text-gray-500 hover:text-gray-700'
-                    }`}
-                  >
-                    {filter}
-                  </button>
-                ))}
-              </div>
-            </div>
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
+            <TableToolbar
+              title="Transaction Ledger"
+              subtitle={`Grouped by ${activeFilter.toLowerCase()} — click a member to expand transactions`}
+              tabs={['Daily', 'Weekly', 'Monthly', 'Yearly'].map((filter) => ({ value: filter, label: filter }))}
+              activeTab={activeFilter}
+              onTabChange={setActiveFilter}
+            />
 
             {/* Render Groups based on Active Filter */}
-            <div className="space-y-6">
+            <div className="space-y-6 p-6">
               {loading ? (
                 <div className="py-12 text-center text-gray-400 text-sm">Loading…</div>
               ) : currentLedgerData.length === 0 ? (

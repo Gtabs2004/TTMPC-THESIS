@@ -9,6 +9,7 @@ import ConfirmDialog from "../../components/ConfirmDialog";
 import StaffTopbar from "../../components/StaffTopbar";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
 import Breadcrumb from "../../components/Breadcrumb";
+import { TableToolbar } from "../../components/TableToolbar";
 import {
   LayoutDashboard,
   Users,
@@ -221,33 +222,23 @@ const BookkeeperSavingsTransactions = () => {
           </div>
 
           <div className="border border-gray-200 rounded-lg shadow-sm overflow-hidden bg-white">
-            <div className="p-3 border-b border-gray-100 flex flex-wrap gap-2 items-center">
+            <TableToolbar
+              subtitle={`Showing ${filteredRows.length} of ${rows.length} transactions`}
+              tabs={[
+                { value: "pending_verification", label: "Pending", count: tabCounts.pending },
+                { value: "validated", label: "Validated", count: tabCounts.validated },
+                { value: "rejected", label: "Rejected", count: tabCounts.rejected },
+              ]}
+              activeTab={activeTab}
+              onTabChange={setActiveTab}
+            >
               <input
                 value={searchTerm}
                 onChange={(event) => setSearchTerm(event.target.value)}
                 placeholder="Search by transaction ID, savings ID, or member name"
-                className="flex-1 min-w-[200px] md:max-w-md bg-gray-50 border border-gray-300 rounded-md px-3 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-green-500"
+                className="w-full sm:w-64 h-8 rounded-lg border border-gray-200 bg-white px-2.5 text-[11px] font-semibold focus:outline-none focus:ring-2 focus:ring-[#2C7A3F]/40"
               />
-
-              <button
-                onClick={() => setActiveTab("pending_verification")}
-                className={`px-2.5 py-1.5 rounded-md text-[11px] font-semibold ${activeTab === "pending_verification" ? "bg-amber-100 text-amber-800" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}`}
-              >
-                Pending ({tabCounts.pending})
-              </button>
-              <button
-                onClick={() => setActiveTab("validated")}
-                className={`px-2.5 py-1.5 rounded-md text-[11px] font-semibold ${activeTab === "validated" ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}`}
-              >
-                Validated ({tabCounts.validated})
-              </button>
-              <button
-                onClick={() => setActiveTab("rejected")}
-                className={`px-2.5 py-1.5 rounded-md text-[11px] font-semibold ${activeTab === "rejected" ? "bg-red-100 text-red-800" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}`}
-              >
-                Rejected ({tabCounts.rejected})
-              </button>
-            </div>
+            </TableToolbar>
 
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">

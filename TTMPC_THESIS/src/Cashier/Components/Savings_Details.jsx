@@ -33,6 +33,7 @@ import { useConfirm } from "../../contex/ConfirmContext";
 import StaffTopbar from "../../components/StaffTopbar";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
 import Breadcrumb from "../../components/Breadcrumb";
+import { TableToolbar } from "../../components/TableToolbar";
 import Pagination from "../../components/Pagination";
 import { formatWithCommas, stripCommas } from "../../utils/numberFormat";
 import { authHeaders } from "../../utils/authHeaders";
@@ -440,14 +441,10 @@ const Savings_Details = () => {
 
               {/* LEDGER TABLE */}
               <div className="mb-8 rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
-                <div className="p-5 border-b border-gray-200 flex items-center justify-between">
-                  <div>
-                    <h2 className="text-lg font-bold text-gray-900">Transaction Ledger</h2>
-                    <p className="text-xs text-gray-500 mt-0.5">
-                      {ledger.length} entr{ledger.length === 1 ? "y" : "ies"} · newest first
-                    </p>
-                  </div>
-                </div>
+                <TableToolbar
+                  title="Transaction Ledger"
+                  subtitle={`${ledger.length} entr${ledger.length === 1 ? "y" : "ies"} · newest first`}
+                />
 
                 <div className="overflow-x-auto">
                   <table className="w-full text-left border-collapse">

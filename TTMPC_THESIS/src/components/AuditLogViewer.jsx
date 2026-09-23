@@ -43,12 +43,22 @@ const PAGE_SIZE = 5;
 // Map our audit_log.entity_type onto the existing Audit Trail design's "Module"
 // column, with the same colors as the original mockup.
 const MODULE_BY_ENTITY = {
-  loan:        { label: "Loans",       className: "bg-green-50 text-green-600"   },
-  application: { label: "Members",     className: "bg-purple-50 text-purple-600" },
-  member:      { label: "Members",     className: "bg-purple-50 text-purple-600" },
-  account:     { label: "Accounts",    className: "bg-blue-50 text-blue-600"     },
-  termination: { label: "Members",     className: "bg-purple-50 text-purple-600" },
-  policy:      { label: "Accounting",  className: "bg-orange-50 text-orange-600" },
+  loan:               { label: "Loans",             className: "bg-green-50 text-green-600"   },
+  application:        { label: "Members",           className: "bg-purple-50 text-purple-600" },
+  member:             { label: "Members",           className: "bg-purple-50 text-purple-600" },
+  account:            { label: "Accounts",           className: "bg-blue-50 text-blue-600"     },
+  termination:        { label: "Members",           className: "bg-purple-50 text-purple-600" },
+  policy:             { label: "Accounting",         className: "bg-orange-50 text-orange-600" },
+  // Cashier transaction tables (audit_log_cashier_triggers.sql) — every
+  // payment, disbursement, CBU deposit, savings ledger entry, membership
+  // fee, and grocery sale also lands in audit_log under these entity_types.
+  payment:            { label: "Loan Payments",      className: "bg-teal-50 text-teal-600"     },
+  disbursement:       { label: "Disbursements",      className: "bg-indigo-50 text-indigo-600" },
+  cbu:                { label: "CBU / Share Capital",className: "bg-cyan-50 text-cyan-600"      },
+  savings:            { label: "Savings",            className: "bg-sky-50 text-sky-600"       },
+  withdrawal:         { label: "Withdrawals",        className: "bg-rose-50 text-rose-600"     },
+  membership_payment: { label: "Membership Fees",    className: "bg-amber-50 text-amber-600"   },
+  grocery:            { label: "Grocery",            className: "bg-lime-50 text-lime-600"     },
 };
 
 // Human-readable action labels keyed by audit_log.action.
@@ -105,6 +115,16 @@ export const describeAuditContext = (row) => {
       return ctx.membership_id
         ? `${ctx.membership_id} • ${[ctx.first_name, ctx.last_name].filter(Boolean).join(" ")}`
         : row.entity_id;
+    case "payment":
+    case "disbursement":
+      return ctx.loan_id || row.entity_id;
+    case "cbu":
+      return ctx.member_id || row.entity_id;
+    case "savings":
+    case "withdrawal":
+      return ctx.account_number || row.entity_id;
+    case "membership_payment":
+      return ctx.membership_id || row.entity_id;
     default:
       return row.entity_id;
   }
@@ -382,7 +402,15 @@ const AuditLogViewer = ({ showActorRoleFilter = true, onError }) => {
 
       {/* Main Table Container */}
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm flex flex-col">
-        {/* Toolbar */}
+        {/* Toolbar — title/count row matches the shared TableToolbar reference
+            design (BOD Manage-Loans' "Loan Records"); the search/module/date/
+            role controls stay as this component's own richer dropdown-button
+            filters rather than being forced into plain pills/selects, since
+            they're genuinely different (popover menus, not a fixed pill set). */}
+        <div className="px-6 pt-4 pb-2">
+          <h2 className="text-sm font-bold text-gray-900">Audit Trail</h2>
+          <p className="text-[11px] text-gray-500 mt-0.5">Showing {rows.length} of {total} log entries</p>
+        </div>
         <div className="p-4 border-b border-gray-100 flex flex-wrap gap-4 justify-between items-center bg-white rounded-t-xl">
           <form onSubmit={handleSearch} className="flex gap-4 items-center flex-1">
             <div className="relative">

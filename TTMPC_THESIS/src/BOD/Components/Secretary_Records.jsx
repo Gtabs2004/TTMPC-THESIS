@@ -14,6 +14,7 @@ import {
   Loader2,
 } from "lucide-react";
 import NotificationBell from "../../components/NotificationBell";
+import { TableToolbar } from "../../components/TableToolbar";
 import Pagination from "../../components/Pagination";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
@@ -123,9 +124,14 @@ const Secretary_Records = () => {
         />
 
         <main className="p-8">
-          <div className="bg-white w-full rounded-2xl m-auto mt-6 p-8 shadow-sm border border-gray-100 min-h-fit">
-            <div className="flex items-center justify-between mb-6"><h2 className="text-lg font-bold text-gray-800">All Members</h2><button className="flex items-center gap-1.5 px-4 py-2 rounded-lg border border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">Export List</button></div>
-            <div className="overflow-x-auto">
+          <div className="bg-white w-full rounded-2xl m-auto mt-6 shadow-sm border border-gray-100 min-h-fit overflow-hidden">
+            <TableToolbar
+              title="All Members"
+              subtitle={`Showing ${paginatedRecords.length} of ${filteredRecords.length} members`}
+            >
+              <button className="flex items-center gap-1.5 h-8 px-2.5 rounded-lg border border-gray-200 text-[11px] font-semibold text-gray-700 hover:bg-gray-50 transition-colors">Export List</button>
+            </TableToolbar>
+            <div className="overflow-x-auto p-8 pt-6">
             <table className="w-full text-left border-collapse text-sm"><thead><tr className="bg-primary-deep text-[10px] uppercase tracking-wider text-white font-extrabold"><th className="p-5 font-bold">Membership Id</th><th className="p-5 font-bold">Member Name</th><th className="p-5 font-bold">Date Joined</th><th className="p-5 font-bold">Shares</th><th className="p-5 font-bold">Paid Up Capital</th><th className="p-5 font-bold">Action</th></tr></thead><tbody>
               {loading && (
                 <tr>

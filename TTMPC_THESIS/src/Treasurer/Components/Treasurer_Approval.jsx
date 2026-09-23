@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { getLoanTypeChipClass as getLoanTypeStyle } from "../../utils/loanTypeColors";
 import { StatCard, StatCardRow } from "../../components/StatCard";
+import { TableToolbar } from "../../components/TableToolbar";
 import { useNotification } from "../../contex/NotificationContext";
 import StaffTopbar from "../../components/StaffTopbar";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
@@ -281,30 +282,16 @@ const Treasurer_Approval = () => {
           </StatCardRow>
 
           <div className="bg-white border border-gray-200 rounded-xl shadow-sm">
-            <div className="px-6 pt-5 pb-4 flex flex-wrap items-center gap-2 border-b border-gray-100">
-              <button
-                type="button"
-                onClick={() => setActiveTab("awaiting")}
-                className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-colors ${
-                  activeTab === "awaiting"
-                    ? "bg-member-green text-white border-member-green"
-                    : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
-                }`}
-              >
-                Awaiting Disbursement ({loans.length})
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveTab("rescheduled")}
-                className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-colors ${
-                  activeTab === "rescheduled"
-                    ? "bg-amber-600 text-white border-amber-600"
-                    : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
-                }`}
-              >
-                Rescheduled {rescheduledLoaded ? `(${rescheduled.length})` : ""}
-              </button>
-            </div>
+            <TableToolbar
+              title="Disbursement Queue"
+              subtitle={activeTab === "awaiting" ? `Showing ${loans.length} loans` : `Showing ${rescheduledLoaded ? rescheduled.length : 0} loans`}
+              tabs={[
+                { value: "awaiting", label: "Awaiting Disbursement", count: loans.length },
+                { value: "rescheduled", label: "Rescheduled", count: rescheduledLoaded ? rescheduled.length : undefined },
+              ]}
+              activeTab={activeTab}
+              onTabChange={setActiveTab}
+            />
 
             {activeTab === "awaiting" && (
               <>

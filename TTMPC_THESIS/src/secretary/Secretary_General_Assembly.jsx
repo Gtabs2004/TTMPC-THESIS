@@ -26,6 +26,7 @@ import { UserAuth } from "../contex/AuthContext";
 import { useNotification } from "../contex/NotificationContext";
 import StaffTopbar from "../components/StaffTopbar";
 import Breadcrumb from "../components/Breadcrumb";
+import { TableToolbar } from "../components/TableToolbar";
 import Pagination from "../components/Pagination";
 import ConfirmDialog from "../components/ConfirmDialog";
 import logo from "../assets/img/ttmpc logo.png";
@@ -327,91 +328,78 @@ const Secretary_General_Assembly = () => {
 
           {/* Table (toolbar shares this card) */}
           <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
-            <div className="p-3 border-b border-gray-100 flex flex-wrap items-center gap-2">
-            <div className="relative flex-1 min-w-[220px] md:max-w-md">
-              <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search by name or membership ID"
-                value={searchTerm}
-                onChange={(event) => setSearchTerm(event.target.value)}
-                className="w-full bg-gray-50 border border-gray-300 rounded-md pl-9 pr-3 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-green-500"
-              />
-            </div>
-
-            {["All", "Present", "Absent"].map((opt) => (
-              <button
-                key={opt}
-                onClick={() => setStatusFilter(opt)}
-                className={`px-2.5 py-1.5 rounded-md text-[11px] font-semibold ${
-                  statusFilter === opt
-                    ? opt === "Present"
-                      ? "bg-green-100 text-green-800"
-                      : opt === "Absent"
-                      ? "bg-amber-100 text-amber-800"
-                      : "bg-gray-200 text-gray-800"
-                    : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                }`}
-              >
-                {opt}
-              </button>
-            ))}
-
-            <label className="ml-auto flex items-center gap-2 text-xs text-gray-700">
-              <CalendarDays size={14} className="text-gray-500" />
-              GA Date
-              <input
-                type="date"
-                value={meetingDate}
-                onChange={(event) => {
-                  setMeetingDate(event.target.value);
-                  // Reset all edits and selections — GA is once per fiscal year,
-                  // so a new date starts a fresh session.
-                  setEdits({});
-                  setSelectedMembers(new Set());
-                }}
-                min={`${SCORING_YEAR}-01-01`}
-                max={`${SCORING_YEAR}-12-31`}
-                className="bg-gray-50 border border-gray-300 rounded-md px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-green-500"
-              />
-            </label>
-
-            {selectedMembers.size > 0 && (
-              <div className="inline-flex items-center gap-1.5">
-                <select
-                  value={bulkStatus}
-                  onChange={(event) => setBulkStatus(event.target.value)}
-                  className="bg-gray-50 border border-gray-300 rounded-md px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-green-500"
-                >
-                  <option value="Present">Present</option>
-                  <option value="Absent">Absent</option>
-                </select>
-                <button
-                  onClick={handleMarkSelectedAsPresent}
-                  disabled={saving}
-                  className={`px-3 py-1.5 rounded-md text-white text-xs font-semibold inline-flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed ${
-                    bulkStatus === "Present"
-                      ? "bg-green-600 hover:bg-green-700"
-                      : "bg-amber-600 hover:bg-amber-700"
-                  }`}
-                >
-                  <Check size={13} />
-                  {saving
-                    ? "Processing..."
-                    : `Mark Selected as ${bulkStatus} (${selectedMembers.size})`}
-                </button>
-              </div>
-            )}
-
-            <button
-              onClick={handleSave}
-              disabled={saving || dirtyCount === 0}
-              className="px-3 py-1.5 rounded-md bg-green-600 hover:bg-green-700 text-white text-xs font-semibold inline-flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+            <TableToolbar
+              subtitle={`Showing ${paginated.length} of ${filtered.length} members`}
+              tabs={["All", "Present", "Absent"].map((opt) => ({ value: opt, label: opt }))}
+              activeTab={statusFilter}
+              onTabChange={setStatusFilter}
             >
-              <Save size={13} />
-              {saving ? "Saving..." : `Save${dirtyCount ? ` (${dirtyCount})` : ""}`}
-            </button>
-          </div>
+              <div className="relative w-full sm:w-64">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Search by name or membership ID"
+                  value={searchTerm}
+                  onChange={(event) => setSearchTerm(event.target.value)}
+                  className="w-full bg-white h-8 rounded-lg border border-gray-200 pl-8 pr-3 text-[11px] font-semibold focus:outline-none focus:ring-2 focus:ring-[#2C7A3F]/40"
+                />
+              </div>
+
+              <label className="flex items-center gap-2 text-[11px] font-semibold text-gray-700">
+                <CalendarDays size={14} className="text-gray-500" />
+                GA Date
+                <input
+                  type="date"
+                  value={meetingDate}
+                  onChange={(event) => {
+                    setMeetingDate(event.target.value);
+                    // Reset all edits and selections — GA is once per fiscal year,
+                    // so a new date starts a fresh session.
+                    setEdits({});
+                    setSelectedMembers(new Set());
+                  }}
+                  min={`${SCORING_YEAR}-01-01`}
+                  max={`${SCORING_YEAR}-12-31`}
+                  className="h-8 rounded-lg border border-gray-200 bg-white px-2 text-[11px] font-semibold focus:outline-none focus:ring-2 focus:ring-[#2C7A3F]/40"
+                />
+              </label>
+
+              {selectedMembers.size > 0 && (
+                <div className="inline-flex items-center gap-1.5">
+                  <select
+                    value={bulkStatus}
+                    onChange={(event) => setBulkStatus(event.target.value)}
+                    className="h-8 rounded-lg border border-gray-200 bg-white px-2 text-[11px] font-semibold focus:outline-none focus:ring-2 focus:ring-[#2C7A3F]/40"
+                  >
+                    <option value="Present">Present</option>
+                    <option value="Absent">Absent</option>
+                  </select>
+                  <button
+                    onClick={handleMarkSelectedAsPresent}
+                    disabled={saving}
+                    className={`h-8 px-3 rounded-lg text-white text-[11px] font-semibold inline-flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed ${
+                      bulkStatus === "Present"
+                        ? "bg-green-600 hover:bg-green-700"
+                        : "bg-amber-600 hover:bg-amber-700"
+                    }`}
+                  >
+                    <Check size={13} />
+                    {saving
+                      ? "Processing..."
+                      : `Mark Selected as ${bulkStatus} (${selectedMembers.size})`}
+                  </button>
+                </div>
+              )}
+
+              <button
+                onClick={handleSave}
+                disabled={saving || dirtyCount === 0}
+                className="h-8 px-3 rounded-lg bg-green-600 hover:bg-green-700 text-white text-[11px] font-semibold inline-flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Save size={13} />
+                {saving ? "Saving..." : `Save${dirtyCount ? ` (${dirtyCount})` : ""}`}
+              </button>
+            </TableToolbar>
 
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">

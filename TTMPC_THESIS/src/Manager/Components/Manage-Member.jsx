@@ -6,6 +6,7 @@ import { UserAuth } from "../../contex/AuthContext";
 import { useNotification } from "../../contex/NotificationContext";
 import StaffTopbar from "../../components/StaffTopbar";
 import Breadcrumb from "../../components/Breadcrumb";
+import { TableToolbar } from "../../components/TableToolbar";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
 import Pagination from "../../components/Pagination";
 import {
@@ -97,7 +98,9 @@ const Manager_Manage_Member = () => {
             </div>
           </div>
 
-          <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
+          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+            <TableToolbar subtitle={`Showing ${paginatedRows.length} of ${filtered.length} members`} />
+            <div className="overflow-x-auto">
             {!loading ? (
               <table className="w-full text-left border-collapse">
                 <thead>
@@ -142,6 +145,7 @@ const Manager_Manage_Member = () => {
                 </tbody>
               </table>
             ) : null}
+            </div>
           </div>
 
           <Pagination page={currentPage} totalPages={totalPages} onChange={setCurrentPage} />

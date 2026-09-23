@@ -27,6 +27,7 @@ import {
 import StaffTopbar from "../../components/StaffTopbar";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
 import Breadcrumb from "../../components/Breadcrumb";
+import { TableToolbar } from "../../components/TableToolbar";
 import Pagination from "../../components/Pagination";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
@@ -177,15 +178,14 @@ const Manage_Member = () => {
 
         <main className="p-8">
           <Breadcrumb portal="Bookkeeper" page="Members Profile" />
-          <div className="flex items-end justify-between mb-6">
-            <div>
-            </div>
-          </div>
-
-          {/* TABLE SECTION (search & filter toolbar + table share one card) */}
+          {/* TABLE SECTION (title/count + search & filter toolbar + table share one card) */}
           <div
             className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm transition-shadow duration-150 ease-in-out hover:shadow-md"
           >
+          <TableToolbar
+            title="Members Profile"
+            subtitle={`Showing ${paginatedRows.length} of ${filtered.length} members`}
+          />
           <div
             className="p-5 border-b border-gray-100 flex flex-col lg:flex-row items-end gap-5"
           >

@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { StatCard, StatCardRow } from "../../components/StatCard";
+import { TableToolbar } from "../../components/TableToolbar";
 import StaffTopbar from "../../components/StaffTopbar";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
 import Breadcrumb from "../../components/Breadcrumb";
@@ -273,17 +274,14 @@ const Treasurer_Payments = () => {
 
           {/* LEDGER TABLE */}
           <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center">
-              <div>
-                <h3 className="text-gray-800 font-bold text-lg">Ledger Entries</h3>
-                <p className="text-xs text-gray-500 mt-0.5">
-                  {loading ? "Loading…" : `${searchedEntries.length} entries · ${ledger.window.start} to ${ledger.window.end}`}
-                </p>
-              </div>
+            <TableToolbar
+              title="Ledger Entries"
+              subtitle={loading ? "Loading…" : `${searchedEntries.length} entries · ${ledger.window.start} to ${ledger.window.end}`}
+            >
               <div className="text-xs text-gray-400 flex items-center gap-1">
                 <Info size={12} /> Debit = cash in, Credit = cash out (cooperative's cash-account perspective)
               </div>
-            </div>
+            </TableToolbar>
 
             {loadError && (
               <div className="mx-6 mt-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">

@@ -2,6 +2,7 @@
 import { useNavigate, NavLink } from "react-router-dom";
 import { getLoanTypeChipClass as getLoanTypeStyle } from "../../utils/loanTypeColors";
 import { StatCard, StatCardRow } from "../../components/StatCard";
+import { TableToolbar } from "../../components/TableToolbar";
 import StaffSidebar from "../../components/StaffSidebar";
 import { bookkeeperNav } from "../../components/StaffSidebar/configs/bookkeeper";
 import { UserAuth } from "../../contex/AuthContext";
@@ -275,58 +276,27 @@ const BookkeeperLoanApproval = () => {
           </StatCardRow>
 
           <div className="bg-white border border-gray-200 rounded-xl shadow-sm">
-            <div className="px-6 pt-5 pb-4 flex flex-wrap items-center justify-between gap-3 border-b border-gray-100">
-              <div className="flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setActiveTab("all")}
-                  className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-colors ${
-                    activeTab === "all"
-                      ? "bg-member-green text-white border-member-green"
-                      : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
-                  }`}
-                >
-                  All ({tabCounts.all})
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActiveTab("pending")}
-                  className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-colors ${
-                    activeTab === "pending"
-                      ? "bg-member-green text-white border-member-green"
-                      : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
-                  }`}
-                >
-                  Pending ({tabCounts.pending})
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActiveTab("revision")}
-                  className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-colors ${
-                    activeTab === "revision"
-                      ? "bg-amber-600 text-white border-amber-600"
-                      : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
-                  }`}
-                >
-                  Revision Requested ({tabCounts.revision})
-                </button>
-              </div>
-
-              <div className="flex items-center gap-3 ml-auto">
-                <label className="text-xs uppercase tracking-wider text-gray-500 font-bold whitespace-nowrap">
-                  Member Type:
-                </label>
-                <select
-                  value={memberTypeFilter}
-                  onChange={(event) => setMemberTypeFilter(event.target.value)}
-                  className="h-10 rounded-lg border border-gray-200 bg-white px-3 pr-8 text-sm text-gray-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-[#2C7A3F]/50 focus:border-[#2C7A3F]"
-                >
-                  <option value="all">All</option>
-                  <option value="migs">MIGS</option>
-                  <option value="non-migs">Non-MIGS</option>
-                </select>
-              </div>
-            </div>
+            <TableToolbar
+              title="Loan Approval Queue"
+              subtitle={`Showing ${paginatedLoans.length} of ${filteredLoans.length} loans`}
+              tabs={[
+                { value: "all", label: "All", count: tabCounts.all },
+                { value: "pending", label: "Pending", count: tabCounts.pending },
+                { value: "revision", label: "Revision Requested", count: tabCounts.revision },
+              ]}
+              activeTab={activeTab}
+              onTabChange={setActiveTab}
+            >
+              <select
+                value={memberTypeFilter}
+                onChange={(event) => setMemberTypeFilter(event.target.value)}
+                className="h-8 rounded-lg border border-gray-200 bg-white px-2 pr-6 text-[11px] font-semibold text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#2C7A3F]/40"
+              >
+                <option value="all">All Member Types</option>
+                <option value="migs">MIGS</option>
+                <option value="non-migs">Non-MIGS</option>
+              </select>
+            </TableToolbar>
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>

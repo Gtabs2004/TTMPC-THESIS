@@ -7,6 +7,7 @@ import { useNotification } from "../../contex/NotificationContext";
 import StaffTopbar from "../../components/StaffTopbar";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
 import Breadcrumb from "../../components/Breadcrumb";
+import { TableToolbar } from "../../components/TableToolbar";
 import { 
   LayoutDashboard, 
   Search,
@@ -105,17 +106,18 @@ const Cashier_Withdrawals = () => {
           <h1 className="text-2xl font-bold text-[#1F3E35] mb-6">Withdrawals</h1>
 
           {/* Main Card Container */}
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden p-6">
-            
-            {/* Header Section */}
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-lg font-bold text-[#1F3E35]">Posted Withdrawal Transactions</h2>
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+            <TableToolbar
+              title="Posted Withdrawal Transactions"
+              subtitle={`Showing ${rows.length} transactions`}
+            >
               <div className="flex items-center gap-2">
                 <span className="text-[10px] font-bold text-gray-400 uppercase">Bookkeeper approved transactions</span>
                 <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
               </div>
-            </div>
+            </TableToolbar>
 
+            <div className="p-6 pt-4">
             {fetchError ? (
               <div className="mb-4 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{fetchError}</div>
             ) : null}
@@ -188,7 +190,7 @@ const Cashier_Withdrawals = () => {
                 </tbody>
               </table>
             </div>
-
+            </div>
           </div>
         </main>
       </div>

@@ -7,6 +7,7 @@ import { useNotification } from "../../contex/NotificationContext";
 import StaffTopbar from "../../components/StaffTopbar";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
 import Breadcrumb from "../../components/Breadcrumb";
+import { TableToolbar } from "../../components/TableToolbar";
 import {
   LayoutDashboard,
   Banknote,
@@ -204,16 +205,27 @@ const Cashier_CBU = () => {
             </div>
           </div>
 
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 mb-8">
-            <div className="flex items-center justify-between mb-5 gap-3 flex-wrap">
-              <div className="flex items-center gap-3">
-                <h3 className="text-lg font-bold text-[#1F3E35]">Member Accounts</h3>
-                <span className="text-[10px] uppercase tracking-wider font-bold text-primary bg-green-50 px-2 py-1 rounded">
-                  Live Data
-                </span>
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden mb-8">
+            <TableToolbar
+              title="Member Accounts"
+              subtitle={`Showing ${paginatedMembers.length} of ${filteredMembers.length} accounts`}
+            >
+              <span className="text-[10px] uppercase tracking-wider font-bold text-primary bg-green-50 px-2 py-1 rounded">
+                Live Data
+              </span>
+              <div className="relative w-full sm:w-64">
+                <UserSearch className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+                <input
+                  type="text"
+                  value={memberSearch}
+                  onChange={(event) => setMemberSearch(event.target.value)}
+                  placeholder="Search by Member ID or Name"
+                  className="w-full h-8 rounded-lg border border-gray-200 bg-white pl-8 pr-3 text-[11px] font-semibold focus:outline-none focus:ring-2 focus:ring-[#2C7A3F]/40"
+                />
               </div>
-            </div>
+            </TableToolbar>
 
+            <div className="p-6 pt-4">
             {loading && (
               <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700">
                 Loading members and CBU records...
@@ -225,17 +237,6 @@ const Cashier_CBU = () => {
                 {loadError}
               </div>
             )}
-
-            <div className="relative mb-4 max-w-md">
-              <UserSearch className="absolute left-3 top-3.5 w-4 h-4 text-gray-400" />
-              <input
-                type="text"
-                value={memberSearch}
-                onChange={(event) => setMemberSearch(event.target.value)}
-                placeholder="Search by Member ID or Name"
-                className="w-full rounded-lg border border-gray-300 bg-gray-50 h-11 pl-10 pr-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-              />
-            </div>
 
             <div className="overflow-x-auto rounded-xl border border-gray-100">
               <table className="w-full text-left border-collapse">
@@ -303,6 +304,7 @@ const Cashier_CBU = () => {
                   <ChevronRight className="w-4 h-4" />
                 </button>
               </div>
+            </div>
             </div>
           </div>
 

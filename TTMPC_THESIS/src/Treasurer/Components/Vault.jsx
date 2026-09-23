@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { StatCard, StatCardRow } from "../../components/StatCard";
+import { TableToolbar } from "../../components/TableToolbar";
 import { supabase } from "../../supabaseClient";
 import { UserAuth } from "../../contex/AuthContext";
 import { useNotification } from "../../contex/NotificationContext";
@@ -371,27 +372,23 @@ const Vault = () => {
 
           {/* LEDGER */}
           <div className="rounded-xl bg-white border border-gray-200 shadow-sm">
-            <div className="flex items-center justify-between p-5 border-b border-gray-100">
-              <div>
-                <h2 className="text-lg font-bold text-gray-900">Ledger</h2>
-                <p className="text-xs text-gray-500 mt-0.5">Newest entries first. {entries.length} shown (max 100).</p>
-              </div>
-              <div className="flex items-center gap-2">
-                <label className="text-xs text-gray-600 font-semibold">Filter:</label>
-                <select
-                  value={typeFilter}
-                  onChange={(e) => setTypeFilter(e.target.value)}
-                  className="h-9 rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500"
-                >
-                  <option value="all">All Types</option>
-                  <option value="deposit">Deposit</option>
-                  <option value="withdrawal">Withdrawal</option>
-                  <option value="disbursement">Disbursement</option>
-                  <option value="adjustment">Adjustment</option>
-                  <option value="opening_balance">Opening Balance</option>
-                </select>
-              </div>
-            </div>
+            <TableToolbar
+              title="Ledger"
+              subtitle={`Newest entries first. ${entries.length} shown (max 100).`}
+            >
+              <select
+                value={typeFilter}
+                onChange={(e) => setTypeFilter(e.target.value)}
+                className="h-8 rounded-lg border border-gray-200 bg-white px-2 pr-6 text-[11px] font-semibold text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#2C7A3F]/40"
+              >
+                <option value="all">All Types</option>
+                <option value="deposit">Deposit</option>
+                <option value="withdrawal">Withdrawal</option>
+                <option value="disbursement">Disbursement</option>
+                <option value="adjustment">Adjustment</option>
+                <option value="opening_balance">Opening Balance</option>
+              </select>
+            </TableToolbar>
 
             <div className="overflow-x-auto">
               <table className="w-full text-sm">

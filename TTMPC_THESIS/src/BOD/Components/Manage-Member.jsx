@@ -23,6 +23,7 @@ import {
   Loader2
 } from "lucide-react";
 import NotificationBell from "../../components/NotificationBell";
+import { TableToolbar } from "../../components/TableToolbar";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 const ITEMS_PER_PAGE = 5;
@@ -116,7 +117,9 @@ const BOD_Manage_Member = () => {
         <main className="p-8">
           <Breadcrumb portal="BOD" page="Manage Member" />
           <h1 className="font-bold text-2xl mb-6">Manage Member</h1>
-          <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
+          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+            <TableToolbar subtitle={`Showing ${paginatedRows.length} of ${filtered.length} members`} />
+            <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-primary-deep text-[10px] uppercase tracking-wider text-white font-extrabold">
@@ -176,6 +179,7 @@ const BOD_Manage_Member = () => {
                 )}
               </tbody>
             </table>
+            </div>
           </div>
 
           <Pagination page={currentPage} totalPages={totalPages} onChange={setCurrentPage} />
