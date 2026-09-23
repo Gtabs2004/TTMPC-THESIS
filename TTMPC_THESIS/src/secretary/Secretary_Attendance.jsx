@@ -655,7 +655,7 @@ const Secretary_Attendance = () => {
      
            {/* MAIN CONTENT AREA */}
            <div className="flex-1 min-w-0 flex flex-col h-screen overflow-hidden">
-        <StaffTopbar portal="Secretary" notifications={<NotificationBell />} />
+        <StaffTopbar portal="Secretary" notifications={<NotificationBell viewAllPath="/Secretary_Records" />} />
 
         <main className="p-8 overflow-auto">
           <Breadcrumb portal="Secretary" page="Training Attendance" />

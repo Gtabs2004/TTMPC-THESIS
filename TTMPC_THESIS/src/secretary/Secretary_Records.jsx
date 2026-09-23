@@ -150,7 +150,7 @@ const Secretary_Records = () => {
       <div className="flex-1 flex flex-col">
         <StaffTopbar
           portal="Secretary"
-          notifications={<NotificationBell />}
+          notifications={<NotificationBell viewAllPath="/Secretary_Records" />}
           search={{ value: searchQuery, onChange: (e) => setSearchQuery(e.target.value), placeholder: "Search..." }}
         />
 

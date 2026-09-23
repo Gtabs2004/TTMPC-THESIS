@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Bell, UserPlus, Inbox } from "lucide-react";
 import { supabase } from "../supabaseClient";
+import { formatRelativeTime } from "../utils/relativeTime";
 
 // Membership-application notification bell — a separate feed from
 // LoanNotificationBell's loan-workflow queue. Used by BOD (member/loan
@@ -9,24 +10,15 @@ import { supabase } from "../supabaseClient";
 // actually approve new membership applications. Relocated here from
 // BOD/Components/NotificationBell.jsx (secretary pages were already
 // reaching into that folder cross-portal to import it).
+//
+// `viewAllPath` defaults to BOD's queue (`/member-approvals`) for backward
+// compatibility with existing call sites; Secretary pages pass their own
+// `/Secretary_Records` route so "View all" doesn't bounce them off a
+// BOD-only-guarded route.
 
 const STORAGE_KEY = "bod_notifications_last_seen";
 const POLL_MS = 30_000;
-
-const formatRelative = (iso) => {
-  if (!iso) return "";
-  const then = new Date(iso).getTime();
-  if (Number.isNaN(then)) return "";
-  const diff = Math.max(0, Date.now() - then);
-  const mins = Math.floor(diff / 60_000);
-  if (mins < 1) return "just now";
-  if (mins < 60) return `${mins}m ago`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  const days = Math.floor(hrs / 24);
-  if (days < 7) return `${days}d ago`;
-  return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-};
+const DEFAULT_VIEW_ALL_PATH = "/member-approvals";
 
 const buildName = (row) => {
   const full = [row.first_name, row.middle_name, row.surname]
@@ -36,7 +28,7 @@ const buildName = (row) => {
   return full || row.email || "New applicant";
 };
 
-const NotificationBell = () => {
+const NotificationBell = ({ viewAllPath = DEFAULT_VIEW_ALL_PATH }) => {
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState([]);
@@ -111,12 +103,12 @@ const NotificationBell = () => {
 
   const handleSelect = (app) => {
     setOpen(false);
-    navigate("/member-approvals");
+    navigate(viewAllPath);
   };
 
   const handleViewAll = () => {
     setOpen(false);
-    navigate("/member-approvals");
+    navigate(viewAllPath);
   };
 
   return (
@@ -174,7 +166,7 @@ const NotificationBell = () => {
                       <p className="text-xs text-gray-500 truncate">
                         Submitted a new membership application
                       </p>
-                      <p className="text-[11px] text-gray-400 mt-0.5">{formatRelative(app.created_at)}</p>
+                      <p className="text-[11px] text-gray-400 mt-0.5">{formatRelativeTime(app.created_at)}</p>
                     </div>
                     {isUnread && <span className="mt-1 w-2 h-2 rounded-full bg-red-500 flex-shrink-0" />}
                   </button>

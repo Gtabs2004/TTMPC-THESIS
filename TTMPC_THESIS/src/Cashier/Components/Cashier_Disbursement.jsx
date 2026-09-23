@@ -204,6 +204,9 @@ const Cashier_Disbursement = () => {
         if (previewDeductions?.deductions?.cbu_deduction > 0 && !records.cbu_retention_credited) {
           missing.push("the CBU retention credit");
         }
+        if (records.net_cash_out > 0 && !records.vault_debited) {
+          missing.push("the vault deduction");
+        }
         if (missing.length) {
           releaseWarning = `Loan released, but ${missing.join(", ")} could not be verified. Please check the loan and notify the administrator.`;
         }
@@ -774,15 +777,28 @@ const Cashier_Disbursement = () => {
                         {formatCurrency(previewDeductions?.total_deductions)}
                       </span>
                     </div>
+                    {previewDeductions?.is_renewal && previewDeductions?.renewal_payoff > 0 && (
+                      <div className="flex justify-between">
+                        <span>
+                          Renewal Payoff <span className="text-gray-500">(retires the old loan's balance)</span>
+                        </span>
+                        <span className="font-mono font-semibold text-amber-800">
+                          {formatCurrency(previewDeductions.renewal_payoff)}
+                        </span>
+                      </div>
+                    )}
                     <div className="flex justify-between text-sm pt-1">
-                      <span className="font-bold">Net Proceeds to Release</span>
+                      <span className="font-bold">Net Cash to Release</span>
                       <span className="font-mono font-bold text-primary">
-                        {formatCurrency(previewDeductions?.net_proceeds)}
+                        {formatCurrency(previewDeductions?.net_cash_out ?? previewDeductions?.net_proceeds)}
                       </span>
                     </div>
                   </div>
                   <p className="mt-2 text-[10px] text-amber-700">
                     The 2% CBU retention will be credited to the member's Capital Build-Up ledger on release.
+                    {previewDeductions?.is_renewal && previewDeductions?.renewal_payoff > 0
+                      ? " The renewal payoff is an internal offset — it never physically leaves the vault."
+                      : ""}
                   </p>
                 </div>
               )}

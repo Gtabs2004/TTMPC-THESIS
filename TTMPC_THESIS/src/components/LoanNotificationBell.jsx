@@ -4,6 +4,7 @@ import { Bell, Inbox, CheckCircle2, AlertTriangle, XCircle, Info } from "lucide-
 import { supabase } from "../supabaseClient";
 import { UserAuth } from "../contex/AuthContext";
 import { resolveMemberContextFromSessionUser } from "../utils/sessionIdentity";
+import { formatRelativeTime } from "../utils/relativeTime";
 
 // Generalized loan-workflow notification bell.
 //
@@ -25,19 +26,15 @@ const SEVERITY_STYLES = {
   info:    { ring: "bg-sky-50", icon: Info, iconClass: "text-sky-600", dot: "bg-sky-500" },
 };
 
-const formatRelative = (iso) => {
-  if (!iso) return "";
-  const then = new Date(iso).getTime();
-  if (Number.isNaN(then)) return "";
-  const diff = Math.max(0, Date.now() - then);
-  const mins = Math.floor(diff / 60_000);
-  if (mins < 1) return "just now";
-  if (mins < 60) return `${mins}m ago`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  const days = Math.floor(hrs / 24);
-  if (days < 7) return `${days}d ago`;
-  return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+// Per-role landing page for "View All" — mirrors _redirect_url() in
+// services/loan_notification_service.py so this stays the same destination
+// the backend already sends individual notifications to for that role.
+const VIEW_ALL_PATH_BY_ROLE = {
+  manager: "/loan-approval",
+  treasurer: "/treasurer-approval",
+  bookkeeper: "/bookkeeper-loan-approval",
+  cashier: "/Cashier_Payments",
+  member: "/member-loans",
 };
 
 const LoanNotificationBell = ({
@@ -181,6 +178,12 @@ const LoanNotificationBell = ({
   }, []);
 
   const unreadCount = useMemo(() => items.filter((it) => !it.is_read).length, [items]);
+  const viewAllPath = isMemberMode ? "/member-loans" : VIEW_ALL_PATH_BY_ROLE[normalizedRole];
+
+  const handleViewAll = useCallback(() => {
+    setOpen(false);
+    if (viewAllPath) navigate(viewAllPath);
+  }, [navigate, viewAllPath]);
 
   const markRead = useCallback(async (id) => {
     if (!id) return;
@@ -291,7 +294,7 @@ const LoanNotificationBell = ({
                       <p className="text-xs text-gray-500 leading-snug mt-0.5 line-clamp-2">{item.message}</p>
                       <p className="text-[11px] text-gray-400 mt-1">
                         {item.loan_id ? <span className="font-mono mr-2">#{item.loan_id}</span> : null}
-                        {formatRelative(item.created_at)}
+                        {formatRelativeTime(item.created_at)}
                       </p>
                     </div>
                     {!item.is_read && <span className={`mt-1 w-2 h-2 rounded-full ${style.dot} flex-shrink-0`} />}
@@ -300,6 +303,15 @@ const LoanNotificationBell = ({
               })
             )}
           </div>
+
+          {viewAllPath && (
+            <button
+              onClick={handleViewAll}
+              className="w-full text-center px-4 py-2.5 text-xs font-semibold text-gray-600 hover:text-gray-900 hover:bg-gray-50 border-t border-gray-100 transition-colors"
+            >
+              View all
+            </button>
+          )}
         </div>
       )}
     </div>

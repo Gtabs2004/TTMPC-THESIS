@@ -35,8 +35,6 @@ import NotificationBell from "../../components/NotificationBell";
 import {
   BarChart,
   Bar,
-  ScatterChart,
-  Scatter,
   PieChart,
   Pie,
   Cell,
@@ -46,17 +44,27 @@ import {
   Tooltip,
   Legend,
   ResponsiveContainer,
-  
 } from 'recharts';
-import { SERIES_PRIMARY, GENDER_COLORS, AGING_SEVERITY_COLORS } from '../../lib/chartColors';
+import { GENDER_COLORS, CATEGORICAL_PALETTE } from '../../lib/chartColors';
+
+// Member loan types (CLAUDE.md) — the "Approved Loans per Month" breakdown
+// gets one clearly-labeled series per type, not just a consolidated total.
+// Order here also sets stacking/legend order.
+const APPROVED_LOAN_TYPE_LABELS = ['Consolidated Loan', 'Bonus Loan', 'Emergency Loan'];
+const APPROVED_LOAN_TYPE_COLORS = Object.fromEntries(
+  APPROVED_LOAN_TYPE_LABELS.map((label, i) => [label, CATEGORICAL_PALETTE[i % CATEGORICAL_PALETTE.length]])
+);
+// `loans.loan_types.name` ("Consolidated Loan", "Bonus Loan", "Emergency
+// Loan" as actually stored) -> one of the labels above.
+const resolveApprovedLoanTypeLabel = (rawName) => {
+  const t = String(rawName || '').toLowerCase();
+  if (t.includes('consolidated')) return 'Consolidated Loan';
+  if (t.includes('emergency')) return 'Emergency Loan';
+  if (t.includes('bonus')) return 'Bonus Loan';
+  return null;
+};
 
 const formatCurrency = (v) => `₱${Number(v || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
-const formatCurrencyShort = (v) => {
-  const n = Number(v || 0);
-  if (Math.abs(n) >= 1_000_000) return `₱${(n / 1_000_000).toFixed(1)}M`;
-  if (Math.abs(n) >= 1_000) return `₱${(n / 1_000).toFixed(1)}K`;
-  return `₱${n.toFixed(0)}`;
-};
 const formatDateShort = (v) => {
   if (!v) return '—';
   const d = new Date(v);
@@ -73,15 +81,13 @@ const Dashboard_BOD = () => {
 
   const [kpis, setKpis] = useState({
     totalLoansCount: 0,
-    delinquencyRate: 0,
-    avgDebtCapacity: 0,
+    latePaymentsCount: 0,
+    activeLoansCount: 0,
     approvedThisMonth: 0,
   });
-  const [delinquencyTrend, setDelinquencyTrend] = useState([]);
   const [approvedTrend, setApprovedTrend] = useState([]);
   const [genderData, setGenderData] = useState([]);
   const [genderTotal, setGenderTotal] = useState(0);
-  const [debtScatter, setDebtScatter] = useState([]);
   const [recentTxns, setRecentTxns] = useState([]);
 
   useEffect(() => {
@@ -102,7 +108,6 @@ const Dashboard_BOD = () => {
           activeLoansRes,
           allDisbursedRes,
           totalLoansCountRes,
-          paymentsRes,
           overdueSchedRes,
           approvedTrendRes,
           gendersRes,
@@ -123,10 +128,6 @@ const Dashboard_BOD = () => {
             .from('loans')
             .select('control_number', { count: 'exact', head: true }),
           supabase
-            .from('loan_payments')
-            .select('loan_id, amount_paid, payment_date, confirmation_status')
-            .limit(20000),
-          supabase
             .from('loan_schedules')
             .select('loan_id, due_date, schedule_status')
             .in('schedule_status', ['Unpaid', 'unpaid', 'Overdue', 'overdue', 'Pending', 'pending'])
@@ -135,7 +136,7 @@ const Dashboard_BOD = () => {
             .limit(20000),
           supabase
             .from('loans')
-            .select('disbursal_date, loan_status')
+            .select('disbursal_date, loan_status, loan_types:loan_type_id(name)')
             .gte('disbursal_date', sixMoStart)
             .in('loan_status', ['released', 'partially paid', 'fully paid'])
             .limit(20000),
@@ -160,7 +161,6 @@ const Dashboard_BOD = () => {
 
         const activeLoans = activeLoansRes?.data || [];
         const allDisbursed = allDisbursedRes?.data || [];
-        const allPayments = paymentsRes?.data || [];
         const overdueSched = overdueSchedRes?.data || [];
         const approvedRows = approvedTrendRes?.data || [];
         const genderRows = gendersRes?.data || [];
@@ -169,52 +169,39 @@ const Dashboard_BOD = () => {
 
         const totalLoansCount = totalLoansCountRes?.count || 0;
         const activeIds = new Set(activeLoans.map((l) => l.control_number));
-        const overdueLoanIds = new Set(
-          overdueSched.map((s) => s.loan_id).filter((id) => activeIds.has(id))
-        );
-        const delinquencyRate = activeLoans.length
-          ? (overdueLoanIds.size / activeLoans.length) * 100
-          : 0;
-        const avgDebt = activeLoans.length
-          ? activeLoans.reduce((s, l) => s + Number(l.principal_amount || l.loan_amount || 0), 0) / activeLoans.length
-          : 0;
+        // One count per overdue/unpaid/pending installment past its due date
+        // on a currently active loan — i.e. an actual number of late
+        // payments, not the distinct loans they belong to or a percentage.
+        const latePaymentsCount = overdueSched.filter((s) => activeIds.has(s.loan_id)).length;
+        // Same record set used for latePaymentsCount above — loans currently
+        // disbursed and not yet fully repaid ('released' = disbursed, no
+        // payments recorded yet; 'partially paid' = actively being repaid).
+        // Counting from that array (not a separate query) guarantees this
+        // KPI and the rest of the dashboard can never disagree on which
+        // loans count as "active".
+        const activeLoansCount = activeLoans.length;
         const approvedThisMonth = allDisbursed.filter(
           (l) => l.disbursal_date && l.disbursal_date >= monthStart
         ).length;
 
-        setKpis({ totalLoansCount, delinquencyRate, avgDebtCapacity: avgDebt, approvedThisMonth });
+        setKpis({ totalLoansCount, latePaymentsCount, activeLoansCount, approvedThisMonth });
 
-        // Delinquency trajectory — last 6 mo, bucketed 30/60/90
-        const buckets = new Map();
-        for (let i = 5; i >= 0; i -= 1) {
-          const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-          buckets.set(monthKey(d), { month: monthKey(d), '30-Day': 0, '60-Day': 0, '90-Day': 0 });
-        }
-        overdueSched.forEach((s) => {
-          if (!s.due_date) return;
-          const due = new Date(s.due_date);
-          const ageDays = Math.floor((now - due) / (1000 * 60 * 60 * 24));
-          if (ageDays < 0) return;
-          const key = monthKey(due);
-          if (!buckets.has(key)) return;
-          const slot = buckets.get(key);
-          if (ageDays >= 90) slot['90-Day'] += 1;
-          else if (ageDays >= 60) slot['60-Day'] += 1;
-          else if (ageDays >= 30) slot['30-Day'] += 1;
-        });
-        setDelinquencyTrend([...buckets.values()]);
-
-        // Approved-per-month trend
+        // Approved-per-month trend, broken down by loan type (via
+        // loan_types.name on each disbursed loan).
         const approvedBuckets = new Map();
         for (let i = 5; i >= 0; i -= 1) {
           const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-          approvedBuckets.set(monthKey(d), { month: monthKey(d), count: 0 });
+          approvedBuckets.set(monthKey(d), {
+            month: monthKey(d),
+            ...Object.fromEntries(APPROVED_LOAN_TYPE_LABELS.map((label) => [label, 0])),
+          });
         }
         approvedRows.forEach((r) => {
           if (!r.disbursal_date) return;
-          const d = new Date(r.disbursal_date);
-          const key = monthKey(d);
-          if (approvedBuckets.has(key)) approvedBuckets.get(key).count += 1;
+          const label = resolveApprovedLoanTypeLabel(r.loan_types?.name);
+          if (!label) return;
+          const slot = approvedBuckets.get(monthKey(new Date(r.disbursal_date)));
+          if (slot) slot[label] += 1;
         });
         setApprovedTrend([...approvedBuckets.values()]);
 
@@ -231,24 +218,6 @@ const Dashboard_BOD = () => {
         const genderArr = [...genderCounts.entries()].map(([name, value]) => ({ name, value }));
         setGenderData(genderArr);
         setGenderTotal(genderArr.reduce((s, g) => s + g.value, 0));
-
-        // Debt vs repayment speed scatter
-        const validatedByLoan = new Map();
-        allPayments.forEach((p) => {
-          const status = String(p.confirmation_status || '').toLowerCase();
-          if (!status.includes('valid') && status !== 'confirmed' && status !== 'approved') return;
-          validatedByLoan.set(p.loan_id, (validatedByLoan.get(p.loan_id) || 0) + Number(p.amount_paid || 0));
-        });
-        const scatter = activeLoans.slice(0, 200).map((l) => {
-          const principal = Number(l.principal_amount || l.loan_amount || 0);
-          const monthly = Number(l.monthly_amortization || 0);
-          const term = Number(l.term || 0);
-          const expected = monthly * term || principal;
-          const paid = validatedByLoan.get(l.control_number) || 0;
-          const speed = expected > 0 ? Math.min(100, Math.round((paid / expected) * 100)) : 0;
-          return { debt: principal, repaymentSpeed: speed };
-        }).filter((d) => d.debt > 0);
-        setDebtScatter(scatter);
 
         // Recent transactions — disbursals + payments
         const memberNameByLoan = new Map();
@@ -313,7 +282,7 @@ const Dashboard_BOD = () => {
           {/* Action Header */}
           <div className="flex justify-between items-center mb-8">
             <div>
-              <h1 className="font-bold text-2xl text-gray-800">Analytical Dashboard</h1>
+              <h1 className="font-bold text-2xl text-gray-800">TTMPC   Dashboard</h1>
               <p className="text-sm text-gray-500 mt-1">Real-time cooperative performance metrics</p>
             </div>
 
@@ -322,28 +291,28 @@ const Dashboard_BOD = () => {
           {/* ROW 1: QUICK INSIGHTS (KPIs) */}
           <StatCardRow cols={4}>
             <StatCard
-              label="Total Loans"
+              label="Total Loan Applications"
               value={loading ? '—' : kpis.totalLoansCount.toLocaleString()}
               icon={TrendingUp}
               iconColor="text-[#2C7A3F]"
               subtext="All loans on file in the cooperative"
             />
             <StatCard
-              label="Delinquency Rate"
-              value={loading ? '—' : `${kpis.delinquencyRate.toFixed(1)}%`}
+              label="Number of Late Payments"
+              value={loading ? '—' : kpis.latePaymentsCount.toLocaleString()}
               icon={AlertCircle}
               iconColor="text-red-500"
-              subtext="Active loans with overdue schedules"
+              subtext="Overdue installments on active loans"
             />
             <StatCard
-              label="Avg Debt Capacity"
-              value={loading ? '—' : formatCurrencyShort(kpis.avgDebtCapacity)}
+              label="Total Active Loans"
+              value={loading ? '—' : kpis.activeLoansCount.toLocaleString()}
               icon={CreditCard}
               iconColor="text-blue-500"
-              subtext="Mean principal across active loans"
+              subtext="Loans currently released or partially paid"
             />
             <StatCard
-              label="Approved This Month"
+              label="Approved Loan This Month"
               value={loading ? '—' : kpis.approvedThisMonth}
               icon={CheckCircle2}
               iconColor="text-[#2C7A3F]"
@@ -351,11 +320,11 @@ const Dashboard_BOD = () => {
             />
           </StatCardRow>
 
-          {/* ROW 2: STRATEGIC TRENDS */}
+          {/* ROW 2: TRENDS & DEMOGRAPHICS */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8 min-w-0">
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 min-w-0">
               <h3 className="text-lg font-bold text-gray-800 mb-1">Approved Loans per Month</h3>
-              <p className="text-sm text-gray-500 mb-4">Disbursed loans over the last 6 months</p>
+              <p className="text-sm text-gray-500 mb-4">Disbursed loans over the last 6 months, by loan type</p>
               <div className="h-72">
                 {chartsReady ? <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={240}>
                   <BarChart data={approvedTrend} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
@@ -363,34 +332,25 @@ const Dashboard_BOD = () => {
                     <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#9CA3AF' }} />
                     <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#9CA3AF' }} allowDecimals={false} />
                     <Tooltip cursor={{ fill: '#f9fafb' }} contentStyle={{ borderRadius: '12px', border: '1px solid #E5E7EB', boxShadow: '0 10px 25px -5px rgb(0 0 0 / 0.1)', backgroundColor: '#FFFFFF', padding: '12px' }}/>
-                    <Bar dataKey="count" name="Approved" fill={SERIES_PRIMARY} radius={[6, 6, 0, 0]} />
+                    <Legend wrapperStyle={{ paddingTop: '16px', fontSize: '12px' }} />
+                    {/* Stacked so the combined bar height still reads as the
+                        consolidated total, while each loan type stays its
+                        own clearly-labeled, distinctly-colored series. */}
+                    {APPROVED_LOAN_TYPE_LABELS.map((label, i) => (
+                      <Bar
+                        key={label}
+                        dataKey={label}
+                        name={label}
+                        stackId="approved"
+                        fill={APPROVED_LOAN_TYPE_COLORS[label]}
+                        radius={i === APPROVED_LOAN_TYPE_LABELS.length - 1 ? [6, 6, 0, 0] : 0}
+                      />
+                    ))}
                   </BarChart>
                 </ResponsiveContainer> : <div className="h-full w-full rounded-lg bg-gray-50" />}
               </div>
             </div>
 
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 min-w-0">
-              <h3 className="text-lg font-bold text-gray-800 mb-1">Delinquency Trajectory (30/60/90 Days)</h3>
-              <p className="text-sm text-gray-500 mb-4">Stacked delinquency aging by month</p>
-              <div className="h-72">
-                {chartsReady ? <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={240}>
-                  <BarChart data={delinquencyTrend} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="0" vertical={false} stroke="#f0f0f0" />
-                    <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#9CA3AF' }} />
-                    <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#9CA3AF' }} allowDecimals={false} />
-                    <Tooltip cursor={{ fill: '#f9fafb' }} contentStyle={{ borderRadius: '12px', border: '1px solid #E5E7EB', boxShadow: '0 10px 25px -5px rgb(0 0 0 / 0.1)', backgroundColor: '#FFFFFF', padding: '12px' }}/>
-                    <Legend wrapperStyle={{ paddingTop: '20px' }} />
-                    <Bar dataKey="30-Day" stackId="a" fill={AGING_SEVERITY_COLORS[0]} radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="60-Day" stackId="a" fill={AGING_SEVERITY_COLORS[1]} />
-                    <Bar dataKey="90-Day" stackId="a" fill={AGING_SEVERITY_COLORS[2]} radius={[0, 0, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer> : <div className="h-full w-full rounded-lg bg-gray-50" />}
-              </div>
-            </div>
-          </div>
-
-          {/* ROW 3: DEMOGRAPHICS & DIAGNOSTICS */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8 min-w-0">
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 flex flex-col items-center min-w-0">
               <div className="w-full flex justify-between items-center mb-4">
                 <div>
@@ -419,25 +379,9 @@ const Dashboard_BOD = () => {
                 </ResponsiveContainer> : <div className="h-full w-full rounded-lg bg-gray-50 flex items-center justify-center text-xs text-gray-400">{loading ? 'Loading…' : 'No gender data available'}</div>}
               </div>
             </div>
-
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 min-w-0">
-              <h3 className="text-sm font-bold text-gray-800 mb-1">Debt Capacity vs Repayment Speed</h3>
-              <p className="text-xs text-gray-500 mb-4">Per-loan principal vs % paid of expected</p>
-              <div className="h-48">
-                {chartsReady && debtScatter.length > 0 ? <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={160}>
-                  <ScatterChart margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="0" vertical={false} stroke="#f0f0f0" />
-                    <XAxis type="number" dataKey="debt" name="Principal" tickFormatter={(val) => `${(val/1000).toFixed(0)}k`} axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#9CA3AF' }} />
-                    <YAxis type="number" dataKey="repaymentSpeed" name="Speed %" domain={[0, 100]} axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#9CA3AF' }} />
-                    <Tooltip cursor={{ strokeDasharray: '0' }} contentStyle={{ borderRadius: '12px', border: '1px solid #E5E7EB', boxShadow: '0 10px 25px -5px rgb(0 0 0 / 0.1)', backgroundColor: '#FFFFFF', padding: '12px' }} formatter={(value, name) => name === 'Principal' ? formatCurrency(value) : `${value}%`} />
-                    <Scatter name="Loans" data={debtScatter} fill={SERIES_PRIMARY} />
-                  </ScatterChart>
-                </ResponsiveContainer> : <div className="h-full w-full rounded-lg bg-gray-50 flex items-center justify-center text-xs text-gray-400">{loading ? 'Loading…' : 'No active loans to plot'}</div>}
-              </div>
-            </div>
           </div>
 
-          {/* ROW 4: TRANSACTION HISTORY */}
+          {/* ROW 3: TRANSACTION HISTORY */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
             <div className="p-6 border-b border-gray-100 flex justify-between items-center">
               <h3 className="text-lg font-bold text-gray-800">Recent Transactions</h3>
