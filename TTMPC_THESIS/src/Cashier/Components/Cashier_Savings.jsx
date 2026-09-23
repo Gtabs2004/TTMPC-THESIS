@@ -29,6 +29,7 @@ import { useNotification } from "../../contex/NotificationContext";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
 import StaffTopbar from "../../components/StaffTopbar";
 import Breadcrumb from "../../components/Breadcrumb";
+import { TableToolbar } from "../../components/TableToolbar";
 import Pagination from "../../components/Pagination";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
@@ -240,43 +241,39 @@ const Cashier_Savings = () => {
 
           {/* MAIN TABLE (search & filter toolbar shares this card) */}
           <div className="mb-8 rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
-            <div className="p-4 border-b border-gray-100 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-              <div className="flex-1">
-                <div className="relative">
-                  <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                  <input
-                    type="text"
-                    placeholder="Search by account number, name, or member ID..."
-                    value={searchTerm}
-                    onChange={(event) => setSearchTerm(event.target.value)}
-                    className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 pl-10 text-sm focus:border-green-500 focus:outline-none focus:ring-2 focus:ring-green-200 transition"
-                  />
-                </div>
+            <TableToolbar subtitle={`Showing ${paginated.length} of ${filtered.length} accounts`}>
+              <div className="relative w-full sm:w-64">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Search by account number, name, or member ID..."
+                  value={searchTerm}
+                  onChange={(event) => setSearchTerm(event.target.value)}
+                  className="w-full h-8 rounded-lg border border-gray-200 bg-white pl-8 pr-3 text-[11px] font-semibold focus:outline-none focus:ring-2 focus:ring-[#2C7A3F]/40"
+                />
               </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setShowFilters(!showFilters)}
-                  className="flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 transition"
-                >
-                  <Filter size={16} />
-                  Filters
-                </button>
-                <button
-                  onClick={handleRefresh}
-                  className="flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 transition"
-                >
-                  <RefreshCw size={16} />
-                  Refresh
-                </button>
-                <button
-                  onClick={() => navigate("/add_savings")}
-                  className="flex items-center gap-2 rounded-lg bg-green-600 hover:bg-green-700 text-white font-semibold px-4 py-2.5 text-sm transition-colors"
-                >
-                  <UserPlus size={16} />
-                  Add Savings
-                </button>
-              </div>
-            </div>
+              <button
+                onClick={() => setShowFilters(!showFilters)}
+                className="flex items-center gap-1.5 h-8 px-2.5 rounded-lg border border-gray-200 bg-white text-[11px] font-semibold text-gray-700 hover:bg-gray-50 transition"
+              >
+                <Filter size={13} />
+                Filters
+              </button>
+              <button
+                onClick={handleRefresh}
+                className="flex items-center gap-1.5 h-8 px-2.5 rounded-lg border border-gray-200 bg-white text-[11px] font-semibold text-gray-700 hover:bg-gray-50 transition"
+              >
+                <RefreshCw size={13} />
+                Refresh
+              </button>
+              <button
+                onClick={() => navigate("/add_savings")}
+                className="flex items-center gap-1.5 h-8 px-2.5 rounded-lg bg-green-600 hover:bg-green-700 text-white font-semibold text-[11px] transition-colors"
+              >
+                <UserPlus size={13} />
+                Add Savings
+              </button>
+            </TableToolbar>
 
             {/* FILTERS DROPDOWN */}
             {showFilters && (

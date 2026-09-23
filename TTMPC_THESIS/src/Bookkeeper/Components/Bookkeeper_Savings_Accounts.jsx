@@ -33,6 +33,7 @@ import { useNotification } from "../../contex/NotificationContext";
 import StaffTopbar from "../../components/StaffTopbar";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
 import Breadcrumb from "../../components/Breadcrumb";
+import { TableToolbar } from "../../components/TableToolbar";
 import Pagination from "../../components/Pagination";
 import logo from "../../assets/img/ttmpc logo.png";
 
@@ -242,32 +243,32 @@ const Bookkeeper_Savings_Accounts = () => {
 
           {/* TABLE (search & filter toolbar shares this card) */}
           <div className="border border-gray-200 rounded-lg shadow-sm overflow-hidden bg-white">
-            <div className="p-4 border-b border-gray-100 flex flex-wrap items-center gap-2">
-              <div className="relative flex-1 min-w-[220px] md:max-w-md">
-                <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
+            <TableToolbar subtitle={`Showing ${paginated.length} of ${filtered.length} accounts`}>
+              <div className="relative w-full sm:w-64">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
                 <input
                   type="text"
                   placeholder="Search by account number, name, or member ID"
                   value={searchTerm}
                   onChange={(event) => setSearchTerm(event.target.value)}
-                  className="w-full bg-gray-50 border border-gray-300 rounded-md pl-9 pr-3 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-green-500"
+                  className="w-full bg-white h-8 rounded-lg border border-gray-200 pl-8 pr-3 text-[11px] font-semibold focus:outline-none focus:ring-2 focus:ring-[#2C7A3F]/40"
                 />
               </div>
               <button
                 onClick={() => setShowFilters(!showFilters)}
-                className="px-3 py-1.5 rounded-md border border-gray-300 bg-white text-xs font-semibold text-gray-700 hover:bg-gray-50 inline-flex items-center gap-1.5"
+                className="h-8 px-2.5 rounded-lg border border-gray-200 bg-white text-[11px] font-semibold text-gray-700 hover:bg-gray-50 inline-flex items-center gap-1.5"
               >
                 <Filter size={13} />
                 Filters
               </button>
               <button
                 onClick={handleRefresh}
-                className="px-3 py-1.5 rounded-md border border-gray-300 bg-white text-xs font-semibold text-gray-700 hover:bg-gray-50 inline-flex items-center gap-1.5"
+                className="h-8 px-2.5 rounded-lg border border-gray-200 bg-white text-[11px] font-semibold text-gray-700 hover:bg-gray-50 inline-flex items-center gap-1.5"
               >
                 <RefreshCw size={13} />
                 Refresh
               </button>
-            </div>
+            </TableToolbar>
 
             {showFilters && (
               <div className="border-b border-gray-100 bg-gray-50 p-3 space-y-3">

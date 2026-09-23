@@ -5,6 +5,7 @@ import { bookkeeperNav } from "../../components/StaffSidebar/configs/bookkeeper"
 import StaffTopbar from "../../components/StaffTopbar";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
 import Breadcrumb from "../../components/Breadcrumb";
+import { TableToolbar } from "../../components/TableToolbar";
 import Pagination from "../../components/Pagination";
 import { useNotification } from "../../contex/NotificationContext";
 import { getLoanTypeChipClass } from "../../utils/loanTypeColors";
@@ -174,38 +175,22 @@ const RenewalOverrides = () => {
             </p>
           </div>
 
-          <div className="mb-4 flex flex-wrap gap-2" role="tablist" aria-label="Request status">
-            {TABS.map((t) => {
-              const active = tab === t.key;
-              return (
-                <button
-                  key={t.key}
-                  type="button"
-                  role="tab"
-                  aria-selected={active}
-                  onClick={() => setTab(t.key)}
-                  className={`inline-flex items-center gap-2 rounded-full border px-4 py-1.5 text-sm font-semibold transition-colors ${
-                    active
-                      ? "border-primary-deep bg-primary-deep text-white"
-                      : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
-                  }`}
-                >
-                  {t.label}
-                  {t.key === "pending" && pendingCount > 0 && (
-                    <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${active ? "bg-white text-primary-deep" : "bg-yellow-100 text-yellow-800"}`}>
-                      {pendingCount}
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-
           {loadError && (
             <div className="mb-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{loadError}</div>
           )}
 
-          <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-sm">
+          <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+            <TableToolbar
+              subtitle={`Showing ${rows.length} request${rows.length === 1 ? "" : "s"}`}
+              tabs={TABS.map((t) => ({
+                value: t.key,
+                label: t.label,
+                count: t.key === "pending" && pendingCount > 0 ? pendingCount : undefined,
+              }))}
+              activeTab={tab}
+              onTabChange={setTab}
+            />
+            <div className="overflow-x-auto">
             <table className="min-w-full text-sm">
               <thead>
                 <tr className="bg-primary-deep text-[10px] uppercase tracking-wider text-white font-extrabold text-left">
@@ -281,6 +266,7 @@ const RenewalOverrides = () => {
             {!loading && rows.length > ITEMS_PER_PAGE && (
               <Pagination page={page} totalPages={totalPages} onChange={setPage} />
             )}
+            </div>
           </div>
         </main>
       </div>

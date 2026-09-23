@@ -8,6 +8,7 @@ import { useConfirm } from "../../contex/ConfirmContext";
 import StaffTopbar from "../../components/StaffTopbar";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
 import Breadcrumb from "../../components/Breadcrumb";
+import { TableToolbar } from "../../components/TableToolbar";
 import Pagination from "../../components/Pagination";
 import ConfirmDialog from "../../components/ConfirmDialog";
 import { supabase } from "../../supabaseClient";
@@ -324,32 +325,17 @@ const Cashier_MembershipPayments = () => {
 
           {/* Tabs + filters + table share one card */}
           <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
-            <div className="p-4 border-b border-gray-100 flex gap-2">
-              <button
-                onClick={() => setActiveTab("applicants")}
-                className={`px-4 py-2 text-sm font-semibold rounded-lg transition-colors ${
-                  activeTab === "applicants"
-                    ? "bg-member-green text-white"
-                    : "bg-white border border-gray-200 text-gray-700 hover:bg-gray-50"
-                }`}
-              >
-                Applicants ({filteredApplicants.length})
-              </button>
-              <button
-                onClick={() => setActiveTab("transactions")}
-                className={`px-4 py-2 text-sm font-semibold rounded-lg transition-colors ${
-                  activeTab === "transactions"
-                    ? "bg-member-green text-white"
-                    : "bg-white border border-gray-200 text-gray-700 hover:bg-gray-50"
-                }`}
-              >
-                Transactions ({filteredTransactions.length})
-              </button>
-            </div>
-
-            <div className="p-4 border-b border-gray-100 flex flex-wrap items-center gap-3">
-              <div className="relative max-w-md flex-1">
-                <UserSearch className="absolute left-3 top-3.5 w-4 h-4 text-gray-400" />
+            <TableToolbar
+              subtitle={`Showing ${activeTab === "applicants" ? filteredApplicants.length : filteredTransactions.length} ${activeTab}`}
+              tabs={[
+                { value: "applicants", label: "Applicants", count: filteredApplicants.length },
+                { value: "transactions", label: "Transactions", count: filteredTransactions.length },
+              ]}
+              activeTab={activeTab}
+              onTabChange={setActiveTab}
+            >
+              <div className="relative w-full sm:w-72">
+                <UserSearch className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
                 <input
                   type="text"
                   value={search}
@@ -359,21 +345,21 @@ const Cashier_MembershipPayments = () => {
                       ? "Search by applicant name, email, or application ID"
                       : "Search by name, payment ID, or reference number"
                   }
-                  className="w-full rounded-lg border border-gray-300 bg-gray-50 h-11 pl-10 pr-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  className="w-full h-8 rounded-lg border border-gray-200 bg-white pl-8 pr-3 text-[11px] font-semibold focus:outline-none focus:ring-2 focus:ring-[#2C7A3F]/40"
                 />
               </div>
               {activeTab === "applicants" && (
                 <select
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value)}
-                  className="h-11 rounded-lg border border-gray-300 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  className="h-8 rounded-lg border border-gray-200 bg-white px-2 pr-6 text-[11px] font-semibold text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#2C7A3F]/40"
                 >
                   <option value="all">All Applicants</option>
                   <option value="unpaid">Unpaid Only</option>
                   <option value="paid">Paid Only</option>
                 </select>
               )}
-            </div>
+            </TableToolbar>
 
             {/* APPLICANTS TABLE */}
             {activeTab === "applicants" && (

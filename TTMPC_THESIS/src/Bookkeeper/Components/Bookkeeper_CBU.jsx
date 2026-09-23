@@ -17,6 +17,7 @@ import { useNotification } from "../../contex/NotificationContext";
 import StaffTopbar from "../../components/StaffTopbar";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
 import Breadcrumb from "../../components/Breadcrumb";
+import { TableToolbar } from "../../components/TableToolbar";
 import Pagination from "../../components/Pagination";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
@@ -204,19 +205,21 @@ const Bookkeeper_CBU = () => {
 
           {/* MEMBER BALANCES */}
           <div className="border border-gray-200 rounded-lg shadow-sm overflow-hidden bg-white mb-8">
-            <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between gap-3 flex-wrap">
-              <h3 className="text-sm font-bold text-gray-900">Member Accounts</h3>
-              <div className="relative flex-1 max-w-md">
-                <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
+            <TableToolbar
+              title="Member Accounts"
+              subtitle={`Showing ${paginatedMembers.length} of ${filteredMembers.length} accounts`}
+            >
+              <div className="relative w-full sm:w-64">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
                 <input
                   type="text"
                   value={memberSearch}
                   onChange={(event) => setMemberSearch(event.target.value)}
                   placeholder="Search by Member ID or Name"
-                  className="w-full bg-gray-50 border border-gray-300 rounded-md pl-9 pr-3 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-green-500"
+                  className="w-full bg-white h-8 rounded-lg border border-gray-200 pl-8 pr-3 text-[11px] font-semibold focus:outline-none focus:ring-2 focus:ring-[#2C7A3F]/40"
                 />
               </div>
-            </div>
+            </TableToolbar>
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
@@ -269,9 +272,10 @@ const Bookkeeper_CBU = () => {
 
           {/* TRANSACTION LEDGER */}
           <div className="border border-gray-200 rounded-lg shadow-sm overflow-hidden bg-white">
-            <div className="px-5 py-3 border-b border-gray-100">
-              <h3 className="text-sm font-bold text-gray-900">Recent CBU Transactions</h3>
-            </div>
+            <TableToolbar
+              title="Recent CBU Transactions"
+              subtitle={`Showing ${paginatedTx.length} of ${transactions.length} transactions`}
+            />
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>

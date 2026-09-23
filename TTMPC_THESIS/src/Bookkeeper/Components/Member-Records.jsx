@@ -7,6 +7,7 @@ import { useNotification } from "../../contex/NotificationContext";
 import StaffTopbar from "../../components/StaffTopbar";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
 import Breadcrumb from "../../components/Breadcrumb";
+import { TableToolbar } from "../../components/TableToolbar";
 import {
   LayoutDashboard,
   Users,
@@ -45,10 +46,9 @@ const Records = () => {
         <main className="p-8">
           <Breadcrumb portal="Bookkeeper" page="Member Records" />
           <h1 className="font-bold text-2xl">Records</h1>
-          <div className="bg-white w-full rounded-2xl m-auto mt-6 p-8 shadow-sm border border-gray-100 min-h-fit">
-  
-  <h2 className="text-lg font-bold text-gray-800 mb-6">All Members</h2>
-  
+          <div className="bg-white w-full rounded-2xl m-auto mt-6 shadow-sm border border-gray-100 min-h-fit overflow-hidden">
+  <TableToolbar title="All Members" />
+  <div className="p-8">
   <table className="w-full text-left border-collapse text-sm mb-24">
     <thead>
       <tr className="bg-green-700 text-[10px] uppercase tracking-wider text-white font-extrabold">
@@ -91,6 +91,7 @@ const Records = () => {
       ))}
     </tbody>
   </table>
+  </div>
 </div>
           <div className="flex justify-center items-center mt-8 gap-2">
             <button

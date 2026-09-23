@@ -26,7 +26,8 @@ import {
   ShieldCheck,
   AlertTriangle,
   History,
-  ArrowRight
+  ArrowRight,
+  CheckCircle2
 } from 'lucide-react';
 import { supabase } from "../../supabaseClient";
 import { resolveAccountFromSessionUser } from "../../utils/sessionIdentity";
@@ -59,6 +60,7 @@ const Member_Approvals = () => {
     newThisMonth: null,
     avgPendingDays: null,
     approvalRate: null,
+    approvedThisMonth: null,
   });
   const LIMIT = 5;
 
@@ -256,7 +258,7 @@ const Member_Approvals = () => {
     // approval rate is calculated across the whole applicant history.
     const { data, error } = await supabase
       .from("member_applications")
-      .select("created_at,application_status");
+      .select("created_at,application_status,approved_at");
     if (error) {
       console.error("Stats fetch error:", error);
       return;
@@ -264,6 +266,7 @@ const Member_Approvals = () => {
 
     const now = new Date();
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1);
     const isPending = (s) => /^pending$/i.test(String(s || "").trim());
     const isApproved = (s) => {
       const v = String(s || "").trim().toLowerCase();
@@ -279,6 +282,10 @@ const Member_Approvals = () => {
     let pendingCount = 0;
     let approved = 0;
     let decided = 0;
+    // Approved-this-month is keyed off approved_at (when BOD actually
+    // decided), not created_at (when the applicant submitted) — an
+    // application submitted last month but approved today must still count.
+    let approvedThisMonth = 0;
 
     (data || []).forEach((row) => {
       const created = row.created_at ? new Date(row.created_at) : null;
@@ -293,6 +300,10 @@ const Member_Approvals = () => {
       if (isApproved(row.application_status)) {
         approved += 1;
         decided += 1;
+        if (row.approved_at) {
+          const approvedAt = new Date(row.approved_at);
+          if (approvedAt >= monthStart && approvedAt < monthEnd) approvedThisMonth += 1;
+        }
       } else if (isRejected(row.application_status)) {
         decided += 1;
       }
@@ -302,6 +313,7 @@ const Member_Approvals = () => {
       newThisMonth,
       avgPendingDays: pendingCount ? pendingDaysSum / pendingCount : 0,
       approvalRate: decided ? (approved / decided) * 100 : null,
+      approvedThisMonth,
     });
   };
 
@@ -415,8 +427,15 @@ const Member_Approvals = () => {
         <StaffTopbar portal="BOD" notifications={<NotificationBell />} />
         <main className="p-8">
           <Breadcrumb portal="BOD" page="Member Approvals" />
-          <StatCardRow cols={3}>
+          <StatCardRow cols={4}>
             <StatCard label="New This Month" value={stats.newThisMonth ?? "—"} icon={UserPlus} iconColor="text-[#2C7A3F]" />
+            <StatCard
+              label="Approved Applications"
+              value={stats.approvedThisMonth ?? "—"}
+              icon={CheckCircle2}
+              iconColor="text-[#2C7A3F]"
+              subtext="Approved this month"
+            />
             <StatCard
               label="Avg Days in Pending"
               value={
@@ -436,7 +455,11 @@ const Member_Approvals = () => {
           </StatCardRow>
 
           <div className="bg-white border border-gray-100 rounded-xl shadow-sm overflow-hidden">
-            <div className="flex items-center gap-6 px-6 pt-4 border-b border-gray-100">
+            {/* px-5 matches the p-5 left inset used by the title/table rows
+                below, so tab labels, the section title, and every table
+                column line up on the same left edge instead of the tabs
+                sitting 4px further right (px-6) than everything else. */}
+            <div className="flex items-center gap-6 px-5 pt-4 border-b border-gray-100">
               {visibleTabs.map(tab => (
                 <button 
                   key={tab}

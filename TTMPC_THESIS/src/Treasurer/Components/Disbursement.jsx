@@ -2,6 +2,7 @@
 import { useNotification } from "../../contex/NotificationContext";
 import { getLoanTypeChipClass as getLoanTypeStyle } from "../../utils/loanTypeColors";
 import { StatCard, StatCardRow } from "../../components/StatCard";
+import { TableToolbar } from "../../components/TableToolbar";
 import StaffTopbar from "../../components/StaffTopbar";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
 import Breadcrumb from "../../components/Breadcrumb";
@@ -234,46 +235,42 @@ const Disbursements = () => {
 
           {/* Data Table Section */}
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm mb-6 flex flex-col overflow-hidden">
-            {/* Table Toolbar */}
-            <div className="flex flex-col gap-4 px-6 py-5 border-b border-gray-200 lg:flex-row lg:items-center lg:justify-between bg-white">
-              <div>
-                <h2 className="text-lg font-bold text-gray-900">Disbursement Ledger</h2>
-                <p className="text-sm text-gray-500 font-medium">{visibleRows.length} record{visibleRows.length === 1 ? "" : "s"} matched</p>
+            <TableToolbar
+              title="Disbursement Ledger"
+              subtitle={`${visibleRows.length} record${visibleRows.length === 1 ? "" : "s"} matched`}
+            >
+              <div className="relative w-full sm:w-64">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+                <input
+                  type="text"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  placeholder="Search member or ID"
+                  className="bg-white w-full h-8 rounded-lg border border-gray-200 pl-8 pr-3 text-[11px] font-semibold focus:outline-none focus:ring-2 focus:ring-[#2C7A3F]/40"
+                />
               </div>
-              <div className="flex flex-wrap items-center gap-3">
-                <div className="relative">
-                  <Search className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
-                  <input
-                    type="text"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    placeholder="Search member or ID"
-                    className="bg-white w-64 h-9 rounded-lg border border-gray-300 pl-9 pr-3 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all shadow-sm"
-                  />
-                </div>
-                <select
-                  value={typeFilter}
-                  onChange={(e) => setTypeFilter(e.target.value)}
-                  className="bg-white h-9 rounded-lg border border-gray-300 px-3 py-0 text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all shadow-sm cursor-pointer"
-                >
-                  <option>All Types</option>
-                  <option>Emergency</option>
-                  <option>Consolidated</option>
-                  <option>Bonus</option>
-                  <option>ABFF</option>
-                </select>
-                <button
-                  onClick={() => setShowTimeline((v) => !v)}
-                  className={`h-9 px-4 rounded-lg border text-sm font-semibold transition-colors shadow-sm ${
-                    showTimeline 
-                    ? "bg-gray-100 border-gray-300 text-gray-800" 
-                    : "bg-white border-gray-300 text-gray-700 hover:bg-gray-50"
-                  }`}
-                >
-                  {showTimeline ? "Hide" : "Show"} Audit Trail
-                </button>
-              </div>
-            </div>
+              <select
+                value={typeFilter}
+                onChange={(e) => setTypeFilter(e.target.value)}
+                className="h-8 rounded-lg border border-gray-200 bg-white px-2 pr-6 text-[11px] font-semibold text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#2C7A3F]/40"
+              >
+                <option>All Types</option>
+                <option>Emergency</option>
+                <option>Consolidated</option>
+                <option>Bonus</option>
+                <option>ABFF</option>
+              </select>
+              <button
+                onClick={() => setShowTimeline((v) => !v)}
+                className={`h-8 px-2.5 rounded-lg border text-[11px] font-semibold transition-colors ${
+                  showTimeline
+                  ? "bg-gray-100 border-gray-300 text-gray-800"
+                  : "bg-white border-gray-200 text-gray-700 hover:bg-gray-50"
+                }`}
+              >
+                {showTimeline ? "Hide" : "Show"} Audit Trail
+              </button>
+            </TableToolbar>
 
             {/* Table Content */}
             <div className="overflow-x-auto">

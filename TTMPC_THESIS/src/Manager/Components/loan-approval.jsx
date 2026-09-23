@@ -2,6 +2,7 @@
 import { useNavigate, NavLink } from "react-router-dom";
 import { getLoanTypeChipClass as getLoanTypeStyle } from "../../utils/loanTypeColors";
 import { StatCard, StatCardRow } from "../../components/StatCard";
+import { TableToolbar } from "../../components/TableToolbar";
 import StaffSidebar from "../../components/StaffSidebar";
 import { managerNav } from "../../components/StaffSidebar/configs/manager";
 import { UserAuth } from "../../contex/AuthContext";
@@ -196,6 +197,7 @@ const Loan_Approval = () => {
 
           {/* Data Table Container */}
           <div className="bg-white border border-gray-200 rounded-xl shadow-sm">
+            <TableToolbar title="Loan Approval Queue" subtitle={`Showing ${loans.length} loans`} />
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>

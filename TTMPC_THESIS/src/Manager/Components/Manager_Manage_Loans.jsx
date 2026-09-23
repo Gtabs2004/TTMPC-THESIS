@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { getLoanTypeChipClass as getLoanTypeStyle } from "../../utils/loanTypeColors";
 import { StatCard, StatCardRow } from "../../components/StatCard";
+import { TableToolbar } from "../../components/TableToolbar";
 import StaffSidebar from "../../components/StaffSidebar";
 import { managerNav } from "../../components/StaffSidebar/configs/manager";
 import { useNavigate, NavLink } from "react-router-dom";
@@ -282,85 +283,48 @@ const Manager_Manage_Loans = () => {
 
           {/* Filters + tabs */}
           <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
-            <div className="p-5 border-b border-gray-100 flex flex-wrap items-center justify-between gap-3">
-              {/* Tabs */}
-              <div className="flex items-center gap-2">
-                {tabs.map((tab) => {
-                  const isActive = activeTab === tab.key;
-                  const isRestructured = tab.key === "restructured";
-                  return (
-                    <button
-                      key={tab.key}
-                      type="button"
-                      onClick={() => setActiveTab(tab.key)}
-                      className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
-                        isActive
-                          ? isRestructured
-                            ? "bg-amber-500 text-white"
-                            : "bg-green-600 text-white"
-                          : isRestructured && tab.count > 0
-                          ? "bg-amber-50 text-amber-700 border border-amber-300 hover:bg-amber-100"
-                          : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                      }`}
-                    >
-                      {isRestructured && <RefreshCw size={11} />}
-                      <span>{tab.label}</span>
-                      <span
-                        className={`inline-flex items-center justify-center min-w-5 h-5 rounded-full text-xs font-bold ${
-                          isActive
-                            ? "bg-white/30 text-white"
-                            : isRestructured && tab.count > 0
-                            ? "bg-amber-200 text-amber-800"
-                            : "bg-gray-300 text-gray-700"
-                        }`}
-                      >
-                        {tab.count}
-                      </span>
-                    </button>
-                  );
-                })}
+            <TableToolbar
+              title="Loan Records"
+              subtitle={`Showing ${paginatedGroups.length} of ${groupedLoans.length} loans`}
+              tabs={tabs.map((tab) => ({ value: tab.key, label: tab.label, count: tab.count }))}
+              activeTab={activeTab}
+              onTabChange={setActiveTab}
+            >
+              <select
+                value={loanTypeFilter}
+                onChange={(e) => setLoanTypeFilter(e.target.value)}
+                className="h-8 rounded-lg border border-gray-200 bg-white px-2 pr-6 text-[11px] font-semibold text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#2C7A3F]/40"
+              >
+                <option value="all">All Loan Types</option>
+                <option value="CONSOLIDATED">Consolidated</option>
+                <option value="EMERGENCY">Emergency</option>
+                <option value="BONUS">Bonus</option>
+                <option value="KOICA">KOICA</option>
+                <option value="ABF">ABF</option>
+              </select>
+
+              <select
+                value={memberTypeFilter}
+                onChange={(e) => setMemberTypeFilter(e.target.value)}
+                className="h-8 rounded-lg border border-gray-200 bg-white px-2 pr-6 text-[11px] font-semibold text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#2C7A3F]/40"
+              >
+                <option value="all">All Member Types</option>
+                <option value="Member">Member</option>
+                <option value="Non-Member">Non-Member</option>
+                <option value="KOICA">KOICA</option>
+              </select>
+
+              <div className="relative w-full sm:w-64">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+                <input
+                  type="text"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="bg-white w-full h-8 rounded-lg border border-gray-200 pl-8 pr-3 text-[11px] font-semibold focus:outline-none focus:ring-2 focus:ring-[#2C7A3F]/40"
+                  placeholder="Search by loan ID, member name..."
+                />
               </div>
-
-              {/* Filters */}
-              <div className="flex flex-wrap items-center gap-2">
-                <div className="flex flex-wrap items-center gap-3">
-                  <select
-                    value={loanTypeFilter}
-                    onChange={(e) => setLoanTypeFilter(e.target.value)}
-                    className="h-10 rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                  >
-                    <option value="all">All Loan Types</option>
-                    <option value="CONSOLIDATED">Consolidated</option>
-                    <option value="EMERGENCY">Emergency</option>
-                    <option value="BONUS">Bonus</option>
-                    <option value="KOICA">KOICA</option>
-                    <option value="ABF">ABF</option>
-                  </select>
-
-                  <select
-                    value={memberTypeFilter}
-                    onChange={(e) => setMemberTypeFilter(e.target.value)}
-                    className="h-10 rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                  >
-                    <option value="all">All Member Types</option>
-                    <option value="Member">Member</option>
-                    <option value="Non-Member">Non-Member</option>
-                    <option value="KOICA">KOICA</option>
-                  </select>
-                </div>
-
-                <div className="relative w-full sm:w-80">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                  <input
-                    type="text"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="bg-white w-full h-10 rounded-lg border border-gray-300 pl-9 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                    placeholder="Search by loan ID, member name..."
-                  />
-                </div>
-              </div>
-            </div>
+            </TableToolbar>
 
             {loading && (
               <div className="mx-5 mt-4 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800 flex items-center gap-2">

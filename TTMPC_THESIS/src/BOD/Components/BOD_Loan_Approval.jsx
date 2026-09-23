@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { StatCard, StatCardRow } from "../../components/StatCard";
+import { TableToolbar } from "../../components/TableToolbar";
 import StaffSidebar from "../../components/StaffSidebar";
 import { bodNav } from "../../components/StaffSidebar/configs/bod";
 import { NavLink, useNavigate } from "react-router-dom";
@@ -99,12 +100,16 @@ const BOD_Loan_Approval = () => {
         <main className="p-8 flex-1">
           <Breadcrumb portal="BOD" page="Loan Approvals" />
           <StatCardRow cols={3}>
-            <StatCard label="Pending Board Review" value={loans.length} icon={UserPlus} iconColor="text-[#2C7A3F]" />
+            <StatCard label="Pending Loan Applications" value={loans.length} icon={UserPlus} iconColor="text-[#2C7A3F]" />
             <StatCard label="Threshold" value="₱500K+" icon={ClipboardList} iconColor="text-[#D97706]" />
             <StatCard label="Loan Type" value="Consolidated" icon={BadgeCheck} iconColor="text-[#2C7A3F]" />
           </StatCardRow>
 
           <div className="bg-white border border-gray-200 rounded-xl shadow-sm">
+            <TableToolbar
+              title="High-Value Loan Queue"
+              subtitle={`Showing ${filtered.length} of ${loans.length} loans awaiting BOD approval`}
+            />
             <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>

@@ -2,6 +2,7 @@
 import { useNavigate, NavLink } from "react-router-dom";
 import { getLoanTypeChipClass as getLoanTypeStyle } from "../../utils/loanTypeColors";
 import { StatCard, StatCardRow } from "../../components/StatCard";
+import { TableToolbar } from "../../components/TableToolbar";
 import StaffSidebar from "../../components/StaffSidebar";
 import { bookkeeperNav } from "../../components/StaffSidebar/configs/bookkeeper";
 import { UserAuth } from "../../contex/AuthContext";
@@ -335,70 +336,52 @@ const ManageLoans = () => {
           </StatCardRow>
 
           <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden enhanced-table">
-            <div className="p-5 border-b border-gray-100 flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-              <div className="flex flex-wrap items-center gap-1.5">
-                {tabs.map((tab) => (
-                  <button
-                    key={tab.key}
-                    type="button"
-                    onClick={() => setActiveTab(tab.key)}
-                    className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
-                      activeTab === tab.key
-                        ? "bg-green-600 text-white"
-                        : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                    }`}
-                  >
-                    <span>{tab.label}</span>
-                    <span className={`inline-flex items-center justify-center min-w-5 h-5 rounded-full text-[11px] font-semibold px-1 ${
-                      activeTab === tab.key
-                        ? "bg-white/30"
-                        : "bg-gray-300 text-gray-700"
-                    }`}>
-                      {tab.count}
-                    </span>
-                  </button>
-                ))}
+            {/* TableToolbar is the shared reference design every list page is
+                being migrated onto — same title/subtitle position and pill
+                styling as BOD's "Loan Records", with this page's own actual
+                filters (loan type, member type, search) slotted in. */}
+            <TableToolbar
+              title="Loan Records"
+              subtitle={`Showing ${paginatedGroups.length} of ${groupedLoans.length} loans`}
+              tabs={tabs.map((tab) => ({ value: tab.key, label: tab.label, count: tab.count }))}
+              activeTab={activeTab}
+              onTabChange={setActiveTab}
+            >
+              <select
+                value={loanTypeFilter}
+                onChange={(event) => setLoanTypeFilter(event.target.value)}
+                className="h-8 rounded-lg border border-gray-200 bg-white px-2 pr-6 text-[11px] font-semibold text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#2C7A3F]/40"
+              >
+                <option value="all">All Loan Types</option>
+                <option value="CONSOLIDATED">Consolidated</option>
+                <option value="EMERGENCY">Emergency</option>
+                <option value="BONUS">Bonus</option>
+                <option value="KOICA">KOICA</option>
+                <option value="ABF">ABF</option>
+              </select>
+
+              <select
+                value={memberTypeFilter}
+                onChange={(event) => setMemberTypeFilter(event.target.value)}
+                className="h-8 rounded-lg border border-gray-200 bg-white px-2 pr-6 text-[11px] font-semibold text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#2C7A3F]/40"
+              >
+                <option value="all">All Member Types</option>
+                <option value="Member">Member</option>
+                <option value="Non-Member">Non-Member</option>
+                <option value="KOICA">KOICA</option>
+              </select>
+
+              <div className="relative w-full sm:w-64">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+                <input
+                  type="text"
+                  value={searchTerm}
+                  onChange={(event) => setSearchTerm(event.target.value)}
+                  className="bg-white w-full h-8 rounded-lg border border-gray-200 pl-8 pr-3 text-[11px] font-semibold focus:outline-none focus:ring-2 focus:ring-[#2C7A3F]/40"
+                  placeholder="Search by loan ID, member name..."
+                />
               </div>
-
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end xl:ml-auto">
-                <div className="flex flex-wrap items-center gap-2">
-                  <select
-                    value={loanTypeFilter}
-                    onChange={(event) => setLoanTypeFilter(event.target.value)}
-                    className="h-8 rounded-md border border-gray-300 bg-white px-2.5 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                  >
-                    <option value="all">All Loan Types</option>
-                    <option value="CONSOLIDATED">Consolidated</option>
-                    <option value="EMERGENCY">Emergency</option>
-                    <option value="BONUS">Bonus</option>
-                    <option value="KOICA">KOICA</option>
-                    <option value="ABF">ABF</option>
-                  </select>
-
-                  <select
-                    value={memberTypeFilter}
-                    onChange={(event) => setMemberTypeFilter(event.target.value)}
-                    className="h-8 rounded-md border border-gray-300 bg-white px-2.5 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                  >
-                    <option value="all">All Member Types</option>
-                    <option value="Member">Member</option>
-                    <option value="Non-Member">Non-Member</option>
-                    <option value="KOICA">KOICA</option>
-                  </select>
-                </div>
-
-                <div className="relative w-full sm:w-64">
-                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
-                  <input
-                    type="text"
-                    value={searchTerm}
-                    onChange={(event) => setSearchTerm(event.target.value)}
-                    className="bg-white w-full h-8 rounded-md border border-gray-300 pl-8 pr-3 text-xs focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                    placeholder="Search by loan ID, member name..."
-                  />
-                </div>
-              </div>
-            </div>
+            </TableToolbar>
 
             {loading && (
               <div className="mx-5 mt-4 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800 flex items-center gap-2">

@@ -6,6 +6,7 @@ import { UserAuth } from "../contex/AuthContext";
 import { useNotification } from "../contex/NotificationContext";
 import StaffTopbar from "../components/StaffTopbar";
 import Breadcrumb from "../components/Breadcrumb";
+import { TableToolbar } from "../components/TableToolbar";
 import ConfirmDialog from "../components/ConfirmDialog";
 import { supabase } from "../supabaseClient";
 import { resolveAccountFromSessionUser } from "../utils/sessionIdentity";
@@ -703,43 +704,27 @@ const Secretary_Attendance = () => {
 
           {/* Table Container */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-200">
-            {/* Tabs */}
-            <div className="flex gap-8 px-6 pt-4 border-b border-gray-200">
-              {tabs.filter((tab) => visibleTabs.includes(tab.name)).map((tab) => {
+            <TableToolbar
+              title={`${activeTab} Attendance & Evaluation`}
+              subtitle={`Showing ${tableData[activeTab]?.length || 0} records`}
+              tabs={tabs.filter((tab) => visibleTabs.includes(tab.name)).map((tab) => {
                 const isTabDisabled = isSecretary && !["Training", "Reschedule Training"].includes(tab.name);
-                return (
-                  <button
-                    key={tab.name}
-                    onClick={() => !isTabDisabled && setActiveTab(tab.name)}
-                    disabled={isTabDisabled}
-                    title={isTabDisabled ? "Only Training and Reschedule Training are accessible to Secretary accounts" : undefined}
-                    className={`flex items-center gap-2 pb-4 px-1 text-sm font-semibold transition-colors relative ${
-                      isTabDisabled
-                        ? "text-gray-300 cursor-not-allowed"
-                        : activeTab === tab.name
-                        ? "text-green-600 border-b-2 border-green-600"
-                        : "text-gray-500 hover:text-gray-700"
-                    }`}
-                  >
-                    {tab.name}
-                    <span className={`px-2 py-0.5 rounded-full text-xs text-white ${isTabDisabled ? "bg-gray-300" : tab.color}`}>
-                      {tab.count}
-                    </span>
-                  </button>
-                );
+                return {
+                  value: tab.name,
+                  label: tab.name,
+                  count: tab.count,
+                  disabled: isTabDisabled,
+                  title: isTabDisabled ? "Only Training and Reschedule Training are accessible to Secretary accounts" : undefined,
+                };
               })}
-            </div>
-
-            {/* Table Header */}
-            <div className="p-6 flex justify-between items-center">
-              <h2 className="text-xl font-bold text-[#2A2B4A]">
-                {activeTab} Attendance & Evaluation
-              </h2>
-              <button className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors">
-                <Download size={16} />
+              activeTab={activeTab}
+              onTabChange={setActiveTab}
+            >
+              <button className="flex items-center gap-1.5 h-8 px-2.5 border border-gray-200 rounded-lg text-[11px] font-semibold text-gray-700 hover:bg-gray-50 transition-colors">
+                <Download size={14} />
                 Export List
               </button>
-            </div>
+            </TableToolbar>
 
             {/* Table Body — shared UI for Training and Reschedule Training */}
             <div className="overflow-x-auto pb-4">
