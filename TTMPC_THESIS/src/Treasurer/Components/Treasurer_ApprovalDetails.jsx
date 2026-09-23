@@ -126,6 +126,59 @@ const Treasurer_ApprovalDetails = () => {
     })();
     return () => { cancelled = true; };
   }, []);
+
+  // Real Available-funds figures for the Reschedule/Disburse modals —
+  // {balance, committed, available} for the whole vault, and this specific
+  // loan's net cash out (fee-and-renewal-aware; see
+  // RESCHEDULED_LOANS_PLAN.md §4/§5). Treasurer-only: the Bookkeeper flow
+  // never shows these modals, so it never needs these fetches.
+  const [vaultAvailable, setVaultAvailable] = useState(null);
+  const [requiredFunds, setRequiredFunds] = useState(null);
+  const [requiredFundsError, setRequiredFundsError] = useState('');
+
+  useEffect(() => {
+    if (isBookkeeperFlow || !loanDetails?.id) return;
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/treasurer/vault/available`, {
+          headers: { Accept: 'application/json' },
+        });
+        const result = await response.json().catch(() => ({}));
+        if (!cancelled && response.ok && result?.success) {
+          setVaultAvailable(result.data);
+        }
+      } catch (_err) {
+        // Banner falls back to "checking…"; the raw vaultBalance card above still works.
+      }
+    })();
+
+    (async () => {
+      if (isKoicaSource) {
+        // KOICA loans never reach the Cashier's disbursement endpoints, so
+        // there's no fee/renewal computation available for them — the gross
+        // loan amount is the best estimate, same as the Rescheduled tab.
+        if (!cancelled) setRequiredFunds({ net_cash_out: loanDetails.loanAmount, is_estimated: true });
+        return;
+      }
+      try {
+        const response = await fetch(
+          `${API_BASE_URL}/api/cashier/disbursements/${encodeURIComponent(loanDetails.id)}/preview`,
+          { headers: { Accept: 'application/json' } }
+        );
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok || !result?.success) {
+          throw new Error(result?.detail || 'Failed to compute required funds.');
+        }
+        if (!cancelled) setRequiredFunds({ ...result.data, is_estimated: false });
+      } catch (err) {
+        if (!cancelled) setRequiredFundsError(err?.message || 'Unable to compute required funds.');
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [isBookkeeperFlow, isKoicaSource, loanDetails?.id, loanDetails?.loanAmount]);
   const [borrowerMemberId, setBorrowerMemberId] = useState(null);
   const { data: migsLabel, status: migsStatusFetch } = useMigsLabel(borrowerMemberId);
   const [supportingDocs, setSupportingDocs] = useState([]);
@@ -589,6 +642,13 @@ const Treasurer_ApprovalDetails = () => {
       updatePayload.application_status = nextStatus;
       updatePayload.disbursement_confirmation = new Date().toISOString();
     }
+    if (!isBookkeeperFlow && modalType === 'reschedule') {
+      // Previously discarded: the Rescheduling Notes textarea was captured in
+      // `remarks` state and never actually saved anywhere, and nothing
+      // recorded when a loan was parked — both needed by the Rescheduled tab.
+      updatePayload.rescheduled_at = new Date().toISOString();
+      updatePayload.reschedule_note = remarks.trim() || null;
+    }
 
     try {
       setSaving(true);
@@ -598,7 +658,7 @@ const Treasurer_ApprovalDetails = () => {
         .from(loanDetails.sourceTable || 'loans')
         .update(updatePayload)
         .eq('control_number', loanDetails.id)
-        .select('control_number, loan_status, disbursement_confirmation')
+        .select('control_number, loan_status, disbursement_confirmation, rescheduled_at, reschedule_note')
         .limit(1);
 
       if (error) {
@@ -711,6 +771,17 @@ const Treasurer_ApprovalDetails = () => {
     const el = document.getElementById(id);
     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
+
+  // ---- Real funds figures for the Reschedule/Disburse modals ----
+  // requiredFunds.net_cash_out is what actually needs to leave the vault for
+  // THIS loan (fees, and — for a renewal — netted against the old loan's
+  // balance); vaultAvailable.available already excludes what's committed to
+  // every OTHER loan sitting 'ready for disbursement'.
+  const requiredAmount = requiredFunds?.net_cash_out ?? null;
+  const availableAmount = vaultAvailable?.available ?? null;
+  const fundsFiguresReady = requiredAmount !== null && availableAmount !== null;
+  const shortfallAmount = fundsFiguresReady ? Math.max(requiredAmount - availableAmount, 0) : null;
+  const fundsAreSufficient = fundsFiguresReady ? shortfallAmount <= 0 : null;
 
   return (
     <div className="bg-gray-50 min-h-screen relative pb-28" style={{ scrollPaddingTop: '11rem' }}>
@@ -1229,10 +1300,34 @@ const Treasurer_ApprovalDetails = () => {
                   <span className="text-gray-600">Loan Amount:</span>
                   <span className="font-bold text-gray-900">{formatCurrency(loanDetails.loanAmount)}</span>
                 </div>
+                {requiredFunds?.is_renewal && requiredFunds?.renewal_payoff > 0 && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">Less: Renewal Payoff (old balance retired):</span>
+                    <span className="font-bold text-gray-700">{formatCurrency(requiredFunds.renewal_payoff)}</span>
+                  </div>
+                )}
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">
+                    Required (Net Cash Out){requiredFunds?.is_estimated ? ' — estimated:' : ':'}
+                  </span>
+                  <span className="font-bold text-gray-900">
+                    {requiredAmount === null ? (requiredFundsError || 'Checking…') : formatCurrency(requiredAmount)}
+                  </span>
+                </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-600">Current Available Funds:</span>
-                  <span className="font-bold text-red-600">Pending Review</span>
+                  <span className={`font-bold ${fundsAreSufficient === false ? 'text-red-600' : 'text-gray-900'}`}>
+                    {availableAmount === null ? 'Checking…' : formatCurrency(availableAmount)}
+                  </span>
                 </div>
+                {fundsFiguresReady && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600 font-semibold">Shortfall:</span>
+                    <span className={`font-bold ${shortfallAmount > 0 ? 'text-red-600' : 'text-green-700'}`}>
+                      {shortfallAmount > 0 ? formatCurrency(shortfallAmount) : 'None — funds are sufficient'}
+                    </span>
+                  </div>
+                )}
                 <div className="border-t border-gray-300 pt-3 flex justify-between text-sm">
                   <span className="text-gray-600 font-semibold">Status:</span>
                   <span className="font-bold text-yellow-700">Pending Rescheduling</span>
@@ -1251,6 +1346,7 @@ const Treasurer_ApprovalDetails = () => {
                 value={remarks}
                 onChange={(e) => setRemarks(e.target.value)}
               ></textarea>
+              <p className="mt-1.5 text-xs text-gray-400">Shown on the Rescheduled tab, so anyone reviewing it later knows why.</p>
             </div>
           </>
         )}
@@ -1289,6 +1385,25 @@ const Treasurer_ApprovalDetails = () => {
                     <span className="text-gray-700 font-semibold">Disbursement Confirmed</span>
                     <span className="font-bold text-green-700">{new Date(loanDetails.disbursement_confirmation).toLocaleString()}</span>
                   </div>
+                )}
+                <div className="border-t border-green-300 pt-3 flex justify-between text-sm">
+                  <span className="text-gray-700 font-semibold">
+                    Required (Net Cash Out){requiredFunds?.is_estimated ? ' — estimated:' : ':'}
+                  </span>
+                  <span className="font-bold text-gray-900">
+                    {requiredAmount === null ? (requiredFundsError || 'Checking…') : formatCurrency(requiredAmount)}
+                  </span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-700 font-semibold">Available Now:</span>
+                  <span className={`font-bold ${fundsAreSufficient === false ? 'text-red-600' : 'text-green-700'}`}>
+                    {availableAmount === null ? 'Checking…' : formatCurrency(availableAmount)}
+                  </span>
+                </div>
+                {fundsAreSufficient === false && (
+                  <p className="text-xs text-red-600 font-semibold">
+                    ⚠️ This exceeds current available funds by {formatCurrency(shortfallAmount)}. Approving still moves this loan to the Cashier's queue — release itself will be refused there until the vault has enough.
+                  </p>
                 )}
               </div>
             </div>

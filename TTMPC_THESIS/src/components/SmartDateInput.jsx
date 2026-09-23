@@ -11,7 +11,9 @@ import {
   getDay,
   addMonths,
   subMonths,
+  subYears,
   isSameDay,
+  isAfter,
 } from 'date-fns';
 
 const DIGIT_LIMIT_DOB = 8;
@@ -62,6 +64,16 @@ const parseIsoToDate = (isoValue) => {
   }
 };
 
+// Latest birthdate that satisfies minAge (never later than today).
+const computeMaxSelectableDate = (minAge) => (minAge ? subYears(new Date(), minAge) : new Date());
+
+// Day 32 of April doesn't exist — clamp to whatever the target month's real
+// last day is (e.g. carrying the 31st into February lands on the 28th/29th).
+const clampDayToMonth = (year, monthIndex, day) => {
+  const lastDayOfMonth = new Date(year, monthIndex + 1, 0).getDate();
+  return Math.min(day, lastDayOfMonth);
+};
+
 function SmartDateInput({
   mode = 'dob',
   value = '',
@@ -74,11 +86,20 @@ function SmartDateInput({
   label,
   error,
   className = '',
+  // Latest pickable birthdate is `today − minAge years` (e.g. minAge=18 means
+  // no one under 18 can even click a day). A DOB is never pickable in the
+  // future regardless of minAge. This only constrains the CALENDAR WIDGET —
+  // it does not decide what error to show for a typed date; that stays with
+  // the caller's own validation against the emitted ISO value, same as any
+  // other field here.
+  minAge,
 }) {
   const isDobMode = mode === 'dob';
   const [displayValue, setDisplayValue] = useState('');
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
-  const [calendarMonth, setCalendarMonth] = useState(() => parseIsoToDate(value) || new Date());
+  const [calendarMonth, setCalendarMonth] = useState(
+    () => parseIsoToDate(value) || computeMaxSelectableDate(minAge)
+  );
   const containerRef = useRef(null);
 
   useEffect(() => {
@@ -87,6 +108,15 @@ function SmartDateInput({
     const parsedDate = parseIsoToDate(value);
     if (parsedDate) setCalendarMonth(parsedDate);
   }, [value, isDobMode]);
+
+  // No stored value yet (a fresh field) — keep the calendar's open month
+  // pinned to the newest pickable month whenever minAge changes, instead of
+  // defaulting to "today" where nothing would be selectable.
+  useEffect(() => {
+    if (parseIsoToDate(value)) return;
+    setCalendarMonth(computeMaxSelectableDate(minAge));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [minAge]);
 
   useEffect(() => {
     if (!isCalendarOpen) return;
@@ -127,29 +157,49 @@ function SmartDateInput({
     setIsCalendarOpen((open) => !open);
   };
 
-  const handleSelectDay = (day) => {
+  const applyDate = (day, { closeCalendar = true } = {}) => {
     const iso = format(day, 'yyyy-MM-dd');
     setDisplayValue(format(day, 'MM/dd/yyyy'));
     emitIsoChange(iso);
-    setIsCalendarOpen(false);
+    if (closeCalendar) setIsCalendarOpen(false);
   };
 
+  const handleSelectDay = (day) => applyDate(day, { closeCalendar: true });
+
+  // Month/Year dropdowns always navigate which month is being VIEWED, pinned
+  // to day 1 — building the new date from the currently-displayed
+  // day-of-month was a bug (Date.setMonth/setFullYear silently rolls over
+  // into a different month when that day doesn't exist there, e.g. off the
+  // 31st into a 30-day month).
+  //
+  // On top of navigating, when a date is ALREADY selected (editing an
+  // existing value, not a blank field), changing just the year or month is
+  // expected to update that field directly, carrying the same day forward —
+  // otherwise picking "2002" while "03/04/2008" is showing visibly does
+  // nothing to the field until a day is also clicked, which read as the
+  // dropdown "not working". The day is clamped to the target month's real
+  // length (Jan 31 → Feb 28/29, never Feb 31) and the carry is skipped
+  // (falls back to pure navigation) if it would land on a disabled day.
   const handleMonthSelect = (event) => {
     const monthIndex = Number(event.target.value);
-    setCalendarMonth((current) => {
-      const updated = new Date(current);
-      updated.setMonth(monthIndex);
-      return updated;
-    });
+    const year = effectiveMonth.getFullYear();
+    setCalendarMonth(new Date(year, monthIndex, 1));
+    if (selectedDate) {
+      const day = clampDayToMonth(year, monthIndex, selectedDate.getDate());
+      const carried = new Date(year, monthIndex, day);
+      if (!isDayDisabled(carried)) applyDate(carried, { closeCalendar: false });
+    }
   };
 
   const handleYearSelect = (event) => {
     const year = Number(event.target.value);
-    setCalendarMonth((current) => {
-      const updated = new Date(current);
-      updated.setFullYear(year);
-      return updated;
-    });
+    const monthIndex = effectiveMonth.getMonth();
+    setCalendarMonth(new Date(year, monthIndex, 1));
+    if (selectedDate) {
+      const day = clampDayToMonth(year, monthIndex, selectedDate.getDate());
+      const carried = new Date(year, monthIndex, day);
+      if (!isDayDisabled(carried)) applyDate(carried, { closeCalendar: false });
+    }
   };
 
   const finalId = id || name;
@@ -159,14 +209,27 @@ function SmartDateInput({
   }
 
   const selectedDate = parseIsoToDate(value);
-  const currentYear = new Date().getFullYear();
+  const today = new Date();
+  // The latest birthdate that still satisfies minAge — never later than today.
+  const maxSelectableDate = minAge ? subYears(today, minAge) : today;
+  const currentYear = today.getFullYear();
+  const maxSelectableYear = maxSelectableDate.getFullYear();
   const yearOptions = [];
-  for (let y = currentYear; y >= currentYear - 100; y -= 1) yearOptions.push(y);
+  for (let y = maxSelectableYear; y >= currentYear - 100; y -= 1) yearOptions.push(y);
 
-  const monthStart = startOfMonth(calendarMonth);
-  const monthEnd = endOfMonth(calendarMonth);
+  // What's actually rendered: `calendarMonth` clamped to the cutoff month, so
+  // the month/year selects always show a value that's in their own option
+  // list (an out-of-range calendarMonth can only happen transiently — see the
+  // "no value yet" effect above for the steady-state fix).
+  const effectiveMonth = isAfter(startOfMonth(calendarMonth), startOfMonth(maxSelectableDate))
+    ? maxSelectableDate
+    : calendarMonth;
+  const monthStart = startOfMonth(effectiveMonth);
+  const monthEnd = endOfMonth(effectiveMonth);
   const daysInMonth = eachDayOfInterval({ start: monthStart, end: monthEnd });
   const leadingBlanks = getDay(monthStart);
+  const isDayDisabled = (day) => isAfter(day, maxSelectableDate);
+  const isNextMonthDisabled = isAfter(startOfMonth(addMonths(effectiveMonth, 1)), maxSelectableDate);
 
   return (
     <div className={`w-full ${className}`.trim()} ref={containerRef}>
@@ -215,7 +278,7 @@ function SmartDateInput({
             <div className="mb-2 flex items-center justify-between gap-2">
               <button
                 type="button"
-                onClick={() => setCalendarMonth((m) => subMonths(m, 1))}
+                onClick={() => setCalendarMonth(subMonths(effectiveMonth, 1))}
                 className="rounded p-1 text-gray-500 hover:bg-gray-100"
                 aria-label="Previous month"
               >
@@ -224,16 +287,21 @@ function SmartDateInput({
 
               <div className="flex gap-1">
                 <select
-                  value={calendarMonth.getMonth()}
+                  value={effectiveMonth.getMonth()}
                   onChange={handleMonthSelect}
                   className="rounded border border-gray-200 p-1 text-xs outline-none focus:ring-1 focus:ring-green-500"
                 >
-                  {MONTH_LABELS.map((m, i) => (
-                    <option key={m} value={i}>{m}</option>
-                  ))}
+                  {MONTH_LABELS.map((m, i) => {
+                    // In the cutoff year, a later month has no pickable days at all.
+                    const disabledMonth =
+                      effectiveMonth.getFullYear() === maxSelectableYear && i > maxSelectableDate.getMonth();
+                    return (
+                      <option key={m} value={i} disabled={disabledMonth}>{m}</option>
+                    );
+                  })}
                 </select>
                 <select
-                  value={calendarMonth.getFullYear()}
+                  value={effectiveMonth.getFullYear()}
                   onChange={handleYearSelect}
                   className="rounded border border-gray-200 p-1 text-xs outline-none focus:ring-1 focus:ring-green-500"
                 >
@@ -245,8 +313,9 @@ function SmartDateInput({
 
               <button
                 type="button"
-                onClick={() => setCalendarMonth((m) => addMonths(m, 1))}
-                className="rounded p-1 text-gray-500 hover:bg-gray-100"
+                onClick={() => !isNextMonthDisabled && setCalendarMonth(addMonths(effectiveMonth, 1))}
+                disabled={isNextMonthDisabled}
+                className="rounded p-1 text-gray-500 hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent"
                 aria-label="Next month"
               >
                 <ChevronRight className="h-4 w-4" />
@@ -265,15 +334,20 @@ function SmartDateInput({
               ))}
               {daysInMonth.map((day) => {
                 const isSelected = selectedDate && isSameDay(day, selectedDate);
+                const disabledDay = isDayDisabled(day);
                 return (
                   <button
                     key={day.toISOString()}
                     type="button"
-                    onClick={() => handleSelectDay(day)}
+                    onClick={() => !disabledDay && handleSelectDay(day)}
+                    disabled={disabledDay}
+                    title={disabledDay && minAge ? `Must be at least ${minAge} years old` : undefined}
                     className={`rounded-md p-1.5 text-xs transition-colors ${
-                      isSelected
-                        ? 'bg-green-500 text-white hover:bg-green-500'
-                        : 'text-gray-700 hover:bg-green-100'
+                      disabledDay
+                        ? 'cursor-not-allowed text-gray-300 hover:bg-transparent'
+                        : isSelected
+                          ? 'bg-green-500 text-white hover:bg-green-500'
+                          : 'text-gray-700 hover:bg-green-100'
                     }`}
                   >
                     {format(day, 'd')}

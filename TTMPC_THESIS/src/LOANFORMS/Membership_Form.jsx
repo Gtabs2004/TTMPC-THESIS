@@ -2,6 +2,7 @@
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
 import { formatTinNumber, TIN_FORMATTED_MAX_LENGTH, TIN_MIN_DIGITS, TIN_MAX_DIGITS, getTinDigitCount } from './tinFormat';
+import { formatWithCommas, stripCommas } from '../utils/numberFormat';
 
 const GSIS_DIGIT_LENGTH = 10;
 const formatGsisNumber = (value) => String(value ?? '').replace(/\D/g, '').slice(0, GSIS_DIGIT_LENGTH);
@@ -9,12 +10,69 @@ import SmartDateInput from '../components/SmartDateInput';
 import { useNotification } from '../contex/NotificationContext';
 import { AlertCircle } from 'lucide-react';
 
+// Cooperative membership requires the applicant to be of legal age.
+const MINIMUM_AGE = 18;
+
+// Standardized Income Source categories. "Other" reveals a free-text field so
+// the applicant specifies what it actually is, instead of the DB column
+// collecting whatever word each applicant happens to type.
+const INCOME_SOURCE_OPTIONS = ['Salary', 'Dividends', 'Profit', 'Other'];
+
+// Standardized "does the applicant have another income source" answer.
+// Replaces the old free-text field that collected "None" / "N/A" / "No" /
+// "none" / etc. as functionally-identical but inconsistent values.
+const OTHER_INCOME_OPTIONS = [
+  { value: 'N/A', label: 'N/A — no other source of income' },
+  { value: 'Other', label: 'Other — specify' },
+];
+
+// Correct (day-accurate) age as of today, not a bare calendar-year
+// subtraction — that overcounts by a year for anyone whose birthday hasn't
+// happened yet this year.
+const calculateAge = (isoDob) => {
+  if (!isoDob) return null;
+  const dob = new Date(isoDob);
+  if (Number.isNaN(dob.getTime())) return null;
+  const today = new Date();
+  let age = today.getFullYear() - dob.getFullYear();
+  const monthDiff = today.getMonth() - dob.getMonth();
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < dob.getDate())) {
+    age -= 1;
+  }
+  return age;
+};
+
+// Postgres unique-violation, surfaced however postgrest happens to report it
+// (a `code` of 23505 when present, otherwise the message text).
+const isDuplicateKeyError = (error) =>
+  error?.code === '23505' || /duplicate key|unique constraint/i.test(String(error?.message || ''));
+
+// Shared by the applicant's own Date of Birth and Spouse Date of Birth —
+// neither may be in the future, and both must be at least MINIMUM_AGE
+// (the Family Code, as amended by RA 11596, sets 18 as the minimum
+// marriageable age, so this applies to a spouse too, not just the applicant).
+const validateBirthdate = (isoDate, subject) => {
+  if (!isoDate) return undefined;
+  const today = new Date().toISOString().slice(0, 10);
+  if (isoDate > today) {
+    return `${subject}'s date of birth cannot be in the future.`;
+  }
+  const age = calculateAge(isoDate);
+  if (age === null) {
+    return 'Invalid date. Age could not be computed.';
+  }
+  if (age < MINIMUM_AGE) {
+    return `${subject} must be at least ${MINIMUM_AGE} years old.`;
+  }
+  return undefined;
+};
+
 function Membership_Form() {
   const navigate = useNavigate();
   const { addNotification } = useNotification();
 
   const generateApplicationId = () => {
-    const randomPart = Math.floor(100000 + Math.random() * 9000); // generate a 4 random 
+    const randomPart = Math.floor(100000 + Math.random() * 9000); // generate a 4 random
     return `TTMPCAP-${randomPart}`;
   };
 
@@ -59,13 +117,19 @@ function Membership_Form() {
 
     educational_attainment: '',
     occupation: '',
+    // Category selected from INCOME_SOURCE_OPTIONS; the free-text detail
+    // (only used when 'Other' is picked) is kept separately so switching
+    // categories doesn't clobber what the applicant typed.
     income_source: '',
+    income_source_other: '',
     employer_name: '',
     position: '',
 
-    annual_income: '',
+    // Monthly Salary — what the applicant actually types. Annual Income is
+    // derived from this (× 12) and is no longer independently editable.
     salary: '',
-    other_income: '',
+    other_income_type: '',
+    other_income_other: '',
   });
 
   const handleChange = (e) => {
@@ -74,15 +138,13 @@ function Membership_Form() {
       ? formatTinNumber(value)
       : name === 'gsis_number'
         ? formatGsisNumber(value)
-        : value;
-    
+        : name === 'salary'
+          ? stripCommas(value)
+          : value;
+
     // Clear specific field error when user starts typing
     setErrors(prev => ({ ...prev, [name]: undefined }));
     setGlobalError('');
-
-    if (name === 'annual_income' && value.includes(',')) {
-      setErrors(prev => ({ ...prev, annual_income: 'Commas are not allowed. Enter numbers only (e.g., 500000 not 500,000).' }));
-    }
 
     // Clear family information fields when "Single" is selected
     if (name === 'civil_status' && value === 'Single') {
@@ -95,20 +157,43 @@ function Membership_Form() {
         spouse_occupation: '',
         number_of_dependents: '',
       }));
-    } else {
-      setFormdata(prev => ({ ...prev, [name]: normalizedValue }));
+      return;
     }
+
+    // Switching Income Source away from "Other" drops the now-irrelevant
+    // free-text detail instead of silently submitting stale text.
+    if (name === 'income_source' && value !== 'Other') {
+      setFormdata(prev => ({ ...prev, income_source: value, income_source_other: '' }));
+      return;
+    }
+
+    // Same idea for "does the applicant have another income source".
+    if (name === 'other_income_type' && value !== 'Other') {
+      setErrors(prev => ({ ...prev, other_income_other: undefined }));
+      setFormdata(prev => ({ ...prev, other_income_type: value, other_income_other: '' }));
+      return;
+    }
+
+    setFormdata(prev => ({ ...prev, [name]: normalizedValue }));
   };
 
   const handleDateChange = (name, isoDate) => {
-    setErrors(prev => ({ ...prev, [name]: undefined }));
     setGlobalError('');
+
+    let fieldError;
+    if (name === 'date_of_birth') {
+      fieldError = validateBirthdate(isoDate, 'The applicant');
+    } else if (name === 'spouse_date_of_birth') {
+      fieldError = validateBirthdate(isoDate, 'The spouse');
+    }
+
+    setErrors(prev => ({ ...prev, [name]: fieldError }));
     setFormdata(prev => ({ ...prev, [name]: isoDate || '' }));
   };
 
   const validateForm = () => {
     const newErrors = {};
-    
+
     // Base fields that are ALWAYS required for everyone
     const requiredFields = [
       'surname', 'first_name', 'middle_name', 'gender', 'civil_status',
@@ -116,7 +201,7 @@ function Membership_Form() {
       'height', 'weight', 'blood_type', 'tin_number', 'gsis_number',
       'father_name', 'mother_name', 'permanent_address', 'contact_number',
       'email', 'educational_attainment', 'occupation', 'income_source',
-      'employer_name', 'position', 'annual_income', 'salary', 'other_income'
+      'employer_name', 'position', 'salary', 'other_income_type'
     ];
 
     requiredFields.forEach(field => {
@@ -124,6 +209,25 @@ function Membership_Form() {
         newErrors[field] = 'This information is required to complete your application.';
       }
     });
+
+    // Income Source: "Other" requires the applicant to specify what it is.
+    if (formdata.income_source === 'Other' && !formdata.income_source_other.trim()) {
+      newErrors.income_source_other = 'Please specify the source of income.';
+    }
+
+    // Other Source of Income: "Other" requires specifying what it is.
+    if (formdata.other_income_type === 'Other' && !formdata.other_income_other.trim()) {
+      newErrors.other_income_other = 'Please specify the other source of income.';
+    }
+
+    // Monthly Salary must be a positive number — it's the sole basis for the
+    // stored Annual Income (× 12).
+    if (formdata.salary) {
+      const monthlySalary = Number(stripCommas(formdata.salary));
+      if (!Number.isFinite(monthlySalary) || monthlySalary <= 0) {
+        newErrors.salary = 'Enter a valid monthly salary greater than 0.';
+      }
+    }
 
     // TIN must be between 9 and 12 digits
     if (formdata.tin_number) {
@@ -133,14 +237,17 @@ function Membership_Form() {
       }
     }
 
-    // Annual income must not contain commas
-    if (formdata.annual_income && formdata.annual_income.includes(',')) {
-      newErrors.annual_income = 'Commas are not allowed. Enter numbers only (e.g., 500000 not 500,000).';
-    }
-
     // GSIS Number must be exactly 10 digits
     if (formdata.gsis_number && formdata.gsis_number.length !== GSIS_DIGIT_LENGTH) {
       newErrors.gsis_number = `GSIS Number must be exactly ${GSIS_DIGIT_LENGTH} digits.`;
+    }
+
+    // Birthday: no future dates, and at least MINIMUM_AGE. Re-checked here
+    // (not just in handleDateChange) so a stale or programmatically-set
+    // value can't slip through to submission.
+    if (formdata.date_of_birth) {
+      const birthdateError = validateBirthdate(formdata.date_of_birth, 'The applicant');
+      if (birthdateError) newErrors.date_of_birth = birthdateError;
     }
 
     // Conditional Fields based on Civil Status and Gender
@@ -151,6 +258,12 @@ function Membership_Form() {
           newErrors[field] = 'Please complete this field.';
         }
       });
+
+      // Same birthday rules as the applicant — no future dates, at least 18.
+      if (formdata.spouse_date_of_birth) {
+        const spouseBirthdateError = validateBirthdate(formdata.spouse_date_of_birth, 'The spouse');
+        if (spouseBirthdateError) newErrors.spouse_date_of_birth = spouseBirthdateError;
+      }
 
       if (formdata.gender === 'Female') {
         if (!formdata.maiden_name || String(formdata.maiden_name).trim() === '') {
@@ -185,14 +298,50 @@ function Membership_Form() {
     return true;
   };
 
+  // Best-effort early warning: checks member_applications (any non-rejected/
+  // denied row) and member_account (already a member) for this email.
+  // member_applications has no public SELECT policy (it's a PII table), so
+  // this can come back empty even when a duplicate exists — the real
+  // guarantee is the partial unique index on member_applications
+  // (member_applications_email_uniqueness.sql), enforced on insert below
+  // regardless of what this check saw.
+  const checkDuplicateEmail = async (email) => {
+    const cleanEmail = String(email || '').trim().toLowerCase();
+    if (!cleanEmail) return false;
+    try {
+      const [appResult, accountResult] = await Promise.all([
+        supabase.from('member_applications').select('application_status').ilike('email', cleanEmail).limit(10),
+        supabase.from('member_account').select('user_id').ilike('email', cleanEmail).limit(1),
+      ]);
+      const hasLiveApplication = (appResult.data || []).some((row) => {
+        const status = String(row.application_status || '').trim().toLowerCase();
+        return status !== 'rejected' && status !== 'denied';
+      });
+      const hasExistingAccount = (accountResult.data || []).length > 0;
+      return hasLiveApplication || hasExistingAccount;
+    } catch {
+      return false;
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
     if (!validateForm()) {
       return; // Stop submission if validation fails
     }
 
     setLoading(true);
+
+    const duplicateEmailMessage = 'This email address is already associated with a pending application or an existing member. Please use a different email, or contact the cooperative if this is a mistake.';
+
+    const isDuplicate = await checkDuplicateEmail(formdata.email);
+    if (isDuplicate) {
+      setErrors(prev => ({ ...prev, email: 'An application with this email already exists.' }));
+      setGlobalError(duplicateEmailMessage);
+      setLoading(false);
+      return;
+    }
 
     const toIntOrNull = (value) => {
       const text = String(value ?? '').trim();
@@ -201,9 +350,7 @@ function Membership_Form() {
       return Number.isFinite(parsed) ? Math.trunc(parsed) : null;
     };
 
-    const computedAge = formdata.date_of_birth
-      ? Math.max(0, new Date().getFullYear() - new Date(formdata.date_of_birth).getFullYear())
-      : null;
+    const computedAge = calculateAge(formdata.date_of_birth);
 
     if (computedAge === null) {
       setErrors(prev => ({ ...prev, date_of_birth: 'Invalid date. Age could not be computed.' }));
@@ -211,8 +358,28 @@ function Membership_Form() {
       return;
     }
 
+    // Monthly Salary is what the applicant typed; Annual Income is always
+    // derived from it (× 12), never typed independently. Both are stored
+    // as plain numeric text — commas are a display-only concern (see
+    // formatWithCommas in the JSX below) and never reach the payload.
+    const monthlySalary = Number(stripCommas(formdata.salary)) || 0;
+    const annualIncome = monthlySalary > 0 ? Number((monthlySalary * 12).toFixed(2)) : null;
+
+    // Standardized category values, not whatever free text an applicant
+    // would have typed — "Other" carries its own specified detail forward.
+    const resolvedIncomeSource = formdata.income_source === 'Other'
+      ? formdata.income_source_other.trim()
+      : formdata.income_source;
+    const resolvedOtherIncome = formdata.other_income_type === 'Other'
+      ? formdata.other_income_other.trim()
+      : 'N/A';
+
     const payload = {
       ...formdata,
+      income_source: resolvedIncomeSource,
+      other_income: resolvedOtherIncome,
+      salary: String(monthlySalary),
+      annual_income: annualIncome !== null ? String(annualIncome) : null,
       application_id: generateApplicationId(),
       created_at: new Date().toISOString(),
       date_of_birth: formdata.date_of_birth || null,
@@ -223,6 +390,10 @@ function Membership_Form() {
       weight: toIntOrNull(formdata.weight),
       contact_number: toIntOrNull(formdata.contact_number),
     };
+    // Form-only helper fields — member_applications has no matching columns.
+    delete payload.income_source_other;
+    delete payload.other_income_type;
+    delete payload.other_income_other;
 
     try {
       const { error } = await supabase
@@ -230,8 +401,14 @@ function Membership_Form() {
         .insert([payload]);
 
       if (error) {
-        console.error(error);
-        addNotification(`Application error: ${error.message}`, 'error');
+        if (isDuplicateKeyError(error)) {
+          setErrors(prev => ({ ...prev, email: 'An application with this email already exists.' }));
+          setGlobalError(duplicateEmailMessage);
+          addNotification('An application with this email address has already been submitted.', 'error');
+        } else {
+          console.error(error);
+          addNotification(`Application error: ${error.message}`, 'error');
+        }
         return;
       }
 
@@ -342,13 +519,14 @@ function Membership_Form() {
                     value={formdata.date_of_birth}
                     onChange={(isoDate) => handleDateChange('date_of_birth', isoDate)}
                     label="Date of Birth"
+                    minAge={MINIMUM_AGE}
                     required
                   />
                   {renderError('date_of_birth')}
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-gray-600 mb-1">Age</label>
-                  <input type="number" readOnly value={formdata.date_of_birth ? Math.max(0, new Date().getFullYear() - new Date(formdata.date_of_birth).getFullYear()) : ''} className="w-full border border-gray-300 rounded-md p-2.5 text-sm bg-gray-100 outline-none text-gray-500 cursor-not-allowed" />
+                  <input type="number" readOnly value={calculateAge(formdata.date_of_birth) ?? ''} className="w-full border border-gray-300 rounded-md p-2.5 text-sm bg-gray-100 outline-none text-gray-500 cursor-not-allowed" />
                 </div>
               </div>
 
@@ -459,6 +637,7 @@ function Membership_Form() {
                       value={formdata.spouse_date_of_birth}
                       onChange={(isoDate) => handleDateChange('spouse_date_of_birth', isoDate)}
                       label="Spouse Date of Birth"
+                      minAge={MINIMUM_AGE}
                       required
                     />
                     {renderError('spouse_date_of_birth')}
@@ -524,8 +703,26 @@ function Membership_Form() {
 
                 <div>
                   <label className="block text-xs font-semibold text-gray-600 mb-1">Income Source <span className="text-red-500">*</span></label>
-                  <input type="text" name="income_source" value={formdata.income_source} onChange={handleChange} className={getInputClass('income_source')} />
+                  <select name="income_source" value={formdata.income_source} onChange={handleChange} className={getInputClass('income_source')}>
+                    <option value="">-- Select Income Source --</option>
+                    {INCOME_SOURCE_OPTIONS.map((option) => (
+                      <option key={option} value={option}>{option}</option>
+                    ))}
+                  </select>
                   {renderError('income_source')}
+                  {formdata.income_source === 'Other' && (
+                    <div className="mt-2">
+                      <input
+                        type="text"
+                        name="income_source_other"
+                        value={formdata.income_source_other}
+                        onChange={handleChange}
+                        placeholder="Please specify"
+                        className={getInputClass('income_source_other')}
+                      />
+                      {renderError('income_source_other')}
+                    </div>
+                  )}
                 </div>
 
                 <div>
@@ -541,20 +738,60 @@ function Membership_Form() {
               </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1">Annual Income <span className="text-red-500">*</span></label>
-                  <input type="text" name="annual_income" value={formdata.annual_income} onChange={handleChange} placeholder="e.g. 500000 (no commas)" inputMode="numeric" className={getInputClass('annual_income')} />
-                  {renderError('annual_income')}
-                </div>
-
-                  <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1">Salary <span className="text-red-500">*</span></label>
-                  <input type="text" name="salary" value={formdata.salary} onChange={handleChange} className={getInputClass('salary')} />
+                  <label className="block text-xs font-semibold text-gray-600 mb-1">Monthly Salary <span className="text-red-500">*</span></label>
+                  <input
+                    type="text"
+                    name="salary"
+                    value={formatWithCommas(formdata.salary)}
+                    onChange={handleChange}
+                    placeholder="e.g. 25,000.00"
+                    inputMode="decimal"
+                    className={getInputClass('salary')}
+                  />
                   {renderError('salary')}
                 </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1">Annual Income</label>
+                  <input
+                    type="text"
+                    readOnly
+                    value={
+                      formdata.salary
+                        ? ((Number(stripCommas(formdata.salary)) || 0) * 12).toLocaleString('en-PH', {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                          })
+                        : ''
+                    }
+                    placeholder="Computed from Monthly Salary × 12"
+                    className="w-full border border-gray-300 rounded-md p-2.5 text-sm bg-gray-100 outline-none text-gray-500 cursor-not-allowed"
+                  />
+                  <p className="text-[10px] text-gray-400 mt-1">Automatically computed: Monthly Salary × 12</p>
+                </div>
+
                 <div>
                   <label className="block text-xs font-semibold text-gray-600 mb-1">Other Source of Income <span className="text-red-500">*</span></label>
-                  <input type="text" name="other_income" value={formdata.other_income} onChange={handleChange} placeholder="Write N/A if none" className={getInputClass('other_income')} />
-                  {renderError('other_income')}
+                  <select name="other_income_type" value={formdata.other_income_type} onChange={handleChange} className={getInputClass('other_income_type')}>
+                    <option value="">-- Select --</option>
+                    {OTHER_INCOME_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
+                  </select>
+                  {renderError('other_income_type')}
+                  {formdata.other_income_type === 'Other' && (
+                    <div className="mt-2">
+                      <input
+                        type="text"
+                        name="other_income_other"
+                        value={formdata.other_income_other}
+                        onChange={handleChange}
+                        placeholder="Please specify"
+                        className={getInputClass('other_income_other')}
+                      />
+                      {renderError('other_income_other')}
+                    </div>
+                  )}
                 </div>
               </div>
             </section>

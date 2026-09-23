@@ -2599,6 +2599,167 @@ async def get_treasurer_vault_balance():
         raise HTTPException(status_code=500, detail=f"Failed to fetch vault balance: {e}")
 
 
+@app.get("/api/treasurer/vault/available")
+async def get_treasurer_vault_available():
+    """{balance, committed, available} — see _compute_vault_available().
+
+    `committed` is what the raw vault_balance_v balance alone can't tell you:
+    the sum of net cash already spoken for by loans sitted 'ready for
+    disbursement' (Treasurer-approved, awaiting the Cashier's release). Two
+    loans can each look affordable against the raw balance individually while
+    together exceeding it — RESCHEDULED_LOANS_PLAN.md §3.1.
+    """
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+    try:
+        figures = _compute_vault_available()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to compute available vault funds: {e}")
+    return {
+        "success": True,
+        "data": {
+            "balance": decimal_to_float(figures["balance"]),
+            "committed": decimal_to_float(figures["committed"]),
+            "available": decimal_to_float(figures["available"]),
+        },
+    }
+
+
+@app.get("/api/treasurer/disbursements/rescheduled")
+async def get_treasurer_rescheduled_loans():
+    """Loans the Treasurer parked (`loan_status = 'pending rescheduling'`) for
+    insufficient vault funds, plus the vault figures to judge them against.
+
+    Each row's `shortfall` is recomputed live against `available`, never
+    stored — it self-heals the moment the vault refills or other committed
+    loans are released, with no stale number and no manual re-check
+    (RESCHEDULED_LOANS_PLAN.md §7).
+    """
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+
+    try:
+        loans_resp = (
+            supabase.table("loans")
+            .select(
+                "control_number,member_id,loan_amount,principal_amount,term,loan_status,application_date," \
+                "application_type,rescheduled_at,reschedule_note," \
+                "member:member_id(first_name,last_name)," \
+                "loan_type:loan_type_id(name,code)"
+            )
+            .execute()
+        )
+        all_loans = loans_resp.data or []
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to load loans: {e}")
+
+    rescheduled_loans = [
+        r for r in all_loans
+        if str(r.get("loan_status") or "").strip().lower() == "pending rescheduling"
+    ]
+    ready_loans = [
+        r for r in all_loans
+        if str(r.get("loan_status") or "").strip().lower() == "ready for disbursement"
+    ]
+
+    # koica_loans mirrors the Treasurer's main queue (Treasurer_Approval.jsx
+    # combines both tables), but the Cashier's disbursement endpoints never
+    # touch koica_loans, so its rows have no real fee/renewal computation
+    # available — shown at gross loan_amount, flagged `is_estimated`.
+    try:
+        koica_resp = (
+            supabase.table("koica_loans")
+            .select(
+                "control_number,loan_amount,term,loan_status,application_date,full_name,loan_type_code," \
+                "rescheduled_at,reschedule_note"
+            )
+            .execute()
+        )
+        koica_rows = [
+            r for r in (koica_resp.data or [])
+            if str(r.get("loan_status") or "").strip().lower() == "pending rescheduling"
+        ]
+    except Exception as e:
+        logger.warning("koica_loans lookup failed for rescheduled tab: %s", e)
+        koica_rows = []
+
+    try:
+        balance_resp = supabase.table("vault_balance_v").select("current_balance").limit(1).execute()
+        balance = Decimal(str((balance_resp.data or [{}])[0].get("current_balance") or 0))
+    except Exception as e:
+        logger.warning("vault balance lookup failed for rescheduled tab: %s", e)
+        balance = Decimal("0")
+
+    net_cash_out_by_control = _net_cash_out_for_rows(ready_loans)
+    committed = money(sum(net_cash_out_by_control.values(), Decimal("0")))
+    available = money(balance - committed)
+
+    rescheduled_net_cash_out = _net_cash_out_for_rows(rescheduled_loans)
+    rescheduled_payoff_lookup = _resolve_renewal_predecessors(rescheduled_loans)
+    payoff_balances = _outstanding_balances(list(rescheduled_payoff_lookup.values()))
+
+    rows = []
+    for r in rescheduled_loans:
+        cn = str(r.get("control_number") or "")
+        member = r.get("member") or {}
+        net_cash_out = rescheduled_net_cash_out.get(cn, Decimal("0"))
+        predecessor = rescheduled_payoff_lookup.get(cn)
+        renewal_payoff = (
+            payoff_balances.get(str(predecessor.get("control_number")), Decimal("0")) if predecessor else Decimal("0")
+        )
+        shortfall = money(max(net_cash_out - available, Decimal("0")))
+        rows.append({
+            "loan_id": cn,
+            "source": "loans",
+            "member_name": f"{member.get('first_name') or ''} {member.get('last_name') or ''}".strip() or "Unknown Member",
+            "loan_type": (r.get("loan_type") or {}).get("name") or "N/A",
+            "loan_amount": decimal_to_float(r.get("loan_amount") or 0),
+            "net_cash_out": decimal_to_float(net_cash_out),
+            "is_renewal": str(r.get("application_type") or "").strip().lower() == "renewal",
+            "renewal_payoff": decimal_to_float(renewal_payoff),
+            "is_estimated": False,
+            "term_months": int(r.get("term") or 0),
+            "application_date": r.get("application_date"),
+            "rescheduled_at": r.get("rescheduled_at"),
+            "reschedule_note": r.get("reschedule_note"),
+            "shortfall": decimal_to_float(shortfall),
+        })
+
+    for r in koica_rows:
+        gross = Decimal(str(r.get("loan_amount") or 0))
+        shortfall = money(max(gross - available, Decimal("0")))
+        rows.append({
+            "loan_id": r.get("control_number"),
+            "source": "koica_loans",
+            "member_name": r.get("full_name") or "Unknown Applicant",
+            "loan_type": "Nonmember Bonus Loan" if r.get("loan_type_code") == "NONMEMBER_BONUS" else "ABFF Loan",
+            "loan_amount": decimal_to_float(gross),
+            "net_cash_out": decimal_to_float(gross),
+            "is_renewal": False,
+            "renewal_payoff": 0.0,
+            "is_estimated": True,
+            "term_months": int(r.get("term") or 0),
+            "application_date": r.get("application_date"),
+            "rescheduled_at": r.get("rescheduled_at"),
+            "reschedule_note": r.get("reschedule_note"),
+            "shortfall": decimal_to_float(shortfall),
+        })
+
+    rows.sort(key=lambda x: str(x.get("rescheduled_at") or x.get("application_date") or ""), reverse=True)
+
+    return {
+        "success": True,
+        "data": {
+            "vault": {
+                "balance": decimal_to_float(balance),
+                "committed": decimal_to_float(committed),
+                "available": decimal_to_float(available),
+            },
+            "rows": rows,
+        },
+    }
+
+
 @app.get("/api/treasurer/vault/entries")
 async def get_treasurer_vault_entries(
     limit: int = 50,
@@ -2651,7 +2812,10 @@ async def get_treasurer_vault_entries(
 
 
 @app.post("/api/treasurer/vault/entries")
-async def create_treasurer_vault_entry(payload: dict = Body(...)):
+async def create_treasurer_vault_entry(
+    payload: dict = Body(...),
+    current_user: dict = _Depends(_get_current_user),
+):
     """Append a new entry to the vault ledger.
 
     Body:
@@ -2661,13 +2825,27 @@ async def create_treasurer_vault_entry(payload: dict = Body(...)):
       - change_type:  required. One of the CHECK-constraint values.
       - note:         optional but STRONGLY recommended for 'adjustment'.
       - reference_id: optional. Loans.id when this entry ties to a specific loan.
-      - entered_by:   optional (uuid). If omitted, DB column stays NULL — pass the treasurer's
-                      auth user id from the frontend so the ledger is attributable.
+
+    `entered_by` is NOT read from the body — this endpoint used to take the
+    caller's identity as a bare claim, with no auth check at all (anyone able
+    to reach the API could post a `deposit` and attribute it to any user;
+    RESCHEDULED_LOANS_PLAN.md §8.2). It is now resolved from the verified
+    bearer token, and only a treasurer or BOD may call this at all. Sign vs.
+    change_type and the negative-balance guard are also enforced by a DB
+    trigger (rescheduled_loans_and_vault_hardening.sql) so the Treasurer's
+    direct-Supabase write in Vault.jsx is covered the same way (§8.3-§8.5).
     """
     if not supabase:
         raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
 
+    role = _resolve_staff_role(current_user["id"], current_user.get("email") or "")
+    if role not in {"treasurer", "bod"}:
+        raise HTTPException(status_code=403, detail="Only the Treasurer or BOD may record vault entries.")
+
     valid_types = {"deposit", "withdrawal", "disbursement", "adjustment", "opening_balance"}
+    # A caller posts what physically happened, not the ledger's arithmetic
+    # sign — matches what the sign-fixed types actually mean in cash terms.
+    required_sign = {"deposit": 1, "withdrawal": -1, "disbursement": -1, "opening_balance": 1}
 
     try:
         amount = float(payload.get("amount"))
@@ -2686,12 +2864,19 @@ async def create_treasurer_vault_entry(payload: dict = Body(...)):
     if change_type == "adjustment" and not str(payload.get("note") or "").strip():
         raise HTTPException(status_code=400, detail="`note` is required for adjustment entries.")
 
+    expected_sign = required_sign.get(change_type)
+    if expected_sign is not None and (amount > 0) != (expected_sign > 0):
+        raise HTTPException(
+            status_code=400,
+            detail=f"`amount` must be {'positive' if expected_sign > 0 else 'negative'} for change_type '{change_type}'.",
+        )
+
     row = {
         "amount": amount,
         "change_type": change_type,
         "note": (payload.get("note") or None),
         "reference_id": payload.get("reference_id"),
-        "entered_by": payload.get("entered_by"),
+        "entered_by": current_user["id"],
     }
 
     try:
@@ -2699,7 +2884,12 @@ async def create_treasurer_vault_entry(payload: dict = Body(...)):
         inserted = (response.data or [{}])[0]
         return {"success": True, "data": inserted}
     except Exception as e:
-        # RLS rejection surfaces here — most likely cause when this fails.
+        msg = str(e)
+        if "negative" in msg.lower():
+            raise HTTPException(status_code=409, detail="This entry would take the vault balance negative.")
+        # RLS rejection (should no longer fire now that role is checked above,
+        # but the service-role key means RLS was never actually the gate here)
+        # or the DB guard trigger.
         raise HTTPException(status_code=403, detail=f"Failed to insert vault entry: {e}")
 
 
@@ -3962,9 +4152,223 @@ def create_cashier_cbu_deposit(
         raise HTTPException(status_code=500, detail=f"Failed to create CBU deposit: {err}")
 
 
+# ============================================================================
+# SECTION: Disbursement net-cash-out — shared by the Cashier preview/disburse
+# endpoints and the Treasurer vault/rescheduled endpoints below.
+#
+# "Net cash out" is what actually leaves the vault for a loan release, which is
+# NOT the loan's principal (RESCHEDULED_LOANS_PLAN.md §4):
+#   net_cash_out = principal − fee deductions − renewal payoff
+# where the renewal payoff is the outstanding balance of the loan being
+# renewed (application_type = 'renewal' offsets against the predecessor loan
+# of the same member_id + loan_type — the loan is not disbursed twice; the new
+# principal covers the old balance plus whatever the member actually receives).
+# Using gross principal both over-deducts the vault on every renewal and
+# wrongly reschedules renewals that are perfectly affordable.
+# ============================================================================
+
+VALIDATED_PAYMENT_STATUSES = ["validated", "confirmed", "bookkeeper_confirmed", "approved"]
+
+
+def _resolve_loan_type_code_for_breakdown(loan_type_row: dict | None) -> str:
+    type_code = str((loan_type_row or {}).get("code") or "").strip().upper()
+    if type_code:
+        return type_code
+    type_name = str((loan_type_row or {}).get("name") or "").strip().lower()
+    normalized = normalize_cashier_loan_type(type_name)
+    if normalized == "bonus":
+        return "NONMEMBER_BONUS" if "non" in type_name and "member" in type_name else "BONUS"
+    return resolve_loan_type_code(normalized)
+
+
+def _fee_breakdown_for_principal(type_code: str, principal: Decimal) -> dict:
+    policy = resolve_fee_policy(type_code)
+    service_fee = compute_service_fee(policy, principal)
+    insurance_fee = money((principal * policy["insurance_per_thousand"]) / Decimal("1000"))
+    cbu_deduction = money(principal * policy["cbu_rate"])
+    notarial_fee = money(policy["notarial_fee"])
+    return {
+        "service_fee": service_fee,
+        "cbu_deduction": cbu_deduction,
+        "insurance_fee": insurance_fee,
+        "notarial_fee": notarial_fee,
+        "total_deductions": money(service_fee + cbu_deduction + insurance_fee + notarial_fee),
+    }
+
+
+def _resolve_renewal_predecessors(loan_rows: list[dict]) -> dict[str, dict]:
+    """control_number (of a RENEWAL row) -> its immediate predecessor loan row.
+
+    Predecessor = the loan most recently applied for by the same member_id,
+    for the same loan_type name, strictly before this row's application_date,
+    excluding rejected/cancelled — the same (member_id, loan_type) chain
+    already used for prior_versions_by_loan / get_active_cashier_loan_ids.
+    Rows that aren't renewals, have no member_id, or whose predecessor can't
+    be resolved are simply absent from the result.
+    """
+    renewal_rows = [
+        r for r in loan_rows
+        if str(r.get("application_type") or "").strip().lower() == "renewal" and r.get("member_id")
+    ]
+    if not renewal_rows or not supabase:
+        return {}
+
+    member_ids = sorted({r["member_id"] for r in renewal_rows})
+    try:
+        candidates_resp = (
+            supabase.table("loans")
+            .select(
+                "control_number,member_id,application_date,loan_status,principal_amount,loan_amount,"
+                "total_interest,monthly_amortization,term,loan_type:loan_type_id(name)"
+            )
+            .in_("member_id", member_ids)
+            .execute()
+        )
+    except Exception as err:
+        logger.warning("renewal predecessor lookup failed: %s", err)
+        return {}
+
+    candidates = [
+        r for r in (candidates_resp.data or [])
+        if str(r.get("loan_status") or "").strip().lower() not in {"rejected", "cancelled"}
+    ]
+
+    chains: dict[tuple, list[dict]] = {}
+    for row in candidates:
+        mid = row.get("member_id")
+        ltype = (row.get("loan_type") or {}).get("name") or ""
+        if not mid or not ltype:
+            continue
+        chains.setdefault((mid, ltype), []).append(row)
+    for items in chains.values():
+        items.sort(key=lambda r: str(r.get("application_date") or ""))
+
+    predecessor_by_control: dict[str, dict] = {}
+    for r in renewal_rows:
+        mid = r.get("member_id")
+        ltype = (r.get("loan_type") or {}).get("name") or ""
+        cn = str(r.get("control_number") or "")
+        chain = chains.get((mid, ltype)) or []
+        idx = next((i for i, c in enumerate(chain) if str(c.get("control_number")) == cn), None)
+        if idx is not None and idx > 0:
+            predecessor_by_control[cn] = chain[idx - 1]
+
+    return predecessor_by_control
+
+
+def _outstanding_balances(loan_rows: list[dict]) -> dict[str, Decimal]:
+    """control_number -> outstanding balance (total payable − validated payments)."""
+    if not loan_rows or not supabase:
+        return {}
+    control_numbers = sorted({str(r.get("control_number")) for r in loan_rows if r.get("control_number")})
+    if not control_numbers:
+        return {}
+    try:
+        payments_resp = (
+            supabase.table("loan_payments")
+            .select("loan_id,amount_paid,confirmation_status")
+            .in_("loan_id", control_numbers)
+            .in_("confirmation_status", VALIDATED_PAYMENT_STATUSES)
+            .execute()
+        )
+        payment_rows = payments_resp.data or []
+    except Exception as err:
+        logger.warning("outstanding-balance payment lookup failed: %s", err)
+        payment_rows = []
+
+    paid_by_loan: dict[str, Decimal] = {}
+    for p in payment_rows:
+        key = str(p.get("loan_id") or "")
+        paid_by_loan[key] = paid_by_loan.get(key, Decimal("0")) + Decimal(str(p.get("amount_paid") or 0))
+
+    result: dict[str, Decimal] = {}
+    for r in loan_rows:
+        cn = str(r.get("control_number") or "")
+        if not cn:
+            continue
+        payable = _loan_total_payable(r)
+        result[cn] = max(payable - paid_by_loan.get(cn, Decimal("0")), Decimal("0"))
+    return result
+
+
+def _compute_net_cash_out(loan_row: dict, renewal_payoff: Decimal = Decimal("0")) -> dict:
+    principal = Decimal(str(loan_row.get("principal_amount") or loan_row.get("loan_amount") or 0))
+    type_code = _resolve_loan_type_code_for_breakdown(loan_row.get("loan_type") or {})
+    fees = (
+        _fee_breakdown_for_principal(type_code, principal)
+        if principal > 0
+        else {"service_fee": Decimal("0"), "cbu_deduction": Decimal("0"), "insurance_fee": Decimal("0"),
+              "notarial_fee": Decimal("0"), "total_deductions": Decimal("0")}
+    )
+    payoff = money(max(renewal_payoff, Decimal("0")))
+    net_cash_out = money(max(principal - fees["total_deductions"] - payoff, Decimal("0")))
+    return {
+        "loan_type_code": type_code,
+        "principal": money(principal),
+        "deductions": {k: fees[k] for k in ("service_fee", "cbu_deduction", "insurance_fee", "notarial_fee")},
+        "total_deductions": fees["total_deductions"],
+        "is_renewal": str(loan_row.get("application_type") or "").strip().lower() == "renewal",
+        "renewal_payoff": payoff,
+        "net_cash_out": net_cash_out,
+    }
+
+
+def _net_cash_out_for_rows(loan_rows: list[dict]) -> dict[str, Decimal]:
+    """control_number -> net_cash_out, for a batch of `loans` rows in one pass."""
+    predecessor_map = _resolve_renewal_predecessors(loan_rows)
+    payoff_balances = _outstanding_balances(list(predecessor_map.values()))
+    result = {}
+    for row in loan_rows:
+        cn = str(row.get("control_number") or "")
+        predecessor = predecessor_map.get(cn)
+        payoff = (
+            payoff_balances.get(str(predecessor.get("control_number")), Decimal("0"))
+            if predecessor else Decimal("0")
+        )
+        result[cn] = _compute_net_cash_out(row, payoff)["net_cash_out"]
+    return result
+
+
+def _compute_vault_available() -> dict:
+    """{balance, committed, available} — committed = SUM(net_cash_out) over
+    loans already 'ready for disbursement' (Treasurer-approved, awaiting the
+    Cashier's physical release). Checking a loan against the raw balance alone
+    allows two loans to each look affordable individually while together
+    exceeding funds (RESCHEDULED_LOANS_PLAN.md §3.1)."""
+    try:
+        balance_resp = supabase.table("vault_balance_v").select("current_balance").limit(1).execute()
+        balance = Decimal(str((balance_resp.data or [{}])[0].get("current_balance") or 0))
+    except Exception as err:
+        logger.warning("vault balance lookup failed: %s", err)
+        balance = Decimal("0")
+
+    try:
+        loans_resp = (
+            supabase.table("loans")
+            .select(
+                "control_number,member_id,loan_amount,principal_amount,loan_status,application_type,"
+                "application_date,loan_type:loan_type_id(name,code)"
+            )
+            .execute()
+        )
+        ready_loans = [
+            r for r in (loans_resp.data or [])
+            if str(r.get("loan_status") or "").strip().lower() == "ready for disbursement"
+        ]
+    except Exception as err:
+        logger.warning("ready-for-disbursement lookup failed: %s", err)
+        ready_loans = []
+
+    net_cash_out_by_control = _net_cash_out_for_rows(ready_loans)
+    committed = money(sum(net_cash_out_by_control.values(), Decimal("0")))
+    available = money(balance - committed)
+    return {"balance": balance, "committed": committed, "available": available}
+
+
 @app.get("/api/cashier/disbursements/{loan_id}/preview")
 async def preview_cashier_disbursement(loan_id: str):
-    """Deduction breakdown for releasing an EXISTING loan.
+    """Deduction (and, for a renewal, payoff) breakdown for releasing an
+    EXISTING loan.
 
     The Review & Disburse dialog used to call /api/loans/compute for this. That
     endpoint validates a loan *application* (Bonus needs a member_category,
@@ -3983,7 +4387,10 @@ async def preview_cashier_disbursement(loan_id: str):
     try:
         loan_response = (
             supabase.table("loans")
-            .select("control_number,loan_amount,principal_amount,loan_type:loan_type_id(name,code)")
+            .select(
+                "control_number,member_id,loan_amount,principal_amount,application_type,application_date,"
+                "loan_type:loan_type_id(name,code)"
+            )
             .eq("control_number", clean_loan_id)
             .limit(1)
             .execute()
@@ -3998,36 +4405,29 @@ async def preview_cashier_disbursement(loan_id: str):
     if principal <= 0:
         raise HTTPException(status_code=400, detail="Loan principal is missing or invalid.")
 
-    loan_type_row = loan_row.get("loan_type") or {}
-    type_code = str(loan_type_row.get("code") or "").strip().upper()
-    if not type_code:
-        type_name = str(loan_type_row.get("name") or "").strip().lower()
-        normalized = normalize_cashier_loan_type(type_name)
-        if normalized == "bonus":
-            type_code = "NONMEMBER_BONUS" if "non" in type_name and "member" in type_name else "BONUS"
-        else:
-            type_code = resolve_loan_type_code(normalized)
+    predecessor_map = _resolve_renewal_predecessors([loan_row])
+    predecessor = predecessor_map.get(clean_loan_id)
+    renewal_payoff = Decimal("0")
+    if predecessor:
+        renewal_payoff = _outstanding_balances([predecessor]).get(
+            str(predecessor.get("control_number")), Decimal("0")
+        )
 
-    policy = resolve_fee_policy(type_code)
-    service_fee = compute_service_fee(policy, principal)
-    insurance_fee = money((principal * policy["insurance_per_thousand"]) / Decimal("1000"))
-    cbu_deduction = money(principal * policy["cbu_rate"])
-    notarial_fee = money(policy["notarial_fee"])
-    total_deductions = money(service_fee + cbu_deduction + insurance_fee + notarial_fee)
+    breakdown = _compute_net_cash_out(loan_row, renewal_payoff)
 
     return {
         "success": True,
         "data": {
-            "loan_type": type_code,
-            "principal": decimal_to_float(money(principal)),
-            "deductions": {
-                "service_fee": decimal_to_float(service_fee),
-                "cbu_deduction": decimal_to_float(cbu_deduction),
-                "insurance_fee": decimal_to_float(insurance_fee),
-                "notarial_fee": decimal_to_float(notarial_fee),
-            },
-            "total_deductions": decimal_to_float(total_deductions),
-            "net_proceeds": decimal_to_float(money(principal - total_deductions)),
+            "loan_type": breakdown["loan_type_code"],
+            "principal": decimal_to_float(breakdown["principal"]),
+            "deductions": {k: decimal_to_float(v) for k, v in breakdown["deductions"].items()},
+            "total_deductions": decimal_to_float(breakdown["total_deductions"]),
+            "is_renewal": breakdown["is_renewal"],
+            "renewal_payoff": decimal_to_float(breakdown["renewal_payoff"]),
+            "net_cash_out": decimal_to_float(breakdown["net_cash_out"]),
+            # Back-compat alias: the Cashier's Review & Disburse dialog already
+            # reads `net_proceeds` — this is now the renewal-aware true figure.
+            "net_proceeds": decimal_to_float(breakdown["net_cash_out"]),
         },
     }
 
@@ -4046,8 +4446,9 @@ async def disburse_cashier_loan(loan_id: str, payload: CashierDisbursementReques
             supabase.table("loans")
             .select(
                 "control_number,loan_amount,principal_amount,interest_rate,term,loan_status,total_interest,monthly_amortization,member_id," \
+                "application_type,application_date," \
                 "member:member_id(first_name,last_name)," \
-                "loan_type:loan_type_id(name)"
+                "loan_type:loan_type_id(name,code)"
             )
             .eq("control_number", clean_loan_id)
             .limit(1)
@@ -4083,6 +4484,53 @@ async def disburse_cashier_loan(loan_id: str, payload: CashierDisbursementReques
         )
         if monthly_rate_decimal <= 0:
             raise HTTPException(status_code=400, detail="Loan interest rate is not configured in loan_types.")
+
+        # Money leaves the vault HERE, atomically, before anything else is
+        # written — a refusal (insufficient funds) leaves the loan completely
+        # untouched. See vault_debit_for_disbursement() in
+        # rescheduled_loans_and_vault_hardening.sql and §3/§8.1 of
+        # RESCHEDULED_LOANS_PLAN.md: the vault never moved on disbursement
+        # before this, and the deduction must be net cash out, not gross
+        # principal, so a renewal's payoff against its old balance is honored.
+        predecessor_map = _resolve_renewal_predecessors([loan_row])
+        predecessor = predecessor_map.get(clean_loan_id)
+        renewal_payoff = Decimal("0")
+        if predecessor:
+            renewal_payoff = _outstanding_balances([predecessor]).get(
+                str(predecessor.get("control_number")), Decimal("0")
+            )
+        net_cash_out = _compute_net_cash_out(loan_row, renewal_payoff)["net_cash_out"]
+
+        vault_debited = False
+        vault_new_balance = None
+        if net_cash_out > 0:
+            try:
+                vault_rpc = supabase.rpc(
+                    "vault_debit_for_disbursement",
+                    {
+                        "p_amount": decimal_to_float(net_cash_out),
+                        "p_note": f"Disbursement — loan {clean_loan_id}",
+                        "p_entered_by": payload.cashier_id,
+                    },
+                ).execute()
+                vault_row = (vault_rpc.data or [None])[0] if isinstance(vault_rpc.data, list) else vault_rpc.data
+                vault_new_balance = (vault_row or {}).get("new_balance") if isinstance(vault_row, dict) else None
+                vault_debited = True
+            except Exception as vault_err:
+                msg = str(vault_err).lower()
+                if "insufficient_funds" in msg or "insufficient funds" in msg:
+                    raise HTTPException(
+                        status_code=409,
+                        detail=(
+                            f"Insufficient vault funds. Releasing this loan requires "
+                            f"{money(net_cash_out):,.2f} in cash on hand right now."
+                        ),
+                    )
+                # Schema not migrated yet (rescheduled_loans_and_vault_hardening.sql
+                # not applied): don't block a real release on a missing RPC — but
+                # never silently: this is exactly what left the vault never moving
+                # before (§8.1), so it must be visible in server logs.
+                logger.warning("vault_debit_for_disbursement unavailable for loan %s: %s", clean_loan_id, vault_err)
 
         existing_schedule_response = (
             supabase.table("loan_schedules")
@@ -4313,6 +4761,10 @@ async def disburse_cashier_loan(loan_id: str, payload: CashierDisbursementReques
             "cbu_retention_amount": (
                 decimal_to_float(cbu_credit_row.get("capital_added")) if cbu_credit_row else None
             ),
+            "vault_debited": vault_debited,
+            "net_cash_out": decimal_to_float(net_cash_out),
+            "renewal_payoff": decimal_to_float(renewal_payoff),
+            "vault_balance_after": decimal_to_float(vault_new_balance) if vault_new_balance is not None else None,
         }
         if not all(
             release_records[k] for k in ("loan_released", "schedule_ready", "confirmation_saved")

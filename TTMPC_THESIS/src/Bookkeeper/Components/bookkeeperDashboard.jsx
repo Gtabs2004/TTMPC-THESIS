@@ -47,6 +47,7 @@ import {
   Cell,
 } from "recharts";
 import { SERIES_PRIMARY, SEMANTIC_COLORS, REPAYMENT_HEALTH_COLORS } from "../../lib/chartColors";
+import { formatRelativeTime } from "../../utils/relativeTime";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 
@@ -64,19 +65,7 @@ const formatPesoCompact = (value) => {
   return `${PESO}${n.toFixed(0)}`;
 };
 
-const timeAgo = (iso) => {
-  if (!iso) return "";
-  const then = new Date(iso).getTime();
-  if (Number.isNaN(then)) return "";
-  const diff = Math.max(0, Date.now() - then);
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return "Just now";
-  if (mins < 60) return `${mins} min${mins === 1 ? "" : "s"} ago`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs} hour${hrs === 1 ? "" : "s"} ago`;
-  const days = Math.floor(hrs / 24);
-  return `${days} day${days === 1 ? "" : "s"} ago`;
-};
+const timeAgo = formatRelativeTime;
 
 const Dashboard = () => {
     const navigate = useNavigate();
