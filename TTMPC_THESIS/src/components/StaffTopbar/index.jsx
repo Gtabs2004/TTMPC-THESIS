@@ -1,6 +1,7 @@
 import React from "react";
-import { Search, User } from "lucide-react";
+import { Search, User, Menu } from "lucide-react";
 import { PortalTopbarIdentity } from "../PortalIdentity";
+import { useStaffLayout } from "../../contex/StaffLayoutContext";
 
 /**
  * Single-source-of-truth topbar for all staff portals (Bookkeeper, Cashier,
@@ -12,8 +13,10 @@ import { PortalTopbarIdentity } from "../PortalIdentity";
  * for any role) on nearly every page.
  *
  * (The Member portal keeps its own header — it's already consistent across
- * every Member page and has dark-mode/mobile-drawer behavior staff portals
- * don't need, same reasoning as StaffSidebar.)
+ * every Member page and has its own dark-mode/mobile-drawer behavior, same
+ * reasoning as StaffSidebar. Staff portals now have mobile-drawer behavior
+ * too — the hamburger button below, paired with StaffSidebar's responsive
+ * drawer, via the shared StaffLayoutContext — just not dark mode.)
  *
  * Props:
  *   portal        — display label ("Bookkeeper" / "Cashier" / "Manager" /
@@ -44,13 +47,21 @@ import { PortalTopbarIdentity } from "../PortalIdentity";
  *                    drift, so it's opt-in here rather than dropped.
  */
 export default function StaffTopbar({ portal, notifications, search, avatarUrl, sticky = false }) {
+  const { setSidebarOpen } = useStaffLayout();
   return (
     <header
-      className={`bg-white h-16 shadow-sm border-b border-gray-100 flex items-center justify-end px-8 shrink-0 ${
+      className={`bg-white h-16 shadow-sm border-b border-gray-100 flex items-center justify-end px-4 sm:px-8 shrink-0 ${
         sticky ? "sticky top-0 z-10" : ""
       }`}
     >
-      
+      <button
+        type="button"
+        onClick={() => setSidebarOpen(true)}
+        aria-label="Open menu"
+        className="lg:hidden mr-auto p-2 -ml-2 rounded-md text-gray-500 hover:bg-gray-100 transition-colors"
+      >
+        <Menu className="w-5 h-5" />
+      </button>
 
       {notifications}
 

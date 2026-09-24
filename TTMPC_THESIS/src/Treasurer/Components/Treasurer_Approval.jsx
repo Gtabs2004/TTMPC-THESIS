@@ -261,7 +261,7 @@ const Treasurer_Approval = () => {
     <div className="flex min-h-screen bg-gray-50">
       <StaffSidebar portal="Treasurer" items={treasurerNav} />
 
-      <div className="flex-1 flex flex-col h-screen overflow-y-auto">
+      <div className="flex-1 min-w-0 flex flex-col h-screen overflow-y-auto">
         <StaffTopbar portal="Treasurer" notifications={<LoanNotificationBell role="treasurer" />} />
 
         <main className="p-8 flex-1">

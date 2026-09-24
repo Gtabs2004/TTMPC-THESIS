@@ -12,6 +12,7 @@ import PwaInstallGate from "./components/PwaInstallGate.jsx";
 import StandaloneMemberOnlyGuard from "./components/StandaloneMemberOnlyGuard.jsx";
 import { ConfirmProvider } from "./contex/ConfirmContext.jsx";
 import { ThemeProvider } from "./contex/ThemeContext.jsx";
+import { StaffLayoutProvider } from "./contex/StaffLayoutContext.jsx";
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
@@ -24,7 +25,9 @@ createRoot(document.getElementById('root')).render(
              <NotificationContainer />
              <PwaInstallGate />
              <StandaloneMemberOnlyGuard />
-             <RouterProvider router={router} />
+             <StaffLayoutProvider>
+               <RouterProvider router={router} />
+             </StaffLayoutProvider>
            </AuthContextProvider>
          </ConfirmProvider>
        </NotificationProvider>

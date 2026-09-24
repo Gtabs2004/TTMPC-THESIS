@@ -207,7 +207,7 @@ const CreditRiskPage = ({ portal = "bookkeeper" }) => {
     <div className="flex min-h-screen bg-gray-50">
       <StaffSidebar portal={portalLabel} items={navItems} />
 
-      <div className="flex-1 flex flex-col h-screen overflow-y-auto">
+      <div className="flex-1 min-w-0 flex flex-col h-screen overflow-y-auto">
         <StaffTopbar
           portal={portalLabel}
           notifications={<LoanNotificationBell role={portal} />}

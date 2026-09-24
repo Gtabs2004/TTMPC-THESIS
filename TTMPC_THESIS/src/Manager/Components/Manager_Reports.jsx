@@ -284,7 +284,7 @@ const Manager_Reports = () => {
       <StaffSidebar portal="Manager" items={managerNav} />
 
       {/* MAIN */}
-      <div className="flex-1 flex flex-col h-screen overflow-y-auto">
+      <div className="flex-1 min-w-0 flex flex-col h-screen overflow-y-auto">
         <StaffTopbar portal="Manager" notifications={<LoanNotificationBell role="manager" />} />
 
         <main className="p-8">

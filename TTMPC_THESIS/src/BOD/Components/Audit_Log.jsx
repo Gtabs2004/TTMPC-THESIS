@@ -32,7 +32,7 @@ const Audit_Log = () => {
       <div className="flex-1 min-w-0 flex flex-col h-screen overflow-hidden">
         <StaffTopbar portal="BOD" notifications={<NotificationBell />} />
 
-        <main className="p-8">
+        <main className="flex-1 overflow-y-auto p-8">
           <Breadcrumb portal="BOD" page="Audit Log" />
           <AuditLogViewer
             showActorRoleFilter

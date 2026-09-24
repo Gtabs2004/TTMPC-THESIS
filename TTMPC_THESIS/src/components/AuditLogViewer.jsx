@@ -1,5 +1,18 @@
 import React, { useEffect, useState } from "react";
 import { supabase } from "../supabaseClient";
+import { StatCard, StatCardRow } from "./StatCard";
+import { TableToolbar } from "./TableToolbar";
+import {
+  Search,
+  ChevronDown,
+  ClipboardList,
+  Receipt,
+  Loader2,
+  ArrowDownCircle,
+  ArrowUpCircle,
+  X,
+} from "lucide-react";
+import Pagination from "./Pagination";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 
@@ -24,24 +37,12 @@ function buildAuditQuery(filters, extra = {}) {
   for (const [k, v] of Object.entries(extra)) params.set(k, String(v));
   return params.toString();
 }
-import jsPDF from "jspdf";
-import autoTable from "jspdf-autotable";
-import {
-  Search,
-  ChevronDown,
-  FileDown,
-  FileSpreadsheet,
-  ClipboardList,
-  Receipt,
-  UserPlus,
-  Loader2,
-} from "lucide-react";
-import Pagination from "./Pagination";
 
 const PAGE_SIZE = 5;
 
-// Map our audit_log.entity_type onto the existing Audit Trail design's "Module"
-// column, with the same colors as the original mockup.
+// Map our audit_log.entity_type onto a "Module" label/color — used in the
+// View All modal's detailed table and its Module filter menu. The main table
+// no longer shows this column (see item 5: Date & Time / Role / Status only).
 const MODULE_BY_ENTITY = {
   loan:               { label: "Loans",             className: "bg-green-50 text-green-600"   },
   application:        { label: "Members",           className: "bg-purple-50 text-purple-600" },
@@ -49,9 +50,6 @@ const MODULE_BY_ENTITY = {
   account:            { label: "Accounts",           className: "bg-blue-50 text-blue-600"     },
   termination:        { label: "Members",           className: "bg-purple-50 text-purple-600" },
   policy:             { label: "Accounting",         className: "bg-orange-50 text-orange-600" },
-  // Cashier transaction tables (audit_log_cashier_triggers.sql) — every
-  // payment, disbursement, CBU deposit, savings ledger entry, membership
-  // fee, and grocery sale also lands in audit_log under these entity_types.
   payment:            { label: "Loan Payments",      className: "bg-teal-50 text-teal-600"     },
   disbursement:       { label: "Disbursements",      className: "bg-indigo-50 text-indigo-600" },
   cbu:                { label: "CBU / Share Capital",className: "bg-cyan-50 text-cyan-600"      },
@@ -74,6 +72,8 @@ const ACTION_LABEL = {
   disburse:    "Loan Disbursed",
   change_role: "Role Changed",
   revise:      "Returned for Revision",
+  record:      "Recorded",
+  post:        "Posted",
 };
 
 // Which actions should be flagged red in the Status column.
@@ -139,7 +139,10 @@ const formatRole = (r) => {
 };
 
 /**
- * Audit Log viewer matching the original Audit Trail mockup design.
+ * Audit Log viewer — a compact Date & Time / Role / Status table on the main
+ * page (matching the rest of the system's dashboard cards/toolbar via
+ * StatCard/StatCardRow/TableToolbar), with a "View All" modal for the full
+ * filterable, multi-column detail view.
  *
  * Props:
  *   showActorRoleFilter — when false, the Role filter is hidden (irrelevant for
@@ -151,13 +154,19 @@ const AuditLogViewer = ({ showActorRoleFilter = true, onError }) => {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(1);
+  const [showViewAll, setShowViewAll] = useState(false);
 
   // KPI counts pulled across the whole filter-set, not just current page.
   const [kpis, setKpis] = useState({
     activitiesToday: 0,
-    paymentsDeposits: 0,
+    loanDisbursements: 0,
     profilesCreated: 0,
-    reportsGenerated: 0,
+    loanPayments: 0,
+    cashDeposits: 0,
+    cashWithdrawals: 0,
+    loanApplications: 0,
+    membershipFees: 0,
+    groceryTransactions: 0,
   });
 
   const [searchInput, setSearchInput] = useState("");
@@ -202,9 +211,14 @@ const AuditLogViewer = ({ showActorRoleFilter = true, onError }) => {
       const body = await res.json();
       setKpis({
         activitiesToday: body.activitiesToday || 0,
-        paymentsDeposits: body.paymentsDeposits || 0,
+        loanDisbursements: body.loanDisbursements || 0,
         profilesCreated: body.profilesCreated || 0,
-        reportsGenerated: body.reportsGenerated || 0,
+        loanPayments: body.loanPayments || 0,
+        cashDeposits: body.cashDeposits || 0,
+        cashWithdrawals: body.cashWithdrawals || 0,
+        loanApplications: body.loanApplications || 0,
+        membershipFees: body.membershipFees || 0,
+        groceryTransactions: body.groceryTransactions || 0,
       });
     } catch {
       /* KPIs are decorative; the table is the source of truth. */
@@ -259,278 +273,172 @@ const AuditLogViewer = ({ showActorRoleFilter = true, onError }) => {
     setTimeout(loadRows, 0);
   };
 
-  // Shared by both export buttons — fetches up to 5000 rows respecting the
-  // current filters and shapes them into the same 8 columns the on-screen
-  // table and both exports use.
-  const fetchExportRows = async () => {
-    const qs = buildAuditQuery(filters, { page: 1, page_size: 5000 });
-    const res = await fetch(`${API_BASE}/api/audit-log?${qs}`, {
-      headers: await auditAuthHeaders(),
-    });
-    const body = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(body.detail || "Failed to export audit log.");
-    return (body.rows || []).map((r) => {
-      const moduleInfo = MODULE_BY_ENTITY[r.entity_type] || { label: r.entity_type };
-      return [
-        formatLogId(r.id),
-        formatAuditTimestamp(r.occurred_at),
-        formatRole(r.actor_role),
-        moduleInfo.label,
-        ACTION_LABEL[r.action] || r.action,
-        describeAuditContext(r),
-        FLAGGED_ACTIONS.has(r.action) ? "Flagged" : "Success",
-      ];
-    });
-  };
-
-  const [exporting, setExporting] = useState("");
-
-  const exportCsv = async () => {
-    setExporting("csv");
-    try {
-      const bodyRows = await fetchExportRows();
-      const header = ["Log ID", "Date & Time", "Role", "Module", "Action Type", "Record", "Status"];
-      const lines = [header, ...bodyRows].map((cells) =>
-        cells.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(",")
-      );
-      // Prefix a UTF-8 BOM — without it, Excel on Windows opens this CSV
-      // using the system's default ANSI codepage instead of UTF-8 and
-      // garbles any non-ASCII character (accented names, etc.). The
-      // text/csv;charset=utf-8 MIME type alone doesn't fix this: Excel
-      // ignores it for a locally opened file.
-      const BOM = "﻿";
-      const blob = new Blob([BOM + lines.join("\r\n")], { type: "text/csv;charset=utf-8" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `audit_log_${new Date().toISOString().slice(0, 10)}.csv`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 5000);
-    } catch (err) {
-      if (onError) onError(err?.message || "Export failed.");
-    } finally {
-      setExporting("");
-    }
-  };
-
-  const exportPdf = async () => {
-    setExporting("pdf");
-    try {
-      const bodyRows = await fetchExportRows();
-      const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
-      const pageW = doc.internal.pageSize.getWidth();
-
-      doc.setFillColor(22, 101, 52);
-      doc.rect(0, 0, pageW, 24, "F");
-      doc.setTextColor(255, 255, 255);
-      doc.setFontSize(15);
-      doc.setFont("helvetica", "bold");
-      doc.text("TTMPC — Audit Trail Report", pageW / 2, 11, { align: "center" });
-      doc.setFontSize(9);
-      doc.setFont("helvetica", "normal");
-      doc.text("Tubungan Teachers' Multi-Purpose Cooperative", pageW / 2, 17, { align: "center" });
-      doc.text(`Generated: ${new Date().toLocaleString("en-PH")}`, pageW / 2, 22, { align: "center" });
-
-      autoTable(doc, {
-        startY: 30,
-        head: [["Log ID", "Date & Time", "Role", "Module", "Action Type", "Record", "Status"]],
-        body: bodyRows.length ? bodyRows : [["No data", "", "", "", "", "", ""]],
-        theme: "grid",
-        headStyles: { fillColor: [22, 101, 52], textColor: 255, fontStyle: "bold", fontSize: 9 },
-        bodyStyles: { fontSize: 8.5, textColor: [30, 41, 59] },
-        alternateRowStyles: { fillColor: [240, 253, 244] },
-        margin: { left: 12, right: 12 },
-      });
-
-      const totalPages = doc.internal.getNumberOfPages();
-      for (let i = 1; i <= totalPages; i++) {
-        doc.setPage(i);
-        doc.setFontSize(8);
-        doc.setTextColor(150);
-        doc.setFont("helvetica", "normal");
-        doc.text(
-          `TTMPC Audit Trail Report  •  Page ${i} of ${totalPages}  •  CONFIDENTIAL`,
-          pageW / 2,
-          doc.internal.pageSize.getHeight() - 8,
-          { align: "center" }
-        );
-      }
-
-      doc.save(`audit_log_${new Date().toISOString().slice(0, 10)}.pdf`);
-    } catch (err) {
-      if (onError) onError(err?.message || "Export failed.");
-    } finally {
-      setExporting("");
-    }
-  };
-
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
-  const kpiData = [
-    { title: "Activities Today",   value: kpis.activitiesToday,  badge: "Live",    badgeType: "success", icon: ClipboardList,  iconColor: "text-blue-600",   iconBg: "bg-blue-50" },
-    { title: "Loan Disbursements", value: kpis.paymentsDeposits, badge: "All",     badgeType: "success", icon: Receipt,        iconColor: "text-green-600",  iconBg: "bg-green-50" },
-    { title: "Profiles Approved",  value: kpis.profilesCreated,  badge: "New",     badgeType: "info",    icon: UserPlus,       iconColor: "text-purple-600", iconBg: "bg-purple-50" },
-    { title: "Policy Events",      value: kpis.reportsGenerated, badge: "Total",   badgeType: "info",    icon: FileSpreadsheet,iconColor: "text-orange-600", iconBg: "bg-orange-50" },
+  // Trimmed to the 4 that matter most for an audit trail — actual money
+  // movement — instead of every count the API can produce. Activities Today
+  // and Profiles Approved were dropped (least specific to "transactions");
+  // Loan Applications/Fees/Grocery were dropped as the least-central of the
+  // per-type breakdown, still visible via the View All modal's Module filter.
+  const overviewKpis = [
+    { label: "Loan Disbursements", value: kpis.loanDisbursements, icon: Receipt,         iconColor: "text-green-600" },
+    { label: "Loan Payments",      value: kpis.loanPayments,      icon: Receipt,         iconColor: "text-teal-600" },
+    { label: "Cash Deposits",      value: kpis.cashDeposits,      icon: ArrowDownCircle, iconColor: "text-emerald-600" },
+    { label: "Cash Withdrawals",   value: kpis.cashWithdrawals,   icon: ArrowUpCircle,   iconColor: "text-rose-600" },
   ];
+
+  // Shared filter toolbar — lives only inside the View All modal now (item 6:
+  // the main page stays minimal, this is "the place for complete audit
+  // details"). Kept as its own bespoke dropdown-button design rather than
+  // forced into TableToolbar's plain pills, same reasoning as before: these
+  // are popover menus (Module/Date Range), not a fixed pill set.
+  const filterToolbar = (
+    <form onSubmit={handleSearch} className="flex flex-wrap gap-3 items-center flex-1">
+      <div className="relative">
+        <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
+        <input
+          type="text"
+          value={searchInput}
+          onChange={(e) => setSearchInput(e.target.value)}
+          placeholder="Search my logs..."
+          className="bg-gray-50 w-56 h-10 rounded-lg border border-gray-200 px-4 pl-10 py-1 text-sm focus:outline-none focus:border-green-500 transition-colors"
+        />
+      </div>
+
+      <div className="relative">
+        <button
+          type="button"
+          onClick={() => { setShowModuleMenu((v) => !v); setShowDateMenu(false); }}
+          className="flex items-center gap-2 h-10 px-4 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+        >
+          {filters.module ? (MODULE_BY_ENTITY[filters.module]?.label || filters.module) : "All Modules"}
+          <ChevronDown size={16} className="text-gray-400" />
+        </button>
+        {showModuleMenu ? (
+          <div className="absolute z-20 mt-1 w-44 bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden text-sm max-h-72 overflow-y-auto">
+            <button type="button" onClick={() => setModule("")} className="w-full text-left px-4 py-2 hover:bg-gray-50">All Modules</button>
+            {Object.entries(MODULE_BY_ENTITY).map(([k, v]) => (
+              <button key={k} type="button" onClick={() => setModule(k)} className="w-full text-left px-4 py-2 hover:bg-gray-50">{v.label}</button>
+            ))}
+          </div>
+        ) : null}
+      </div>
+
+      <div className="relative">
+        <button
+          type="button"
+          onClick={() => { setShowDateMenu((v) => !v); setShowModuleMenu(false); }}
+          className="flex items-center gap-2 h-10 px-4 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+        >
+          {filters.from || filters.to
+            ? `${filters.from || "…"} → ${filters.to || "…"}`
+            : "Date Range"}
+          <ChevronDown size={16} className="text-gray-400" />
+        </button>
+        {showDateMenu ? (
+          <div className="absolute z-20 mt-1 w-40 bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden text-sm">
+            <button type="button" onClick={() => setDateRange("today")}  className="w-full text-left px-4 py-2 hover:bg-gray-50">Today</button>
+            <button type="button" onClick={() => setDateRange("week")}   className="w-full text-left px-4 py-2 hover:bg-gray-50">Last 7 days</button>
+            <button type="button" onClick={() => setDateRange("month")}  className="w-full text-left px-4 py-2 hover:bg-gray-50">Last 30 days</button>
+            <button type="button" onClick={() => setDateRange("all")}    className="w-full text-left px-4 py-2 hover:bg-gray-50">All time</button>
+          </div>
+        ) : null}
+      </div>
+
+      {showActorRoleFilter ? (
+        <select
+          value={filters.role}
+          onChange={(e) => {
+            const v = e.target.value;
+            setFilters((f) => ({ ...f, role: v }));
+            setPage(1);
+            setTimeout(loadRows, 0);
+          }}
+          className="h-10 px-3 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50"
+        >
+          <option value="">All Roles</option>
+          <option value="bod">BOD</option>
+          <option value="bookkeeper">Bookkeeper</option>
+          <option value="manager">Manager</option>
+          <option value="treasurer">Treasurer</option>
+          <option value="cashier">Cashier</option>
+          <option value="secretary">Secretary</option>
+          <option value="service_role">System</option>
+        </select>
+      ) : null}
+    </form>
+  );
+
+  // Full 7-column row, used only inside the View All modal.
+  const renderDetailedRow = (r) => {
+    const moduleInfo = MODULE_BY_ENTITY[r.entity_type] || { label: r.entity_type, className: "bg-gray-50 text-gray-600" };
+    const flagged = FLAGGED_ACTIONS.has(r.action);
+    const status = flagged ? "Flagged" : "Success";
+    return (
+      <tr key={r.id} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
+        <td className="p-4 font-medium text-gray-900">{formatLogId(r.id)}</td>
+        <td className="p-4 text-gray-500">{formatAuditTimestamp(r.occurred_at)}</td>
+        <td className="p-4 text-gray-500">{formatRole(r.actor_role)}</td>
+        <td className="p-4">
+          <span className={`px-2.5 py-1 rounded-md text-[10px] font-bold tracking-wide ${moduleInfo.className}`}>
+            {moduleInfo.label}
+          </span>
+        </td>
+        <td className="p-4 text-gray-600">{ACTION_LABEL[r.action] || r.action}</td>
+        <td className="p-4 text-gray-500 font-medium tracking-wide">{describeAuditContext(r)}</td>
+        <td className="p-4">
+          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold tracking-wide ${
+            flagged ? "bg-red-50 text-red-600" : "bg-green-50 text-green-600"
+          }`}>
+            <div className={`w-1.5 h-1.5 rounded-full ${flagged ? "bg-red-500" : "bg-green-500"}`}></div>
+            {status}
+          </span>
+        </td>
+      </tr>
+    );
+  };
 
   return (
     <>
-      {/* KPI Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-        {kpiData.map((kpi, idx) => {
-          const Icon = kpi.icon;
-          return (
-            <div key={idx} className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm flex flex-col relative overflow-hidden">
-              <div className="flex justify-between items-start mb-4">
-                <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${kpi.iconBg} ${kpi.iconColor}`}>
-                  <Icon size={20} />
-                </div>
-                <span className={`text-[10px] font-bold px-2 py-1 rounded-full ${
-                  kpi.badgeType === "success" ? "bg-green-50 text-green-600" : "bg-blue-50 text-blue-600"
-                }`}>
-                  {kpi.badge}
-                </span>
-              </div>
-              <p className="text-xs font-medium text-gray-500 mb-1">{kpi.title}</p>
-              <h3 className="text-2xl font-black text-gray-900">{kpi.value.toLocaleString()}</h3>
-            </div>
-          );
-        })}
-      </div>
+      {/* Summary cards — StatCard/StatCardRow, the same shared component every
+          other dashboard in the system uses, so this page follows the same
+          layout/spacing/typography/color standards instead of its own
+          bespoke card markup (item 1). */}
+      <StatCardRow cols={4}>
+        {overviewKpis.map((kpi) => (
+          <StatCard key={kpi.label} label={kpi.label} value={kpi.value.toLocaleString()} icon={kpi.icon} iconColor={kpi.iconColor} />
+        ))}
+      </StatCardRow>
 
-      {/* Main Table Container */}
+      {/* Main Table — minimal (Date & Time / Role / Status only, item 5).
+          "View All" opens the full filterable, multi-column view (item 6). */}
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm flex flex-col">
-        {/* Toolbar — title/count row matches the shared TableToolbar reference
-            design (BOD Manage-Loans' "Loan Records"); the search/module/date/
-            role controls stay as this component's own richer dropdown-button
-            filters rather than being forced into plain pills/selects, since
-            they're genuinely different (popover menus, not a fixed pill set). */}
-        <div className="px-6 pt-4 pb-2">
-          <h2 className="text-sm font-bold text-gray-900">Audit Trail</h2>
-          <p className="text-[11px] text-gray-500 mt-0.5">Showing {rows.length} of {total} log entries</p>
-        </div>
-        <div className="p-4 border-b border-gray-100 flex flex-wrap gap-4 justify-between items-center bg-white rounded-t-xl">
-          <form onSubmit={handleSearch} className="flex gap-4 items-center flex-1">
-            <div className="relative">
-              <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
-              <input
-                type="text"
-                value={searchInput}
-                onChange={(e) => setSearchInput(e.target.value)}
-                placeholder="Search my logs..."
-                className="bg-gray-50 w-64 h-10 rounded-lg border border-gray-200 px-4 pl-10 py-1 text-sm focus:outline-none focus:border-green-500 transition-colors"
-              />
-            </div>
+        <TableToolbar
+          title="Audit Trail"
+          subtitle={`Showing ${rows.length} of ${total} log entries`}
+        >
+          <button
+            type="button"
+            onClick={() => setShowViewAll(true)}
+            className="h-8 px-2.5 rounded-lg border border-gray-200 bg-white text-[11px] font-semibold text-gray-700 hover:bg-gray-50 transition-colors"
+          >
+            View All
+          </button>
+        </TableToolbar>
 
-            {/* Module filter */}
-            <div className="relative">
-              <button
-                type="button"
-                onClick={() => { setShowModuleMenu((v) => !v); setShowDateMenu(false); }}
-                className="flex items-center gap-2 h-10 px-4 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
-              >
-                {filters.module ? (MODULE_BY_ENTITY[filters.module]?.label || filters.module) : "All Modules"}
-                <ChevronDown size={16} className="text-gray-400" />
-              </button>
-              {showModuleMenu ? (
-                <div className="absolute z-20 mt-1 w-44 bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden text-sm">
-                  <button type="button" onClick={() => setModule("")} className="w-full text-left px-4 py-2 hover:bg-gray-50">All Modules</button>
-                  {Object.entries(MODULE_BY_ENTITY).map(([k, v]) => (
-                    <button key={k} type="button" onClick={() => setModule(k)} className="w-full text-left px-4 py-2 hover:bg-gray-50">{v.label}</button>
-                  ))}
-                </div>
-              ) : null}
-            </div>
-
-            {/* Date range quick-pick */}
-            <div className="relative">
-              <button
-                type="button"
-                onClick={() => { setShowDateMenu((v) => !v); setShowModuleMenu(false); }}
-                className="flex items-center gap-2 h-10 px-4 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
-              >
-                {filters.from || filters.to
-                  ? `${filters.from || "…"} → ${filters.to || "…"}`
-                  : "Date Range"}
-                <ChevronDown size={16} className="text-gray-400" />
-              </button>
-              {showDateMenu ? (
-                <div className="absolute z-20 mt-1 w-40 bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden text-sm">
-                  <button type="button" onClick={() => setDateRange("today")}  className="w-full text-left px-4 py-2 hover:bg-gray-50">Today</button>
-                  <button type="button" onClick={() => setDateRange("week")}   className="w-full text-left px-4 py-2 hover:bg-gray-50">Last 7 days</button>
-                  <button type="button" onClick={() => setDateRange("month")}  className="w-full text-left px-4 py-2 hover:bg-gray-50">Last 30 days</button>
-                  <button type="button" onClick={() => setDateRange("all")}    className="w-full text-left px-4 py-2 hover:bg-gray-50">All time</button>
-                </div>
-              ) : null}
-            </div>
-
-            {/* Role filter (BOD-only) */}
-            {showActorRoleFilter ? (
-              <select
-                value={filters.role}
-                onChange={(e) => {
-                  const v = e.target.value;
-                  setFilters((f) => ({ ...f, role: v }));
-                  setPage(1);
-                  setTimeout(loadRows, 0);
-                }}
-                className="h-10 px-3 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50"
-              >
-                <option value="">All Roles</option>
-                <option value="bod">BOD</option>
-                <option value="bookkeeper">Bookkeeper</option>
-                <option value="manager">Manager</option>
-                <option value="treasurer">Treasurer</option>
-                <option value="cashier">Cashier</option>
-                <option value="secretary">Secretary</option>
-                <option value="service_role">System</option>
-              </select>
-            ) : null}
-          </form>
-
-          {/* Action Buttons */}
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={exportPdf}
-              disabled={exporting !== ""}
-              className="flex items-center gap-2 h-10 px-4 text-sm font-bold text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <FileDown size={16} />
-              {exporting === "pdf" ? "Exporting…" : "PDF"}
-            </button>
-            <button
-              type="button"
-              onClick={exportCsv}
-              disabled={exporting !== ""}
-              className="flex items-center gap-2 h-10 px-4 text-sm font-bold text-white bg-[#166534] hover:bg-green-800 rounded-lg transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <FileSpreadsheet size={16} />
-              {exporting === "csv" ? "Exporting…" : "Excel"}
-            </button>
-          </div>
-        </div>
-
-        {/* Table */}
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse whitespace-nowrap text-sm">
             <thead>
               <tr className="bg-primary-deep text-[10px] uppercase tracking-wider text-white font-extrabold">
-                <th className="p-5 font-bold">Log ID</th>
                 <th className="p-5 font-bold">Date &amp; Time</th>
                 <th className="p-5 font-bold">Role</th>
-                <th className="p-5 font-bold">Module</th>
-                <th className="p-5 font-bold">Action Type</th>
-                <th className="p-5 font-bold">Record</th>
                 <th className="p-5 font-bold">Status</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={7} className="p-10 text-center">
+                  <td colSpan={3} className="p-10 text-center">
                     <div className="flex flex-col items-center justify-center gap-2">
                       <Loader2 size={24} className="text-gray-300 animate-spin" />
                       <p className="text-sm text-gray-400">Loading...</p>
@@ -539,7 +447,7 @@ const AuditLogViewer = ({ showActorRoleFilter = true, onError }) => {
                 </tr>
               ) : rows.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="p-10 text-center">
+                  <td colSpan={3} className="p-10 text-center">
                     <div className="flex flex-col items-center justify-center gap-2">
                       <ClipboardList size={32} className="text-gray-300" />
                       <p className="text-sm font-medium text-gray-500">No audit entries match these filters.</p>
@@ -547,21 +455,12 @@ const AuditLogViewer = ({ showActorRoleFilter = true, onError }) => {
                   </td>
                 </tr>
               ) : rows.map((r) => {
-                const moduleInfo = MODULE_BY_ENTITY[r.entity_type] || { label: r.entity_type, className: "bg-gray-50 text-gray-600" };
                 const flagged = FLAGGED_ACTIONS.has(r.action);
                 const status = flagged ? "Flagged" : "Success";
                 return (
                   <tr key={r.id} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
-                    <td className="p-5 font-medium text-gray-900">{formatLogId(r.id)}</td>
                     <td className="p-5 text-gray-500">{formatAuditTimestamp(r.occurred_at)}</td>
                     <td className="p-5 text-gray-500">{formatRole(r.actor_role)}</td>
-                    <td className="p-5">
-                      <span className={`px-2.5 py-1 rounded-md text-[10px] font-bold tracking-wide ${moduleInfo.className}`}>
-                        {moduleInfo.label}
-                      </span>
-                    </td>
-                    <td className="p-5 text-gray-600">{ACTION_LABEL[r.action] || r.action}</td>
-                    <td className="p-5 text-gray-500 font-medium tracking-wide">{describeAuditContext(r)}</td>
                     <td className="p-5">
                       <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold tracking-wide ${
                         flagged ? "bg-red-50 text-red-600" : "bg-green-50 text-green-600"
@@ -579,6 +478,85 @@ const AuditLogViewer = ({ showActorRoleFilter = true, onError }) => {
 
         <Pagination page={page} totalPages={totalPages} onChange={setPage} />
       </div>
+
+      {/* View All modal — the complete picture: full filter toolbar + every
+          column (User/member, Action, Transaction type/Module, Reference ID,
+          Date & Time, Role, Status), same underlying rows/filters/pagination
+          as the compact table above, just more of it visible at once. No
+          export buttons here either (item 4 removes them everywhere, not
+          just the main view). */}
+      {showViewAll && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+          onClick={() => setShowViewAll(false)}
+        >
+          <div
+            className="bg-white rounded-xl shadow-xl border border-gray-100 w-full max-w-6xl max-h-[85vh] flex flex-col overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between shrink-0">
+              <div>
+                <h3 className="text-lg font-bold text-gray-900">Complete Audit Trail</h3>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Showing {rows.length} of {total} log entries
+                </p>
+              </div>
+              <button
+                onClick={() => setShowViewAll(false)}
+                aria-label="Close"
+                className="p-1.5 rounded-md text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-4 border-b border-gray-100 flex flex-wrap gap-3 items-center shrink-0">
+              {filterToolbar}
+            </div>
+
+            <div className="flex-1 overflow-y-auto">
+              <table className="w-full text-left border-collapse whitespace-nowrap text-sm">
+                <thead>
+                  <tr className="bg-primary-deep text-[10px] uppercase tracking-wider text-white font-extrabold sticky top-0 z-10">
+                    <th className="p-4 font-bold">Log ID</th>
+                    <th className="p-4 font-bold">Date &amp; Time</th>
+                    <th className="p-4 font-bold">Role</th>
+                    <th className="p-4 font-bold">Transaction Type</th>
+                    <th className="p-4 font-bold">Action</th>
+                    <th className="p-4 font-bold">Reference / Record</th>
+                    <th className="p-4 font-bold">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {loading ? (
+                    <tr>
+                      <td colSpan={7} className="p-10 text-center">
+                        <div className="flex flex-col items-center justify-center gap-2">
+                          <Loader2 size={24} className="text-gray-300 animate-spin" />
+                          <p className="text-sm text-gray-400">Loading...</p>
+                        </div>
+                      </td>
+                    </tr>
+                  ) : rows.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="p-10 text-center">
+                        <div className="flex flex-col items-center justify-center gap-2">
+                          <ClipboardList size={32} className="text-gray-300" />
+                          <p className="text-sm font-medium text-gray-500">No audit entries match these filters.</p>
+                        </div>
+                      </td>
+                    </tr>
+                  ) : rows.map(renderDetailedRow)}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="shrink-0 border-t border-gray-100">
+              <Pagination page={page} totalPages={totalPages} onChange={setPage} />
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 };
