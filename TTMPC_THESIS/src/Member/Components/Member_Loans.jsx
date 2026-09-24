@@ -161,7 +161,7 @@ const Member_Loans = () => {
     e.preventDefault();
     try {
       await signOut();
-      navigate("/");
+      navigate("/memberlogin", { replace: true });
     } catch (err) {
       console.error("Failed to sign out:", err);
     }

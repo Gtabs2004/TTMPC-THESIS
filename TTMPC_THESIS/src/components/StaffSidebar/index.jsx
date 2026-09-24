@@ -51,7 +51,7 @@ export default function StaffSidebar({ portal, items, sections }) {
     e.preventDefault();
     try {
       await signOut();
-      navigate("/");
+      navigate("/Login", { replace: true });
     } catch (err) {
       console.error("Failed to sign out:", err);
     }

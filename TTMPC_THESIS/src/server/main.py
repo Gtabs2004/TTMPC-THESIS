@@ -15857,10 +15857,17 @@ _AUDIT_ROLE_ENTITY_SCOPE: dict[str, list[str]] = {
 
 
 def _resolve_staff_role(auth_user_id: str, email: str) -> str:
-    """The caller's portal role, from member_account. '' when unknown."""
+    """The caller's portal role, from member_account. '' when the account has no role.
+
+    A failed lookup is NOT treated as "no role": the first request after the
+    server idles often lands on a stale pooled connection, and swallowing that
+    turned a network blip into a false "You do not have access" 403. Retry once
+    (a fresh connection usually succeeds), then surface a retryable 503.
+    """
     if not supabase:
         return ""
-    try:
+
+    def lookup() -> list:
         resp = (
             supabase.table("member_account")
             .select("role")
@@ -15878,8 +15885,18 @@ def _resolve_staff_role(auth_user_id: str, email: str) -> str:
                 .execute()
             )
             rows = resp.data or []
+        return rows
+
+    try:
+        rows = lookup()
     except Exception:
-        return ""
+        try:
+            rows = lookup()
+        except Exception as exc:
+            raise HTTPException(
+                status_code=503,
+                detail=f"Could not verify your role right now, please try again. ({exc})",
+            )
     return str((rows[0] if rows else {}).get("role") or "").strip().lower()
 
 
