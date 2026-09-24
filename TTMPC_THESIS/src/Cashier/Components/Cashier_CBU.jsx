@@ -162,7 +162,7 @@ const Cashier_CBU = () => {
       <StaffSidebar portal="Cashier" items={cashierNav} />
 
       {/* 2. THE MAIN AREA */}
-      <div className="flex-1 flex flex-col h-screen overflow-y-auto">
+      <div className="flex-1 min-w-0 flex flex-col h-screen overflow-y-auto">
         <StaffTopbar portal="Cashier" notifications={<LoanNotificationBell role="cashier" />} />
 
         {/* 3. PAGE CONTENT */}

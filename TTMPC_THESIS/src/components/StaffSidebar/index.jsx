@@ -1,9 +1,10 @@
 import React, { useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { ChevronDown, ChevronRight, X } from "lucide-react";
 import { UserAuth } from "../../contex/AuthContext";
 import { usePortalRole } from "../../utils/usePortalRole";
 import { PortalSidebarIdentity } from "../PortalIdentity";
+import { useStaffLayout } from "../../contex/StaffLayoutContext";
 
 const navLinkClass = ({ isActive }) =>
   `flex items-center gap-3 p-2 rounded-md transition-colors ${
@@ -46,6 +47,7 @@ export default function StaffSidebar({ portal, items, sections }) {
   const navigate = useNavigate();
   const portalRole = usePortalRole();
   const [openDropdowns, setOpenDropdowns] = useState({});
+  const { sidebarOpen, setSidebarOpen } = useStaffLayout();
 
   const handleSignOut = async (e) => {
     e.preventDefault();
@@ -81,7 +83,12 @@ export default function StaffSidebar({ portal, items, sections }) {
           {isOpen && (
             <div className="flex flex-col mt-1 space-y-1">
               {item.subItems.map((subItem) => (
-                <NavLink key={subItem.name} to={subItem.path} className={subNavLinkClass}>
+                <NavLink
+                  key={subItem.name}
+                  to={subItem.path}
+                  className={subNavLinkClass}
+                  onClick={() => setSidebarOpen(false)}
+                >
                   {subItem.name}
                 </NavLink>
               ))}
@@ -92,7 +99,7 @@ export default function StaffSidebar({ portal, items, sections }) {
     }
 
     return (
-      <NavLink key={item.name} to={item.path} className={navLinkClass}>
+      <NavLink key={item.name} to={item.path} className={navLinkClass} onClick={() => setSidebarOpen(false)}>
         <Icon size={20} />
         <span>{item.name}</span>
       </NavLink>
@@ -100,20 +107,46 @@ export default function StaffSidebar({ portal, items, sections }) {
   };
 
   return (
-    <aside className="bg-white w-64 p-4 flex flex-col border-r border-gray-200 shrink-0">
-      <div className="flex flex-row items-start gap-2 mb-6">
-        <img src="/img/ttmpc logo.png" alt="Logo" className="h-12 w-auto" />
-        <div className="flex flex-col">
-          <h1 className="text-xl font-bold text-primary">TTMPC</h1>
-          <PortalSidebarIdentity
-            className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold"
-            fallbackPortal={`${portal} Portal`}
-            fallbackRole={portal}
-          />
-        </div>
-      </div>
+    <>
+      {/* Backdrop — mobile/tablet only, dismisses the drawer on tap. The
+          sidebar itself is lg:static (normal, always-visible flex child) at
+          the lg breakpoint and up, so neither of these render/matter there. */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 z-30 bg-black/40 lg:hidden"
+          onClick={() => setSidebarOpen(false)}
+          aria-hidden="true"
+        />
+      )}
 
-      <hr className="w-full border-gray-200 mb-6" />
+      <aside
+        className={`bg-white w-64 p-4 flex flex-col border-r border-gray-200 shrink-0 fixed inset-y-0 left-0 z-40 overflow-y-auto transition-transform duration-300 ease-in-out lg:static lg:translate-x-0 lg:transition-none ${
+          sidebarOpen ? "translate-x-0" : "-translate-x-full"
+        }`}
+      >
+        <div className="flex flex-row items-start justify-between gap-2 mb-6">
+          <div className="flex flex-row items-start gap-2">
+            <img src="/img/ttmpc logo.png" alt="Logo" className="h-12 w-auto" />
+            <div className="flex flex-col">
+              <h1 className="text-xl font-bold text-primary">TTMPC</h1>
+              <PortalSidebarIdentity
+                className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold"
+                fallbackPortal={`${portal} Portal`}
+                fallbackRole={portal}
+              />
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setSidebarOpen(false)}
+            aria-label="Close menu"
+            className="lg:hidden p-1 rounded-md text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors shrink-0"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        <hr className="w-full border-gray-200 mb-6" />
 
       <nav className="flex flex-col gap-2 text-sm flex-grow">
         {sections
@@ -144,12 +177,13 @@ export default function StaffSidebar({ portal, items, sections }) {
           : items.map((item) => renderItem(item))}
       </nav>
 
-      <button
-        onClick={handleSignOut}
-        className="mt-auto w-full rounded p-2 text-xs bg-green-600 hover:bg-green-700 text-white font-bold transition-colors"
-      >
-        Sign out
-      </button>
-    </aside>
+        <button
+          onClick={handleSignOut}
+          className="mt-auto w-full rounded p-2 text-xs bg-green-600 hover:bg-green-700 text-white font-bold transition-colors"
+        >
+          Sign out
+        </button>
+      </aside>
+    </>
   );
 }

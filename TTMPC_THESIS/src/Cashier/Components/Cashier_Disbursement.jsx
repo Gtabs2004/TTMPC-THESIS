@@ -311,7 +311,7 @@ const Cashier_Disbursement = () => {
   return (
     <div className="flex min-h-screen bg-gray-50">
       <StaffSidebar portal="Cashier" items={cashierNav} />
-      <div className="flex-1 flex flex-col h-screen overflow-y-auto">
+      <div className="flex-1 min-w-0 flex flex-col h-screen overflow-y-auto">
         <StaffTopbar portal="Cashier" notifications={<LoanNotificationBell role="cashier" />} />
 
         <main className="p-8 overflow-auto">

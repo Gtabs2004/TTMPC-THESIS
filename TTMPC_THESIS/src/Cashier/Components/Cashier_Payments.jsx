@@ -748,7 +748,7 @@ const Cashier_Payments = () => {
     <div className="flex min-h-screen bg-gray-50">
       <StaffSidebar portal="Cashier" items={cashierNav} />
 
-      <div ref={scrollContainerRef} className="flex-1 flex flex-col h-screen overflow-y-auto">
+      <div ref={scrollContainerRef} className="flex-1 min-w-0 flex flex-col h-screen overflow-y-auto">
         <StaffTopbar portal="Cashier" notifications={<LoanNotificationBell role="cashier" />} />
 
         {/* 3. CASHIER LOAN PAYMENTS */}

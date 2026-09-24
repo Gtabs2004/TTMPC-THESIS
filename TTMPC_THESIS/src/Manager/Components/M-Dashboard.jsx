@@ -273,7 +273,7 @@ const M_Dashboard = () => {
       <StaffSidebar portal="Manager" items={managerNav} />
 
       {/* MAIN CONTENT WRAPPER */}
-      <div className="flex-1 flex flex-col h-screen overflow-y-auto">
+      <div className="flex-1 min-w-0 flex flex-col h-screen overflow-y-auto">
         {/* HEADER (Kept mostly identical) */}
         <StaffTopbar portal="Manager" notifications={<LoanNotificationBell role="manager" />} />
 

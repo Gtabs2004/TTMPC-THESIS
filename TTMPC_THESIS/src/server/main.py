@@ -7009,6 +7009,42 @@ async def get_bod_member_loan_summary():
     return {"success": True, "data": summary}
 
 
+@app.get("/api/bod/terminated-members")
+async def get_bod_terminated_members():
+    """Per-membership_id termination info — for BOD Manage Member, which needs
+    to know which personal_data_sheet rows belong to terminated members so it
+    can split them into a separate table instead of mixing them into the
+    active member list. member_status is the authoritative flag (see
+    /api/admin/member/terminate and the staff-termination-decision flow),
+    kept on the `member` table, not on personal_data_sheet.
+    """
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+
+    try:
+        response = (
+            supabase.table("member")
+            .select("membership_id,termination_date,termination_resolution_number")
+            .eq("member_status", "terminated")
+            .execute()
+        )
+        rows = response.data or []
+    except Exception as err:
+        raise HTTPException(status_code=500, detail=f"Failed to load terminated members: {err}")
+
+    summary: dict[str, dict] = {}
+    for row in rows:
+        membership_id = str(row.get("membership_id") or "").strip()
+        if not membership_id:
+            continue
+        summary[membership_id] = {
+            "termination_date": row.get("termination_date"),
+            "termination_resolution_number": row.get("termination_resolution_number"),
+        }
+
+    return {"success": True, "data": summary}
+
+
 @app.get("/api/bookkeeper/loan-ledger/{loan_id}")
 async def get_bookkeeper_loan_ledger(loan_id: str):
     if not supabase:
@@ -16011,9 +16047,23 @@ def read_audit_log_kpis(current_user: dict = _Depends(_get_current_user)):
     return {
         "ok": True,
         "activitiesToday": count(since=start_of_day.isoformat()),
-        "paymentsDeposits": count(action="disburse"),
+        "loanDisbursements": count(action="disburse"),
         "profilesCreated": count(entity_type="application", action="approve"),
-        "reportsGenerated": count(entity_type="policy"),
+        # Loan Payments — was "Policy Events" (entity_type="policy"). 'payment'
+        # is written by the loan_payments trigger in
+        # audit_log_cashier_triggers.sql, i.e. actual recorded loan repayments.
+        "loanPayments": count(entity_type="payment"),
+        # Transaction-type breakdown. 'savings' vs 'withdrawal' are already
+        # split at the trigger level (see audit_trg_savings_ledger's comment:
+        # "Withdrawals get their own entity_type so the Withdrawals filter
+        # matches"), so these are exact, not derived.
+        "cashDeposits": count(entity_type="savings"),
+        "cashWithdrawals": count(entity_type="withdrawal"),
+        # A loan's audit_log 'create' action fires once, on INSERT into
+        # `loans` (audit_trg_loans) — i.e. the application event itself.
+        "loanApplications": count(entity_type="loan", action="create"),
+        "membershipFees": count(entity_type="membership_payment"),
+        "groceryTransactions": count(entity_type="grocery"),
     }
 
 

@@ -293,7 +293,7 @@ const Cashier_MembershipPayments = () => {
       <StaffSidebar portal="Cashier" items={cashierNav} />
       
       {/* MAIN */}
-      <div className="flex-1 flex flex-col h-screen overflow-y-auto">
+      <div className="flex-1 min-w-0 flex flex-col h-screen overflow-y-auto">
         <StaffTopbar portal="Cashier" notifications={<LoanNotificationBell role="cashier" />} />
 
         <main className="p-8 overflow-auto">

@@ -119,7 +119,7 @@ const Cashier_Grocery = () => {
          {/* SIDEBAR */}
          {/* FIX 2: Ensure sidebar is h-full and can scroll internally if menus get too long */}
         <StaffSidebar portal="Cashier" items={cashierNav} />
-      <div className="flex-1 flex flex-col h-screen overflow-y-auto">
+      <div className="flex-1 min-w-0 flex flex-col h-screen overflow-y-auto">
         
         {/* Top Header */}
         <StaffTopbar portal="Cashier" notifications={<LoanNotificationBell role="cashier" />} sticky />

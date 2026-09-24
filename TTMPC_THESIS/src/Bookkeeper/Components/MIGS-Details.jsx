@@ -185,7 +185,7 @@ const MIGSDetails = () => {
     <div className="flex min-h-screen bg-gray-100">
       <StaffSidebar portal="Bookkeeper" items={bookkeeperNav} />
 
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 min-w-0 flex flex-col">
         <header className="bg-white h-16 shadow-sm flex items-center justify-between px-8 border-b border-gray-100 shrink-0">
           <button onClick={() => navigate("/migs")} className="flex items-center gap-2 text-gray-700 hover:text-gray-900 transition-colors">
             <ChevronLeft className="w-5 h-5" />

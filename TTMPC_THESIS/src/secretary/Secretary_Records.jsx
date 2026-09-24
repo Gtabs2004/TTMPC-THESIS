@@ -148,7 +148,7 @@ const Secretary_Records = () => {
     <div className="flex min-h-screen bg-gray-100">
       <StaffSidebar portal="Secretary" items={secretaryNav} />
 
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 min-w-0 flex flex-col">
         <StaffTopbar
           portal="Secretary"
           notifications={<NotificationBell viewAllPath="/Secretary_Records" />}

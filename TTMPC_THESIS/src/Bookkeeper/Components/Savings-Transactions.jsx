@@ -201,7 +201,7 @@ const BookkeeperSavingsTransactions = () => {
     <div className="flex min-h-screen bg-gray-50">
       <StaffSidebar portal="Bookkeeper" items={bookkeeperNav} />
 
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 min-w-0 flex flex-col">
         <StaffTopbar portal="Bookkeeper" notifications={<LoanNotificationBell role="bookkeeper" />} />
 
         <main className="p-6">
