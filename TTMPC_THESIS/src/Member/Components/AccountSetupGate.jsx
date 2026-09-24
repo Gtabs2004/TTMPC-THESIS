@@ -44,7 +44,7 @@ export default function AccountSetupGate() {
     } catch {
       /* Clearing the local session below is what matters. */
     }
-    navigate("/");
+    navigate("/memberlogin", { replace: true });
   }, [signOut, navigate]);
 
   // `overrideToken` lets a step hand in a token it just minted (see the

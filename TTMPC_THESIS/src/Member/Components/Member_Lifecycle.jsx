@@ -542,7 +542,7 @@ const Member_Lifecycle = () => {
     event.preventDefault();
     try {
       await signOut();
-      navigate("/");
+      navigate("/memberlogin", { replace: true });
     } catch (err) {
       console.error("Failed to sign out:", err);
     }
