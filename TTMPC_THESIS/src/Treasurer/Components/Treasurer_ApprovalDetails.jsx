@@ -392,9 +392,11 @@ const Treasurer_ApprovalDetails = () => {
         const resolvedLoanType = isKoicaSource
           ? (data.loan_type_code === 'NONMEMBER_BONUS' ? 'Nonmember Bonus Loan' : 'ABFF Loan')
           : (data.loan_type?.name || 'N/A');
-        let effectiveInterestRate = data.interest_rate;
+        // Prefer the live loan_types rate (same as Manager view): older loan
+        // snapshots stored 83 instead of 0.83 for Consolidated.
+        let effectiveInterestRate = await resolveInterestRateFromLoanTypes(resolvedLoanType, data.loan_type_code);
         if (effectiveInterestRate === null || effectiveInterestRate === undefined) {
-          effectiveInterestRate = await resolveInterestRateFromLoanTypes(resolvedLoanType, data.loan_type_code);
+          effectiveInterestRate = data.interest_rate;
         }
 
         const monthlyRateDecimal = effectiveInterestRate !== null
@@ -804,9 +806,9 @@ const Treasurer_ApprovalDetails = () => {
                 <span>
                   Control # <span className="font-mono font-bold text-member-green">{loanDetails.id}</span>
                 </span>
-                <span className="text-gray-300">\u00B7</span>
+                <span className="text-gray-300">·</span>
                 <span>{loanDetails.summary.loanType}</span>
-                <span className="text-gray-300">\u00B7</span>
+                <span className="text-gray-300">·</span>
                 <span className="font-bold text-gray-800">{loanDetails.summary.recommendedAmount}</span>
               </div>
             </div>
@@ -1194,8 +1196,8 @@ const Treasurer_ApprovalDetails = () => {
       <div className="fixed bottom-0 left-0 right-0 z-30 bg-white/95 backdrop-blur border-t border-gray-200 shadow-lg">
         <div className="px-8 py-3 flex flex-wrap items-center justify-between gap-3">
           <div className="text-xs text-gray-500 hidden md:block">
-            <span className="font-semibold text-gray-700">{loanDetails.memberName}</span> \u00B7
-            <span className="ml-1 font-mono">{loanDetails.id}</span> \u00B7
+            <span className="font-semibold text-gray-700">{loanDetails.memberName}</span> ·
+            <span className="ml-1 font-mono">{loanDetails.id}</span> ·
             <span className="ml-1 font-bold text-member-green">{loanDetails.computation.monthlyAmortization}/mo</span>
           </div>
           <div className="flex flex-wrap items-center gap-2 ml-auto">
