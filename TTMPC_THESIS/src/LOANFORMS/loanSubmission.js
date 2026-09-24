@@ -80,9 +80,10 @@ const resolveInterestRate = async (loanTypeCode, interestRate) => {
     const rowCode = String(row?.code || '').trim().toUpperCase();
     const effectiveCode = rowCode || code;
 
-    // Backward compatibility for consolidated decimal monthly format (e.g., 0.083).
-    if (effectiveCode === 'CONSOLIDATED' && rate > 0 && rate < 1) {
-      return rate * 100;
+    // Backward compatibility for consolidated decimal monthly format (0.083 -> 0.83).
+    // loan_types stores 0.83 already, so only rescale values below 0.1.
+    if (effectiveCode === 'CONSOLIDATED' && rate > 0 && rate < 0.1) {
+      return rate * 10;
     }
 
     return rate;
