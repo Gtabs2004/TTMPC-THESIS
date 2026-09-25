@@ -46,15 +46,19 @@ import {
   Legend,
   ResponsiveContainer,
 } from 'recharts';
-import { GENDER_COLORS, CATEGORICAL_PALETTE } from '../../lib/chartColors';
+import { GENDER_COLORS, GREEN } from '../../lib/chartColors';
 
 // Member loan types (CLAUDE.md) — the "Approved Loans per Month" breakdown
 // gets one clearly-labeled series per type, not just a consolidated total.
 // Order here also sets stacking/legend order.
 const APPROVED_LOAN_TYPE_LABELS = ['Consolidated Loan', 'Bonus Loan', 'Emergency Loan'];
-const APPROVED_LOAN_TYPE_COLORS = Object.fromEntries(
-  APPROVED_LOAN_TYPE_LABELS.map((label, i) => [label, CATEGORICAL_PALETTE[i % CATEGORICAL_PALETTE.length]])
-);
+// Distinct hues per loan type (not the shared green ramp) so the series are
+// tellable apart at a glance; Consolidated keeps the cooperative green.
+const APPROVED_LOAN_TYPE_COLORS = {
+  'Consolidated Loan': GREEN.dark,
+  'Bonus Loan': '#2563eb',
+  'Emergency Loan': '#f59e0b',
+};
 // `loans.loan_types.name` ("Consolidated Loan", "Bonus Loan", "Emergency
 // Loan" as actually stored) -> one of the labels above.
 const resolveApprovedLoanTypeLabel = (rawName) => {
@@ -64,6 +68,30 @@ const resolveApprovedLoanTypeLabel = (rawName) => {
   if (t.includes('bonus')) return 'Bonus Loan';
   return null;
 };
+
+// Consolidated split — same EXCLUSIVE rule as main.py's _BOD_LOAN_THRESHOLD:
+// > ₱500,000 goes to BOD, exactly ₱500,000 stays in the standard queue.
+const BOD_LOAN_THRESHOLD = 500000;
+const CONSOL_ABOVE = 'Above ₱500K';
+const CONSOL_BELOW = '₱500K & Below';
+const CONSOL_BAND_COLORS = {
+  [CONSOL_ABOVE]: '#ea580c',
+  [CONSOL_BELOW]: GREEN.dark,
+};
+const APPROVED_CHART_TABS = [
+  { key: 'all', label: 'All Types' },
+  { key: 'Consolidated Loan', label: 'Consolidated' },
+  { key: 'Emergency Loan', label: 'Emergency' },
+  { key: 'Bonus Loan', label: 'Bonus' },
+];
+const CONSOL_FILTERS = [
+  { key: 'all', label: 'All Amounts' },
+  { key: CONSOL_ABOVE, label: '> ₱500K' },
+  { key: CONSOL_BELOW, label: '≤ ₱500K' },
+];
+
+// Fixed per gender (not by slice order) so each always keeps its color.
+const GENDER_SLICE_COLORS = { Male: GREEN.dark, Female: '#ea580c' };
 
 const formatCurrency = (v) => `₱${Number(v || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
 const formatDateShort = (v) => {
@@ -102,6 +130,8 @@ const Dashboard_BOD = () => {
     approvedThisMonth: 0,
   });
   const [approvedTrend, setApprovedTrend] = useState([]);
+  const [approvedTab, setApprovedTab] = useState('all');
+  const [consolFilter, setConsolFilter] = useState('all');
   const [genderData, setGenderData] = useState([]);
   const [genderTotal, setGenderTotal] = useState(0);
   const [recentTxns, setRecentTxns] = useState([]);
@@ -161,7 +191,7 @@ const Dashboard_BOD = () => {
             .limit(20000),
           supabase
             .from('loans')
-            .select('disbursal_date, loan_status, loan_types:loan_type_id(name)')
+            .select('disbursal_date, loan_status, loan_amount, principal_amount, loan_types:loan_type_id(name)')
             .gte('disbursal_date', sixMoStart)
             .in('loan_status', ['released', 'partially paid', 'fully paid'])
             .limit(20000),
@@ -251,6 +281,8 @@ const Dashboard_BOD = () => {
           approvedBuckets.set(monthKey(d), {
             month: monthKey(d),
             ...Object.fromEntries(APPROVED_LOAN_TYPE_LABELS.map((label) => [label, 0])),
+            [CONSOL_ABOVE]: 0,
+            [CONSOL_BELOW]: 0,
           });
         }
         approvedRows.forEach((r) => {
@@ -258,7 +290,12 @@ const Dashboard_BOD = () => {
           const label = resolveApprovedLoanTypeLabel(r.loan_types?.name);
           if (!label) return;
           const slot = approvedBuckets.get(monthKey(new Date(r.disbursal_date)));
-          if (slot) slot[label] += 1;
+          if (!slot) return;
+          slot[label] += 1;
+          if (label === 'Consolidated Loan') {
+            const amount = Number(r.loan_amount ?? r.principal_amount ?? 0);
+            slot[amount > BOD_LOAN_THRESHOLD ? CONSOL_ABOVE : CONSOL_BELOW] += 1;
+          }
         });
         setApprovedTrend([...approvedBuckets.values()]);
 
@@ -455,6 +492,19 @@ const Dashboard_BOD = () => {
   // loan_notification_service.py) — so BOD gets the equivalent view. Every
   // other type opens the details modal since there's no dedicated per-record
   // BOD page for a single savings/fee/grocery entry.
+  // Series shown in the Approved Loans per Month chart for the selected tab.
+  // Consolidated is stacked by amount band (or a single band when filtered).
+  const approvedSeries = (() => {
+    if (approvedTab === 'all') {
+      return APPROVED_LOAN_TYPE_LABELS.map((key) => ({ key, color: APPROVED_LOAN_TYPE_COLORS[key] }));
+    }
+    if (approvedTab === 'Consolidated Loan') {
+      const bands = consolFilter === 'all' ? [CONSOL_BELOW, CONSOL_ABOVE] : [consolFilter];
+      return bands.map((key) => ({ key, color: CONSOL_BAND_COLORS[key] }));
+    }
+    return [{ key: approvedTab, color: APPROVED_LOAN_TYPE_COLORS[approvedTab] }];
+  })();
+
   const handleTxnClick = (txn) => {
     if (txn.clickType === 'loan' && txn.loanId) {
       navigate(`/bod-loan-approval/${encodeURIComponent(txn.loanId)}`);
@@ -521,7 +571,39 @@ const Dashboard_BOD = () => {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8 min-w-0">
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 min-w-0">
               <h3 className="text-lg font-bold text-gray-800 mb-1">Approved Loans per Month</h3>
-              <p className="text-sm text-gray-500 mb-4">Disbursed loans over the last 6 months, by loan type</p>
+              <p className="text-sm text-gray-500 mb-4">
+                {approvedTab === 'all'
+                  ? 'Disbursed loans over the last 6 months, by loan type'
+                  : approvedTab === 'Consolidated Loan'
+                    ? 'Disbursed Consolidated loans over the last 6 months, by amount (> ₱500K requires BOD approval)'
+                    : `Disbursed ${approvedTab.replace(' Loan', '')} loans over the last 6 months`}
+              </p>
+              <div className="flex flex-wrap items-center gap-2 mb-4">
+                <div className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-0.5" role="tablist" aria-label="Loan type">
+                  {APPROVED_CHART_TABS.map((t) => (
+                    <button
+                      key={t.key}
+                      type="button"
+                      role="tab"
+                      aria-selected={approvedTab === t.key}
+                      onClick={() => setApprovedTab(t.key)}
+                      className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${approvedTab === t.key ? 'bg-white text-[#2C7A3F] shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                    >
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
+                {approvedTab === 'Consolidated Loan' && (
+                  <select
+                    value={consolFilter}
+                    onChange={(e) => setConsolFilter(e.target.value)}
+                    aria-label="Consolidated loan amount"
+                    className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#2C7A3F]/30"
+                  >
+                    {CONSOL_FILTERS.map((f) => <option key={f.key} value={f.key}>{f.label}</option>)}
+                  </select>
+                )}
+              </div>
               <div className="h-72">
                 {chartsReady ? <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={240}>
                   <BarChart data={approvedTrend} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
@@ -531,14 +613,14 @@ const Dashboard_BOD = () => {
                     <Tooltip cursor={{ fill: '#f9fafb' }} contentStyle={{ borderRadius: '12px', border: '1px solid #E5E7EB', boxShadow: '0 10px 25px -5px rgb(0 0 0 / 0.1)', backgroundColor: '#FFFFFF', padding: '12px' }}/>
                     <Legend wrapperStyle={{ paddingTop: '16px', fontSize: '12px' }} />
                    
-                    {APPROVED_LOAN_TYPE_LABELS.map((label, i) => (
+                    {approvedSeries.map(({ key, color }, i) => (
                       <Bar
-                        key={label}
-                        dataKey={label}
-                        name={label}
+                        key={key}
+                        dataKey={key}
+                        name={key}
                         stackId="approved"
-                        fill={APPROVED_LOAN_TYPE_COLORS[label]}
-                        radius={i === APPROVED_LOAN_TYPE_LABELS.length - 1 ? [6, 6, 0, 0] : 0}
+                        fill={color}
+                        radius={i === approvedSeries.length - 1 ? [6, 6, 0, 0] : 0}
                       />
                     ))}
                   </BarChart>
@@ -566,7 +648,7 @@ const Dashboard_BOD = () => {
                       stroke="white"
                       strokeWidth={2}
                     >
-                      {genderData.map((entry, index) => <Cell key={`cell-${index}`} fill={GENDER_COLORS[index % GENDER_COLORS.length]} />)}
+                      {genderData.map((entry, index) => <Cell key={`cell-${index}`} fill={GENDER_SLICE_COLORS[entry.name] || GENDER_COLORS[index % GENDER_COLORS.length]} />)}
                     </Pie>
                     <Tooltip contentStyle={{ borderRadius: '12px', border: '1px solid #E5E7EB', boxShadow: '0 10px 25px -5px rgb(0 0 0 / 0.1)', backgroundColor: '#FFFFFF', padding: '12px' }} formatter={(value) => `${value} members`} />
                     <Legend verticalAlign="bottom" height={36} iconType="circle" wrapperStyle={{ paddingTop: '16px' }} />
@@ -637,10 +719,15 @@ const Dashboard_BOD = () => {
                       </td>
                       <td className="p-5 text-sm text-gray-500">{formatDateShort(txn.date)}</td>
                       <td className="p-5 text-sm text-right font-medium">
-                        <div className="flex items-center justify-end gap-1">
-                          {txn.isCredit === true && <ArrowDownRight className="w-4 h-4 text-green-500" />}
-                          {txn.isCredit === false && <ArrowUpRight className="w-4 h-4 text-red-500" />}
-                          <span className={txn.isCredit === true ? "text-green-600" : "text-gray-800"}>{formatCurrency(txn.amountValue)}</span>
+                        {/* Arrow sits in a fixed slot after the amount so the
+                            arrows line up in one column whatever the amount's
+                            width. Up/green = money in, down/red = money out. */}
+                        <div className="flex items-center justify-end gap-1.5 tabular-nums">
+                          <span className={txn.isCredit === true ? "text-green-600" : txn.isCredit === false ? "text-red-600" : "text-gray-800"}>{formatCurrency(txn.amountValue)}</span>
+                          <span className="inline-flex w-4 shrink-0 justify-center" aria-hidden="true">
+                            {txn.isCredit === true && <ArrowUpRight className="w-4 h-4 text-green-500" />}
+                            {txn.isCredit === false && <ArrowDownRight className="w-4 h-4 text-red-500" />}
+                          </span>
                         </div>
                       </td>
                       <td className="p-5 text-sm text-center">

@@ -38,12 +38,17 @@ const formatDate = (value) => {
   return d.toLocaleDateString("en-US", { month: "short", day: "2-digit", year: "numeric" });
 };
 
+// Same EXCLUSIVE rule as main.py's _BOD_LOAN_THRESHOLD: > ₱500,000 needs BOD.
+const BOD_LOAN_THRESHOLD = 500000;
+const AVG_WINDOW_MONTHS = 6;
+
 const BOD_Loan_Approval = () => {
     const navigate = useNavigate();
   const { addNotification } = useNotification();
   const [loans, setLoans] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [avgApplicationsPerMonth, setAvgApplicationsPerMonth] = useState(null);
 
 
 
@@ -65,6 +70,25 @@ const BOD_Loan_Approval = () => {
         .order("application_date", { ascending: false });
       if (error) throw error;
       setLoans(data || []);
+
+      // Average high-value (BOD-level) Consolidated applications per month
+      // over the last AVG_WINDOW_MONTHS months, current month included. Keyed
+      // off application_date so it counts every application regardless of
+      // where it is now in the lifecycle.
+      const now = new Date();
+      const windowStart = new Date(now.getFullYear(), now.getMonth() - (AVG_WINDOW_MONTHS - 1), 1)
+        .toISOString().slice(0, 10);
+      const { data: recentApps, error: appsError } = await supabase
+        .from("loans")
+        .select("loan_amount, principal_amount, application_date, loan_types:loan_type_id (name)")
+        .gte("application_date", windowStart)
+        .gt("loan_amount", BOD_LOAN_THRESHOLD)
+        .limit(20000);
+      if (appsError) throw appsError;
+      const highValueCount = (recentApps || []).filter((l) =>
+        String(l.loan_types?.name || "").toLowerCase().includes("consolidated")
+      ).length;
+      setAvgApplicationsPerMonth(highValueCount / AVG_WINDOW_MONTHS);
     } catch (err) {
       addNotification(err?.message || "Failed to load BOD loan queue.", "error");
       setLoans([]);
@@ -101,7 +125,13 @@ const BOD_Loan_Approval = () => {
           <Breadcrumb portal="BOD" page="Loan Approvals" />
           <StatCardRow cols={3}>
             <StatCard label="Pending Loan Applications" value={loans.length} icon={UserPlus} iconColor="text-[#2C7A3F]" />
-            <StatCard label="Threshold" value="₱500K+" icon={ClipboardList} iconColor="text-[#D97706]" />
+            <StatCard
+              label="Avg. Loan Applications / Month"
+              value={avgApplicationsPerMonth == null ? "—" : avgApplicationsPerMonth.toFixed(1)}
+              icon={ClipboardList}
+              iconColor="text-[#D97706]"
+              subtext={`Consolidated > ₱500K, last ${AVG_WINDOW_MONTHS} months`}
+            />
             <StatCard label="Loan Type" value="Consolidated" icon={BadgeCheck} iconColor="text-[#2C7A3F]" />
           </StatCardRow>
 
