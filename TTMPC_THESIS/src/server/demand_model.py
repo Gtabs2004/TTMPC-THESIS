@@ -1,9 +1,12 @@
 """
 TTMPC Loan Demand Forecasting — server-side inference helpers.
 
-Wraps two SARIMAXResultsWrapper pickles that forecast monthly disbursed amount
-for Consolidated and Emergency loans. Both were trained on 36 monthly
-observations (Jan 2022 – Dec 2024) at month-end frequency.
+Wraps SARIMAXResultsWrapper pickles that forecast monthly disbursed amount
+per loan type (Consolidated, Emergency, Bonus) at month-end frequency. Each
+model has its own training range — read it from the payload's
+`training_end`, don't assume one. Bonus has no model until its data is
+dropped into the analytics Data folder and `train_demand_models.py --only
+bonus` is run; until then it raises DemandModelNotAvailableError (→ 503).
 
 Models are loaded lazily on first request and cached for the lifetime of the
 process. ML deps (statsmodels, joblib, pandas) are imported lazily so the
@@ -22,7 +25,11 @@ _MODEL_DIR = Path(__file__).resolve().parent / "models"
 LOAN_TYPE_FILES: dict[str, Path] = {
     "consolidated": _MODEL_DIR / "consolidated_model.pkl",
     "emergency":    _MODEL_DIR / "emergency_model.pkl",
+    "bonus":        _MODEL_DIR / "bonus_model.pkl",
 }
+
+# Second, wider band returned next to the requested one (default 80%).
+SECONDARY_ALPHA = 0.05  # 95% CI
 
 SUPPORTED_LOAN_TYPES = tuple(LOAN_TYPE_FILES.keys())
 
@@ -52,8 +59,9 @@ def _load_model(loan_type: str):
         path = LOAN_TYPE_FILES[key]
         if not path.exists():
             raise DemandModelNotAvailableError(
-                f"Model file not found: {path}. Run the Colab/Jupyter notebook "
-                "and place the .pkl into src/server/models/."
+                f"No {key} demand model yet ({path.name} not found). Paste the data into "
+                f"src/analytics/Loan Demand Forecasting/Data/{key}_loan_data.csv, run "
+                f"train_demand_models.py --only {key}, then restart the server."
             )
 
         try:
@@ -80,6 +88,19 @@ def _isofmt(period) -> str:
         return period.strftime("%Y-%m-%d")
     except Exception:
         return str(period)
+
+
+def _bands(pred, alpha: float):
+    """(lower, upper) Series for `pred` at 1 - alpha confidence."""
+    ci = pred.conf_int(alpha=alpha)
+    # CI columns vary by statsmodels version; grab the first two positionally
+    return ci.iloc[:, 0], ci.iloc[:, 1]
+
+
+def training_end(loan_type: str) -> str | None:
+    """Last month the model was trained on (ISO date), or None if unknown."""
+    dates = _load_model(loan_type).model.data.dates
+    return _isofmt(dates[-1]) if dates is not None and len(dates) else None
 
 
 def historical(loan_type: str) -> list[dict]:
@@ -120,8 +141,8 @@ def fitted(loan_type: str, alpha: float = 0.20) -> list[dict]:
     try:
         pred = model.get_prediction(dynamic=False)
         mean = pred.predicted_mean
-        ci = pred.conf_int(alpha=alpha)
-        lower_col, upper_col = ci.columns[0], ci.columns[1]
+        lower, upper = _bands(pred, alpha)
+        lower95, upper95 = _bands(pred, SECONDARY_ALPHA)
     except Exception:
         return []
 
@@ -133,26 +154,24 @@ def fitted(loan_type: str, alpha: float = 0.20) -> list[dict]:
         value = float(mean.loc[idx])
         if i == 0 and value == 0.0:
             continue
-        try:
-            lo = float(ci.at[idx, lower_col])
-            hi = float(ci.at[idx, upper_col])
-        except Exception:
-            lo, hi = 0.0, value
         out.append({
             "period": _isofmt(idx),
             "predicted": value,
-            "lower": max(0.0, lo),
-            "upper": hi,
+            "lower": max(0.0, float(lower.loc[idx])),
+            "upper": float(upper.loc[idx]),
+            "lower95": max(0.0, float(lower95.loc[idx])),
+            "upper95": float(upper95.loc[idx]),
             "in_sample": True,
         })
     return out
 
 
 def forecast(loan_type: str, periods: int = 12, alpha: float = 0.20) -> list[dict]:
-    """Return forecasted monthly amounts + 80% (default) confidence bands.
+    """Return forecasted monthly amounts + confidence bands.
 
-    `alpha=0.20` → 80% CI. Use 0.05 for 95%.
-    Lower bound is clipped at 0 since negative loan demand makes no sense.
+    `lower`/`upper` use `alpha` (0.20 → 80% CI, the default); `lower95`/
+    `upper95` are always the 95% CI. Lower bounds are clipped at 0 since
+    negative loan demand makes no sense.
     """
     model = _load_model(loan_type)
 
@@ -161,27 +180,39 @@ def forecast(loan_type: str, periods: int = 12, alpha: float = 0.20) -> list[dic
 
     fc = model.get_forecast(steps=int(periods))
     mean = fc.predicted_mean
-    ci = fc.conf_int(alpha=alpha)
-
-    # CI columns vary by statsmodels version; grab the first two columns positionally
-    lower_col, upper_col = ci.columns[0], ci.columns[1]
+    lower, upper = _bands(fc, alpha)
+    lower95, upper95 = _bands(fc, SECONDARY_ALPHA)
 
     out = []
     for idx in mean.index:
-        predicted = float(mean.loc[idx])
-        lo = float(ci.at[idx, lower_col])
-        hi = float(ci.at[idx, upper_col])
         out.append({
             "period": _isofmt(idx),
-            "predicted": predicted,
-            "lower": max(0.0, lo),  # clip non-negative
-            "upper": hi,
+            "predicted": float(mean.loc[idx]),
+            "lower": max(0.0, float(lower.loc[idx])),  # clip non-negative
+            "upper": float(upper.loc[idx]),
+            "lower95": max(0.0, float(lower95.loc[idx])),
+            "upper95": float(upper95.loc[idx]),
         })
     return out
 
 
+def periods_to_cover(loan_type: str, months_from_today: int, today=None) -> int:
+    """Forecast steps needed so the forecast reaches `months_from_today`
+    months past the current month (the model starts the month after its
+    training end, which can be well before today)."""
+    import datetime as _dt
+
+    today = today or _dt.date.today()
+    end = training_end(loan_type)
+    if end is None:
+        return months_from_today
+    end_y, end_m = int(end[:4]), int(end[5:7])
+    gap = (today.year - end_y) * 12 + (today.month - end_m)
+    return max(1, gap + months_from_today)
+
+
 def get_forecast_payload(
-    loan_type: Literal["consolidated", "emergency"],
+    loan_type: Literal["consolidated", "emergency", "bonus"],
     periods: int = 12,
     alpha: float = 0.20,
 ) -> dict:
@@ -191,6 +222,8 @@ def get_forecast_payload(
         "loan_type": loan_type,
         "periods": periods,
         "alpha": alpha,
+        "secondary_alpha": SECONDARY_ALPHA,
+        "training_end": training_end(loan_type),
         "historical": historical(loan_type),
         "fitted": fitted(loan_type, alpha=alpha),
         "forecast": forecast(loan_type, periods=periods, alpha=alpha),

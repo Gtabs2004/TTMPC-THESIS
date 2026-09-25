@@ -6,7 +6,7 @@ import { UserAuth } from "../contex/AuthContext";
 import { useNotification } from "../contex/NotificationContext";
 import StaffTopbar from "../components/StaffTopbar";
 import Breadcrumb from "../components/Breadcrumb";
-import { TableToolbar } from "../components/TableToolbar";
+import Pagination from "../components/Pagination";
 import ConfirmDialog from "../components/ConfirmDialog";
 import { supabase } from "../supabaseClient";
 import { resolveAccountFromSessionUser } from "../utils/sessionIdentity";
@@ -38,6 +38,7 @@ const Secretary_Attendance = () => {
   
   // --- STATE ---
   const [activeTab, setActiveTab] = useState("Training");
+  const [page, setPage] = useState(1);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isConfirmationModalOpen, setIsConfirmationModalOpen] = useState(false);
   const [selectedMember, setSelectedMember] = useState(null);
@@ -406,9 +407,23 @@ const Secretary_Attendance = () => {
     { name: "Reschedule Training", count: tableData["Reschedule Training"].length, color: "bg-orange-500" },
   ];
   const isSecretary = portalRole === "secretary";
+  // Secretary accounts only see the two tabs they can act on (same pattern as
+  // BOD Member Approvals, which hides tabs rather than showing them disabled).
   const visibleTabs = isSecretary
-    ? ["Pending", "Training", "For Revision", "Reschedule Training"]
+    ? ["Training", "Reschedule Training"]
     : tabs.map((tab) => tab.name);
+
+  // Pagination — same page size and "Showing x–y of z" wording as BOD
+  // Member Approvals.
+  const LIMIT = 5;
+  const activeRows = tableData[activeTab] || [];
+  const totalCount = activeRows.length;
+  const totalPages = Math.max(1, Math.ceil(totalCount / LIMIT));
+  const pagedRows = activeRows.slice((page - 1) * LIMIT, page * LIMIT);
+  useEffect(() => { setPage(1); }, [activeTab]);
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+  }, [page, totalPages]);
 
   // Secretary is locked to Training + Reschedule Training tabs.
   useEffect(() => {
@@ -650,7 +665,7 @@ const Secretary_Attendance = () => {
   };
 
   return (
-   <div className="flex min-h-screen bg-gray-50">
+   <div className="flex min-h-screen bg-[#F8FAFC]">
            {/* SIDEBAR */}
            <StaffSidebar portal="Secretary" items={secretaryNav} />
      
@@ -658,7 +673,7 @@ const Secretary_Attendance = () => {
            <div className="flex-1 min-w-0 flex flex-col h-screen overflow-hidden">
         <StaffTopbar portal="Secretary" notifications={<NotificationBell viewAllPath="/Secretary_Records" />} />
 
-        <main className="p-8 overflow-auto">
+        <main className="flex-1 overflow-y-auto p-8">
           <Breadcrumb portal="Secretary" page="Training Attendance" />
           {/* Top Stats Cards — reflect the Secretary's active workload on this
               page: recording attendance, handling reschedules, and locking in
@@ -703,31 +718,36 @@ const Secretary_Attendance = () => {
           })()}
 
           {/* Table Container */}
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200">
-            <TableToolbar
-              title={`${activeTab} Attendance & Evaluation`}
-              subtitle={`Showing ${tableData[activeTab]?.length || 0} records`}
-              tabs={tabs.filter((tab) => visibleTabs.includes(tab.name)).map((tab) => {
-                const isTabDisabled = isSecretary && !["Training", "Reschedule Training"].includes(tab.name);
-                return {
-                  value: tab.name,
-                  label: tab.name,
-                  count: tab.count,
-                  disabled: isTabDisabled,
-                  title: isTabDisabled ? "Only Training and Reschedule Training are accessible to Secretary accounts" : undefined,
-                };
-              })}
-              activeTab={activeTab}
-              onTabChange={setActiveTab}
-            >
-              <button className="flex items-center gap-1.5 h-8 px-2.5 border border-gray-200 rounded-lg text-[11px] font-semibold text-gray-700 hover:bg-gray-50 transition-colors">
-                <Download size={14} />
-                Export List
-              </button>
-            </TableToolbar>
+          <div className="bg-white border border-gray-100 rounded-xl shadow-sm overflow-hidden">
+            {/* Underline tabs with count badges — mirrors BOD Member Approvals. */}
+            <div className="flex items-center gap-6 px-5 pt-4 border-b border-gray-100 overflow-x-auto">
+              {tabs.filter((tab) => visibleTabs.includes(tab.name)).map((tab) => (
+                <button
+                  key={tab.name}
+                  onClick={() => setActiveTab(tab.name)}
+                  className={`flex items-center gap-2 pb-3 px-1 border-b-2 font-semibold text-sm whitespace-nowrap transition-colors ${activeTab === tab.name ? "border-[#2C7A3F] text-[#2C7A3F]" : "border-transparent text-gray-500 hover:text-gray-700"}`}
+                >
+                  {tab.name}
+                  <span className={`badge-animated text-[10px] px-2 py-0.5 rounded-full text-white ${activeTab === tab.name ? "bg-[#2C7A3F]" : "bg-gray-400"}`}>{tab.count}</span>
+                </button>
+              ))}
+            </div>
+
+            <div className="flex flex-wrap justify-between items-center gap-3 p-5 text-sm">
+              <h2 className="text-lg font-bold text-gray-800">{activeTab} Attendance & Evaluation</h2>
+              <div className="flex items-center gap-4">
+                <div className="text-xs text-gray-400">
+                  Showing {totalCount === 0 ? 0 : (page - 1) * LIMIT + 1}-{Math.min(page * LIMIT, totalCount)} of {totalCount} records
+                </div>
+                <button className="flex items-center gap-1.5 h-8 px-2.5 border border-gray-200 rounded-lg text-[11px] font-semibold text-gray-700 hover:bg-gray-50 transition-colors">
+                  <Download size={14} />
+                  Export List
+                </button>
+              </div>
+            </div>
 
             {/* Table Body — shared UI for Training and Reschedule Training */}
-            <div className="overflow-x-auto pb-4">
+            <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="bg-primary-deep text-[10px] uppercase tracking-wider text-white font-extrabold">
@@ -740,7 +760,7 @@ const Secretary_Attendance = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {tableData[activeTab]?.map((row) => (
+                  {pagedRows.map((row) => (
                     <tr key={row.id} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
                       <td className="p-5">
                         <p className="font-bold text-[#2A2B4A] text-sm">{row.name}</p>
@@ -839,11 +859,11 @@ const Secretary_Attendance = () => {
                       </td>
                     </tr>
                   ))}
-                  {(!tableData[activeTab] || tableData[activeTab].length === 0) && (
+                  {totalCount === 0 && (
                     <tr>
                       <td colSpan="4" className="p-10 text-center">
                         <div className="flex flex-col items-center justify-center gap-2">
-                          <Users size={32} className="text-gray-300" />
+                          <FileText size={32} className="text-gray-300" />
                           <p className="text-sm font-medium text-gray-500">
                             {activeTab === "Reschedule Training"
                               ? "No absent members require rescheduling."
@@ -856,6 +876,8 @@ const Secretary_Attendance = () => {
                 </tbody>
               </table>
             </div>
+
+            <Pagination page={page} totalPages={totalPages} onChange={setPage} />
           </div>
         </main>
       </div>

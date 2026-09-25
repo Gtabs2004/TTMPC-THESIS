@@ -71,6 +71,7 @@ export const CHART_AXIS = "#9ca3af";
 export const FORECAST_LOAN_TYPE_COLORS = {
   consolidated: SERIES_PRIMARY,
   emergency: SEMANTIC_COLORS.warning,
+  bonus: "#2563eb",
 };
 
 // 30/60/90-day delinquency aging severity ramp (BOD dashboard) — a warm risk

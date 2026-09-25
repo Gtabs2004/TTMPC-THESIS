@@ -80,6 +80,7 @@ from demand_model import (
     DemandModelNotAvailableError,
     SUPPORTED_LOAN_TYPES as DEMAND_LOAN_TYPES,
     get_forecast_payload as demand_get_forecast_payload,
+    periods_to_cover as demand_periods_to_cover,
 )
 from services.notification_service import dispatch_loan_status_email as _dispatch_loan_status_email
 from services.loan_notification_service import create_loan_notification as _create_loan_notification
@@ -994,9 +995,10 @@ def count_consecutive_zero_payment_periods(
     return streak
 
 
-# Canonical penalty accrual. Two gates must BOTH pass before anything accrues:
-#   1. the member went >= 3 consecutive billing periods with zero payment, and
-#   2. the 3-month grace past the earliest unpaid due date has lapsed.
+# Canonical penalty accrual. The 3-month grace past the earliest unpaid due
+# date must lapse before anything accrues. A loan can have only one schedule
+# row at a time, so requiring three separate unpaid rows would prevent a
+# genuinely overdue installment from ever accruing a penalty.
 # Legacy loans (any loan_payments_legacy row) are exempt entirely -- historical
 # delinquency on migrated loans is not chargeable retroactively.
 PENALTY_ZERO_PAYMENT_PERIODS = 3
@@ -1018,19 +1020,15 @@ def compute_loan_penalty(
 
     today = as_of or datetime.utcnow().date()
 
-    zero_streak = count_consecutive_zero_payment_periods(schedules, payment_dates, today)
-    if zero_streak < PENALTY_ZERO_PAYMENT_PERIODS:
-        return Decimal("0")
-
     grace_end = add_months(earliest_unpaid_due, PENALTY_GRACE_MONTHS)
     if today <= grace_end:
         return Decimal("0")
 
-    months_overdue = (today.year - grace_end.year) * 12 + (today.month - grace_end.month)
-    if today.day < grace_end.day:
-        months_overdue -= 1
-    if months_overdue <= 0:
-        return Decimal("0")
+    months_overdue = max(
+        1,
+        (today.year - grace_end.year) * 12 + (today.month - grace_end.month)
+        + (1 if today.day >= grace_end.day else 0),
+    )
 
     # 1% for bonus loans (incl. NONMEMBER_BONUS), 2% for everything else.
     rate = Decimal("0.01") if "bonus" in str(loan_type_code).strip().lower() else Decimal("0.02")
@@ -1080,7 +1078,7 @@ def _server_side_penalty_for_loan(*, loan_id: str, loan_row: dict, schedules: li
 
         unpaid = [
             s for s in schedules
-            if "paid" not in str(s.get("schedule_status") or "").strip().lower()
+            if str(s.get("schedule_status") or "").strip().lower() not in {"paid", "completed", "closed"}
         ]
         earliest_unpaid_due = None
         for sched in unpaid:
@@ -1201,8 +1199,7 @@ def accrue_loan_penalties(
     (spec 10). The unique key on (loan_id, period_due_date) makes repeated calls
     idempotent, so refreshing a screen cannot create duplicates (spec 11).
 
-    Both gates still apply: 3+ consecutive zero-payment periods AND the 3-month
-    grace past the earliest unpaid due date.
+    Penalty starts after the 3-month grace past the earliest unpaid due date.
     """
     today = as_of or datetime.utcnow().date()
 
@@ -1211,12 +1208,8 @@ def accrue_loan_penalties(
 
     unpaid = [
         s for s in schedules
-        if "paid" not in str(s.get("schedule_status") or "").strip().lower()
+        if str(s.get("schedule_status") or "").strip().lower() not in {"paid", "completed", "closed"}
     ]
-    streak = count_consecutive_zero_payment_periods(unpaid, payment_dates, today)
-    if streak < PENALTY_ZERO_PAYMENT_PERIODS:
-        return _unpaid_penalty_total(loan_id)
-
     earliest_unpaid_due = None
     for sched in unpaid:
         due = parse_date_value(sched.get("due_date"))
@@ -1231,11 +1224,11 @@ def accrue_loan_penalties(
 
     rate = Decimal("0.01") if "bonus" in str(loan_type_code).strip().lower() else Decimal("0.02")
 
-    # One charge per elapsed month past the grace, each for that month alone.
+    # One charge for the first overdue month as soon as grace lapses, then one
+    # additional charge per completed month after that.
     period = grace_end
     charges: list[dict] = []
     while True:
-        period = add_months(period, 1)
         if period > today:
             break
         charges.append({
@@ -1245,6 +1238,7 @@ def accrue_loan_penalties(
             "basis_balance": decimal_to_float(money(remaining_balance)),
             "rate_percent": decimal_to_float(rate * Decimal("100")),
         })
+        period = add_months(period, 1)
 
     for charge in charges:
         try:
@@ -2100,7 +2094,7 @@ async def get_cashier_loans_for_payments():
             missed_count = 0
             for sched in schedules:
                 sched_status = str(sched.get("schedule_status") or "").strip().lower()
-                if "paid" in sched_status:
+                if sched_status in {"paid", "completed", "closed"}:
                     continue
                 sched_due = parse_date_value(sched.get("due_date"))
                 if sched_due and sched_due < today_for_missed:
@@ -2115,7 +2109,7 @@ async def get_cashier_loans_for_payments():
             earliest_missed_due = None
             for sched in schedules:
                 sched_status = str(sched.get("schedule_status") or "").strip().lower()
-                if "paid" in sched_status:
+                if sched_status in {"paid", "completed", "closed"}:
                     continue
                 d = parse_date_value(sched.get("due_date"))
                 if d and d < datetime.utcnow().date():
@@ -2136,20 +2130,28 @@ async def get_cashier_loans_for_payments():
             is_legacy_loan = control_number in legacy_loan_ids
             unpaid_schedules = [
                 s for s in schedules
-                if "paid" not in str(s.get("schedule_status") or "").strip().lower()
+                if str(s.get("schedule_status") or "").strip().lower() not in {"paid", "completed", "closed"}
             ]
             zero_payment_streak = count_consecutive_zero_payment_periods(
                 unpaid_schedules,
                 payment_dates_by_loan.get(control_number, []),
                 today_date,
             )
-            # Read-only here: the accumulated unpaid penalty comes from the
-            # penalties pre-loaded for every loan in ONE query above. Accrual
-            # (which writes rows) deliberately does NOT run on this listing --
-            # it would mean a query per loan, and this endpoint renders the
-            # whole cashier table. Rows are written on the payment path instead,
-            # where a single loan is in play.
+            # Read-only here: use persisted rows when available, but calculate
+            # the current charge when the payment path has not created those
+            # rows yet. Without this fallback an overdue loan is correctly
+            # flagged while the modal still shows zero penalty.
             accrued_penalty = unpaid_penalty_by_loan.get(control_number, Decimal("0"))
+            if accrued_penalty <= 0:
+                accrued_penalty = compute_loan_penalty(
+                    loan_type_code=resolve_loan_type_code(normalized_loan_type),
+                    remaining_balance=remaining_balance,
+                    earliest_unpaid_due=earliest_missed_due,
+                    schedules=unpaid_schedules,
+                    payment_dates=payment_dates_by_loan.get(control_number, []),
+                    is_legacy=is_legacy_loan,
+                    as_of=today_date,
+                )
 
             is_migs = bool(member.get("is_bona_fide"))
             # Use the same sanitizer used by disbursement/treasurer endpoints so legacy
@@ -6029,7 +6031,7 @@ async def get_member_debt_capacity(member_key: str):
                 ).data or []
                 for s in sched_resp:
                     status = str(s.get("schedule_status") or "").strip().lower()
-                    if "paid" in status:
+                    if status in {"paid", "completed", "closed"}:
                         continue
                     d = parse_date_value(s.get("due_date"))
                     if not d:
@@ -13699,16 +13701,28 @@ async def list_membership_applicants():
     if not supabase:
         raise HTTPException(status_code=503, detail="Supabase client is not configured.")
     try:
-        apps_resp = (
-            supabase.table("member_applications")
-            .select(
-                "application_id, surname, first_name, middle_name, email, contact_number, "
-                "application_status, attendance_status, created_at"
-            )
-            .order("created_at", desc=True)
-            .limit(500)
-            .execute()
+        base_cols = (
+            "application_id, surname, first_name, middle_name, email, contact_number, "
+            "application_status, attendance_status, created_at, tin_number"
         )
+        try:
+            apps_resp = (
+                supabase.table("member_applications")
+                .select(base_cols + ", membership_id")
+                .order("created_at", desc=True)
+                .limit(500)
+                .execute()
+            )
+        except Exception:
+            # Same fallback as _get_application_payment_summary: membership_id
+            # may not exist on older schemas.
+            apps_resp = (
+                supabase.table("member_applications")
+                .select(base_cols)
+                .order("created_at", desc=True)
+                .limit(500)
+                .execute()
+            )
         rows = apps_resp.data or []
 
         eligible_statuses = {"pending", "training", "1st training", "first training", "for revision"}
@@ -13717,10 +13731,82 @@ async def list_membership_applicants():
             if str(row.get("application_status") or "").strip().lower() in eligible_statuses
         ]
 
+        # Batch what _get_application_payment_summary() does per applicant —
+        # calling it in a loop cost 2–5 sequential round-trips per row.
+        # Results are identical: latest paid payment per (application, type),
+        # then the personal_data_sheet fallback (TIN first, then membership id).
+        def _chunks(values, size=100):
+            values = list(values)
+            for i in range(0, len(values), size):
+                yield values[i:i + size]
+
+        app_ids = [r.get("application_id") for r in filtered if r.get("application_id")]
+        latest_paid: dict[tuple[str, str], dict] = {}
+        for chunk in _chunks(app_ids):
+            pay_resp = (
+                supabase.table("membership_payments")
+                .select("*")
+                .in_("application_id", chunk)
+                .eq("payment_status", "paid")
+                .in_("payment_type", ["MEMBERSHIP_FEE", "INITIAL_PAID_UP_CAPITAL"])
+                .order("payment_date", desc=True)
+                .execute()
+            )
+            for p in (pay_resp.data or []):
+                latest_paid.setdefault((p.get("application_id"), p.get("payment_type")), p)
+
+        def _paid_up_from_payment(p):
+            try:
+                return Decimal(str((p or {}).get("amount") or 0))
+            except Exception:
+                return Decimal("0")
+
+        # Legacy fallback: only applicants with no recorded paid-up amount.
+        needs_fallback = [
+            r for r in filtered
+            if _paid_up_from_payment(latest_paid.get((r.get("application_id"), "INITIAL_PAID_UP_CAPITAL"))) <= 0
+        ]
+        pds_latest: dict[str, dict] = {"tin_number": {}, "membership_number_id": {}}
+        for lookup_key, row_key in (("tin_number", "tin_number"), ("membership_number_id", "membership_id")):
+            keys = {str(r.get(row_key) or "").strip() for r in needs_fallback} - {""}
+            for chunk in _chunks(keys):
+                try:
+                    pds_resp = (
+                        supabase.table("personal_data_sheet")
+                        .select(f"{lookup_key}, initial_paid_up_capital, created_at")
+                        .in_(lookup_key, chunk)
+                        .order("created_at", desc=True)
+                        .execute()
+                    )
+                    for pds in (pds_resp.data or []):
+                        pds_latest[lookup_key].setdefault(str(pds.get(lookup_key) or "").strip(), pds)
+                except Exception:
+                    pass
+
         results = []
         for row in filtered:
             app_id = row.get("application_id")
-            summary = _get_application_payment_summary(app_id) if app_id else {}
+            fee_payment = latest_paid.get((app_id, "MEMBERSHIP_FEE"))
+            paid_up_payment = latest_paid.get((app_id, "INITIAL_PAID_UP_CAPITAL"))
+            paid_up_amount = _paid_up_from_payment(paid_up_payment)
+            for lookup_key, row_key in (("tin_number", "tin_number"), ("membership_number_id", "membership_id")):
+                lookup_value = str(row.get(row_key) or "").strip()
+                if paid_up_amount > 0 or not lookup_value:
+                    continue
+                v = (pds_latest[lookup_key].get(lookup_value) or {}).get("initial_paid_up_capital")
+                if v is not None:
+                    try:
+                        paid_up_amount = Decimal(str(v))
+                    except Exception:
+                        pass
+            summary = {
+                "membership_fee_paid": fee_payment is not None,
+                "membership_fee_payment": fee_payment,
+                "paid_up_capital_paid": paid_up_payment is not None,
+                "paid_up_capital_payment": paid_up_payment,
+                "paid_up_capital_amount": float(paid_up_amount),
+                "paid_up_capital_satisfied": paid_up_amount >= INITIAL_PAID_UP_CAPITAL_REQUIRED,
+            }
             full_name = " ".join(
                 part for part in [
                     row.get("first_name"),
@@ -14077,7 +14163,7 @@ async def bod_get_payment_status(application_id: str):
 
 # ============================================================================
 # SECTION: ML — Loan Demand Forecasting Analytics
-# Wraps demand_model.py (SARIMAX PKLs) to return 12-month forecasts with 80%
+# Wraps demand_model.py (SARIMAX PKLs) to return forecasts with 80% and 95%
 # confidence intervals plus historical actuals for the analytics dashboard.
 # ============================================================================
 
@@ -14086,13 +14172,17 @@ async def get_loan_demand_forecast(
     loan_type: str = "consolidated",
     periods: int = 12,
     alpha: float = 0.20,
+    months_from_today: int | None = None,
 ):
     """Return historical training series + N-month forecast for the requested loan type.
 
     Query params:
-      - loan_type: 'consolidated' (default) or 'emergency'
-      - periods:   number of future months to forecast (default 12)
+      - loan_type: 'consolidated' (default), 'emergency' or 'bonus'
+      - periods:   number of months past training end to forecast (default 12)
       - alpha:     1 - confidence level for the band; default 0.20 → 80% CI
+                   (a 95% band is always returned too, as lower95/upper95)
+      - months_from_today: if set, overrides `periods` so the forecast runs
+                   this many months past the current month
     """
     loan_type_clean = (loan_type or "").strip().lower()
     if loan_type_clean not in DEMAND_LOAN_TYPES:
@@ -14101,10 +14191,12 @@ async def get_loan_demand_forecast(
             detail=f"Invalid loan_type. Supported: {', '.join(DEMAND_LOAN_TYPES)}.",
         )
 
-    periods_clean = max(1, min(int(periods), 60))  # safety bounds
     alpha_clean = max(0.01, min(float(alpha), 0.50))
 
     try:
+        if months_from_today is not None:
+            periods = demand_periods_to_cover(loan_type_clean, max(1, min(int(months_from_today), 60)))
+        periods_clean = max(1, min(int(periods), 120))  # safety bounds
         payload = demand_get_forecast_payload(
             loan_type=loan_type_clean,  # type: ignore[arg-type]
             periods=periods_clean,
@@ -14116,6 +14208,49 @@ async def get_loan_demand_forecast(
         raise HTTPException(status_code=500, detail=f"Forecast failed: {e}")
 
     return payload
+
+
+_DEMAND_EXCLUDED_STATUS_WORDS = ("reject", "declin", "cancel", "withdraw")
+
+
+def _demand_live_loans(loan_type: str, after: str | None) -> list[tuple[datetime, float]]:
+    """(application_date, amount) for live loans of `loan_type` applied for
+    after the `after` ISO date. Empty (not an error) if Supabase is down, so
+    the chart still renders from the CSV."""
+    if not supabase:
+        return []
+    out: list[tuple[datetime, float]] = []
+    start = 0
+    try:
+        while True:
+            query = (
+                supabase.table("loans")
+                .select("loan_amount,principal_amount,application_date,loan_status,loan_types:loan_type_id(name)")
+                .not_.is_("application_date", "null")
+            )
+            if after:
+                query = query.gt("application_date", after)
+            batch = query.range(start, start + 999).execute().data or []
+            for r in batch:
+                name = str((r.get("loan_types") or {}).get("name") or "").lower()
+                if loan_type not in name:
+                    continue
+                status = str(r.get("loan_status") or "").lower()
+                if any(w in status for w in _DEMAND_EXCLUDED_STATUS_WORDS):
+                    continue
+                try:
+                    d = datetime.fromisoformat(str(r["application_date"])[:10])
+                    amount = float(r.get("loan_amount") or r.get("principal_amount") or 0)
+                except (TypeError, ValueError):
+                    continue
+                out.append((d, amount))
+            if len(batch) < 1000:
+                break
+            start += 1000
+    except Exception as e:
+        logger.warning("Live loans unavailable for demand actuals: %s", e)
+        return []
+    return out
 
 
 @app.get("/api/analytics/demand/actuals")
@@ -14131,20 +14266,37 @@ def get_loan_demand_actuals(
     a forecast for future months.
 
     Query params:
-      - loan_type: 'consolidated' or 'emergency' (case-insensitive)
+      - loan_type: 'consolidated', 'emergency' or 'bonus' (case-insensitive)
       - year:      4-digit year; defaults to the latest year present in the CSV.
+
+    Bonus rows come from the main CSV (LoanType=Bonus) plus the separate
+    Data/bonus_loan_data.csv, where rows with no LoanType count as Bonus.
+
+    Live loans: the CSV is the source up to its last ApplicationDate; every
+    loan in the live `loans` table applied for AFTER that date is added on
+    top (by application_date, rejected/cancelled excluded). The cutoff keeps
+    the legacy loans that exist in both places from being counted twice, and
+    lets any newly filed loan — real or a test/simulated one — show up as an
+    actual without re-exporting the CSV. `live_count` per month says how many
+    of that month's loans came from the live table.
     """
     lt = (loan_type or "").strip().lower()
-    if lt not in ("consolidated", "emergency"):
-        raise HTTPException(status_code=400, detail="Invalid loan_type. Use 'consolidated' or 'emergency'.")
+    if lt not in ("consolidated", "emergency", "bonus"):
+        raise HTTPException(status_code=400, detail="Invalid loan_type. Use 'consolidated', 'emergency' or 'bonus'.")
 
-    csv_path = _REPO_ROOT / "src" / "analytics" / "Loan Demand Forecasting" / "Data" / "df_modeling_export (1).csv"
-    rows = _read_csv_resilient(csv_path)
+    data_dir = _REPO_ROOT / "src" / "analytics" / "Loan Demand Forecasting" / "Data"
+    rows = _read_csv_resilient(data_dir / "df_modeling_export (1).csv")
+    if lt == "bonus":
+        rows = rows + [
+            {**r, "LoanType": r.get("LoanType") or "Bonus"}
+            for r in _read_csv_resilient(data_dir / "bonus_loan_data.csv")
+        ]
     if not rows:
         raise HTTPException(status_code=503, detail="Loan demand CSV not found on server.")
 
     parsed: list[tuple[int, int, float, str]] = []
     years_seen: set[int] = set()
+    csv_last_date = ""
     for r in rows:
         raw_type = str(r.get("LoanType") or "").strip().lower()
         if raw_type != lt:
@@ -14152,16 +14304,28 @@ def get_loan_demand_actuals(
         date_str = str(r.get("ApplicationDate") or "").strip()
         if not date_str:
             continue
-        try:
-            d = datetime.fromisoformat(date_str)
-        except ValueError:
+        d = None
+        # ISO first; M/D/YYYY is how Excel re-saves dates in pasted data.
+        for parse in (datetime.fromisoformat, lambda v: datetime.strptime(v.split(" ")[0], "%m/%d/%Y")):
+            try:
+                d = parse(date_str)
+                break
+            except ValueError:
+                continue
+        if d is None:
             continue
         amount = 0.0
         try:
-            amount = float(r.get("LoanAmount") or 0)
+            amount = float(str(r.get("LoanAmount") or 0).replace(",", "").replace("₱", "").strip() or 0)
         except (TypeError, ValueError):
             amount = 0.0
         parsed.append((d.year, d.month, amount, date_str))
+        years_seen.add(d.year)
+        csv_last_date = max(csv_last_date, d.date().isoformat())
+
+    live_rows = _demand_live_loans(lt, after=csv_last_date or None)
+    for d, amount in live_rows:
+        parsed.append((d.year, d.month, amount, "live"))
         years_seen.add(d.year)
 
     if not years_seen:
@@ -14171,20 +14335,26 @@ def get_loan_demand_actuals(
 
     monthly: dict[int, float] = {m: 0.0 for m in range(1, 13)}
     count_by_month: dict[int, int] = {m: 0 for m in range(1, 13)}
-    for y, m, amt, _ in parsed:
+    live_by_month: dict[int, int] = {m: 0 for m in range(1, 13)}
+    for y, m, amt, source in parsed:
         if y == target_year:
             monthly[m] += amt
             count_by_month[m] += 1
+            if source == "live":
+                live_by_month[m] += 1
 
     return {
         "loan_type": lt,
         "year": target_year,
         "available_years": sorted(years_seen),
+        "csv_through": csv_last_date or None,
+        "live_loan_count": len(live_rows),
         "months": [
             {
                 "period": f"{target_year}-{m:02d}",
                 "actual": round(monthly[m], 2),
                 "loan_count": count_by_month[m],
+                "live_count": live_by_month[m],
             }
             for m in range(1, 13)
         ],
