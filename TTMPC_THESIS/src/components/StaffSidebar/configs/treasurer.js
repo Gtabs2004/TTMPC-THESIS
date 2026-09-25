@@ -3,6 +3,7 @@ import {
   CreditCard,
   Wallet,
   Users,
+  PiggyBank,
   History,
   FileText
 } from "lucide-react";
@@ -14,6 +15,7 @@ export const treasurerNav = [
   { name: "Dashboard",     icon: LayoutDashboard, path: "/Treasurer_Dashboard" },
   { name: "Disbursement",  icon: CreditCard,      path: "/disbursement" },
   { name: "Vault",         icon: Wallet,          path: "/treasurer-vault" },
+  { name: "Savings ", icon: PiggyBank,    path: "/treasurer-savings-accounts" },
   { name: "Payments",      icon: Users,           path: "/treasurer-payments" },
   { name: "Loan Approval", icon: FileText,      path: "/treasurer-approval" },
   { name: "Audit Log",     icon: History,         path: "/treasurer-audit-log" },

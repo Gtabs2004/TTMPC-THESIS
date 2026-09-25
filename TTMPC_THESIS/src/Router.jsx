@@ -107,6 +107,10 @@ import Cashier_MembershipPayments from "./Cashier/Components/Cashier_MembershipP
 import Manage_Member from "./Bookkeeper/Components/Manage-Member";
 import Manager_Manage_Member from "./Manager/Components/Manage-Member";
 import Manager_Manage_Loans from "./Manager/Components/Manager_Manage_Loans";
+import Manager_Savings_Accounts from "./Manager/Components/Manager_Savings_Accounts";
+import Manager_Savings_Details from "./Manager/Components/Manager_Savings_Details";
+import Treasurer_Savings_Accounts from "./Treasurer/Components/Treasurer_Savings_Accounts";
+import Treasurer_Savings_Details from "./Treasurer/Components/Treasurer_Savings_Details";
 import Savings_Forms from "./LOANFORMS/Savings_Forms";
 import Grocery from "./Bookkeeper/Components/Grocery";
 import PosSimulator from "./Bookkeeper/Components/PosSimulator";
@@ -166,6 +170,8 @@ export const router = createBrowserRouter([
     {path: "/manager-dashboard", element: managerGuarded(<M_Dashboard/>)},
     {path: "/manager-manage-member", element: managerGuarded(<Manager_Manage_Member/>)},
     {path: "/manager-manage-loans", element: managerGuarded(<Manager_Manage_Loans/>)},
+    {path: "/manager-savings-accounts", element: managerGuarded(<Manager_Savings_Accounts/>)},
+    {path: "/manager-savings-accounts/:id", element: managerGuarded(<Manager_Savings_Details/>)},
     {path: "/manager-loan-ledger/:loanId", element: managerGuarded(<LoanLedger/>)},
     {path: "/loan-approval", element: managerGuarded(<Loan_Approval/>)},
     {path: "/manager-reports", element: managerGuarded(<Manager_Reports/>)},
@@ -205,6 +211,8 @@ export const router = createBrowserRouter([
     {path: "/disbursement", element: treasurerGuarded(<Disbursement/>)},
     {path: "/treasurer-payments", element: treasurerGuarded(<TreasurerPayments/>)},
     {path: "/treasurer-vault", element: treasurerGuarded(<TreasurerVault/>)},
+    {path: "/treasurer-savings-accounts", element: treasurerGuarded(<Treasurer_Savings_Accounts/>)},
+    {path: "/treasurer-savings-accounts/:id", element: treasurerGuarded(<Treasurer_Savings_Details/>)},
     {path: "/Cashier_Dashboard", element: cashierGuarded(<Cashier_Dashboard/>)},
     {path: "/Cashier_Savings", element: cashierGuarded(<Cashier_Savings/>)},
     {path: "/add_savings", element: cashierGuarded(<Add_Savings/>)},
