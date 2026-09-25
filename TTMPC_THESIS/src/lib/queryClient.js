@@ -8,7 +8,9 @@ import { QueryClient } from "@tanstack/react-query";
  *
  * - staleTime 0: every mount still revalidates, so a figure never lags behind
  *   a transaction just recorded on another page — the cache only removes the
- *   blank flash, it doesn't skip the fetch. Same request count as before.
+ *   blank flash, it doesn't skip the fetch.
+ * - refetchOnWindowFocus false: prevents large dashboard query batches from
+ *   re-firing on normal tab/window focus changes.
  * - gcTime 10min: an unused page's data is dropped after 10 minutes.
  * - retry 1: one retry on failure, then surface the error.
  *
@@ -21,7 +23,7 @@ export const queryClient = new QueryClient({
       staleTime: 0,
       gcTime: 10 * 60_000,
       retry: 1,
-      refetchOnWindowFocus: true,
+      refetchOnWindowFocus: false,
     },
   },
 });

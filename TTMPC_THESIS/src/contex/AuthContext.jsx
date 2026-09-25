@@ -346,9 +346,9 @@ export const AuthContextProvider = ({ children }) => {
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      // Covers every sign-out path (manual, revoked token, password reset) so
-      // cached dashboard data never carries over to the next user in this tab.
-      if (event === "SIGNED_OUT") queryClient.clear();
+      // Covers sign-out and account-switch sign-in paths so cached dashboard
+      // data never carries over to a different user in this tab.
+      if (event === "SIGNED_OUT" || event === "SIGNED_IN") queryClient.clear();
       setSession(session);
     });
 
