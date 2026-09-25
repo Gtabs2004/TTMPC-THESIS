@@ -12,7 +12,7 @@ import React from "react";
  * number below, optional small gray subtext at the bottom. No icon badge/
  * circle — the icon is just colored text, no wrapper div.
  */
-export function StatCard({ label, value, icon: Icon, iconColor = "text-blue-600", subtext, className = "", onClick }) {
+export function StatCard({ label, value, icon: Icon, iconColor = "text-blue-600", subtext, className = "", onClick, loading = false }) {
   // Interactive variant (e.g. "Pending Release" cards that jump to the
   // relevant queue) renders as a real <button> instead of a <div> — same
   // visual shape, but focusable/keyboard-operable and with a hover cue.
@@ -27,7 +27,15 @@ export function StatCard({ label, value, icon: Icon, iconColor = "text-blue-600"
         <p className="text-xs font-medium text-gray-500">{label}</p>
         {Icon ? <Icon className={`w-4 h-4 shrink-0 ${iconColor}`} /> : null}
       </div>
-      <p className="text-2xl font-bold text-gray-900">{value}</p>
+      {/* `loading` swaps the number for a pulse block of the same line
+          height (text-2xl = 2rem) so the card doesn't jump when data lands. */}
+      {loading ? (
+        <div aria-hidden="true" className="h-8 flex items-center">
+          <div className="h-6 w-20 bg-gray-200 rounded animate-pulse" />
+        </div>
+      ) : (
+        <p className="text-2xl font-bold text-gray-900">{value}</p>
+      )}
       {subtext ? <div className="text-[11px] text-gray-500 mt-1">{subtext}</div> : null}
     </Tag>
   );

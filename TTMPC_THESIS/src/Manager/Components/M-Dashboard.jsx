@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useMemo, useState } from "react";
+﻿import React, { useEffect, useMemo } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
 import { StatCard, StatCardRow } from "../../components/StatCard";
 import StaffSidebar from "../../components/StaffSidebar";
@@ -10,6 +10,8 @@ import Breadcrumb from "../../components/Breadcrumb";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
 import LoanDemandForecastCard from "../../components/LoanDemandForecastCard";
 import { supabase } from "../../supabaseClient";
+import { useQuery } from "@tanstack/react-query";
+import { Skeleton, SkeletonChart, SkeletonDonut, SkeletonTableRows } from "../../components/Skeleton";
 import RecentActivityCard from "../../components/RecentActivityCard";
 import {
   LayoutDashboard,
@@ -26,7 +28,6 @@ import {
   Brain,
   Briefcase,
   ChevronRight,
-  Loader2,
 } from "lucide-react";
 import {
   AreaChart,
@@ -52,194 +53,189 @@ const formatDate = (value) => {
   return d.toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' });
 };
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
+
+// KPIs, charts and the pending-requests table, fetched in one parallel batch.
+// Lives outside the component so TanStack Query can cache it across navigation.
+const MANAGER_DASHBOARD_QUERY_KEY = ['dashboard', 'manager'];
+async function fetchManagerDashboard() {
+  const now = new Date();
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
+  // 6-month trailing window for the trend chart.
+  const trendStart = new Date(now.getFullYear(), now.getMonth() - 5, 1).toISOString().slice(0, 10);
+
+  // Parallel fetch — five small queries.
+  const [
+    pendingResult,
+    approvedMonthResult,
+    activeLoansResult,
+    totalLoansResult,
+    loanTypesResult,
+    recentSixMonthsResult,
+    delinquencyResult,
+  ] = await Promise.all([
+    supabase
+      .from('loans')
+      .select('control_number, loan_amount, application_date, loan_type_id, member:member_id(first_name, last_name), loan_types:loan_type_id(name)', { count: 'exact' })
+      .eq('loan_status', 'recommended for approval')
+      .order('application_date', { ascending: false })
+      .limit(5),
+    supabase
+      .from('loans')
+      .select('control_number', { count: 'exact', head: true })
+      .gte('disbursal_date', monthStart)
+      .in('loan_status', ['released', 'partially paid', 'fully paid']),
+    supabase
+      .from('loans')
+      .select('control_number, loan_type_id, loan_types:loan_type_id(name)', { count: 'exact' })
+      .in('loan_status', ['released', 'partially paid'])
+      .limit(10000),
+    supabase
+      .from('loans')
+      .select('control_number, loan_type_id', { count: 'exact' })
+      .limit(10000),
+    supabase
+      .from('loan_types')
+      .select('id, name'),
+    supabase
+      .from('loans')
+      .select('application_date, loan_status')
+      .gte('application_date', trendStart)
+      .in('loan_status', ['released', 'partially paid', 'fully paid', 'recommended for approval']),
+    // Delinquency proxy: count active loans where any schedule is overdue.
+    supabase
+      .from('loan_schedules')
+      .select('loan_id, schedule_status')
+      .eq('schedule_status', 'overdue'),
+  ]);
+
+  // KPI 1: pending approvals
+  const pendingCount = pendingResult?.count || (pendingResult?.data || []).length || 0;
+
+  // KPI 2: approved this month
+  const approvedMonth = approvedMonthResult?.count || 0;
+
+  // KPI 3: total active loans + KPI 4 source
+  const activeLoans = activeLoansResult?.data || [];
+  const activeLoansCount = activeLoansResult?.count ?? activeLoans.length;
+  const activeLoanIds = new Set(activeLoans.map((l) => l.control_number));
+  const allLoans = totalLoansResult?.data || [];
+  const totalLoansCount = totalLoansResult?.count ?? allLoans.length;
+
+  // KPI 4: delinquency rate = unique active loans with overdue schedule / total active loans
+  const overdueLoanIds = new Set(
+    (delinquencyResult?.data || [])
+      .map((s) => s.loan_id)
+      .filter((id) => activeLoanIds.has(id))
+  );
+  const delinquentRate = activeLoansCount
+    ? (overdueLoanIds.size / activeLoansCount) * 100
+    : 0;
+
+  const stats = {
+    pendingApprovals: pendingCount,
+    approvedThisMonth: approvedMonth,
+    activeLoans: activeLoansCount,
+    totalLoans: totalLoansCount,
+    delinquentRate,
+  };
+
+  // Distribution chart — group all loans on file by loan type name
+  const typeNameById = new Map(
+    (loanTypesResult?.data || []).map((t) => [t.id, t.name])
+  );
+  const typeCounts = new Map();
+  allLoans.forEach((l) => {
+    const name = typeNameById.get(l.loan_type_id) || 'Other';
+    typeCounts.set(name, (typeCounts.get(name) || 0) + 1);
+  });
+  const total = allLoans.length || 1;
+  const distRows = [...typeCounts.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .map(([name, count], i) => ({
+      name,
+      value: Math.round((count / total) * 100),
+      count,
+      color: getLoanTypeColor(name, i),
+    }));
+
+  // Trend chart — bucket the last 6 months by application_date
+  const buckets = new Map();
+  for (let i = 5; i >= 0; i -= 1) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const key = d.toLocaleDateString('en-US', { month: 'short' }).toUpperCase();
+    buckets.set(key, 0);
+  }
+  (recentSixMonthsResult?.data || []).forEach((row) => {
+    if (!row.application_date) return;
+    const d = new Date(row.application_date);
+    const key = d.toLocaleDateString('en-US', { month: 'short' }).toUpperCase();
+    if (buckets.has(key)) buckets.set(key, buckets.get(key) + 1);
+  });
+  const trendData = [...buckets.entries()].map(([name, value]) => ({ name, value }));
+
+  // Recent requests — top 5 pending Manager review
+  const recentRows = (pendingResult?.data || []).map((l) => {
+    const firstName = String(l.member?.first_name || '').trim();
+    const lastName = String(l.member?.last_name || '').trim();
+    const name = `${firstName} ${lastName}`.trim() || 'Unknown Member';
+    return {
+      id: l.control_number,
+      name,
+      type: l.loan_types?.name || '—',
+      amount: formatCurrency(l.loan_amount),
+      date: formatDate(l.application_date),
+      status: 'RECOMMENDED',
+    };
+  });
+  return { stats, trendData, distributionData: distRows, recentRequests: recentRows };
+}
+
+// Credit Risk queue — a separate query so a slow scoring pass doesn't hold up
+// the rest of the dashboard.
+const MANAGER_CREDIT_RISK_QUERY_KEY = ['dashboard', 'manager', 'credit-risk'];
+async function fetchManagerCreditRisk() {
+  const res = await fetch(`${API_BASE_URL}/api/credit-risk/queue`);
+  const json = await res.json();
+  if (!res.ok || !json?.success) throw new Error(json?.detail || 'Credit risk queue fetch failed.');
+  const data = json?.data || {};
+  return {
+    rows: Array.isArray(data.rows) ? data.rows : [],
+    modelVersion: data.model_version || null,
+  };
+}
+
 const M_Dashboard = () => {
     const navigate = useNavigate();
   const { addNotification } = useNotification();
 
-  const [stats, setStats] = useState({
-    pendingApprovals: 0,
-    approvedThisMonth: 0,
-    activeLoans: 0,
-    totalLoans: 0,
-    delinquentRate: 0,
+  // Cached across navigation: coming back to the dashboard renders the last
+  // result instantly and refreshes it in the background. `loading` is only
+  // true on the very first load, when there's nothing cached to show yet.
+  const { data, isPending: loading, error } = useQuery({
+    queryKey: MANAGER_DASHBOARD_QUERY_KEY,
+    queryFn: fetchManagerDashboard,
   });
-  const [trendData, setTrendData] = useState([]);
-  const [distributionData, setDistributionData] = useState([]);
-  const [recentRequests, setRecentRequests] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [creditRiskQueue, setCreditRiskQueue] = useState([]);
-  const [creditRiskModelVersion, setCreditRiskModelVersion] = useState(null);
-
-  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
-
-
+  const {
+    stats = { pendingApprovals: 0, approvedThisMonth: 0, activeLoans: 0, totalLoans: 0, delinquentRate: 0 },
+    trendData = [],
+    distributionData = [],
+    recentRequests = [],
+  } = data || {};
   useEffect(() => {
-    let isMounted = true;
-    const loadDashboard = async () => {
-      setLoading(true);
-      try {
-        const now = new Date();
-        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
-        // 6-month trailing window for the trend chart.
-        const trendStart = new Date(now.getFullYear(), now.getMonth() - 5, 1).toISOString().slice(0, 10);
-
-        // Parallel fetch — five small queries.
-        const [
-          pendingResult,
-          approvedMonthResult,
-          activeLoansResult,
-          totalLoansResult,
-          loanTypesResult,
-          recentSixMonthsResult,
-          delinquencyResult,
-        ] = await Promise.all([
-          supabase
-            .from('loans')
-            .select('control_number, loan_amount, application_date, loan_type_id, member:member_id(first_name, last_name), loan_types:loan_type_id(name)', { count: 'exact' })
-            .eq('loan_status', 'recommended for approval')
-            .order('application_date', { ascending: false })
-            .limit(5),
-          supabase
-            .from('loans')
-            .select('control_number', { count: 'exact', head: true })
-            .gte('disbursal_date', monthStart)
-            .in('loan_status', ['released', 'partially paid', 'fully paid']),
-          supabase
-            .from('loans')
-            .select('control_number, loan_type_id, loan_types:loan_type_id(name)', { count: 'exact' })
-            .in('loan_status', ['released', 'partially paid'])
-            .limit(10000),
-          supabase
-            .from('loans')
-            .select('control_number, loan_type_id', { count: 'exact' })
-            .limit(10000),
-          supabase
-            .from('loan_types')
-            .select('id, name'),
-          supabase
-            .from('loans')
-            .select('application_date, loan_status')
-            .gte('application_date', trendStart)
-            .in('loan_status', ['released', 'partially paid', 'fully paid', 'recommended for approval']),
-          // Delinquency proxy: count active loans where any schedule is overdue.
-          supabase
-            .from('loan_schedules')
-            .select('loan_id, schedule_status')
-            .eq('schedule_status', 'overdue'),
-        ]);
-
-        if (!isMounted) return;
-
-        // KPI 1: pending approvals
-        const pendingCount = pendingResult?.count || (pendingResult?.data || []).length || 0;
-
-        // KPI 2: approved this month
-        const approvedMonth = approvedMonthResult?.count || 0;
-
-        // KPI 3: total active loans + KPI 4 source
-        const activeLoans = activeLoansResult?.data || [];
-        const activeLoansCount = activeLoansResult?.count ?? activeLoans.length;
-        const activeLoanIds = new Set(activeLoans.map((l) => l.control_number));
-        const allLoans = totalLoansResult?.data || [];
-        const totalLoansCount = totalLoansResult?.count ?? allLoans.length;
-
-        // KPI 4: delinquency rate = unique active loans with overdue schedule / total active loans
-        const overdueLoanIds = new Set(
-          (delinquencyResult?.data || [])
-            .map((s) => s.loan_id)
-            .filter((id) => activeLoanIds.has(id))
-        );
-        const delinquentRate = activeLoansCount
-          ? (overdueLoanIds.size / activeLoansCount) * 100
-          : 0;
-
-        setStats({
-          pendingApprovals: pendingCount,
-          approvedThisMonth: approvedMonth,
-          activeLoans: activeLoansCount,
-          totalLoans: totalLoansCount,
-          delinquentRate,
-        });
-
-        // Distribution chart — group all loans on file by loan type name
-        const typeNameById = new Map(
-          (loanTypesResult?.data || []).map((t) => [t.id, t.name])
-        );
-        const typeCounts = new Map();
-        allLoans.forEach((l) => {
-          const name = typeNameById.get(l.loan_type_id) || 'Other';
-          typeCounts.set(name, (typeCounts.get(name) || 0) + 1);
-        });
-        const total = allLoans.length || 1;
-        const distRows = [...typeCounts.entries()]
-          .sort((a, b) => b[1] - a[1])
-          .map(([name, count], i) => ({
-            name,
-            value: Math.round((count / total) * 100),
-            count,
-            color: getLoanTypeColor(name, i),
-          }));
-        setDistributionData(distRows);
-
-        // Trend chart — bucket the last 6 months by application_date
-        const buckets = new Map();
-        for (let i = 5; i >= 0; i -= 1) {
-          const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-          const key = d.toLocaleDateString('en-US', { month: 'short' }).toUpperCase();
-          buckets.set(key, 0);
-        }
-        (recentSixMonthsResult?.data || []).forEach((row) => {
-          if (!row.application_date) return;
-          const d = new Date(row.application_date);
-          const key = d.toLocaleDateString('en-US', { month: 'short' }).toUpperCase();
-          if (buckets.has(key)) buckets.set(key, buckets.get(key) + 1);
-        });
-        setTrendData([...buckets.entries()].map(([name, value]) => ({ name, value })));
-
-        // Recent requests — top 5 pending Manager review
-        const recentRows = (pendingResult?.data || []).map((l) => {
-          const firstName = String(l.member?.first_name || '').trim();
-          const lastName = String(l.member?.last_name || '').trim();
-          const name = `${firstName} ${lastName}`.trim() || 'Unknown Member';
-          return {
-            id: l.control_number,
-            name,
-            type: l.loan_types?.name || '—',
-            amount: formatCurrency(l.loan_amount),
-            date: formatDate(l.application_date),
-            status: 'RECOMMENDED',
-          };
-        });
-        setRecentRequests(recentRows);
-      } catch (err) {
-        if (isMounted) {
-          addNotification(err?.message || 'Unable to load dashboard metrics.', 'error');
-        }
-      } finally {
-        if (isMounted) setLoading(false);
-      }
-    };
-    loadDashboard();
-
-    // Separate fetch for Credit Risk queue — decoupled so a slow scoring
-    // pass doesn't hold up the rest of the dashboard.
-    const loadCreditRisk = async () => {
-      try {
-        const res = await fetch(`${API_BASE_URL}/api/credit-risk/queue`);
-        const json = await res.json();
-        if (!res.ok || !json?.success || !isMounted) return;
-        const data = json?.data || {};
-        setCreditRiskQueue(Array.isArray(data.rows) ? data.rows : []);
-        setCreditRiskModelVersion(data.model_version || null);
-      } catch (err) {
-        console.warn("Credit risk queue fetch failed:", err);
-      }
-    };
-    loadCreditRisk();
-
-    return () => { isMounted = false; };
+    if (error) addNotification(error?.message || 'Unable to load dashboard metrics.', 'error');
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [error]);
+
+  const { data: creditRiskData, isPending: creditRiskLoading, error: creditRiskError } = useQuery({
+    queryKey: MANAGER_CREDIT_RISK_QUERY_KEY,
+    queryFn: fetchManagerCreditRisk,
+  });
+  useEffect(() => {
+    if (creditRiskError) console.warn("Credit risk queue fetch failed:", creditRiskError);
+  }, [creditRiskError]);
+  const creditRiskQueue = useMemo(() => creditRiskData?.rows ?? [], [creditRiskData]);
+  const creditRiskModelVersion = creditRiskData?.modelVersion ?? null;
 
   const creditRiskSnapshot = useMemo(() => {
     const scored = creditRiskQueue.filter((r) => r.probability != null);
@@ -294,28 +290,32 @@ const M_Dashboard = () => {
           <StatCardRow cols={4}>
             <StatCard
               label="Pending Approvals"
-              value={loading ? '—' : stats.pendingApprovals}
+              value={stats.pendingApprovals}
+              loading={loading}
               icon={ClipboardCheck}
               iconColor="text-orange-500"
               subtext="Loans recommended for your approval"
             />
             <StatCard
               label="Approved Loans"
-              value={loading ? '—' : stats.approvedThisMonth}
+              value={stats.approvedThisMonth}
+              loading={loading}
               icon={CheckCircle}
               iconColor="text-green-600"
               subtext="Disbursed this month"
             />
             <StatCard
               label="Total Loans on File"
-              value={loading ? '—' : stats.totalLoans}
+              value={stats.totalLoans}
+              loading={loading}
               icon={Wallet}
               iconColor="text-blue-500"
-              subtext={loading ? 'Loading…' : `${stats.activeLoans} active (released or partially paid)`}
+              subtext={loading ? <Skeleton className="h-3 w-40 mt-1" /> : `${stats.activeLoans} active (released or partially paid)`}
             />
             <StatCard
               label="Delinquent Rate"
-              value={loading ? '—' : `${stats.delinquentRate.toFixed(1)}%`}
+              value={`${stats.delinquentRate.toFixed(1)}%`}
+              loading={loading}
               icon={AlertTriangle}
               iconColor="text-red-500"
               subtext="Active loans with overdue schedules"
@@ -334,7 +334,7 @@ const M_Dashboard = () => {
                 </button>
               </div>
               <div className="h-64">
-                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={1}>
+                {loading ? <SkeletonChart /> : <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={1}>
                   <AreaChart data={trendData} margin={{ top: 10, right: 0, left: 0, bottom: 0 }}>
                     <defs>
                       <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
@@ -347,7 +347,7 @@ const M_Dashboard = () => {
                     {/* Hiding Y axis as per design, but keeping the grid lines */}
                     <Area type="monotone" dataKey="value" stroke={SERIES_PRIMARY} strokeWidth={3} fillOpacity={1} fill="url(#colorValue)" />
                   </AreaChart>
-                </ResponsiveContainer>
+                </ResponsiveContainer>}
               </div>
             </div>
 
@@ -355,7 +355,7 @@ const M_Dashboard = () => {
             <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
               <h3 className="text-gray-800 font-bold text-lg mb-4">Loan Distribution</h3>
               <div className="relative h-48 flex justify-center items-center">
-                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={1}>
+                {loading ? <SkeletonDonut /> : <><ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={1}>
                   <PieChart>
                     <Pie
                       data={distributionData}
@@ -377,12 +377,14 @@ const M_Dashboard = () => {
                 <div className="absolute flex flex-col items-center justify-center">
                   <span className="text-2xl font-bold text-gray-800">{totalActive}</span>
                   <span className="text-[10px] text-gray-400 font-bold tracking-widest">TOTAL</span>
-                </div>
+                </div></>}
               </div>
 
               {/* Custom Legend */}
               <div className="mt-4 flex flex-col gap-2">
-                {distributionData.length === 0 ? (
+                {loading ? (
+                  [0, 1, 2].map((i) => <Skeleton key={i} className="h-4 w-full" />)
+                ) : distributionData.length === 0 ? (
                   <p className="text-xs text-gray-400 italic text-center py-2">No active loans yet</p>
                 ) : (
                   distributionData.map((item, index) => (
@@ -427,21 +429,21 @@ const M_Dashboard = () => {
               <div className="flex items-center gap-6">
                 <div>
                   <p className="text-xs text-gray-500 font-medium">High Risk</p>
-                  <p className={`text-2xl font-bold ${creditRiskSnapshot.high > 0 ? "text-red-600" : "text-gray-400"}`}>
+                  {creditRiskLoading ? <Skeleton className="h-8 w-10 mt-0.5" /> : <p className={`text-2xl font-bold ${creditRiskSnapshot.high > 0 ? "text-red-600" : "text-gray-400"}`}>
                     {creditRiskSnapshot.high}
-                  </p>
+                  </p>}
                 </div>
                 <div>
                   <p className="text-xs text-gray-500 font-medium">Medium Risk</p>
-                  <p className={`text-2xl font-bold ${creditRiskSnapshot.watch > 0 ? "text-amber-600" : "text-gray-400"}`}>
+                  {creditRiskLoading ? <Skeleton className="h-8 w-10 mt-0.5" /> : <p className={`text-2xl font-bold ${creditRiskSnapshot.watch > 0 ? "text-amber-600" : "text-gray-400"}`}>
                     {creditRiskSnapshot.watch}
-                  </p>
+                  </p>}
                 </div>
                 <div>
                   <p className="text-xs text-gray-500 font-medium">Low</p>
-                  <p className={`text-2xl font-bold ${creditRiskSnapshot.low > 0 ? "text-emerald-600" : "text-gray-400"}`}>
+                  {creditRiskLoading ? <Skeleton className="h-8 w-10 mt-0.5" /> : <p className={`text-2xl font-bold ${creditRiskSnapshot.low > 0 ? "text-emerald-600" : "text-gray-400"}`}>
                     {creditRiskSnapshot.low}
-                  </p>
+                  </p>}
                 </div>
               </div>
             </div>
@@ -469,12 +471,12 @@ const M_Dashboard = () => {
               </div>
             )}
 
-            {creditRiskSnapshot.queueTotal === 0 && (
+            {!creditRiskLoading && creditRiskSnapshot.queueTotal === 0 && (
               <p className="mt-4 text-sm text-gray-500 font-medium">
                 No applicants currently awaiting your decision.
               </p>
             )}
-            {creditRiskSnapshot.queueTotal > 0 && creditRiskSnapshot.high === 0 && (
+            {!creditRiskLoading && creditRiskSnapshot.queueTotal > 0 && creditRiskSnapshot.high === 0 && (
               <p className="mt-4 text-sm text-emerald-700 font-medium">
                 No high-risk applicants in the queue. {creditRiskSnapshot.queueTotal} to review.
               </p>
@@ -511,14 +513,7 @@ const M_Dashboard = () => {
                 </thead>
                 <tbody>
                   {loading ? (
-                    <tr>
-                      <td colSpan={6} className="p-10 text-center">
-                        <div className="flex flex-col items-center justify-center gap-2">
-                          <Loader2 size={24} className="text-gray-300 animate-spin" />
-                          <p className="text-sm text-gray-400">Loading...</p>
-                        </div>
-                      </td>
-                    </tr>
+                    <SkeletonTableRows rows={5} cols={6} />
                   ) : recentRequests.length === 0 ? (
                     <tr>
                       <td colSpan={6} className="p-10 text-center">
