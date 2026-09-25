@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useMemo, useState } from "react";
+﻿import React, { useMemo, useState } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
 import { StatCard, StatCardRow } from "../../components/StatCard";
 import StaffSidebar from "../../components/StaffSidebar";
@@ -8,6 +8,9 @@ import StaffTopbar from "../../components/StaffTopbar";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
 import Breadcrumb from "../../components/Breadcrumb";
 import { supabase } from "../../supabaseClient";
+import { useQuery } from "@tanstack/react-query";
+import { queryClient } from "../../lib/queryClient";
+import { Skeleton, SkeletonChart, SkeletonList } from "../../components/Skeleton";
 import RecentActivityCard from "../../components/RecentActivityCard";
 import {
   LayoutDashboard,
@@ -74,6 +77,60 @@ const formatPesoCompact = (value) => {
 
 const timeAgo = formatRelativeTime;
 
+// Slim, last-resort fallback for Total Share Capital only — mirrors the
+// single aggregate dashboard-summary computes server-side (latest
+// capital_build_up row per member), not the old 2000-row membership-records
+// scan. Used only if the summary endpoint itself is unreachable.
+async function fetchShareCapitalFallback() {
+  try {
+    const { data: cbuRows } = await supabase
+      .from("capital_build_up")
+      .select("member_id, ending_share_capital, transaction_date")
+      .order("transaction_date", { ascending: false })
+      .limit(2000);
+    const latestByMember = new Map();
+    (cbuRows || []).forEach((row) => {
+      if (!row?.member_id) return;
+      if (!latestByMember.has(row.member_id)) {
+        latestByMember.set(row.member_id, Number(row.ending_share_capital || 0));
+      }
+    });
+    return Array.from(latestByMember.values()).reduce((s, v) => s + v, 0);
+  } catch {
+    return 0;
+  }
+}
+
+// Single dashboard-summary call replaces the old 3-endpoint fan-out
+// (manage-loans + membership-records + credit-risk/queue), each of which
+// pulled thousands of rows just to compute the handful of numbers and
+// two chart aggregates this page shows. See /api/bookkeeper/dashboard-summary.
+const BOOKKEEPER_DASHBOARD_QUERY_KEY = ["dashboard", "bookkeeper"];
+async function fetchBookkeeperDashboard() {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/bookkeeper/dashboard-summary`);
+    const json = await res.json();
+    if (!res.ok || !json?.success) {
+      throw new Error(json?.detail || "Failed to load dashboard summary.");
+    }
+    return { summary: json.data, loadError: "" };
+  } catch (err) {
+    console.error("Dashboard summary load failed:", err);
+    // Emergency fallback — only for the one figure with a legitimate
+    // direct-Supabase path today. Everything else stays blank/last-known
+    // rather than re-fetching the full heavy payloads client-side.
+    const prev = queryClient.getQueryData(BOOKKEEPER_DASHBOARD_QUERY_KEY)?.summary;
+    const fallbackCapital = await fetchShareCapitalFallback();
+    return {
+      summary: {
+        ...(prev || { stats: {}, recent_activities: [], credit_risk: {}, yearly_collections: [], repayment_behavior_by_year: {} }),
+        stats: { ...(prev?.stats || {}), share_capital: fallbackCapital },
+      },
+      loadError: err?.message || "Unable to load dashboard data.",
+    };
+  }
+}
+
 // Icon + label per Recent Activity transaction type (item 4). Deliberately
 // excludes loan disbursement — that's a Treasurer action, not one a
 // Bookkeeper records, so it doesn't belong in this list the way it does in
@@ -90,83 +147,23 @@ const ACTIVITY_TYPE_META = {
 const Dashboard = () => {
     const navigate = useNavigate();
 
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState("");
-  const [summary, setSummary] = useState(null);
-  const [chartYear, setChartYear] = useState("");
+  const [pickedYear, setChartYear] = useState("");
+
+  // Cached across navigation and re-polled every 60s (matches the endpoint's
+  // own 90s server-side cache, so most polls are served from cache rather
+  // than re-querying Supabase). `loading` is only true on the very first
+  // load, when there's nothing cached to show yet.
+  const { data, isPending: loading } = useQuery({
+    queryKey: BOOKKEEPER_DASHBOARD_QUERY_KEY,
+    queryFn: fetchBookkeeperDashboard,
+    refetchInterval: 60000,
+  });
+  const summary = data?.summary ?? null;
+  const loadError = data?.loadError ?? "";
   // Non-loan activity types (deposits, withdrawals, fees, grocery) have no
   // dedicated Bookkeeper detail page, so a row click opens this instead —
   // same pattern as BOD's Recent Transactions modal.
   const [activityModal, setActivityModal] = useState(null);
-
-  // Slim, last-resort fallback for Total Share Capital only — mirrors the
-  // single aggregate dashboard-summary computes server-side (latest
-  // capital_build_up row per member), not the old 2000-row membership-records
-  // scan. Used only if the summary endpoint itself is unreachable.
-  async function fetchShareCapitalFallback() {
-    try {
-      const { data: cbuRows } = await supabase
-        .from("capital_build_up")
-        .select("member_id, ending_share_capital, transaction_date")
-        .order("transaction_date", { ascending: false })
-        .limit(2000);
-      const latestByMember = new Map();
-      (cbuRows || []).forEach((row) => {
-        if (!row?.member_id) return;
-        if (!latestByMember.has(row.member_id)) {
-          latestByMember.set(row.member_id, Number(row.ending_share_capital || 0));
-        }
-      });
-      return Array.from(latestByMember.values()).reduce((s, v) => s + v, 0);
-    } catch {
-      return 0;
-    }
-  }
-
-  useEffect(() => {
-    let cancelled = false;
-
-    // Single dashboard-summary call replaces the old 3-endpoint fan-out
-    // (manage-loans + membership-records + credit-risk/queue), each of which
-    // pulled thousands of rows just to compute the handful of numbers and
-    // two chart aggregates this page shows. See /api/bookkeeper/dashboard-summary.
-    async function fetchData() {
-      try {
-        const res = await fetch(`${API_BASE_URL}/api/bookkeeper/dashboard-summary`);
-        const json = await res.json();
-        if (!res.ok || !json?.success) {
-          throw new Error(json?.detail || "Failed to load dashboard summary.");
-        }
-        if (cancelled) return;
-        setSummary(json.data);
-        setLoadError("");
-      } catch (err) {
-        if (cancelled) return;
-        console.error("Dashboard summary load failed:", err);
-        // Emergency fallback — only for the one figure with a legitimate
-        // direct-Supabase path today. Everything else stays blank/last-known
-        // rather than re-fetching the full heavy payloads client-side.
-        const fallbackCapital = await fetchShareCapitalFallback();
-        if (cancelled) return;
-        setSummary((prev) => ({
-          ...(prev || { stats: {}, recent_activities: [], credit_risk: {}, yearly_collections: [], repayment_behavior_by_year: {} }),
-          stats: { ...(prev?.stats || {}), share_capital: fallbackCapital },
-        }));
-        setLoadError(err?.message || "Unable to load dashboard data.");
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    }
-
-    fetchData();
-    // 60s poll — matches the endpoint's own 90s server-side cache, so most
-    // polls are served from cache rather than re-querying Supabase.
-    const intervalId = window.setInterval(fetchData, 60000);
-    return () => {
-      cancelled = true;
-      window.clearInterval(intervalId);
-    };
-  }, []);
 
   const stats = useMemo(() => {
     const s = summary?.stats || {};
@@ -234,12 +231,8 @@ const Dashboard = () => {
     return Object.keys(behaviorByYear).sort((a, b) => Number(b) - Number(a));
   }, [behaviorByYear]);
 
-  useEffect(() => {
-    if (!chartYear && availableYears.length) {
-      // Default to the most recent year that has data.
-      setChartYear(availableYears[0]);
-    }
-  }, [availableYears, chartYear]);
+  // Default to the most recent year that has data until the user picks one.
+  const chartYear = pickedYear || availableYears[0] || "";
 
   const monthlyBehaviorData = useMemo(() => {
     const monthLabels = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
@@ -341,21 +334,24 @@ const Dashboard = () => {
           <StatCardRow cols={3}>
             <StatCard
               label="Total Loans"
-              value={loading ? "..." : stats.totalLoans}
+              value={stats.totalLoans}
+              loading={loading}
               icon={Users}
               iconColor="text-green-500"
               subtext="Legacy + live loans on record"
             />
             <StatCard
               label="Payment This Month"
-              value={loading ? "..." : formatPeso(stats.paymentsThisMonth)}
+              value={formatPeso(stats.paymentsThisMonth)}
+              loading={loading}
               icon={Calendar}
               iconColor="text-blue-500"
               subtext={loading ? null : renderTrend(stats.monthChangePct)}
             />
             <StatCard
               label="Total Share Capital"
-              value={loading ? "..." : formatPesoCompact(stats.shareCapital)}
+              value={formatPesoCompact(stats.shareCapital)}
+              loading={loading}
               icon={PiggyBank}
               iconColor="text-purple-500"
               subtext="Across all members"
@@ -371,17 +367,17 @@ const Dashboard = () => {
                   <h3 className="text-gray-800 font-bold text-lg">Yearly Collections</h3>
                   <p className="text-gray-400 text-xs">Fiscal year totals (legacy + live)</p>
                 </div>
-                <div
+                {loading ? <Skeleton className="h-6 w-14" /> : <div
                   className={`px-2 py-1 rounded text-xs font-semibold ${
                     collectionsChangePct >= 0 ? "bg-green-50 text-green-600" : "bg-red-50 text-red-600"
                   }`}
                 >
                   {collectionsChangePct >= 0 ? "+" : ""}
                   {collectionsChangePct.toFixed(1)}%
-                </div>
+                </div>}
               </div>
               <div className="h-64">
-                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={1}>
+                {loading ? <SkeletonChart /> : <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={1}>
                   <BarChart data={yearlyBarData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
                     <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: "#9ca3af", fontSize: 12 }} dy={10} />
@@ -393,7 +389,7 @@ const Dashboard = () => {
                     />
                     <Bar dataKey="value" fill={SERIES_PRIMARY} radius={[4, 4, 0, 0]} barSize={28} />
                   </BarChart>
-                </ResponsiveContainer>
+                </ResponsiveContainer>}
               </div>
             </div>
 
@@ -428,7 +424,7 @@ const Dashboard = () => {
                 <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full" style={{ backgroundColor: REPAYMENT_HEALTH_COLORS.noData }}></span><span className="text-gray-500">No data</span></div>
               </div>
               <div className="h-56">
-                <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
+                {loading ? <SkeletonChart /> : <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
                   <ScatterChart margin={{ top: 10, right: 20, left: -5, bottom: 5 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                     <XAxis
@@ -489,7 +485,7 @@ const Dashboard = () => {
                       })}
                     </Scatter>
                   </ScatterChart>
-                </ResponsiveContainer>
+                </ResponsiveContainer>}
               </div>
             </div>
           </div>
@@ -523,21 +519,21 @@ const Dashboard = () => {
               <div className="flex items-center gap-6">
                 <div>
                   <p className="text-xs text-gray-500 font-medium">High Risk</p>
-                  <p className={`text-2xl font-bold ${creditRiskSnapshot.high > 0 ? "text-red-600" : "text-gray-400"}`}>
+                  {loading ? <Skeleton className="h-8 w-10 mt-0.5" /> : <p className={`text-2xl font-bold ${creditRiskSnapshot.high > 0 ? "text-red-600" : "text-gray-400"}`}>
                     {creditRiskSnapshot.high}
-                  </p>
+                  </p>}
                 </div>
                 <div>
                   <p className="text-xs text-gray-500 font-medium">Medium Risk</p>
-                  <p className={`text-2xl font-bold ${creditRiskSnapshot.watch > 0 ? "text-amber-600" : "text-gray-400"}`}>
+                  {loading ? <Skeleton className="h-8 w-10 mt-0.5" /> : <p className={`text-2xl font-bold ${creditRiskSnapshot.watch > 0 ? "text-amber-600" : "text-gray-400"}`}>
                     {creditRiskSnapshot.watch}
-                  </p>
+                  </p>}
                 </div>
                 <div>
                   <p className="text-xs text-gray-500 font-medium">Low Risk</p>
-                  <p className={`text-2xl font-bold ${creditRiskSnapshot.low > 0 ? "text-emerald-600" : "text-gray-400"}`}>
+                  {loading ? <Skeleton className="h-8 w-10 mt-0.5" /> : <p className={`text-2xl font-bold ${creditRiskSnapshot.low > 0 ? "text-emerald-600" : "text-gray-400"}`}>
                     {creditRiskSnapshot.low}
-                  </p>
+                  </p>}
                 </div>
               </div>
             </div>
@@ -565,12 +561,12 @@ const Dashboard = () => {
               </div>
             )}
 
-            {creditRiskSnapshot.queueTotal === 0 && (
+            {!loading && creditRiskSnapshot.queueTotal === 0 && (
               <p className="mt-4 text-sm text-gray-500 font-medium">
                 No applicants currently under review.
               </p>
             )}
-            {creditRiskSnapshot.queueTotal > 0 && creditRiskSnapshot.high === 0 && (
+            {!loading && creditRiskSnapshot.queueTotal > 0 && creditRiskSnapshot.high === 0 && (
               <p className="mt-4 text-sm text-emerald-700 font-medium">
                 No high-risk applicants in the queue. {creditRiskSnapshot.queueTotal} to review.
               </p>
@@ -585,13 +581,13 @@ const Dashboard = () => {
           <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
             <TableToolbar
               title="Recent Activity"
-              subtitle={`${recentActivities.length} recent transaction${recentActivities.length === 1 ? "" : "s"}`}
+              subtitle={loading ? "Loading…" : `${recentActivities.length} recent transaction${recentActivities.length === 1 ? "" : "s"}`}
             />
             <div className="divide-y divide-gray-50">
-              {recentActivities.length === 0 ? (
-                <p className="text-sm text-gray-400 px-6 py-6">
-                  {loading ? "Loading recent activity..." : "No recent activity recorded."}
-                </p>
+              {loading ? (
+                <SkeletonList rows={5} className="px-6 py-4" />
+              ) : recentActivities.length === 0 ? (
+                <p className="text-sm text-gray-400 px-6 py-6">No recent activity recorded.</p>
               ) : (
                 recentActivities.map((activity) => {
                   const Icon = activity.icon;

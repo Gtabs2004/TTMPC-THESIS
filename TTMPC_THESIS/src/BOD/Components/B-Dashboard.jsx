@@ -9,6 +9,8 @@ import StaffTopbar from "../../components/StaffTopbar";
 import Breadcrumb from "../../components/Breadcrumb";
 import LoanDemandForecastCard from "../../components/LoanDemandForecastCard";
 import { supabase } from "../../supabaseClient";
+import { useQuery } from "@tanstack/react-query";
+import { Skeleton, SkeletonChart, SkeletonDonut, SkeletonTableRows } from "../../components/Skeleton";
 import {
   LayoutDashboard,
   Users,
@@ -29,7 +31,6 @@ import {
   AlertTriangle,
   CalendarDays,
   History,
-  Loader2,
   X,
 } from 'lucide-react';
 import NotificationBell from "../../components/NotificationBell";
@@ -103,24 +104,365 @@ const formatDateShort = (v) => {
 };
 const monthKey = (d) => d.toLocaleDateString('en-US', { month: 'short' });
 
+// Everything the dashboard shows, fetched in one parallel batch (plus one
+// small dependent lookup). Lives outside the component so TanStack Query can
+// cache it under BOD_DASHBOARD_QUERY_KEY across navigation.
+const BOD_DASHBOARD_QUERY_KEY = ['dashboard', 'bod'];
+async function fetchBodDashboard() {
+  const now = new Date();
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
+  const sixMoStart = new Date(now.getFullYear(), now.getMonth() - 5, 1).toISOString().slice(0, 10);
+
+  const [
+    activeLoansRes,
+    allDisbursedRes,
+    totalLoansCountRes,
+    overdueSchedRes,
+    approvedTrendRes,
+    gendersRes,
+    recentPaymentsRes,
+    recentDisbursalRes,
+    recentApplicationsRes,
+    recentSavingsRes,
+    recentFeesRes,
+    recentGroceryRes,
+  ] = await Promise.all([
+    supabase
+      .from('loans')
+      .select('control_number, member_id, principal_amount, loan_amount, monthly_amortization, term, loan_status')
+      .in('loan_status', ['released', 'partially paid'])
+      .limit(10000),
+    supabase
+      .from('loans')
+      .select('loan_amount, principal_amount, disbursal_date')
+      .in('loan_status', ['released', 'partially paid', 'fully paid'])
+      .limit(20000),
+    supabase
+      .from('loans')
+      .select('control_number', { count: 'exact', head: true }),
+    supabase
+      .from('loan_schedules')
+      .select('loan_id, due_date, schedule_status')
+      .in('schedule_status', ['Unpaid', 'unpaid', 'Overdue', 'overdue', 'Pending', 'pending'])
+      .gte('due_date', sixMoStart)
+      .lt('due_date', now.toISOString().slice(0, 10))
+      .limit(20000),
+    supabase
+      .from('loans')
+      .select('disbursal_date, loan_status, loan_amount, principal_amount, loan_types:loan_type_id(name)')
+      .gte('disbursal_date', sixMoStart)
+      .in('loan_status', ['released', 'partially paid', 'fully paid'])
+      .limit(20000),
+    supabase
+      .from('personal_data_sheet')
+      .select('gender')
+      .limit(20000),
+    supabase
+      .from('loan_payments')
+      .select('id, loan_id, amount_paid, payment_date, confirmation_status, payment_reference')
+      .order('payment_date', { ascending: false })
+      .limit(5),
+    supabase
+      .from('loans')
+      .select('control_number, loan_amount, disbursal_date, loan_status, member:member_id(first_name, last_name, membership_id), loan_types:loan_type_id(name)')
+      .not('disbursal_date', 'is', null)
+      .order('disbursal_date', { ascending: false })
+      .limit(5),
+    // Loan applications — the act of applying, not the loan's current
+    // status, so this is keyed off application_date regardless of
+    // where the loan is now in its lifecycle.
+    supabase
+      .from('loans')
+      .select('control_number, loan_amount, application_date, loan_status, member:member_id(first_name, last_name, membership_id), loan_types:loan_type_id(name)')
+      .not('application_date', 'is', null)
+      .order('application_date', { ascending: false })
+      .limit(5),
+    // Savings deposits/withdrawals. entry_type: 'credit' = deposit,
+    // 'debit' = withdrawal (see savings_accounts_schema.sql).
+    supabase
+      .from('savings_ledger')
+      .select('id, account_number, entry_type, amount, reference, posted_at, savings_accounts:account_number(member_id, member:member_id(first_name, last_name, membership_id))')
+      .order('posted_at', { ascending: false })
+      .limit(5),
+    // Membership fee payments.
+    supabase
+      .from('membership_payments')
+      .select('id, payment_id, membership_number_id, member_id, payment_type, amount, payment_date, payment_status, member:member_id(first_name, last_name, membership_id)')
+      .order('payment_date', { ascending: false })
+      .limit(5),
+    // Grocery/POS purchases charged to member accounts.
+    supabase
+      .from('GROCERY_TRANSACTIONS')
+      .select('GroceryID, membership_number_id, TransactionDate, GroceryAmount, Status, balance_due, member:membership_number_id(first_name, last_name, membership_id)')
+      .order('TransactionDate', { ascending: false })
+      .limit(5),
+  ]);
+
+  const activeLoans = activeLoansRes?.data || [];
+  const allDisbursed = allDisbursedRes?.data || [];
+  const overdueSched = overdueSchedRes?.data || [];
+  const approvedRows = approvedTrendRes?.data || [];
+  const genderRows = gendersRes?.data || [];
+  const recentPayments = recentPaymentsRes?.data || [];
+  const recentDisbursals = recentDisbursalRes?.data || [];
+  const recentApplications = recentApplicationsRes?.data || [];
+  const recentSavings = recentSavingsRes?.data || [];
+  const recentFees = recentFeesRes?.data || [];
+  const recentGrocery = recentGroceryRes?.data || [];
+
+  const totalLoansCount = totalLoansCountRes?.count || 0;
+  const activeIds = new Set(activeLoans.map((l) => l.control_number));
+  // One count per overdue/unpaid/pending installment past its due date
+  // on a currently active loan — i.e. an actual number of late
+  // payments, not the distinct loans they belong to or a percentage.
+  const latePaymentsCount = overdueSched.filter((s) => activeIds.has(s.loan_id)).length;
+  // Same record set used for latePaymentsCount above — loans currently
+  // disbursed and not yet fully repaid ('released' = disbursed, no
+  // payments recorded yet; 'partially paid' = actively being repaid).
+  // Counting from that array (not a separate query) guarantees this
+  // KPI and the rest of the dashboard can never disagree on which
+  // loans count as "active".
+  const activeLoansCount = activeLoans.length;
+  const approvedThisMonth = allDisbursed.filter(
+    (l) => l.disbursal_date && l.disbursal_date >= monthStart
+  ).length;
+
+  const kpis = { totalLoansCount, latePaymentsCount, activeLoansCount, approvedThisMonth };
+
+  // Approved-per-month trend, broken down by loan type (via
+  // loan_types.name on each disbursed loan).
+  const approvedBuckets = new Map();
+  for (let i = 5; i >= 0; i -= 1) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    approvedBuckets.set(monthKey(d), {
+      month: monthKey(d),
+      ...Object.fromEntries(APPROVED_LOAN_TYPE_LABELS.map((label) => [label, 0])),
+      [CONSOL_ABOVE]: 0,
+      [CONSOL_BELOW]: 0,
+    });
+  }
+  approvedRows.forEach((r) => {
+    if (!r.disbursal_date) return;
+    const label = resolveApprovedLoanTypeLabel(r.loan_types?.name);
+    if (!label) return;
+    const slot = approvedBuckets.get(monthKey(new Date(r.disbursal_date)));
+    if (!slot) return;
+    slot[label] += 1;
+    if (label === 'Consolidated Loan') {
+      const amount = Number(r.loan_amount ?? r.principal_amount ?? 0);
+      slot[amount > BOD_LOAN_THRESHOLD ? CONSOL_ABOVE : CONSOL_BELOW] += 1;
+    }
+  });
+  const approvedTrend = [...approvedBuckets.values()];
+
+  // Gender distribution
+  const genderCounts = new Map();
+  genderRows.forEach((r) => {
+    const raw = String(r.gender || '').trim();
+    if (!raw) return;
+    const norm = raw.toLowerCase().startsWith('f') ? 'Female'
+      : raw.toLowerCase().startsWith('m') ? 'Male'
+      : 'Other';
+    genderCounts.set(norm, (genderCounts.get(norm) || 0) + 1);
+  });
+  const genderArr = [...genderCounts.entries()].map(([name, value]) => ({ name, value }));
+  const genderTotal = genderArr.reduce((s, g) => s + g.value, 0);
+
+  // Recent transactions — every transaction type the system records,
+  // not just loan disbursements/payments (CLAUDE.md's loan lifecycle
+  // roles + savings/grocery/membership modules). Each row carries
+  // enough to route a click straight to the right place: loan-related
+  // rows go to the existing per-loan detail page (`/bod-loan-approval`,
+  // shared with Manager/Bookkeeper — see loan_notification_service.py's
+  // _redirect_url), everything else opens the in-page details modal
+  // since there's no dedicated BOD page for a single ledger/fee/grocery
+  // entry yet.
+  const memberName = (m) => `${m?.first_name || ''} ${m?.last_name || ''}`.trim() || 'Member';
+  const memberNameByLoan = new Map();
+  const membershipIdByLoan = new Map();
+  const loanStatusByControlNumber = new Map();
+  recentDisbursals.forEach((l) => {
+    memberNameByLoan.set(l.control_number, memberName(l.member));
+    membershipIdByLoan.set(l.control_number, l.member?.membership_id || '');
+    loanStatusByControlNumber.set(l.control_number, l.loan_status);
+  });
+  recentApplications.forEach((l) => {
+    memberNameByLoan.set(l.control_number, memberName(l.member));
+    membershipIdByLoan.set(l.control_number, l.member?.membership_id || '');
+    loanStatusByControlNumber.set(l.control_number, l.loan_status);
+  });
+  // Loan Payment rows need their parent loan's status too (to tell an
+  // ordinary installment "Approved" apart from the payment that fully
+  // paid the loan off, "Completed") — fetch only the handful not
+  // already covered by the two loan queries above.
+  const missingLoanIds = [...new Set(
+    recentPayments.map((p) => p.loan_id).filter((id) => id && !loanStatusByControlNumber.has(id))
+  )];
+  if (missingLoanIds.length) {
+    const { data: extraLoanStatuses } = await supabase
+      .from('loans')
+      .select('control_number, loan_status')
+      .in('control_number', missingLoanIds);
+    (extraLoanStatuses || []).forEach((l) => loanStatusByControlNumber.set(l.control_number, l.loan_status));
+  }
+
+  const txnRows = [];
+
+  recentApplications.forEach((l) => {
+    txnRows.push({
+      id: l.control_number,
+      member: memberNameByLoan.get(l.control_number) || 'Member',
+      membershipId: membershipIdByLoan.get(l.control_number) || '',
+      txnType: 'Loan Application',
+      detail: l.loan_types?.name || '',
+      amountValue: Number(l.loan_amount || 0),
+      date: l.application_date,
+      status: loanStatusBadge(l.loan_status),
+      isCredit: null,
+      clickType: 'loan',
+      loanId: l.control_number,
+    });
+  });
+  recentDisbursals.forEach((l) => {
+    txnRows.push({
+      id: l.control_number,
+      member: memberNameByLoan.get(l.control_number) || 'Member',
+      membershipId: membershipIdByLoan.get(l.control_number) || '',
+      txnType: 'Loan Approval',
+      detail: l.loan_types?.name || '',
+      amountValue: Number(l.loan_amount || 0),
+      date: l.disbursal_date,
+      status: loanStatusBadge(l.loan_status),
+      isCredit: false,
+      clickType: 'loan',
+      loanId: l.control_number,
+    });
+  });
+  recentPayments.forEach((p) => {
+    const confirmation = String(p.confirmation_status || '').toLowerCase();
+    let status;
+    if (confirmation.includes('reject')) status = 'Rejected';
+    else if (confirmation.includes('pending')) status = 'Pending';
+    else status = loanStatusBadge(loanStatusByControlNumber.get(p.loan_id));
+    txnRows.push({
+      id: p.payment_reference || `PMT-${p.id}`,
+      member: memberNameByLoan.get(p.loan_id) || p.loan_id || 'Member',
+      membershipId: membershipIdByLoan.get(p.loan_id) || '',
+      txnType: 'Loan Payment',
+      detail: '',
+      amountValue: Number(p.amount_paid || 0),
+      date: p.payment_date,
+      status,
+      isCredit: true,
+      clickType: 'loan',
+      loanId: p.loan_id,
+    });
+  });
+  recentSavings.forEach((s) => {
+    const acct = s.savings_accounts || {};
+    const isWithdrawal = String(s.entry_type || '').toLowerCase() === 'debit';
+    txnRows.push({
+      id: `SAV-${s.id}`,
+      member: acct.member ? memberName(acct.member) : (s.account_number || 'Member'),
+      membershipId: acct.member?.membership_id || '',
+      txnType: isWithdrawal ? 'Withdrawal' : 'Deposit',
+      detail: '',
+      amountValue: Number(s.amount || 0),
+      date: s.posted_at,
+      // A savings_ledger row is final the moment it's posted — there's
+      // no pending state modeled for it — so it's always "Approved",
+      // never the loan-specific "Completed".
+      status: 'Approved',
+      isCredit: !isWithdrawal,
+      clickType: 'modal',
+      modalDetails: [
+        ['Account Number', s.account_number || '—'],
+        ['Reference', s.reference || '—'],
+      ],
+    });
+  });
+  recentFees.forEach((f) => {
+    const status = String(f.payment_status || '').toLowerCase();
+    let badgeStatus;
+    if (status.includes('reject')) badgeStatus = 'Rejected';
+    else if (status.includes('pending')) badgeStatus = 'Pending';
+    else badgeStatus = 'Approved';
+    txnRows.push({
+      id: f.payment_id || `MP-${f.id}`,
+      member: f.member ? memberName(f.member) : (f.membership_number_id || 'Member'),
+      membershipId: f.member?.membership_id || f.membership_number_id || '',
+      txnType: 'Fees',
+      detail: f.payment_type || '',
+      amountValue: Number(f.amount || 0),
+      date: f.payment_date,
+      status: badgeStatus,
+      isCredit: true,
+      clickType: 'modal',
+      modalDetails: [
+        ['Payment Type', f.payment_type || '—'],
+        ['Payment ID', f.payment_id || '—'],
+      ],
+    });
+  });
+  recentGrocery.forEach((g) => {
+    // Grocery is the one non-loan type where "Completed" is still the
+    // right word — a purchase with no balance left owing genuinely has
+    // been fully paid, matching the same rule that reserves
+    // "Completed" for a loan paid off in full rather than any generic
+    // success.
+    const isSettled = String(g.Status || '').toLowerCase() === 'completed';
+    txnRows.push({
+      id: g.GroceryID,
+      member: g.member ? memberName(g.member) : 'Member',
+      membershipId: g.member?.membership_id || '',
+      txnType: 'Grocery',
+      detail: '',
+      amountValue: Number(g.GroceryAmount || 0),
+      date: g.TransactionDate,
+      status: isSettled ? 'Completed' : 'Pending',
+      isCredit: true,
+      clickType: 'modal',
+      modalDetails: [
+        ['Balance Due', formatCurrency(g.balance_due || 0)],
+      ],
+    });
+  });
+
+  txnRows.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
+  return {
+    kpis,
+    approvedTrend,
+    genderData: genderArr,
+    genderTotal,
+    recentTxns: txnRows.slice(0, 10),
+  };
+}
+
 const Dashboard_BOD = () => {
     const navigate = useNavigate();
   const { addNotification } = useNotification();
   const [chartsReady, setChartsReady] = useState(false);
-  const [loading, setLoading] = useState(true);
-
-  const [kpis, setKpis] = useState({
-    totalLoansCount: 0,
-    latePaymentsCount: 0,
-    activeLoansCount: 0,
-    approvedThisMonth: 0,
+  // Cached across navigation: coming back to the dashboard renders the last
+  // result instantly and refreshes it in the background. `loading` is only
+  // true on the very first load, when there's nothing cached to show yet.
+  const { data, isPending: loading, error } = useQuery({
+    queryKey: BOD_DASHBOARD_QUERY_KEY,
+    queryFn: fetchBodDashboard,
   });
-  const [approvedTrend, setApprovedTrend] = useState([]);
+  const {
+    kpis = { totalLoansCount: 0, latePaymentsCount: 0, activeLoansCount: 0, approvedThisMonth: 0 },
+    approvedTrend = [],
+    genderData = [],
+    genderTotal = 0,
+    recentTxns = [],
+  } = data || {};
+  useEffect(() => {
+    if (error) addNotification(error?.message || 'Failed to load BOD dashboard data.', 'error');
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [error]);
+
   const [approvedTab, setApprovedTab] = useState('all');
   const [consolFilter, setConsolFilter] = useState('all');
-  const [genderData, setGenderData] = useState([]);
-  const [genderTotal, setGenderTotal] = useState(0);
-  const [recentTxns, setRecentTxns] = useState([]);
   // Non-loan transaction types (savings, fees, grocery) have no dedicated
   // BOD detail page to drill into, so clicking one opens this lightweight
   // details modal instead of navigating away. Loan-related rows navigate
@@ -132,345 +474,6 @@ const Dashboard_BOD = () => {
     return () => window.cancelAnimationFrame(frameId);
   }, []);
 
-  useEffect(() => {
-    let cancelled = false;
-    const load = async () => {
-      setLoading(true);
-      try {
-        const now = new Date();
-        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
-        const sixMoStart = new Date(now.getFullYear(), now.getMonth() - 5, 1).toISOString().slice(0, 10);
-
-        const [
-          activeLoansRes,
-          allDisbursedRes,
-          totalLoansCountRes,
-          overdueSchedRes,
-          approvedTrendRes,
-          gendersRes,
-          recentPaymentsRes,
-          recentDisbursalRes,
-          recentApplicationsRes,
-          recentSavingsRes,
-          recentFeesRes,
-          recentGroceryRes,
-        ] = await Promise.all([
-          supabase
-            .from('loans')
-            .select('control_number, member_id, principal_amount, loan_amount, monthly_amortization, term, loan_status')
-            .in('loan_status', ['released', 'partially paid'])
-            .limit(10000),
-          supabase
-            .from('loans')
-            .select('loan_amount, principal_amount, disbursal_date')
-            .in('loan_status', ['released', 'partially paid', 'fully paid'])
-            .limit(20000),
-          supabase
-            .from('loans')
-            .select('control_number', { count: 'exact', head: true }),
-          supabase
-            .from('loan_schedules')
-            .select('loan_id, due_date, schedule_status')
-            .in('schedule_status', ['Unpaid', 'unpaid', 'Overdue', 'overdue', 'Pending', 'pending'])
-            .gte('due_date', sixMoStart)
-            .lt('due_date', now.toISOString().slice(0, 10))
-            .limit(20000),
-          supabase
-            .from('loans')
-            .select('disbursal_date, loan_status, loan_amount, principal_amount, loan_types:loan_type_id(name)')
-            .gte('disbursal_date', sixMoStart)
-            .in('loan_status', ['released', 'partially paid', 'fully paid'])
-            .limit(20000),
-          supabase
-            .from('personal_data_sheet')
-            .select('gender')
-            .limit(20000),
-          supabase
-            .from('loan_payments')
-            .select('id, loan_id, amount_paid, payment_date, confirmation_status, payment_reference')
-            .order('payment_date', { ascending: false })
-            .limit(5),
-          supabase
-            .from('loans')
-            .select('control_number, loan_amount, disbursal_date, loan_status, member:member_id(first_name, last_name, membership_id), loan_types:loan_type_id(name)')
-            .not('disbursal_date', 'is', null)
-            .order('disbursal_date', { ascending: false })
-            .limit(5),
-          // Loan applications — the act of applying, not the loan's current
-          // status, so this is keyed off application_date regardless of
-          // where the loan is now in its lifecycle.
-          supabase
-            .from('loans')
-            .select('control_number, loan_amount, application_date, loan_status, member:member_id(first_name, last_name, membership_id), loan_types:loan_type_id(name)')
-            .not('application_date', 'is', null)
-            .order('application_date', { ascending: false })
-            .limit(5),
-          // Savings deposits/withdrawals. entry_type: 'credit' = deposit,
-          // 'debit' = withdrawal (see savings_accounts_schema.sql).
-          supabase
-            .from('savings_ledger')
-            .select('id, account_number, entry_type, amount, reference, posted_at, savings_accounts:account_number(member_id, member:member_id(first_name, last_name, membership_id))')
-            .order('posted_at', { ascending: false })
-            .limit(5),
-          // Membership fee payments.
-          supabase
-            .from('membership_payments')
-            .select('id, payment_id, membership_number_id, member_id, payment_type, amount, payment_date, payment_status, member:member_id(first_name, last_name, membership_id)')
-            .order('payment_date', { ascending: false })
-            .limit(5),
-          // Grocery/POS purchases charged to member accounts.
-          supabase
-            .from('GROCERY_TRANSACTIONS')
-            .select('GroceryID, membership_number_id, TransactionDate, GroceryAmount, Status, balance_due, member:membership_number_id(first_name, last_name, membership_id)')
-            .order('TransactionDate', { ascending: false })
-            .limit(5),
-        ]);
-
-        if (cancelled) return;
-
-        const activeLoans = activeLoansRes?.data || [];
-        const allDisbursed = allDisbursedRes?.data || [];
-        const overdueSched = overdueSchedRes?.data || [];
-        const approvedRows = approvedTrendRes?.data || [];
-        const genderRows = gendersRes?.data || [];
-        const recentPayments = recentPaymentsRes?.data || [];
-        const recentDisbursals = recentDisbursalRes?.data || [];
-        const recentApplications = recentApplicationsRes?.data || [];
-        const recentSavings = recentSavingsRes?.data || [];
-        const recentFees = recentFeesRes?.data || [];
-        const recentGrocery = recentGroceryRes?.data || [];
-
-        const totalLoansCount = totalLoansCountRes?.count || 0;
-        const activeIds = new Set(activeLoans.map((l) => l.control_number));
-        // One count per overdue/unpaid/pending installment past its due date
-        // on a currently active loan — i.e. an actual number of late
-        // payments, not the distinct loans they belong to or a percentage.
-        const latePaymentsCount = overdueSched.filter((s) => activeIds.has(s.loan_id)).length;
-        // Same record set used for latePaymentsCount above — loans currently
-        // disbursed and not yet fully repaid ('released' = disbursed, no
-        // payments recorded yet; 'partially paid' = actively being repaid).
-        // Counting from that array (not a separate query) guarantees this
-        // KPI and the rest of the dashboard can never disagree on which
-        // loans count as "active".
-        const activeLoansCount = activeLoans.length;
-        const approvedThisMonth = allDisbursed.filter(
-          (l) => l.disbursal_date && l.disbursal_date >= monthStart
-        ).length;
-
-        setKpis({ totalLoansCount, latePaymentsCount, activeLoansCount, approvedThisMonth });
-
-        // Approved-per-month trend, broken down by loan type (via
-        // loan_types.name on each disbursed loan).
-        const approvedBuckets = new Map();
-        for (let i = 5; i >= 0; i -= 1) {
-          const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-          approvedBuckets.set(monthKey(d), {
-            month: monthKey(d),
-            ...Object.fromEntries(APPROVED_LOAN_TYPE_LABELS.map((label) => [label, 0])),
-            [CONSOL_ABOVE]: 0,
-            [CONSOL_BELOW]: 0,
-          });
-        }
-        approvedRows.forEach((r) => {
-          if (!r.disbursal_date) return;
-          const label = resolveApprovedLoanTypeLabel(r.loan_types?.name);
-          if (!label) return;
-          const slot = approvedBuckets.get(monthKey(new Date(r.disbursal_date)));
-          if (!slot) return;
-          slot[label] += 1;
-          if (label === 'Consolidated Loan') {
-            const amount = Number(r.loan_amount ?? r.principal_amount ?? 0);
-            slot[amount > BOD_LOAN_THRESHOLD ? CONSOL_ABOVE : CONSOL_BELOW] += 1;
-          }
-        });
-        setApprovedTrend([...approvedBuckets.values()]);
-
-        // Gender distribution
-        const genderCounts = new Map();
-        genderRows.forEach((r) => {
-          const raw = String(r.gender || '').trim();
-          if (!raw) return;
-          const norm = raw.toLowerCase().startsWith('f') ? 'Female'
-            : raw.toLowerCase().startsWith('m') ? 'Male'
-            : 'Other';
-          genderCounts.set(norm, (genderCounts.get(norm) || 0) + 1);
-        });
-        const genderArr = [...genderCounts.entries()].map(([name, value]) => ({ name, value }));
-        setGenderData(genderArr);
-        setGenderTotal(genderArr.reduce((s, g) => s + g.value, 0));
-
-        // Recent transactions — every transaction type the system records,
-        // not just loan disbursements/payments (CLAUDE.md's loan lifecycle
-        // roles + savings/grocery/membership modules). Each row carries
-        // enough to route a click straight to the right place: loan-related
-        // rows go to the existing per-loan detail page (`/bod-loan-approval`,
-        // shared with Manager/Bookkeeper — see loan_notification_service.py's
-        // _redirect_url), everything else opens the in-page details modal
-        // since there's no dedicated BOD page for a single ledger/fee/grocery
-        // entry yet.
-        const memberName = (m) => `${m?.first_name || ''} ${m?.last_name || ''}`.trim() || 'Member';
-        const memberNameByLoan = new Map();
-        const membershipIdByLoan = new Map();
-        const loanStatusByControlNumber = new Map();
-        recentDisbursals.forEach((l) => {
-          memberNameByLoan.set(l.control_number, memberName(l.member));
-          membershipIdByLoan.set(l.control_number, l.member?.membership_id || '');
-          loanStatusByControlNumber.set(l.control_number, l.loan_status);
-        });
-        recentApplications.forEach((l) => {
-          memberNameByLoan.set(l.control_number, memberName(l.member));
-          membershipIdByLoan.set(l.control_number, l.member?.membership_id || '');
-          loanStatusByControlNumber.set(l.control_number, l.loan_status);
-        });
-        // Loan Payment rows need their parent loan's status too (to tell an
-        // ordinary installment "Approved" apart from the payment that fully
-        // paid the loan off, "Completed") — fetch only the handful not
-        // already covered by the two loan queries above.
-        const missingLoanIds = [...new Set(
-          recentPayments.map((p) => p.loan_id).filter((id) => id && !loanStatusByControlNumber.has(id))
-        )];
-        if (missingLoanIds.length) {
-          const { data: extraLoanStatuses } = await supabase
-            .from('loans')
-            .select('control_number, loan_status')
-            .in('control_number', missingLoanIds);
-          (extraLoanStatuses || []).forEach((l) => loanStatusByControlNumber.set(l.control_number, l.loan_status));
-        }
-
-        const txnRows = [];
-
-        recentApplications.forEach((l) => {
-          txnRows.push({
-            id: l.control_number,
-            member: memberNameByLoan.get(l.control_number) || 'Member',
-            membershipId: membershipIdByLoan.get(l.control_number) || '',
-            txnType: 'Loan Application',
-            detail: l.loan_types?.name || '',
-            amountValue: Number(l.loan_amount || 0),
-            date: l.application_date,
-            status: loanStatusBadge(l.loan_status),
-            isCredit: null,
-            clickType: 'loan',
-            loanId: l.control_number,
-          });
-        });
-        recentDisbursals.forEach((l) => {
-          txnRows.push({
-            id: l.control_number,
-            member: memberNameByLoan.get(l.control_number) || 'Member',
-            membershipId: membershipIdByLoan.get(l.control_number) || '',
-            txnType: 'Loan Approval',
-            detail: l.loan_types?.name || '',
-            amountValue: Number(l.loan_amount || 0),
-            date: l.disbursal_date,
-            status: loanStatusBadge(l.loan_status),
-            isCredit: false,
-            clickType: 'loan',
-            loanId: l.control_number,
-          });
-        });
-        recentPayments.forEach((p) => {
-          const confirmation = String(p.confirmation_status || '').toLowerCase();
-          let status;
-          if (confirmation.includes('reject')) status = 'Rejected';
-          else if (confirmation.includes('pending')) status = 'Pending';
-          else status = loanStatusBadge(loanStatusByControlNumber.get(p.loan_id));
-          txnRows.push({
-            id: p.payment_reference || `PMT-${p.id}`,
-            member: memberNameByLoan.get(p.loan_id) || p.loan_id || 'Member',
-            membershipId: membershipIdByLoan.get(p.loan_id) || '',
-            txnType: 'Loan Payment',
-            detail: '',
-            amountValue: Number(p.amount_paid || 0),
-            date: p.payment_date,
-            status,
-            isCredit: true,
-            clickType: 'loan',
-            loanId: p.loan_id,
-          });
-        });
-        recentSavings.forEach((s) => {
-          const acct = s.savings_accounts || {};
-          const isWithdrawal = String(s.entry_type || '').toLowerCase() === 'debit';
-          txnRows.push({
-            id: `SAV-${s.id}`,
-            member: acct.member ? memberName(acct.member) : (s.account_number || 'Member'),
-            membershipId: acct.member?.membership_id || '',
-            txnType: isWithdrawal ? 'Withdrawal' : 'Deposit',
-            detail: '',
-            amountValue: Number(s.amount || 0),
-            date: s.posted_at,
-            // A savings_ledger row is final the moment it's posted — there's
-            // no pending state modeled for it — so it's always "Approved",
-            // never the loan-specific "Completed".
-            status: 'Approved',
-            isCredit: !isWithdrawal,
-            clickType: 'modal',
-            modalDetails: [
-              ['Account Number', s.account_number || '—'],
-              ['Reference', s.reference || '—'],
-            ],
-          });
-        });
-        recentFees.forEach((f) => {
-          const status = String(f.payment_status || '').toLowerCase();
-          let badgeStatus;
-          if (status.includes('reject')) badgeStatus = 'Rejected';
-          else if (status.includes('pending')) badgeStatus = 'Pending';
-          else badgeStatus = 'Approved';
-          txnRows.push({
-            id: f.payment_id || `MP-${f.id}`,
-            member: f.member ? memberName(f.member) : (f.membership_number_id || 'Member'),
-            membershipId: f.member?.membership_id || f.membership_number_id || '',
-            txnType: 'Fees',
-            detail: f.payment_type || '',
-            amountValue: Number(f.amount || 0),
-            date: f.payment_date,
-            status: badgeStatus,
-            isCredit: true,
-            clickType: 'modal',
-            modalDetails: [
-              ['Payment Type', f.payment_type || '—'],
-              ['Payment ID', f.payment_id || '—'],
-            ],
-          });
-        });
-        recentGrocery.forEach((g) => {
-          // Grocery is the one non-loan type where "Completed" is still the
-          // right word — a purchase with no balance left owing genuinely has
-          // been fully paid, matching the same rule that reserves
-          // "Completed" for a loan paid off in full rather than any generic
-          // success.
-          const isSettled = String(g.Status || '').toLowerCase() === 'completed';
-          txnRows.push({
-            id: g.GroceryID,
-            member: g.member ? memberName(g.member) : 'Member',
-            membershipId: g.member?.membership_id || '',
-            txnType: 'Grocery',
-            detail: '',
-            amountValue: Number(g.GroceryAmount || 0),
-            date: g.TransactionDate,
-            status: isSettled ? 'Completed' : 'Pending',
-            isCredit: true,
-            clickType: 'modal',
-            modalDetails: [
-              ['Balance Due', formatCurrency(g.balance_due || 0)],
-            ],
-          });
-        });
-
-        txnRows.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
-        setRecentTxns(txnRows.slice(0, 10));
-      } catch (err) {
-        if (!cancelled) addNotification(err?.message || 'Failed to load BOD dashboard data.', 'error');
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    };
-    load();
-    return () => { cancelled = true; };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   // Loan-related rows (Application/Disbursement/Payment) go straight to the
   // existing per-loan detail page — same page Manager/Bookkeeper notification
@@ -525,28 +528,32 @@ const Dashboard_BOD = () => {
           <StatCardRow cols={4}>
             <StatCard
               label="Total Loan Applications"
-              value={loading ? '—' : kpis.totalLoansCount.toLocaleString()}
+              value={kpis.totalLoansCount.toLocaleString()}
+              loading={loading}
               icon={TrendingUp}
               iconColor="text-[#2C7A3F]"
               subtext="All loans on file in the cooperative"
             />
             <StatCard
               label="Number of Late Payments"
-              value={loading ? '—' : kpis.latePaymentsCount.toLocaleString()}
+              value={kpis.latePaymentsCount.toLocaleString()}
+              loading={loading}
               icon={AlertCircle}
               iconColor="text-red-500"
               subtext="Overdue installments on active loans"
             />
             <StatCard
               label="Total Active Loans"
-              value={loading ? '—' : kpis.activeLoansCount.toLocaleString()}
+              value={kpis.activeLoansCount.toLocaleString()}
+              loading={loading}
               icon={CreditCard}
               iconColor="text-blue-500"
               subtext="Loans currently released or partially paid"
             />
             <StatCard
               label="Approved Loan This Month"
-              value={loading ? '—' : kpis.approvedThisMonth}
+              value={kpis.approvedThisMonth}
+              loading={loading}
               icon={CheckCircle2}
               iconColor="text-[#2C7A3F]"
               subtext={`Disbursed in ${new Date().toLocaleDateString('en-US', { month: 'long' })}`}
@@ -591,7 +598,7 @@ const Dashboard_BOD = () => {
                 )}
               </div>
               <div className="h-72">
-                {chartsReady ? <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={240}>
+                {loading ? <SkeletonChart /> : chartsReady ? <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={240}>
                   <BarChart data={approvedTrend} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="0" vertical={false} stroke="#f0f0f0" />
                     <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#9CA3AF' }} />
@@ -620,10 +627,10 @@ const Dashboard_BOD = () => {
                   <h3 className="text-sm font-bold text-gray-800">Gender Distribution</h3>
                   <p className="text-xs text-gray-500 mt-0.5">Member composition</p>
                 </div>
-                <span className="text-xs font-medium bg-green-50 text-green-700 px-3 py-1 rounded-lg">{genderTotal} Members</span>
+                {loading ? <Skeleton className="h-6 w-24 rounded-lg" /> : <span className="text-xs font-medium bg-green-50 text-green-700 px-3 py-1 rounded-lg">{genderTotal} Members</span>}
               </div>
               <div className="h-48 w-full">
-                {chartsReady && genderData.length > 0 ? <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={160}>
+                {loading ? <SkeletonDonut /> : chartsReady && genderData.length > 0 ? <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={160}>
                   <PieChart>
                     <Pie
                       data={genderData}
@@ -639,7 +646,7 @@ const Dashboard_BOD = () => {
                     <Tooltip contentStyle={{ borderRadius: '12px', border: '1px solid #E5E7EB', boxShadow: '0 10px 25px -5px rgb(0 0 0 / 0.1)', backgroundColor: '#FFFFFF', padding: '12px' }} formatter={(value) => `${value} members`} />
                     <Legend verticalAlign="bottom" height={36} iconType="circle" wrapperStyle={{ paddingTop: '16px' }} />
                   </PieChart>
-                </ResponsiveContainer> : <div className="h-full w-full rounded-lg bg-gray-50 flex items-center justify-center text-xs text-gray-400">{loading ? 'Loading…' : 'No gender data available'}</div>}
+                </ResponsiveContainer> : <div className="h-full w-full rounded-lg bg-gray-50 flex items-center justify-center text-xs text-gray-400">No gender data available</div>}
               </div>
             </div>
           </div>
@@ -669,14 +676,7 @@ const Dashboard_BOD = () => {
                 </thead>
                 <tbody>
                   {loading ? (
-                    <tr>
-                      <td colSpan={6} className="p-10 text-center">
-                        <div className="flex flex-col items-center justify-center gap-2">
-                          <Loader2 size={24} className="text-gray-300 animate-spin" />
-                          <p className="text-sm text-gray-400">Loading...</p>
-                        </div>
-                      </td>
-                    </tr>
+                    <SkeletonTableRows rows={5} cols={6} />
                   ) : recentTxns.length === 0 ? (
                     <tr>
                       <td colSpan={6} className="p-10 text-center">
