@@ -48,6 +48,7 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 import { GENDER_COLORS, GREEN } from '../../lib/chartColors';
+import { loanStatusBadge } from '../../utils/transactionStatus';
 
 // Member loan types (CLAUDE.md) — the "Approved Loans per Month" breakdown
 // gets one clearly-labeled series per type, not just a consolidated total.
@@ -103,6 +104,7 @@ const formatDateShort = (v) => {
 };
 const monthKey = (d) => d.toLocaleDateString('en-US', { month: 'short' });
 
+<<<<<<< HEAD
 // Recent Transactions status badge — "Approved" covers every successful step
 // of the workflow (application approved, loan released, an installment
 // processed, a deposit/withdrawal posted); "Completed" is reserved for a
@@ -452,6 +454,8 @@ async function fetchBodDashboard() {
   };
 }
 
+=======
+>>>>>>> origin/main
 const Dashboard_BOD = () => {
     const navigate = useNavigate();
   const { addNotification } = useNotification();
