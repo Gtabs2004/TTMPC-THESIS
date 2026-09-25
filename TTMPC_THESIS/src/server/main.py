@@ -6614,12 +6614,11 @@ async def get_bookkeeper_dashboard_summary():
         # personal_data_sheet/member rows it never displays.
         total_share_capital = _compute_total_share_capital()
 
-        # --- Recent Activity (top 5) ---------------------------------------
-        # The dashboard sorts ALL payments by date_paid desc and takes 5,
-        # excluding future-dated ones. Pulling only the most recent handful
-        # from each table (ordered, limited) and merging avoids fetching the
-        # full payments history just to keep 5 rows.
-        recent_activities = _fetch_recent_activity(limit=5)
+        # --- Recent Activity (top 8, across every transaction type) --------
+        # Pulling only the most recent handful from each source table
+        # (ordered, limited) and merging avoids fetching full transaction
+        # history just to keep a handful of rows.
+        recent_activities = _fetch_recent_activity(limit=8)
 
         # --- Credit Risk Snapshot -------------------------------------------
         credit_risk_snapshot = _compute_credit_risk_snapshot()
@@ -6704,21 +6703,42 @@ def _compute_total_share_capital() -> float:
     return decimal_to_float(total)
 
 
-def _fetch_recent_activity(limit: int = 5) -> list[dict]:
-    """Most recent (past-dated) payments across live + legacy tables, newest
-    first — same population as the dashboard's `recentActivities`, fetched
-    narrowly instead of via the full manage-loans payload.
+def _fetch_recent_activity(limit: int = 8) -> list[dict]:
+    """Most recent activity across every transaction type the Bookkeeper
+    actually deals with (item 4 of the dashboard rework) — not just loan
+    payments: loan payments (live + legacy), loan applications, savings
+    deposits/withdrawals, membership fee payments, and grocery sales.
+    Deliberately excludes loan disbursement (that's a Treasurer action, not
+    a Bookkeeper one), unlike BOD's own Recent Transactions.
+
+    Each source is queried narrowly (only the columns needed, ordered,
+    limited) before merging by date — never a full-table scan — then member
+    names/details are resolved only for the rows that actually make the cut,
+    same "resolve top rows only" shape as the original single-source version.
     """
     now_iso = datetime.utcnow().isoformat()
+    candidates: list[dict] = []
 
+    # --- Loan payments (live + legacy) --------------------------------
     live_resp = (
         supabase.table("loan_payments")
-        .select("id,loan_id,amount_paid,penalties,payment_date,payment_reference")
+        .select("id,loan_id,amount_paid,penalties,payment_date,payment_reference,confirmation_status")
         .lte("payment_date", now_iso)
         .order("payment_date", desc=True)
         .limit(limit)
         .execute()
     )
+    for row in live_resp.data or []:
+        penalties = decimal_to_float(row.get("penalties") or 0)
+        confirmation = str(row.get("confirmation_status") or "").strip().lower()
+        candidates.append({
+            "type": "loan_payment",
+            "id": row.get("payment_reference") or f"PMT-{row.get('id')}",
+            "loan_id": str(row.get("loan_id") or ""),
+            "date": row.get("payment_date"),
+            "amount": decimal_to_float(row.get("amount_paid") or 0),
+            "status": "Pending" if "pending" in confirmation else ("Late" if penalties > 0 else "Approved"),
+        })
     legacy_resp = (
         supabase.table("loan_payments_legacy")
         .select("id,loan_id,amount_paid,payment_date,payment_code,or_cdv_no")
@@ -6727,59 +6747,177 @@ def _fetch_recent_activity(limit: int = 5) -> list[dict]:
         .limit(limit)
         .execute()
     )
-
-    candidates: list[dict] = []
-    for row in live_resp.data or []:
-        candidates.append({
-            "payment_id": row.get("payment_reference") or row.get("id"),
-            "loan_id": row.get("loan_id"),
-            "date_paid": row.get("payment_date"),
-            "amount_paid": decimal_to_float(row.get("amount_paid") or 0),
-            "penalties": decimal_to_float(row.get("penalties") or 0),
-        })
     for row in legacy_resp.data or []:
         candidates.append({
-            "payment_id": row.get("payment_code") or row.get("or_cdv_no") or row.get("id"),
-            "loan_id": row.get("loan_id"),
-            "date_paid": row.get("payment_date"),
-            "amount_paid": decimal_to_float(row.get("amount_paid") or 0),
-            "penalties": 0.0,
+            "type": "loan_payment",
+            "id": row.get("payment_code") or row.get("or_cdv_no") or f"PMT-{row.get('id')}",
+            "loan_id": str(row.get("loan_id") or ""),
+            "date": row.get("payment_date"),
+            "amount": decimal_to_float(row.get("amount_paid") or 0),
+            "status": "Approved",
+        })
+
+    # --- Loan applications ---------------------------------------------
+    apps_resp = (
+        supabase.table("loans")
+        .select("control_number,loan_amount,application_date,loan_status")
+        .not_.is_("application_date", "null")
+        .lte("application_date", now_iso)
+        .order("application_date", desc=True)
+        .limit(limit)
+        .execute()
+    )
+    for row in apps_resp.data or []:
+        candidates.append({
+            "type": "loan_application",
+            "id": row.get("control_number"),
+            "loan_id": str(row.get("control_number") or ""),
+            "date": row.get("application_date"),
+            "amount": decimal_to_float(row.get("loan_amount") or 0),
+            "status": str(row.get("loan_status") or "pending"),
+        })
+
+    # --- Savings deposits / withdrawals ---------------------------------
+    savings_resp = (
+        supabase.table("savings_ledger")
+        .select("id,account_number,entry_type,amount,posted_at")
+        .lte("posted_at", now_iso)
+        .order("posted_at", desc=True)
+        .limit(limit)
+        .execute()
+    )
+    for row in savings_resp.data or []:
+        is_withdrawal = str(row.get("entry_type") or "").strip().lower() == "debit"
+        candidates.append({
+            "type": "withdrawal" if is_withdrawal else "deposit",
+            "id": f"SAV-{row.get('id')}",
+            "account_number": row.get("account_number"),
+            "date": row.get("posted_at"),
+            "amount": decimal_to_float(row.get("amount") or 0),
+            "status": "Approved",
+        })
+
+    # --- Membership fee payments -----------------------------------------
+    fees_resp = (
+        supabase.table("membership_payments")
+        .select("payment_id,membership_number_id,amount,payment_date,payment_status")
+        .lte("payment_date", now_iso)
+        .order("payment_date", desc=True)
+        .limit(limit)
+        .execute()
+    )
+    for row in fees_resp.data or []:
+        candidates.append({
+            "type": "fee",
+            "id": row.get("payment_id"),
+            "membership_id": row.get("membership_number_id"),
+            "date": row.get("payment_date"),
+            "amount": decimal_to_float(row.get("amount") or 0),
+            "status": str(row.get("payment_status") or "pending"),
+        })
+
+    # --- Grocery transactions --------------------------------------------
+    grocery_resp = (
+        supabase.table("GROCERY_TRANSACTIONS")
+        .select("GroceryID,membership_number_id,TransactionDate,GroceryAmount,Status")
+        .lte("TransactionDate", now_iso)
+        .order("TransactionDate", desc=True)
+        .limit(limit)
+        .execute()
+    )
+    for row in grocery_resp.data or []:
+        candidates.append({
+            "type": "grocery",
+            "id": row.get("GroceryID"),
+            "member_uuid": row.get("membership_number_id"),
+            "date": row.get("TransactionDate"),
+            "amount": decimal_to_float(row.get("GroceryAmount") or 0),
+            "status": str(row.get("Status") or "pending"),
         })
 
     def _sort_key(item: dict):
-        t = parse_date_value(item.get("date_paid"))
-        return t or date.min
+        return parse_date_value(item.get("date")) or date.min
 
     candidates.sort(key=_sort_key, reverse=True)
     top = candidates[:limit]
-
     if not top:
         return []
 
-    # Resolve member names for the top rows only (never for the full
-    # payments history) — one bulk loans lookup + one bulk member lookup.
-    loan_ids = sorted({str(item["loan_id"]) for item in top if item.get("loan_id")})
+    # --- Resolve member names + membership_id (for the modal's "View
+    #     Member Profile" link) for the top rows only ------------------------
+    loan_ids = sorted({item["loan_id"] for item in top if item.get("loan_id")})
     member_by_loan: dict[str, dict] = {}
     if loan_ids:
         loans_resp = (
             supabase.table("loans")
-            .select("control_number,member_id,member:member_id(first_name,last_name)")
+            .select("control_number,member:member_id(first_name,last_name,membership_id)")
             .in_("control_number", loan_ids)
             .execute()
         )
         for row in loans_resp.data or []:
             member_by_loan[str(row.get("control_number") or "")] = row.get("member") or {}
 
+    account_numbers = sorted({item["account_number"] for item in top if item.get("account_number")})
+    member_by_account: dict[str, dict] = {}
+    if account_numbers:
+        accounts_resp = (
+            supabase.table("savings_accounts")
+            .select("account_number,member:member_id(first_name,last_name,membership_id)")
+            .in_("account_number", account_numbers)
+            .execute()
+        )
+        for row in accounts_resp.data or []:
+            member_by_account[str(row.get("account_number") or "")] = row.get("member") or {}
+
+    membership_ids = sorted({item["membership_id"] for item in top if item.get("membership_id")})
+    member_by_membership_id: dict[str, dict] = {}
+    if membership_ids:
+        member_resp = (
+            supabase.table("member")
+            .select("membership_id,first_name,last_name")
+            .in_("membership_id", membership_ids)
+            .execute()
+        )
+        for row in member_resp.data or []:
+            member_by_membership_id[str(row.get("membership_id") or "")] = row
+
+    member_uuids = sorted({item["member_uuid"] for item in top if item.get("member_uuid")})
+    member_by_uuid: dict[str, dict] = {}
+    if member_uuids:
+        member_resp = (
+            supabase.table("member")
+            .select("id,first_name,last_name,membership_id")
+            .in_("id", member_uuids)
+            .execute()
+        )
+        for row in member_resp.data or []:
+            member_by_uuid[str(row.get("id") or "")] = row
+
+    def _full_name(row: dict | None) -> str:
+        row = row or {}
+        return f"{row.get('first_name') or ''} {row.get('last_name') or ''}".strip() or "Member"
+
     results = []
     for item in top:
-        member = member_by_loan.get(str(item.get("loan_id") or ""), {})
-        member_name = f"{member.get('first_name') or ''} {member.get('last_name') or ''}".strip() or "Member"
+        member_row = None
+        if item.get("loan_id"):
+            member_row = member_by_loan.get(item["loan_id"])
+        elif item.get("account_number"):
+            member_row = member_by_account.get(item["account_number"])
+        elif item.get("membership_id"):
+            member_row = member_by_membership_id.get(item["membership_id"])
+        elif item.get("member_uuid"):
+            member_row = member_by_uuid.get(item["member_uuid"])
+
         results.append({
-            "payment_id": item.get("payment_id"),
-            "member_name": member_name,
-            "amount_paid": item.get("amount_paid"),
-            "date_paid": item.get("date_paid"),
-            "is_late": item.get("penalties", 0) > 0,
+            "type": item["type"],
+            "id": item.get("id"),
+            "loan_id": item.get("loan_id"),
+            "member_name": _full_name(member_row),
+            "membership_id": (member_row or {}).get("membership_id") or item.get("membership_id"),
+            "amount": item.get("amount"),
+            "date": item.get("date"),
+            "status": item.get("status"),
         })
     return results
 

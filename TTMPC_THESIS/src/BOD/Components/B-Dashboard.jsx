@@ -47,6 +47,7 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 import { GENDER_COLORS, GREEN } from '../../lib/chartColors';
+import { loanStatusBadge } from '../../utils/transactionStatus';
 
 // Member loan types (CLAUDE.md) — the "Approved Loans per Month" breakdown
 // gets one clearly-labeled series per type, not just a consolidated total.
@@ -101,21 +102,6 @@ const formatDateShort = (v) => {
   return d.toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' });
 };
 const monthKey = (d) => d.toLocaleDateString('en-US', { month: 'short' });
-
-// Recent Transactions status badge — "Approved" covers every successful step
-// of the workflow (application approved, loan released, an installment
-// processed, a deposit/withdrawal posted); "Completed" is reserved for a
-// loan that has actually been paid off in full, not used as a generic
-// stand-in for "the transaction succeeded". "Rejected" surfaces a real
-// negative outcome instead of hiding it behind "Pending".
-const loanStatusBadge = (rawStatus) => {
-  const s = String(rawStatus || '').toLowerCase().trim();
-  if (!s) return 'Approved'; // unknown/unlinked status — the record itself still went through
-  if (s.includes('fully paid') || s === 'paid') return 'Completed';
-  if (s.includes('reject') || s.includes('declin')) return 'Rejected';
-  if (s.includes('revision') || s.includes('recommended') || s.includes('review') || s === 'pending') return 'Pending';
-  return 'Approved'; // approved / released / partially paid / to be disbursed / ready for disbursement
-};
 
 const Dashboard_BOD = () => {
     const navigate = useNavigate();
