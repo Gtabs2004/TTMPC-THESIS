@@ -12,6 +12,7 @@ import StaffTopbar from "../../components/StaffTopbar";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
 import Breadcrumb from "../../components/Breadcrumb";
 import Pagination from "../../components/Pagination";
+import { TableToolbar } from "../../components/TableToolbar";
 import {
   LayoutDashboard,
   Users,

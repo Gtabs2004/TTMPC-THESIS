@@ -30,6 +30,11 @@ import {
   ChevronRight,
   ChevronDown,
   Brain,
+  ArrowDownCircle,
+  ArrowUpCircle,
+  ShoppingCart,
+  Receipt,
+  X,
 } from "lucide-react";
 import {
   BarChart,
@@ -48,6 +53,8 @@ import {
 } from "recharts";
 import { SERIES_PRIMARY, SEMANTIC_COLORS, REPAYMENT_HEALTH_COLORS } from "../../lib/chartColors";
 import { formatRelativeTime } from "../../utils/relativeTime";
+import { TableToolbar } from "../../components/TableToolbar";
+import { loanStatusBadge, paymentStatusBadge, STATUS_BADGE_CLASSES } from "../../utils/transactionStatus";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 
@@ -67,6 +74,19 @@ const formatPesoCompact = (value) => {
 
 const timeAgo = formatRelativeTime;
 
+// Icon + label per Recent Activity transaction type (item 4). Deliberately
+// excludes loan disbursement — that's a Treasurer action, not one a
+// Bookkeeper records, so it doesn't belong in this list the way it does in
+// BOD's own Recent Transactions.
+const ACTIVITY_TYPE_META = {
+  loan_payment: { label: "Loan Payment", icon: CreditCard, iconColor: "text-teal-600" },
+  loan_application: { label: "Loan Application", icon: FileText, iconColor: "text-blue-600" },
+  deposit: { label: "Deposit", icon: ArrowDownCircle, iconColor: "text-emerald-600" },
+  withdrawal: { label: "Withdrawal", icon: ArrowUpCircle, iconColor: "text-rose-600" },
+  fee: { label: "Fee Payment", icon: Receipt, iconColor: "text-amber-600" },
+  grocery: { label: "Grocery", icon: ShoppingCart, iconColor: "text-lime-600" },
+};
+
 const Dashboard = () => {
     const navigate = useNavigate();
 
@@ -74,6 +94,10 @@ const Dashboard = () => {
   const [loadError, setLoadError] = useState("");
   const [summary, setSummary] = useState(null);
   const [chartYear, setChartYear] = useState("");
+  // Non-loan activity types (deposits, withdrawals, fees, grocery) have no
+  // dedicated Bookkeeper detail page, so a row click opens this instead —
+  // same pattern as BOD's Recent Transactions modal.
+  const [activityModal, setActivityModal] = useState(null);
 
   // Slim, last-resort fallback for Total Share Capital only — mirrors the
   // single aggregate dashboard-summary computes server-side (latest
@@ -234,16 +258,51 @@ const Dashboard = () => {
     });
   }, [behaviorByYear, chartYear]);
 
+  // Recent Activity (item 4) — every transaction type the Bookkeeper deals
+  // with, not just loan payments. Deliberately its own compact list design
+  // (not BOD's Recent Transactions table): one line per item, status pill
+  // instead of a plain colored dot, and the same Approved/Completed/Pending/
+  // Rejected vocabulary BOD's dashboard uses (item 1's terminology
+  // consistency) rather than ad hoc "Payment received" text.
   const recentActivities = useMemo(() => {
-    return (summary?.recent_activities || []).map((p, idx) => ({
-      id: `${p.payment_id || "payment"}-${idx}`,
-      title: p.is_late ? "Late payment received" : "Payment received",
-      name: p.member_name || "Member",
-      amount: formatPeso(p.amount_paid),
-      time: timeAgo(p.date_paid),
-      color: p.is_late ? "bg-red-400" : "bg-green-500",
-    }));
+    return (summary?.recent_activities || []).map((a, idx) => {
+      const meta = ACTIVITY_TYPE_META[a.type] || ACTIVITY_TYPE_META.loan_payment;
+      const status = a.type === "loan_application"
+        ? loanStatusBadge(a.status)
+        : a.type === "loan_payment"
+          ? (a.status === "Late" ? "Late" : a.status === "Pending" ? "Pending" : "Approved")
+          : paymentStatusBadge(a.status);
+      const clickable = a.type === "loan_payment" || a.type === "loan_application";
+      return {
+        key: `${a.type || "activity"}-${a.id || idx}`,
+        type: meta.label,
+        icon: meta.icon,
+        iconColor: meta.iconColor,
+        memberName: a.member_name || "Member",
+        membershipId: a.membership_id || "",
+        amountValue: Number(a.amount || 0),
+        date: a.date,
+        status,
+        clickType: clickable ? "loan" : "modal",
+        loanId: a.loan_id,
+        rawType: a.type,
+        id: a.id,
+      };
+    });
   }, [summary]);
+
+  // Loan-related activity rows go straight to the loan's own ledger page —
+  // same per-loan destination the notification bells and BOD's Recent
+  // Transactions already use. Everything else (deposit/withdrawal/fee/
+  // grocery) opens the details modal since there's no dedicated Bookkeeper
+  // page for a single ledger/fee/grocery entry.
+  const handleActivityClick = (activity) => {
+    if (activity.clickType === "loan" && activity.loanId) {
+      navigate(`/bookkeeper-loan-ledger/${encodeURIComponent(activity.loanId)}`);
+    } else {
+      setActivityModal(activity);
+    }
+  };
 
   const renderTrend = (pct) => {
     const positive = pct >= 0;
@@ -475,7 +534,7 @@ const Dashboard = () => {
                   </p>
                 </div>
                 <div>
-                  <p className="text-xs text-gray-500 font-medium">Low</p>
+                  <p className="text-xs text-gray-500 font-medium">Low Risk</p>
                   <p className={`text-2xl font-bold ${creditRiskSnapshot.low > 0 ? "text-emerald-600" : "text-gray-400"}`}>
                     {creditRiskSnapshot.low}
                   </p>
@@ -519,35 +578,115 @@ const Dashboard = () => {
           </button>
           </div>
 
-          {/* Bottom Activity Section */}
-          <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
-            <h3 className="text-gray-800 font-bold text-lg mb-4">Recent Activity</h3>
-            <div className="flex flex-col">
+          {/* Recent Activity (item 4) — its own compact, clickable list
+              design (not a copy of BOD's Recent Transactions table): one
+              line per item, icon badge for the type, status pill, and a
+              click straight through to the record. */}
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+            <TableToolbar
+              title="Recent Activity"
+              subtitle={`${recentActivities.length} recent transaction${recentActivities.length === 1 ? "" : "s"}`}
+            />
+            <div className="divide-y divide-gray-50">
               {recentActivities.length === 0 ? (
-                <p className="text-sm text-gray-400 py-4">
-                  {loading ? "Loading recent activity..." : "No recent payments recorded."}
+                <p className="text-sm text-gray-400 px-6 py-6">
+                  {loading ? "Loading recent activity..." : "No recent activity recorded."}
                 </p>
               ) : (
-                recentActivities.map((activity) => (
-                  <div key={activity.id} className="flex items-center justify-between py-4 border-b border-gray-50 last:border-0 last:pb-0">
-                    <div className="flex items-start gap-4">
-                      <div className={`mt-1.5 w-2 h-2 rounded-full ${activity.color} shrink-0`} />
-                      <div>
-                        <p className="text-sm font-semibold text-gray-800">{activity.title}</p>
-                        <p className="text-xs text-gray-400 mt-0.5">{activity.name}</p>
+                recentActivities.map((activity) => {
+                  const Icon = activity.icon;
+                  const badgeClass = STATUS_BADGE_CLASSES[activity.status] || STATUS_BADGE_CLASSES.Approved;
+                  return (
+                    <button
+                      key={activity.key}
+                      type="button"
+                      onClick={() => handleActivityClick(activity)}
+                      className="w-full flex items-center gap-3 px-6 py-3 text-left hover:bg-gray-50/60 transition-colors"
+                    >
+                      <div className={`w-8 h-8 rounded-full bg-gray-50 flex items-center justify-center shrink-0 ${activity.iconColor}`}>
+                        <Icon size={15} />
                       </div>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-sm font-semibold text-gray-800">{activity.amount}</p>
-                      <p className="text-xs text-gray-400 mt-0.5">{activity.time}</p>
-                    </div>
-                  </div>
-                ))
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-semibold text-gray-800 truncate">{activity.memberName}</p>
+                        <p className="text-xs text-gray-400">{activity.type}</p>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <p className="text-sm font-semibold text-gray-800">{formatPeso(activity.amountValue)}</p>
+                        <p className="text-xs text-gray-400">{timeAgo(activity.date)}</p>
+                      </div>
+                      <span className={`shrink-0 text-[10px] font-bold px-2 py-1 rounded-full ${badgeClass}`}>
+                        {activity.status}
+                      </span>
+                    </button>
+                  );
+                })
               )}
             </div>
           </div>
         </main>
       </div>
+
+      {/* Activity details modal — deposit/withdrawal/fee/grocery rows have
+          no dedicated Bookkeeper detail page, so a click surfaces everything
+          about that transaction here instead of leaving the user to go
+          search for it (item 4's "no manual searching" requirement). */}
+      {activityModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+          onClick={() => setActivityModal(null)}
+        >
+          <div
+            className="bg-white rounded-xl shadow-xl border border-gray-100 w-full max-w-sm overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-5 border-b border-gray-100 flex items-center justify-between">
+              <h3 className="text-base font-bold text-gray-800">{activityModal.type}</h3>
+              <button
+                onClick={() => setActivityModal(null)}
+                aria-label="Close"
+                className="p-1 rounded-md text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="p-5 space-y-3">
+              {[
+                ["Member", activityModal.memberName],
+                ["Amount", formatPeso(activityModal.amountValue)],
+                ["Date", timeAgo(activityModal.date)],
+                ["Status", activityModal.status],
+                ["Reference", activityModal.id || "—"],
+              ].map(([label, value]) => (
+                <div key={label} className="flex items-center justify-between text-sm">
+                  <span className="text-gray-500">{label}</span>
+                  <span className="font-medium text-gray-800 text-right">{value || "—"}</span>
+                </div>
+              ))}
+            </div>
+            <div className="p-5 pt-0 flex justify-end gap-2">
+              {activityModal.membershipId && (
+                <button
+                  onClick={() => {
+                    setActivityModal(null);
+                    navigate(`/member_details?member_id=${encodeURIComponent(activityModal.membershipId)}&portal=bookkeeper`, {
+                      state: { member: { member_id: activityModal.membershipId }, portal: "bookkeeper" },
+                    });
+                  }}
+                  className="text-sm font-semibold text-green-700 hover:underline px-3 py-2"
+                >
+                  View Member Profile
+                </button>
+              )}
+              <button
+                onClick={() => setActivityModal(null)}
+                className="text-sm font-medium text-gray-600 hover:bg-gray-50 px-4 py-2 rounded-lg border border-gray-200"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
