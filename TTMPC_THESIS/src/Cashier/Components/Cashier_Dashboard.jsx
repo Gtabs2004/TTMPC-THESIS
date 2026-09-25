@@ -10,6 +10,8 @@ import LoanNotificationBell from "../../components/LoanNotificationBell";
 import Breadcrumb from "../../components/Breadcrumb";
 import RecentActivityCard from "../../components/RecentActivityCard";
 import { supabase } from "../../supabaseClient";
+import { useQuery } from "@tanstack/react-query";
+import { Skeleton, SkeletonChart, SkeletonDonut, SkeletonTableRows } from "../../components/Skeleton";
 import {
   LayoutDashboard,
   Search,
@@ -28,7 +30,6 @@ import {
   Calendar,
   ChevronLeft,
   History,
-  Loader2,
 } from "lucide-react";
 import {
   AreaChart,
@@ -59,20 +60,234 @@ const formatTime = (iso) => {
   return d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
 };
 
+// Everything the dashboard shows for one day (YYYY-MM-DD), fetched in one
+// parallel batch. Lives outside the component so TanStack Query can cache
+// each day under its own key across navigation.
+async function fetchCashierDashboard(selectedDate) {
+  const [y, m, d] = selectedDate.split("-").map(Number);
+  const dayStart = new Date(y, m - 1, d, 0, 0, 0, 0);
+  const dayEnd = new Date(y, m - 1, d + 1, 0, 0, 0, 0);
+  const isoStart = dayStart.toISOString();
+  const isoEnd = dayEnd.toISOString();
+
+  // Build hourly buckets (8AM–3PM, the active window from the original chart).
+  const hourLabels = ["8AM", "9AM", "10AM", "11AM", "12PM", "1PM", "2PM", "3PM"];
+  const trendBuckets = new Map(hourLabels.map((h) => [h, 0]));
+
+  const [
+    paymentsRes,
+    disbursalsRes,
+    membershipRes,
+    cbuRes,
+    ledgerRes,
+    readyLoansRes,
+  ] = await Promise.all([
+    // Loan payments in selected day window (cash IN)
+    supabase
+      .from("loan_payments")
+      .select("id, loan_id, amount_paid, payment_date, confirmation_status, payment_reference")
+      .gte("payment_date", isoStart)
+      .lt("payment_date", isoEnd)
+      .order("payment_date", { ascending: false })
+      .limit(2000),
+    // Loan disbursals in selected day window (cash OUT)
+    supabase
+      .from("loans")
+      .select("control_number, loan_amount, disbursal_date, loan_status, member:member_id(first_name, last_name), loan_types:loan_type_id(name)")
+      .gte("disbursal_date", isoStart)
+      .lt("disbursal_date", isoEnd)
+      .order("disbursal_date", { ascending: false })
+      .limit(2000),
+    // Membership payments in selected day window
+    supabase
+      .from("membership_payments")
+      .select("id, application_id, payment_date, payment_status, payment_type, amount")
+      .gte("payment_date", isoStart)
+      .lt("payment_date", isoEnd)
+      .order("payment_date", { ascending: false })
+      .limit(2000),
+    // CBU contributions in selected day window
+    supabase
+      .from("capital_build_up")
+      .select("id, member_id, transaction_date, capital_added")
+      .gte("transaction_date", isoStart)
+      .lt("transaction_date", isoEnd)
+      .order("transaction_date", { ascending: false })
+      .limit(2000),
+    // Savings ledger in selected day window
+    supabase
+      .from("savings_ledger")
+      .select("id, account_number, entry_type, amount, reference, posted_at")
+      .gte("posted_at", isoStart)
+      .lt("posted_at", isoEnd)
+      .order("posted_at", { ascending: false })
+      .limit(2000),
+    // Pending disbursal queue (count only)
+    supabase
+      .from("loans")
+      .select("control_number", { count: "exact", head: true })
+      .in("loan_status", ["ready for disbursement", "to be disbursed"]),
+  ]);
+
+  const payments = paymentsRes?.data || [];
+  const disbursals = disbursalsRes?.data || [];
+  const memberships = membershipRes?.data || [];
+  const cbus = cbuRes?.data || [];
+  const ledger = ledgerRes?.data || [];
+  const pendingPayouts = readyLoansRes?.count || 0;
+
+  // Helper: bucket a timestamp into the hour label, if within window.
+  const bucket = (iso) => {
+    if (!iso) return;
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return;
+    const label = hourLabel(d);
+    if (trendBuckets.has(label)) trendBuckets.set(label, trendBuckets.get(label) + 1);
+  };
+
+  let cashIn = 0;
+  let cashOut = 0;
+  const membersTodaySet = new Set();
+  const breakdown = {
+    loanPayments: 0,
+    savingsDeposits: 0,
+    cbuContributions: 0,
+    withdrawals: 0,
+    disbursals: 0,
+    memberships: 0,
+  };
+
+  payments.forEach((p) => {
+    cashIn += Number(p.amount_paid || 0);
+    bucket(p.payment_date);
+    breakdown.loanPayments += 1;
+    if (p.loan_id) membersTodaySet.add(`loan-${p.loan_id}`);
+  });
+  disbursals.forEach((d) => {
+    cashOut += Number(d.loan_amount || 0);
+    bucket(d.disbursal_date);
+    breakdown.disbursals += 1;
+    const memberKey = d.member ? `${d.member.first_name}-${d.member.last_name}` : d.control_number;
+    membersTodaySet.add(`m-${memberKey}`);
+  });
+  memberships.forEach((m) => {
+    cashIn += Number(m.amount || 0);
+    bucket(m.payment_date);
+    breakdown.memberships += 1;
+    if (m.application_id) membersTodaySet.add(`app-${m.application_id}`);
+  });
+  cbus.forEach((c) => {
+    cashIn += Number(c.capital_added || 0);
+    bucket(c.transaction_date);
+    breakdown.cbuContributions += 1;
+    if (c.member_id) membersTodaySet.add(`cbu-${c.member_id}`);
+  });
+  ledger.forEach((l) => {
+    const amt = Number(l.amount || 0);
+    const entry = String(l.entry_type || "").toLowerCase();
+    if (entry.includes("withdraw")) {
+      cashOut += amt;
+      breakdown.withdrawals += 1;
+    } else {
+      cashIn += amt;
+      breakdown.savingsDeposits += 1;
+    }
+    bucket(l.posted_at);
+    if (l.account_number) membersTodaySet.add(`sav-${l.account_number}`);
+  });
+
+  const totalTransactions =
+    payments.length + disbursals.length + memberships.length + cbus.length + ledger.length;
+
+  const kpis = {
+    totalTransactions,
+    cashReceived: cashIn,
+    cashReleased: cashOut,
+    pendingPayouts,
+    membersServed: membersTodaySet.size,
+  };
+
+  const trendData = hourLabels.map((h) => ({ name: h, value: trendBuckets.get(h) || 0 }));
+
+  // Distribution donut — collapse to the 4 buckets from the original design.
+  const total = totalTransactions || 1;
+  const distRows = [
+    { name: "Loan Payments",     count: breakdown.loanPayments + breakdown.disbursals },
+    { name: "Savings Deposits",  count: breakdown.savingsDeposits },
+    { name: "CBU Contributions", count: breakdown.cbuContributions },
+    { name: "Withdrawals",       count: breakdown.withdrawals },
+  ].map((r, i) => ({ ...r, color: getLoanTypeColor(r.name, i), value: Math.round((r.count / total) * 100) }));
+
+  // Recent activity: merge all transaction sources, sort newest first, take top 6.
+  const memberLookup = new Map();
+  disbursals.forEach((d) => {
+    if (d.member) {
+      const name = `${d.member.first_name || ""} ${d.member.last_name || ""}`.trim();
+      memberLookup.set(d.control_number, name || "Member");
+    }
+  });
+
+  const activity = [];
+  payments.forEach((p) => activity.push({
+    id: `pmt-${p.id}`,
+    name: memberLookup.get(p.loan_id) || p.loan_id || "Member",
+    desc: "Loan Payment",
+    ref: `#${p.payment_reference || `PMT-${p.id}`}`,
+    amount: PHP(p.amount_paid),
+    time: formatTime(p.payment_date),
+    ts: p.payment_date,
+    type: "in",
+  }));
+  disbursals.forEach((d) => activity.push({
+    id: `dsb-${d.control_number}`,
+    name: memberLookup.get(d.control_number) || "Member",
+    desc: `${d.loan_types?.name || "Loan"} Disbursement`,
+    ref: `#${d.control_number}`,
+    amount: PHP(d.loan_amount),
+    time: formatTime(d.disbursal_date),
+    ts: d.disbursal_date,
+    type: "out",
+  }));
+  memberships.forEach((m) => activity.push({
+    id: `mem-${m.id}`,
+    name: m.application_id || "Applicant",
+    desc: `Membership ${m.payment_type || "Payment"}`,
+    ref: `#MEM-${m.id}`,
+    amount: PHP(m.amount),
+    time: formatTime(m.payment_date),
+    ts: m.payment_date,
+    type: "in",
+  }));
+  cbus.forEach((c) => activity.push({
+    id: `cbu-${c.id}`,
+    name: c.member_id || "Member",
+    desc: "CBU Contribution",
+    ref: `#CBU-${c.id}`,
+    amount: PHP(c.capital_added),
+    time: formatTime(c.transaction_date),
+    ts: c.transaction_date,
+    type: "in",
+  }));
+  ledger.forEach((l) => {
+    const isWithdrawal = String(l.entry_type || "").toLowerCase().includes("withdraw");
+    activity.push({
+      id: `sav-${l.id}`,
+      name: l.account_number || "Savings",
+      desc: isWithdrawal ? "Savings Withdrawal" : "Savings Deposit",
+      ref: `#${l.reference || `SAV-${l.id}`}`,
+      amount: PHP(l.amount),
+      time: formatTime(l.posted_at),
+      ts: l.posted_at,
+      type: isWithdrawal ? "out" : "in",
+    });
+  });
+  activity.sort((a, b) => new Date(b.ts || 0) - new Date(a.ts || 0));
+  return { kpis, trendData, distributionData: distRows, recentActivity: activity.slice(0, 6) };
+}
+
 const Cashier_Dashboard = () => {
     const navigate = useNavigate();
   const { addNotification } = useNotification();
-  const [loading, setLoading] = useState(true);
-  const [kpis, setKpis] = useState({
-    totalTransactions: 0,
-    cashReceived: 0,
-    cashReleased: 0,
-    pendingPayouts: 0,
-    membersServed: 0,
-  });
-  const [trendData, setTrendData] = useState([]);
-  const [distributionData, setDistributionData] = useState([]);
-  const [recentActivity, setRecentActivity] = useState([]);
 
   // Selected date for the dashboard view. Defaults to today but a cashier can
   // rewind to inspect any past day's transactions. Stored as YYYY-MM-DD (the
@@ -114,243 +329,23 @@ const Cashier_Dashboard = () => {
     : selectedDate === monthAgoIso ? "month"
     : "custom";
 
+  // Cached per selected day: coming back to the dashboard renders the last
+  // result instantly and refreshes it in the background. `loading` is only
+  // true when there's nothing cached yet for that day.
+  const { data, isPending: loading, error } = useQuery({
+    queryKey: ['dashboard', 'cashier', selectedDate],
+    queryFn: () => fetchCashierDashboard(selectedDate),
+  });
+  const {
+    kpis = { totalTransactions: 0, cashReceived: 0, cashReleased: 0, pendingPayouts: 0, membersServed: 0 },
+    trendData = [],
+    distributionData = [],
+    recentActivity = [],
+  } = data || {};
   useEffect(() => {
-    let cancelled = false;
-    const load = async () => {
-      setLoading(true);
-      try {
-        const [y, m, d] = selectedDate.split("-").map(Number);
-        const dayStart = new Date(y, m - 1, d, 0, 0, 0, 0);
-        const dayEnd = new Date(y, m - 1, d + 1, 0, 0, 0, 0);
-        const isoStart = dayStart.toISOString();
-        const isoEnd = dayEnd.toISOString();
-
-        // Build hourly buckets (8AM–3PM, the active window from the original chart).
-        const hourLabels = ["8AM", "9AM", "10AM", "11AM", "12PM", "1PM", "2PM", "3PM"];
-        const trendBuckets = new Map(hourLabels.map((h) => [h, 0]));
-
-        const [
-          paymentsRes,
-          disbursalsRes,
-          membershipRes,
-          cbuRes,
-          ledgerRes,
-          readyLoansRes,
-        ] = await Promise.all([
-          // Loan payments in selected day window (cash IN)
-          supabase
-            .from("loan_payments")
-            .select("id, loan_id, amount_paid, payment_date, confirmation_status, payment_reference")
-            .gte("payment_date", isoStart)
-            .lt("payment_date", isoEnd)
-            .order("payment_date", { ascending: false })
-            .limit(2000),
-          // Loan disbursals in selected day window (cash OUT)
-          supabase
-            .from("loans")
-            .select("control_number, loan_amount, disbursal_date, loan_status, member:member_id(first_name, last_name), loan_types:loan_type_id(name)")
-            .gte("disbursal_date", isoStart)
-            .lt("disbursal_date", isoEnd)
-            .order("disbursal_date", { ascending: false })
-            .limit(2000),
-          // Membership payments in selected day window
-          supabase
-            .from("membership_payments")
-            .select("id, application_id, payment_date, payment_status, payment_type, amount")
-            .gte("payment_date", isoStart)
-            .lt("payment_date", isoEnd)
-            .order("payment_date", { ascending: false })
-            .limit(2000),
-          // CBU contributions in selected day window
-          supabase
-            .from("capital_build_up")
-            .select("id, member_id, transaction_date, capital_added")
-            .gte("transaction_date", isoStart)
-            .lt("transaction_date", isoEnd)
-            .order("transaction_date", { ascending: false })
-            .limit(2000),
-          // Savings ledger in selected day window
-          supabase
-            .from("savings_ledger")
-            .select("id, account_number, entry_type, amount, reference, posted_at")
-            .gte("posted_at", isoStart)
-            .lt("posted_at", isoEnd)
-            .order("posted_at", { ascending: false })
-            .limit(2000),
-          // Pending disbursal queue (count only)
-          supabase
-            .from("loans")
-            .select("control_number", { count: "exact", head: true })
-            .in("loan_status", ["ready for disbursement", "to be disbursed"]),
-        ]);
-
-        if (cancelled) return;
-
-        const payments = paymentsRes?.data || [];
-        const disbursals = disbursalsRes?.data || [];
-        const memberships = membershipRes?.data || [];
-        const cbus = cbuRes?.data || [];
-        const ledger = ledgerRes?.data || [];
-        const pendingPayouts = readyLoansRes?.count || 0;
-
-        // Helper: bucket a timestamp into the hour label, if within window.
-        const bucket = (iso) => {
-          if (!iso) return;
-          const d = new Date(iso);
-          if (Number.isNaN(d.getTime())) return;
-          const label = hourLabel(d);
-          if (trendBuckets.has(label)) trendBuckets.set(label, trendBuckets.get(label) + 1);
-        };
-
-        let cashIn = 0;
-        let cashOut = 0;
-        const membersTodaySet = new Set();
-        const breakdown = {
-          loanPayments: 0,
-          savingsDeposits: 0,
-          cbuContributions: 0,
-          withdrawals: 0,
-          disbursals: 0,
-          memberships: 0,
-        };
-
-        payments.forEach((p) => {
-          cashIn += Number(p.amount_paid || 0);
-          bucket(p.payment_date);
-          breakdown.loanPayments += 1;
-          if (p.loan_id) membersTodaySet.add(`loan-${p.loan_id}`);
-        });
-        disbursals.forEach((d) => {
-          cashOut += Number(d.loan_amount || 0);
-          bucket(d.disbursal_date);
-          breakdown.disbursals += 1;
-          const memberKey = d.member ? `${d.member.first_name}-${d.member.last_name}` : d.control_number;
-          membersTodaySet.add(`m-${memberKey}`);
-        });
-        memberships.forEach((m) => {
-          cashIn += Number(m.amount || 0);
-          bucket(m.payment_date);
-          breakdown.memberships += 1;
-          if (m.application_id) membersTodaySet.add(`app-${m.application_id}`);
-        });
-        cbus.forEach((c) => {
-          cashIn += Number(c.capital_added || 0);
-          bucket(c.transaction_date);
-          breakdown.cbuContributions += 1;
-          if (c.member_id) membersTodaySet.add(`cbu-${c.member_id}`);
-        });
-        ledger.forEach((l) => {
-          const amt = Number(l.amount || 0);
-          const entry = String(l.entry_type || "").toLowerCase();
-          if (entry.includes("withdraw")) {
-            cashOut += amt;
-            breakdown.withdrawals += 1;
-          } else {
-            cashIn += amt;
-            breakdown.savingsDeposits += 1;
-          }
-          bucket(l.posted_at);
-          if (l.account_number) membersTodaySet.add(`sav-${l.account_number}`);
-        });
-
-        const totalTransactions =
-          payments.length + disbursals.length + memberships.length + cbus.length + ledger.length;
-
-        setKpis({
-          totalTransactions,
-          cashReceived: cashIn,
-          cashReleased: cashOut,
-          pendingPayouts,
-          membersServed: membersTodaySet.size,
-        });
-
-        setTrendData(hourLabels.map((h) => ({ name: h, value: trendBuckets.get(h) || 0 })));
-
-        // Distribution donut — collapse to the 4 buckets from the original design.
-        const total = totalTransactions || 1;
-        const distRows = [
-          { name: "Loan Payments",     count: breakdown.loanPayments + breakdown.disbursals },
-          { name: "Savings Deposits",  count: breakdown.savingsDeposits },
-          { name: "CBU Contributions", count: breakdown.cbuContributions },
-          { name: "Withdrawals",       count: breakdown.withdrawals },
-        ].map((r, i) => ({ ...r, color: getLoanTypeColor(r.name, i), value: Math.round((r.count / total) * 100) }));
-        setDistributionData(distRows);
-
-        // Recent activity: merge all transaction sources, sort newest first, take top 6.
-        const memberLookup = new Map();
-        disbursals.forEach((d) => {
-          if (d.member) {
-            const name = `${d.member.first_name || ""} ${d.member.last_name || ""}`.trim();
-            memberLookup.set(d.control_number, name || "Member");
-          }
-        });
-
-        const activity = [];
-        payments.forEach((p) => activity.push({
-          id: `pmt-${p.id}`,
-          name: memberLookup.get(p.loan_id) || p.loan_id || "Member",
-          desc: "Loan Payment",
-          ref: `#${p.payment_reference || `PMT-${p.id}`}`,
-          amount: PHP(p.amount_paid),
-          time: formatTime(p.payment_date),
-          ts: p.payment_date,
-          type: "in",
-        }));
-        disbursals.forEach((d) => activity.push({
-          id: `dsb-${d.control_number}`,
-          name: memberLookup.get(d.control_number) || "Member",
-          desc: `${d.loan_types?.name || "Loan"} Disbursement`,
-          ref: `#${d.control_number}`,
-          amount: PHP(d.loan_amount),
-          time: formatTime(d.disbursal_date),
-          ts: d.disbursal_date,
-          type: "out",
-        }));
-        memberships.forEach((m) => activity.push({
-          id: `mem-${m.id}`,
-          name: m.application_id || "Applicant",
-          desc: `Membership ${m.payment_type || "Payment"}`,
-          ref: `#MEM-${m.id}`,
-          amount: PHP(m.amount),
-          time: formatTime(m.payment_date),
-          ts: m.payment_date,
-          type: "in",
-        }));
-        cbus.forEach((c) => activity.push({
-          id: `cbu-${c.id}`,
-          name: c.member_id || "Member",
-          desc: "CBU Contribution",
-          ref: `#CBU-${c.id}`,
-          amount: PHP(c.capital_added),
-          time: formatTime(c.transaction_date),
-          ts: c.transaction_date,
-          type: "in",
-        }));
-        ledger.forEach((l) => {
-          const isWithdrawal = String(l.entry_type || "").toLowerCase().includes("withdraw");
-          activity.push({
-            id: `sav-${l.id}`,
-            name: l.account_number || "Savings",
-            desc: isWithdrawal ? "Savings Withdrawal" : "Savings Deposit",
-            ref: `#${l.reference || `SAV-${l.id}`}`,
-            amount: PHP(l.amount),
-            time: formatTime(l.posted_at),
-            ts: l.posted_at,
-            type: isWithdrawal ? "out" : "in",
-          });
-        });
-        activity.sort((a, b) => new Date(b.ts || 0) - new Date(a.ts || 0));
-        setRecentActivity(activity.slice(0, 6));
-      } catch (err) {
-        if (!cancelled) addNotification(err?.message || "Failed to load dashboard data.", "error");
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    };
-    load();
-    return () => { cancelled = true; };
+    if (error) addNotification(error?.message || "Failed to load dashboard data.", "error");
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedDate]);
+  }, [error]);
 
 
 
@@ -370,28 +365,32 @@ const Cashier_Dashboard = () => {
           <StatCardRow cols={4}>
             <StatCard
               label="Total Transactions"
-              value={loading ? "—" : kpis.totalTransactions}
+              value={kpis.totalTransactions}
+              loading={loading}
               icon={FileText}
               iconColor="text-blue-500"
               subtext={isViewingToday ? "Recorded today" : `Recorded on ${selectedDateLabel}`}
             />
             <StatCard
               label="Cash Received"
-              value={loading ? "—" : PHP(kpis.cashReceived)}
+              value={PHP(kpis.cashReceived)}
+              loading={loading}
               icon={Banknote}
               iconColor="text-green-600"
               subtext="Payments, deposits, CBU, membership"
             />
             <StatCard
               label="Cash Released"
-              value={loading ? "—" : PHP(kpis.cashReleased)}
+              value={PHP(kpis.cashReleased)}
+              loading={loading}
               icon={ArrowUpRight}
               iconColor="text-red-500"
-              subtext={<><span className="text-orange-500">{kpis.pendingPayouts}</span> loans ready for release</>}
+              subtext={loading ? <Skeleton className="h-3 w-36 mt-1" /> : <><span className="text-orange-500">{kpis.pendingPayouts}</span> loans ready for release</>}
             />
             <StatCard
               label="Members Served"
-              value={loading ? "—" : kpis.membersServed}
+              value={kpis.membersServed}
+              loading={loading}
               icon={Users}
               iconColor="text-purple-500"
               subtext={isViewingToday ? "Unique accounts today" : `Unique accounts on ${selectedDateLabel}`}
@@ -457,7 +456,7 @@ const Cashier_Dashboard = () => {
                 </div>
               </div>
               <div className="h-64">
-                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={1}>
+                {loading ? <SkeletonChart /> : <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={1}>
                   <AreaChart data={trendData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
                     <defs>
                       <linearGradient id="colorTxn" x1="0" y1="0" x2="0" y2="1">
@@ -488,7 +487,7 @@ const Cashier_Dashboard = () => {
                       dot={{ r: 4, fill: "#fff", stroke: SERIES_PRIMARY, strokeWidth: 2 }}
                     />
                   </AreaChart>
-                </ResponsiveContainer>
+                </ResponsiveContainer>}
               </div>
             </div>
 
@@ -496,7 +495,7 @@ const Cashier_Dashboard = () => {
             <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
               <h3 className="text-gray-800 font-bold text-lg mb-4">Transaction Breakdown</h3>
               <div className="relative h-48 flex justify-center items-center">
-                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={1}>
+                {loading ? <SkeletonDonut /> : <><ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={1}>
                   <PieChart>
                     <Pie
                       data={distributionData}
@@ -517,10 +516,11 @@ const Cashier_Dashboard = () => {
                 <div className="absolute flex flex-col items-center justify-center">
                   <span className="text-2xl font-bold text-gray-800">{kpis.totalTransactions}</span>
                   <span className="text-[10px] text-gray-400 font-bold tracking-widest">TOTAL</span>
-                </div>
+                </div></>}
               </div>
 
               <div className="mt-4 flex flex-col gap-2">
+                {loading && [0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-4 w-full" />)}
                 {distributionData.map((item, index) => (
                   <div key={index} className="flex justify-between items-center text-sm">
                     <div className="flex items-center gap-2">
@@ -558,14 +558,7 @@ const Cashier_Dashboard = () => {
                 </thead>
                 <tbody>
                   {loading ? (
-                    <tr>
-                      <td colSpan={6} className="p-10 text-center">
-                        <div className="flex flex-col items-center justify-center gap-2">
-                          <Loader2 size={24} className="text-gray-300 animate-spin" />
-                          <p className="text-sm text-gray-400">Loading...</p>
-                        </div>
-                      </td>
-                    </tr>
+                    <SkeletonTableRows rows={5} cols={6} />
                   ) : recentActivity.length === 0 ? (
                     <tr>
                       <td colSpan={6} className="p-10 text-center">

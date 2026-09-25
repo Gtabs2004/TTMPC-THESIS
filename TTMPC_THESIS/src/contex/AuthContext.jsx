@@ -3,6 +3,7 @@ import { createContext, useContext, useEffect, useState } from "react";
 // Check your file structure. It might be '../supabaseClient' or '../config/supabaseClient'
 import { supabase } from '../supabaseClient';
 import { clearAll as clearMemberDataCache } from '../Member/memberDataCache';
+import { queryClient } from '../lib/queryClient';
 
 const AuthContext = createContext();
 
@@ -344,7 +345,10 @@ export const AuthContextProvider = ({ children }) => {
       setSession(session);
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      // Covers every sign-out path (manual, revoked token, password reset) so
+      // cached dashboard data never carries over to the next user in this tab.
+      if (event === "SIGNED_OUT") queryClient.clear();
       setSession(session);
     });
 
