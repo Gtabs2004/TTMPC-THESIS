@@ -11082,6 +11082,12 @@ async def update_secretary_membership_record(member_ref: str, payload: Secretary
             "termination_date": payload.termination_date,
         }
         update_payload = {k: v for k, v in update_payload.items() if v is not None}
+        # A termination date is what marks the record terminated (see the note
+        # on Record_Details). member_status is the flag every downstream read
+        # filters on (e.g. /api/bod/terminated-members), so stamp it too —
+        # otherwise the member keeps showing as active.
+        if payload.termination_date:
+            update_payload["member_status"] = "terminated"
 
         if not update_payload:
             raise HTTPException(status_code=400, detail="No valid fields provided for update.")
@@ -11208,7 +11214,11 @@ async def get_bookkeeper_pending_payments():
 
 
 @app.post("/api/bookkeeper/payments/{payment_id}/approve")
-async def approve_bookkeeper_payment(payment_id: str, payload: BookkeeperPaymentDecisionRequest):
+async def approve_bookkeeper_payment(
+    payment_id: str,
+    payload: BookkeeperPaymentDecisionRequest,
+    current_user: dict | None = _Depends(_get_current_user_optional),
+):
     if not supabase:
         raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
 
@@ -11555,6 +11565,10 @@ async def approve_bookkeeper_payment(payment_id: str, payload: BookkeeperPayment
                 .eq("control_number", loan_id)
                 .execute()
             )
+        # The loans audit trigger records this status change as service_role
+        # ("System"); attribute it to the Bookkeeper who validated the payment.
+        if current_user:
+            _correct_audit_actor("loan", loan_id, current_user)
 
         return {
             "success": True,
