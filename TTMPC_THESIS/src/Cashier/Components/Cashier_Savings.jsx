@@ -21,7 +21,6 @@ import {
   UserPlus,
   Wallet,
   History,
-  Loader2,
 } from "lucide-react";
 
 import { UserAuth } from "../../contex/AuthContext";
@@ -30,7 +29,9 @@ import LoanNotificationBell from "../../components/LoanNotificationBell";
 import StaffTopbar from "../../components/StaffTopbar";
 import Breadcrumb from "../../components/Breadcrumb";
 import { TableToolbar } from "../../components/TableToolbar";
+import TableActionButton from "../../components/TableActionButton";
 import Pagination from "../../components/Pagination";
+import TableStateRow from "../../components/TableStateRow";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 const PAGE_SIZE = 10;
@@ -346,27 +347,18 @@ const Cashier_Savings = () => {
                 </thead>
                 <tbody>
                   {status === "loading" ? (
-                    <tr>
-                      <td colSpan={7} className="p-10 text-center">
-                        <div className="flex flex-col items-center justify-center gap-2">
-                          <Loader2 size={24} className="text-gray-300 animate-spin" />
-                          <p className="text-sm text-gray-400">Loading...</p>
-                        </div>
-                      </td>
-                    </tr>
+                    <TableStateRow colSpan={7} variant="loading" label="Loading..." />
                   ) : filtered.length === 0 ? (
-                    <tr>
-                      <td colSpan={7} className="p-10 text-center">
-                        <div className="flex flex-col items-center justify-center gap-2">
-                          <AlertCircle size={32} className="text-gray-300" />
-                          <p className="text-sm font-medium text-gray-500">
-                            {searchTerm || kindFilter !== "all"
-                              ? "No accounts match your filters"
-                              : "No savings accounts found"}
-                          </p>
-                        </div>
-                      </td>
-                    </tr>
+                    <TableStateRow
+                      colSpan={7}
+                      variant="empty"
+                      icon={AlertCircle}
+                      label={
+                        searchTerm || kindFilter !== "all"
+                          ? "No accounts match your filters"
+                          : "No savings accounts found"
+                      }
+                    />
                   ) : (
                     paginated.map((row) => (
                       <tr
@@ -410,14 +402,13 @@ const Cashier_Savings = () => {
                           </span>
                         </td>
                         <td className="p-5 text-center" onClick={(e) => e.stopPropagation()}>
-                          <button
+                          <TableActionButton
                             onClick={() =>
                               navigate(`/Savings_Details/${encodeURIComponent(row.account_number)}`)
                             }
-                            className="px-4 py-1.5 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition-colors text-sm"
                           >
                             Review
-                          </button>
+                          </TableActionButton>
                         </td>
                       </tr>
                     ))

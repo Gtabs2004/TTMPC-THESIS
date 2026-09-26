@@ -8,6 +8,7 @@ import { supabase } from "../../supabaseClient";
 import { resolveMemberIdentity } from "../../utils/memberIdentity";
 import { sortCbuRowsAscending } from "../../utils/cbuOrdering";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
+import TableStateRow from "../../components/TableStateRow";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import {
@@ -28,8 +29,7 @@ import {
   Sun,
   Scroll,
   Wallet,
-  PiggyBank,
-  Loader2
+  PiggyBank
 } from "lucide-react";
 
 const styles = `
@@ -855,27 +855,13 @@ const Member_StatementOfAccount = () => {
                     </thead>
                     <tbody>
                       {loadingRows ? (
-                        <tr>
-                          <td colSpan="8" className="p-10 text-center">
-                            <div className="flex flex-col items-center justify-center gap-2">
-                              <Loader2 size={24} className="text-gray-300 dark:text-gray-600 animate-spin" />
-                              <p className="text-sm text-gray-400 dark:text-gray-500">Loading payment history…</p>
-                            </div>
-                          </td>
-                        </tr>
+                        <TableStateRow colSpan={8} variant="loading" label="Loading payment history…" />
                       ) : rowsError ? (
                         <tr>
                           <td colSpan="8" className="p-5 text-sm text-red-600 dark:text-red-400">{rowsError}</td>
                         </tr>
                       ) : rows.length === 0 ? (
-                        <tr>
-                          <td colSpan="8" className="p-10 text-center">
-                            <div className="flex flex-col items-center justify-center gap-2">
-                              <Receipt size={32} className="text-gray-300 dark:text-gray-600" />
-                              <p className="text-sm font-medium text-gray-500 dark:text-gray-400">No validated payments found for this loan.</p>
-                            </div>
-                          </td>
-                        </tr>
+                        <TableStateRow colSpan={8} variant="empty" icon={Receipt} label="No validated payments found for this loan." />
                       ) : (
                         rows.map((r) => (
                           <tr key={r.payment_id} className="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50/50 dark:hover:bg-gray-800/50 transition-colors">
@@ -915,17 +901,11 @@ const Member_StatementOfAccount = () => {
 
                 <div className="divide-y divide-gray-100 dark:divide-gray-800 md:hidden">
                   {loadingRows ? (
-                    <div className="flex flex-col items-center justify-center gap-2 p-10 text-center">
-                      <Loader2 size={24} className="text-gray-300 dark:text-gray-600 animate-spin" />
-                      <p className="text-sm text-gray-400 dark:text-gray-500">Loading payment history…</p>
-                    </div>
+                    <TableStateRow bare variant="loading" label="Loading payment history…" />
                   ) : rowsError ? (
                     <p className="p-6 text-sm text-red-600 dark:text-red-400 text-center">{rowsError}</p>
                   ) : rows.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center gap-2 p-10 text-center">
-                      <Receipt size={32} className="text-gray-300 dark:text-gray-600" />
-                      <p className="text-sm font-medium text-gray-500 dark:text-gray-400">No validated payments found for this loan.</p>
-                    </div>
+                    <TableStateRow bare variant="empty" icon={Receipt} label="No validated payments found for this loan." />
                   ) : (
                     rows.map((r) => (
                       <div key={r.payment_id} className="px-4 py-3.5 hover:bg-gray-50/50 dark:hover:bg-gray-800/50 transition-colors">
@@ -1029,27 +1009,13 @@ const Member_StatementOfAccount = () => {
                     </thead>
                     <tbody>
                       {loadingSavings ? (
-                        <tr>
-                          <td colSpan="5" className="p-10 text-center">
-                            <div className="flex flex-col items-center justify-center gap-2">
-                              <Loader2 size={24} className="text-gray-300 dark:text-gray-600 animate-spin" />
-                              <p className="text-sm text-gray-400 dark:text-gray-500">Loading savings statement…</p>
-                            </div>
-                          </td>
-                        </tr>
+                        <TableStateRow colSpan={5} variant="loading" label="Loading savings statement…" />
                       ) : savingsError ? (
                         <tr>
                           <td colSpan="5" className="p-5 text-sm text-red-600 dark:text-red-400">{savingsError}</td>
                         </tr>
                       ) : savingsRows.length === 0 ? (
-                        <tr>
-                          <td colSpan="5" className="p-10 text-center">
-                            <div className="flex flex-col items-center justify-center gap-2">
-                              <Wallet size={32} className="text-gray-300 dark:text-gray-600" />
-                              <p className="text-sm font-medium text-gray-500 dark:text-gray-400">No savings transactions found.</p>
-                            </div>
-                          </td>
-                        </tr>
+                        <TableStateRow colSpan={5} variant="empty" icon={Wallet} label="No savings transactions found." />
                       ) : (
                         savingsRows.map((r) => {
                           const isCredit = String(r?.entry_type || "").toLowerCase() === "credit";
@@ -1084,17 +1050,11 @@ const Member_StatementOfAccount = () => {
 
                 <div className="divide-y divide-gray-100 dark:divide-gray-800 md:hidden">
                   {loadingSavings ? (
-                    <div className="flex flex-col items-center justify-center gap-2 p-10 text-center">
-                      <Loader2 size={24} className="text-gray-300 dark:text-gray-600 animate-spin" />
-                      <p className="text-sm text-gray-400 dark:text-gray-500">Loading savings statement…</p>
-                    </div>
+                    <TableStateRow bare variant="loading" label="Loading savings statement…" />
                   ) : savingsError ? (
                     <p className="p-6 text-sm text-red-600 dark:text-red-400 text-center">{savingsError}</p>
                   ) : savingsRows.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center gap-2 p-10 text-center">
-                      <Wallet size={32} className="text-gray-300 dark:text-gray-600" />
-                      <p className="text-sm font-medium text-gray-500 dark:text-gray-400">No savings transactions found.</p>
-                    </div>
+                    <TableStateRow bare variant="empty" icon={Wallet} label="No savings transactions found." />
                   ) : (
                     savingsRows.map((r) => {
                       const isCredit = String(r?.entry_type || "").toLowerCase() === "credit";
@@ -1176,27 +1136,13 @@ const Member_StatementOfAccount = () => {
                     </thead>
                     <tbody>
                       {loadingCbu ? (
-                        <tr>
-                          <td colSpan="5" className="p-10 text-center">
-                            <div className="flex flex-col items-center justify-center gap-2">
-                              <Loader2 size={24} className="text-gray-300 dark:text-gray-600 animate-spin" />
-                              <p className="text-sm text-gray-400 dark:text-gray-500">Loading capital build-up statement…</p>
-                            </div>
-                          </td>
-                        </tr>
+                        <TableStateRow colSpan={5} variant="loading" label="Loading capital build-up statement…" />
                       ) : cbuError ? (
                         <tr>
                           <td colSpan="5" className="p-5 text-sm text-red-600 dark:text-red-400">{cbuError}</td>
                         </tr>
                       ) : cbuRows.length === 0 ? (
-                        <tr>
-                          <td colSpan="5" className="p-10 text-center">
-                            <div className="flex flex-col items-center justify-center gap-2">
-                              <PiggyBank size={32} className="text-gray-300 dark:text-gray-600" />
-                              <p className="text-sm font-medium text-gray-500 dark:text-gray-400">No capital build-up transactions found.</p>
-                            </div>
-                          </td>
-                        </tr>
+                        <TableStateRow colSpan={5} variant="empty" icon={PiggyBank} label="No capital build-up transactions found." />
                       ) : (
                         cbuRows.map((r) => (
                           <tr key={r.id} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
@@ -1225,17 +1171,11 @@ const Member_StatementOfAccount = () => {
 
                 <div className="divide-y divide-gray-100 dark:divide-gray-800 md:hidden">
                   {loadingCbu ? (
-                    <div className="flex flex-col items-center justify-center gap-2 p-10 text-center">
-                      <Loader2 size={24} className="text-gray-300 dark:text-gray-600 animate-spin" />
-                      <p className="text-sm text-gray-400 dark:text-gray-500">Loading capital build-up statement…</p>
-                    </div>
+                    <TableStateRow bare variant="loading" label="Loading capital build-up statement…" />
                   ) : cbuError ? (
                     <p className="p-6 text-sm text-red-600 dark:text-red-400 text-center">{cbuError}</p>
                   ) : cbuRows.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center gap-2 p-10 text-center">
-                      <PiggyBank size={32} className="text-gray-300 dark:text-gray-600" />
-                      <p className="text-sm font-medium text-gray-500 dark:text-gray-400">No capital build-up transactions found.</p>
-                    </div>
+                    <TableStateRow bare variant="empty" icon={PiggyBank} label="No capital build-up transactions found." />
                   ) : (
                     cbuRows.map((r) => (
                       <div key={r.id} className="px-4 py-3.5 hover:bg-gray-50/50 dark:hover:bg-gray-800/50 transition-colors">

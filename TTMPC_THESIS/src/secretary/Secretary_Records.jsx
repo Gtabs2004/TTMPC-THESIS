@@ -27,11 +27,12 @@ import {
   AlertTriangle,
   ShieldCheck,
   X as CloseIcon,
-  Loader2,
 } from 'lucide-react';
 import logo from "../assets/img/ttmpc logo.png";
 import NotificationBell from "../components/NotificationBell";
 import { TableToolbar } from "../components/TableToolbar";
+import TableActionButton from "../components/TableActionButton";
+import TableStateRow from "../components/TableStateRow";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 
@@ -182,24 +183,10 @@ const Secretary_Records = () => {
               </thead>
               <tbody>
                 {loading && (
-                  <tr>
-                    <td colSpan={6} className="p-10 text-center">
-                      <div className="flex flex-col items-center justify-center gap-2">
-                        <Loader2 size={24} className="text-gray-300 animate-spin" />
-                        <p className="text-sm text-gray-400">Loading...</p>
-                      </div>
-                    </td>
-                  </tr>
+                  <TableStateRow colSpan={6} variant="loading" label="Loading..." />
                 )}
                 {paginatedRecords.length === 0 && !loading && (
-                  <tr>
-                    <td colSpan={6} className="p-10 text-center">
-                      <div className="flex flex-col items-center justify-center gap-2">
-                        <Users size={32} className="text-gray-300" />
-                        <p className="text-sm font-medium text-gray-500">No records found.</p>
-                      </div>
-                    </td>
-                  </tr>
+                  <TableStateRow colSpan={6} variant="empty" icon={Users} label="No records found." />
                 )}
                 {paginatedRecords.map((member, index) => (
                   <tr key={`${member.member_uuid}-${index}`} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
@@ -210,20 +197,21 @@ const Secretary_Records = () => {
                     <td className="p-5 text-gray-800 font-medium">{formatCurrency(member.paid_up_capital)}</td>
                     <td className="p-5">
                       <div className="flex items-center gap-2">
-                        <button
+                        <TableActionButton
+                          icon={Eye}
+                          iconOnly
                           onClick={() => navigate(`/secretary-record-details/${member.member_uuid}`)}
-                          className="btn-enhanced text-[#1e9e4a] hover:text-green-800 transition-colors p-1"
-                          title="View record"
                         >
-                          <Eye size={20} strokeWidth={2} />
-                        </button>
-                        <button
+                          View
+                        </TableActionButton>
+                        <TableActionButton
+                          icon={AlertTriangle}
+                          iconOnly
+                          variant="danger"
                           onClick={() => openTerminate(member)}
-                          className="text-red-600 hover:text-red-700 transition-colors p-1"
-                          title="Terminate member"
                         >
-                          <AlertTriangle size={18} strokeWidth={2} />
-                        </button>
+                          Terminate
+                        </TableActionButton>
                       </div>
                     </td>
                   </tr>

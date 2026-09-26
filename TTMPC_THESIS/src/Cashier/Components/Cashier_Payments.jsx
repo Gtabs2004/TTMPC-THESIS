@@ -7,6 +7,7 @@ import { useConfirm } from "../../contex/ConfirmContext";
 import StaffTopbar from "../../components/StaffTopbar";
 import Breadcrumb from "../../components/Breadcrumb";
 import { TableToolbar } from "../../components/TableToolbar";
+import TableStateRow from "../../components/TableStateRow";
 import Pagination from "../../components/Pagination";
 // Adjust path to AuthContext if needed
 import LoanNotificationBell from "../../components/LoanNotificationBell";
@@ -955,17 +956,15 @@ const Cashier_Payments = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {paginatedLoans.length === 0 ? (
-                    <tr>
-                      <td colSpan={7} className="p-10 text-center">
-                        <div className="flex flex-col items-center justify-center gap-2">
-                          <AlertCircle size={32} className="text-gray-300" />
-                          <p className="text-sm font-medium text-gray-500">
-                            No loans found matching your criteria
-                          </p>
-                        </div>
-                      </td>
-                    </tr>
+                  {loadingLoans ? (
+                    <TableStateRow colSpan={7} variant="loading" label="Loading..." />
+                  ) : paginatedLoans.length === 0 ? (
+                    <TableStateRow
+                      colSpan={7}
+                      variant="empty"
+                      icon={AlertCircle}
+                      label="No loans found matching your criteria"
+                    />
                   ) : (
                     paginatedLoans.map((loan) => (
                       <tr

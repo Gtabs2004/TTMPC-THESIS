@@ -6,6 +6,7 @@ import StaffTopbar from "../StaffTopbar";
 import Breadcrumb from "../Breadcrumb";
 import LoanNotificationBell from "../LoanNotificationBell";
 import Pagination from "../Pagination";
+import TableStateRow from "../TableStateRow";
 import {
   Brain,
   RefreshCw,
@@ -14,7 +15,6 @@ import {
   AlertCircle,
   TrendingUp,
   TrendingDown,
-  Loader2,
   Inbox,
 } from "lucide-react";
 
@@ -379,23 +379,9 @@ const CreditRiskPage = ({ portal = "bookkeeper" }) => {
                 </thead>
                 <tbody>
                   {loading ? (
-                    <tr>
-                      <td colSpan={5} className="p-10 text-center">
-                        <div className="flex flex-col items-center justify-center gap-2">
-                          <Loader2 size={24} className="text-gray-300 animate-spin" />
-                          <p className="text-sm text-gray-400">Loading model scores...</p>
-                        </div>
-                      </td>
-                    </tr>
+                    <TableStateRow colSpan={5} variant="loading" label="Loading model scores..." />
                   ) : pagedRows.length === 0 ? (
-                    <tr>
-                      <td colSpan={5} className="p-10 text-center">
-                        <div className="flex flex-col items-center justify-center gap-2">
-                          <Inbox size={32} className="text-gray-300" />
-                          <p className="text-sm font-medium text-gray-500">No applicants match the current filters.</p>
-                        </div>
-                      </td>
-                    </tr>
+                    <TableStateRow colSpan={5} variant="empty" icon={Inbox} label="No applicants match the current filters." />
                   ) : (
                     pagedRows.map((row) => {
                       const band = riskBand(row);

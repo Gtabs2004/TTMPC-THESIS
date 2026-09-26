@@ -9,6 +9,8 @@ import StaffTopbar from "../../components/StaffTopbar";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
 import Breadcrumb from "../../components/Breadcrumb";
 import Pagination from "../../components/Pagination";
+import TableActionButton from "../../components/TableActionButton";
+import TableStateRow from "../../components/TableStateRow";
 import {
   LayoutDashboard,
   Users,
@@ -318,23 +320,14 @@ const MIGS = () => {
                 </thead>
                 <tbody>
                   {loading ? (
-                    <tr>
-                      <td colSpan={8} className="p-10 text-center">
-                        <div className="flex flex-col items-center justify-center gap-2">
-                          <Loader2 size={24} className="text-gray-300 animate-spin" />
-                          <p className="text-sm text-gray-400">Loading...</p>
-                        </div>
-                      </td>
-                    </tr>
+                    <TableStateRow colSpan={8} variant="loading" label="Loading..." />
                   ) : filtered.length === 0 ? (
-                    <tr>
-                      <td colSpan={8} className="p-10 text-center">
-                        <div className="flex flex-col items-center justify-center gap-2">
-                          <Users size={32} className="text-gray-300" />
-                          <p className="text-sm font-medium text-gray-500">No MIGS scoring records found.</p>
-                        </div>
-                      </td>
-                    </tr>
+                    <TableStateRow
+                      colSpan={8}
+                      variant="empty"
+                      icon={Users}
+                      label="No MIGS scoring records found."
+                    />
                   ) : (
                     paginatedRows.map((r) => (
                       <tr key={String(r.id || r.member_id)} className="border-b border-gray-100 last:border-0 hover:bg-gray-50 transition-colors">
@@ -384,13 +377,12 @@ const MIGS = () => {
                         <td className="px-5 py-4 text-sm text-right">
                           {/* Bordered pill rather than bare text: a bigger,
                               more obvious hit area, and it reads as a control. */}
-                          <button
+                          <TableActionButton
+                            icon={Eye}
                             onClick={() => navigate(`/migs-evaluate?member_id=${encodeURIComponent(String(r.member_id || ""))}`)}
-                            className="inline-flex items-center gap-1.5 px-3 h-8 rounded-lg border border-gray-200 text-[#2C7A3F] text-xs font-semibold hover:bg-green-50 hover:border-[#2C7A3F] focus:outline-none focus:ring-2 focus:ring-[#2C7A3F] transition-colors"
                           >
-                            <Eye className="w-3.5 h-3.5" />
                             Evaluate
-                          </button>
+                          </TableActionButton>
                         </td>
                       </tr>
                     ))

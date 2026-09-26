@@ -19,7 +19,6 @@ import {
   AlertTriangle,
   History,
   Check,
-  Loader2,
 } from "lucide-react";
 
 import { UserAuth } from "../contex/AuthContext";
@@ -31,6 +30,7 @@ import Pagination from "../components/Pagination";
 import ConfirmDialog from "../components/ConfirmDialog";
 import logo from "../assets/img/ttmpc logo.png";
 import NotificationBell from "../components/NotificationBell";
+import TableStateRow from "../components/TableStateRow";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 const PAGE_SIZE = 10;
@@ -431,23 +431,9 @@ const Secretary_General_Assembly = () => {
                 </thead>
                 <tbody>
                   {loading ? (
-                    <tr>
-                      <td colSpan={6} className="p-10 text-center">
-                        <div className="flex flex-col items-center justify-center gap-2">
-                          <Loader2 size={24} className="text-gray-300 animate-spin" />
-                          <p className="text-sm text-gray-400">Loading...</p>
-                        </div>
-                      </td>
-                    </tr>
+                    <TableStateRow colSpan={6} variant="loading" label="Loading..." />
                   ) : paginated.length === 0 ? (
-                    <tr>
-                      <td colSpan={6} className="p-10 text-center">
-                        <div className="flex flex-col items-center justify-center gap-2">
-                          <AlertCircle size={32} className="text-gray-300" />
-                          <p className="text-sm font-medium text-gray-500">No members match your filters.</p>
-                        </div>
-                      </td>
-                    </tr>
+                    <TableStateRow colSpan={6} variant="empty" icon={AlertCircle} label="No members match your filters." />
                   ) : (
                     paginated.map((row) => {
                       const status = effectiveStatus(row);

@@ -19,11 +19,12 @@ import {
   ShieldCheck,
   AlertTriangle,
   CalendarDays,
-  History,
-  Loader2
+  History
 } from "lucide-react";
 import NotificationBell from "../../components/NotificationBell";
 import { TableToolbar } from "../../components/TableToolbar";
+import TableActionButton from "../../components/TableActionButton";
+import TableStateRow from "../../components/TableStateRow";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 const ITEMS_PER_PAGE = 5;
@@ -197,23 +198,9 @@ const BOD_Manage_Member = () => {
               </thead>
               <tbody>
                 {loading ? (
-                  <tr>
-                    <td colSpan={8} className="p-10 text-center">
-                      <div className="flex flex-col items-center justify-center gap-2">
-                        <Loader2 size={24} className="text-gray-300 animate-spin" />
-                        <p className="text-sm text-gray-400">Loading members...</p>
-                      </div>
-                    </td>
-                  </tr>
+                  <TableStateRow colSpan={8} variant="loading" label="Loading members..." />
                 ) : filtered.length === 0 ? (
-                  <tr>
-                    <td colSpan={8} className="p-10 text-center">
-                      <div className="flex flex-col items-center justify-center gap-2">
-                        <Users size={32} className="text-gray-300" />
-                        <p className="text-sm font-medium text-gray-500">No personal datasheet records found.</p>
-                      </div>
-                    </td>
-                  </tr>
+                  <TableStateRow colSpan={8} variant="empty" icon={Users} label="No personal datasheet records found." />
                 ) : (
                   paginatedRows.map((r) => {
                     const summary = loanSummaryByMemberId[String(r.member_id || "").trim()] || { paidCount: 0, activeCount: 0 };
@@ -228,12 +215,11 @@ const BOD_Manage_Member = () => {
                         <td className="p-5 text-sm text-gray-700 text-center">{summary.activeCount}</td>
                         <td className="p-5 text-sm text-gray-700 text-center">{summary.paidCount}</td>
                         <td className="p-5 text-sm text-center">
-                          <button
+                          <TableActionButton
                             onClick={() => navigate(`/member_details?member_id=${encodeURIComponent(String(r.member_id || ""))}&portal=bod`, { state: { member: r, portal: "bod" } })}
-                            className="text-member-green font-bold hover:underline transition-all"
                           >
                             View
-                          </button>
+                          </TableActionButton>
                         </td>
                       </tr>
                     );
@@ -281,23 +267,9 @@ const BOD_Manage_Member = () => {
               </thead>
               <tbody>
                 {loading ? (
-                  <tr>
-                    <td colSpan={8} className="p-10 text-center">
-                      <div className="flex flex-col items-center justify-center gap-2">
-                        <Loader2 size={24} className="text-gray-300 animate-spin" />
-                        <p className="text-sm text-gray-400">Loading members...</p>
-                      </div>
-                    </td>
-                  </tr>
+                  <TableStateRow colSpan={8} variant="loading" label="Loading members..." />
                 ) : filteredTerminated.length === 0 ? (
-                  <tr>
-                    <td colSpan={8} className="p-10 text-center">
-                      <div className="flex flex-col items-center justify-center gap-2">
-                        <Users size={32} className="text-gray-300" />
-                        <p className="text-sm font-medium text-gray-500">No terminated members.</p>
-                      </div>
-                    </td>
-                  </tr>
+                  <TableStateRow colSpan={8} variant="empty" icon={Users} label="No terminated members." />
                 ) : (
                   paginatedTerminatedRows.map((r) => {
                     const term = terminatedByMemberId[String(r.member_id || "").trim()] || {};
@@ -312,12 +284,11 @@ const BOD_Manage_Member = () => {
                         <td className="p-5 text-sm text-gray-700 text-center">{formatDisplayDate(term.termination_date)}</td>
                         <td className="p-5 text-sm text-gray-700 text-center">{term.termination_resolution_number || "—"}</td>
                         <td className="p-5 text-sm text-center">
-                          <button
+                          <TableActionButton
                             onClick={() => navigate(`/member_details?member_id=${encodeURIComponent(String(r.member_id || ""))}&portal=bod`, { state: { member: r, portal: "bod" } })}
-                            className="text-member-green font-bold hover:underline transition-all"
                           >
                             View
-                          </button>
+                          </TableActionButton>
                         </td>
                       </tr>
                     );

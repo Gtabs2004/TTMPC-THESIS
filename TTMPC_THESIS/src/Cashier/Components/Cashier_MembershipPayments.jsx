@@ -11,6 +11,7 @@ import Breadcrumb from "../../components/Breadcrumb";
 import { TableToolbar } from "../../components/TableToolbar";
 import Pagination from "../../components/Pagination";
 import ConfirmDialog from "../../components/ConfirmDialog";
+import TableStateRow from "../../components/TableStateRow";
 import { supabase } from "../../supabaseClient";
 import { formatWithCommas, stripCommas } from "../../utils/numberFormat";
 import {
@@ -377,23 +378,14 @@ const Cashier_MembershipPayments = () => {
                 </thead>
                 <tbody>
                   {loading ? (
-                    <tr>
-                      <td colSpan={6} className="p-10 text-center">
-                        <div className="flex flex-col items-center justify-center gap-2">
-                          <Loader2 size={24} className="text-gray-300 animate-spin" />
-                          <p className="text-sm text-gray-400">Loading...</p>
-                        </div>
-                      </td>
-                    </tr>
+                    <TableStateRow colSpan={6} variant="loading" label="Loading..." />
                   ) : paginatedApplicants.length === 0 && (
-                    <tr>
-                      <td colSpan={6} className="p-10 text-center">
-                        <div className="flex flex-col items-center justify-center gap-2">
-                          <UserSearch size={32} className="text-gray-300" />
-                          <p className="text-sm font-medium text-gray-500">No applicants match the current filter.</p>
-                        </div>
-                      </td>
-                    </tr>
+                    <TableStateRow
+                      colSpan={6}
+                      variant="empty"
+                      icon={UserSearch}
+                      label="No applicants match the current filter."
+                    />
                   )}
                   {!loading && paginatedApplicants.map((row) => (
                     <tr key={row.application_id} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
@@ -479,23 +471,9 @@ const Cashier_MembershipPayments = () => {
                 </thead>
                 <tbody>
                   {loading ? (
-                    <tr>
-                      <td colSpan={8} className="p-10 text-center">
-                        <div className="flex flex-col items-center justify-center gap-2">
-                          <Loader2 size={24} className="text-gray-300 animate-spin" />
-                          <p className="text-sm text-gray-400">Loading...</p>
-                        </div>
-                      </td>
-                    </tr>
+                    <TableStateRow colSpan={8} variant="loading" label="Loading..." />
                   ) : paginatedTransactions.length === 0 && (
-                    <tr>
-                      <td colSpan={8} className="p-10 text-center">
-                        <div className="flex flex-col items-center justify-center gap-2">
-                          <History size={32} className="text-gray-300" />
-                          <p className="text-sm font-medium text-gray-500">No transactions recorded yet.</p>
-                        </div>
-                      </td>
-                    </tr>
+                    <TableStateRow colSpan={8} variant="empty" icon={History} label="No transactions recorded yet." />
                   )}
                   {!loading && paginatedTransactions.map((row) => (
                     <tr key={row.id} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">

@@ -12,6 +12,8 @@ import { apiErrorMessage } from "../../utils/apiError";
 import { supabase } from "../../supabaseClient";
 import StaffSidebar from "../../components/StaffSidebar";
 import { treasurerNav } from "../../components/StaffSidebar/configs/treasurer";
+import TableActionButton from "../../components/TableActionButton";
+import TableStateRow from "../../components/TableStateRow";
 import {
   Search,
   Bell,
@@ -22,7 +24,6 @@ import {
   ChevronRight,
   User,
   Inbox,
-  Loader2,
   Wallet,
   Landmark,
   AlertTriangle,
@@ -312,14 +313,7 @@ const Treasurer_Approval = () => {
                     </thead>
                     <tbody>
                       {loading ? (
-                        <tr>
-                          <td colSpan={9} className="p-10 text-center">
-                            <div className="flex flex-col items-center justify-center gap-2">
-                              <Loader2 size={24} className="text-gray-300 animate-spin" />
-                              <p className="text-sm text-gray-400">Loading...</p>
-                            </div>
-                          </td>
-                        </tr>
+                        <TableStateRow colSpan={9} variant="loading" label="Loading..." />
                       ) : fetchError ? (
                         <tr>
                           <td colSpan={9} className="p-5 text-center text-red-600">
@@ -327,14 +321,7 @@ const Treasurer_Approval = () => {
                           </td>
                         </tr>
                       ) : displayLoans.length === 0 ? (
-                        <tr>
-                          <td colSpan={9} className="p-10 text-center">
-                            <div className="flex flex-col items-center justify-center gap-2">
-                              <Inbox size={32} className="text-gray-300" />
-                              <p className="text-sm font-medium text-gray-500">No loans found.</p>
-                            </div>
-                          </td>
-                        </tr>
+                        <TableStateRow colSpan={9} variant="empty" icon={Inbox} label="No loans found." />
                       ) : (
                         displayLoans.map((loan, idx) => (
                           <tr key={idx} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
@@ -362,12 +349,11 @@ const Treasurer_Approval = () => {
                             </td>
                             <td className="p-5 text-sm text-gray-500">{loan.date}</td>
                             <td className="p-5 text-sm text-right pr-8">
-                              <button
+                              <TableActionButton
                                 onClick={() => navigate(`/treasurer-approval/${loan.id}?source=${loan.source}`)}
-                                className="btn-enhanced text-member-green font-bold hover:text-green-800 transition-all"
                               >
                                 {loan.actions}
-                              </button>
+                              </TableActionButton>
                             </td>
                           </tr>
                         ))
@@ -452,14 +438,7 @@ const Treasurer_Approval = () => {
                     </thead>
                     <tbody>
                       {rescheduledLoading ? (
-                        <tr>
-                          <td colSpan={7} className="p-10 text-center">
-                            <div className="flex flex-col items-center justify-center gap-2">
-                              <Loader2 size={24} className="text-gray-300 animate-spin" />
-                              <p className="text-sm text-gray-400">Loading...</p>
-                            </div>
-                          </td>
-                        </tr>
+                        <TableStateRow colSpan={7} variant="loading" label="Loading..." />
                       ) : rescheduledError ? (
                         <tr>
                           <td colSpan={7} className="p-5 text-center text-red-600">
@@ -474,17 +453,13 @@ const Treasurer_Approval = () => {
                           </td>
                         </tr>
                       ) : paginatedRescheduled.length === 0 ? (
-                        <tr>
-                          <td colSpan={7} className="p-10 text-center">
-                            <div className="flex flex-col items-center justify-center gap-2">
-                              <Inbox size={32} className="text-gray-300" />
-                              <p className="text-sm font-medium text-gray-500">No rescheduled loans.</p>
-                              <p className="text-xs text-gray-400">
-                                Loans parked here after a "Reschedule" decision for insufficient funds.
-                              </p>
-                            </div>
-                          </td>
-                        </tr>
+                        <TableStateRow
+                          colSpan={7}
+                          variant="empty"
+                          icon={Inbox}
+                          label="No rescheduled loans."
+                          sublabel='Loans parked here after a "Reschedule" decision for insufficient funds.'
+                        />
                       ) : (
                         paginatedRescheduled.map((row) => (
                           <tr key={`${row.source}-${row.loan_id}`} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
@@ -529,12 +504,11 @@ const Treasurer_Approval = () => {
                               )}
                             </td>
                             <td className="p-5 text-sm text-right pr-8">
-                              <button
+                              <TableActionButton
                                 onClick={() => navigate(`/treasurer-approval/${row.loan_id}?source=${row.source === "koica_loans" ? "koica" : "loans"}`)}
-                                className="btn-enhanced text-member-green font-bold hover:text-green-800 transition-all"
                               >
                                 Review
-                              </button>
+                              </TableActionButton>
                             </td>
                           </tr>
                         ))

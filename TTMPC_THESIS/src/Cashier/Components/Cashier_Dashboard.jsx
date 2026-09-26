@@ -11,7 +11,8 @@ import Breadcrumb from "../../components/Breadcrumb";
 import RecentActivityCard from "../../components/RecentActivityCard";
 import { supabase } from "../../supabaseClient";
 import { useQuery } from "@tanstack/react-query";
-import { Skeleton, SkeletonChart, SkeletonDonut, SkeletonTableRows } from "../../components/Skeleton";
+import { Skeleton, SkeletonChart, SkeletonDonut } from "../../components/Skeleton";
+import TableStateRow from "../../components/TableStateRow";
 import {
   LayoutDashboard,
   Search,
@@ -558,16 +559,14 @@ const Cashier_Dashboard = () => {
                 </thead>
                 <tbody>
                   {loading ? (
-                    <SkeletonTableRows rows={5} cols={6} />
+                    <TableStateRow colSpan={6} variant="loading" label="Loading..." />
                   ) : recentActivity.length === 0 ? (
-                    <tr>
-                      <td colSpan={6} className="p-10 text-center">
-                        <div className="flex flex-col items-center justify-center gap-2">
-                          <FileText size={32} className="text-gray-300" />
-                          <p className="text-sm font-medium text-gray-500">No transactions recorded today.</p>
-                        </div>
-                      </td>
-                    </tr>
+                    <TableStateRow
+                      colSpan={6}
+                      variant="empty"
+                      icon={FileText}
+                      label="No transactions recorded today."
+                    />
                   ) : recentActivity.map((row) => (
                     <tr key={row.id} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
                       <td className="p-5 text-sm font-bold text-gray-800">{row.name}</td>

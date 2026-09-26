@@ -8,6 +8,7 @@ import StaffTopbar from "../../components/StaffTopbar";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
 import Breadcrumb from "../../components/Breadcrumb";
 import { TableToolbar } from "../../components/TableToolbar";
+import TableActionButton from "../../components/TableActionButton";
 import {
   LayoutDashboard,
   Users,
@@ -82,10 +83,9 @@ const Records = () => {
           </td>
           <td className="p-5 text-gray-800 font-medium">{member.loans}</td>
           <td className="p-5">
-            <button onClick={() => navigate('/member_details')}
-            className="text-[#1e9e4a] hover:text-green-800 transition-colors p-1">
-              <Eye size={20} strokeWidth={2} />
-            </button>
+            <TableActionButton icon={Eye} iconOnly onClick={() => navigate('/member_details')}>
+              View
+            </TableActionButton>
           </td>
         </tr>
       ))}

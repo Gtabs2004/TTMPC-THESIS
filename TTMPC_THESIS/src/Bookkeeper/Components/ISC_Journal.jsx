@@ -1,12 +1,13 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { ChevronLeft, Download, Search, Loader2, Users, Calendar } from "lucide-react";
+import { ChevronLeft, Download, Search, Users, Calendar } from "lucide-react";
 import StaffSidebar from "../../components/StaffSidebar";
 import { bookkeeperNav } from "../../components/StaffSidebar/configs/bookkeeper";
 import StaffTopbar from "../../components/StaffTopbar";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
 import Breadcrumb from "../../components/Breadcrumb";
 import Pagination from "../../components/Pagination";
+import TableStateRow from "../../components/TableStateRow";
 import { supabase } from "../../supabaseClient";
 import { BRAND_GREEN, BAND_FILL, BORDER_SOFT, PESO_FORMAT, colLetter, downloadWorkbook } from "../../utils/excelExport";
 
@@ -417,20 +418,22 @@ const ISC_Journal = () => {
                 </thead>
                 <tbody>
                   {status === "loading" ? (
-                    <tr>
-                      <td colSpan={2 + MONTH_LABELS.length * 3} className="p-10 text-center">
-                        <div className="flex flex-col items-center gap-2">
-                          <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
-                          <p className="text-xs text-gray-500">Loading the journal...</p>
-                        </div>
-                      </td>
-                    </tr>
+                    <TableStateRow
+                      colSpan={2 + MONTH_LABELS.length * 3}
+                      variant="loading"
+                      label="Loading the journal..."
+                    />
                   ) : paginated.length === 0 ? (
-                    <tr>
-                      <td colSpan={2 + MONTH_LABELS.length * 3} className="p-10 text-center text-sm text-gray-500">
-                        {rows.length === 0 ? "No eligible members found for this period." : "No members matched your search."}
-                      </td>
-                    </tr>
+                    <TableStateRow
+                      colSpan={2 + MONTH_LABELS.length * 3}
+                      variant="empty"
+                      icon={Users}
+                      label={
+                        rows.length === 0
+                          ? "No eligible members found for this period."
+                          : "No members matched your search."
+                      }
+                    />
                   ) : (
                     paginated.map((row) => (
                       <tr key={row.member_id} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">

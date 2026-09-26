@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { StatCard, StatCardRow } from "../../components/StatCard";
 import { TableToolbar } from "../../components/TableToolbar";
+import TableStateRow from "../../components/TableStateRow";
 import { supabase } from "../../supabaseClient";
 import { UserAuth } from "../../contex/AuthContext";
 import { useNotification } from "../../contex/NotificationContext";
@@ -24,7 +25,6 @@ import {
   ChevronRight,
   User,
   Inbox,
-  Loader2,
 } from "lucide-react";
 import { FORECAST_LOAN_TYPE_COLORS } from "../../lib/chartColors";
 import { formatWithCommas, stripCommas } from "../../utils/numberFormat";
@@ -403,25 +403,16 @@ const Vault = () => {
                 </thead>
                 <tbody>
                   {loading && (
-                    <tr>
-                      <td colSpan={5} className="p-10 text-center">
-                        <div className="flex flex-col items-center justify-center gap-2">
-                          <Loader2 size={24} className="text-gray-300 animate-spin" />
-                          <p className="text-sm text-gray-400">Loading...</p>
-                        </div>
-                      </td>
-                    </tr>
+                    <TableStateRow colSpan={5} variant="loading" label="Loading..." />
                   )}
                   {!loading && filteredEntries.length === 0 && (
-                    <tr>
-                      <td colSpan={5} className="p-10 text-center">
-                        <div className="flex flex-col items-center justify-center gap-2">
-                          <Inbox size={32} className="text-gray-300" />
-                          <p className="text-sm font-medium text-gray-500">No entries yet.</p>
-                          <p className="text-xs text-gray-400">Click Update Balance to record the first one.</p>
-                        </div>
-                      </td>
-                    </tr>
+                    <TableStateRow
+                      colSpan={5}
+                      variant="empty"
+                      icon={Inbox}
+                      label="No entries yet."
+                      sublabel="Click Update Balance to record the first one."
+                    />
                   )}
                   {!loading && filteredEntries.map((row) => {
                     const type = CHANGE_TYPES.find((t) => t.value === row.change_type);

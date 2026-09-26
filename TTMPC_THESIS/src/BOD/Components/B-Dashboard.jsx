@@ -10,7 +10,8 @@ import Breadcrumb from "../../components/Breadcrumb";
 import LoanDemandForecastCard from "../../components/LoanDemandForecastCard";
 import { supabase } from "../../supabaseClient";
 import { useQuery } from "@tanstack/react-query";
-import { Skeleton, SkeletonChart, SkeletonDonut, SkeletonTableRows } from "../../components/Skeleton";
+import { Skeleton, SkeletonChart, SkeletonDonut } from "../../components/Skeleton";
+import TableStateRow from "../../components/TableStateRow";
 import {
   LayoutDashboard,
   Users,
@@ -676,16 +677,14 @@ const Dashboard_BOD = () => {
                 </thead>
                 <tbody>
                   {loading ? (
-                    <SkeletonTableRows rows={5} cols={6} />
+                    <TableStateRow colSpan={6} variant="loading" label="Loading..." />
                   ) : recentTxns.length === 0 ? (
-                    <tr>
-                      <td colSpan={6} className="p-10 text-center">
-                        <div className="flex flex-col items-center justify-center gap-2">
-                          <History size={32} className="text-gray-300" />
-                          <p className="text-sm font-medium text-gray-500">No recent transactions.</p>
-                        </div>
-                      </td>
-                    </tr>
+                    <TableStateRow
+                      colSpan={6}
+                      variant="empty"
+                      icon={History}
+                      label="No recent transactions."
+                    />
                   ) : recentTxns.map((txn) => (
                     <tr
                       key={`${txn.id}-${txn.date}`}

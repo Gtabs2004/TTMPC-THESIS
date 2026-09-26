@@ -19,6 +19,7 @@ import StaffTopbar from "../../components/StaffTopbar";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
 import Breadcrumb from "../../components/Breadcrumb";
 import { TableToolbar } from "../../components/TableToolbar";
+import TableStateRow from "../../components/TableStateRow";
 import Pagination from "../../components/Pagination";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
@@ -276,16 +277,12 @@ const Manager_Savings_Details = () => {
                     </thead>
                     <tbody>
                       {ledger.length === 0 ? (
-                        <tr>
-                          <td colSpan={6} className="p-10 text-center">
-                            <div className="flex flex-col items-center justify-center gap-2">
-                              <Banknote size={32} className="text-gray-300" />
-                              <p className="text-sm font-medium text-gray-500">
-                                No transactions yet on this account
-                              </p>
-                            </div>
-                          </td>
-                        </tr>
+                        <TableStateRow
+                          colSpan={6}
+                          variant="empty"
+                          icon={Banknote}
+                          label="No transactions yet on this account"
+                        />
                       ) : (
                         paginatedLedger.map((entry) => {
                           const isCredit = entry.entry_type === "credit";

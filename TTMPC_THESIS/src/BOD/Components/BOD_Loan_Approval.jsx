@@ -9,6 +9,7 @@ import { useNotification } from "../../contex/NotificationContext";
 import StaffTopbar from "../../components/StaffTopbar";
 import Breadcrumb from "../../components/Breadcrumb";
 import { supabase } from "../../supabaseClient";
+import TableActionButton from "../../components/TableActionButton";
 import {
   LayoutDashboard,
   Users,
@@ -24,9 +25,9 @@ import {
   ClipboardList,
   BadgeCheck,
   History,
-  Loader2,
 } from "lucide-react";
 import NotificationBell from "../../components/NotificationBell";
+import TableStateRow from "../../components/TableStateRow";
 
 const formatCurrency = (value) =>
   `₱${Number(value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -155,23 +156,9 @@ const BOD_Loan_Approval = () => {
               </thead>
               <tbody>
                 {loading ? (
-                  <tr>
-                    <td colSpan={7} className="p-10 text-center">
-                      <div className="flex flex-col items-center justify-center gap-2">
-                        <Loader2 size={24} className="text-gray-300 animate-spin" />
-                        <p className="text-sm text-gray-400">Loading...</p>
-                      </div>
-                    </td>
-                  </tr>
+                  <TableStateRow colSpan={7} variant="loading" label="Loading..." />
                 ) : filtered.length === 0 ? (
-                  <tr>
-                    <td colSpan={7} className="p-10 text-center">
-                      <div className="flex flex-col items-center justify-center gap-2">
-                        <CreditCard size={32} className="text-gray-300" />
-                        <p className="text-sm font-medium text-gray-500">No high-value loans awaiting BOD approval.</p>
-                      </div>
-                    </td>
-                  </tr>
+                  <TableStateRow colSpan={7} variant="empty" icon={CreditCard} label="No high-value loans awaiting BOD approval." />
                 ) : filtered.map((loan) => {
                   const memberName = `${loan.member?.first_name || ""} ${loan.member?.last_name || ""}`.trim() || "Unknown Member";
                   return (
@@ -187,12 +174,11 @@ const BOD_Loan_Approval = () => {
                       <td className="p-5 text-sm text-gray-500">{loan.term || 0} Months</td>
                       <td className="p-5 text-sm text-gray-500">{formatDate(loan.application_date)}</td>
                       <td className="p-5 text-sm text-right pr-8">
-                        <button
+                        <TableActionButton
                           onClick={() => navigate(`/bod-loan-approval/${encodeURIComponent(loan.control_number)}`)}
-                          className="text-member-green font-bold hover:underline transition-all"
                         >
                           Review
-                        </button>
+                        </TableActionButton>
                       </td>
                     </tr>
                   );

@@ -13,6 +13,8 @@ import LoanNotificationBell from "../../components/LoanNotificationBell";
 import Breadcrumb from "../../components/Breadcrumb";
 import Pagination from "../../components/Pagination";
 import { TableToolbar } from "../../components/TableToolbar";
+import TableActionButton from "../../components/TableActionButton";
+import TableStateRow from "../../components/TableStateRow";
 import { authHeaders } from "../../utils/authHeaders";
 import {
   LayoutDashboard,
@@ -489,17 +491,17 @@ const BookkeeperPayments = () => {
                 )}
               </thead>
               <tbody>
-                {activeRecordCount === 0 && (
-                  <tr>
-                    <td colSpan={8} className="p-10 text-center">
-                      <div className="flex flex-col items-center justify-center gap-2">
-                        <Eye size={32} className="text-gray-300" />
-                        <p className="text-sm font-medium text-gray-500">No records found for this tab</p>
-                        <p className="text-xs text-gray-400">Try adjusting your filters</p>
-                      </div>
-                    </td>
-                  </tr>
-                )}
+                {loading ? (
+                  <TableStateRow colSpan={8} variant="loading" label="Loading..." />
+                ) : activeRecordCount === 0 ? (
+                  <TableStateRow
+                    colSpan={8}
+                    variant="empty"
+                    icon={Eye}
+                    label="No records found for this tab"
+                    sublabel="Try adjusting your filters"
+                  />
+                ) : null}
 
                 {(activeTab === "active" || activeTab === "fully_paid") &&
                   paginatedLoanRows.map((loan, index) => (
@@ -542,13 +544,12 @@ const BookkeeperPayments = () => {
                         </span>
                       </td>
                       <td className="p-5 text-center">
-                        <button
-                          type="button"
+                        <TableActionButton
                           onClick={() => openLoanDetailsFromLoan(loan)}
-                          className="btn-enhanced inline-flex items-center gap-1.5 rounded-lg bg-green-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-green-700"
+                          icon={Eye}
                         >
-                          <Eye size={12} /> View Ledger
-                        </button>
+                          View Ledger
+                        </TableActionButton>
                       </td>
                     </tr>
                   ))}
@@ -582,31 +583,30 @@ const BookkeeperPayments = () => {
                         </td>
                         <td className="p-5 text-center">
                           <div className="flex flex-nowrap items-center gap-1.5 justify-center whitespace-nowrap">
-                            <button
-                              type="button"
+                            <TableActionButton
                               onClick={() => openLoanDetailsFromPayment(item)}
-                              className="btn-enhanced inline-flex shrink-0 items-center gap-1 rounded-lg bg-green-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-green-700"
+                              icon={Eye}
+                              variant="neutral"
                             >
-                              <Eye size={12} /> View
-                            </button>
+                              View
+                            </TableActionButton>
                             {activeTab === "pending" && (
                               <>
-                                <button
-                                  type="button"
+                                <TableActionButton
                                   onClick={() => handleApproveClick(item)}
                                   disabled={workingPaymentId === item.payment_id}
-                                  className="btn-enhanced inline-flex shrink-0 items-center gap-1 rounded-lg bg-green-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-green-700 disabled:opacity-50"
+                                  icon={CheckCircle}
                                 >
-                                  <CheckCircle size={12} /> {workingPaymentId === item.payment_id ? "Processing..." : "Approve"}
-                                </button>
-                                <button
-                                  type="button"
+                                  {workingPaymentId === item.payment_id ? "Processing..." : "Approve"}
+                                </TableActionButton>
+                                <TableActionButton
                                   onClick={() => openRejectFlow(item)}
                                   disabled={workingPaymentId === item.payment_id}
-                                  className="btn-enhanced inline-flex shrink-0 items-center gap-1 rounded-lg bg-red-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-red-700 disabled:opacity-50"
+                                  icon={XCircle}
+                                  variant="danger"
                                 >
-                                  <XCircle size={12} /> Reject
-                                </button>
+                                  Reject
+                                </TableActionButton>
                               </>
                             )}
                           </div>

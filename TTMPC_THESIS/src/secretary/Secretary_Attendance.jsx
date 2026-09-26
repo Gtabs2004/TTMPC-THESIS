@@ -6,6 +6,7 @@ import { UserAuth } from "../contex/AuthContext";
 import { useNotification } from "../contex/NotificationContext";
 import StaffTopbar from "../components/StaffTopbar";
 import Breadcrumb from "../components/Breadcrumb";
+import TableStateRow from "../components/TableStateRow";
 import Pagination from "../components/Pagination";
 import ConfirmDialog from "../components/ConfirmDialog";
 import { supabase } from "../supabaseClient";
@@ -52,6 +53,7 @@ const Secretary_Attendance = () => {
     "For Revision": [],
     "Reschedule Training": [],
   });
+  const [loading, setLoading] = useState(false);
   const [portalRole, setPortalRole] = useState("");
   const [savingAttendance, setSavingAttendance] = useState(false);
   const [isRescheduleModalOpen, setIsRescheduleModalOpen] = useState(false);
@@ -173,6 +175,7 @@ const Secretary_Attendance = () => {
   };
 
   const fetchAttendanceRows = async () => {
+    setLoading(true);
     const [{ data, error }, logsResponse, rescheduleLogsResponse] = await Promise.all([
       supabase
         .from("member_applications")
@@ -192,6 +195,7 @@ const Secretary_Attendance = () => {
 
     if (error) {
       addNotification(error.message || "Unable to load attendance records.", "error");
+      setLoading(false);
       return;
     }
 
@@ -308,6 +312,7 @@ const Secretary_Attendance = () => {
     }
 
     setTableData(grouped);
+    setLoading(false);
   };
 
   const persistAttendanceToApplication = async (member) => {
@@ -760,7 +765,10 @@ const Secretary_Attendance = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {pagedRows.map((row) => (
+                  {loading && (
+                    <TableStateRow colSpan={4} variant="loading" label="Loading..." />
+                  )}
+                  {!loading && pagedRows.map((row) => (
                     <tr key={row.id} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
                       <td className="p-5">
                         <p className="font-bold text-[#2A2B4A] text-sm">{row.name}</p>
@@ -859,19 +867,17 @@ const Secretary_Attendance = () => {
                       </td>
                     </tr>
                   ))}
-                  {totalCount === 0 && (
-                    <tr>
-                      <td colSpan="4" className="p-10 text-center">
-                        <div className="flex flex-col items-center justify-center gap-2">
-                          <FileText size={32} className="text-gray-300" />
-                          <p className="text-sm font-medium text-gray-500">
-                            {activeTab === "Reschedule Training"
-                              ? "No absent members require rescheduling."
-                              : "No records found for this category."}
-                          </p>
-                        </div>
-                      </td>
-                    </tr>
+                  {!loading && totalCount === 0 && (
+                    <TableStateRow
+                      colSpan={4}
+                      variant="empty"
+                      icon={FileText}
+                      label={
+                        activeTab === "Reschedule Training"
+                          ? "No absent members require rescheduling."
+                          : "No records found for this category."
+                      }
+                    />
                   )}
                 </tbody>
               </table>

@@ -10,6 +10,8 @@ import { useNotification } from "../../contex/NotificationContext";
 import StaffTopbar from "../../components/StaffTopbar";
 import Breadcrumb from "../../components/Breadcrumb";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
+import TableActionButton from "../../components/TableActionButton";
+import TableStateRow from "../../components/TableStateRow";
 import { supabase } from "../../supabaseClient"; // Make sure this path is correct
 import {
   LayoutDashboard,
@@ -27,7 +29,6 @@ import {
   ClipboardCheck,
   Brain,
   Briefcase,
-  Loader2,
 } from "lucide-react";
 
 const Loan_Approval = () => {
@@ -214,23 +215,9 @@ const Loan_Approval = () => {
                 </thead>
                 <tbody>
                   {loading ? (
-                    <tr>
-                      <td colSpan="8" className="p-10 text-center">
-                        <div className="flex flex-col items-center justify-center gap-2">
-                          <Loader2 size={24} className="text-gray-300 animate-spin" />
-                          <p className="text-sm text-gray-400">Loading...</p>
-                        </div>
-                      </td>
-                    </tr>
+                    <TableStateRow colSpan={8} variant="loading" label="Loading..." />
                   ) : displayLoans.length === 0 ? (
-                    <tr>
-                      <td colSpan="8" className="p-10 text-center">
-                        <div className="flex flex-col items-center justify-center gap-2">
-                          <Banknote size={32} className="text-gray-300" />
-                          <p className="text-sm font-medium text-gray-500">No loans found.</p>
-                        </div>
-                      </td>
-                    </tr>
+                    <TableStateRow colSpan={8} variant="empty" icon={Banknote} label="No loans found." />
                   ) : (
                     displayLoans.map((loan, idx) => (
                       <tr key={idx} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
@@ -250,12 +237,11 @@ const Loan_Approval = () => {
                         </td>
                         <td className="p-5 text-sm text-gray-500">{loan.date}</td>
                         <td className="p-5 text-sm text-right pr-8">
-                          <button 
+                          <TableActionButton
                               onClick={() => navigate(`/loan-approval/${loan.id}?source=${loan.source}`)}
-                              className="text-member-green font-bold hover:underline transition-all"
                             >
                               {loan.actions}
-                            </button>
+                            </TableActionButton>
                         </td>
                       </tr>
                     ))

@@ -7,6 +7,7 @@ import { supabase } from "../../supabaseClient";
 import { resolveMemberIdentity } from "../../utils/memberIdentity";
 import { pickLatestCbuRow } from "../../utils/cbuOrdering";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
+import TableStateRow from "../../components/TableStateRow";
 import { getOrFetch, peek } from "../memberDataCache";
 import {
   LayoutDashboard,
@@ -27,8 +28,7 @@ import {
   Receipt,
   Moon,
   Sun,
-  Scroll,
-  Loader2
+  Scroll
 } from 'lucide-react';
 
 const styles = `
@@ -465,23 +465,9 @@ const Member_Savings = () => {
                 </thead>
                 <tbody>
                   {loadingSavings ? (
-                    <tr>
-                      <td colSpan={4} className="p-10 text-center">
-                        <div className="flex flex-col items-center justify-center gap-2">
-                          <Loader2 size={24} className="text-gray-300 dark:text-gray-600 animate-spin" />
-                          <p className="text-sm text-gray-400 dark:text-gray-500">Loading savings ledger...</p>
-                        </div>
-                      </td>
-                    </tr>
+                    <TableStateRow colSpan={4} variant="loading" label="Loading savings ledger..." />
                   ) : ledgerData.length === 0 ? (
-                    <tr>
-                      <td colSpan={4} className="p-10 text-center">
-                        <div className="flex flex-col items-center justify-center gap-2">
-                          <Wallet size={32} className="text-gray-300 dark:text-gray-600" />
-                          <p className="text-sm font-medium text-gray-500 dark:text-gray-400">No savings transactions yet.</p>
-                        </div>
-                      </td>
-                    </tr>
+                    <TableStateRow colSpan={4} variant="empty" icon={Wallet} label="No savings transactions yet." />
                   ) : ledgerData.map((row) => (
                     <tr key={row.id} className="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50/50 dark:hover:bg-gray-800/50 transition-colors">
                       <td className="p-5 text-sm text-gray-500 dark:text-gray-400 font-medium whitespace-nowrap">{row.date}</td>
@@ -503,15 +489,9 @@ const Member_Savings = () => {
 
             <div className="divide-y divide-gray-100 dark:divide-gray-800 md:hidden">
               {loadingSavings ? (
-                <div className="flex flex-col items-center justify-center gap-2 p-10 text-center">
-                  <Loader2 size={24} className="text-gray-300 dark:text-gray-600 animate-spin" />
-                  <p className="text-sm text-gray-400 dark:text-gray-500">Loading savings ledger...</p>
-                </div>
+                <TableStateRow bare variant="loading" label="Loading savings ledger..." />
               ) : ledgerData.length === 0 ? (
-                <div className="flex flex-col items-center justify-center gap-2 p-10 text-center">
-                  <Wallet size={32} className="text-gray-300 dark:text-gray-600" />
-                  <p className="text-sm font-medium text-gray-500 dark:text-gray-400">No savings transactions yet.</p>
-                </div>
+                <TableStateRow bare variant="empty" icon={Wallet} label="No savings transactions yet." />
               ) : ledgerData.map((row) => (
                 <div key={row.id} className="px-4 py-3.5 hover:bg-gray-50/50 dark:hover:bg-gray-800/50 transition-colors">
                   <div className="flex items-start justify-between gap-3">

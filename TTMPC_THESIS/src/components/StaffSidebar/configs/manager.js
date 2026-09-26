@@ -16,7 +16,7 @@ export const managerNav = [
   { name: "Credit Risk",    icon: Brain,           path: "/manager-credit-risk" },
   { name: "Manage Loans",   icon: Briefcase,       path: "/manager-manage-loans" },
   { name: "Manage Member",  icon: Users,           path: "/manager-manage-member" },
-  { name: "Savings Accounts", icon: PiggyBank,     path: "/manager-savings-accounts" },
+  { name: "Savings ", icon: PiggyBank,     path: "/manager-savings-accounts" },
   { name: "Reports",        icon: BarChart3,       path: "/manager-reports" },
   { name: "Audit Log",      icon: History,         path: "/manager-audit-log" },
 ];

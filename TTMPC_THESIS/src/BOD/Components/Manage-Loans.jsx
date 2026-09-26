@@ -26,11 +26,11 @@ import {
   History,
   CheckCircle2,
   Clock,
-  Loader2,
   X,
   ChevronDown,
   ChevronRight,
 } from "lucide-react";
+import TableStateRow from "../../components/TableStateRow";
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 
 const formatCurrency = (value) => {
@@ -472,23 +472,9 @@ const BOD_Manage_Loans = () => {
                   </thead>
                   <tbody>
                     {loading && !loadError ? (
-                      <tr>
-                        <td colSpan={8} className="p-10 text-center">
-                          <div className="flex flex-col items-center justify-center gap-2">
-                            <Loader2 size={24} className="text-gray-300 animate-spin" />
-                            <p className="text-sm text-gray-400">Loading...</p>
-                          </div>
-                        </td>
-                      </tr>
+                      <TableStateRow colSpan={8} variant="loading" label="Loading..." />
                     ) : paginatedLoans.length === 0 ? (
-                      <tr>
-                        <td colSpan={8} className="p-10 text-center">
-                          <div className="flex flex-col items-center justify-center gap-2">
-                            <BookOpen size={32} className="text-gray-300" />
-                            <p className="text-sm font-medium text-gray-500">No loans match your filters.</p>
-                          </div>
-                        </td>
-                      </tr>
+                      <TableStateRow colSpan={8} variant="empty" icon={BookOpen} label="No loans match your filters." />
                     ) : (
                       <>
                         {paginatedLoans.map((loan) => {

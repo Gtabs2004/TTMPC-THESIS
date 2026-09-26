@@ -29,6 +29,8 @@ import LoanNotificationBell from "../../components/LoanNotificationBell";
 import Breadcrumb from "../../components/Breadcrumb";
 import { TableToolbar } from "../../components/TableToolbar";
 import Pagination from "../../components/Pagination";
+import TableActionButton from "../../components/TableActionButton";
+import TableStateRow from "../../components/TableStateRow";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 const ITEMS_PER_PAGE = 10;
@@ -261,7 +263,11 @@ const Manage_Member = () => {
             </div>
           </div>
 
-            {loading ? <p className="p-8 text-sm font-medium text-gray-500 flex justify-center">Loading personal datasheet...</p> : null}
+            {loading ? (
+              <div className="p-8">
+                <TableStateRow bare variant="loading" label="Loading personal datasheet..." />
+              </div>
+            ) : null}
             {error ? <p className="p-8 text-sm font-medium text-red-600 flex justify-center">{error}</p> : null}
             {!loading && !error ? (
               <div className="overflow-x-auto">
@@ -278,14 +284,12 @@ const Manage_Member = () => {
                   </thead>
                   <tbody>
                     {filtered.length === 0 ? (
-                      <tr>
-                        <td colSpan={6} className="p-10 text-center">
-                          <div className="flex flex-col items-center justify-center gap-2">
-                            <Users size={32} className="text-gray-300" />
-                            <p className="text-sm font-medium text-gray-500">No members match your search criteria.</p>
-                          </div>
-                        </td>
-                      </tr>
+                      <TableStateRow
+                        colSpan={6}
+                        variant="empty"
+                        icon={Users}
+                        label="No members match your search criteria."
+                      />
                     ) : (
                       paginatedRows.map((r) => (
                         <tr
@@ -298,12 +302,11 @@ const Manage_Member = () => {
                           <td className="p-5 text-sm text-gray-600">{r.contact_number}</td>
                           <td className="p-5 text-sm text-gray-600">{r.address}</td>
                           <td className="p-5 text-sm text-right">
-                            <button
+                            <TableActionButton
                               onClick={() => navigate(`/member_details?member_id=${encodeURIComponent(String(r.member_id || ""))}&portal=bookkeeper`, { state: { member: r, portal: "bookkeeper" } })}
-                              className="inline-flex items-center px-4 py-1.5 rounded-md text-member-green font-bold border border-member-green/30 bg-member-green/5 hover:bg-member-green hover:text-white active:scale-95 transition-all duration-200"
                             >
                               View
-                            </button>
+                            </TableActionButton>
                           </td>
                         </tr>
                       ))

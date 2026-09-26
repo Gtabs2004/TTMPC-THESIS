@@ -6,7 +6,6 @@ import {
   AlertCircle,
   Banknote,
   Clock,
-  Loader2,
   RefreshCw,
   Search,
   Users,
@@ -18,6 +17,7 @@ import StaffTopbar from "../../components/StaffTopbar";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
 import Breadcrumb from "../../components/Breadcrumb";
 import { TableToolbar } from "../../components/TableToolbar";
+import TableStateRow from "../../components/TableStateRow";
 import Pagination from "../../components/Pagination";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
@@ -231,23 +231,14 @@ const Bookkeeper_CBU = () => {
                 </thead>
                 <tbody>
                   {status === "loading" ? (
-                    <tr>
-                      <td colSpan={3} className="p-10 text-center">
-                        <div className="flex flex-col items-center justify-center gap-2">
-                          <Loader2 size={24} className="text-gray-300 animate-spin" />
-                          <p className="text-sm text-gray-400">Loading...</p>
-                        </div>
-                      </td>
-                    </tr>
+                    <TableStateRow colSpan={3} variant="loading" label="Loading..." />
                   ) : paginatedMembers.length === 0 ? (
-                    <tr>
-                      <td colSpan={3} className="p-10 text-center">
-                        <div className="flex flex-col items-center justify-center gap-2">
-                          <AlertCircle size={32} className="text-gray-300" />
-                          <p className="text-sm font-medium text-gray-500">No member accounts matched your search.</p>
-                        </div>
-                      </td>
-                    </tr>
+                    <TableStateRow
+                      colSpan={3}
+                      variant="empty"
+                      icon={AlertCircle}
+                      label="No member accounts matched your search."
+                    />
                   ) : (
                     paginatedMembers.map((member) => (
                       <tr
@@ -289,23 +280,14 @@ const Bookkeeper_CBU = () => {
                 </thead>
                 <tbody>
                   {status === "loading" ? (
-                    <tr>
-                      <td colSpan={5} className="p-10 text-center">
-                        <div className="flex flex-col items-center justify-center gap-2">
-                          <Loader2 size={24} className="text-gray-300 animate-spin" />
-                          <p className="text-sm text-gray-400">Loading...</p>
-                        </div>
-                      </td>
-                    </tr>
+                    <TableStateRow colSpan={5} variant="loading" label="Loading..." />
                   ) : paginatedTx.length === 0 ? (
-                    <tr>
-                      <td colSpan={5} className="p-10 text-center">
-                        <div className="flex flex-col items-center justify-center gap-2">
-                          <AlertCircle size={32} className="text-gray-300" />
-                          <p className="text-sm font-medium text-gray-500">No CBU transactions recorded yet.</p>
-                        </div>
-                      </td>
-                    </tr>
+                    <TableStateRow
+                      colSpan={5}
+                      variant="empty"
+                      icon={AlertCircle}
+                      label="No CBU transactions recorded yet."
+                    />
                   ) : (
                     paginatedTx.map((tx, idx) => (
                       <tr

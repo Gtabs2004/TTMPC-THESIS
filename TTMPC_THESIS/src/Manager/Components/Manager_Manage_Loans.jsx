@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { getLoanTypeChipClass as getLoanTypeStyle } from "../../utils/loanTypeColors";
 import { StatCard, StatCardRow } from "../../components/StatCard";
 import { TableToolbar } from "../../components/TableToolbar";
+import TableStateRow from "../../components/TableStateRow";
 import StaffSidebar from "../../components/StaffSidebar";
 import { managerNav } from "../../components/StaffSidebar/configs/manager";
 import { useNavigate, NavLink } from "react-router-dom";
@@ -371,17 +372,17 @@ const Manager_Manage_Loans = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {groupedLoans.length === 0 && (
-                    <tr>
-                      <td colSpan={8} className="p-10 text-center">
-                        <div className="flex flex-col items-center justify-center gap-2">
-                          <Eye size={32} className="text-gray-300" />
-                          <p className="text-sm font-medium text-gray-500">No loans found</p>
-                          <p className="text-xs text-gray-400">Try adjusting your filters</p>
-                        </div>
-                      </td>
-                    </tr>
-                  )}
+                  {loading ? (
+                    <TableStateRow colSpan={8} variant="loading" label="Loading..." />
+                  ) : groupedLoans.length === 0 ? (
+                    <TableStateRow
+                      colSpan={8}
+                      variant="empty"
+                      icon={Eye}
+                      label="No loans found"
+                      sublabel="Try adjusting your filters"
+                    />
+                  ) : null}
 
                   {paginatedGroups.map(({ parent, renewals }) => {
                     return (

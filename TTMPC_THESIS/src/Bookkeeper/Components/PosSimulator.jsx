@@ -2,6 +2,7 @@
 import { supabase } from "../../supabaseClient";
 import { ShoppingCart } from "lucide-react";
 import { formatWithCommas, stripCommas } from "../../utils/numberFormat";
+import TableStateRow from "../../components/TableStateRow";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 
@@ -13,6 +14,7 @@ export default function PosSimulator() {
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState(null);
   const [recent, setRecent] = useState([]);
+  const [loadingRecent, setLoadingRecent] = useState(false);
   const [error, setError] = useState("");
 
   const loadMembers = async () => {
@@ -26,12 +28,14 @@ export default function PosSimulator() {
   };
 
   const loadRecent = async () => {
+    setLoadingRecent(true);
     const { data, error: e } = await supabase
       .from("GROCERY_TRANSACTIONS")
       .select("*")
       .order("created_at", { ascending: false })
       .limit(5);
     if (!e) setRecent(data || []);
+    setLoadingRecent(false);
   };
 
   useEffect(() => {
@@ -186,15 +190,15 @@ export default function PosSimulator() {
               </tr>
             </thead>
             <tbody>
-              {recent.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="p-10 text-center">
-                    <div className="flex flex-col items-center justify-center gap-2">
-                      <ShoppingCart size={32} className="text-gray-300" />
-                      <p className="text-sm font-medium text-gray-500">No transactions yet.</p>
-                    </div>
-                  </td>
-                </tr>
+              {loadingRecent ? (
+                <TableStateRow colSpan={5} variant="loading" label="Loading..." />
+              ) : recent.length === 0 ? (
+                <TableStateRow
+                  colSpan={5}
+                  variant="empty"
+                  icon={ShoppingCart}
+                  label="No transactions yet."
+                />
               ) : (
                 recent.map((r) => (
                   <tr key={r.GroceryID} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">

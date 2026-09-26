@@ -9,6 +9,8 @@ import Breadcrumb from "../../components/Breadcrumb";
 import { TableToolbar } from "../../components/TableToolbar";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
 import Pagination from "../../components/Pagination";
+import TableActionButton from "../../components/TableActionButton";
+import TableStateRow from "../../components/TableStateRow";
 import {
   LayoutDashboard,
   Users,
@@ -101,7 +103,11 @@ const Manager_Manage_Member = () => {
           <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
             <TableToolbar subtitle={`Showing ${paginatedRows.length} of ${filtered.length} members`} />
             <div className="overflow-x-auto">
-            {!loading ? (
+            {loading ? (
+              <div className="p-8">
+                <TableStateRow bare variant="loading" label="Loading..." />
+              </div>
+            ) : (
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="bg-primary-deep text-[10px] uppercase tracking-wider text-white font-extrabold">
@@ -115,14 +121,12 @@ const Manager_Manage_Member = () => {
                 </thead>
                 <tbody>
                   {filtered.length === 0 ? (
-                    <tr>
-                      <td colSpan={6} className="p-10 text-center">
-                        <div className="flex flex-col items-center justify-center gap-2">
-                          <Users size={32} className="text-gray-300" />
-                          <p className="text-sm font-medium text-gray-500">No personal datasheet records found.</p>
-                        </div>
-                      </td>
-                    </tr>
+                    <TableStateRow
+                      colSpan={6}
+                      variant="empty"
+                      icon={Users}
+                      label="No personal datasheet records found."
+                    />
                   ) : (
                     paginatedRows.map((r) => (
                       <tr key={String(r.id)} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
@@ -132,19 +136,18 @@ const Manager_Manage_Member = () => {
                         <td className="p-5 text-sm text-gray-700">{r.contact_number}</td>
                         <td className="p-5 text-sm text-gray-700">{r.address}</td>
                         <td className="p-5 text-sm text-center">
-                          <button
+                          <TableActionButton
                             onClick={() => navigate(`/member_details?member_id=${encodeURIComponent(String(r.member_id || ""))}`, { state: { member: r, portal: 'manager' } })}
-                            className="btn-enhanced text-member-green font-bold hover:text-green-800 transition-all"
                           >
                             View
-                          </button>
+                          </TableActionButton>
                         </td>
                       </tr>
                     ))
                   )}
                 </tbody>
               </table>
-            ) : null}
+            )}
             </div>
           </div>
 

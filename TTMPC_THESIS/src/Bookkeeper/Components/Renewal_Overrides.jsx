@@ -1,11 +1,12 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { FileText, Loader2, X } from "lucide-react";
+import { FileText, X } from "lucide-react";
 import StaffSidebar from "../../components/StaffSidebar";
 import { bookkeeperNav } from "../../components/StaffSidebar/configs/bookkeeper";
 import StaffTopbar from "../../components/StaffTopbar";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
 import Breadcrumb from "../../components/Breadcrumb";
 import { TableToolbar } from "../../components/TableToolbar";
+import TableStateRow from "../../components/TableStateRow";
 import Pagination from "../../components/Pagination";
 import { useNotification } from "../../contex/NotificationContext";
 import { getLoanTypeChipClass } from "../../utils/loanTypeColors";
@@ -205,25 +206,18 @@ const RenewalOverrides = () => {
               </thead>
               <tbody>
                 {loading && (
-                  <tr>
-                    <td colSpan={7} className="p-10 text-center text-sm text-gray-500">
-                      <Loader2 className="mx-auto mb-2 h-5 w-5 animate-spin text-gray-400" />
-                      Loading requests...
-                    </td>
-                  </tr>
+                  <TableStateRow colSpan={7} variant="loading" label="Loading requests..." />
                 )}
 
                 {!loading && rows.length === 0 && !loadError && (
-                  <tr>
-                    <td colSpan={7} className="p-10 text-center">
-                      <div className="flex flex-col items-center justify-center gap-2">
-                        <FileText size={32} className="text-gray-300" />
-                        <p className="text-sm font-medium text-gray-500">
-                          {tab === "pending" ? "No pending override requests." : "No requests in this view."}
-                        </p>
-                      </div>
-                    </td>
-                  </tr>
+                  <TableStateRow
+                    colSpan={7}
+                    variant="empty"
+                    icon={FileText}
+                    label={
+                      tab === "pending" ? "No pending override requests." : "No requests in this view."
+                    }
+                  />
                 )}
 
                 {!loading && pageRows.map((row) => (

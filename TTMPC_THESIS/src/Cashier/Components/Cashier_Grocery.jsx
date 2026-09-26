@@ -9,6 +9,7 @@ import { supabase } from "../../supabaseClient";
 import StaffTopbar from "../../components/StaffTopbar";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
 import Breadcrumb from "../../components/Breadcrumb";
+import TableStateRow from "../../components/TableStateRow";
 import { 
   LayoutDashboard,
   Search,
@@ -32,7 +33,6 @@ import {
   PiggyBank,
   ArrowDownLeft,
   History,
-  Loader2,
 } from 'lucide-react';
 
 // --- MOCK DATA FOR THE TABLE ---
@@ -202,23 +202,9 @@ const Cashier_Grocery = () => {
                 </thead>
                 <tbody>
                   {loading ? (
-                    <tr>
-                      <td colSpan={8} className="p-10 text-center">
-                        <div className="flex flex-col items-center justify-center gap-2">
-                          <Loader2 size={24} className="text-gray-300 animate-spin" />
-                          <p className="text-sm text-gray-400">Loading...</p>
-                        </div>
-                      </td>
-                    </tr>
+                    <TableStateRow colSpan={8} variant="loading" label="Loading..." />
                   ) : filteredRows.length === 0 ? (
-                    <tr>
-                      <td colSpan={8} className="p-10 text-center">
-                        <div className="flex flex-col items-center justify-center gap-2">
-                          <ShoppingCart size={32} className="text-gray-300" />
-                          <p className="text-sm font-medium text-gray-500">No transactions yet.</p>
-                        </div>
-                      </td>
-                    </tr>
+                    <TableStateRow colSpan={8} variant="empty" icon={ShoppingCart} label="No transactions yet." />
                   ) : filteredRows.map((tx) => (
                     <tr key={tx.id} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
                       <td className="p-5 font-medium text-gray-700">{tx.id}</td>

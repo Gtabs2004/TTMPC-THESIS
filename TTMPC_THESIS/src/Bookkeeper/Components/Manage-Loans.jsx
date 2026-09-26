@@ -3,6 +3,8 @@ import { useNavigate, NavLink } from "react-router-dom";
 import { getLoanTypeChipClass as getLoanTypeStyle } from "../../utils/loanTypeColors";
 import { StatCard, StatCardRow } from "../../components/StatCard";
 import { TableToolbar } from "../../components/TableToolbar";
+import TableActionButton from "../../components/TableActionButton";
+import TableStateRow from "../../components/TableStateRow";
 import StaffSidebar from "../../components/StaffSidebar";
 import { bookkeeperNav } from "../../components/StaffSidebar/configs/bookkeeper";
 import { UserAuth } from "../../contex/AuthContext";
@@ -428,17 +430,17 @@ const ManageLoans = () => {
                 </tr>
               </thead>
               <tbody>
-                {groupedLoans.length === 0 && (
-                  <tr>
-                    <td colSpan={8} className="p-10 text-center">
-                      <div className="flex flex-col items-center justify-center gap-2">
-                        <Eye size={32} className="text-gray-300" />
-                        <p className="text-sm font-medium text-gray-500">No loans found</p>
-                        <p className="text-xs text-gray-400">Try adjusting your filters</p>
-                      </div>
-                    </td>
-                  </tr>
-                )}
+                {loading ? (
+                  <TableStateRow colSpan={8} variant="loading" label="Loading..." />
+                ) : groupedLoans.length === 0 ? (
+                  <TableStateRow
+                    colSpan={8}
+                    variant="empty"
+                    icon={Eye}
+                    label="No loans found"
+                    sublabel="Try adjusting your filters"
+                  />
+                ) : null}
 
                 {paginatedGroups.map(({ parent, renewals }) => {
                   return (
@@ -467,13 +469,12 @@ const ManageLoans = () => {
                           }
                         </td>
                         <td className="p-5 text-center align-middle">
-                          <button
-                            type="button"
+                          <TableActionButton
+                            icon={Eye}
                             onClick={() => navigate(`/bookkeeper-loan-ledger/${parent.loan_id}`, { state: { loan: parent, renewals } })}
-                            className="btn-enhanced inline-flex items-center gap-1 rounded-md bg-green-600 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-green-700"
                           >
-                            <Eye size={11} /> View
-                          </button>
+                            View
+                          </TableActionButton>
                         </td>
                       </tr>
                     </React.Fragment>
