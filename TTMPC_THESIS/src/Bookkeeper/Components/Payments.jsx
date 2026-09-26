@@ -13,6 +13,7 @@ import LoanNotificationBell from "../../components/LoanNotificationBell";
 import Breadcrumb from "../../components/Breadcrumb";
 import Pagination from "../../components/Pagination";
 import { TableToolbar } from "../../components/TableToolbar";
+import { authHeaders } from "../../utils/authHeaders";
 import {
   LayoutDashboard,
   Users,
@@ -288,6 +289,7 @@ const BookkeeperPayments = () => {
         headers: {
           "Content-Type": "application/json",
           Accept: "application/json",
+          ...(await authHeaders()),
         },
         body: JSON.stringify({ notes: "Validated by Bookkeeper" }),
       });

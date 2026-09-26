@@ -42,7 +42,7 @@ const PAGE_SIZE = 5;
 
 // Map our audit_log.entity_type onto a "Module" label/color — used in the
 // View All modal's detailed table and its Module filter menu. The main table
-// no longer shows this column (see item 5: Date & Time / Role / Status only).
+// doesn't show this column (Date & Time / Role / Activity / Status).
 const MODULE_BY_ENTITY = {
   loan:               { label: "Loans",             className: "bg-green-50 text-green-600"   },
   application:        { label: "Members",           className: "bg-purple-50 text-purple-600" },
@@ -57,23 +57,6 @@ const MODULE_BY_ENTITY = {
   withdrawal:         { label: "Withdrawals",        className: "bg-rose-50 text-rose-600"     },
   membership_payment: { label: "Membership Fees",    className: "bg-amber-50 text-amber-600"   },
   grocery:            { label: "Grocery",            className: "bg-lime-50 text-lime-600"     },
-};
-
-// Human-readable action labels keyed by audit_log.action.
-const ACTION_LABEL = {
-  create:      "Record Created",
-  update:      "Record Updated",
-  approve:     "Approved",
-  reject:      "Rejected",
-  recommend:   "Recommended for Approval",
-  deactivate:  "Account Deactivated",
-  reactivate:  "Account Reactivated",
-  terminate:   "Termination Filed",
-  disburse:    "Loan Disbursed",
-  change_role: "Role Changed",
-  revise:      "Returned for Revision",
-  record:      "Recorded",
-  post:        "Posted",
 };
 
 // Which actions should be flagged red in the Status column.
@@ -128,6 +111,104 @@ export const describeAuditContext = (row) => {
     default:
       return row.entity_id;
   }
+};
+
+// What was acted on, in words — used by describeAuditActivity below.
+const ACTIVITY_NOUN = {
+  loan:               "loan",
+  application:        "membership application",
+  member:             "member record",
+  account:            "account",
+  termination:        "member termination",
+  policy:             "loan policy",
+  payment:            "loan payment",
+  disbursement:       "loan disbursement",
+  cbu:                "share capital deposit",
+  savings:            "savings deposit",
+  withdrawal:         "savings withdrawal",
+  membership_payment: "membership fee payment",
+  grocery:            "grocery transaction",
+};
+
+const ACTIVITY_VERB = {
+  create:      "Created",
+  update:      "Updated",
+  approve:     "Approved",
+  reject:      "Rejected",
+  recommend:   "Recommended",
+  deactivate:  "Deactivated",
+  reactivate:  "Reactivated",
+  terminate:   "Terminated",
+  disburse:    "Disbursed",
+  change_role: "Changed role of",
+  revise:      "Returned for revision",
+  record:      "Recorded",
+  post:        "Posted",
+};
+
+const titleCase = (s) =>
+  String(s ?? "")
+    .replace(/_/g, " ")
+    .replace(/\w\S*/g, (w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase());
+
+const formatPeso = (n) =>
+  `₱${Number(n).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+// The amount a row moved, from whichever field that entity's trigger writes.
+const auditAmount = (row) => {
+  const a = row.after || {};
+  const c = row.context || {};
+  const v = a.amount_paid ?? a.capital_added ?? a.GroceryAmount ?? a.loan_amount ?? a.amount ?? c.amount_paid ?? c.capital_added ?? c.amount;
+  const n = Number(v);
+  return v != null && Number.isFinite(n) && n > 0 ? n : null;
+};
+
+// One plain sentence of what the actor did, e.g. "Recorded loan payment of
+// ₱10,000.00" or "Changed loan status: Released → Partially Paid". Built from
+// the row's action + before/after snapshot, so it works for every entity type
+// without a per-type table in the database.
+export const describeAuditActivity = (row) => {
+  const before = row.before || {};
+  const after = row.after || {};
+  const ctx = row.context || {};
+  const noun = ctx.kind === "renewal_override"
+    ? "6-month renewal override request"
+    : ACTIVITY_NOUN[row.entity_type] || titleCase(row.entity_type).toLowerCase();
+
+  if (row.action === "change_role" && (before.role || after.role)) {
+    return `Changed role: ${titleCase(before.role || "—")} → ${titleCase(after.role || "—")}`;
+  }
+
+  // A status transition is the most informative thing an update can say.
+  const statusKey = Object.keys(after).find(
+    (k) => /status$/i.test(k) && before[k] != null && before[k] !== after[k]
+  );
+  if (statusKey && (row.action === "update" || row.action === "approve" || row.action === "reject" || row.action === "recommend")) {
+    const transition = `${titleCase(before[statusKey])} → ${titleCase(after[statusKey])}`;
+    return row.action === "update"
+      ? `Changed ${noun} status: ${transition}`
+      : `${ACTIVITY_VERB[row.action]} ${noun} (${transition})`;
+  }
+
+  if (row.entity_type === "policy" && row.action === "update") {
+    const changed = Object.keys(after).filter((k) => before[k] !== after[k]);
+    if (changed.length) {
+      const scope = ctx.loan_type_code ? `${titleCase(ctx.loan_type_code)} ` : "";
+      return `Updated ${scope}loan policy: ${changed.map((k) => `${titleCase(k)} ${titleCase(before[k] ?? "—")} → ${titleCase(after[k])}`).join(", ")}`;
+    }
+  }
+
+  if (row.entity_type === "account" && (row.action === "deactivate" || row.action === "reactivate")) {
+    return `${ACTIVITY_VERB[row.action]} member login account`;
+  }
+
+  if (row.entity_type === "termination" && after.reason) {
+    return `Terminated membership — ${after.reason}`;
+  }
+
+  const verb = ACTIVITY_VERB[row.action] || titleCase(row.action);
+  const amount = auditAmount(row);
+  return `${verb} ${noun}${amount != null ? ` of ${formatPeso(amount)}` : ""}`;
 };
 
 const formatRole = (r) => {
@@ -384,7 +465,7 @@ const AuditLogViewer = ({ showActorRoleFilter = true, onError }) => {
             {moduleInfo.label}
           </span>
         </td>
-        <td className="p-4 text-gray-600">{ACTION_LABEL[r.action] || r.action}</td>
+        <td className="p-4 text-gray-600">{describeAuditActivity(r)}</td>
         <td className="p-4 text-gray-500 font-medium tracking-wide">{describeAuditContext(r)}</td>
         <td className="p-4">
           <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold tracking-wide ${
@@ -410,7 +491,8 @@ const AuditLogViewer = ({ showActorRoleFilter = true, onError }) => {
         ))}
       </StatCardRow>
 
-      {/* Main Table — minimal (Date & Time / Role / Status only, item 5).
+      {/* Main Table — Date & Time / Role / Activity / Status. Activity is a
+          one-line "what was done" plus the record it was done to.
           "View All" opens the full filterable, multi-column view (item 6). */}
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm flex flex-col">
         <TableToolbar
@@ -432,13 +514,14 @@ const AuditLogViewer = ({ showActorRoleFilter = true, onError }) => {
               <tr className="bg-primary-deep text-[10px] uppercase tracking-wider text-white font-extrabold">
                 <th className="p-5 font-bold">Date &amp; Time</th>
                 <th className="p-5 font-bold">Role</th>
+                <th className="p-5 font-bold">Activity</th>
                 <th className="p-5 font-bold">Status</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={3} className="p-10 text-center">
+                  <td colSpan={4} className="p-10 text-center">
                     <div className="flex flex-col items-center justify-center gap-2">
                       <Loader2 size={24} className="text-gray-300 animate-spin" />
                       <p className="text-sm text-gray-400">Loading...</p>
@@ -447,7 +530,7 @@ const AuditLogViewer = ({ showActorRoleFilter = true, onError }) => {
                 </tr>
               ) : rows.length === 0 ? (
                 <tr>
-                  <td colSpan={3} className="p-10 text-center">
+                  <td colSpan={4} className="p-10 text-center">
                     <div className="flex flex-col items-center justify-center gap-2">
                       <ClipboardList size={32} className="text-gray-300" />
                       <p className="text-sm font-medium text-gray-500">No audit entries match these filters.</p>
@@ -461,6 +544,10 @@ const AuditLogViewer = ({ showActorRoleFilter = true, onError }) => {
                   <tr key={r.id} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
                     <td className="p-5 text-gray-500">{formatAuditTimestamp(r.occurred_at)}</td>
                     <td className="p-5 text-gray-500">{formatRole(r.actor_role)}</td>
+                    <td className="p-5 whitespace-normal min-w-[16rem]">
+                      <p className="text-gray-700">{describeAuditActivity(r)}</p>
+                      <p className="text-xs text-gray-400 mt-0.5">{describeAuditContext(r)}</p>
+                    </td>
                     <td className="p-5">
                       <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold tracking-wide ${
                         flagged ? "bg-red-50 text-red-600" : "bg-green-50 text-green-600"
