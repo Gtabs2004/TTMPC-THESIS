@@ -11,6 +11,13 @@ import {
   ArrowDownCircle,
   ArrowUpCircle,
   X,
+  Activity,
+  CheckCircle2,
+  XCircle,
+  ThumbsUp,
+  PiggyBank,
+  UserCheck,
+  UserX,
 } from "lucide-react";
 import Pagination from "./Pagination";
 
@@ -39,6 +46,23 @@ function buildAuditQuery(filters, extra = {}) {
 }
 
 const PAGE_SIZE = 5;
+
+// Icons for the role-specific KPI cards returned by /api/audit-log/kpis.
+const KPI_ICON = {
+  loanDisbursements:    { icon: Receipt,         iconColor: "text-green-600" },
+  loanPayments:         { icon: Receipt,         iconColor: "text-teal-600" },
+  cashDeposits:         { icon: ArrowDownCircle, iconColor: "text-emerald-600" },
+  cashWithdrawals:      { icon: ArrowUpCircle,   iconColor: "text-rose-600" },
+  activitiesToday:      { icon: Activity,        iconColor: "text-blue-600" },
+  totalActions:         { icon: ClipboardList,   iconColor: "text-gray-600" },
+  loansApproved:        { icon: CheckCircle2,    iconColor: "text-green-600" },
+  loansRejected:        { icon: XCircle,         iconColor: "text-rose-600" },
+  loansRecommended:     { icon: ThumbsUp,        iconColor: "text-amber-600" },
+  cbuRecorded:          { icon: PiggyBank,       iconColor: "text-cyan-600" },
+  withdrawalsApproved:  { icon: ArrowUpCircle,   iconColor: "text-rose-600" },
+  applicationsReviewed: { icon: UserCheck,       iconColor: "text-purple-600" },
+  terminations:         { icon: UserX,           iconColor: "text-red-600" },
+};
 
 // Map our audit_log.entity_type onto a "Module" label/color — used in the
 // View All modal's detailed table and its Module filter menu. The main table
@@ -237,18 +261,9 @@ const AuditLogViewer = ({ showActorRoleFilter = true, onError }) => {
   const [page, setPage] = useState(1);
   const [showViewAll, setShowViewAll] = useState(false);
 
-  // KPI counts pulled across the whole filter-set, not just current page.
-  const [kpis, setKpis] = useState({
-    activitiesToday: 0,
-    loanDisbursements: 0,
-    profilesCreated: 0,
-    loanPayments: 0,
-    cashDeposits: 0,
-    cashWithdrawals: 0,
-    loanApplications: 0,
-    membershipFees: 0,
-    groceryTransactions: 0,
-  });
+  // KPI cards — the API picks which four fit the caller's role, so this is
+  // just [{ key, label, value }] in display order.
+  const [kpiCards, setKpiCards] = useState([]);
 
   const [searchInput, setSearchInput] = useState("");
   const [filters, setFilters] = useState({
@@ -290,17 +305,7 @@ const AuditLogViewer = ({ showActorRoleFilter = true, onError }) => {
       });
       if (!res.ok) return;
       const body = await res.json();
-      setKpis({
-        activitiesToday: body.activitiesToday || 0,
-        loanDisbursements: body.loanDisbursements || 0,
-        profilesCreated: body.profilesCreated || 0,
-        loanPayments: body.loanPayments || 0,
-        cashDeposits: body.cashDeposits || 0,
-        cashWithdrawals: body.cashWithdrawals || 0,
-        loanApplications: body.loanApplications || 0,
-        membershipFees: body.membershipFees || 0,
-        groceryTransactions: body.groceryTransactions || 0,
-      });
+      setKpiCards(Array.isArray(body.cards) ? body.cards : []);
     } catch {
       /* KPIs are decorative; the table is the source of truth. */
     }
@@ -356,17 +361,12 @@ const AuditLogViewer = ({ showActorRoleFilter = true, onError }) => {
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
-  // Trimmed to the 4 that matter most for an audit trail — actual money
-  // movement — instead of every count the API can produce. Activities Today
-  // and Profiles Approved were dropped (least specific to "transactions");
-  // Loan Applications/Fees/Grocery were dropped as the least-central of the
-  // per-type breakdown, still visible via the View All modal's Module filter.
-  const overviewKpis = [
-    { label: "Loan Disbursements", value: kpis.loanDisbursements, icon: Receipt,         iconColor: "text-green-600" },
-    { label: "Loan Payments",      value: kpis.loanPayments,      icon: Receipt,         iconColor: "text-teal-600" },
-    { label: "Cash Deposits",      value: kpis.cashDeposits,      icon: ArrowDownCircle, iconColor: "text-emerald-600" },
-    { label: "Cash Withdrawals",   value: kpis.cashWithdrawals,   icon: ArrowUpCircle,   iconColor: "text-rose-600" },
-  ];
+  // Icon per card key; the labels and which cards show come from the API.
+  const overviewKpis = kpiCards.map((card) => ({
+    label: card.label,
+    value: Number(card.value || 0),
+    ...(KPI_ICON[card.key] || { icon: ClipboardList, iconColor: "text-gray-500" }),
+  }));
 
   // Shared filter toolbar — lives only inside the View All modal now (item 6:
   // the main page stays minimal, this is "the place for complete audit

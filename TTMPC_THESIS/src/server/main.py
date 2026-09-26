@@ -16198,20 +16198,19 @@ def account_onboarding_profile(
 # ============================================================================
 
 # Roles allowed to open an audit log, and how much they may see.
+# BOD sees every row. Every other staff role sees only the actions performed by
+# that role (actor_role), e.g. the Cashier sees Cashier activity only — not the
+# Bookkeeper's, Members' or other roles' actions on the same records.
 _AUDIT_FULL_ACCESS_ROLES = {"bod"}
 _AUDIT_STAFF_ROLES = {"manager", "bookkeeper", "treasurer", "cashier", "secretary"}
 
-# Entity types each staff role is responsible for. A role sees the modules it
-# actually works in rather than the whole cooperative's activity; BOD sees all.
-_AUDIT_ROLE_ENTITY_SCOPE: dict[str, list[str]] = {
-    "cashier": ["payment", "disbursement", "cbu", "savings", "withdrawal",
-                "membership_payment", "grocery"],
-    "treasurer": ["disbursement", "payment", "cbu", "savings", "withdrawal"],
-    "bookkeeper": ["loan", "payment", "cbu", "savings", "member", "application",
-                   "membership_payment", "grocery"],
-    "manager": ["loan", "application", "member", "policy"],
-    "secretary": ["member", "application", "termination", "policy"],
-}
+
+def _audit_scope_to_role(q, role: str):
+    """Limit an audit_log query to what `role` may see. actor_role is stored
+    with mixed casing ('Cashier' vs 'bookkeeper'), so match case-insensitively."""
+    if role in _AUDIT_FULL_ACCESS_ROLES:
+        return q
+    return q.ilike("actor_role", role)
 
 
 def _resolve_staff_role(auth_user_id: str, email: str) -> str:
@@ -16289,22 +16288,16 @@ def read_audit_log(
         ) if count_mode else supabase.table("audit_log").select(select_expr)
 
         # Role scope, unless BOD (sees everything).
-        if role not in _AUDIT_FULL_ACCESS_ROLES:
-            allowed = _AUDIT_ROLE_ENTITY_SCOPE.get(role, [])
-            if module:
-                # Never let a filter widen the role's scope.
-                if module not in allowed:
-                    return None
-                q = q.eq("entity_type", module)
-            elif allowed:
-                q = q.in_("entity_type", allowed)
-        elif module:
+        q = _audit_scope_to_role(q, role)
+        if module:
             q = q.eq("entity_type", module)
 
         if action:
             q = q.eq("action", action)
-        if actor_role:
-            q = q.eq("actor_role", actor_role.lower())
+        # The actor_role filter is BOD-only; for anyone else the scope above
+        # already pins it to their own role, so a filter can't widen it.
+        if actor_role and role in _AUDIT_FULL_ACCESS_ROLES:
+            q = q.ilike("actor_role", actor_role.strip())
         if date_from:
             q = q.gte("occurred_at", date_from)
         if date_to:
@@ -16315,9 +16308,6 @@ def read_audit_log(
         return q
 
     rows_q = scoped("*", count_mode="exact")
-    if rows_q is None:
-        # Filter fell outside the role's scope — an empty page, not an error.
-        return {"ok": True, "rows": [], "total": 0, "role": role}
 
     start = (page - 1) * page_size
     try:
@@ -16347,13 +16337,11 @@ def read_audit_log_kpis(current_user: dict = _Depends(_get_current_user)):
     if role not in _AUDIT_FULL_ACCESS_ROLES and role not in _AUDIT_STAFF_ROLES:
         raise HTTPException(status_code=403, detail="You do not have access to the audit log.")
 
-    allowed = None if role in _AUDIT_FULL_ACCESS_ROLES else _AUDIT_ROLE_ENTITY_SCOPE.get(role, [])
-
     def count(**filters) -> int:
         try:
-            q = supabase.table("audit_log").select("id", count="exact")
-            if allowed is not None and allowed:
-                q = q.in_("entity_type", allowed)
+            q = _audit_scope_to_role(
+                supabase.table("audit_log").select("id", count="exact"), role
+            )
             for key, value in filters.items():
                 if key == "since":
                     q = q.gte("occurred_at", value)
@@ -16366,27 +16354,56 @@ def read_audit_log_kpis(current_user: dict = _Depends(_get_current_user)):
 
     start_of_day = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
 
-    return {
-        "ok": True,
-        "activitiesToday": count(since=start_of_day.isoformat()),
-        "loanDisbursements": count(action="disburse"),
-        "profilesCreated": count(entity_type="application", action="approve"),
-        # Loan Payments — was "Policy Events" (entity_type="policy"). 'payment'
-        # is written by the loan_payments trigger in
-        # audit_log_cashier_triggers.sql, i.e. actual recorded loan repayments.
-        "loanPayments": count(entity_type="payment"),
-        # Transaction-type breakdown. 'savings' vs 'withdrawal' are already
-        # split at the trigger level (see audit_trg_savings_ledger's comment:
-        # "Withdrawals get their own entity_type so the Withdrawals filter
-        # matches"), so these are exact, not derived.
-        "cashDeposits": count(entity_type="savings"),
-        "cashWithdrawals": count(entity_type="withdrawal"),
-        # A loan's audit_log 'create' action fires once, on INSERT into
-        # `loans` (audit_trg_loans) — i.e. the application event itself.
-        "loanApplications": count(entity_type="loan", action="create"),
-        "membershipFees": count(entity_type="membership_payment"),
-        "groceryTransactions": count(entity_type="grocery"),
+    # Each portal's cards reflect the work that role actually does — a fixed
+    # set of cash-movement cards read 0 for the Manager, who never moves cash.
+    # 'payment' is written by the loan_payments trigger (recorded repayments);
+    # 'savings' vs 'withdrawal' are split at the trigger level, so both are
+    # exact counts, not derived.
+    today = {"since": start_of_day.isoformat()}
+    card_specs: dict[str, list[tuple[str, str, dict]]] = {
+        "bod": [
+            ("loanDisbursements", "Loan Disbursements", {"action": "disburse"}),
+            ("loanPayments", "Loan Payments", {"entity_type": "payment"}),
+            ("cashDeposits", "Cash Deposits", {"entity_type": "savings"}),
+            ("cashWithdrawals", "Cash Withdrawals", {"entity_type": "withdrawal"}),
+        ],
+        "manager": [
+            ("activitiesToday", "Actions Today", today),
+            ("loansApproved", "Loans Approved", {"entity_type": "loan", "action": "approve"}),
+            ("loansRejected", "Loans Rejected", {"entity_type": "loan", "action": "reject"}),
+            ("totalActions", "Total Actions", {}),
+        ],
+        "bookkeeper": [
+            ("activitiesToday", "Actions Today", today),
+            ("loansRecommended", "Loans Recommended", {"entity_type": "loan", "action": "recommend"}),
+            ("cbuRecorded", "Share Capital Posted", {"entity_type": "cbu"}),
+            ("totalActions", "Total Actions", {}),
+        ],
+        "treasurer": [
+            ("activitiesToday", "Actions Today", today),
+            ("loanDisbursements", "Loan Disbursements", {"action": "disburse"}),
+            ("withdrawalsApproved", "Withdrawals Approved", {"entity_type": "withdrawal", "action": "approve"}),
+            ("totalActions", "Total Actions", {}),
+        ],
+        "cashier": [
+            ("loanPayments", "Loan Payments", {"entity_type": "payment"}),
+            ("cbuRecorded", "Share Capital Deposits", {"entity_type": "cbu"}),
+            ("cashDeposits", "Cash Deposits", {"entity_type": "savings"}),
+            ("cashWithdrawals", "Cash Withdrawals", {"entity_type": "withdrawal"}),
+        ],
+        "secretary": [
+            ("activitiesToday", "Actions Today", today),
+            ("applicationsReviewed", "Applications Reviewed", {"entity_type": "application"}),
+            ("terminations", "Terminations", {"entity_type": "termination"}),
+            ("totalActions", "Total Actions", {}),
+        ],
     }
+
+    cards = [
+        {"key": key, "label": label, "value": count(**filters)}
+        for key, label, filters in card_specs.get(role, card_specs["bod"])
+    ]
+    return {"ok": True, "role": role, "cards": cards}
 
 
 # =====================================================================
