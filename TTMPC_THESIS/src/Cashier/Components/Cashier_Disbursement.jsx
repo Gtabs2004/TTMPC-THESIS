@@ -9,6 +9,7 @@ import StaffTopbar from "../../components/StaffTopbar";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
 import Breadcrumb from "../../components/Breadcrumb";
 import { TableToolbar } from "../../components/TableToolbar";
+import TableStateRow from "../../components/TableStateRow";
 import Pagination from "../../components/Pagination";
 import { apiErrorMessage } from "../../utils/apiError";
 import {
@@ -461,22 +462,20 @@ const Cashier_Disbursement = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredAndSortedLoans.length === 0 ? (
-                    <tr>
-                      <td colSpan={8} className="p-10 text-center">
-                        <div className="flex flex-col items-center justify-center gap-2">
-                          <Banknote size={32} className="text-gray-300" />
-                          <p className="text-sm font-medium text-gray-500">
-                            {readyLoans.length === 0
-                              ? "No loans are currently ready for release"
-                              : "No loans match your search criteria"}
-                          </p>
-                          <p className="text-xs text-gray-400">
-                            Approved loans will appear here once they're ready to disburse
-                          </p>
-                        </div>
-                      </td>
-                    </tr>
+                  {loading ? (
+                    <TableStateRow colSpan={8} variant="loading" label="Loading..." />
+                  ) : filteredAndSortedLoans.length === 0 ? (
+                    <TableStateRow
+                      colSpan={8}
+                      variant="empty"
+                      icon={Banknote}
+                      label={
+                        readyLoans.length === 0
+                          ? "No loans are currently ready for release"
+                          : "No loans match your search criteria"
+                      }
+                      sublabel="Approved loans will appear here once they're ready to disburse"
+                    />
                   ) : (
                     paginatedLoans.map((loan) => (
                       <tr key={loan.loan_id} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">

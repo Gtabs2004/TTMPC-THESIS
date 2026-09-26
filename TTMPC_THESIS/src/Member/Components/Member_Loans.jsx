@@ -5,6 +5,7 @@ import { useTheme } from "../../contex/ThemeContext";
 import { supabase } from "../../supabaseClient";
 import { resolveMemberIdentity } from "../../utils/memberIdentity";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
+import TableStateRow from "../../components/TableStateRow";
 import LoanCalculatorModal from "./LoanCalculatorModal";
 import { getOrFetch, peek } from "../memberDataCache";
 import { 
@@ -28,8 +29,7 @@ import {
   Sun,
   Scroll,
   ChevronLeft,
-  ChevronRight,
-  Loader2
+  ChevronRight
 } from 'lucide-react';
 
 const styles = `
@@ -504,27 +504,13 @@ const Member_Loans = () => {
               </thead>
               <tbody>
                 {loadingLoans ? (
-                  <tr>
-                    <td colSpan="7" className="p-10 text-center">
-                      <div className="flex flex-col items-center justify-center gap-2">
-                        <Loader2 size={24} className="text-gray-300 dark:text-gray-600 animate-spin" />
-                        <p className="text-sm text-gray-400 dark:text-gray-500">Loading loans...</p>
-                      </div>
-                    </td>
-                  </tr>
+                  <TableStateRow colSpan={7} variant="loading" label="Loading loans..." />
                 ) : loanError ? (
                   <tr>
                     <td colSpan="7" className="p-5 text-sm text-red-600 dark:text-red-400">{loanError}</td>
                   </tr>
                 ) : loans.length === 0 ? (
-                  <tr>
-                    <td colSpan="7" className="p-10 text-center">
-                      <div className="flex flex-col items-center justify-center gap-2">
-                        <Banknote size={32} className="text-gray-300 dark:text-gray-600" />
-                        <p className="text-sm font-medium text-gray-500 dark:text-gray-400">No loan records found.</p>
-                      </div>
-                    </td>
-                  </tr>
+                  <TableStateRow colSpan={7} variant="empty" icon={Banknote} label="No loan records found." />
                 ) : loans
                     .slice((loansPage - 1) * LOANS_PAGE_SIZE, loansPage * LOANS_PAGE_SIZE)
                     .map((loan, idx) => (
@@ -553,17 +539,11 @@ const Member_Loans = () => {
 
             <div className="divide-y divide-gray-100 dark:divide-gray-800 md:hidden">
               {loadingLoans ? (
-                <div className="flex flex-col items-center justify-center gap-2 p-10 text-center">
-                  <Loader2 size={24} className="text-gray-300 dark:text-gray-600 animate-spin" />
-                  <p className="text-sm text-gray-400 dark:text-gray-500">Loading loans...</p>
-                </div>
+                <TableStateRow bare variant="loading" label="Loading loans..." />
               ) : loanError ? (
                 <p className="p-6 text-sm text-red-600 dark:text-red-400 text-center">{loanError}</p>
               ) : loans.length === 0 ? (
-                <div className="flex flex-col items-center justify-center gap-2 p-10 text-center">
-                  <Banknote size={32} className="text-gray-300 dark:text-gray-600" />
-                  <p className="text-sm font-medium text-gray-500 dark:text-gray-400">No loan records found.</p>
-                </div>
+                <TableStateRow bare variant="empty" icon={Banknote} label="No loan records found." />
               ) : loans
                   .slice((loansPage - 1) * LOANS_PAGE_SIZE, loansPage * LOANS_PAGE_SIZE)
                   .map((loan, idx) => (

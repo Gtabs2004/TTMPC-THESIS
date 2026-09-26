@@ -36,6 +36,8 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000
 import StaffTopbar from "../../components/StaffTopbar";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
 import Breadcrumb from "../../components/Breadcrumb";
+import TableActionButton from "../../components/TableActionButton";
+import TableStateRow from "../../components/TableStateRow";
 // Formatters are built once. `new Intl.NumberFormat(...)` per call is slow, and
 // the ledger formats several currency cells per row on every render.
 const CURRENCY_FORMAT = new Intl.NumberFormat("en-PH", {
@@ -567,16 +569,16 @@ const LoanLedger = () => {
                 </tr>
               </thead>
               <tbody>
-                {paymentRows.length === 0 && (
-                  <tr>
-                    <td colSpan={6} className="p-10 text-center">
-                      <div className="flex flex-col items-center justify-center gap-2">
-                        <FileText size={32} className="text-gray-300" />
-                        <p className="text-sm font-medium text-gray-500">No ledger entries yet.</p>
-                      </div>
-                    </td>
-                  </tr>
-                )}
+                {loading ? (
+                  <TableStateRow colSpan={6} variant="loading" label="Loading..." />
+                ) : paymentRows.length === 0 ? (
+                  <TableStateRow
+                    colSpan={6}
+                    variant="empty"
+                    icon={FileText}
+                    label="No ledger entries yet."
+                  />
+                ) : null}
 
                 {paymentRows.map((row) => (
                   <PaymentRow key={row.key} row={row} />
@@ -647,15 +649,13 @@ const LoanLedger = () => {
                           </span>
                         </td>
                         <td className="px-4 py-3">
-                          <button
-                            type="button"
+                          <TableActionButton
+                            icon={Download}
                             disabled={downloadingId === r.loan_id}
                             onClick={() => handleDownloadSOA(r)}
-                            className="inline-flex items-center gap-1 rounded-lg border border-green-300 bg-green-50 px-2.5 py-1.5 text-xs font-semibold text-green-800 hover:bg-green-100 transition-colors disabled:opacity-60 disabled:cursor-not-allowed whitespace-nowrap"
                           >
-                            <Download size={12} />
                             {downloadingId === r.loan_id ? "..." : "SOA"}
-                          </button>
+                          </TableActionButton>
                         </td>
                       </tr>
                     ))}

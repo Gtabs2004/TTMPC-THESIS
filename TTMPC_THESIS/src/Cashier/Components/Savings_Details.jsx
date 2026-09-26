@@ -34,6 +34,7 @@ import StaffTopbar from "../../components/StaffTopbar";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
 import Breadcrumb from "../../components/Breadcrumb";
 import { TableToolbar } from "../../components/TableToolbar";
+import TableStateRow from "../../components/TableStateRow";
 import Pagination from "../../components/Pagination";
 import { formatWithCommas, stripCommas } from "../../utils/numberFormat";
 import { authHeaders } from "../../utils/authHeaders";
@@ -461,19 +462,13 @@ const Savings_Details = () => {
                     </thead>
                     <tbody>
                       {ledger.length === 0 ? (
-                        <tr>
-                          <td colSpan={7} className="p-10 text-center">
-                            <div className="flex flex-col items-center justify-center gap-2">
-                              <Banknote size={32} className="text-gray-300" />
-                              <p className="text-sm font-medium text-gray-500">
-                                No transactions yet on this account
-                              </p>
-                              <p className="text-xs text-gray-400">
-                                The first deposit or withdrawal will appear here.
-                              </p>
-                            </div>
-                          </td>
-                        </tr>
+                        <TableStateRow
+                          colSpan={7}
+                          variant="empty"
+                          icon={Banknote}
+                          label="No transactions yet on this account"
+                          sublabel="The first deposit or withdrawal will appear here."
+                        />
                       ) : (
                         paginatedLedger.map((entry) => {
                           const isCredit = entry.entry_type === "credit";

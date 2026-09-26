@@ -7,6 +7,7 @@ import { supabase } from "../../supabaseClient";
 import { resolveMemberContextFromSessionUser } from "../../utils/sessionIdentity";
 import { useMigsLabel, getMigsBadgeClasses } from "../../hooks/useMigsLabel";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
+import TableStateRow from "../../components/TableStateRow";
 import LoanCalculatorModal from "./LoanCalculatorModal";
 import MemberDashboardLoading from "./MemberDashboardLoading";
 import AccountSetupGate from "./AccountSetupGate";
@@ -1095,14 +1096,7 @@ const MemberDashboard = () => {
                         </td>
                       </tr>
                     )) : (
-                      <tr>
-                        <td colSpan={4} className="p-10 text-center">
-                          <div className="flex flex-col items-center justify-center gap-2">
-                            <Receipt size={32} className="text-gray-300 dark:text-gray-600" />
-                            <p className="text-sm font-medium text-gray-500 dark:text-gray-400">No transactions yet.</p>
-                          </div>
-                        </td>
-                      </tr>
+                      <TableStateRow colSpan={4} variant="empty" icon={Receipt} label="No transactions yet." />
                     )}
                   </tbody>
                 </table>
@@ -1127,10 +1121,7 @@ const MemberDashboard = () => {
                       </div>
                     </div>
                   )) : (
-                    <div className="flex flex-col items-center justify-center gap-2 p-10 text-center">
-                      <Receipt size={32} className="text-gray-300 dark:text-gray-600" />
-                      <p className="text-sm font-medium text-gray-500 dark:text-gray-400">No transactions yet.</p>
-                    </div>
+                    <TableStateRow bare variant="empty" icon={Receipt} label="No transactions yet." />
                   )}
                 </div>
               </div>

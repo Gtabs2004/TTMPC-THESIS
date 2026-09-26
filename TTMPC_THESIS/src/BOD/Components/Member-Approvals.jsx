@@ -7,6 +7,8 @@ import { useNotification } from "../../contex/NotificationContext";
 import StaffTopbar from "../../components/StaffTopbar";
 import Breadcrumb from "../../components/Breadcrumb";
 import Pagination from "../../components/Pagination";
+import TableActionButton from "../../components/TableActionButton";
+import TableStateRow from "../../components/TableStateRow";
 import { 
   LayoutDashboard, 
   Users, 
@@ -40,6 +42,7 @@ const Member_Approvals = () => {
   const { addNotification } = useNotification();
   const [activeTab, setActiveTab] = useState("Pending");
   const [applications, setApplications] = useState([]);
+  const [loading, setLoading] = useState(false);
   const [selectedEvaluationRow, setSelectedEvaluationRow] = useState(null);
   const [portalRole, setPortalRole] = useState("");
   const [page, setPage] = useState(1);
@@ -137,6 +140,7 @@ const Member_Approvals = () => {
 
   const fetchData = async (pageNumber = 1, roleOverride = portalRole) => {
     const requestId = ++fetchRequestIdRef.current;
+    setLoading(true);
     const from = (pageNumber - 1) * LIMIT;
     const to = from + LIMIT - 1;
 
@@ -177,6 +181,7 @@ const Member_Approvals = () => {
       setApplications([]);
       setTotalCount(0);
       setTotalPages(1);
+      setLoading(false);
       return;
     }
 
@@ -187,6 +192,7 @@ const Member_Approvals = () => {
     if (requestId !== fetchRequestIdRef.current) return;
     if (error) {
       console.error("Supabase Error:", error);
+      setLoading(false);
       return;
     }
 
@@ -194,6 +200,7 @@ const Member_Approvals = () => {
     const resolvedCount = count || 0;
     setTotalCount(resolvedCount);
     setTotalPages(Math.max(1, Math.ceil(resolvedCount / LIMIT)));
+    setLoading(false);
   };
 
   const fetchTabCounts = async (roleOverride = portalRole) => {
@@ -504,15 +511,15 @@ const Member_Approvals = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {rowsForActiveTab.length === 0 ? (
-                    <tr>
-                      <td colSpan={isTrainingTab ? "5" : activeTab === "For Revision" ? "5" : "5"} className="p-10 text-center">
-                        <div className="flex flex-col items-center justify-center gap-2">
-                          <FileText size={32} className="text-gray-300" />
-                          <p className="text-sm font-medium text-gray-500">No {activeTab.toLowerCase()} records found.</p>
-                        </div>
-                      </td>
-                    </tr>
+                  {loading ? (
+                    <TableStateRow colSpan={5} variant="loading" label="Loading..." />
+                  ) : rowsForActiveTab.length === 0 ? (
+                    <TableStateRow
+                      colSpan={5}
+                      variant="empty"
+                      icon={FileText}
+                      label={`No ${activeTab.toLowerCase()} records found.`}
+                    />
                   ) : (
                     rowsForActiveTab.map((row, index) => (
                       <tr key={index} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
@@ -535,13 +542,12 @@ const Member_Approvals = () => {
                               </button>
                             </td>
                             <td className="p-5 text-sm">
-                              <button
+                              <TableActionButton
                                 onClick={() => canUseBodActions && navigate(`/member-approvals/${row.id}`)}
                                 disabled={!canUseBodActions}
-                                className="inline-flex items-center gap-2 px-6 py-2 bg-[#2C7A3F] hover:bg-[#1e5a2a] text-white rounded-lg font-semibold text-xs transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                               >
                                 View Details
-                              </button>
+                              </TableActionButton>
                             </td>
                           </>
                         ) : (
@@ -556,9 +562,9 @@ const Member_Approvals = () => {
                             {activeTab === "For Revision" && <td className="p-5 text-sm"><span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-700">{row.reason}</span></td>}
                             {(activeTab === "Pending" || activeTab === "Training" || activeTab === "Approved") && (
                               <td className="p-5 text-sm">
-                                <button onClick={() => canUseBodActions && navigate(`/member-approvals/${row.id}`)} className="inline-flex items-center gap-2 px-6 py-2 bg-[#2C7A3F] hover:bg-[#1e5a2a] text-white rounded-lg font-semibold text-xs transition-colors" disabled={!canUseBodActions}>
+                                <TableActionButton onClick={() => canUseBodActions && navigate(`/member-approvals/${row.id}`)} disabled={!canUseBodActions}>
                                   View Details
-                                </button>
+                                </TableActionButton>
                               </td>
                             )}
                           </>

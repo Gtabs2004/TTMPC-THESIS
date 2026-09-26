@@ -3,6 +3,8 @@ import { useNotification } from "../../contex/NotificationContext";
 import { getLoanTypeChipClass as getLoanTypeStyle } from "../../utils/loanTypeColors";
 import { StatCard, StatCardRow } from "../../components/StatCard";
 import { TableToolbar } from "../../components/TableToolbar";
+import TableActionButton from "../../components/TableActionButton";
+import TableStateRow from "../../components/TableStateRow";
 import StaffTopbar from "../../components/StaffTopbar";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
 import Breadcrumb from "../../components/Breadcrumb";
@@ -275,21 +277,22 @@ const Disbursements = () => {
             {/* Table Content */}
             <div className="overflow-x-auto">
               {isLoading ? (
-                <div className="flex flex-col items-center justify-center gap-2 p-10 text-center">
-                  <Loader2 size={24} className="text-gray-300 animate-spin" />
-                  <p className="text-sm text-gray-400">Syncing ledger records...</p>
+                <div className="p-10">
+                  <TableStateRow bare variant="loading" label="Syncing ledger records..." />
                 </div>
               ) : visibleRows.length === 0 ? (
-                <div className="flex flex-col items-center justify-center gap-2 p-10 text-center">
-                  <ClipboardList size={32} className="text-gray-300" />
-                  <p className="text-sm font-medium text-gray-500">
-                    {rows.length === 0 ? "No Disbursed Loans" : "No Matches Found"}
-                  </p>
-                  <p className="text-xs text-gray-400">
-                    {rows.length === 0
-                      ? "Records will appear here once the Cashier processes a release."
-                      : "Try adjusting your search criteria or loan type filter."}
-                  </p>
+                <div className="p-10">
+                  <TableStateRow
+                    bare
+                    variant="empty"
+                    icon={ClipboardList}
+                    label={rows.length === 0 ? "No Disbursed Loans" : "No Matches Found"}
+                    sublabel={
+                      rows.length === 0
+                        ? "Records will appear here once the Cashier processes a release."
+                        : "Try adjusting your search criteria or loan type filter."
+                    }
+                  />
                 </div>
               ) : (
                 <table className="w-full text-left border-collapse">
@@ -341,12 +344,9 @@ const Disbursements = () => {
                         </td>
                         <td className="p-5 align-top pt-4">
                           <div className="flex items-center justify-end gap-2 relative" ref={openMenuId === row.id ? menuRef : null}>
-                            <button
-                              onClick={() => setActiveLoan(row)}
-                              className="px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-bold text-gray-600 bg-white hover:bg-gray-50 hover:text-gray-900 transition-colors shadow-sm"
-                            >
+                            <TableActionButton onClick={() => setActiveLoan(row)}>
                               View
-                            </button>
+                            </TableActionButton>
                           
                             
                           

@@ -2,12 +2,12 @@ import React, { useEffect, useState } from "react";
 import { supabase } from "../supabaseClient";
 import { StatCard, StatCardRow } from "./StatCard";
 import { TableToolbar } from "./TableToolbar";
+import TableStateRow from "./TableStateRow";
 import {
   Search,
   ChevronDown,
   ClipboardList,
   Receipt,
-  Loader2,
   ArrowDownCircle,
   ArrowUpCircle,
   X,
@@ -520,23 +520,9 @@ const AuditLogViewer = ({ showActorRoleFilter = true, onError }) => {
             </thead>
             <tbody>
               {loading ? (
-                <tr>
-                  <td colSpan={4} className="p-10 text-center">
-                    <div className="flex flex-col items-center justify-center gap-2">
-                      <Loader2 size={24} className="text-gray-300 animate-spin" />
-                      <p className="text-sm text-gray-400">Loading...</p>
-                    </div>
-                  </td>
-                </tr>
+                <TableStateRow colSpan={4} variant="loading" label="Loading..." />
               ) : rows.length === 0 ? (
-                <tr>
-                  <td colSpan={4} className="p-10 text-center">
-                    <div className="flex flex-col items-center justify-center gap-2">
-                      <ClipboardList size={32} className="text-gray-300" />
-                      <p className="text-sm font-medium text-gray-500">No audit entries match these filters.</p>
-                    </div>
-                  </td>
-                </tr>
+                <TableStateRow colSpan={4} variant="empty" icon={ClipboardList} label="No audit entries match these filters." />
               ) : rows.map((r) => {
                 const flagged = FLAGGED_ACTIONS.has(r.action);
                 const status = flagged ? "Flagged" : "Success";
@@ -616,23 +602,9 @@ const AuditLogViewer = ({ showActorRoleFilter = true, onError }) => {
                 </thead>
                 <tbody>
                   {loading ? (
-                    <tr>
-                      <td colSpan={7} className="p-10 text-center">
-                        <div className="flex flex-col items-center justify-center gap-2">
-                          <Loader2 size={24} className="text-gray-300 animate-spin" />
-                          <p className="text-sm text-gray-400">Loading...</p>
-                        </div>
-                      </td>
-                    </tr>
+                    <TableStateRow colSpan={7} variant="loading" label="Loading..." />
                   ) : rows.length === 0 ? (
-                    <tr>
-                      <td colSpan={7} className="p-10 text-center">
-                        <div className="flex flex-col items-center justify-center gap-2">
-                          <ClipboardList size={32} className="text-gray-300" />
-                          <p className="text-sm font-medium text-gray-500">No audit entries match these filters.</p>
-                        </div>
-                      </td>
-                    </tr>
+                    <TableStateRow colSpan={7} variant="empty" icon={ClipboardList} label="No audit entries match these filters." />
                   ) : rows.map(renderDetailedRow)}
                 </tbody>
               </table>

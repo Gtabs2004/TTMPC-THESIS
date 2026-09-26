@@ -5,7 +5,6 @@ import {
   Download,
   Users,
   Users2,
-  Loader2,
   Table2,
   Calendar,
   ChevronUp,
@@ -22,6 +21,7 @@ import StaffTopbar from "../../components/StaffTopbar";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
 import Breadcrumb from "../../components/Breadcrumb";
 import Pagination from "../../components/Pagination";
+import TableStateRow from "../../components/TableStateRow";
 import ConfirmDialog from "../../components/ConfirmDialog";
 import { supabase } from "../../supabaseClient";
 import { UserAuth } from "../../contex/AuthContext";
@@ -681,28 +681,27 @@ const Bookkeeper_ISC = () => {
                 </thead>
                 <tbody>
                   {status === "loading" ? (
-                    <tr>
-                      <td colSpan={6} className="p-10 text-center">
-                        <div className="flex flex-col items-center justify-center gap-2">
-                          <Loader2 size={24} className="text-gray-300 animate-spin" />
-                          <p className="text-sm text-gray-400">Calculating Interest on Share Capital...</p>
-                        </div>
-                      </td>
-                    </tr>
+                    <TableStateRow
+                      colSpan={6}
+                      variant="loading"
+                      label="Calculating Interest on Share Capital..."
+                    />
                   ) : paginated.length === 0 ? (
-                    <tr>
-                      <td colSpan={6} className="p-10 text-center">
-                        <div className="flex flex-col items-center justify-center gap-2">
-                          <Users size={32} className="text-gray-300" />
-                          <p className="text-sm font-medium text-gray-500">
-                            {rows.length === 0 ? "No eligible members found for this period." : "No members matched your search."}
-                          </p>
-                          <p className="text-xs text-gray-400">
-                            {rows.length === 0 ? "Try Calculate again once CBU data is available." : "Try a different name or membership ID."}
-                          </p>
-                        </div>
-                      </td>
-                    </tr>
+                    <TableStateRow
+                      colSpan={6}
+                      variant="empty"
+                      icon={Users}
+                      label={
+                        rows.length === 0
+                          ? "No eligible members found for this period."
+                          : "No members matched your search."
+                      }
+                      sublabel={
+                        rows.length === 0
+                          ? "Try Calculate again once CBU data is available."
+                          : "Try a different name or membership ID."
+                      }
+                    />
                   ) : (
                     paginated.map((row) => (
                       <tr key={row.member_id} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">

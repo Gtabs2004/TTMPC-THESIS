@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { X, Search, Undo2, AlertTriangle, Users, Loader2 } from "lucide-react";
+import { X, Search, Undo2, AlertTriangle, Users } from "lucide-react";
 import { supabase } from "../../supabaseClient";
 import { UserAuth } from "../../contex/AuthContext";
+import TableStateRow from "../../components/TableStateRow";
 
 /**
  * ISC Payout Preferences — the March General Assembly step.
@@ -350,23 +351,14 @@ export default function IscPayoutPreferencesModal({ open, postingId, onClose, on
               </thead>
               <tbody>
                 {loading ? (
-                  <tr>
-                    <td colSpan={4} className="p-10 text-center">
-                      <div className="flex flex-col items-center justify-center gap-2">
-                        <Loader2 size={24} className="text-gray-300 animate-spin" />
-                        <p className="text-sm text-gray-400">Loading...</p>
-                      </div>
-                    </td>
-                  </tr>
+                  <TableStateRow colSpan={4} variant="loading" label="Loading..." />
                 ) : !filtered.length ? (
-                  <tr>
-                    <td colSpan={4} className="p-10 text-center">
-                      <div className="flex flex-col items-center justify-center gap-2">
-                        <Users size={32} className="text-gray-300" />
-                        <p className="text-sm font-medium text-gray-500">No members match.</p>
-                      </div>
-                    </td>
-                  </tr>
+                  <TableStateRow
+                    colSpan={4}
+                    variant="empty"
+                    icon={Users}
+                    label="No members match."
+                  />
                 ) : (
                   filtered.map((r) => {
                     const value = choice[r.member_id] || "withdraw";

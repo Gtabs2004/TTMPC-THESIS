@@ -8,6 +8,7 @@ import { useNotification } from "../../contex/NotificationContext";
 import StaffTopbar from "../../components/StaffTopbar";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
 import Breadcrumb from "../../components/Breadcrumb";
+import TableStateRow from "../../components/TableStateRow";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import {
@@ -690,14 +691,12 @@ const Reports = () => {
                     </thead>
                     <tbody>
                       {loanDist.length === 0 ? (
-                        <tr>
-                          <td colSpan={5} className="p-10 text-center">
-                            <div className="flex flex-col items-center justify-center gap-2">
-                              <Landmark size={32} className="text-gray-300" />
-                              <p className="text-sm font-medium text-gray-500">No loan data available.</p>
-                            </div>
-                          </td>
-                        </tr>
+                        <TableStateRow
+                          colSpan={5}
+                          variant="empty"
+                          icon={Landmark}
+                          label="No loan data available."
+                        />
                       ) : (
                         loanDist.map((row, idx) => {
                           const total = loanDist.reduce((s, r) => s + r.count, 0);

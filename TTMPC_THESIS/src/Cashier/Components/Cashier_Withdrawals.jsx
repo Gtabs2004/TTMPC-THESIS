@@ -8,6 +8,7 @@ import StaffTopbar from "../../components/StaffTopbar";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
 import Breadcrumb from "../../components/Breadcrumb";
 import { TableToolbar } from "../../components/TableToolbar";
+import TableStateRow from "../../components/TableStateRow";
 import { 
   LayoutDashboard, 
   Search,
@@ -24,7 +25,6 @@ import {
   ShoppingCart,
   ArrowDownLeft,
   History,
-  Loader2,
 } from 'lucide-react';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
@@ -137,23 +137,9 @@ const Cashier_Withdrawals = () => {
                 </thead>
                 <tbody>
                   {loading ? (
-                    <tr>
-                      <td colSpan="6" className="p-10 text-center">
-                        <div className="flex flex-col items-center justify-center gap-2">
-                          <Loader2 size={24} className="text-gray-300 animate-spin" />
-                          <p className="text-sm text-gray-400">Loading...</p>
-                        </div>
-                      </td>
-                    </tr>
+                    <TableStateRow colSpan={6} variant="loading" label="Loading..." />
                   ) : filteredRows.length === 0 ? (
-                    <tr>
-                      <td colSpan="6" className="p-10 text-center">
-                        <div className="flex flex-col items-center justify-center gap-2">
-                          <Banknote size={32} className="text-gray-300" />
-                          <p className="text-sm font-medium text-gray-500">No posted withdrawals found.</p>
-                        </div>
-                      </td>
-                    </tr>
+                    <TableStateRow colSpan={6} variant="empty" icon={Banknote} label="No posted withdrawals found." />
                   ) : (
                     filteredRows.map((row) => (
                     <tr key={row.transaction_id} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">

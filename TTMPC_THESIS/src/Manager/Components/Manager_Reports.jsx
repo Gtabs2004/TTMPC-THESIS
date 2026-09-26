@@ -26,7 +26,6 @@ import {
   Brain,
   ClipboardCheck,
   Briefcase,
-  Loader2,
 } from "lucide-react";
 import {
   BarChart,
@@ -42,6 +41,7 @@ import {
   Legend,
 } from "recharts";
 import { SERIES_PRIMARY, SEMANTIC_COLORS, getLoanTypeColor } from "../../lib/chartColors";
+import TableStateRow from "../../components/TableStateRow";
 
 const formatCurrency = (value, opts = {}) => {
   const amount = Number(value || 0);
@@ -431,23 +431,9 @@ const Manager_Reports = () => {
                 </thead>
                 <tbody>
                   {loading ? (
-                    <tr>
-                      <td colSpan={3} className="p-10 text-center">
-                        <div className="flex flex-col items-center justify-center gap-2">
-                          <Loader2 size={24} className="text-gray-300 animate-spin" />
-                          <p className="text-sm text-gray-400">Loading...</p>
-                        </div>
-                      </td>
-                    </tr>
+                    <TableStateRow colSpan={3} variant="loading" label="Loading..." />
                   ) : loanTypeBreakdown.length === 0 ? (
-                    <tr>
-                      <td colSpan={3} className="p-10 text-center">
-                        <div className="flex flex-col items-center justify-center gap-2">
-                          <Banknote size={32} className="text-gray-300" />
-                          <p className="text-sm font-medium text-gray-500">No active loans yet</p>
-                        </div>
-                      </td>
-                    </tr>
+                    <TableStateRow colSpan={3} variant="empty" icon={Banknote} label="No active loans yet" />
                   ) : (
                     loanTypeBreakdown.map((row) => (
                       <tr key={row.name} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
@@ -485,23 +471,9 @@ const Manager_Reports = () => {
                 </thead>
                 <tbody>
                   {loading ? (
-                    <tr>
-                      <td colSpan={3} className="p-10 text-center">
-                        <div className="flex flex-col items-center justify-center gap-2">
-                          <Loader2 size={24} className="text-gray-300 animate-spin" />
-                          <p className="text-sm text-gray-400">Loading...</p>
-                        </div>
-                      </td>
-                    </tr>
+                    <TableStateRow colSpan={3} variant="loading" label="Loading..." />
                   ) : topBorrowers.length === 0 ? (
-                    <tr>
-                      <td colSpan={3} className="p-10 text-center">
-                        <div className="flex flex-col items-center justify-center gap-2">
-                          <Award size={32} className="text-gray-300" />
-                          <p className="text-sm font-medium text-gray-500">No active borrowers</p>
-                        </div>
-                      </td>
-                    </tr>
+                    <TableStateRow colSpan={3} variant="empty" icon={Award} label="No active borrowers" />
                   ) : (
                     topBorrowers.map((b) => (
                       <tr key={b.member_id} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">

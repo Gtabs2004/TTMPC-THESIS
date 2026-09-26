@@ -29,12 +29,13 @@ import {
   Coins,
   ShieldAlert,
   Brain,
-  Loader2,
 } from "lucide-react";
 import StaffTopbar from "../../components/StaffTopbar";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
 import Breadcrumb from "../../components/Breadcrumb";
 import Pagination from "../../components/Pagination";
+import TableActionButton from "../../components/TableActionButton";
+import TableStateRow from "../../components/TableStateRow";
 
 const BookkeeperLoanApproval = () => {
     const navigate = useNavigate();
@@ -314,14 +315,7 @@ const BookkeeperLoanApproval = () => {
                 </thead>
                 <tbody>
                   {loading ? (
-                    <tr>
-                      <td colSpan="9" className="p-10 text-center">
-                        <div className="flex flex-col items-center justify-center gap-2">
-                          <Loader2 size={24} className="text-gray-300 animate-spin" />
-                          <p className="text-sm text-gray-400">Loading...</p>
-                        </div>
-                      </td>
-                    </tr>
+                    <TableStateRow colSpan={9} variant="loading" label="Loading..." />
                   ) : fetchError ? (
                     <tr>
                       <td colSpan="9" className="p-5 text-center text-red-600">
@@ -329,14 +323,12 @@ const BookkeeperLoanApproval = () => {
                       </td>
                     </tr>
                   ) : filteredLoans.length === 0 ? (
-                    <tr>
-                      <td colSpan="9" className="p-10 text-center">
-                        <div className="flex flex-col items-center justify-center gap-2">
-                          <ClipboardList size={32} className="text-gray-300" />
-                          <p className="text-sm font-medium text-gray-500">No loans found.</p>
-                        </div>
-                      </td>
-                    </tr>
+                    <TableStateRow
+                      colSpan={9}
+                      variant="empty"
+                      icon={ClipboardList}
+                      label="No loans found."
+                    />
                   ) : (
                     paginatedLoans.map((loan) => (
                       <tr key={`${loan.source}-${loan.id}`} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
@@ -373,12 +365,11 @@ const BookkeeperLoanApproval = () => {
                         </td>
                         <td className="p-5 text-sm text-gray-500 whitespace-nowrap" title={loan.submittedAt || loan.date}>{loan.date}</td>
                         <td className="p-5 text-sm text-right pr-8">
-                          <button
+                          <TableActionButton
                             onClick={() => navigate(`/bookkeeper-loan-approval/${loan.id}?source=${loan.source}`)}
-                            className="text-member-green font-bold hover:underline transition-all"
                           >
                             {loan.actions}
-                          </button>
+                          </TableActionButton>
                         </td>
                       </tr>
                     ))

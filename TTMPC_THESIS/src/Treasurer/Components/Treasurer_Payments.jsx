@@ -5,6 +5,7 @@ import StaffTopbar from "../../components/StaffTopbar";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
 import Breadcrumb from "../../components/Breadcrumb";
 import Pagination from "../../components/Pagination";
+import TableStateRow from "../../components/TableStateRow";
 import StaffSidebar from "../../components/StaffSidebar";
 import { treasurerNav } from "../../components/StaffSidebar/configs/treasurer";
 import {
@@ -16,7 +17,6 @@ import {
   Info,
   User,
   Inbox,
-  Loader2,
 } from "lucide-react";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
@@ -304,23 +304,9 @@ const Treasurer_Payments = () => {
                 </thead>
                 <tbody>
                   {loading ? (
-                    <tr>
-                      <td colSpan={7} className="p-10 text-center">
-                        <div className="flex flex-col items-center justify-center gap-2">
-                          <Loader2 size={24} className="text-gray-300 animate-spin" />
-                          <p className="text-sm text-gray-400">Loading...</p>
-                        </div>
-                      </td>
-                    </tr>
+                    <TableStateRow colSpan={7} variant="loading" label="Loading..." />
                   ) : pagedEntries.length === 0 ? (
-                    <tr>
-                      <td colSpan={7} className="p-10 text-center">
-                        <div className="flex flex-col items-center justify-center gap-2">
-                          <Inbox size={32} className="text-gray-300" />
-                          <p className="text-sm font-medium text-gray-500">No entries in this window.</p>
-                        </div>
-                      </td>
-                    </tr>
+                    <TableStateRow colSpan={7} variant="empty" icon={Inbox} label="No entries in this window." />
                   ) : (
                     pagedEntries.map((e, idx) => {
                       const meta = TYPE_META[e.type] || { label: e.type, cls: "bg-gray-50 text-gray-700 ring-1 ring-gray-200", dir: "any" };

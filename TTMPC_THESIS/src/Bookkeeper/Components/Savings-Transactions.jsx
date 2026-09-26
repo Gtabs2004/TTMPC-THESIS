@@ -10,6 +10,8 @@ import StaffTopbar from "../../components/StaffTopbar";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
 import Breadcrumb from "../../components/Breadcrumb";
 import { TableToolbar } from "../../components/TableToolbar";
+import TableActionButton from "../../components/TableActionButton";
+import TableStateRow from "../../components/TableStateRow";
 import {
   LayoutDashboard,
   Users,
@@ -32,7 +34,6 @@ import {
   ChevronRight,
   ShieldAlert,
   Brain,
-  Loader2,
 } from "lucide-react";
 import logo from "../../assets/img/ttmpc logo.png";
 
@@ -256,23 +257,14 @@ const BookkeeperSavingsTransactions = () => {
                 </thead>
                 <tbody>
                   {loading ? (
-                    <tr>
-                      <td colSpan="8" className="p-10 text-center">
-                        <div className="flex flex-col items-center justify-center gap-2">
-                          <Loader2 size={24} className="text-gray-300 animate-spin" />
-                          <p className="text-sm text-gray-400">Loading...</p>
-                        </div>
-                      </td>
-                    </tr>
+                    <TableStateRow colSpan={8} variant="loading" label="Loading..." />
                   ) : filteredRows.length === 0 ? (
-                    <tr>
-                      <td colSpan="8" className="p-10 text-center">
-                        <div className="flex flex-col items-center justify-center gap-2">
-                          <Wallet size={32} className="text-gray-300" />
-                          <p className="text-sm font-medium text-gray-500">No transactions found for this tab.</p>
-                        </div>
-                      </td>
-                    </tr>
+                    <TableStateRow
+                      colSpan={8}
+                      variant="empty"
+                      icon={Wallet}
+                      label="No transactions found for this tab."
+                    />
                   ) : (
                     filteredRows.map((row) => (
                       <tr key={row.transaction_id} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
@@ -294,22 +286,21 @@ const BookkeeperSavingsTransactions = () => {
                         <td className="p-5 text-sm text-right">
                           {row.transaction_status === "pending_verification" ? (
                             <div className="inline-flex items-center gap-1.5">
-                              <button
+                              <TableActionButton
+                                icon={CheckCircle}
                                 onClick={() => handleConfirmPostClick(row)}
                                 disabled={workingId === row.transaction_id}
-                                className="px-2 py-1 rounded bg-green-600 hover:bg-green-700 text-white text-[11px] font-semibold inline-flex items-center gap-1 disabled:opacity-50"
                               >
-                                <CheckCircle size={12} />
                                 Confirm
-                              </button>
-                              <button
+                              </TableActionButton>
+                              <TableActionButton
+                                icon={XCircle}
+                                variant="danger"
                                 onClick={() => openRejectDialog(row)}
                                 disabled={workingId === row.transaction_id}
-                                className="px-2 py-1 rounded bg-red-600 hover:bg-red-700 text-white text-[11px] font-semibold inline-flex items-center gap-1 disabled:opacity-50"
                               >
-                                <XCircle size={12} />
                                 Reject
-                              </button>
+                              </TableActionButton>
                             </div>
                           ) : (
                             // TODO: PRINT-RECEIPT-OVERLAY Â· withdrawal slip after bookkeeper validates

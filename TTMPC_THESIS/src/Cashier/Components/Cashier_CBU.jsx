@@ -8,6 +8,7 @@ import StaffTopbar from "../../components/StaffTopbar";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
 import Breadcrumb from "../../components/Breadcrumb";
 import { TableToolbar } from "../../components/TableToolbar";
+import TableStateRow from "../../components/TableStateRow";
 import {
   LayoutDashboard,
   Banknote,
@@ -249,16 +250,16 @@ const Cashier_CBU = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredMembers.length === 0 && (
-                    <tr>
-                      <td colSpan={4} className="p-10 text-center">
-                        <div className="flex flex-col items-center justify-center gap-2">
-                          <UserSearch size={32} className="text-gray-300" />
-                          <p className="text-sm font-medium text-gray-500">No member accounts matched your search.</p>
-                        </div>
-                      </td>
-                    </tr>
-                  )}
+                  {loading ? (
+                    <TableStateRow colSpan={4} variant="loading" label="Loading..." />
+                  ) : filteredMembers.length === 0 ? (
+                    <TableStateRow
+                      colSpan={4}
+                      variant="empty"
+                      icon={UserSearch}
+                      label="No member accounts matched your search."
+                    />
+                  ) : null}
                   {paginatedMembers.map((member) => {
                     const currentBal = Number(member.current_balance || 0);
                     return (
