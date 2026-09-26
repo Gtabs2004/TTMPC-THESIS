@@ -1,7 +1,8 @@
-﻿import React, { memo, useEffect, useMemo, useState } from "react";
+import React, { memo, useEffect, useMemo, useState } from "react";
 import { NavLink, useLocation, useNavigate, useParams } from "react-router-dom";
 import StaffSidebar from "../../components/StaffSidebar";
 import { bookkeeperNav } from "../../components/StaffSidebar/configs/bookkeeper";
+import { managerNav } from "../../components/StaffSidebar/configs/manager";
 import { UserAuth } from "../../contex/AuthContext";
 import {
   LayoutDashboard,
@@ -116,7 +117,13 @@ const LoanLedger = () => {
     const navigate = useNavigate();
   const location = useLocation();
   const { loanId } = useParams();
-  const isManagerView = location.state?.readOnly === true;
+  // This page is shared by /bookkeeper-loan-ledger and /manager-loan-ledger.
+  // Go by the URL, not router state, so a refresh or direct link still shows
+  // the Manager portal chrome and stays read-only.
+  const isManagerView =
+    location.pathname.startsWith("/manager-loan-ledger") || location.state?.readOnly === true;
+  const portal = isManagerView ? "Manager" : "Bookkeeper";
+  const ledgerBasePath = isManagerView ? "/manager-loan-ledger" : "/bookkeeper-loan-ledger";
   const renewalHistory = location.state?.renewals || NO_RENEWALS;
   // True when this ledger was opened by clicking a renewal history row.
   // The successor's application_date is passed as closingDate so we can
@@ -400,14 +407,14 @@ const LoanLedger = () => {
 
   return (
     <div className="flex min-h-screen bg-gray-50">
-      <StaffSidebar portal="Bookkeeper" items={bookkeeperNav} />
+      <StaffSidebar portal={portal} items={isManagerView ? managerNav : bookkeeperNav} />
       <div className="flex-1 min-w-0 flex flex-col h-screen overflow-y-auto">
-        <StaffTopbar portal="Bookkeeper" notifications={<LoanNotificationBell role="bookkeeper" />} />
+        <StaffTopbar portal={portal} notifications={<LoanNotificationBell role={portal.toLowerCase()} />} />
 
         <main className="p-8">
           <div className="flex items-center justify-between mb-6">
             <div>
-              <Breadcrumb portal="Bookkeeper" page="Loan Ledger" />
+              <Breadcrumb portal={portal} page="Loan Ledger" />
               <h1 className="font-bold text-2xl text-gray-800">Loan Ledger</h1>
               <p className="text-sm text-gray-500 mt-1">{selectedLoan.loan_id} • {selectedLoan.member_name}</p>
             </div>
@@ -625,7 +632,7 @@ const LoanLedger = () => {
                             type="button"
                             className="max-w-full truncate font-mono font-bold text-green-700 hover:underline"
                             title={r.loan_id}
-                            onClick={() => navigate(`/bookkeeper-loan-ledger/${r.loan_id}`, { state: { loan: r, isRenewed: true, closingDate: closingDateVal } })}
+                            onClick={() => navigate(`${ledgerBasePath}/${r.loan_id}`, { state: { loan: r, isRenewed: true, closingDate: closingDateVal, readOnly: isManagerView } })}
                           >
                             {r.loan_id}
                           </button>
