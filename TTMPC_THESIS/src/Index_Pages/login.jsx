@@ -97,12 +97,13 @@ function Login() {
                   className="block w-full pl-10 pr-3 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#66B538] focus:border-[#66B538] sm:text-sm transition-colors bg-gray-50 focus:bg-white text-gray-900 placeholder-gray-400 appearance-none"
                 >
                   <option value="">-- Choose a role --</option>
+                  <option value="bod">BOD</option>
+                  <option value="secretary">Secretary</option>
                   <option value="bookkeeper">Bookkeeper</option>
                   <option value="treasurer">Treasurer</option>
                   <option value="manager">Manager</option>
                   <option value="cashier">Cashier</option>
-                  <option value="secretary">Secretary</option>
-                  <option value="bod">BOD</option>
+            
                 </select>
                 <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
                   <svg className="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
