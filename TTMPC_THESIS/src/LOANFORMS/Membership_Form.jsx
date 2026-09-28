@@ -8,7 +8,15 @@ const GSIS_DIGIT_LENGTH = 10;
 const formatGsisNumber = (value) => String(value ?? '').replace(/\D/g, '').slice(0, GSIS_DIGIT_LENGTH);
 import SmartDateInput from '../components/SmartDateInput';
 import { useNotification } from '../contex/NotificationContext';
-import { AlertCircle } from 'lucide-react';
+import { AlertCircle, Download } from 'lucide-react';
+
+// Blank, print-friendly copy of the cooperative's official paper membership
+// form (Membership & Subscription Agreement + TTMPC Form 1 / Personal Data
+// Sheet) — served as-is from public/ so members who'd rather fill it out by
+// hand and submit a physical copy can, without touching this online form or
+// the database at all. See PDF_EDITING_GUIDE.md's scope — this file isn't
+// part of the pdf-lib stamping pipeline, it's just served for direct download.
+const BLANK_FORM_URL = '/forms/MEMBERSHIP_FORM.pdf';
 
 // Cooperative membership requires the applicant to be of legal age.
 const MINIMUM_AGE = 18;
@@ -422,6 +430,17 @@ function Membership_Form() {
     }
   };
 
+  // Downloads the blank paper form as-is — no inputs required, no DB call,
+  // completely independent of the online application below.
+  const handleDownloadBlankForm = () => {
+    const link = document.createElement('a');
+    link.href = BLANK_FORM_URL;
+    link.download = 'TTMPC_Membership_Application_Form.pdf';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   const isSingleCivilStatus = formdata.civil_status === 'Single';
 
   // Helper for dynamic input classes
@@ -449,9 +468,26 @@ function Membership_Form() {
 
       <main className="flex-grow flex justify-center mt-10 px-4">
         <div className="bg-white w-full max-w-5xl rounded-xl shadow-md p-10 border border-gray-100">
-          <h2 className="text-2xl font-bold text-center text-[#1a4a2f] mb-8 tracking-wide">
+          <h2 className="text-2xl font-bold text-center text-[#1a4a2f] mb-2 tracking-wide">
             MEMBER REGISTRATION
           </h2>
+
+          {/* Prefer paper? — always available, independent of the online
+              form below: no fields need to be filled and nothing here
+              touches the database. */}
+          <div className="mb-8 flex flex-col sm:flex-row items-center justify-between gap-3 bg-[#E9F7DE] border border-[#A0D284] rounded-lg px-5 py-4">
+            <p className="text-sm text-[#3f6b2c] text-center sm:text-left">
+              Prefer to fill out the form manually? Download a printable copy here.
+            </p>
+            <button
+              type="button"
+              onClick={handleDownloadBlankForm}
+              className="shrink-0 inline-flex items-center gap-2 bg-[#66B538] text-white px-5 py-2.5 rounded-md font-bold text-sm hover:bg-[#5ca830] transition-colors shadow-sm"
+            >
+              <Download size={16} />
+              Download Form
+            </button>
+          </div>
 
           {/* Global Error Banner */}
           {globalError && (

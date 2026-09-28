@@ -510,7 +510,7 @@ const LoanDemandForecastCard = ({ className = "" }) => {
               })()}
               {(
                 <div className="h-60">
-                  <ResponsiveContainer width="100%" height="100%">
+                  <ResponsiveContainer debounce={200} width="100%" height="100%">
                     <ComposedChart data={seriesByType[t.value]} margin={{ top: 10, right: 12, left: 0, bottom: 0 }}>
                       <CartesianGrid stroke="#eef2f7" vertical={false} />
                       <XAxis dataKey="label" axisLine={{ stroke: "#e5e7eb" }} tickLine={false} tick={{ fontSize: 11, fill: "#6b7280" }} />

@@ -377,7 +377,7 @@ const Dashboard = () => {
                 </div>}
               </div>
               <div className="h-64">
-                {loading ? <SkeletonChart /> : <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={1}>
+                {loading ? <SkeletonChart /> : <ResponsiveContainer debounce={200} width="100%" height="100%" minWidth={0} minHeight={1}>
                   <BarChart data={yearlyBarData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
                     <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: "#9ca3af", fontSize: 12 }} dy={10} />
@@ -424,7 +424,7 @@ const Dashboard = () => {
                 <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full" style={{ backgroundColor: REPAYMENT_HEALTH_COLORS.noData }}></span><span className="text-gray-500">No data</span></div>
               </div>
               <div className="h-56">
-                {loading ? <SkeletonChart /> : <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
+                {loading ? <SkeletonChart /> : <ResponsiveContainer debounce={200} width="100%" height="100%" minWidth={1} minHeight={1}>
                   <ScatterChart margin={{ top: 10, right: 20, left: -5, bottom: 5 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                     <XAxis
