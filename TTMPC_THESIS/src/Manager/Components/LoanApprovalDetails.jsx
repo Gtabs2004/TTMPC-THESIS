@@ -6,6 +6,7 @@ import { printLoanApplicationForm } from '../../LOANFORMS/staffLoanPrint';
 import { useMigsLabel, getMigsBadgeClasses } from '../../hooks/useMigsLabel';
 import ConfirmDialog from '../../components/ConfirmDialog';
 import { useNotification } from '../../contex/NotificationContext';
+import { useConfirm } from '../../contex/ConfirmContext';
 import { formatWithCommas, stripCommas } from '../../utils/numberFormat';
 import {
   ArrowLeft,
@@ -14,6 +15,8 @@ import {
   BarChart2,
   Paperclip,
   FileImage,
+  FileText,
+  Trash2,
   X,
   Check,
   FileEdit,
@@ -52,6 +55,10 @@ const EMPTY_CO_MAKERS = [
 ];
 
 const SUPPORTING_DOCS_BUCKET = 'Supporting_Documents';
+// Matches the bucket's own file_size_limit (31457280 bytes).
+const SUPPORTING_DOC_MAX_BYTES = 30 * 1024 * 1024;
+const SUPPORTING_DOC_EXT_RE = /\.(pdf|docx?|xlsx?|pptx?|txt|csv|odt|ods|rtf)$/i;
+const SUPPORTING_DOC_ACCEPT = 'image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.odt,.ods,.rtf';
 
 const sanitizeFilename = (name) => {
   return String(name || 'file')
@@ -102,6 +109,7 @@ const LoanApprovalDetails = () => {
     ? '/bod-loan-approvals'
     : '/loan-approval';
   const { addNotification } = useNotification();
+  const confirm = useConfirm();
 
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
@@ -138,6 +146,7 @@ const LoanApprovalDetails = () => {
   const [supportingDocs, setSupportingDocs] = useState([]);
   const [supportingDocUrls, setSupportingDocUrls] = useState({});
   const [docLoading, setDocLoading] = useState(false);
+  const [deletingDocPath, setDeletingDocPath] = useState('');
   const [docError, setDocError] = useState('');
   const [simulatedBalance, setSimulatedBalance] = useState(null);
   const [riskAssessment, setRiskAssessment] = useState(null);
@@ -817,6 +826,18 @@ const LoanApprovalDetails = () => {
       return;
     }
 
+    const isImageFile = String(file.type || '').startsWith('image/');
+    if (!isImageFile && !SUPPORTING_DOC_EXT_RE.test(file.name)) {
+      setDocError('Please choose an image, PDF, Word, Excel, PowerPoint or text file.');
+      event.target.value = '';
+      return;
+    }
+    if (file.size > SUPPORTING_DOC_MAX_BYTES) {
+      setDocError(`File is ${(file.size / (1024 * 1024)).toFixed(1)} MB. The limit is 30 MB.`);
+      event.target.value = '';
+      return;
+    }
+
     try {
       setDocLoading(true);
       setDocError('');
@@ -845,7 +866,7 @@ const LoanApprovalDetails = () => {
 
       const nextDocuments = [
         {
-          doc_type: 'photo',
+          doc_type: isImageFile ? 'photo' : 'document',
           file_name: file.name,
           storage_path: storagePath,
           uploaded_at: new Date().toISOString(),
@@ -904,6 +925,75 @@ const LoanApprovalDetails = () => {
     } finally {
       setDocLoading(false);
       event.target.value = '';
+    }
+  };
+
+  const handleSupportingDocumentDelete = async (doc) => {
+    const path = String(doc?.storage_path || '').trim();
+    if (!path || !loanDetails?.id || !isBookkeeperFlow) return;
+
+    const ok = await confirm({
+      title: 'Delete Document',
+      message: `Delete "${doc.file_name || 'this file'}"? This removes the file permanently and cannot be undone.`,
+      confirmLabel: 'Delete',
+      tone: 'destructive',
+    });
+    if (!ok) return;
+
+    try {
+      setDeletingDocPath(path);
+      setDocError('');
+
+      const existingRawPayload = loanDetails.rawPayload && typeof loanDetails.rawPayload === 'object'
+        ? loanDetails.rawPayload
+        : {};
+      const existingOptionalFields = existingRawPayload.optionalFields && typeof existingRawPayload.optionalFields === 'object'
+        ? existingRawPayload.optionalFields
+        : {};
+      const existingBookkeeperDetails = existingOptionalFields.bookkeeper_loan_details
+        && typeof existingOptionalFields.bookkeeper_loan_details === 'object'
+        ? existingOptionalFields.bookkeeper_loan_details
+        : {};
+
+      const nextRawPayload = {
+        ...existingRawPayload,
+        optionalFields: {
+          ...existingOptionalFields,
+          bookkeeper_loan_details: {
+            ...existingBookkeeperDetails,
+            supporting_documents: supportingDocs.filter((d) => d.storage_path !== path),
+          },
+        },
+      };
+
+      // Drop the record first: if the storage delete then fails, we're left
+      // with an orphaned file, not a tile pointing at a missing file.
+      const { data: updatedRows, error: updateError } = await supabase
+        .from(loanDetails.sourceTable || 'loans')
+        .update({ raw_payload: nextRawPayload })
+        .eq('control_number', loanDetails.id)
+        .select('raw_payload')
+        .limit(1);
+
+      if (updateError) {
+        throw new Error(updateError.message || 'Failed to remove supporting document.');
+      }
+
+      const { error: removeError } = await supabase.storage
+        .from(SUPPORTING_DOCS_BUCKET)
+        .remove([path]);
+      if (removeError) {
+        console.warn('Supporting document record removed but file delete failed:', removeError.message);
+      }
+
+      const updatedRawPayload = updatedRows?.[0]?.raw_payload || nextRawPayload;
+      setLoanDetails((prev) => prev ? { ...prev, rawPayload: updatedRawPayload } : prev);
+      setSupportingDocs(normalizeSupportingDocuments(updatedRawPayload));
+      addNotification('Supporting document deleted.', 'success');
+    } catch (err) {
+      setDocError(err.message || 'Unable to delete supporting document.');
+    } finally {
+      setDeletingDocPath('');
     }
   };
 
@@ -1676,10 +1766,10 @@ const LoanApprovalDetails = () => {
               {isBookkeeperFlow && (
                 <label className="mb-4 inline-flex cursor-pointer items-center gap-2 rounded-lg border border-green-200 bg-green-50 px-4 py-2 text-sm font-semibold text-member-green hover:bg-green-100 transition-colors">
                   {docLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-                  {docLoading ? 'Uploading...' : 'Upload Photo'}
+                  {docLoading ? 'Uploading...' : 'Upload Document'}
                   <input
                     type="file"
-                    accept="image/*"
+                    accept={SUPPORTING_DOC_ACCEPT}
                     className="hidden"
                     disabled={docLoading}
                     onChange={handleSupportingDocumentUpload}
@@ -1695,19 +1785,25 @@ const LoanApprovalDetails = () => {
 
               {supportingDocs.length === 0 ? (
                 <div className="rounded-xl border border-dashed border-gray-300 bg-[#F8F9FA] p-6 text-sm text-gray-500">
-                  No supporting photos uploaded yet.
+                  No supporting documents uploaded yet.
                 </div>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {supportingDocs.map((doc, index) => {
                     const previewUrl = supportingDocUrls[doc.storage_path] || '';
                     const isImage = /\.(png|jpg|jpeg|gif|webp|bmp|svg)$/i.test(String(doc.file_name || ''));
+                    const fileExt = (String(doc.file_name || '').match(/\.([a-z0-9]+)$/i)?.[1] || '').toUpperCase();
 
                     return (
                       <div key={`${doc.storage_path}-${index}`} className="rounded-xl border border-gray-200 bg-white p-3">
                         <div className="mb-2 h-40 overflow-hidden rounded-lg bg-gray-100 flex items-center justify-center">
                           {previewUrl && isImage ? (
                             <img src={previewUrl} alt={doc.file_name} className="h-full w-full object-cover" />
+                          ) : fileExt ? (
+                            <div className={`flex flex-col items-center gap-1 ${fileExt === 'PDF' ? 'text-red-600' : 'text-gray-500'}`}>
+                              <FileText className="w-10 h-10" />
+                              <span className="text-[11px] font-bold tracking-wider">{fileExt}</span>
+                            </div>
                           ) : (
                             <FileImage className="w-8 h-8 text-gray-400" />
                           )}
@@ -1716,16 +1812,31 @@ const LoanApprovalDetails = () => {
                         <p className="text-[11px] text-gray-500 mt-1">
                           {doc.uploaded_at ? new Date(doc.uploaded_at).toLocaleString() : 'Upload date unavailable'}
                         </p>
-                        {previewUrl ? (
-                          <a
-                            href={previewUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="mt-2 inline-flex items-center gap-1 text-xs font-bold text-member-green hover:underline"
-                          >
-                            <ExternalLink className="w-3.5 h-3.5" /> Open
-                          </a>
-                        ) : null}
+                        <div className="mt-2 flex items-center justify-between gap-2">
+                          {previewUrl ? (
+                            <a
+                              href={previewUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-1 text-xs font-bold text-member-green hover:underline"
+                            >
+                              <ExternalLink className="w-3.5 h-3.5" /> Open
+                            </a>
+                          ) : <span />}
+                          {isBookkeeperFlow && (
+                            <button
+                              type="button"
+                              onClick={() => handleSupportingDocumentDelete(doc)}
+                              disabled={Boolean(deletingDocPath) || docLoading}
+                              className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-bold text-red-600 hover:bg-red-50 disabled:opacity-50"
+                            >
+                              {deletingDocPath === doc.storage_path
+                                ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                : <Trash2 className="w-3.5 h-3.5" />}
+                              {deletingDocPath === doc.storage_path ? 'Deleting...' : 'Delete'}
+                            </button>
+                          )}
+                        </div>
                       </div>
                     );
                   })}
