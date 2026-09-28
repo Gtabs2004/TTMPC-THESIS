@@ -389,7 +389,7 @@ const BookkeeperPayments = () => {
           }}
         />
 
-        <main className="p-8">
+        <main className="animate-page-in p-8">
           <div className="flex items-center justify-between mb-6">
                       <Breadcrumb portal="Bookkeeper" page="Payments Confirmation" />
             <button

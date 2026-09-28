@@ -88,7 +88,7 @@ const Manager_Manage_Member = () => {
         {/* HEADER (Kept mostly identical) */}
         <StaffTopbar portal="Manager" notifications={<LoanNotificationBell role="manager" />} />
 
-        <main className="p-8">
+        <main className="animate-page-in p-8">
           <Breadcrumb portal="Manager" page="Manage Member" />
           {/* TITLE */}
           <div className="flex items-center justify-between mb-6">

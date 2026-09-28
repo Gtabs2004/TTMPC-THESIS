@@ -196,7 +196,7 @@ const Disbursements = () => {
         <StaffTopbar portal="Treasurer" notifications={<LoanNotificationBell role="treasurer" />} />
 
         {/* FULL WIDTH MAIN DASHBOARD WRAPPER */}
-        <main className="p-8 overflow-auto w-full">
+        <main className="animate-page-in p-8 overflow-auto w-full">
           
           {/* Page Header */}
           <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4 mb-8">

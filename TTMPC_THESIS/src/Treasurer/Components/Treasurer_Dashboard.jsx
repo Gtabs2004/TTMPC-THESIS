@@ -123,7 +123,7 @@ const Treasurer_Dashboard = () => {
         <StaffTopbar portal="Treasurer" notifications={<LoanNotificationBell role="treasurer" />} />
 
         {/* DASHBOARD CONTENT */}
-        <main className="p-8">
+        <main className="animate-page-in p-8">
           
           {/* Top KPI Cards - Consolidated/Emergency forecasts and Pending
               Release are live data; each shows a pulse placeholder while

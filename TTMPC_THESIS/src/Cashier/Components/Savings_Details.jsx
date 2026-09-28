@@ -297,7 +297,7 @@ const Savings_Details = () => {
       <div className="flex-1 min-w-0 flex flex-col h-screen overflow-y-auto">
         <StaffTopbar portal="Cashier" notifications={<LoanNotificationBell role="cashier" />} />
 
-        <main className="p-8 overflow-auto">
+        <main className="animate-page-in p-8 overflow-auto">
           {/* BACK + TITLE */}
           <button
             onClick={() => navigate("/Cashier_Savings")}

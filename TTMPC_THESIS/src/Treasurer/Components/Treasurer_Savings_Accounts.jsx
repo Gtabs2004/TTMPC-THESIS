@@ -177,7 +177,7 @@ const Treasurer_Savings_Accounts = () => {
       <div className="flex-1 min-w-0 flex flex-col h-screen overflow-y-auto">
         <StaffTopbar portal="Treasurer" notifications={<LoanNotificationBell role="treasurer" />} />
 
-        <main className="p-8">
+        <main className="animate-page-in p-8">
           <div className="mb-6">
             <div className="flex items-center justify-between gap-4 mb-4">
               <div>

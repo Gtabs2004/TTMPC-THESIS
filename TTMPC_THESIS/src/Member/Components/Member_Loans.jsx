@@ -410,7 +410,7 @@ const Member_Loans = () => {
         </header>
    
         {/* Scrollable Page Content */}
-        <main className="p-4 sm:p-6 lg:p-8 overflow-y-auto pb-28 lg:pb-0">
+        <main className="animate-page-in p-4 sm:p-6 lg:p-8 overflow-y-auto pb-28 lg:pb-0">
           <h1 className="hidden lg:block font-extrabold text-[#1a4a2f] dark:text-green-400 text-2xl mb-8">Loans</h1>
 
           <div className="mb-6 rounded-xl border border-green-200 dark:border-green-900 bg-green-50 dark:bg-green-900/20 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">

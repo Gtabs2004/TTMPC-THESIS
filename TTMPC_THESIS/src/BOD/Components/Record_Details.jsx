@@ -114,7 +114,7 @@ const Record_Details = ({ backPath = '/membership-records' }) => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-8">
+    <div className="animate-page-in min-h-screen bg-gray-50 flex flex-col items-center justify-center p-8">
       <div className="w-full max-w-4xl">
         <button 
           onClick={() => navigate(backPath)}

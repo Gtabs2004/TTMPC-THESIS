@@ -125,7 +125,7 @@ const Cashier_Grocery = () => {
         <StaffTopbar portal="Cashier" notifications={<LoanNotificationBell role="cashier" />} sticky />
 
         {/* Page Content */}
-        <main className="p-8 max-w-7xl mx-auto w-full">
+        <main className="animate-page-in p-8 max-w-7xl mx-auto w-full">
           <Breadcrumb portal="Cashier" page="Grocery" />
 
           {/* Page Title & Actions */}

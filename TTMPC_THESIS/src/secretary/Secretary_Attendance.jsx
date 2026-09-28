@@ -678,7 +678,7 @@ const Secretary_Attendance = () => {
            <div className="flex-1 min-w-0 flex flex-col h-screen overflow-hidden">
         <StaffTopbar portal="Secretary" notifications={<NotificationBell viewAllPath="/Secretary_Records" />} />
 
-        <main className="flex-1 overflow-y-auto p-8">
+        <main className="animate-page-in flex-1 overflow-y-auto p-8">
           <Breadcrumb portal="Secretary" page="Training Attendance" />
           {/* Top Stats Cards — reflect the Secretary's active workload on this
               page: recording attendance, handling reschedules, and locking in

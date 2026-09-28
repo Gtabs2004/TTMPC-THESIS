@@ -413,7 +413,7 @@ const LoanLedger = () => {
       <div className="flex-1 min-w-0 flex flex-col h-screen overflow-y-auto">
         <StaffTopbar portal={portal} notifications={<LoanNotificationBell role={portal.toLowerCase()} />} />
 
-        <main className="p-8">
+        <main className="animate-page-in p-8">
           <div className="flex items-center justify-between mb-6">
             <div>
               <Breadcrumb portal={portal} page="Loan Ledger" />

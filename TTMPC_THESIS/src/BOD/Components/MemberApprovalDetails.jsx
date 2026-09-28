@@ -513,7 +513,7 @@ const MemberApprovalDetails = () => {
   );
 
   return (
-    <div className="p-8 bg-gray-50 min-h-screen relative max-w-7xl mx-auto">
+    <div className="animate-page-in p-8 bg-gray-50 min-h-screen relative max-w-7xl mx-auto">
  
       <button 
         onClick={() => navigate('/member-approvals')}

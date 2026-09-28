@@ -322,7 +322,7 @@ const Dashboard = () => {
       <div className="flex-1 min-w-0 flex flex-col h-screen overflow-y-auto">
         <StaffTopbar portal="Bookkeeper" notifications={<LoanNotificationBell role="bookkeeper" />} />
 
-        <main className="p-8">
+        <main className="animate-page-in p-8">
           <Breadcrumb portal="Bookkeeper" page="Dashboard" />
           {loadError ? (
             <div className="mb-6 rounded-lg border border-red-200 bg-red-50 text-red-700 px-4 py-3 text-sm">

@@ -203,7 +203,7 @@ const MIGSDetails = () => {
           </div>
         </header>
 
-        <main className="p-8 flex-1 overflow-y-auto">
+        <main className="animate-page-in p-8 flex-1 overflow-y-auto">
           {loading ? (
             <p className="text-center text-blue-700">Loading member data...</p>
           ) : error ? (

@@ -753,7 +753,7 @@ const Cashier_Payments = () => {
         <StaffTopbar portal="Cashier" notifications={<LoanNotificationBell role="cashier" />} />
 
         {/* 3. CASHIER LOAN PAYMENTS */}
-        <main className="p-8 ">
+        <main className="animate-page-in p-8 ">
           <div className="mb-8">
             <div className="flex items-center justify-between gap-4 mb-6">
               <div>

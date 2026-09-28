@@ -287,7 +287,7 @@ const Manager_Reports = () => {
       <div className="flex-1 min-w-0 flex flex-col h-screen overflow-y-auto">
         <StaffTopbar portal="Manager" notifications={<LoanNotificationBell role="manager" />} />
 
-        <main className="p-8">
+        <main className="animate-page-in p-8">
           <Breadcrumb portal="Manager" page="Portfolio Reports" />
           {/* TITLE */}
           <div className="flex items-center justify-between mb-6">

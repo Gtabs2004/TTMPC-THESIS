@@ -514,7 +514,7 @@ const Dashboard_BOD = () => {
         <StaffTopbar portal="BOD" notifications={<NotificationBell />} />
 
         {/* SCROLLABLE DASHBOARD CONTENT */}
-        <main className="flex-1 overflow-y-auto p-8">
+        <main className="animate-page-in flex-1 overflow-y-auto p-8">
           <Breadcrumb portal="BOD" page="Dashboard" />
           {/* Action Header */}
           <div className="flex justify-between items-center mb-8">

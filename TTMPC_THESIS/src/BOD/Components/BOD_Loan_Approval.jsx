@@ -122,7 +122,7 @@ const BOD_Loan_Approval = () => {
           search={{ value: search, onChange: (e) => setSearch(e.target.value), placeholder: "Search..." }}
         />
 
-        <main className="p-8 flex-1">
+        <main className="animate-page-in p-8 flex-1">
           <Breadcrumb portal="BOD" page="Loan Approvals" />
           <StatCardRow cols={3}>
             <StatCard label="Pending Loan Applications" value={loans.length} icon={UserPlus} iconColor="text-[#2C7A3F]" />

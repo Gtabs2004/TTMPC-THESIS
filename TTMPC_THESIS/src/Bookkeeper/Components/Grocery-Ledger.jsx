@@ -263,7 +263,7 @@ const Grocery_Ledger = () => {
         <StaffTopbar portal="Bookkeeper" notifications={<LoanNotificationBell role="bookkeeper" />} sticky />
 
         {/* Page Content */}
-        <main className="p-8 max-w-[1200px] w-full mx-auto">
+        <main className="animate-page-in p-8 max-w-[1200px] w-full mx-auto">
           
           {/* Top Navigation & Title */}
           <div className="flex justify-between items-start mb-8">

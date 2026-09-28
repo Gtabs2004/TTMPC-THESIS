@@ -83,6 +83,40 @@ body {
   }
 }
 
+/* Module/page transition: a quick fade + slight upward move whenever a page's
+ * main content mounts. Staff and Member portal pages have no shared router
+ * layout (each page renders its own sidebar/topbar inline — see
+ * StaffLayoutContext.jsx), so navigating between two different pages already
+ * fully unmounts and remounts everything below the router. That means, same
+ * as .mobile-step-transition above, this needs no JS/key at all: a plain
+ * static class on each page's own <main> replays automatically on every real
+ * navigation (a fresh DOM node), and — just as usefully — does NOT replay
+ * for in-place updates like table data, filters, or pagination, since those
+ * only change state within the already-mounted component.
+ * Sidebar/topbar are untouched by design: the class only ever goes on the
+ * page's content wrapper, never on the chrome around it. Modals, dropdowns
+ * and tooltips have their own transitions and should never use this class. */
+@keyframes pageContentIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-page-in {
+  animation: pageContentIn 240ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-page-in {
+    animation: none;
+  }
+}
+
 @keyframes fadeInDown {
   from {
     opacity: 0;

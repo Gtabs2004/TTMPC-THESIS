@@ -342,7 +342,7 @@ const Loan_Policies = () => {
       <div className="flex-1 min-w-0 flex flex-col h-screen overflow-hidden">
         <StaffTopbar portal="BOD" notifications={<NotificationBell />} />
 
-        <main className="p-8 overflow-auto">
+        <main className="animate-page-in p-8 overflow-auto">
           <div className="mb-6 flex items-start justify-between gap-4 flex-wrap">
             <div>
               <h1 className="text-3xl font-bold text-gray-900">Loan Fee & Interest Policies</h1>

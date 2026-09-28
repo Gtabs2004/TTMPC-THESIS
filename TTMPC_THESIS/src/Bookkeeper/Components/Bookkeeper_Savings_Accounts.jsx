@@ -186,7 +186,7 @@ const Bookkeeper_Savings_Accounts = () => {
  
         <StaffTopbar portal="Bookkeeper" notifications={<LoanNotificationBell role="bookkeeper" />} />
 
-        <main className="p-8">
+        <main className="animate-page-in p-8">
           <div className="mb-6">
             <div className="flex items-center justify-between gap-4 mb-4">
               <div>

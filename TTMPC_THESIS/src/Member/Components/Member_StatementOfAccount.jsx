@@ -691,7 +691,7 @@ const Member_StatementOfAccount = () => {
           </div>
         </header>
 
-        <main className="p-4 sm:p-6 lg:p-8 overflow-y-auto pb-28 lg:pb-0 animate-fade-in-up">
+        <main className="animate-page-in p-4 sm:p-6 lg:p-8 overflow-y-auto pb-28 lg:pb-0 animate-fade-in-up">
           <h1 className="hidden lg:block font-extrabold text-[#1a4a2f] dark:text-green-400 text-2xl mb-2">Statement of Account</h1>
           <p className="text-sm text-gray-500 dark:text-gray-400 font-medium mb-6">
             Review your loan, savings, and capital build-up statements.

@@ -167,7 +167,7 @@ const Cashier_CBU = () => {
         <StaffTopbar portal="Cashier" notifications={<LoanNotificationBell role="cashier" />} />
 
         {/* 3. PAGE CONTENT */}
-        <main className="p-8 overflow-auto">
+        <main className="animate-page-in p-8 overflow-auto">
           <Breadcrumb portal="Cashier" page="Capital Build-Up" />
           <h1 className="text-2xl font-bold text-[#1F3E35] mb-1">Capital Build-Up</h1>
           <p className="text-sm text-gray-500 mb-6">

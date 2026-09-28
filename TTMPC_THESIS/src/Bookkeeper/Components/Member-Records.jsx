@@ -44,7 +44,7 @@ const Records = () => {
       <div className="flex-1 min-w-0 flex flex-col">
         <StaffTopbar portal="Bookkeeper" notifications={<LoanNotificationBell role="bookkeeper" />} />
 
-        <main className="p-8">
+        <main className="animate-page-in p-8">
           <Breadcrumb portal="Bookkeeper" page="Member Records" />
           <h1 className="font-bold text-2xl">Records</h1>
           <div className="bg-white w-full rounded-2xl m-auto mt-6 shadow-sm border border-gray-100 min-h-fit overflow-hidden">

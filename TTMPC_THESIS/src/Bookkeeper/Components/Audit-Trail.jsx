@@ -99,7 +99,7 @@ const AuditTrail = () => {
         <StaffTopbar portal="Bookkeeper" notifications={<LoanNotificationBell role="bookkeeper" />} />
 
         {/* Scrollable Dashboard Content */}
-        <main className="p-8">
+        <main className="animate-page-in p-8">
           <Breadcrumb portal="Bookkeeper" page="Audit Trail" />
 
           {/* KPI Cards */}

@@ -286,7 +286,7 @@ const Secretary_General_Assembly = () => {
          <div className="flex-1 min-w-0 flex flex-col h-screen overflow-hidden">
         <StaffTopbar portal="Secretary" notifications={<NotificationBell viewAllPath="/Secretary_Records" />} />
 
-        <main className="p-6 overflow-auto">
+        <main className="animate-page-in p-6 overflow-auto">
           {/* Title */}
           <div className="flex items-center justify-between mb-4">
             <div>

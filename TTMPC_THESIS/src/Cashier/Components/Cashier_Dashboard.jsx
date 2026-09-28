@@ -359,7 +359,7 @@ const Cashier_Dashboard = () => {
         <StaffTopbar portal="Cashier" notifications={<LoanNotificationBell role="cashier" />} />
 
         {/* DASHBOARD CONTENT */}
-        <main className="p-8">
+        <main className="animate-page-in p-8">
           <Breadcrumb portal="Cashier" page="Dashboard" />
 
           {/* KPI Cards */}

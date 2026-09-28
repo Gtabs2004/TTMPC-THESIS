@@ -156,7 +156,7 @@ const Secretary_Records = () => {
           search={{ value: searchQuery, onChange: (e) => setSearchQuery(e.target.value), placeholder: "Search..." }}
         />
 
-        <main className="p-8">
+        <main className="animate-page-in p-8">
           <Breadcrumb portal="Secretary" page="Membership Records" />
 
           <div className="bg-white w-full rounded-2xl m-auto mt-6 shadow-sm border border-gray-100 min-h-fit overflow-hidden">

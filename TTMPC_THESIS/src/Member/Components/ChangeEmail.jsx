@@ -135,7 +135,7 @@ export default function ChangeEmail() {
   }
 
   return (
-    <div className="p-6 sm:p-8 max-w-2xl mx-auto">
+    <div className="animate-page-in p-6 sm:p-8 max-w-2xl mx-auto">
       {!isInitial && (
         <button
           onClick={() => navigate("/members-profile")}

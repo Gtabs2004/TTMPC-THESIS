@@ -315,7 +315,7 @@ const Cashier_Disbursement = () => {
       <div className="flex-1 min-w-0 flex flex-col h-screen overflow-y-auto">
         <StaffTopbar portal="Cashier" notifications={<LoanNotificationBell role="cashier" />} />
 
-        <main className="p-8 overflow-auto">
+        <main className="animate-page-in p-8 overflow-auto">
           <div className="mb-8">
             <div className="flex items-center justify-between gap-4 mb-6">
               <div>
