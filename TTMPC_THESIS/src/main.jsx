@@ -10,6 +10,7 @@ import NotificationContainer from "./components/NotificationContainer.jsx";
 import DocumentTitleSync from "./components/DocumentTitleSync.jsx";
 import PwaInstallGate from "./components/PwaInstallGate.jsx";
 import StandaloneMemberOnlyGuard from "./components/StandaloneMemberOnlyGuard.jsx";
+import IdleSessionWarning from "./components/IdleSessionWarning.jsx";
 import { ConfirmProvider } from "./contex/ConfirmContext.jsx";
 import { ThemeProvider } from "./contex/ThemeContext.jsx";
 import { StaffLayoutProvider } from "./contex/StaffLayoutContext.jsx";
@@ -27,6 +28,7 @@ createRoot(document.getElementById('root')).render(
              <NotificationContainer />
              <PwaInstallGate />
              <StandaloneMemberOnlyGuard />
+             <IdleSessionWarning />
              <StaffLayoutProvider>
                <RouterProvider router={router} />
              </StaffLayoutProvider>
