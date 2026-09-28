@@ -1,0 +1,1 @@
+We gave a small teachers' cooperative a real decision-support system: live credit risk scoring, a 12-month loan demand forecast, and automated MIGS evaluation — running across 8 staff roles. Thesis project, production instincts.
