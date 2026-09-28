@@ -1,0 +1,985 @@
+diff --git a/TTMPC_THESIS/src/Bookkeeper/Components/member_details.jsx b/TTMPC_THESIS/src/Bookkeeper/Components/member_details.jsx
+index f2120a2..00fddcb 100644
+--- a/TTMPC_THESIS/src/Bookkeeper/Components/member_details.jsx
++++ b/TTMPC_THESIS/src/Bookkeeper/Components/member_details.jsx
+@@ -11,15 +11,21 @@ import {
+   FileText,
+   ShieldAlert,
+   Brain,
++  UserPlus,
++  KeyRound,
++  Copy,
++  Loader2,
+ } from "lucide-react";
+ import { formatTinNumber } from '../../LOANFORMS/tinFormat';
+ import { UserAuth } from '../../contex/AuthContext';
+ import { resolveAccountFromSessionUser } from '../../utils/sessionIdentity';
++import { supabase } from '../../supabaseClient';
+ 
+ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000';
+ 
+-const ROLE_OPTIONS = [
+-  { value: 'member', label: 'Member' },
++// Staff roles a BOD can grant. "Member" is not here: the member's own login is
++// always Member and is never re-roled -- staff access is a separate login.
++const STAFF_ROLE_OPTIONS = [
+   { value: 'cashier', label: 'Cashier' },
+   { value: 'bookkeeper', label: 'Bookkeeper' },
+   { value: 'manager', label: 'Manager' },
+@@ -28,12 +34,97 @@ const ROLE_OPTIONS = [
+   { value: 'bod', label: 'BOD' },
+ ];
+ 
++const roleLabel = (role) =>
++  STAFF_ROLE_OPTIONS.find((r) => r.value === String(role || '').toLowerCase())?.label || role || '—';
++
++const generatePassword = () => {
++  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
++  const bytes = new Uint32Array(12);
++  crypto.getRandomValues(bytes);
++  return Array.from(bytes, (b) => chars[b % chars.length]).join('');
++};
++
++const authHeaders = async () => {
++  const { data: { session } } = await supabase.auth.getSession();
++  return {
++    'Content-Type': 'application/json',
++    Authorization: `Bearer ${session?.access_token || ''}`,
++  };
++};
++
++const StatusPill = ({ active }) => (
++  <span className={`inline-flex items-center px-2.5 py-1 rounded-md text-xs font-bold ${active ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
++    {active ? 'ACTIVE' : 'DISABLED'}
++  </span>
++);
++
++const fieldClass = 'w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500';
++
++// One modal for both "add staff account" and "create member login"; the
++// member-login variant has no role picker.
++const NewLoginModal = ({ title, subtitle, withRole, suggestedEmail, busy, onCancel, onSubmit }) => {
++  const [email, setEmail] = useState(suggestedEmail || '');
++  const [role, setRole] = useState(withRole ? 'cashier' : '');
++  const [password, setPassword] = useState(generatePassword);
++  const canSubmit = email.trim() && password.length >= 8 && (!withRole || role);
++
++  return (
++    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
++      <form
++        onSubmit={(e) => { e.preventDefault(); if (canSubmit && !busy) onSubmit({ email: email.trim(), role, password }); }}
++        className="w-full max-w-lg bg-white rounded-xl shadow-2xl border border-gray-200 overflow-hidden"
++      >
++        <div className="px-6 py-4 bg-[#1a4a2f] text-white">
++          <h3 className="font-bold text-lg flex items-center gap-2"><UserPlus className="w-5 h-5" /> {title}</h3>
++          <p className="text-xs opacity-90 mt-0.5">{subtitle}</p>
++        </div>
++        <div className="p-6 space-y-4">
++          <div>
++            <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1">Login email <span className="text-red-500">*</span></label>
++            <input type="email" autoFocus value={email} onChange={(e) => setEmail(e.target.value)} className={fieldClass} placeholder="name@example.com" />
++            <p className="text-[11px] text-gray-500 mt-1">Must not be used by any other account, including this member's other login.</p>
++          </div>
++          {withRole ? (
++            <div>
++              <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1">Role <span className="text-red-500">*</span></label>
++              <select value={role} onChange={(e) => setRole(e.target.value)} className={fieldClass}>
++                {STAFF_ROLE_OPTIONS.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
++              </select>
++            </div>
++          ) : null}
++          <div>
++            <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1">Temporary password <span className="text-red-500">*</span></label>
++            <div className="flex gap-2">
++              <input type="text" value={password} onChange={(e) => setPassword(e.target.value)} className={`${fieldClass} font-mono`} />
++              <button type="button" onClick={() => setPassword(generatePassword())} className="shrink-0 text-sm font-semibold rounded-md px-3 py-2 bg-white border border-gray-300 text-gray-700 hover:bg-gray-50">
++                Generate
++              </button>
++            </div>
++            <p className={`text-[11px] mt-1 ${password.length >= 8 ? 'text-gray-500' : 'text-red-600'}`}>At least 8 characters. You'll see it once more after saving so you can hand it over.</p>
++          </div>
++        </div>
++        <div className="px-6 py-4 bg-gray-50 flex justify-end gap-3 border-t border-gray-200">
++          <button type="button" onClick={onCancel} disabled={busy} className="text-sm font-semibold rounded-md px-4 py-2 bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50">
++            Cancel
++          </button>
++          <button type="submit" disabled={busy || !canSubmit} className="inline-flex items-center gap-2 text-sm font-bold rounded-md px-4 py-2 bg-[#1a4a2f] text-white hover:bg-[#143a25] disabled:opacity-50">
++            {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
++            {busy ? 'Creating…' : 'Create login'}
++          </button>
++        </div>
++      </form>
++    </div>
++  );
++};
++
+ const StaffAccountPanel = ({ membershipId, viewerRole }) => {
+-  const [account, setAccount] = useState(null);
+-  const [selectedRole, setSelectedRole] = useState('');
++  const [accounts, setAccounts] = useState(null);
++  const [roleDrafts, setRoleDrafts] = useState({});
+   const [busy, setBusy] = useState(false);
+   const [message, setMessage] = useState('');
+   const [error, setError] = useState('');
++  const [newLogin, setNewLogin] = useState(null); // 'staff' | 'member' | null
++  const [issued, setIssued] = useState(null); // { email, password, what }
+   const [showTerminateModal, setShowTerminateModal] = useState(false);
+   const [termReason, setTermReason] = useState('');
+   const [termEffectiveDate, setTermEffectiveDate] = useState(() => new Date().toISOString().slice(0, 10));
+@@ -44,22 +135,24 @@ const StaffAccountPanel = ({ membershipId, viewerRole }) => {
+   const loadAccount = async () => {
+     if (!membershipId) return;
+     try {
+-      const res = await fetch(`${API_BASE_URL}/api/admin/staff/account/${encodeURIComponent(membershipId)}`);
++      const res = await fetch(`${API_BASE_URL}/api/admin/staff/account/${encodeURIComponent(membershipId)}`, {
++        headers: await authHeaders(),
++      });
+       const payload = await res.json().catch(() => ({}));
+       if (!res.ok || !payload?.success) {
+-        throw new Error(payload?.detail || 'Failed to load account.');
++        throw new Error(payload?.detail || 'Failed to load accounts.');
+       }
+-      setAccount(payload.data);
+-      setSelectedRole(String(payload.data?.role || '').toLowerCase());
++      setAccounts(payload.data);
++      setRoleDrafts({});
+     } catch (err) {
+-      setError(err?.message || 'Unable to load account.');
++      setError(err?.message || 'Unable to load accounts.');
+     }
+   };
+ 
+   useEffect(() => {
+-    loadAccount();
++    if (isBod) loadAccount();
+     // eslint-disable-next-line react-hooks/exhaustive-deps
+-  }, [membershipId]);
++  }, [membershipId, isBod]);
+ 
+   const callApi = async (path, body) => {
+     setBusy(true);
+@@ -68,7 +161,7 @@ const StaffAccountPanel = ({ membershipId, viewerRole }) => {
+     try {
+       const res = await fetch(`${API_BASE_URL}${path}`, {
+         method: 'POST',
+-        headers: { 'Content-Type': 'application/json' },
++        headers: await authHeaders(),
+         body: JSON.stringify(body),
+       });
+       const payload = await res.json().catch(() => ({}));
+@@ -84,25 +177,40 @@ const StaffAccountPanel = ({ membershipId, viewerRole }) => {
+     }
+   };
+ 
+-  const handleSaveRole = async () => {
+-    if (!selectedRole) return;
+-    const result = await callApi('/api/admin/staff/role', {
+-      member_id: membershipId,
+-      new_role: selectedRole,
+-    });
++  const handleCreateLogin = async ({ email, role, password }) => {
++    const isStaff = newLogin === 'staff';
++    const result = isStaff
++      ? await callApi('/api/admin/accounts/staff', { membership_id: membershipId, email, role, password })
++      : await callApi('/api/admin/accounts/member-login', { membership_id: membershipId, email, password });
+     if (result) {
+-      setMessage(`Role updated to ${selectedRole}.`);
++      setNewLogin(null);
++      setIssued({ email, password, what: isStaff ? `${roleLabel(role)} staff login` : 'member login' });
++      loadAccount();
++    }
++  };
++
++  const handleSaveRole = async (acct) => {
++    const nextRole = roleDrafts[acct.id];
++    const result = await callApi('/api/admin/staff/role', { account_id: acct.id, new_role: nextRole });
++    if (result) {
++      setMessage(`${acct.email} is now ${roleLabel(nextRole)}. Their member login was not changed.`);
++      loadAccount();
++    }
++  };
++
++  const handleToggleStaff = async (acct) => {
++    const enable = acct.is_active === false;
++    const result = await callApi('/api/admin/accounts/staff/active', { account_id: acct.id, is_active: enable });
++    if (result) {
++      setMessage(`${acct.email} ${enable ? 're-enabled' : 'disabled'}. Their member login was not changed.`);
+       loadAccount();
+     }
+   };
+ 
+   const handleReactivate = async () => {
+-    const result = await callApi('/api/admin/staff/deactivate', {
+-      member_id: membershipId,
+-      is_active: true,
+-    });
++    const result = await callApi('/api/admin/staff/deactivate', { member_id: membershipId, is_active: true });
+     if (result) {
+-      setMessage('Account reactivated.');
++      setMessage('Member reactivated. All of their logins can sign in again.');
+       loadAccount();
+     }
+   };
+@@ -131,7 +239,10 @@ const StaffAccountPanel = ({ membershipId, viewerRole }) => {
+ 
+   if (!isBod) return null;
+ 
+-  const isActive = account?.is_active ?? true;
++  const memberLogin = accounts?.member_login || null;
++  const hasMemberLogin = Boolean(memberLogin?.auth_user_id);
++  const staffLogins = accounts?.staff_logins || [];
++  const isTerminated = String(accounts?.member_status || '').toLowerCase() === 'terminated';
+ 
+   return (
+     <div className="mb-8">
+@@ -140,79 +251,208 @@ const StaffAccountPanel = ({ membershipId, viewerRole }) => {
+         Account & Role Management
+       </h2>
+ 
+-      <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+-        {error ? (
+-          <div className="mb-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>
+-        ) : null}
+-        {message ? (
+-          <div className="mb-4 rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700">{message}</div>
+-        ) : null}
++      {error ? (
++        <div className="mb-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>
++      ) : null}
++      {message ? (
++        <div className="mb-4 rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700">{message}</div>
++      ) : null}
+ 
+-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
++      {/* Member login -- the member's own portal access. Never re-roled. */}
++      <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100 mb-4">
++        <div className="flex items-start justify-between gap-4 mb-4">
+           <div>
+-            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Current Role</p>
+-            <p className="font-bold text-gray-800 capitalize">{account?.role || '—'}</p>
++            <p className="font-bold text-gray-800">Member Login</p>
++            <p className="text-xs text-gray-500 mt-0.5">Their own member portal access. Its role is always Member; staff access is added below as a separate login.</p>
+           </div>
++          {!hasMemberLogin && accounts && !isTerminated ? (
++            <button
++              onClick={() => { setError(''); setMessage(''); setNewLogin('member'); }}
++              disabled={busy}
++              className="shrink-0 inline-flex items-center gap-1.5 text-sm font-bold rounded-md px-4 py-2 bg-[#1a4a2f] text-white hover:bg-[#143a25] disabled:opacity-50"
++            >
++              <KeyRound className="w-4 h-4" /> Create member login
++            </button>
++          ) : null}
++        </div>
++
++        {!accounts ? (
++          <p className="text-sm text-gray-500">Loading…</p>
++        ) : hasMemberLogin ? (
++          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
++            <div>
++              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Role</p>
++              <p className="font-bold text-gray-800">Member</p>
++            </div>
++            <div>
++              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Status</p>
++              <StatusPill active={memberLogin.is_active !== false} />
++            </div>
++            <div>
++              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Login Email</p>
++              <p className="font-medium text-gray-800 break-all">{memberLogin.email || '—'}</p>
++            </div>
++          </div>
++        ) : (
++          <p className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
++            This member has no member login yet, so they can't open the member portal. Create one to give them access.
++          </p>
++        )}
++      </div>
++
++      {/* Staff (admin) logins -- separate credentials, separate role. */}
++      <div className="bg-white rounded-xl shadow-sm border border-gray-100 mb-4 overflow-hidden">
++        <div className="flex items-start justify-between gap-4 p-6 pb-4">
+           <div>
+-            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Account Status</p>
+-            <span className={`inline-flex items-center px-2.5 py-1 rounded-md text-xs font-bold ${isActive ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+-              {isActive ? 'ACTIVE' : 'DEACTIVATED'}
+-            </span>
++            <p className="font-bold text-gray-800">Staff Accounts</p>
++            <p className="text-xs text-gray-500 mt-0.5">Admin logins this member uses for a staff portal. Each has its own email and password.</p>
++          </div>
++          {!isTerminated ? (
++            <button
++              onClick={() => { setError(''); setMessage(''); setNewLogin('staff'); }}
++              disabled={busy || !accounts}
++              className="shrink-0 inline-flex items-center gap-1.5 text-sm font-bold rounded-md px-4 py-2 bg-[#1a4a2f] text-white hover:bg-[#143a25] disabled:opacity-50"
++            >
++              <UserPlus className="w-4 h-4" /> Add staff account
++            </button>
++          ) : null}
++        </div>
++
++        {staffLogins.length === 0 ? (
++          <p className="px-6 pb-6 text-sm text-gray-500">No staff accounts. This member only has member access.</p>
++        ) : (
++          <div className="overflow-x-auto">
++            <table className="w-full text-left border-collapse text-sm">
++              <thead>
++                <tr className="bg-primary-deep text-[10px] uppercase tracking-wider text-white font-extrabold">
++                  <th className="px-6 py-3 font-bold">Login Email</th>
++                  <th className="px-6 py-3 font-bold">Role</th>
++                  <th className="px-6 py-3 font-bold">Status</th>
++                  <th className="px-6 py-3 font-bold text-right">Actions</th>
++                </tr>
++              </thead>
++              <tbody>
++                {staffLogins.map((acct) => {
++                  const current = String(acct.role || '').toLowerCase();
++                  const draft = roleDrafts[acct.id] ?? current;
++                  const active = acct.is_active !== false;
++                  return (
++                    <tr key={acct.id} className="border-b border-gray-100 last:border-0">
++                      <td className="px-6 py-3 font-medium text-gray-800 break-all">{acct.email}</td>
++                      <td className="px-6 py-3">
++                        <div className="flex items-center gap-2">
++                          <select
++                            value={draft}
++                            onChange={(e) => setRoleDrafts((d) => ({ ...d, [acct.id]: e.target.value }))}
++                            disabled={busy || isTerminated}
++                            className="border border-gray-300 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
++                          >
++                            {STAFF_ROLE_OPTIONS.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
++                          </select>
++                          {draft !== current ? (
++                            <button
++                              onClick={() => handleSaveRole(acct)}
++                              disabled={busy}
++                              className="text-xs font-bold rounded-md px-3 py-1.5 bg-[#1a4a2f] text-white hover:bg-[#143a25] disabled:opacity-50"
++                            >
++                              Save
++                            </button>
++                          ) : null}
++                        </div>
++                      </td>
++                      <td className="px-6 py-3"><StatusPill active={active} /></td>
++                      <td className="px-6 py-3 text-right">
++                        {!isTerminated ? (
++                          <button
++                            onClick={() => handleToggleStaff(acct)}
++                            disabled={busy}
++                            className={`text-xs font-bold rounded-md px-3 py-1.5 border disabled:opacity-50 ${active ? 'border-red-200 text-red-700 hover:bg-red-50' : 'border-green-200 text-green-700 hover:bg-green-50'}`}
++                          >
++                            {active ? 'Disable' : 'Enable'}
++                          </button>
++                        ) : null}
++                      </td>
++                    </tr>
++                  );
++                })}
++              </tbody>
++            </table>
+           </div>
++        )}
++      </div>
++
++      {/* Membership itself */}
++      <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
++        <div className="flex flex-wrap items-center justify-between gap-4">
+           <div>
+-            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Account Email</p>
+-            <p className="font-medium text-gray-800 break-all">{account?.email || '—'}</p>
++            <p className="font-bold text-gray-800">Membership</p>
++            <p className="text-xs text-gray-500 mt-0.5 max-w-2xl">
++              Terminating stamps the member record with an auto-generated resolution number, blocks every login they hold (member and staff), and files the termination for the Secretary to record in Membership Records.
++            </p>
+           </div>
++          {isTerminated ? (
++            <button
++              onClick={handleReactivate}
++              disabled={busy}
++              className="text-sm font-bold rounded-md px-4 py-2 transition-colors bg-green-600 text-white hover:bg-green-700 disabled:opacity-50"
++            >
++              <UserX className="w-4 h-4 inline mr-1" />
++              Reactivate Member
++            </button>
++          ) : (
++            <button
++              onClick={() => { setError(''); setMessage(''); setShowTerminateModal(true); }}
++              disabled={busy || !accounts}
++              className="text-sm font-bold rounded-md px-4 py-2 transition-colors bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
++            >
++              <UserX className="w-4 h-4 inline mr-1" />
++              Terminate Member
++            </button>
++          )}
+         </div>
++      </div>
+ 
+-        <div className="border-t border-gray-100 pt-4">
+-            <p className="text-sm font-semibold text-gray-700 mb-3">Assign or Change Role</p>
+-            <div className="flex flex-wrap items-center gap-3">
+-              <select
+-                value={selectedRole}
+-                onChange={(e) => setSelectedRole(e.target.value)}
+-                className="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+-                disabled={busy}
+-              >
+-                <option value="">— Select role —</option>
+-                {ROLE_OPTIONS.map((r) => (
+-                  <option key={r.value} value={r.value}>{r.label}</option>
+-                ))}
+-              </select>
++      {newLogin ? (
++        <NewLoginModal
++          title={newLogin === 'staff' ? 'Add staff account' : 'Create member login'}
++          subtitle={newLogin === 'staff'
++            ? 'A separate admin login for this member. Their member login stays as it is.'
++            : 'Their own member portal login. They will be asked to change the password on first sign-in.'}
++          withRole={newLogin === 'staff'}
++          suggestedEmail={newLogin === 'member' && memberLogin?.email && !memberLogin.email.endsWith('@ttmpc.local') ? memberLogin.email : ''}
++          busy={busy}
++          onCancel={() => setNewLogin(null)}
++          onSubmit={handleCreateLogin}
++        />
++      ) : null}
++
++      {issued ? (
++        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
++          <div className="w-full max-w-md bg-white rounded-xl shadow-2xl border border-gray-200 overflow-hidden">
++            <div className="p-6">
++              <h3 className="font-bold text-lg text-gray-900 flex items-center gap-2">
++                <KeyRound className="w-5 h-5 text-[#1a4a2f]" /> {issued.what} created
++              </h3>
++              <p className="text-sm text-gray-600 mt-1">Give these to the member. The password won't be shown again.</p>
++              <dl className="mt-4 rounded-lg bg-gray-50 border border-gray-200 p-4 space-y-2 text-sm">
++                <div className="flex justify-between gap-4"><dt className="text-gray-500">Email</dt><dd className="font-medium text-gray-900 break-all">{issued.email}</dd></div>
++                <div className="flex justify-between gap-4"><dt className="text-gray-500">Password</dt><dd className="font-mono font-bold text-gray-900">{issued.password}</dd></div>
++              </dl>
++            </div>
++            <div className="px-6 py-4 bg-gray-50 flex justify-end gap-3 border-t border-gray-200">
+               <button
+-                onClick={handleSaveRole}
+-                disabled={busy || !selectedRole || selectedRole === String(account?.role || '').toLowerCase()}
+-                className="bg-[#1a4a2f] text-white text-sm font-bold rounded-md px-4 py-2 disabled:opacity-50 hover:bg-[#143a25] transition-colors"
++                onClick={() => navigator.clipboard?.writeText(`Email: ${issued.email}\nPassword: ${issued.password}`)}
++                className="inline-flex items-center gap-1.5 text-sm font-semibold rounded-md px-4 py-2 bg-white border border-gray-300 text-gray-700 hover:bg-gray-50"
+               >
+-                Save Role
++                <Copy className="w-4 h-4" /> Copy
++              </button>
++              <button onClick={() => setIssued(null)} className="text-sm font-bold rounded-md px-4 py-2 bg-[#1a4a2f] text-white hover:bg-[#143a25]">
++                Done
+               </button>
+-
+-              {isActive ? (
+-                <button
+-                  onClick={() => { setError(''); setMessage(''); setShowTerminateModal(true); }}
+-                  disabled={busy}
+-                  className="text-sm font-bold rounded-md px-4 py-2 transition-colors bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
+-                >
+-                  <UserX className="w-4 h-4 inline mr-1" />
+-                  Terminate Member
+-                </button>
+-              ) : (
+-                <button
+-                  onClick={handleReactivate}
+-                  disabled={busy}
+-                  className="text-sm font-bold rounded-md px-4 py-2 transition-colors bg-green-600 text-white hover:bg-green-700 disabled:opacity-50"
+-                >
+-                  <UserX className="w-4 h-4 inline mr-1" />
+-                  Reactivate Account
+-                </button>
+-              )}
+             </div>
+-            <p className="text-xs text-gray-400 mt-3">
+-              Terminating a member stamps the member record with an auto-generated resolution number, deactivates all their portal accounts, and files the termination for the Secretary to record in Membership Records.
+-            </p>
++          </div>
+         </div>
+-      </div>
+-
++      ) : null}
+       {showTerminateModal && (
+         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
+           <div className="w-full max-w-lg bg-white rounded-xl shadow-2xl border border-gray-200 overflow-hidden">
+diff --git a/TTMPC_THESIS/src/server/main.py b/TTMPC_THESIS/src/server/main.py
+index 92ada56..2cb21f0 100644
+--- a/TTMPC_THESIS/src/server/main.py
++++ b/TTMPC_THESIS/src/server/main.py
+@@ -8212,6 +8212,7 @@ async def get_personal_datasheet_records():
+                     supabase.table("member_account")
+                     .select("membership_id,email")
+                     .in_("membership_id", membership_ids)
++                    .ilike("role", "member")
+                     .execute()
+                 )
+                 for acc_row in account_response.data or []:
+@@ -14796,15 +14797,17 @@ async def backfill_member_auth(dry_run: bool = False, limit: int | None = None):
+         # link). When linking an existing orphan, leave user_id alone — it
+         # already points at the correct member.id and overwriting could
+         # break the FK to public.member.
+-        if link_mode == "created":
++        if link_mode == "created" and not row.get("user_id"):
+             update_payload["user_id"] = auth_user_id
+         if password:
+             update_payload["password"] = password
+ 
+         try:
++            # A member can now hold several logins; only fill the one still
++            # missing an auth user.
+             supabase.table("member_account").update(update_payload).eq(
+                 "membership_id", membership_id
+-            ).execute()
++            ).is_("auth_user_id", "null").execute()
+         except Exception as err:
+             skipped.append({
+                 "membership_id": membership_id,
+@@ -15158,56 +15161,289 @@ class BodTerminateMemberRequest(BaseModel):
+     terminated_by: str | None = None
+ 
+ 
+-def _lookup_member_account(member_id: str):
+-    """Find the member_account row by membership_id (e.g. TTMPC-293)."""
+-    clean = str(member_id or "").strip()
++# A member_account row is one LOGIN (member_account_staff_logins.sql). Each
++# member has at most one role='member' login -- their own, which carries
++# user_id (= member.id) -- plus any number of staff logins for the same
++# membership_id, each with its own email/password and user_id NULL.
++STAFF_ROLES = ALLOWED_ROLES - {"member"}
++_ROLE_LABELS = {"bod": "BOD"}
++_ACCOUNT_COLS = "id, user_id, auth_user_id, email, role, membership_id, is_active, is_temporary, is_email_dummy, created_at"
++
++
++def _role_label(role: str) -> str:
++    """Stored casing matches the existing rows ('Cashier', 'BOD')."""
++    clean = str(role or "").strip().lower()
++    return _ROLE_LABELS.get(clean, clean.capitalize())
++
++
++def _is_member_login(row: dict) -> bool:
++    return str(row.get("role") or "").strip().lower() == "member"
++
++
++def _member_logins(membership_id: str) -> list[dict]:
++    """Every login (member + staff) belonging to one member."""
++    clean = str(membership_id or "").strip()
+     if not clean:
+         raise HTTPException(status_code=400, detail="member_id is required.")
++    try:
++        return (
++            supabase.table("member_account")
++            .select(_ACCOUNT_COLS)
++            .eq("membership_id", clean)
++            .order("created_at")
++            .execute()
++        ).data or []
++    except Exception as err:
++        raise HTTPException(status_code=500, detail=f"Failed to load accounts: {err}")
+ 
+-    account_row = None
+-    # member_account stores membership_id directly. Try id+is_active first,
+-    # then fall back if the is_active column hasn't been migrated yet.
+-    for select_cols in (
+-        "user_id, auth_user_id, email, role, membership_id, is_active",
+-        "user_id, auth_user_id, email, role, membership_id",
+-    ):
+-        try:
+-            account_row = (
+-                supabase.table("member_account")
+-                .select(select_cols)
+-                .eq("membership_id", clean)
+-                .limit(1)
+-                .execute()
+-            ).data
+-            account_row = (account_row or [None])[0]
+-            break
+-        except Exception:
+-            continue
+ 
+-    if not account_row:
+-        raise HTTPException(status_code=404, detail=f"member_account not found for {clean}.")
++def _lookup_member_account(member_id: str):
++    """The member's OWN login (role 'member') for membership_id (e.g. TTMPC-293).
+ 
+-    # Synthesize an "id" key the rest of the endpoints can rely on. We use
+-    # user_id as the stable identifier for member_account updates.
+-    account_row.setdefault("id", account_row.get("user_id"))
++    Falls back to their only row for members whose single login is still a
++    staff login (member_account_staff_logins.sql not yet applied).
++    """
++    clean = str(member_id or "").strip()
++    rows = _member_logins(clean)
++    if not rows:
++        raise HTTPException(status_code=404, detail=f"member_account not found for {clean}.")
++    account_row = next((r for r in rows if _is_member_login(r)), rows[0])
+     account_row.setdefault("is_active", True)
+     return {"membership_id": clean}, account_row
+ 
+ 
++def _require_bod(current_user: dict) -> None:
++    role = _resolve_staff_role(current_user["id"], current_user.get("email") or "")
++    if role != "bod":
++        raise HTTPException(status_code=403, detail="Only the BOD can manage accounts.")
++
++
++def _set_login_active(row: dict, is_active: bool) -> None:
++    """Flip is_active AND actually block/unblock sign-in.
++
++    is_active alone is not checked anywhere at login, so a deactivated account
++    could still sign in. A Supabase Auth ban is what really stops it (and also
++    stops refreshing an existing session).
++    """
++    supabase.table("member_account").update({"is_active": bool(is_active)}).eq("id", row["id"]).execute()
++    auth_user_id = row.get("auth_user_id")
++    if auth_user_id:
++        try:
++            supabase.auth.admin.update_user_by_id(
++                auth_user_id, {"ban_duration": "none" if is_active else "876000h"}
++            )
++        except Exception as exc:
++            logger.warning("Could not %s auth user %s: %s", "unban" if is_active else "ban", auth_user_id, exc)
++
++
++def _set_all_logins_active(membership_id: str, is_active: bool) -> None:
++    for row in _member_logins(membership_id):
++        try:
++            _set_login_active(row, is_active)
++        except Exception as exc:
++            logger.warning("Could not update login %s: %s", row.get("id"), exc)
++
++
++def _email_in_use(email: str, *, except_id: str | None = None) -> bool:
++    rows = (
++        supabase.table("member_account").select("id").ilike("email", email).execute()
++    ).data or []
++    return any(str(r.get("id")) != str(except_id or "") for r in rows)
++
++
++def _create_auth_login(email: str, password: str, *, role: str, membership_id: str) -> str:
++    """Create a confirmed Supabase Auth user and return its id."""
++    try:
++        created = supabase.auth.admin.create_user({
++            "email": email,
++            "password": password,
++            "email_confirm": True,
++            "app_metadata": {"role": role},
++            "user_metadata": {"membership_id": membership_id, "role": _role_label(role)},
++        })
++    except Exception as err:
++        text = str(err).lower()
++        if "already" in text and ("registered" in text or "exists" in text):
++            raise HTTPException(status_code=409, detail=f"{email} already has a login. Use a different email.")
++        raise HTTPException(status_code=502, detail=f"Could not create the login: {err}")
++    auth_user_id = _extract_user_id(getattr(created, "user", None))
++    if not auth_user_id:
++        raise HTTPException(status_code=502, detail="Login was created but no user id was returned.")
++    return auth_user_id
++
++
++def _validate_new_login(email: str, password: str) -> str:
++    clean_email = str(email or "").strip().lower()
++    if not _EMAIL_RE_AS.match(clean_email):
++        raise HTTPException(status_code=400, detail="Enter a valid email address.")
++    problem = _validate_password_strength(password or "")
++    if problem:
++        raise HTTPException(status_code=400, detail=problem)
++    if _email_in_use(clean_email):
++        raise HTTPException(status_code=409, detail=f"{clean_email} is already used by another account.")
++    return clean_email
++
++
++class StaffLoginCreateRequest(BaseModel):
++    membership_id: str
++    email: str
++    role: str
++    password: str
++
++
++class MemberLoginCreateRequest(BaseModel):
++    membership_id: str
++    email: str
++    password: str
++
++
++class StaffLoginRoleRequest(BaseModel):
++    account_id: str
++    new_role: str
++
++
++class StaffLoginActiveRequest(BaseModel):
++    account_id: str
++    is_active: bool
++
++
++def _staff_login_or_404(account_id: str) -> dict:
++    rows = (
++        supabase.table("member_account").select(_ACCOUNT_COLS).eq("id", account_id).limit(1).execute()
++    ).data or []
++    if not rows:
++        raise HTTPException(status_code=404, detail="Account not found.")
++    if _is_member_login(rows[0]):
++        raise HTTPException(
++            status_code=400,
++            detail="This is the member's own login. Its role is always Member; add a staff account instead.",
++        )
++    return rows[0]
++
++
++@app.post("/api/admin/accounts/staff")
++def create_staff_login(
++    payload: StaffLoginCreateRequest,
++    current_user: dict = _Depends(_get_current_user),
++):
++    """BOD adds a staff (admin) login for an existing member. The member's own
++    login is left exactly as it is."""
++    if supabase is None:
++        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
++    _require_bod(current_user)
++
++    role = str(payload.role or "").strip().lower()
++    if role not in STAFF_ROLES:
++        raise HTTPException(status_code=400, detail=f"'{payload.role}' is not a staff role.")
++    membership_id = str(payload.membership_id or "").strip()
++    member = resolve_member_by_ref(membership_id)
++    if not member:
++        raise HTTPException(status_code=404, detail=f"Member {membership_id} not found.")
++    if str(member.get("member_status") or "").strip().lower() == "terminated":
++        raise HTTPException(status_code=400, detail="This member is terminated.")
++
++    email = _validate_new_login(payload.email, payload.password)
++    auth_user_id = _create_auth_login(email, payload.password, role=role, membership_id=membership_id)
++
++    try:
++        inserted = (
++            supabase.table("member_account").insert({
++                "membership_id": membership_id,
++                "user_id": None,
++                "auth_user_id": auth_user_id,
++                "email": email,
++                "role": _role_label(role),
++                "is_temporary": False,
++                "is_email_dummy": False,
++                "is_active": True,
++            }).execute()
++        ).data or []
++    except Exception as err:
++        # The auth user is left in place (deleting auth users cascades through
++        # a cleanup trigger); /api/admin/backfill-member-auth can relink it.
++        raise HTTPException(status_code=500, detail=f"Login created but saving the account failed: {err}")
++
++    return {"success": True, "data": (inserted or [None])[0]}
++
++
++@app.post("/api/admin/accounts/member-login")
++def create_member_login(
++    payload: MemberLoginCreateRequest,
++    current_user: dict = _Depends(_get_current_user),
++):
++    """Give a member their own member-portal login when they have none (e.g.
++    the 6 staff whose only login used to be their staff login)."""
++    if supabase is None:
++        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
++    _require_bod(current_user)
++
++    membership_id = str(payload.membership_id or "").strip()
++    member = resolve_member_by_ref(membership_id)
++    if not member:
++        raise HTTPException(status_code=404, detail=f"Member {membership_id} not found.")
++
++    existing = next((r for r in _member_logins(membership_id) if _is_member_login(r)), None)
++    if existing and existing.get("auth_user_id"):
++        raise HTTPException(status_code=409, detail="This member already has a member login.")
++
++    clean_email = str(payload.email or "").strip().lower()
++    if not _EMAIL_RE_AS.match(clean_email):
++        raise HTTPException(status_code=400, detail="Enter a valid email address.")
++    problem = _validate_password_strength(payload.password or "")
++    if problem:
++        raise HTTPException(status_code=400, detail=problem)
++    if _email_in_use(clean_email, except_id=(existing or {}).get("id")):
++        raise HTTPException(status_code=409, detail=f"{clean_email} is already used by another account.")
++
++    auth_user_id = _create_auth_login(clean_email, payload.password, role="member", membership_id=membership_id)
++
++    # is_temporary: the member is sent through the password-change step on
++    # their first sign-in, same as every other newly issued member login.
++    fields = {
++        "auth_user_id": auth_user_id,
++        "email": clean_email,
++        "is_email_dummy": clean_email.endswith("@ttmpc.local"),
++        "is_temporary": True,
++        "is_active": True,
++    }
++    try:
++        if existing:
++            supabase.table("member_account").update(fields).eq("id", existing["id"]).execute()
++        else:
++            supabase.table("member_account").insert({
++                **fields,
++                "membership_id": membership_id,
++                "user_id": member.get("id"),
++                "role": "Member",
++            }).execute()
++    except Exception as err:
++        raise HTTPException(status_code=500, detail=f"Login created but saving the account failed: {err}")
++
++    return {"success": True, "membership_id": membership_id, "email": clean_email}
++
++
+ @app.post("/api/admin/staff/role")
+-def staff_change_role(payload: StaffRoleChangeRequest):
++def staff_change_role(
++    payload: StaffLoginRoleRequest,
++    current_user: dict = _Depends(_get_current_user),
++):
++    """Change the role of one STAFF login. The member's own login is never
++    touched -- its role is always Member."""
+     if supabase is None:
+         raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
++    _require_bod(current_user)
+ 
+     new_role = str(payload.new_role or "").strip().lower()
+-    if new_role not in ALLOWED_ROLES:
+-        raise HTTPException(status_code=400, detail=f"Role '{payload.new_role}' is not allowed.")
++    if new_role not in STAFF_ROLES:
++        raise HTTPException(status_code=400, detail=f"'{payload.new_role}' is not a staff role.")
+ 
+-    member_row, account_row = _lookup_member_account(payload.member_id)
++    account_row = _staff_login_or_404(payload.account_id)
++    if account_row.get("auth_user_id") == current_user["id"] and new_role != "bod":
++        raise HTTPException(status_code=400, detail="You can't remove your own BOD access.")
+ 
+     try:
+-        supabase.table("member_account").update({"role": new_role}).eq(
+-            "user_id", account_row["user_id"]
++        supabase.table("member_account").update({"role": _role_label(new_role)}).eq(
++            "id", account_row["id"]
+         ).execute()
+     except Exception as err:
+         raise HTTPException(status_code=500, detail=f"Failed to update role: {err}")
+@@ -15222,20 +15458,42 @@ def staff_change_role(payload: StaffRoleChangeRequest):
+         except Exception:
+             pass
+ 
+-    return {"success": True, "member_id": payload.member_id, "role": new_role}
++    return {"success": True, "account_id": payload.account_id, "role": _role_label(new_role)}
+ 
+ 
+-@app.post("/api/admin/staff/deactivate")
+-def staff_set_active(payload: StaffDeactivateRequest):
++@app.post("/api/admin/accounts/staff/active")
++def staff_login_set_active(
++    payload: StaffLoginActiveRequest,
++    current_user: dict = _Depends(_get_current_user),
++):
++    """Disable or re-enable one staff login without affecting the member login."""
+     if supabase is None:
+         raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
++    _require_bod(current_user)
+ 
+-    _, account_row = _lookup_member_account(payload.member_id)
++    account_row = _staff_login_or_404(payload.account_id)
++    if account_row.get("auth_user_id") == current_user["id"] and not payload.is_active:
++        raise HTTPException(status_code=400, detail="You can't disable the account you're signed in with.")
++    try:
++        _set_login_active(account_row, payload.is_active)
++    except Exception as err:
++        raise HTTPException(status_code=500, detail=f"Failed to update account: {err}")
++    return {"success": True, "account_id": payload.account_id, "is_active": bool(payload.is_active)}
+ 
++
++@app.post("/api/admin/staff/deactivate")
++def staff_set_active(
++    payload: StaffDeactivateRequest,
++    current_user: dict = _Depends(_get_current_user),
++):
++    """Reactivate (or deactivate) a member: every login they hold."""
++    if supabase is None:
++        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
++    _require_bod(current_user)
++
++    _lookup_member_account(payload.member_id)  # 404 when the member has no login at all
+     try:
+-        supabase.table("member_account").update(
+-            {"is_active": bool(payload.is_active)}
+-        ).eq("id", account_row["id"]).execute()
++        _set_all_logins_active(payload.member_id, bool(payload.is_active))
+     except Exception as err:
+         raise HTTPException(status_code=500, detail=f"Failed to update is_active: {err}")
+ 
+@@ -15296,13 +15554,8 @@ def staff_request_termination(payload: StaffTerminationCreateRequest):
+     except Exception as err:
+         raise HTTPException(status_code=500, detail=f"Failed to create termination request: {err}")
+ 
+-    # Immediate safety lock.
+-    try:
+-        supabase.table("member_account").update({"is_active": False}).eq(
+-            "user_id", account_row["user_id"]
+-        ).execute()
+-    except Exception:
+-        pass
++    # Immediate safety lock: every login this member holds (member + staff).
++    _set_all_logins_active(payload.member_id, False)
+ 
+     # Best-effort BOD notification — non-fatal if the schema/columns differ.
+     try:
+@@ -15380,13 +15633,8 @@ def staff_decide_termination(payload: StaffTerminationDecisionRequest):
+     else:
+         # Rejected: restore the account and clear any prior termination stamp
+         # so this member is fully reinstated.
+-        if request_row.get("member_account_id"):
+-            try:
+-                supabase.table("member_account").update({"is_active": True}).eq(
+-                    "user_id", request_row["member_account_id"]
+-                ).execute()
+-            except Exception:
+-                pass
++        if membership_id:
++            _set_all_logins_active(membership_id, True)
+         if membership_id:
+             try:
+                 supabase.table("member").update({
+@@ -15479,15 +15727,9 @@ def bod_terminate_member(payload: BodTerminateMemberRequest):
+     except Exception as err:
+         raise HTTPException(status_code=500, detail=f"Failed to update member: {err}")
+ 
+-    # 2) Deactivate the account so they can't log in anywhere.
+-    if account_row.get("user_id"):
+-        try:
+-            supabase.table("member_account").update({"is_active": False}).eq(
+-                "user_id", account_row["user_id"]
+-            ).execute()
+-        except Exception:
+-            # Not fatal — member is already stamped as terminated.
+-            pass
++    # 2) Deactivate every login they hold (member + staff) so they can't sign
++    #    in anywhere. Not fatal -- the member is already stamped terminated.
++    _set_all_logins_active(membership_id, False)
+ 
+     # 3) Log to staff_termination_requests as 'approved' so the Secretary can
+     #    see it in their inbox and record it in Membership Records. The BOD is
+@@ -15545,12 +15787,23 @@ def bod_terminate_member(payload: BodTerminateMemberRequest):
+ 
+ 
+ @app.get("/api/admin/staff/account/{member_id}")
+-def staff_get_account(member_id: str):
++def staff_get_account(member_id: str, current_user: dict = _Depends(_get_current_user)):
++    """The member's own login plus any staff logins they hold."""
+     if supabase is None:
+         raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
++    _require_bod(current_user)
+ 
+-    _, account_row = _lookup_member_account(member_id)
+-    return {"success": True, "data": account_row}
++    rows = _member_logins(member_id)
++    member_login = next((r for r in rows if _is_member_login(r)), None)
++    staff_logins = [r for r in rows if not _is_member_login(r)]
++    return {
++        "success": True,
++        "data": {
++            "member_login": member_login,
++            "staff_logins": staff_logins,
++            "member_status": str((resolve_member_by_ref(member_id) or {}).get("member_status") or "active"),
++        },
++    }
+ 
+ 
+ # =============================================================================
