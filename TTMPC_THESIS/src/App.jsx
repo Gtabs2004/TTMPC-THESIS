@@ -411,7 +411,7 @@ function App() {
               <IconListItem
                 icon={<HeartHandshake strokeWidth={2} className="w-6 h-6 md:w-7 md:h-7" />}
                 title="Member Benefits"
-                description="Become a co-owner for a ₱100 membership fee, build toward ₱10,000 in paid-up capital over time, and enjoy annual dividends and patronage refunds along the way."
+                description="Become a co-owner for a ₱200 membership fee, build toward ₱20,000 in paid-up capital over time, and enjoy annual dividends and patronage refunds along the way."
               />
             </Reveal>
           </div>

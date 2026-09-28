@@ -279,7 +279,7 @@ const MemberApprovalDetails = () => {
     ]);
 
     if (member.status === 'Training' && paymentStatus) {
-      const requiredPaidUp = Number(paymentStatus.required_paid_up_capital ?? 10000);
+      const requiredPaidUp = Number(paymentStatus.required_paid_up_capital ?? 20000);
       const currentPaidUp = Number(paymentStatus.paid_up_capital_amount ?? 0);
       section('Payment Verification', [
         ['Membership Fee', paymentStatus.membership_fee_paid ? 'Paid' : 'Unpaid'],
@@ -619,8 +619,8 @@ const MemberApprovalDetails = () => {
         const isFinalApprovalStep = proceedConfig?.nextStatus === 'Official Member';
         const feePaid = !!paymentStatus?.membership_fee_paid;
         const paidUpOk = !!paymentStatus?.paid_up_capital_satisfied;
-        const requiredFee = Number(paymentStatus?.required_membership_fee ?? 100);
-        const requiredPaidUp = Number(paymentStatus?.required_paid_up_capital ?? 10000);
+        const requiredFee = Number(paymentStatus?.required_membership_fee ?? 200);
+        const requiredPaidUp = Number(paymentStatus?.required_paid_up_capital ?? 20000);
         const currentPaidUp = Number(paymentStatus?.paid_up_capital_amount ?? 0);
         const gateMet = feePaid && paidUpOk;
 
