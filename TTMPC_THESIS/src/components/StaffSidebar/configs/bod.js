@@ -5,12 +5,13 @@ import {
   CreditCard,
   History,
   FileText,
+  UserRoundCheck
 } from "lucide-react";
 
 // BOD portal navigation. Same list on every standalone BOD page.
 export const bodNav = [
   { name: "Dashboard",         icon: LayoutDashboard, path: "/BOD-dashboard" },
-  { name: "Member Approvals",  icon: Users,           path: "/member-approvals" },
+  { name: "Member Approvals",  icon: UserRoundCheck,           path: "/member-approvals" },
   { name: "Loan Approvals",    icon: ShieldCheck,     path: "/bod-loan-approvals" },
   { name: "Loan Ledger",       icon: CreditCard,      path: "/bod-manage-loans" },
   { name: "Manage Member",     icon: Users,           path: "/bod-manage-member" },
