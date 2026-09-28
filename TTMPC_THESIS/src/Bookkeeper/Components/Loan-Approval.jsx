@@ -257,7 +257,7 @@ const BookkeeperLoanApproval = () => {
  
         <StaffTopbar portal="Bookkeeper" notifications={<LoanNotificationBell role="bookkeeper" />} />
 
-        <main className="p-8 flex-1">
+        <main className="animate-page-in p-8 flex-1">
           <Breadcrumb portal="Bookkeeper" page="Loan Approvals" />
 
           <StatCardRow cols={3}>

@@ -526,7 +526,7 @@ const Member_Details = () => {
   };
 
   return (
-    <div className="p-8 bg-gray-50 min-h-screen">
+    <div className="animate-page-in p-8 bg-gray-50 min-h-screen">
       <button 
         onClick={() => navigate(returnPath)}
         className="flex items-center text-sm text-[#1a4a2f] font-semibold mb-4 hover:underline"

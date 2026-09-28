@@ -131,7 +131,7 @@ const Grocery = () => {
         <StaffTopbar portal="Bookkeeper" notifications={<LoanNotificationBell role="bookkeeper" />} sticky />
 
         {/* Page Content */}
-        <main className="p-8 max-w-7xl mx-auto w-full">
+        <main className="animate-page-in p-8 max-w-7xl mx-auto w-full">
           <Breadcrumb portal="Bookkeeper" page="Grocery" />
 
           {/* Summary Cards */}

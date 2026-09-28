@@ -265,7 +265,7 @@ const Treasurer_Approval = () => {
       <div className="flex-1 min-w-0 flex flex-col h-screen overflow-y-auto">
         <StaffTopbar portal="Treasurer" notifications={<LoanNotificationBell role="treasurer" />} />
 
-        <main className="p-8 flex-1">
+        <main className="animate-page-in p-8 flex-1">
           <StatCardRow cols={3}>
             <StatCard label="Pending Review" value={queueStats.pendingCount} icon={UserPlus} iconColor="text-[#2C7A3F]" />
             <StatCard

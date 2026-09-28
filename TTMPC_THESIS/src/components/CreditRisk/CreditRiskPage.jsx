@@ -218,7 +218,7 @@ const CreditRiskPage = ({ portal = "bookkeeper" }) => {
           }}
         />
 
-        <main className="p-8">
+        <main className="animate-page-in p-8">
           <Breadcrumb portal={portalLabel} page="Credit Risk" />
 
           <div className="flex items-start justify-between mb-6 gap-3 flex-wrap">

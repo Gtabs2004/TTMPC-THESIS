@@ -281,7 +281,7 @@ function Add_Savings() {
   };
 
   return (
-    <div className="flex flex-col min-h-screen bg-gray-50 pb-20">
+    <div className="animate-page-in flex flex-col min-h-screen bg-gray-50 pb-20">
       
       
       <form onSubmit={handleSubmit} className="px-4">

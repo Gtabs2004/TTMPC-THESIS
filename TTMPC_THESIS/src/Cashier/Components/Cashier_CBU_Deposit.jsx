@@ -177,7 +177,7 @@ const Cashier_CBU_Deposit = () => {
       <div className="flex-1 flex flex-col min-w-0">
         <StaffTopbar portal="Cashier" notifications={<LoanNotificationBell role="cashier" />} />
 
-        <main className="p-8 overflow-auto">
+        <main className="animate-page-in p-8 overflow-auto">
           <div className="flex items-center justify-between mb-6">
             <Breadcrumb portal="Cashier" page="CBU Deposit Entry" />
             <h1 className="text-2xl font-bold text-[#1F3E35]">CBU Deposit Entry</h1>

@@ -205,7 +205,7 @@ const BookkeeperSavingsTransactions = () => {
       <div className="flex-1 min-w-0 flex flex-col">
         <StaffTopbar portal="Bookkeeper" notifications={<LoanNotificationBell role="bookkeeper" />} />
 
-        <main className="p-6">
+        <main className="animate-page-in p-6">
           <div className="flex items-center justify-between mb-4">
             <div>
               <Breadcrumb portal="Bookkeeper" page="Savings Withdrawal Verification" />

@@ -163,7 +163,7 @@ const BOD_Manage_Member = () => {
        <div className="flex-1 min-w-0 flex flex-col h-screen overflow-hidden">
         <StaffTopbar portal="BOD" notifications={<NotificationBell />} />
 
-        <main className="flex-1 overflow-y-auto p-8">
+        <main className="animate-page-in flex-1 overflow-y-auto p-8">
           <Breadcrumb portal="BOD" page="Manage Member" />
           <h1 className="font-bold text-2xl mb-6">Manage Member</h1>
           <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">

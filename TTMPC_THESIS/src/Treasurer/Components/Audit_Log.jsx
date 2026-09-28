@@ -18,7 +18,7 @@ const Treasurer_Audit_Log = () => {
       <div className="flex-1 flex flex-col h-screen overflow-y-auto min-w-0">
         <StaffTopbar portal="Treasurer" notifications={<LoanNotificationBell role="treasurer" />} />
 
-        <main className="p-8 min-w-0">
+        <main className="animate-page-in p-8 min-w-0">
           <Breadcrumb portal="Treasurer" page="Audit Log" />
           <AuditLogViewer showActorRoleFilter={false} onError={(msg) => addNotification(msg, "error")} />
         </main>

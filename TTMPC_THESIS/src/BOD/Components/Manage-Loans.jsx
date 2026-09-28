@@ -340,7 +340,7 @@ const BOD_Manage_Loans = () => {
           search={{ value: searchTerm, onChange: (event) => setSearchTerm(event.target.value), placeholder: "Search loans..." }}
         />
 
-        <main className="flex-1 overflow-auto">
+        <main className="animate-page-in flex-1 overflow-auto">
           <div className="p-6 sm:p-8">
             {/* Page Header */}
             <div className="mb-8">

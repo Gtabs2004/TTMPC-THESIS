@@ -41,7 +41,7 @@ const Accounting = () => {
         <StaffTopbar portal="Bookkeeper" notifications={<LoanNotificationBell role="bookkeeper" />} />
 
         {/* Page Content */}
-        <main className="p-8">
+        <main className="animate-page-in p-8">
           <Breadcrumb portal="Bookkeeper" page="Accounting" />
           <h1 className="font-bold text-2xl">Accounting</h1>
         </main>

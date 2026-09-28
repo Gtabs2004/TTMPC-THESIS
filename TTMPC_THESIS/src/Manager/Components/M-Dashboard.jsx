@@ -275,7 +275,7 @@ const M_Dashboard = () => {
         <StaffTopbar portal="Manager" notifications={<LoanNotificationBell role="manager" />} />
 
         {/* PAGE CONTENT */}
-        <main className="p-8">
+        <main className="animate-page-in p-8">
           <Breadcrumb portal="Manager" page="Dashboard" />
           {/* TITLE */}
           <div className="flex items-center justify-between mb-6">

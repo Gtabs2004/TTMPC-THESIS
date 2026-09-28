@@ -402,7 +402,7 @@ const Reports = () => {
         <StaffTopbar portal="Bookkeeper" notifications={<LoanNotificationBell role="bookkeeper" />} />
 
         {/* Content */}
-        <main className="flex-1 p-8 overflow-y-auto">
+        <main className="animate-page-in flex-1 p-8 overflow-y-auto">
           {/* Page header */}
           <div className="flex justify-between items-end mb-6">
             <div>

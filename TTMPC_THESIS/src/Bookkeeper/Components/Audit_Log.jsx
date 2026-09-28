@@ -40,7 +40,7 @@ const Bookkeeper_Audit_Log = () => {
         {/* Top Header */}
         <StaffTopbar portal="Bookkeeper" notifications={<LoanNotificationBell role="bookkeeper" />} />
 
-        <main className="p-8 flex-1 min-w-0">
+        <main className="animate-page-in p-8 flex-1 min-w-0">
           <Breadcrumb portal="Bookkeeper" page="Audit Trail" />
           <AuditLogViewer showActorRoleFilter={false} onError={(msg) => addNotification(msg, "error")} />
         </main>

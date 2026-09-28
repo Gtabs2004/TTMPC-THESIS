@@ -198,7 +198,7 @@ const Vault = () => {
       <div className="flex-1 min-w-0 flex flex-col h-screen overflow-y-auto">
         <StaffTopbar portal="Treasurer" notifications={<LoanNotificationBell role="treasurer" />} />
 
-        <main className="p-8 flex flex-col gap-6">
+        <main className="animate-page-in p-8 flex flex-col gap-6">
           {/* HEADER + REFRESH */}
           <div className="flex items-start justify-between gap-4">
             <div>

@@ -432,7 +432,7 @@ const Member_Approvals = () => {
 
        <div className="flex-1 min-w-0 flex flex-col h-screen overflow-hidden">
         <StaffTopbar portal="BOD" notifications={<NotificationBell />} />
-        <main className="flex-1 overflow-y-auto p-8">
+        <main className="animate-page-in flex-1 overflow-y-auto p-8">
           <Breadcrumb portal="BOD" page="Member Approvals" />
           <StatCardRow cols={4}>
             <StatCard label="New This Month" value={stats.newThisMonth ?? "—"} icon={UserPlus} iconColor="text-[#2C7A3F]" />

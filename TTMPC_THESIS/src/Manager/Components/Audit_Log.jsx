@@ -32,7 +32,7 @@ const Manager_Audit_Log = () => {
       <div className="flex-1 flex flex-col h-screen overflow-y-auto min-w-0">
         <StaffTopbar portal="Manager" notifications={<LoanNotificationBell role="manager" />} />
 
-        <main className="p-8 min-w-0">
+        <main className="animate-page-in p-8 min-w-0">
           <Breadcrumb portal="Manager" page="Audit Log" />
           {/* TITLE */}
           <div className="flex items-center justify-between mb-6">

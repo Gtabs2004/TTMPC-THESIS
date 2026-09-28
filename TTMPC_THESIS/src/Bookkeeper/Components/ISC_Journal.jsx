@@ -274,7 +274,7 @@ const ISC_Journal = () => {
       <div className="flex-1 flex flex-col h-screen overflow-y-auto min-w-0">
         <StaffTopbar portal="Bookkeeper" notifications={<LoanNotificationBell role="bookkeeper" />} />
 
-        <main className="p-8 min-w-0">
+        <main className="animate-page-in p-8 min-w-0">
           <Breadcrumb portal="Bookkeeper" page="ISC Journal" />
 
           <button
