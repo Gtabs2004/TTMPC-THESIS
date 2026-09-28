@@ -1,0 +1,516 @@
+<!doctype html>
+<html lang="en" data-resolution="landscape">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body {
+        margin: 0;
+        width: 1920px;
+        height: 1080px;
+        overflow: hidden;
+        background: #0a0a0a;
+      }
+      #root {
+        position: relative;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        font-family: "Poppins", sans-serif;
+      }
+
+      /* ---------- shared scene shell ---------- */
+      .scene {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        will-change: transform, opacity, filter;
+      }
+      #scene1 { z-index: 1; opacity: 1; } /* first scene visible by default */
+      #scene2 { z-index: 2; opacity: 0; background: #F8FAFC; }
+      #scene3 { z-index: 3; opacity: 0; background: #F8FAFC; }
+      #scene4 { z-index: 4; opacity: 0; background: #F8FAFC; }
+      #scene5 { z-index: 5; opacity: 0; }
+
+      /* ---------- shared decoratives ---------- */
+      .glow {
+        position: absolute;
+        width: 1500px;
+        height: 1500px;
+        border-radius: 50%;
+        background: radial-gradient(circle, rgba(56,151,52,0.16) 0%, rgba(56,151,52,0) 68%);
+        pointer-events: none;
+        will-change: transform;
+      }
+      .dot-grid {
+        position: absolute;
+        inset: 0;
+        background-image: radial-gradient(rgba(29,96,33,0.35) 1.5px, transparent 1.5px);
+        background-size: 44px 44px;
+        opacity: 0.05;
+        pointer-events: none;
+      }
+
+      /* ---------- scene 1 : hook (role-selection recreation) ---------- */
+      #scene1 .s1-bg { position: absolute; inset: 0; background: #F8FAFC; }
+      #scene1 .s1-header {
+        position: absolute; top: 0; left: 0; right: 0; height: 128px;
+        background: #FFFFFF; border-bottom: 1px solid #E5E9EE;
+        display: flex; align-items: center; padding: 0 96px; gap: 28px;
+      }
+      #scene1 .s1-header img { height: 68px; width: auto; }
+      #scene1 .s1-header .s1-coopname { font-weight: 700; font-size: 26px; color: #389734; }
+      #scene1 .s1-main {
+        position: absolute; inset: 0; display: flex; flex-direction: column;
+        align-items: center; justify-content: center; padding-top: 60px;
+      }
+      #scene1 .s1-main img.s1-logo { height: 176px; width: auto; margin-bottom: 40px; filter: drop-shadow(0 10px 24px rgba(0,0,0,0.12)); }
+      #scene1 .s1-title { font-weight: 800; font-size: 58px; color: #1F2937; letter-spacing: -0.02em; margin-bottom: 16px; }
+      #scene1 .s1-title span { color: #389734; }
+      #scene1 .s1-subtitle { font-weight: 400; font-size: 26px; color: #475569; margin-bottom: 56px; }
+      #scene1 .s1-cards { display: flex; gap: 48px; }
+      #scene1 .s1-card {
+        width: 300px; height: 300px; background: #FFFFFF; border-radius: 40px;
+        border: 1px solid #EDF1F4; box-shadow: 0 18px 40px rgba(15,23,42,0.06);
+        display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 26px;
+      }
+      #scene1 .s1-card .s1-icon-wrap {
+        width: 108px; height: 108px; border-radius: 50%; background: #E9F7DE;
+        display: flex; align-items: center; justify-content: center;
+      }
+      #scene1 .s1-card .s1-icon-wrap svg { width: 52px; height: 52px; stroke: #389734; fill: none; stroke-width: 2.4; }
+      #scene1 .s1-card .s1-card-label { font-weight: 700; font-size: 28px; color: #374151; }
+
+      #scene1 .s1-scrim {
+        position: absolute; inset: 0;
+        background: radial-gradient(ellipse at 50% 50%, rgba(6,10,7,0.88) 0%, rgba(4,8,5,0.94) 100%);
+        opacity: 0;
+      }
+      #scene1 .s1-hook {
+        position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+        padding: 0 220px; text-align: center;
+      }
+      #scene1 .s1-hook span {
+        display: block; font-weight: 900; font-size: 112px; line-height: 1.05; color: #FFFFFF;
+        letter-spacing: -0.02em; opacity: 0; will-change: transform, opacity, filter;
+      }
+
+      /* ---------- shared panel chrome (scenes 2-4) ---------- */
+      .panel {
+        position: absolute; left: 260px; right: 260px; top: 96px; bottom: 244px;
+        background: #FFFFFF; border-radius: 32px; box-shadow: 0 26px 60px rgba(15,23,42,0.10);
+        padding: 52px 64px; display: flex; flex-direction: column;
+        opacity: 0; will-change: transform, opacity;
+      }
+      .breadcrumb { font-weight: 700; font-size: 20px; letter-spacing: 0.16em; text-transform: uppercase; color: #475569; margin-bottom: 14px; }
+      .panel-title { font-weight: 700; font-size: 42px; color: #1F2937; letter-spacing: -0.01em; }
+      .panel-subtitle { font-weight: 400; font-size: 22px; color: #475569; margin-top: 6px; }
+
+      .caption-bar { position: absolute; left: 0; right: 0; bottom: 0; height: 244px; background: #F8FAFC; border-top: 1px solid #E5E9EE; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+      .caption-kicker { font-weight: 700; font-size: 22px; letter-spacing: 0.2em; text-transform: uppercase; color: #389734; opacity: 0; margin-bottom: 12px; }
+      .caption-line { font-weight: 700; font-size: 46px; color: #14532D; letter-spacing: -0.01em; opacity: 0; }
+
+      /* ---------- scene 2 : credit risk queue ---------- */
+      #scene2 .s2-badge {
+        margin-left: auto; display: flex; align-items: center; gap: 10px;
+        background: #E9F7DE; border-radius: 999px; padding: 10px 20px; height: fit-content;
+      }
+      #scene2 .s2-badge .s2-dot { width: 10px; height: 10px; border-radius: 50%; background: #389734; }
+      #scene2 .s2-badge span { font-weight: 700; font-size: 18px; letter-spacing: 0.05em; color: #1b4d19; }
+      #scene2 .s2-title-row { display: flex; align-items: flex-start; }
+      #scene2 .s2-table { margin-top: 36px; border-radius: 18px; overflow: hidden; border: 1px solid #EEF2F5; }
+      #scene2 .s2-thead {
+        display: flex; background: linear-gradient(90deg, #0f5c2a, #15803d);
+        padding: 20px 32px;
+      }
+      #scene2 .s2-thead div { font-weight: 700; font-size: 18px; letter-spacing: 0.08em; text-transform: uppercase; color: #FFFFFF; }
+      #scene2 .s2-thead .col-member { width: 40%; }
+      #scene2 .s2-thead .col-amount { width: 30%; }
+      #scene2 .s2-thead .col-risk { width: 30%; text-align: right; }
+      #scene2 .s2-row {
+        display: flex; align-items: center; padding: 26px 32px; border-bottom: 1px solid #F1F5F9;
+        opacity: 0; background: #FFFFFF;
+      }
+      #scene2 .s2-row:last-child { border-bottom: none; }
+      #scene2 .s2-row .col-member { width: 40%; font-weight: 600; font-size: 28px; color: #1F2937; }
+      #scene2 .s2-row .col-amount { width: 30%; font-weight: 500; font-size: 26px; color: #1F2937; font-variant-numeric: tabular-nums; }
+      #scene2 .s2-row .col-risk { width: 30%; display: flex; justify-content: flex-end; }
+      #scene2 .chip {
+        display: inline-flex; align-items: center; gap: 8px; padding: 10px 20px; border-radius: 999px;
+        font-weight: 700; font-size: 20px;
+      }
+      #scene2 .chip .chip-dot { width: 9px; height: 9px; border-radius: 50%; }
+      #scene2 .chip-red { background: #fee2e2; color: #8f1414; }
+      #scene2 .chip-red .chip-dot { background: #ef4444; }
+      #scene2 .chip-amber { background: #fffbeb; color: #b45309; box-shadow: inset 0 0 0 1px #fde68a; }
+      #scene2 .chip-amber .chip-dot { background: #f59e0b; }
+      #scene2 .chip-green { background: #d1fae5; color: #047857; }
+      #scene2 .chip-green .chip-dot { background: #10b981; }
+
+      /* ---------- scene 3 : loan demand forecast ---------- */
+      #scene3 .s3-chart-wrap { margin-top: 44px; flex: 1; display: flex; align-items: center; justify-content: center; opacity: 0; }
+      #scene3 .s3-axis-label { font-weight: 500; font-size: 22px; fill: #475569; font-family: "Poppins", sans-serif; }
+      #scene3 .s3-endpoint-label { font-weight: 700; font-size: 26px; fill: #14532D; font-family: "Poppins", sans-serif; opacity: 0; }
+
+      /* ---------- scene 4 : MIGS meter ---------- */
+      #scene4 .s4-member { font-weight: 500; font-size: 24px; color: #475569; margin-top: 6px; }
+      #scene4 .s4-meter-wrap { position: relative; margin-top: 90px; display: flex; flex-direction: column; align-items: center; opacity: 0; }
+      #scene4 .s4-meter-track { position: relative; width: 1040px; height: 30px; background: #EEF2F5; border-radius: 15px; overflow: hidden; }
+      #scene4 .s4-meter-fill { width: 100%; height: 100%; background: #f87171; transform: scaleX(0); transform-origin: left center; }
+      #scene4 .s4-tick { position: absolute; top: -14px; left: 50%; width: 2px; height: 58px; background: #CBD5E1; transform: translateX(-1px); }
+      #scene4 .s4-tick-label { position: absolute; top: 50px; left: 50%; transform: translateX(-50%); font-weight: 600; font-size: 18px; color: #475569; white-space: nowrap; }
+      #scene4 .s4-score-row { margin-top: 44px; display: flex; align-items: baseline; gap: 18px; }
+      #scene4 .s4-score-num { font-weight: 900; font-size: 108px; color: #b91c1c; font-variant-numeric: tabular-nums; }
+      #scene4 .s4-score-max { font-weight: 600; font-size: 34px; color: #475569; }
+
+      /* ---------- scene 5 : outro ---------- */
+      #scene5 .s5-bg { position: absolute; inset: 0; background: linear-gradient(135deg, #1D6021 0%, #389734 100%); }
+      #scene5 .s5-line { position: absolute; height: 1px; background: rgba(255,255,255,0.14); pointer-events: none; }
+      #scene5 .s5-content { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+      #scene5 img#s5-logo { height: 168px; width: auto; opacity: 0; }
+      #scene5 .s5-wordmark { margin-top: 30px; font-weight: 700; font-size: 28px; letter-spacing: 0.26em; text-transform: uppercase; color: rgba(255,255,255,0.92); opacity: 0; }
+      #scene5 .s5-tagline { margin-top: 34px; text-align: center; }
+      #scene5 .s5-tagline div { font-weight: 900; font-size: 62px; line-height: 1.16; color: #FFFFFF; letter-spacing: -0.01em; opacity: 0; }
+      #scene5 .s5-subtext { margin-top: 30px; font-weight: 400; font-size: 26px; color: rgba(255,255,255,0.82); opacity: 0; }
+    </style>
+  </head>
+  <body>
+    <div
+      id="root"
+      data-composition-id="main"
+      data-start="0"
+      data-duration="21"
+      data-width="1920"
+      data-height="1080"
+    >
+      <!-- ================= SCENE 1 : HOOK ================= -->
+      <div id="scene1" class="clip scene" data-start="0" data-duration="2.6" data-track-index="1">
+        <div class="s1-bg"></div>
+        <div class="s1-header">
+          <img src="assets/images/ttmpc-logo.png" alt="" />
+          <div class="s1-coopname">Tubungan Teachers&rsquo; Multi&#8209;Purpose Cooperative</div>
+        </div>
+        <div class="s1-main">
+          <img class="s1-logo" src="assets/images/ttmpc-logo.png" alt="" />
+          <div class="s1-title">Select Your <span>Role</span></div>
+          <div class="s1-subtitle">Please choose how you want to log in to the portal</div>
+          <div class="s1-cards">
+            <div class="s1-card">
+              <div class="s1-icon-wrap">
+                <svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8"/></svg>
+              </div>
+              <div class="s1-card-label">Member</div>
+            </div>
+            <div class="s1-card">
+              <div class="s1-icon-wrap">
+                <svg viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+              </div>
+              <div class="s1-card-label">Staff</div>
+            </div>
+          </div>
+        </div>
+        <div class="s1-scrim" id="s1-scrim" data-layout-allow-occlusion="true"></div>
+        <div class="s1-hook"><span id="s1-hook-line" data-layout-allow-overlap="true">This is a thesis project.</span></div>
+      </div>
+
+      <!-- ================= SCENE 2 : CREDIT RISK ================= -->
+      <div id="scene2" class="clip scene" data-start="2.2" data-duration="5.5" data-track-index="1">
+        <div class="glow" id="s2-glow" data-layout-allow-overflow="true" style="top:-420px; right:-360px;"></div>
+        <div class="dot-grid"></div>
+        <div class="panel" id="s2-panel">
+          <div class="breadcrumb">Bookkeeper&nbsp;&nbsp;&rsaquo;&nbsp;&nbsp;Credit Risk</div>
+          <div class="s2-title-row">
+            <div>
+              <div class="panel-title">AI Credit Risk Queue</div>
+              <div class="panel-subtitle">Logistic-regression default scoring, updated live</div>
+            </div>
+            <div class="s2-badge"><span class="s2-dot"></span><span>LIVE &middot; ML SCORED</span></div>
+          </div>
+          <div class="s2-table">
+            <div class="s2-thead">
+              <div class="col-member">Member</div>
+              <div class="col-amount">Loan Amount</div>
+              <div class="col-risk">Risk</div>
+            </div>
+            <div class="s2-row" id="s2-row1">
+              <div class="col-member">J. Bautista</div>
+              <div class="col-amount">&#8369;45,000</div>
+              <div class="col-risk"><span class="chip chip-red"><span class="chip-dot"></span>High Risk</span></div>
+            </div>
+            <div class="s2-row" id="s2-row2">
+              <div class="col-member">M. Reyes</div>
+              <div class="col-amount">&#8369;28,000</div>
+              <div class="col-risk"><span class="chip chip-amber"><span class="chip-dot"></span>Medium Risk</span></div>
+            </div>
+            <div class="s2-row" id="s2-row3">
+              <div class="col-member">A. Villanueva</div>
+              <div class="col-amount">&#8369;62,000</div>
+              <div class="col-risk"><span class="chip chip-green"><span class="chip-dot"></span>Low Risk</span></div>
+            </div>
+          </div>
+        </div>
+        <div class="caption-bar">
+          <div class="caption-kicker" id="s2-kicker">Credit Risk</div>
+          <div class="caption-line" id="s2-caption">Scores default risk in real time.</div>
+        </div>
+      </div>
+
+      <!-- ================= SCENE 3 : LOAN DEMAND FORECAST ================= -->
+      <div id="scene3" class="clip scene" data-start="7.3" data-duration="6.5" data-track-index="1">
+        <div class="glow" id="s3-glow" data-layout-allow-overflow="true" style="top:-360px; left:-420px;"></div>
+        <div class="dot-grid"></div>
+        <div class="panel" id="s3-panel">
+          <div class="breadcrumb">Dashboard&nbsp;&nbsp;&rsaquo;&nbsp;&nbsp;Loan Demand Forecast</div>
+          <div class="panel-title">Loan Demand Forecast</div>
+          <div class="panel-subtitle">Next 12 months &middot; 80% confidence interval</div>
+          <div class="s3-chart-wrap" id="s3-chart-wrap">
+            <svg width="1272" height="480" viewBox="-90 -30 1380 480">
+              <!-- axis lines -->
+              <line x1="0" y1="420" x2="1200" y2="420" stroke="#E2E8F0" stroke-width="2"/>
+              <line x1="0" y1="0" x2="0" y2="420" stroke="#E2E8F0" stroke-width="2"/>
+              <!-- y axis labels -->
+              <text class="s3-axis-label" x="-24" y="426" text-anchor="end">&#8369;0</text>
+              <text class="s3-axis-label" x="-24" y="216" text-anchor="end">&#8369;2M</text>
+              <text class="s3-axis-label" x="-24" y="6" text-anchor="end">&#8369;4M</text>
+              <!-- x axis labels -->
+              <text class="s3-axis-label" x="0" y="452" text-anchor="middle">Jan</text>
+              <text class="s3-axis-label" x="218" y="452" text-anchor="middle">Mar</text>
+              <text class="s3-axis-label" x="436" y="452" text-anchor="middle">May</text>
+              <text class="s3-axis-label" x="655" y="452" text-anchor="middle">Jul</text>
+              <text class="s3-axis-label" x="873" y="452" text-anchor="middle">Sep</text>
+              <text class="s3-axis-label" x="1091" y="452" text-anchor="middle">Nov</text>
+              <!-- confidence band -->
+              <polygon id="s3-band" fill="#389734" fill-opacity="0.16"
+                points="0,208 109,232 218,185 327,150 436,91 545,0 655,114 764,173 873,138 982,103 1091,55 1200,0 1200,60 1091,134 982,171 873,198 764,180 655,180 545,87 436,161 327,208 218,235 109,272 0,254"
+                style="clip-path: inset(0 100% 0 0);" />
+              <!-- forecast line -->
+              <polyline id="s3-line" fill="none" stroke="#2e7a2a" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"
+                points="0,231 109,252 218,210 327,179 436,126 545,42 655,147 764,200 873,168 982,137 1091,95 1200,11" />
+              <circle id="s3-endpoint-dot" cx="1200" cy="11" r="9" fill="#2e7a2a" opacity="0"/>
+              <text id="s3-endpoint-label" class="s3-endpoint-label" x="1130" y="-14" text-anchor="end">&#8369;3.9M</text>
+            </svg>
+          </div>
+        </div>
+        <div class="caption-bar">
+          <div class="caption-kicker" id="s3-kicker">Demand Forecast</div>
+          <div class="caption-line" id="s3-caption">12-month loan demand forecast.</div>
+        </div>
+      </div>
+
+      <!-- ================= SCENE 4 : MIGS SCORING ================= -->
+      <div id="scene4" class="clip scene" data-start="13.4" data-duration="4.4" data-track-index="1">
+        <div class="glow" id="s4-glow" data-layout-allow-overflow="true" style="bottom:-440px; right:-320px;"></div>
+        <div class="dot-grid"></div>
+        <div class="panel" id="s4-panel" style="align-items: center; text-align: center;">
+          <div class="breadcrumb">Bookkeeper&nbsp;&nbsp;&rsaquo;&nbsp;&nbsp;MIGS Scoring</div>
+          <div class="panel-title">MIGS Score</div>
+          <div class="s4-member">R. Domingo &middot; automated multi-criteria evaluation</div>
+          <div class="s4-meter-wrap" id="s4-meter-wrap">
+            <div class="s4-meter-track">
+              <div class="s4-meter-fill" id="s4-fill"></div>
+            </div>
+            <div class="s4-tick"></div>
+            <div class="s4-tick-label">50 &middot; MIGS threshold</div>
+            <div class="s4-score-row">
+              <div class="s4-score-num" id="s4-score-num">0</div>
+              <div class="s4-score-max">/ 100</div>
+            </div>
+          </div>
+        </div>
+        <div class="caption-bar">
+          <div class="caption-kicker" id="s4-kicker">MIGS Engine</div>
+          <div class="caption-line" id="s4-caption">Grades every member automatically.</div>
+        </div>
+      </div>
+
+      <!-- ================= SCENE 5 : OUTRO ================= -->
+      <div id="scene5" class="clip scene" data-start="17.4" data-duration="3.6" data-track-index="1">
+        <div class="s5-bg"></div>
+        <div class="glow" id="s5-glow" data-layout-allow-overflow="true" style="top:50%; left:50%; margin-top:-750px; margin-left:-750px; background: radial-gradient(circle, rgba(255,255,255,0.14) 0%, rgba(255,255,255,0) 68%);"></div>
+        <div class="s5-line" id="s5-line1" data-layout-allow-overflow="true" style="width:1400px; top:210px; left:-100px; transform:rotate(8deg);"></div>
+        <div class="s5-line" id="s5-line2" data-layout-allow-overflow="true" style="width:1400px; bottom:200px; right:-100px; transform:rotate(8deg);"></div>
+        <div class="s5-content">
+          <img id="s5-logo" src="assets/images/ttmpc-logo.png" alt="" />
+          <div class="s5-wordmark" id="s5-wordmark">REGANT</div>
+          <div class="s5-tagline">
+            <div id="s5-tag1">Built like production.</div>
+            <div id="s5-tag2">Graded like a thesis.</div>
+          </div>
+          <div class="s5-subtext" id="s5-subtext">REGANT &mdash; Tubungan Teachers&rsquo; Multi&#8209;Purpose Cooperative</div>
+        </div>
+      </div>
+
+      <!-- ================= AUDIO ================= -->
+      <audio
+        id="bgm"
+        src="assets/music/happy-beats-business-moves-vol-9-by-ende-dot-app.mp3"
+        data-start="0"
+        data-duration="21"
+        data-track-index="10"
+        data-volume="0.32"
+        data-automation='{"version":1,"lanes":[{"target":"volume","points":[{"t":0,"v":0},{"t":0.6,"v":0.32},{"t":20,"v":0.32},{"t":21,"v":0}]}]}'
+      ></audio>
+
+      <audio id="sfx-row1" src="assets/sfx/interface/drop_001.ogg" data-start="3.2" data-duration="0.11" data-track-index="11" data-volume="0.7"></audio>
+      <audio id="sfx-row3" src="assets/sfx/interface/drop_002.ogg" data-start="4.2" data-duration="0.19" data-track-index="12" data-volume="0.7"></audio>
+      <audio id="sfx-chart" src="assets/sfx/impact/impactSoft_medium_001.ogg" data-start="11.6" data-duration="0.19" data-track-index="13" data-volume="0.75"></audio>
+      <audio id="sfx-flip" src="assets/sfx/interface/switch_001.ogg" data-start="15.03" data-duration="0.62" data-track-index="14" data-volume="0.7"></audio>
+      <audio id="sfx-logo" src="assets/sfx/impact/impactBell_heavy_000.ogg" data-start="17.75" data-duration="1.5" data-track-index="15" data-volume="0.8"></audio>
+    </div>
+
+    <script>
+      const tl = gsap.timeline({ paused: true });
+
+      /* ---------------- helpers ---------------- */
+      // Finite breathing loop for a decorative glow (never repeat: -1).
+      function breathe(target, atStart, sceneDur, peakScale) {
+        const cycle = 3.2;
+        const holdDur = sceneDur - atStart;
+        tl.fromTo(
+          target,
+          { scale: 1, opacity: 0 },
+          { scale: 1, opacity: 1, duration: 0.6, ease: "power1.out" },
+          atStart
+        );
+        tl.to(
+          target,
+          {
+            scale: peakScale,
+            duration: cycle / 2,
+            ease: "sine.inOut",
+            yoyo: true,
+            repeat: Math.max(0, Math.floor((holdDur - 0.6) / cycle) - 1),
+          },
+          atStart + 0.6
+        );
+      }
+
+      // Crossfade + soft blur handoff between two full scenes. Both animate
+      // AT THE SAME TIME T -- this IS the transition, not a pre-fade.
+      function crossfade(fromSel, toSel, T, dur) {
+        dur = dur || 0.4;
+        tl.to(fromSel, { opacity: 0, scale: 1.035, filter: "blur(7px)", duration: dur, ease: "power2.inOut" }, T);
+        tl.fromTo(
+          toSel,
+          { opacity: 0, scale: 1.035, filter: "blur(7px)" },
+          { opacity: 1, scale: 1, filter: "blur(0px)", duration: dur, ease: "power2.inOut" },
+          T
+        );
+      }
+
+      /* ==================== SCENE 1 : HOOK ==================== */
+      tl.fromTo("#scene1 .s1-header", { opacity: 0, y: -14 }, { opacity: 1, y: 0, duration: 0.4, ease: "power3.out" }, 0);
+      tl.fromTo("#scene1 .s1-main", { opacity: 0, y: 16 }, { opacity: 1, y: 0, duration: 0.4, ease: "power3.out" }, 0.05);
+      tl.to("#s1-scrim", { opacity: 1, duration: 0.4, ease: "power2.out" }, 0.1);
+      // Kinetic single-phrase slam -- the hook line.
+      tl.fromTo(
+        "#s1-hook-line",
+        { scale: 1.35, opacity: 0, filter: "blur(14px)" },
+        { scale: 1, opacity: 1, filter: "blur(0px)", duration: 0.45, ease: "power4.out" },
+        0.25
+      );
+
+      crossfade("#scene1", "#scene2", 2.2, 0.4);
+
+      /* ==================== SCENE 2 : CREDIT RISK ==================== */
+      breathe("#s2-glow", 2.2, 7.7, 1.08);
+      tl.fromTo("#s2-panel", { opacity: 0, y: 24 }, { opacity: 1, y: 0, duration: 0.5, ease: "power3.out" }, 2.6);
+      tl.fromTo("#scene2 .s2-thead", { opacity: 0 }, { opacity: 1, duration: 0.3, ease: "power2.out" }, 2.9);
+
+      // beat-grid: row 1 lands on strong cue 3.70s, row 2 lands ~4.20s (nearest
+      // strong cue 4.23s, within +/-0.10s), row 3 follows the cascade at 4.70s.
+      tl.fromTo("#s2-row1", { opacity: 0, y: 18, scale: 0.98 }, { opacity: 1, y: 0, scale: 1, duration: 0.5, ease: "power3.out" }, 3.20); // beat-grid: 3.70s
+      tl.fromTo("#s2-row2", { opacity: 0, y: 18, scale: 0.98 }, { opacity: 1, y: 0, scale: 1, duration: 0.5, ease: "power3.out" }, 3.70); // beat-grid: 4.20s
+      tl.fromTo("#s2-row3", { opacity: 0, y: 18, scale: 0.98 }, { opacity: 1, y: 0, scale: 1, duration: 0.5, ease: "power3.out" }, 4.20);
+
+      tl.fromTo("#scene2 .s2-badge", { opacity: 0, y: -8 }, { opacity: 1, y: 0, duration: 0.35, ease: "power2.out" }, 3.9);
+      tl.fromTo("#s2-kicker", { opacity: 0 }, { opacity: 1, duration: 0.3, ease: "power1.out" }, 5.0);
+      tl.fromTo("#s2-caption", { opacity: 0, y: 10 }, { opacity: 1, y: 0, duration: 0.4, ease: "power2.out" }, 5.1);
+
+      crossfade("#scene2", "#scene3", 7.3, 0.4);
+
+      /* ==================== SCENE 3 : FORECAST ==================== */
+      breathe("#s3-glow", 7.3, 6.5, 1.1);
+      tl.fromTo("#s3-panel", { opacity: 0, y: 24 }, { opacity: 1, y: 0, duration: 0.5, ease: "power3.out" }, 7.7);
+      tl.fromTo("#s3-chart-wrap", { opacity: 0 }, { opacity: 1, duration: 0.3, ease: "power2.out" }, 8.0);
+
+      // Chart draw: line stroke + confidence-band wipe move together and
+      // complete on the strong cue at 11.60s -- the scene's major reveal.
+      (function () {
+        const line = document.getElementById("s3-line");
+        const len = line.getTotalLength();
+        line.style.strokeDasharray = len;
+        line.style.strokeDashoffset = len;
+        tl.to(line, { strokeDashoffset: 0, duration: 3.5, ease: "power2.out" }, 8.1); // beat-locked: 11.60s
+        tl.to(
+          "#s3-band",
+          { clipPath: "inset(0 0% 0 0)", duration: 3.5, ease: "power2.out" },
+          8.1
+        ); // beat-locked: 11.60s
+      })();
+
+      tl.fromTo("#s3-endpoint-dot", { opacity: 0, scale: 0 }, { opacity: 1, scale: 1, duration: 0.3, ease: "power3.out" }, 11.6);
+      tl.fromTo("#s3-endpoint-label", { opacity: 0, y: 6 }, { opacity: 1, y: 0, duration: 0.35, ease: "power2.out" }, 11.7);
+      tl.fromTo("#s3-kicker", { opacity: 0 }, { opacity: 1, duration: 0.3, ease: "power1.out" }, 11.8);
+      tl.fromTo("#s3-caption", { opacity: 0, y: 10 }, { opacity: 1, y: 0, duration: 0.4, ease: "power2.out" }, 11.9);
+
+      crossfade("#scene3", "#scene4", 13.4, 0.4);
+
+      /* ==================== SCENE 4 : MIGS ==================== */
+      breathe("#s4-glow", 13.4, 4.4, 1.08);
+      tl.fromTo("#s4-panel", { opacity: 0, y: 24 }, { opacity: 1, y: 0, duration: 0.5, ease: "power3.out" }, 13.8);
+      tl.fromTo("#s4-meter-wrap", { opacity: 0 }, { opacity: 1, duration: 0.3, ease: "power2.out" }, 14.0);
+
+      // Fill + counter share one linear tween so the number and the bar land
+      // together; the color flips exactly when the value crosses 50 (~15.03s,
+      // between strong cues 12.65s and 23.17s -- no cue nearby, natural timing).
+      (function () {
+        const proxy = { v: 0 };
+        const FILL_START = 14.0, FILL_DUR = 1.6, FILL_TARGET = 78, FLIP_AT = 15.03;
+        const fill = document.getElementById("s4-fill");
+        const numEl = document.getElementById("s4-score-num");
+        tl.to(
+          proxy,
+          {
+            v: FILL_TARGET,
+            duration: FILL_DUR,
+            ease: "none",
+            onUpdate: function () {
+              const pct = proxy.v / 100;
+              fill.style.transform = "scaleX(" + pct + ")";
+              numEl.textContent = Math.round(proxy.v);
+            },
+          },
+          FILL_START
+        );
+        tl.set(fill, { backgroundColor: "#2C7A3F" }, FLIP_AT);
+        tl.set(numEl, { color: "#2C7A3F" }, FLIP_AT);
+      })();
+
+      tl.fromTo("#s4-kicker", { opacity: 0 }, { opacity: 1, duration: 0.3, ease: "power1.out" }, 15.8);
+      tl.fromTo("#s4-caption", { opacity: 0, y: 10 }, { opacity: 1, y: 0, duration: 0.4, ease: "power2.out" }, 15.9);
+
+      crossfade("#scene4", "#scene5", 17.4, 0.4);
+
+      /* ==================== SCENE 5 : OUTRO ==================== */
+      breathe("#s5-glow", 17.4, 21, 1.12);
+      tl.fromTo("#s5-line1", { opacity: 0 }, { opacity: 1, duration: 0.6, ease: "power1.out" }, 17.6);
+      tl.fromTo("#s5-line2", { opacity: 0 }, { opacity: 1, duration: 0.6, ease: "power1.out" }, 17.7);
+
+      // Logo pop -- the outro's spring-pop-entrance hero moment.
+      tl.fromTo("#s5-logo", { scale: 0, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.5, ease: "power3.out" }, 17.8);
+      tl.fromTo("#s5-wordmark", { opacity: 0, y: 10 }, { opacity: 1, y: 0, duration: 0.4, ease: "power2.out" }, 18.15);
+
+      tl.fromTo("#s5-tag1", { opacity: 0, y: 20 }, { opacity: 1, y: 0, duration: 0.5, ease: "power3.out" }, 18.3);
+      tl.fromTo("#s5-tag2", { opacity: 0, y: 20 }, { opacity: 1, y: 0, duration: 0.5, ease: "power3.out" }, 18.5);
+      tl.fromTo("#s5-subtext", { opacity: 0 }, { opacity: 1, duration: 0.4, ease: "power1.out" }, 18.9);
+
+      window.__timelines["main"] = tl;
+      tl.seek(0);
+    </script>
+  </body>
+</html>
