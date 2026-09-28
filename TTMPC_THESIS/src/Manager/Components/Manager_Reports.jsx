@@ -351,7 +351,7 @@ const Manager_Reports = () => {
                 <h3 className="text-gray-800 font-bold text-sm">Loan Activity — Last 12 Months</h3>
               </div>
               <div className="h-64">
-                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={1}>
+                <ResponsiveContainer debounce={200} width="100%" height="100%" minWidth={0} minHeight={1}>
                   <BarChart data={monthlyApprovals} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
                     <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: "#9ca3af", fontSize: 11 }} />
@@ -374,7 +374,7 @@ const Manager_Reports = () => {
                 <h3 className="text-gray-800 font-bold text-sm">Member Classification</h3>
               </div>
               <div className="relative h-44 flex items-center justify-center">
-                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={1}>
+                <ResponsiveContainer debounce={200} width="100%" height="100%" minWidth={0} minHeight={1}>
                   <PieChart>
                     <Pie
                       data={migsBreakdown}

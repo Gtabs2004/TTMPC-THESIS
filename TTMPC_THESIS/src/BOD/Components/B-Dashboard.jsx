@@ -599,7 +599,7 @@ const Dashboard_BOD = () => {
                 )}
               </div>
               <div className="h-72">
-                {loading ? <SkeletonChart /> : chartsReady ? <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={240}>
+                {loading ? <SkeletonChart /> : chartsReady ? <ResponsiveContainer debounce={200} width="100%" height="100%" minWidth={0} minHeight={240}>
                   <BarChart data={approvedTrend} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="0" vertical={false} stroke="#f0f0f0" />
                     <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#9CA3AF' }} />
@@ -631,7 +631,7 @@ const Dashboard_BOD = () => {
                 {loading ? <Skeleton className="h-6 w-24 rounded-lg" /> : <span className="text-xs font-medium bg-green-50 text-green-700 px-3 py-1 rounded-lg">{genderTotal} Members</span>}
               </div>
               <div className="h-48 w-full">
-                {loading ? <SkeletonDonut /> : chartsReady && genderData.length > 0 ? <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={160}>
+                {loading ? <SkeletonDonut /> : chartsReady && genderData.length > 0 ? <ResponsiveContainer debounce={200} width="100%" height="100%" minWidth={0} minHeight={160}>
                   <PieChart>
                     <Pie
                       data={genderData}

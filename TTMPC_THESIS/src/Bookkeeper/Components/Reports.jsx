@@ -495,7 +495,7 @@ const Reports = () => {
                       Collections
                     </div>
                   </div>
-                  <ResponsiveContainer width="100%" height={200}>
+                  <ResponsiveContainer debounce={200} width="100%" height={200}>
                     <BarChart data={monthlyCollections} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                       <XAxis
                         dataKey="month"
@@ -516,7 +516,7 @@ const Reports = () => {
                   <h2 className="text-base font-bold text-gray-900 mb-1">Loan Distribution</h2>
                   <p className="text-xs text-gray-400 mb-4">Active loans by type</p>
                   <div className="flex-1 flex items-center justify-center h-36 relative">
-                    <ResponsiveContainer width="100%" height="100%">
+                    <ResponsiveContainer debounce={200} width="100%" height="100%">
                       <PieChart>
                         <Pie data={pieData} innerRadius={42} outerRadius={60} paddingAngle={2} dataKey="value" stroke="none">
                           {pieData.map((entry, i) => (
@@ -569,7 +569,7 @@ const Reports = () => {
                       New Members
                     </div>
                   </div>
-                  <ResponsiveContainer width="100%" height={200}>
+                  <ResponsiveContainer debounce={200} width="100%" height={200}>
                     <LineChart data={membershipGrowth} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
                       <XAxis
                         dataKey="month"
@@ -639,7 +639,7 @@ const Reports = () => {
                     <h2 className="text-sm font-bold text-gray-900 mb-1">MIGS Classification</h2>
                     <p className="text-xs text-gray-400 mb-3">Member eligibility</p>
                     <div className="h-24 relative">
-                      <ResponsiveContainer width="100%" height="100%">
+                      <ResponsiveContainer debounce={200} width="100%" height="100%">
                         <PieChart>
                           <Pie data={migsPieData} innerRadius={28} outerRadius={42} paddingAngle={2} dataKey="value" stroke="none">
                             {migsPieData.map((entry, i) => (
