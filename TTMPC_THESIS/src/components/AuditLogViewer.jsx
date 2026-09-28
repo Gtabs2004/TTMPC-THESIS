@@ -243,6 +243,27 @@ const formatRole = (r) => {
   return lower.charAt(0).toUpperCase() + lower.slice(1);
 };
 
+// Who did it: name + email for a real account; triggers that run on the
+// backend's service key have no person attached, so say so plainly.
+const ActorCell = ({ row }) => {
+  if (!row.actor_user_id && !row.actor_email) {
+    return (
+      <>
+        <p className="text-gray-700">System</p>
+        <p className="text-xs text-gray-400 mt-0.5">Automatic entry</p>
+      </>
+    );
+  }
+  return (
+    <>
+      <p className="text-gray-700 font-medium">{row.actor_name || row.actor_email || "Unknown user"}</p>
+      {row.actor_name && row.actor_email ? (
+        <p className="text-xs text-gray-400 mt-0.5">{row.actor_email}</p>
+      ) : null}
+    </>
+  );
+};
+
 /**
  * Audit Log viewer — a compact Date & Time / Role / Status table on the main
  * page (matching the rest of the system's dashboard cards/toolbar via
@@ -459,6 +480,7 @@ const AuditLogViewer = ({ showActorRoleFilter = true, onError }) => {
       <tr key={r.id} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
         <td className="p-4 font-medium text-gray-900">{formatLogId(r.id)}</td>
         <td className="p-4 text-gray-500">{formatAuditTimestamp(r.occurred_at)}</td>
+        <td className="p-4"><ActorCell row={r} /></td>
         <td className="p-4 text-gray-500">{formatRole(r.actor_role)}</td>
         <td className="p-4">
           <span className={`px-2.5 py-1 rounded-md text-[10px] font-bold tracking-wide ${moduleInfo.className}`}>
@@ -513,6 +535,7 @@ const AuditLogViewer = ({ showActorRoleFilter = true, onError }) => {
             <thead>
               <tr className="bg-primary-deep text-[10px] uppercase tracking-wider text-white font-extrabold">
                 <th className="p-5 font-bold">Date &amp; Time</th>
+                <th className="p-5 font-bold">Performed By</th>
                 <th className="p-5 font-bold">Role</th>
                 <th className="p-5 font-bold">Activity</th>
                 <th className="p-5 font-bold">Status</th>
@@ -520,15 +543,16 @@ const AuditLogViewer = ({ showActorRoleFilter = true, onError }) => {
             </thead>
             <tbody>
               {loading ? (
-                <TableStateRow colSpan={4} variant="loading" label="Loading..." />
+                <TableStateRow colSpan={5} variant="loading" label="Loading..." />
               ) : rows.length === 0 ? (
-                <TableStateRow colSpan={4} variant="empty" icon={ClipboardList} label="No audit entries match these filters." />
+                <TableStateRow colSpan={5} variant="empty" icon={ClipboardList} label="No audit entries match these filters." />
               ) : rows.map((r) => {
                 const flagged = FLAGGED_ACTIONS.has(r.action);
                 const status = flagged ? "Flagged" : "Success";
                 return (
                   <tr key={r.id} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
                     <td className="p-5 text-gray-500">{formatAuditTimestamp(r.occurred_at)}</td>
+                    <td className="p-5"><ActorCell row={r} /></td>
                     <td className="p-5 text-gray-500">{formatRole(r.actor_role)}</td>
                     <td className="p-5 whitespace-normal min-w-[16rem]">
                       <p className="text-gray-700">{describeAuditActivity(r)}</p>
@@ -593,6 +617,7 @@ const AuditLogViewer = ({ showActorRoleFilter = true, onError }) => {
                   <tr className="bg-primary-deep text-[10px] uppercase tracking-wider text-white font-extrabold sticky top-0 z-10">
                     <th className="p-4 font-bold">Log ID</th>
                     <th className="p-4 font-bold">Date &amp; Time</th>
+                    <th className="p-4 font-bold">Performed By</th>
                     <th className="p-4 font-bold">Role</th>
                     <th className="p-4 font-bold">Transaction Type</th>
                     <th className="p-4 font-bold">Action</th>
@@ -602,9 +627,9 @@ const AuditLogViewer = ({ showActorRoleFilter = true, onError }) => {
                 </thead>
                 <tbody>
                   {loading ? (
-                    <TableStateRow colSpan={7} variant="loading" label="Loading..." />
+                    <TableStateRow colSpan={8} variant="loading" label="Loading..." />
                   ) : rows.length === 0 ? (
-                    <TableStateRow colSpan={7} variant="empty" icon={ClipboardList} label="No audit entries match these filters." />
+                    <TableStateRow colSpan={8} variant="empty" icon={ClipboardList} label="No audit entries match these filters." />
                   ) : rows.map(renderDetailedRow)}
                 </tbody>
               </table>

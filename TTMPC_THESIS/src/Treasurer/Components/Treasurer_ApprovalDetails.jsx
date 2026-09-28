@@ -11,6 +11,7 @@ import {
   BarChart2,
   Paperclip,
   FileImage,
+  FileText,
   Check,
   FileEdit,
   ExternalLink,
@@ -1096,19 +1097,25 @@ const Treasurer_ApprovalDetails = () => {
               </h2>
               {supportingDocs.length === 0 ? (
                 <div className="rounded-xl border border-dashed border-gray-300 bg-[#F8F9FA] p-6 text-sm text-gray-500">
-                  No supporting photos uploaded yet.
+                  No supporting documents uploaded yet.
                 </div>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {supportingDocs.map((doc, index) => {
                     const previewUrl = supportingDocUrls[doc.storage_path] || '';
                     const isImage = /\.(png|jpg|jpeg|gif|webp|bmp|svg)$/i.test(String(doc.file_name || ''));
+                    const fileExt = (String(doc.file_name || '').match(/\.([a-z0-9]+)$/i)?.[1] || '').toUpperCase();
 
                     return (
                       <div key={`${doc.storage_path}-${index}`} className="rounded-xl border border-gray-200 bg-white p-3">
                         <div className="mb-2 h-40 overflow-hidden rounded-lg bg-gray-100 flex items-center justify-center">
                           {previewUrl && isImage ? (
                             <img src={previewUrl} alt={doc.file_name} className="h-full w-full object-cover" />
+                          ) : fileExt ? (
+                            <div className={`flex flex-col items-center gap-1 ${fileExt === 'PDF' ? 'text-red-600' : 'text-gray-500'}`}>
+                              <FileText className="w-10 h-10" />
+                              <span className="text-[11px] font-bold tracking-wider">{fileExt}</span>
+                            </div>
                           ) : (
                             <FileImage className="w-8 h-8 text-gray-400" />
                           )}

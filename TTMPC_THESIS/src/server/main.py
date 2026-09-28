@@ -16319,12 +16319,55 @@ def read_audit_log(
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Could not read the audit log: {exc}")
 
+    rows = resp.data or []
+    _attach_audit_actor_names(rows)
+
     return {
         "ok": True,
-        "rows": resp.data or [],
+        "rows": rows,
         "total": getattr(resp, "count", None) or 0,
         "role": role,
     }
+
+
+def _attach_audit_actor_names(rows: list[dict]) -> None:
+    """Add `actor_name` (and backfill `actor_email`) to each audit row.
+
+    audit_log only stores the actor's auth id/email. Staff accounts link to a
+    member record through member_account.membership_id, which holds the real
+    name. Two batched lookups for the whole page; a failure just leaves the
+    name blank rather than failing the read.
+    """
+    actor_ids = {str(r.get("actor_user_id")) for r in rows if r.get("actor_user_id")}
+    if not actor_ids:
+        return
+    try:
+        accounts = (
+            supabase.table("member_account")
+            .select("auth_user_id,email,membership_id")
+            .in_("auth_user_id", list(actor_ids))
+            .execute()
+        ).data or []
+        membership_ids = list({a["membership_id"] for a in accounts if a.get("membership_id")})
+        members = (
+            supabase.table("member")
+            .select("membership_id,first_name,middle_initial,last_name")
+            .in_("membership_id", membership_ids)
+            .execute()
+        ).data or [] if membership_ids else []
+    except Exception as exc:
+        logger.warning("Could not resolve audit actor names: %s", exc)
+        return
+
+    name_by_membership = {m["membership_id"]: resolve_member_full_name(m) for m in members}
+    account_by_id = {str(a["auth_user_id"]): a for a in accounts}
+    for r in rows:
+        account = account_by_id.get(str(r.get("actor_user_id") or ""))
+        if not account:
+            continue
+        r["actor_name"] = name_by_membership.get(account.get("membership_id"))
+        if not r.get("actor_email"):
+            r["actor_email"] = account.get("email")
 
 
 @app.get("/api/audit-log/kpis")
