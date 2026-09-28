@@ -12344,11 +12344,11 @@ async def confirm_membership_endpoint(payload: MembershipConfirmationRequest):
             missing = []
             if not summary.get("membership_fee_paid"):
                 missing.append(
-                    f"Membership Fee (₱{summary.get('required_membership_fee', 100):,.2f}) is unpaid."
+                    f"Membership Fee (₱{summary.get('required_membership_fee', 200):,.2f}) is unpaid."
                 )
             if not summary.get("paid_up_capital_satisfied"):
                 paid = summary.get("paid_up_capital_amount") or 0
-                req = summary.get("required_paid_up_capital") or 10000
+                req = summary.get("required_paid_up_capital") or 20000
                 missing.append(
                     f"Initial Paid-Up Capital is insufficient (₱{paid:,.2f} / ₱{req:,.2f})."
                 )
@@ -13709,12 +13709,12 @@ async def get_credit_risk_queue():
 # =============================================================================
 # Membership Payments Module
 # =============================================================================
-# Scalable table for membership-related fees. Currently records the ₱100
-# Membership Fee for applicants. The paid-up capital (₱10,000) continues to
+# Scalable table for membership-related fees. Currently records the ₱200
+# Membership Fee for applicants. The paid-up capital (₱20,000) continues to
 # be tracked by personal_data_sheet.initial_paid_up_capital / capital_build_up.
 
-MEMBERSHIP_FEE_AMOUNT = Decimal("100")
-INITIAL_PAID_UP_CAPITAL_REQUIRED = Decimal("10000")
+MEMBERSHIP_FEE_AMOUNT = Decimal("200")
+INITIAL_PAID_UP_CAPITAL_REQUIRED = Decimal("20000")
 
 
 # ============================================================================

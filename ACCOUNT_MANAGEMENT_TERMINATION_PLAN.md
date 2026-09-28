@@ -98,24 +98,36 @@ Example: CBU ₱30,000, remaining loans ₱12,340 → ₱12,340 applied to the l
 - **What "remaining loan" means (confirmed):** each active loan's outstanding balance **plus its accrued unpaid penalties** (`loan_penalties`, per the penalty accrual rule — legacy loans have none), using the same source of truth as the rest of the system (`loan_schedules`, renewals de-duplicated to the latest loan per type). The CBU offset pays penalties first, then the balance, matching `allocate_payment`'s existing order (penalty → arrears → current).
 - **When the offset is recorded — at termination (recommended):** when BOD confirms the termination, the system records the offset as a loan payment on each loan (payment method **"CBU offset"**, no cash involved) and a matching CBU withdrawal line. The loans close right away, so penalties stop accruing, and the Cashier's page only shows the cash still owed to the member.
 - Loans are paid oldest first, until the CBU runs out.
-- **If loans are more than the CBU:** the whole CBU goes to the loans, refundable = ₱0, and nothing is paid out. The leftover debt is handled as below.
 - Payout records store the deductions, and the payout screen and receipt show the breakdown "Total CBU → applied to loans → amount to give."
 
-**Leftover debt (loans > CBU) — decided: follow each loan's own signed agreement.** The system does not pick a collection method:
-- The leftover stays on the loan, which **stays open**; the Cashier keeps accepting payments on it through the normal Payments page, whatever the source.
-- Collection follows the agreement the member already signed: **Emergency** → Deed of Assignment (salary/benefits); **Bonus** → collected from the bonus; **Consolidated** → whole balance due immediately on default, co-makers on the application. Legal recovery is a coop decision outside the system.
-- The member shows as **Terminated — with balance** to the Bookkeeper and Manager, with the amount owed and the co-maker names, for follow-up.
-- No automatic salary deduction — there's no payroll integration; collection happens outside the system and the Cashier records it.
-- Becomes **Closed** once the debt reaches ₱0.
+**Leftover debt — coop rule (confirmed 2026-09-28):**
+
+> If a member's CBU is not enough to pay off their remaining loan balance, the member **cannot leave the cooperative** until that balance is fully settled. The member chooses one of two options:
+> 1. **Stay as a member.** The termination does not go through, and they keep paying their loan normally.
+> 2. **Use their CBU to pay part of the loan now.** Their CBU is applied to the remaining balance, they continue paying what is left, and they leave the cooperative once the remaining balance reaches ₱0.
+
+How Terminate Member applies it:
+
+| Situation | What happens |
+|---|---|
+| **CBU ≥ remaining loans** (incl. penalties) | Terminated immediately: CBU pays the loans (CBU offset), the member gets the rest via the Cashier's CBU Payout. |
+| **CBU < remaining loans** | Termination is **not completed**; BOD records the member's choice (Option 1 or 2). |
+
+- **Option 1 — Stay:** nothing changes; the member stays **Active** with their login and keeps paying normally. The request is kept in the history as "Withdrawn — member chose to stay."
+- **Option 2 — Use CBU now, leave when paid:**
+  - CBU is applied to the loans immediately as a "CBU offset" payment (penalties first, then balance); CBU becomes ₱0.
+  - New member status **`exiting`** ("Exiting — balance due"): keeps member-portal access (to see the balance); **blocked from new loans and renewals** (loan eligibility check); the Cashier records loan payments as usual; Account Management shows an **Exiting members** list with the remaining amount.
+  - **When the remaining balance reaches ₱0, termination completes automatically** (hooked on loan payment recording): resolution number generated, login locked, Secretary notified. Refundable CBU is ₱0 → straight to **Closed**, no Cashier payout.
+- No one is ever "terminated with a balance." Collecting the remaining balance follows each loan's signed agreement (Emergency → Deed of Assignment; Bonus → from the bonus; Consolidated → co-makers / acceleration). No automatic salary deduction (no payroll integration).
 
 ### 9. Closed status
 
 - When remaining reaches ₱0 **and no loan balance is left** → member status **Closed**: hidden from active lists; excluded from loans, ISC and dashboards; history kept.
-- A terminated member whose loans exceeded their CBU stays **Terminated — with balance** until the debt is settled.
+- A member whose loans exceeded their CBU is never terminated with a balance — they stay Active (Option 1) or are **Exiting** until the balance is ₱0 (Option 2, §8).
 
 ### 10. SQL
 
-- Allow `member.member_status = 'closed'`.
+- Allow `member.member_status = 'exiting'` and `'closed'`.
 - New CBU payout table (member, amount, deductions, date, reference, recorded by, created_at) with the deductions field.
 
 ---

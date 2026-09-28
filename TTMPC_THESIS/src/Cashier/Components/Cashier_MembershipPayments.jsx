@@ -36,8 +36,8 @@ import {
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 const PAGE_SIZE = 5;
-const MEMBERSHIP_FEE = 100;
-const PAID_UP_REQUIRED = 10000;
+const MEMBERSHIP_FEE = 200;
+const PAID_UP_REQUIRED = 20000;
 
 const PAYMENT_TYPE_META = {
   MEMBERSHIP_FEE: {
