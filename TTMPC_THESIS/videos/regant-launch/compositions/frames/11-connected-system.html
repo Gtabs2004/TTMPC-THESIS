@@ -1,0 +1,758 @@
+<template>
+      <style>
+        @font-face { font-family: "Poppins"; src: url("assets/fonts/poppins-400.woff2") format("woff2"); font-weight: 400; font-style: normal; font-display: block; }
+        @font-face { font-family: "Poppins"; src: url("assets/fonts/poppins-500.woff2") format("woff2"); font-weight: 500; font-style: normal; font-display: block; }
+        @font-face { font-family: "Poppins"; src: url("assets/fonts/poppins-600.woff2") format("woff2"); font-weight: 600; font-style: normal; font-display: block; }
+        @font-face { font-family: "Poppins"; src: url("assets/fonts/poppins-700.woff2") format("woff2"); font-weight: 700; font-style: normal; font-display: block; }
+        @font-face { font-family: "Poppins"; src: url("assets/fonts/poppins-800.woff2") format("woff2"); font-weight: 800; font-style: normal; font-display: block; }
+
+        #root {
+          position: absolute;
+          inset: 0;
+          width: 1920px;
+          height: 1080px;
+          overflow: hidden;
+          container-type: size;
+          font-family: "Poppins", sans-serif;
+        }
+
+        /* ---- full-bleed ground (never on #root) ---- */
+        .f11-bg {
+          position: absolute;
+          inset: 0;
+          background: linear-gradient(180deg, #f6f9f6 0%, #eef3ee 100%);
+        }
+
+        .f11-scene {
+          position: absolute;
+          inset: 0;
+          overflow: hidden;
+        }
+
+        /* ---- HUD eyebrow (outside the camera world — persistent chrome) ---- */
+        .f11-eyebrow {
+          position: absolute;
+          left: 50%;
+          top: 13cqh;
+          font-size: 0.8cqw;
+          font-weight: 600;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+          color: #30822D;
+          opacity: 0;
+          z-index: 40;
+          white-space: nowrap;
+        }
+
+        /* ---- the camera world — everything filmed lives in here ---- */
+        .f11-world {
+          position: absolute;
+          inset: 0;
+          transform-origin: 50% 50%;
+          will-change: transform;
+          filter: url(#f11-streak);
+        }
+
+        .f11-duo-bounds {
+          position: absolute;
+          left: 240px;
+          top: 215px;
+          width: 1500px;
+          height: 540px;
+          opacity: 0;
+          pointer-events: none;
+        }
+
+        /* ---- data path ---- */
+        .f11-path-svg {
+          position: absolute;
+          inset: 0;
+          overflow: visible;
+        }
+        .f11-path-glow {
+          fill: none;
+          stroke: #389734;
+          stroke-width: 6;
+          stroke-linecap: round;
+          stroke-dasharray: 2 16;
+          opacity: 0.55;
+        }
+        .f11-path-particle {
+          position: absolute;
+          width: 14px;
+          height: 14px;
+          border-radius: 50%;
+          background: #389734;
+          box-shadow: 0 1px 4px 0 rgba(31, 41, 55, 0.18);
+          left: 0;
+          top: 0;
+          opacity: 0;
+          offset-path: path("M540,515 Q750,455 960,515");
+          offset-distance: 0%;
+          offset-rotate: 0deg;
+        }
+        .f11-plug-dot {
+          position: absolute;
+          width: 16px;
+          height: 16px;
+          border-radius: 50%;
+          background: #389734;
+          transform: translate(-50%, -50%);
+        }
+
+        /* ---- phone device ---- */
+        .f11-phone {
+          position: absolute;
+          left: 240px;
+          top: 215px;
+          width: 300px;
+          height: 600px;
+          border-radius: 44px;
+          background: #14171c;
+          box-shadow: inset 0 0 0 2px #2a2f38;
+        }
+        .f11-phone-screen {
+          position: absolute;
+          inset: 12px;
+          border-radius: 34px;
+          background: #ffffff;
+          overflow: hidden;
+          display: flex;
+          flex-direction: column;
+          padding: 26px 20px;
+        }
+        .f11-phone-head {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          margin-bottom: 18px;
+        }
+        .f11-phone-mark {
+          width: 16px;
+          height: 16px;
+          border-radius: 5px;
+          background: #389734;
+        }
+        .f11-phone-app-name {
+          font-size: 13px;
+          font-weight: 600;
+          color: #1f2937;
+          letter-spacing: 0.01em;
+        }
+        .f11-phone-card {
+          position: relative;
+          background: rgba(56, 151, 52, 0.04);
+          border: 1.5px solid rgba(56, 151, 52, 0.2);
+          border-radius: 14px;
+          padding: 20px 18px;
+        }
+        .f11-card-pulse {
+          position: absolute;
+          inset: -6px;
+          border-radius: 18px;
+          border: 2px solid #389734;
+          opacity: 0;
+        }
+        .f11-card-top {
+          display: flex;
+          justify-content: space-between;
+          align-items: flex-start;
+          gap: 10px;
+          margin-bottom: 6px;
+        }
+        .f11-card-label {
+          font-size: 12px;
+          font-weight: 500;
+          color: #5D6C82;
+        }
+        .f11-card-amount {
+          font-size: 19px;
+          font-weight: 700;
+          color: #389734;
+          line-height: 1;
+          white-space: nowrap;
+        }
+        .f11-card-sub {
+          font-size: 11px;
+          color: #9a9a9a;
+          margin-bottom: 16px;
+        }
+        .f11-submit-btn {
+          display: block;
+          width: 100%;
+          text-align: center;
+          background: #389734;
+          color: #ffffff;
+          font-family: "Poppins", sans-serif;
+          font-size: 13px;
+          font-weight: 600;
+          border: none;
+          border-radius: 100px;
+          padding: 11px 0;
+        }
+        .f11-pill {
+          position: absolute;
+          left: 18px;
+          bottom: -16px;
+          font-size: 11px;
+          font-weight: 600;
+          letter-spacing: 0.02em;
+          padding: 6px 14px;
+          border-radius: 100px;
+          opacity: 0;
+        }
+        .f11-pill-pending {
+          background: rgba(148, 163, 184, 0.16);
+          color: #5D6C82;
+        }
+        .f11-pill-approved {
+          background: rgba(56, 151, 52, 0.12);
+          color: #32872E;
+        }
+
+        /* ---- desktop device ---- */
+        .f11-desktop {
+          position: absolute;
+          left: 960px;
+          top: 275px;
+          width: 780px;
+          height: 480px;
+          border-radius: 14px;
+          background: #ffffff;
+          border: 1px solid rgba(56, 151, 52, 0.2);
+          overflow: hidden;
+        }
+        .f11-desktop-bar {
+          height: 40px;
+          background: #2e7a2a;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          padding: 0 18px;
+        }
+        .f11-desktop-dot {
+          width: 8px;
+          height: 8px;
+          border-radius: 50%;
+          background: rgba(255, 255, 255, 0.55);
+        }
+        .f11-desktop-title {
+          margin-left: 8px;
+          font-size: 0.6cqw;
+          font-weight: 600;
+          color: rgba(255, 255, 255, 0.92);
+          letter-spacing: 0.02em;
+        }
+        .f11-desktop-body {
+          padding: 22px 24px;
+        }
+        .f11-queue-title {
+          font-size: 0.62cqw;
+          font-weight: 600;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+          color: #389734;
+          margin-bottom: 14px;
+        }
+        .f11-row {
+          position: relative;
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          background: rgba(56, 151, 52, 0.03);
+          border: 1.5px solid rgba(56, 151, 52, 0.14);
+          border-radius: 12px;
+          padding: 14px 16px;
+          margin-bottom: 10px;
+          font-size: 0.6cqw;
+          color: #1f2937;
+        }
+        .f11-row-muted {
+          opacity: 0.45;
+          color: #64748b;
+        }
+        .f11-row-new {
+          border: 1.5px solid rgba(56, 151, 52, 0.28);
+          transform-origin: 50% 50%;
+        }
+        .f11-row-main {
+          display: flex;
+          flex-direction: column;
+          flex: 1;
+          gap: 3px;
+        }
+        .f11-row-name {
+          font-weight: 600;
+          font-size: 0.68cqw;
+          color: #1f2937;
+        }
+        .f11-row-type {
+          font-size: 0.55cqw;
+          color: #5D6C82;
+        }
+        .f11-row-pill {
+          font-size: 0.5cqw;
+          font-weight: 600;
+          padding: 5px 12px;
+          border-radius: 100px;
+          white-space: nowrap;
+        }
+        .f11-row-pill-new {
+          background: rgba(148, 163, 184, 0.16);
+          color: #5D6C82;
+        }
+        .f11-row-pill-slot {
+          position: relative;
+          display: inline-flex;
+        }
+        .f11-row-pill-approved {
+          background: rgba(56, 151, 52, 0.12);
+          color: #389734;
+          position: absolute;
+          inset: 0;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          opacity: 0;
+        }
+        .f11-approve-btn {
+          background: #389734;
+          color: #ffffff;
+          font-family: "Poppins", sans-serif;
+          font-size: 0.5cqw;
+          font-weight: 600;
+          border: none;
+          border-radius: 100px;
+          padding: 7px 16px;
+        }
+        .f11-row-check {
+          position: absolute;
+          right: -10px;
+          top: -10px;
+          width: 26px;
+          height: 26px;
+          border-radius: 50%;
+          background: #389734;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          opacity: 0;
+        }
+
+        /* ---- desktop click cursor + ripple ---- */
+        .f11-cursor {
+          position: absolute;
+          left: 0;
+          top: 0;
+          width: 0;
+          height: 0;
+          z-index: 30;
+          opacity: 0;
+        }
+        .f11-cursor-glyph {
+          width: 0;
+          height: 0;
+          border-left: 9px solid #1f2937;
+          border-bottom: 15px solid transparent;
+          border-right: 0;
+          transform: rotate(-8deg);
+          filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.25));
+        }
+        .f11-ripple {
+          position: absolute;
+          left: 0;
+          top: 0;
+          width: 60px;
+          height: 60px;
+          border-radius: 50%;
+          border: 2px solid #389734;
+          opacity: 0;
+          pointer-events: none;
+        }
+        .f11-tap {
+          position: absolute;
+          left: 0;
+          top: 0;
+          width: 70px;
+          height: 70px;
+          border-radius: 50%;
+          border: 2px solid #389734;
+          opacity: 0;
+          pointer-events: none;
+        }
+      </style>
+
+      <div data-hf-id="hf-1846" id="root" data-composition-id="11-connected-system" data-width="1920" data-height="1080" data-duration="12.4">
+        <div data-hf-id="hf-bpll" class="f11-bg clip" data-start="0" data-duration="12.4" data-track-index="0"></div>
+
+        <div data-hf-id="hf-ik0n" class="f11-scene clip" data-start="0" data-duration="12.4" data-track-index="1">
+          <div data-hf-id="hf-iomh" class="f11-eyebrow" id="f11-eyebrow">One connected ecosystem</div>
+
+          <svg data-hf-id="hf-p3r6" width="0" height="0" aria-hidden="true" style="position: absolute">
+            <filter data-hf-id="hf-82p5" id="f11-streak" x="-50%" y="-50%" width="200%" height="200%">
+              <fegaussianblur data-hf-id="hf-gc88" id="f11-streak-blur" in="SourceGraphic" stdDeviation="0 0" />
+            </filter>
+          </svg>
+
+          <div data-hf-id="hf-hiab" class="f11-world" id="f11-world" data-layout-allow-overflow="">
+            <div data-hf-id="hf-3f5i" class="f11-duo-bounds" id="f11-duo-bounds"></div>
+
+            <svg data-hf-id="hf-21ky" class="f11-path-svg" viewBox="0 0 1920 1080">
+              <path data-hf-id="hf-pfkl" class="f11-path-glow" d="M540,515 Q750,455 960,515" />
+            </svg>
+            <div data-hf-id="hf-0n87" class="f11-plug-dot" style="left:540px;top:515px;"></div>
+            <div data-hf-id="hf-lrmh" class="f11-plug-dot" style="left:960px;top:515px;"></div>
+            <div data-hf-id="hf-w4xo" class="f11-path-particle" id="f11-particle-1"></div>
+            <div data-hf-id="hf-70fb" class="f11-path-particle" id="f11-particle-2"></div>
+
+            <!-- ================= PHONE ================= -->
+            <div data-hf-id="hf-gv7k" class="f11-phone" id="f11-phone">
+              <div data-hf-id="hf-6dv0" class="f11-phone-screen">
+                <div data-hf-id="hf-2upy" class="f11-phone-head">
+                  <div data-hf-id="hf-d7t7" class="f11-phone-mark"></div>
+                  <div data-hf-id="hf-ogwm" class="f11-phone-app-name">My Loans</div>
+                </div>
+                <div data-hf-id="hf-9qs2" class="f11-phone-card" id="f11-phone-card">
+                  <div data-hf-id="hf-144i" class="f11-card-pulse" id="f11-card-pulse"></div>
+                  <div data-hf-id="hf-9hh1" class="f11-card-top">
+                    <span data-hf-id="hf-dkzq" class="f11-card-label">Consolidated&#160;Loan</span>
+                    <span data-hf-id="hf-8yqh" class="f11-card-amount">₱45,000</span>
+                  </div>
+                  <div data-hf-id="hf-1auv" class="f11-card-sub">Applied via mobile</div>
+                  <button data-hf-id="hf-yz75" class="f11-submit-btn" id="f11-submit-btn">Submit Application</button>
+                  <div data-hf-id="hf-1zmy" class="f11-pill f11-pill-pending" id="f11-phone-pill-pending">Pending Review</div>
+                  <div data-hf-id="hf-5eli" class="f11-pill f11-pill-approved" id="f11-phone-pill-approved">Approved</div>
+                  <div data-hf-id="hf-fdam" class="f11-tap" id="f11-tap"></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- ================= DESKTOP ================= -->
+            <div data-hf-id="hf-s1zg" class="f11-desktop" id="f11-desktop">
+              <div data-hf-id="hf-xfnj" class="f11-desktop-bar">
+                <div data-hf-id="hf-svzx" class="f11-desktop-dot"></div>
+                <div data-hf-id="hf-ztht" class="f11-desktop-dot"></div>
+                <div data-hf-id="hf-ib3m" class="f11-desktop-title">Approval Queue</div>
+              </div>
+              <div data-hf-id="hf-wezg" class="f11-desktop-body">
+                <div data-hf-id="hf-evoh" class="f11-queue-title">Pending Applications</div>
+                <div data-hf-id="hf-u16x" class="f11-row f11-row-muted">M. Santos · Emergency Loan · ₱6,000</div>
+                <div data-hf-id="hf-mncv" class="f11-row f11-row-muted">R. Cruz · Bonus Loan · ₱10,000</div>
+                <div data-hf-id="hf-a8iw" class="f11-row f11-row-new" id="f11-queue-row">
+                  <div data-hf-id="hf-6fnb" class="f11-row-main">
+                    <span data-hf-id="hf-9tk3" class="f11-row-name">J. Bautista</span>
+                    <span data-hf-id="hf-eyv9" class="f11-row-type">Consolidated Loan · ₱45,000</span>
+                  </div>
+                  <div data-hf-id="hf-w3ka" class="f11-row-pill-slot">
+                    <div data-hf-id="hf-lhcp" class="f11-row-pill f11-row-pill-new" id="f11-row-pill-new">New</div>
+                    <div data-hf-id="hf-uwrw" class="f11-row-pill f11-row-pill-approved" id="f11-row-pill-approved">Approved</div>
+                  </div>
+                  <button data-hf-id="hf-sjym" class="f11-approve-btn" id="f11-approve-btn">Approve</button>
+                  <div data-hf-id="hf-gmie" class="f11-row-check" id="f11-row-check">
+                    <svg data-hf-id="hf-s4xi" width="14" height="14" viewBox="0 0 14 14">
+                      <polyline data-hf-id="hf-l6o4" id="f11-check-path" points="2,7 6,11 12,3" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="16" stroke-dashoffset="16" />
+                    </svg>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- officer cursor + ripple, positioned via JS at Approve button -->
+            <div data-hf-id="hf-509z" class="f11-cursor" id="f11-cursor-officer">
+              <div data-hf-id="hf-oley" class="f11-cursor-glyph"></div>
+            </div>
+            <div data-hf-id="hf-5edk" class="f11-ripple" id="f11-ripple-1"></div>
+            <div data-hf-id="hf-e29f" class="f11-ripple" id="f11-ripple-2"></div>
+          </div>
+        </div>
+      </div>
+
+      <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+      <script>
+        (function () {
+          const root = document.getElementById("root");
+          const world = document.getElementById("f11-world");
+          const W = 1920, H = 1080;
+
+          // ---------- measure targets BEFORE any tween touches them ----------
+          function centerOffset(el) {
+            const r = el.getBoundingClientRect();
+            const rr = root.getBoundingClientRect();
+            return {
+              x: (r.left - rr.left) + r.width / 2 - W / 2,
+              y: (r.top - rr.top) + r.height / 2 - H / 2,
+            };
+          }
+          function poseFor(el, scale) {
+            const o = centerOffset(el);
+            return { scale: scale, x: -o.x * scale, y: -o.y * scale };
+          }
+          function centerOf(el) {
+            const r = el.getBoundingClientRect();
+            const rr = root.getBoundingClientRect();
+            return {
+              x: (r.left - rr.left) + r.width / 2,
+              y: (r.top - rr.top) + r.height / 2,
+            };
+          }
+          // local center of targetEl in parentEl's own box (parentEl is the
+          // nearest positioned ancestor of the element being placed)
+          function localCenter(targetEl, parentEl) {
+            const tr = targetEl.getBoundingClientRect();
+            const pr = parentEl.getBoundingClientRect();
+            return { x: tr.left - pr.left + tr.width / 2, y: tr.top - pr.top + tr.height / 2 };
+          }
+
+          const phoneCardEl = document.getElementById("f11-phone-card");
+          const queueRowEl = document.getElementById("f11-queue-row");
+          const duoBoundsEl = document.getElementById("f11-duo-bounds");
+          const submitBtnEl = document.getElementById("f11-submit-btn");
+          const approveBtnEl = document.getElementById("f11-approve-btn");
+          const tapEl = document.getElementById("f11-tap");
+
+          const poseWide = { scale: 1, x: 0, y: 0 };
+          const posePhoneDive = poseFor(phoneCardEl, 1.9);
+          const poseRowLand = poseFor(queueRowEl, 2.15);
+          const posePhoneReturn = poseFor(phoneCardEl, 2.3);
+          const poseSettle = poseFor(duoBoundsEl, 1.12);
+
+          const approvePt = centerOf(approveBtnEl);
+          // .f11-tap's positioned ancestor is .f11-phone-card, not #root — place it
+          // in that local coordinate space, then bake centering via xPercent/yPercent
+          // (never mix a static CSS `transform` with a GSAP-animated transform prop).
+          const tapPt = localCenter(submitBtnEl, phoneCardEl);
+          tapEl.style.left = tapPt.x + "px";
+          tapEl.style.top = tapPt.y + "px";
+          gsap.set(tapEl, { xPercent: -50, yPercent: -50, scale: 0 });
+          gsap.set(["#f11-ripple-1", "#f11-ripple-2"], { xPercent: -50, yPercent: -50, scale: 0 });
+          gsap.set("#f11-eyebrow", { xPercent: -50 });
+
+          // ---------- single-writer camera composition ----------
+          const cam = { scale: 1, x: 0, y: 0 };
+          const drift = { x: 0, y: 0 };
+          function applyCamera() {
+            world.style.transform =
+              "translate(" + (cam.x + drift.x) + "px, " + (cam.y + drift.y) + "px) scale(" + cam.scale + ")";
+          }
+          applyCamera();
+
+          // ---------- motion-blur streak on the world wrapper (Camera-Travel Carve-Out) ----------
+          // axis: 'b' = "v v" (symmetric depth blur for a dive/push leg), 'x' = "v 0" (lateral
+          // smear for a repositioning travel leg). Directional SVG feGaussianBlur, proxy-tweened.
+          const blurNode = document.getElementById("f11-streak-blur");
+          const blurProxy = { v: 0, axis: "b" };
+          function writeBlur() {
+            const sd = blurProxy.axis === "x" ? blurProxy.v + " 0" : blurProxy.v + " " + blurProxy.v;
+            blurNode.setAttribute("stdDeviation", sd);
+          }
+          writeBlur();
+
+gsap.set("#f11-submit-btn", { x: 124, y: 21 });
+          const tl = gsap.timeline({ paused: true });
+          window.__timelines = window.__timelines || {};
+
+          // ================= LEG 0 — seed wide, both devices visible =================
+          tl.set(cam, poseWide, 0);
+          tl.fromTo(
+            "#f11-eyebrow",
+            { opacity: 0, y: -10 },
+            { opacity: 1, y: 0, duration: 0.5, ease: "power2.out" },
+            0.05
+          );
+
+          // ================= LEG 1 — dive tight onto the phone card =================
+          tl.set(blurProxy, { v: 18, axis: "b" }, 0.05);
+          tl.to(cam, { scale: posePhoneDive.scale, x: posePhoneDive.x, y: posePhoneDive.y, duration: 0.9, ease: "power4.out" }, 0.05);
+          tl.to(blurProxy, { v: 0, duration: 0.9, ease: "power4.out", onUpdate: writeBlur }, 0.05);
+
+          // ---- hinge: member taps Submit (~1.0 - 2.9s) ----
+          tl.fromTo(
+            "#f11-tap",
+            { opacity: 0, scale: 0 },
+            { opacity: 1, scale: 1, duration: 0.4, ease: "power2.out" },
+            1.35
+          );
+          tl.to("#f11-tap", { opacity: 0, duration: 0.35, ease: "power1.out" }, 1.75);
+          tl.to(submitBtnEl, { opacity: 0.35, duration: 0.3, ease: "power1.out" }, 1.45);
+          tl.fromTo(
+            "#f11-card-pulse",
+            { opacity: 0.7, scale: 0.94 },
+            { opacity: 0, scale: 1.18, duration: 0.65, ease: "power2.out" },
+            1.45
+          );
+          tl.fromTo(
+            "#f11-phone-pill-pending",
+            { opacity: 0, scale: 0.6, y: 6 },
+            { opacity: 1, scale: 1, y: 0, duration: 0.4, ease: "back.out(1.5)" },
+            1.5
+          );
+
+          // ================= LEG 2 — travel across to the desktop queue =================
+          tl.set(blurProxy, { axis: "x" }, 3.0);
+          tl.to(cam, { scale: poseRowLand.scale, x: poseRowLand.x, y: poseRowLand.y, duration: 3.3, ease: "power2.inOut" }, 3.0);
+          tl.fromTo(blurProxy, { v: 0 }, { v: 16, duration: 1.65, ease: "power2.in", onUpdate: writeBlur }, 3.0);
+          tl.to(blurProxy, { v: 0, duration: 1.65, ease: "power2.out", onUpdate: writeBlur }, 4.65);
+          tl.to("#f11-eyebrow", { opacity: 0.3, duration: 0.5, ease: "power2.out" }, 3.0);
+
+          // traveling data-flow particles, phone -> desktop
+          [
+            { id: "f11-particle-1", start: 3.15 },
+            { id: "f11-particle-2", start: 3.65 },
+          ].forEach((p) => {
+            const el = document.getElementById(p.id);
+            const proxy = { d: 0 };
+            tl.set(el, { opacity: 1 }, p.start);
+            tl.fromTo(
+              proxy,
+              { d: 0 },
+              {
+                d: 100,
+                duration: 1.3,
+                ease: "power1.inOut",
+                onUpdate: function () {
+                  el.style.offsetDistance = proxy.d + "%";
+                },
+              },
+              p.start
+            );
+            tl.to(el, { opacity: 0, duration: 0.25, ease: "power1.in" }, p.start + 1.15);
+          });
+
+          // ---- row lands + gets reviewed/approved ----
+          tl.fromTo(
+            "#f11-queue-row",
+            { opacity: 0, y: 16, scale: 0.85 },
+            { opacity: 1, y: 0, scale: 1, duration: 0.5, ease: "back.out(1.35)" },
+            5.85
+          );
+          tl.to("#f11-eyebrow", { opacity: 0.8, duration: 0.4, ease: "power2.out" }, 6.0);
+
+          // officer cursor click-ripple on Approve
+          tl.set("#f11-cursor-officer", { x: approvePt.x - 130, y: approvePt.y - 90, opacity: 1 }, 6.1);
+          tl.to("#f11-cursor-officer", { x: approvePt.x - 6, y: approvePt.y - 4, duration: 0.4, ease: "power3.out" }, 6.15);
+          tl.to("#f11-cursor-officer", { scale: 0.82, duration: 0.08, ease: "power2.in", yoyo: true, repeat: 1 }, 6.58);
+          tl.to("#f11-approve-btn", { scale: 0.93, duration: 0.08, ease: "power2.in", yoyo: true, repeat: 1 }, 6.58);
+          [
+            { id: "f11-ripple-1", stagger: 0 },
+            { id: "f11-ripple-2", stagger: 0.08 },
+          ].forEach((r) => {
+            tl.set("#" + r.id, { x: approvePt.x, y: approvePt.y, opacity: 1 }, 6.62 + r.stagger);
+            tl.to(
+              "#" + r.id,
+              { scale: 4, opacity: 0, duration: 0.6, ease: "power2.out" },
+              6.62 + r.stagger
+            );
+          });
+          tl.to("#f11-cursor-officer", { opacity: 0, duration: 0.3, ease: "power1.out" }, 6.9);
+          tl.to("#f11-row-pill-new", { opacity: 0, duration: 0.25, ease: "power1.out" }, 6.68);
+          tl.fromTo(
+            "#f11-row-pill-approved",
+            { opacity: 0, scale: 0.7 },
+            { opacity: 1, scale: 1, duration: 0.35, ease: "back.out(1.5)" },
+            6.72
+          );
+          tl.fromTo(
+            "#f11-row-check",
+            { opacity: 0, scale: 0.4 },
+            { opacity: 1, scale: 1, duration: 0.3, ease: "back.out(1.6)" },
+            6.75
+          );
+          tl.to(
+            "#f11-check-path",
+            { strokeDashoffset: 0, duration: 0.35, ease: "power2.out" },
+            6.8
+          );
+
+          // ================= LEG 3 — travel back to the phone =================
+          tl.set(blurProxy, { axis: "x" }, 7.0);
+          tl.to(cam, { scale: posePhoneReturn.scale, x: posePhoneReturn.x, y: posePhoneReturn.y, duration: 3.2, ease: "power2.inOut" }, 7.0);
+          tl.fromTo(blurProxy, { v: 0 }, { v: 16, duration: 1.6, ease: "power2.in", onUpdate: writeBlur }, 7.0);
+          tl.to(blurProxy, { v: 0, duration: 1.6, ease: "power2.out", onUpdate: writeBlur }, 8.6);
+          tl.to("#f11-eyebrow", { opacity: 0.3, duration: 0.5, ease: "power2.out" }, 7.0);
+
+          // traveling particles, desktop -> phone
+          [
+            { id: "f11-particle-1", start: 7.15 },
+            { id: "f11-particle-2", start: 7.65 },
+          ].forEach((p) => {
+            const el = document.getElementById(p.id);
+            const proxy = { d: 100 };
+            tl.set(el, { opacity: 1 }, p.start);
+            tl.fromTo(
+              proxy,
+              { d: 100 },
+              {
+                d: 0,
+                duration: 1.3,
+                ease: "power1.inOut",
+                onUpdate: function () {
+                  el.style.offsetDistance = proxy.d + "%";
+                },
+              },
+              p.start
+            );
+            tl.to(el, { opacity: 0, duration: 0.25, ease: "power1.in" }, p.start + 1.15);
+          });
+
+          // ---- phone status updates: Pending -> Approved ----
+          tl.to("#f11-eyebrow", { opacity: 0.85, duration: 0.4, ease: "power2.out" }, 9.95);
+          tl.fromTo(
+            "#f11-card-pulse",
+            { opacity: 0.6, scale: 0.94 },
+            { opacity: 0, scale: 1.2, duration: 0.7, ease: "power2.out", immediateRender: false },
+            10.0
+          );
+          tl.to("#f11-phone-pill-pending", { opacity: 0, scale: 0.85, duration: 0.35, ease: "power1.out" }, 10.05);
+          tl.fromTo(
+            "#f11-phone-pill-approved",
+            { opacity: 0, scale: 0.6, y: 6 },
+            { opacity: 1, scale: 1, y: 0, duration: 0.4, ease: "back.out(1.5)" },
+            10.15
+          );
+
+          // ================= LEG 4 — settle on the connected pair =================
+          tl.to(cam, { scale: poseSettle.scale, x: poseSettle.x, y: poseSettle.y, duration: 1.0, ease: "power3.out" }, 10.5);
+          tl.to("#f11-eyebrow", { opacity: 1, duration: 0.5, ease: "power2.out" }, 10.6);
+
+          // one last small pulse along the connector on the hold, reaffirming the link
+          (function () {
+            const el = document.getElementById("f11-particle-1");
+            const proxy = { d: 0 };
+            tl.set(el, { opacity: 1 }, 11.4);
+            tl.fromTo(
+              proxy,
+              { d: 0 },
+              {
+                d: 100,
+                duration: 0.5,
+                ease: "power1.inOut",
+                onUpdate: function () {
+                  el.style.offsetDistance = proxy.d + "%";
+                },
+              },
+              11.4
+            );
+            tl.to(el, { opacity: 0, duration: 0.2, ease: "power1.in" }, 11.85);
+          })();
+
+          // ---------- continuous micro-drift (single writer for the whole 12s) ----------
+          const driftDriver = { p: 0 };
+          tl.to(
+            driftDriver,
+            {
+              p: Math.PI * 2 * 2.2,
+              duration: 12,
+              ease: "none",
+              onUpdate: function () {
+                drift.x = Math.sin(driftDriver.p) * 4;
+                drift.y = Math.sin(driftDriver.p * 1.3) * 2.4;
+                applyCamera();
+              },
+            },
+            0
+          );
+
+          window.__timelines["11-connected-system"] = tl;
+        })();
+      </script>
+    </template>

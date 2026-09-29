@@ -1,0 +1,7 @@
+{"id":"sfx_001","type":"sfx","path":"assets/sfx/whoosh-cinematic.mp3","source":"bundled","description":"whoosh-cinematic","duration":5.5,"provenance":{"provider":"bundled.sfx","prompt":"whoosh-cinematic"}}
+{"id":"sfx_002","type":"sfx","path":"assets/sfx/click.mp3","source":"bundled","description":"click","duration":0.4,"provenance":{"provider":"bundled.sfx","prompt":"click"}}
+{"id":"sfx_003","type":"sfx","path":"assets/sfx/notification.mp3","source":"bundled","description":"notification","duration":2.5,"provenance":{"provider":"bundled.sfx","prompt":"notification"}}
+{"id":"sfx_004","type":"sfx","path":"assets/sfx/whoosh-short.mp3","source":"bundled","description":"whoosh-short","duration":0.6,"provenance":{"provider":"bundled.sfx","prompt":"whoosh-short"}}
+{"id":"sfx_005","type":"sfx","path":"assets/sfx/pop.mp3","source":"bundled","description":"pop","duration":0.7,"provenance":{"provider":"bundled.sfx","prompt":"pop"}}
+{"id":"sfx_006","type":"sfx","path":"assets/sfx/click-soft.mp3","source":"bundled","description":"click-soft","duration":0.4,"provenance":{"provider":"bundled.sfx","prompt":"click-soft"}}
+{"id":"sfx_007","type":"sfx","path":"assets/sfx/chime.mp3","source":"bundled","description":"chime","duration":2.5,"provenance":{"provider":"bundled.sfx","prompt":"chime"}}

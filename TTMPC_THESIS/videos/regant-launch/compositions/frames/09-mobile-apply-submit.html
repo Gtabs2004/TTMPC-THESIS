@@ -1,0 +1,290 @@
+<template>
+<style>
+  @font-face { font-family: "Poppins"; src: url("assets/fonts/poppins-400.woff2") format("woff2"); font-weight: 400; font-style: normal; font-display: block; }
+  @font-face { font-family: "Poppins"; src: url("assets/fonts/poppins-500.woff2") format("woff2"); font-weight: 500; font-style: normal; font-display: block; }
+  @font-face { font-family: "Poppins"; src: url("assets/fonts/poppins-600.woff2") format("woff2"); font-weight: 600; font-style: normal; font-display: block; }
+  @font-face { font-family: "Poppins"; src: url("assets/fonts/poppins-700.woff2") format("woff2"); font-weight: 700; font-style: normal; font-display: block; }
+  @font-face { font-family: "Poppins"; src: url("assets/fonts/poppins-800.woff2") format("woff2"); font-weight: 800; font-style: normal; font-display: block; }
+
+  #root {
+    width: 1920px;
+    height: 1080px;
+    position: relative;
+    overflow: hidden;
+    container-type: size;
+    font-family: "Poppins", sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  #root .f09-bg { position: absolute; inset: 0; background: #EFF2F0; }
+  #root .f09-glow {
+    position: absolute;
+    left: 50%; top: 38%;
+    width: 60cqh; height: 60cqh;
+    transform: translate(-50%, -50%);
+    background: radial-gradient(circle, rgba(29,96,33,0.10) 0%, rgba(29,96,33,0.04) 45%, rgba(29,96,33,0) 72%);
+  }
+
+  #root .f09-stage { position: absolute; inset: 0; }
+
+  #root .f09-phone {
+    position: absolute;
+    top: 2cqh;
+    left: 50%;
+    margin-left: -10.5cqw;
+    width: 21cqw;
+    height: 80cqh;
+    background: #111214;
+    border-radius: 3cqw;
+    box-shadow:
+      0 2cqw 2cqw -0.7cqw rgba(15, 23, 42, 0.38),
+      0 0 0 0.33cqw #1c1d1f;
+    transform-origin: center center;
+    opacity: 0;
+  }
+  #root .f09-screen {
+    position: absolute;
+    inset: 0.9cqw;
+    border-radius: 2.1cqw;
+    background: #F8F9FA;
+    overflow: hidden;
+  }
+
+  #root .f09-header {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 10.5%;
+    background: #FFFFFF;
+    border-bottom: 1px solid #F0F0F0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 6.5%;
+  }
+  #root .f09-header .f09-title { font-size: 20px; font-weight: 800; color: #1A4A2F; letter-spacing: -0.01em; }
+  #root .f09-header .f09-bell { width: 22px; height: 22px; border-radius: 50%; border: 1.6px solid #D1D5DB; flex-shrink: 0; }
+
+  #root .f09-content {
+    position: absolute;
+    top: 12.5%;
+    left: 0; right: 0;
+    bottom: 13%;
+    padding: 5.5% 6%;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  #root .f09-card {
+    border-radius: 15px;
+    padding: 14px 16px;
+    display: flex;
+    align-items: center;
+    gap: 13px;
+    font-size: 15.5px;
+    font-weight: 700;
+    letter-spacing: -0.005em;
+    opacity: 0;
+  }
+  #root .f09-card-icon {
+    width: 34px; height: 34px;
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  #root .f09-card-icon svg { width: 17px; height: 17px; }
+  #root .f09-card-icon span { font-size: 18px; font-weight: 800; line-height: 1; }
+  #root .f09-card-sub { display: block; font-size: 10.5px; font-weight: 600; opacity: 0.72; margin-top: 2px; }
+
+  #root .f09-card-consolidated { background: #EFF6FF; color: #2563EB; }
+  #root .f09-card-consolidated .f09-card-icon { background: #DBEAFE; }
+  #root .f09-card-emergency { background: #FEF2F2; color: #D92626; }
+  #root .f09-card-emergency .f09-card-icon { background: #FEE2E2; }
+  #root .f09-card-bonus { background: #F0FDF4; color: #12853C; }
+  #root .f09-card-bonus .f09-card-icon { background: #DCFCE7; }
+
+  #root .f09-submit {
+    margin-top: 6px;
+    width: 100%;
+    text-align: center;
+    padding: 16px 0;
+    border-radius: 100px;
+    background: #1D6021;
+    color: #FFFFFF;
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+    box-shadow: 0 10px 22px -8px rgba(29, 96, 33, 0.55);
+    opacity: 0;
+    transform-origin: center center;
+  }
+
+  #root .f09-confirm {
+    margin: 12px auto 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px 8px 8px;
+    border-radius: 100px;
+    background: rgba(29, 96, 33, 0.09);
+    opacity: 0;
+    transform-origin: left center;
+    width: fit-content;
+    align-self: center;
+  }
+  #root .f09-confirm-badge {
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    background: #1D6021;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  #root .f09-confirm-badge svg { width: 13px; height: 13px; }
+  #root .f09-confirm-text { font-size: 12.5px; font-weight: 700; color: #1D6021; white-space: nowrap; }
+
+  #root .f09-nav {
+    position: absolute;
+    left: 0; right: 0; bottom: 0;
+    height: 12.5%;
+    background: #FFFFFF;
+    border-top: 1px solid #E5E7EB;
+    display: flex;
+    align-items: center;
+    justify-content: space-around;
+    padding: 0 3%;
+  }
+  #root .f09-nav .f09-item { display: flex; flex-direction: column; align-items: center; gap: 4px; position: relative; }
+  #root .f09-nav .f09-dot { width: 13px; height: 13px; border-radius: 4px; background: #9CA3AF; }
+  #root .f09-nav .f09-lbl { font-size: 10px; font-weight: 700; color: #6B7280; }
+  #root .f09-nav .f09-item.f09-active .f09-dot { background: #1D6021; box-shadow: 0 0 6px rgba(29, 96, 33, 0.55); }
+  #root .f09-nav .f09-item.f09-active .f09-lbl { color: #1D6021; }
+  #root .f09-nav .f09-item.f09-active::before {
+    content: "";
+    position: absolute;
+    top: -9px; left: 50%;
+    transform: translateX(-50%);
+    width: 16px; height: 3px;
+    border-radius: 3px;
+    background: #1D6021;
+    box-shadow: 0 0 6px rgba(29, 96, 33, 0.5);
+  }
+</style>
+
+<div data-hf-id="hf-vyiz" id="root" data-composition-id="09-mobile-apply-submit" data-width="1920" data-height="1080" data-duration="5.5">
+  <div data-hf-id="hf-6byh" class="clip f09-bg" data-start="0" data-duration="5.5" data-track-index="0">
+    <div data-hf-id="hf-87gz" class="f09-glow"></div>
+  </div>
+
+  <div data-hf-id="hf-9krj" class="clip f09-stage" data-start="0" data-duration="5.5" data-track-index="1">
+    <div data-hf-id="hf-hd35" class="f09-phone" data-f09="phone">
+      <div data-hf-id="hf-kynw" class="f09-screen">
+        <div data-hf-id="hf-9ha7" class="f09-header">
+          <span data-hf-id="hf-6cdq" class="f09-title">Apply for Loan</span>
+          <span data-hf-id="hf-xkzm" class="f09-bell"></span>
+        </div>
+
+        <div data-hf-id="hf-js2n" class="f09-content">
+          <div data-hf-id="hf-4tsr" class="f09-card f09-card-consolidated" data-f09="card-1">
+            <span data-hf-id="hf-dwnb" class="f09-card-icon">
+              <svg data-hf-id="hf-7gn1" viewBox="0 0 20 20" fill="none"><rect data-hf-id="hf-3xq6" x="3" y="4" width="14" height="2.4" rx="1.2" fill="currentColor" /><rect data-hf-id="hf-e51f" x="3" y="9" width="14" height="2.4" rx="1.2" fill="currentColor" /><rect data-hf-id="hf-bjsp" x="3" y="14" width="9" height="2.4" rx="1.2" fill="currentColor" /></svg>
+            </span>
+            <span data-hf-id="hf-i02s">Consolidated Loan</span>
+          </div>
+
+          <div data-hf-id="hf-0wts" class="f09-card f09-card-emergency" data-f09="card-2">
+            <span data-hf-id="hf-quuf" class="f09-card-icon"><span data-hf-id="hf-oxkw">!</span></span>
+            <span data-hf-id="hf-59po">Emergency Loan</span>
+          </div>
+
+          <div data-hf-id="hf-a7u7" class="f09-card f09-card-bonus" data-f09="card-3">
+            <span data-hf-id="hf-qgje" class="f09-card-icon">
+              <svg data-hf-id="hf-h0hq" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline data-hf-id="hf-i4fg" points="20 12 20 22 4 22 4 12" />
+                <rect data-hf-id="hf-p4he" x="2" y="7" width="20" height="5" />
+                <line data-hf-id="hf-v09x" x1="12" y1="22" x2="12" y2="7" />
+                <path data-hf-id="hf-io1i" d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z" />
+                <path data-hf-id="hf-9tyi" d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z" />
+              </svg>
+            </span>
+            <div data-hf-id="hf-mx4b">
+              Bonus Loan
+              <span data-hf-id="hf-x4ao" class="f09-card-sub">May / November window</span>
+            </div>
+          </div>
+
+          <div data-hf-id="hf-jnw5" class="f09-submit" data-f09="submit">Submit Application</div>
+
+          <div data-hf-id="hf-w5cl" class="f09-confirm" data-f09="confirm">
+            <span data-hf-id="hf-u2th" class="f09-confirm-badge">
+              <svg data-hf-id="hf-cy3a" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                <path data-hf-id="hf-k7o3" data-f09="check-path" d="M5 13l4 4L19 7" pathLength="1" stroke-dasharray="1" stroke-dashoffset="1" />
+              </svg>
+            </span>
+            <span data-hf-id="hf-dz5g" class="f09-confirm-text">Application Submitted</span>
+          </div>
+        </div>
+
+        <div data-hf-id="hf-kn2n" class="f09-nav">
+          <div data-hf-id="hf-l9l9" class="f09-item"><span data-hf-id="hf-8dge" class="f09-dot"></span><span data-hf-id="hf-ojy3" class="f09-lbl">Dashboard</span></div>
+          <div data-hf-id="hf-tn09" class="f09-item f09-active"><span data-hf-id="hf-wf0i" class="f09-dot"></span><span data-hf-id="hf-11ej" class="f09-lbl">Apply</span></div>
+          <div data-hf-id="hf-nnk1" class="f09-item"><span data-hf-id="hf-wtbj" class="f09-dot"></span><span data-hf-id="hf-8mqg" class="f09-lbl">Loans</span></div>
+          <div data-hf-id="hf-ouh4" class="f09-item"><span data-hf-id="hf-x7mk" class="f09-dot"></span><span data-hf-id="hf-n67q" class="f09-lbl">Statement</span></div>
+          <div data-hf-id="hf-og63" class="f09-item"><span data-hf-id="hf-xlxl" class="f09-dot"></span><span data-hf-id="hf-tfn3" class="f09-lbl">Lifecycle</span></div>
+          <div data-hf-id="hf-mgmy" class="f09-item"><span data-hf-id="hf-y08m" class="f09-dot"></span><span data-hf-id="hf-n09a" class="f09-lbl">Profile</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var root = document.querySelector('[data-composition-id="09-mobile-apply-submit"]');
+  var phone = root.querySelector('[data-f09="phone"]');
+  var card1 = root.querySelector('[data-f09="card-1"]');
+  var card2 = root.querySelector('[data-f09="card-2"]');
+  var card3 = root.querySelector('[data-f09="card-3"]');
+  var submit = root.querySelector('[data-f09="submit"]');
+  var confirm = root.querySelector('[data-f09="confirm"]');
+  var checkPath = root.querySelector('[data-f09="check-path"]');
+
+  var tl = gsap.timeline({ paused: true });
+
+  // Hero establish — phone visible well before t=0.5s
+  tl.fromTo(phone, { opacity: 0, scale: 0.965 }, { opacity: 1, scale: 1, duration: 0.4, ease: "power2.out" }, 0);
+
+  // Scene 1 (0–1.5s): loan-type selector cards reveal in a light stagger
+  tl.fromTo(card1, { opacity: 0, x: -22 }, { opacity: 1, x: 0, duration: 0.4, ease: "power2.out" }, 0.32);
+  tl.fromTo(card2, { opacity: 0, x: -22 }, { opacity: 1, x: 0, duration: 0.4, ease: "power2.out" }, 0.58);
+  tl.fromTo(card3, { opacity: 0, x: -22 }, { opacity: 1, x: 0, duration: 0.4, ease: "power2.out" }, 0.84);
+
+  // Scene 2 (~1.5–3.5s): the Submit state — button arrives, gets pressed, confirms
+  tl.fromTo(submit, { opacity: 0, scale: 0.72 }, { opacity: 1, scale: 1.05, duration: 0.28, ease: "back.out(2.2)" }, 1.6);
+  tl.to(submit, { scale: 1, duration: 0.16, ease: "power2.out" }, 1.88);
+
+  // Tap: press-compress then release
+  tl.to(submit, { scale: 0.94, duration: 0.09, ease: "power1.in" }, 2.3);
+  tl.to(submit, { scale: 1, duration: 0.18, ease: "back.out(1.8)" }, 2.39);
+  tl.to(submit, {
+    boxShadow: "0 14px 28px -8px rgba(29,96,33,0.75)",
+    duration: 0.14,
+    ease: "power1.out"
+  }, 2.3);
+  tl.to(submit, {
+    boxShadow: "0 10px 22px -8px rgba(29,96,33,0.55)",
+    duration: 0.3,
+    ease: "power1.inOut"
+  }, 2.6);
+
+  // Confirmation badge + checkmark draw
+  tl.fromTo(confirm, { opacity: 0, scale: 0.55 }, { opacity: 1, scale: 1, duration: 0.3, ease: "back.out(2)" }, 2.52);
+  tl.fromTo(checkPath, { strokeDashoffset: 1 }, { strokeDashoffset: 0, duration: 0.3, ease: "power2.out" }, 2.66);
+
+  // Settle / hold through the end of the shot
+  tl.set({}, {}, 5);
+
+  window.__timelines = window.__timelines || {};
+  window.__timelines["09-mobile-apply-submit"] = tl;
+})();
+</script>
+</template>

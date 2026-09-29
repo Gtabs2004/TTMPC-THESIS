@@ -1,0 +1,240 @@
+<template>
+  <style>
+    @font-face { font-family: "Poppins"; src: url("assets/fonts/poppins-400.woff2") format("woff2"); font-weight: 400; font-style: normal; font-display: block; }
+    @font-face { font-family: "Poppins"; src: url("assets/fonts/poppins-500.woff2") format("woff2"); font-weight: 500; font-style: normal; font-display: block; }
+    @font-face { font-family: "Poppins"; src: url("assets/fonts/poppins-600.woff2") format("woff2"); font-weight: 600; font-style: normal; font-display: block; }
+    @font-face { font-family: "Poppins"; src: url("assets/fonts/poppins-700.woff2") format("woff2"); font-weight: 700; font-style: normal; font-display: block; }
+    @font-face { font-family: "Poppins"; src: url("assets/fonts/poppins-800.woff2") format("woff2"); font-weight: 800; font-style: normal; font-display: block; }
+
+    #root {
+      position: relative;
+      width: 1920px;
+      height: 1080px;
+      overflow: hidden;
+      container-type: size;
+      font-family: "Poppins", sans-serif;
+      color: #1F2937;
+    }
+
+    .mp05-bg {
+      position: absolute;
+      inset: 0;
+      background: #FFFFFF;
+    }
+
+    .mp05-content {
+      position: absolute;
+      left: 5cqw;
+      right: 5cqw;
+      top: 0;
+      bottom: 0;
+    }
+
+    .mp05-eyebrow {
+      position: absolute;
+      top: 6.5%;
+      left: 0;
+      font-size: 1.05cqw;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #389734;
+    }
+
+    .mp05-tabs {
+      position: absolute;
+      top: 22%;
+      left: 0;
+      right: 0;
+      display: flex;
+      align-items: center;
+      gap: 1.4cqw;
+    }
+
+    .mp05-tab-pill {
+      display: inline-block;
+      background: #389734;
+      color: #FFFFFF;
+      font-size: 1.25cqw;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+      border-radius: 100px;
+      padding: 0.85cqw 2.1cqw;
+    }
+
+    .mp05-tab-plain {
+      font-size: 1.15cqw;
+      font-weight: 500;
+      color: #64748B;
+    }
+
+    .mp05-card {
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 40%;
+      bottom: 18%;
+      background: rgba(56, 151, 52, 0.04);
+      border: 1.5px solid rgba(56, 151, 52, 0.2);
+      border-radius: 14px;
+      padding: 2.4cqw 2.6cqw;
+    }
+
+    .mp05-card-title {
+      font-size: 0.95cqw;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: #9A9A9A;
+      margin-bottom: 1.6cqw;
+    }
+
+    .mp05-card-title b {
+      color: #389734;
+      font-weight: 600;
+    }
+
+    .mp05-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      grid-template-rows: 1fr 1fr;
+      row-gap: 1.8cqw;
+      column-gap: 2cqw;
+      height: calc(100% - 3.4cqw);
+    }
+
+    .mp05-field {
+      display: flex;
+      align-items: baseline;
+      gap: 0.7cqw;
+      border-bottom: 1px solid rgba(56, 151, 52, 0.15);
+      padding-bottom: 1cqw;
+    }
+
+    .mp05-field-label {
+      font-size: 1.05cqw;
+      font-weight: 500;
+      color: #64748B;
+    }
+
+    .mp05-field-value {
+      font-size: 1.35cqw;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+    }
+
+    .mp05-field-value.mp05-ink {
+      color: #1F2937;
+    }
+
+    .mp05-field-value.mp05-cobalt {
+      color: #389734;
+    }
+  </style>
+
+  <div data-hf-id="hf-45s9" id="root" data-composition-id="05-module-policies" data-width="1920" data-height="1080" data-duration="2.5">
+    <div data-hf-id="hf-xnd9" class="mp05-bg clip" data-start="0" data-duration="2.5" data-track-index="0"></div>
+
+    <div data-hf-id="hf-lxpm" class="mp05-content">
+      <div data-hf-id="hf-vhoa" class="mp05-eyebrow" id="mp05-eyebrow">Loan Policies</div>
+
+      <div data-hf-id="hf-zwps" class="mp05-tabs" id="mp05-tabs">
+        <span data-hf-id="hf-7r1z" class="mp05-tab-pill" id="mp05-tab-active">Consolidated</span>
+        <span data-hf-id="hf-1dvh" class="mp05-tab-plain" id="mp05-tab-emergency">Emergency</span>
+        <span data-hf-id="hf-2mld" class="mp05-tab-plain" id="mp05-tab-bonus">Bonus</span>
+      </div>
+
+      <div data-hf-id="hf-5mn4" class="mp05-card" id="mp05-card">
+        <div data-hf-id="hf-nen2" class="mp05-card-title" id="mp05-card-title"><b data-hf-id="hf-bole">Consolidated</b> — Policy Values</div>
+        <div data-hf-id="hf-9i5j" class="mp05-grid">
+          <div data-hf-id="hf-4n71" class="mp05-field" id="mp05-row-fee">
+            <span data-hf-id="hf-sdp0" class="mp05-field-label">Service Fee</span>
+            <span data-hf-id="hf-y4n7" class="mp05-field-value mp05-ink">bracket</span>
+          </div>
+          <div data-hf-id="hf-6ry5" class="mp05-field" id="mp05-row-interest">
+            <span data-hf-id="hf-fty3" class="mp05-field-label">Interest</span>
+            <span data-hf-id="hf-py0d" class="mp05-field-value mp05-cobalt">2.0%</span>
+          </div>
+          <div data-hf-id="hf-92k9" class="mp05-field" id="mp05-row-cbu">
+            <span data-hf-id="hf-c5d1" class="mp05-field-label">CBU Deposit</span>
+            <span data-hf-id="hf-xiug" class="mp05-field-value mp05-cobalt">₱500</span>
+          </div>
+          <div data-hf-id="hf-fx35" class="mp05-field" id="mp05-row-insurance">
+            <span data-hf-id="hf-jjpr" class="mp05-field-label">Insurance</span>
+            <span data-hf-id="hf-kdmo" class="mp05-field-value mp05-ink">on</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      const tl = gsap.timeline({ paused: true });
+
+      // Hero: eyebrow + full tab strip land by t<=0.5s (dispatch: land clearly by 0.5s).
+      tl.fromTo("#mp05-eyebrow",
+        { opacity: 0, y: 14 },
+        { opacity: 1, y: 0, duration: 0.28, ease: "power2.out" },
+        0.0
+      );
+
+      tl.fromTo("#mp05-tab-active",
+        { opacity: 0, scale: 0.82 },
+        { opacity: 1, scale: 1, duration: 0.28, ease: "back.out(1.8)" },
+        0.08
+      );
+
+      tl.fromTo("#mp05-tab-emergency",
+        { opacity: 0, x: 10 },
+        { opacity: 1, x: 0, duration: 0.22, ease: "power2.out" },
+        0.20
+      );
+
+      tl.fromTo("#mp05-tab-bonus",
+        { opacity: 0, x: 10 },
+        { opacity: 1, x: 0, duration: 0.22, ease: "power2.out" },
+        0.28
+      );
+
+      // Card lands right as the tab strip settles, then fields reveal
+      // in sequence through the back half of the shot.
+      tl.fromTo("#mp05-card",
+        { opacity: 0, y: 26, scale: 0.985 },
+        { opacity: 1, y: 0, scale: 1, duration: 0.4, ease: "power2.out" },
+        0.5
+      );
+
+      tl.fromTo("#mp05-card-title",
+        { opacity: 0, x: -10 },
+        { opacity: 1, x: 0, duration: 0.28, ease: "power2.out" },
+        0.58
+      );
+
+      tl.fromTo("#mp05-row-fee",
+        { opacity: 0, y: 12 },
+        { opacity: 1, y: 0, duration: 0.28, ease: "power2.out" },
+        0.78
+      );
+      tl.fromTo("#mp05-row-interest",
+        { opacity: 0, y: 12 },
+        { opacity: 1, y: 0, duration: 0.28, ease: "power2.out" },
+        0.98
+      );
+      tl.fromTo("#mp05-row-cbu",
+        { opacity: 0, y: 12 },
+        { opacity: 1, y: 0, duration: 0.28, ease: "power2.out" },
+        1.18
+      );
+      tl.fromTo("#mp05-row-insurance",
+        { opacity: 0, y: 12 },
+        { opacity: 1, y: 0, duration: 0.28, ease: "power2.out" },
+        1.38
+      );
+
+      // Settle: everything landed by ~1.66s, holds quiet to the 2s cut.
+      window.__timelines["05-module-policies"] = tl;
+      tl.seek(0);
+    })();
+  </script>
+</template>

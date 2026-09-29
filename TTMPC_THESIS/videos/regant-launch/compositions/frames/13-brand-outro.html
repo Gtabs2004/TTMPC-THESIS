@@ -1,0 +1,233 @@
+<template>
+  <style>
+    @font-face { font-family: "Poppins"; src: url("assets/fonts/poppins-400.woff2") format("woff2"); font-weight: 400; font-style: normal; font-display: block; }
+    @font-face { font-family: "Poppins"; src: url("assets/fonts/poppins-500.woff2") format("woff2"); font-weight: 500; font-style: normal; font-display: block; }
+    @font-face { font-family: "Poppins"; src: url("assets/fonts/poppins-600.woff2") format("woff2"); font-weight: 600; font-style: normal; font-display: block; }
+    @font-face { font-family: "Poppins"; src: url("assets/fonts/poppins-700.woff2") format("woff2"); font-weight: 700; font-style: normal; font-display: block; }
+    @font-face { font-family: "Poppins"; src: url("assets/fonts/poppins-800.woff2") format("woff2"); font-weight: 800; font-style: normal; font-display: block; }
+
+    #root {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      container-type: size;
+      overflow: hidden;
+      font-family: "Poppins", sans-serif;
+    }
+
+    /* full-bleed ground — on a class="clip" layer, never painted on #root itself */
+    .fr13-bg {
+      position: absolute;
+      inset: 0;
+      background: #FFFFFF;
+    }
+
+    /* ambient closing rings (frame.md "atmosphere: concentric closing rings") */
+    .fr13-rings {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+    }
+    .fr13-ring {
+      position: absolute;
+      width: 11cqw;
+      height: 11cqw;
+      border-radius: 50%;
+      border: 1.5px solid rgba(56, 151, 52, 0.4);
+      opacity: 0;
+      will-change: transform, opacity;
+    }
+
+    .fr13-lockup-stage {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .fr13-lockup-group {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      will-change: transform;
+    }
+
+    .fr13-mark-stage {
+      position: relative;
+      width: 16cqw;
+      height: 16cqw;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .fr13-glow-halo {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(56, 151, 52, 0.38) 0%, rgba(56, 151, 52, 0) 70%);
+      filter: blur(6px);
+      opacity: 0;
+      will-change: opacity, transform;
+    }
+
+    .fr13-confirm-flash {
+      position: absolute;
+      width: 68%;
+      height: 68%;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(56, 151, 52, 0.55) 0%, rgba(56, 151, 52, 0) 72%);
+      opacity: 0;
+      will-change: opacity, transform;
+    }
+
+    .fr13-ring-draw {
+      position: absolute;
+      width: 13.5cqw;
+      height: 13.5cqw;
+      overflow: visible;
+      transform: rotate(-90deg);
+      transform-origin: 50% 50%;
+    }
+    .fr13-ring-draw circle {
+      fill: none;
+      stroke: #389734;
+      stroke-width: 2.5;
+      stroke-linecap: round;
+    }
+
+    .fr13-logo {
+      position: relative;
+      width: 11cqw;
+      height: 11cqw;
+      object-fit: contain;
+      filter: drop-shadow(0 0.6cqw 1.2cqw rgba(15, 23, 42, 0.12));
+      will-change: opacity, transform;
+    }
+
+    .fr13-accent-rule {
+      width: 3.2cqw;
+      height: 4px;
+      border-radius: 2px;
+      background: #389734;
+      margin-top: 1.5cqw;
+      transform-origin: 50% 50%;
+      will-change: transform;
+    }
+
+    .fr13-headline {
+      margin-top: 1.4cqw;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 0.5cqw;
+      font-weight: 800;
+      font-size: 2.6cqw;
+      line-height: 1.15;
+      letter-spacing: -0.01em;
+      color: #1F2937;
+    }
+    .fr13-word {
+      display: inline-block;
+      opacity: 0;
+      will-change: transform, opacity;
+    }
+
+    .fr13-subline-wrap {
+      margin-top: 0.6cqw;
+    }
+    .fr13-subline {
+      font-weight: 600;
+      font-size: 1.6cqw;
+      letter-spacing: 0.04em;
+      color: #64748B;
+      white-space: nowrap;
+    }
+  </style>
+
+  <div data-hf-id="hf-edv4" id="root" data-composition-id="13-brand-outro" data-width="1920" data-height="1080" data-duration="5">
+    <div data-hf-id="hf-s9nr" class="clip fr13-bg" data-start="0" data-duration="5" data-track-index="0"></div>
+
+    <div data-hf-id="hf-c30o" class="clip fr13-rings" data-start="0" data-duration="5" data-track-index="1">
+      <div data-hf-id="hf-xaam" class="fr13-ring fr13-ring-a"></div>
+      <div data-hf-id="hf-tc6l" class="fr13-ring fr13-ring-b"></div>
+    </div>
+
+    <div data-hf-id="hf-78zv" class="clip fr13-lockup-stage" data-start="0" data-duration="5" data-track-index="2">
+      <div data-hf-id="hf-drk9" class="fr13-lockup-group">
+        <div data-hf-id="hf-7wzr" class="fr13-mark-stage">
+          <div data-hf-id="hf-7pyd" class="fr13-glow-halo"></div>
+          <svg data-hf-id="hf-4dhj" class="fr13-ring-draw" viewBox="0 0 220 220" width="220" height="220">
+            <circle data-hf-id="hf-rv8t" cx="110" cy="110" r="100" />
+          </svg>
+          <div data-hf-id="hf-fpiq" class="fr13-confirm-flash"></div>
+          <img data-hf-id="hf-jtp9" class="fr13-logo" src="capture/assets/ttmpc-logo.png" alt="">
+        </div>
+
+        <div data-hf-id="hf-t8qa" class="fr13-accent-rule"></div>
+
+        <div data-hf-id="hf-3605" class="fr13-headline">
+          <span data-hf-id="hf-njpy" class="fr13-word">Built</span><span data-hf-id="hf-puj9" class="fr13-word">for</span><span data-hf-id="hf-5bxh" class="fr13-word">the</span><span data-hf-id="hf-rpxl" class="fr13-word">cooperative.</span>
+        </div>
+
+        <div data-hf-id="hf-hf08" class="fr13-subline-wrap">
+          <div data-hf-id="hf-kho6" class="fr13-subline">REGANT — TTMPC</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+  <script>
+    (function () {
+      const ringA = document.querySelector(".fr13-ring-a");
+      const ringB = document.querySelector(".fr13-ring-b");
+      const glowHalo = document.querySelector(".fr13-glow-halo");
+      const confirmFlash = document.querySelector(".fr13-confirm-flash");
+      const ringDrawWrap = document.querySelector(".fr13-ring-draw");
+      const ringDrawCircle = document.querySelector(".fr13-ring-draw circle");
+      const logo = document.querySelector(".fr13-logo");
+      const accentRule = document.querySelector(".fr13-accent-rule");
+      const words = document.querySelectorAll(".fr13-word");
+      const sublineWrap = document.querySelector(".fr13-subline-wrap");
+      const lockupGroup = document.querySelector(".fr13-lockup-group");
+
+      // svg-path-draw setup — measured geometry, never guessed
+      const ringLen = ringDrawCircle.getTotalLength();
+      gsap.set(ringDrawCircle, { strokeDasharray: ringLen, strokeDashoffset: ringLen });
+
+      const tl = gsap.timeline({ paused: true });
+
+      // Scene 1 (0.0-~0.4s) — clear / ignite: rings pulse from center, mark glow ignites
+      tl.fromTo(ringA, { scale: 0.3, opacity: 0.32 }, { scale: 1.7, opacity: 0, duration: 0.85, ease: "power2.out" }, 0.0);
+      tl.fromTo(ringB, { scale: 0.3, opacity: 0.22 }, { scale: 1.95, opacity: 0, duration: 0.95, ease: "power2.out" }, 0.12);
+      tl.fromTo(glowHalo, { opacity: 0, scale: 0.6 }, { opacity: 0.26, scale: 1, duration: 0.4, ease: "power2.out" }, 0.0);
+      tl.to(glowHalo, { opacity: 0.14, duration: 0.6, ease: "power1.out" }, 0.4);
+
+      // Scene 2 (0.0-~1.1s) — assemble: the mark draws itself on (ring trace) while the mark blooms in
+      tl.fromTo(ringDrawCircle, { strokeDashoffset: ringLen }, { strokeDashoffset: 0, duration: 0.6, ease: "power2.out" }, 0.0);
+      tl.to(ringDrawWrap, { opacity: 0, duration: 0.4, ease: "power1.out" }, 0.65);
+      tl.fromTo(logo, { scale: 0.74, opacity: 0, y: 8 }, { scale: 1, opacity: 1, y: 0, duration: 0.46, ease: "power3.out" }, 0.0);
+      tl.fromTo(confirmFlash, { opacity: 0, scale: 0.85 }, { opacity: 0.4, scale: 1.05, duration: 0.18, ease: "power1.out" }, 0.46);
+      tl.to(confirmFlash, { opacity: 0, scale: 1.3, duration: 0.35, ease: "power1.in" }, 0.64);
+      tl.fromTo(accentRule, { scaleX: 0 }, { scaleX: 1, duration: 0.35, ease: "power2.out" }, 0.78);
+
+      // Scene 3 (~1.05-2.55s) — resolve to lockup: headline cascades word by word, subline wipes in
+      words.forEach((w, i) => {
+        tl.fromTo(w, { opacity: 0, y: 10 }, { opacity: 1, y: 0, duration: 0.35, ease: "power2.out" }, 1.05 + i * 0.11);
+      });
+      tl.fromTo(sublineWrap, { clipPath: "inset(0 100% 0 0)" }, { clipPath: "inset(0 0% 0 0)", duration: 0.5, ease: "power2.out" }, 2.05);
+
+      // Hold (2.65-5.0s) — final frame quiet settle: near-imperceptible life in the hold, no exit
+      tl.fromTo(lockupGroup, { scale: 1 }, { scale: 1.015, duration: 2.35, ease: "sine.inOut" }, 2.65);
+
+      window.__timelines["13-brand-outro"] = tl;
+      tl.seek(0);
+    })();
+  </script>
+</template>

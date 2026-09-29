@@ -1,0 +1,373 @@
+<template>
+<style>
+  @font-face { font-family: "Poppins"; src: url("assets/fonts/poppins-400.woff2") format("woff2"); font-weight: 400; font-style: normal; font-display: block; }
+  @font-face { font-family: "Poppins"; src: url("assets/fonts/poppins-500.woff2") format("woff2"); font-weight: 500; font-style: normal; font-display: block; }
+  @font-face { font-family: "Poppins"; src: url("assets/fonts/poppins-600.woff2") format("woff2"); font-weight: 600; font-style: normal; font-display: block; }
+  @font-face { font-family: "Poppins"; src: url("assets/fonts/poppins-700.woff2") format("woff2"); font-weight: 700; font-style: normal; font-display: block; }
+  @font-face { font-family: "Poppins"; src: url("assets/fonts/poppins-800.woff2") format("woff2"); font-weight: 800; font-style: normal; font-display: block; }
+
+  #root {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    container-type: size;
+    font-family: "Poppins", sans-serif;
+    --f12-primary: #389734;
+    --f12-primary-deep: #2e7a2a;
+    --f12-ink: #1F2937;
+    --f12-ink-muted: #64748B;
+    --f12-ink-light: #9A9A9A;
+    --f12-card-bg: rgba(56,151,52,0.06);
+    --f12-border: rgba(56,151,52,0.22);
+    --f12-ground: #EFF2F0;
+  }
+
+  .f12-bg {
+    position: absolute;
+    inset: 0;
+    background: var(--f12-ground);
+  }
+
+  /* ---- camera / parallax stage — wraps both devices as one viewpoint ---- */
+  .f12-stage {
+    position: absolute;
+    inset: 0;
+    perspective: 1600px;
+  }
+
+  /* ---- desktop hero (reprise of B-Dashboard.jsx, simplified) ---- */
+  .f12-desktop {
+    position: absolute;
+    left: 5cqw;
+    top: 12cqh;
+    width: 47cqw;
+    height: 52cqh;
+    background: #FFFFFF;
+    border-radius: 0.9cqw;
+    border: 1px solid #E5E9EE;
+    box-shadow: 0 2.2cqw 3.4cqw -1.2cqw rgba(15,23,42,0.22);
+    overflow: hidden;
+    transform-style: preserve-3d;
+    will-change: transform;
+  }
+  .f12-desktop-bar {
+    height: 8%;
+    background: var(--f12-primary-deep);
+    display: flex;
+    align-items: center;
+    gap: 0.6cqw;
+    padding: 0 1.4cqw;
+  }
+  .f12-desktop-dot { width: 0.75cqw; height: 0.75cqw; border-radius: 50%; background: rgba(255,255,255,0.5); }
+  .f12-desktop-live { width: 0.75cqw; height: 0.75cqw; border-radius: 50%; background: #8FE08A; margin-left: auto; transform-origin: 50% 50%; }
+  .f12-desktop-body { padding: 2.4cqw 2.6cqw 0; }
+  .f12-desktop-eyebrow { font-size: 0.85cqw; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--f12-primary); }
+  .f12-desktop-title { font-size: 1.7cqw; font-weight: 600; color: var(--f12-ink); letter-spacing: -0.01em; margin-top: 0.35cqw; }
+  .f12-stat-row { display: flex; gap: 1cqw; margin-top: 1.6cqw; }
+  .f12-stat-tile { flex: 1; background: var(--f12-card-bg); border: 1.5px solid var(--f12-border); border-radius: 0.7cqw; padding: 1.1cqw 1.2cqw; }
+  .f12-stat-label { width: 70%; height: 0.45cqw; border-radius: 3px; background: #D9DEDB; }
+  .f12-stat-accent { width: 40%; height: 0.7cqw; border-radius: 3px; background: var(--f12-primary); margin-top: 0.7cqw; }
+  .f12-chart-row { display: flex; align-items: flex-end; gap: 0.9cqw; height: 9cqw; margin-top: 1.7cqw; padding-bottom: 0.2cqw; }
+  .f12-chart-bar { flex: 1; border-radius: 2px 2px 0 0; background: var(--f12-primary); opacity: 0.85; }
+
+  /* ---- phone hero (reprise of Member_Dashboard.jsx, simplified) ---- */
+  .f12-phone {
+    position: absolute;
+    left: 58cqw;
+    top: 12cqh;
+    width: 17.5cqw;
+    height: 34cqw;
+    border-radius: 1.6cqw;
+    background: #111;
+    box-shadow: 0 1.4cqw 2.2cqw -0.8cqw rgba(15,23,42,0.32), 0 0 0 0.24cqw #1c1c1c;
+    transform-style: preserve-3d;
+    will-change: transform;
+  }
+  .f12-phone-glow {
+    position: absolute;
+    inset: -6cqw;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(56,151,52,0.55) 0%, rgba(56,151,52,0) 60%);
+    z-index: 1;
+    pointer-events: none;
+  }
+  .f12-phone-screen {
+    position: absolute;
+    inset: 0.55cqw;
+    border-radius: 1.15cqw;
+    background: #F8F9FA;
+    overflow: hidden;
+    z-index: 2;
+  }
+  .f12-phone-header { height: 11%; background: #fff; border-bottom: 1px solid #F0F0F0; display: flex; align-items: center; justify-content: space-between; padding: 0 8%; }
+  .f12-phone-header-title { font-size: 0.72cqw; font-weight: 800; color: #1a4a2f; }
+  .f12-phone-header-bell { width: 0.55cqw; height: 0.55cqw; border-radius: 50%; border: 1px solid #D1D5DB; }
+  .f12-phone-body { padding: 8% 8% 0; display: flex; flex-direction: column; gap: 0.55cqw; }
+  .f12-phone-card { background: #fff; border: 1px solid #F1F1F1; border-radius: 0.65cqw; box-shadow: 0 1px 4px rgba(15,23,42,0.05); padding: 0.65cqw; }
+  .f12-phone-profile { display: flex; align-items: center; gap: 0.6cqw; }
+  .f12-phone-avatar { width: 1.7cqw; height: 1.7cqw; border-radius: 50%; background: #F3F4F6; border: 1.5px solid #EAF1EB; flex-shrink: 0; }
+  .f12-phone-line { height: 0.34cqw; border-radius: 2px; background: #E1E4E2; }
+  .f12-phone-pill { display: inline-block; margin-top: 0.4cqw; background: #1D6021; color: #fff; font-size: 0.4cqw; font-weight: 800; letter-spacing: 0.04em; border-radius: 100px; padding: 0.15cqw 0.55cqw; }
+  .f12-phone-migs-head { display: flex; justify-content: space-between; align-items: center; font-size: 0.6cqw; font-weight: 700; color: #111827; }
+  .f12-migs-track { height: 0.38cqw; background: #F1F5F2; border-radius: 4px; overflow: hidden; margin-top: 0.5cqw; }
+  .f12-migs-fill { height: 100%; width: 72%; background: #1D6021; border-radius: 4px; }
+  .f12-phone-nav { position: absolute; left: 0; right: 0; bottom: 0; height: 12%; background: #fff; border-top: 1px solid #E5E7EB; display: flex; align-items: center; justify-content: space-around; padding: 0 5%; z-index: 2; }
+  .f12-phone-nav-item { width: 0.42cqw; height: 0.42cqw; border-radius: 3px; background: #C9CDCB; }
+  .f12-phone-nav-item.f12-active { background: #1D6021; box-shadow: 0 0 4px rgba(29,96,33,0.55); }
+
+  .f12-clip { position: absolute; inset: 0; }
+</style>
+
+<div data-hf-id="hf-9fz4" id="root" data-composition-id="12-final-ecosystem" data-width="1920" data-height="1080" data-duration="5.5">
+  <div data-hf-id="hf-qkzl" class="f12-clip f12-bg clip" data-start="0" data-duration="5.5" data-track-index="0"></div>
+
+  <div data-hf-id="hf-yozz" class="f12-clip clip" data-start="0" data-duration="5.5" data-track-index="1">
+    <div data-hf-id="hf-6aia" class="f12-stage" id="f12-stage">
+
+      <!-- Desktop hero -->
+      <div data-hf-id="hf-tad2" class="f12-desktop" id="f12-desktop">
+        <div data-hf-id="hf-m338" class="f12-desktop-bar">
+          <div data-hf-id="hf-gpwi" class="f12-desktop-dot"></div>
+          <div data-hf-id="hf-5cee" class="f12-desktop-dot"></div>
+          <div data-hf-id="hf-nf9l" class="f12-desktop-live" id="f12-live-dot"></div>
+        </div>
+        <div data-hf-id="hf-duk9" class="f12-desktop-body" id="f12-desktop-content">
+          <div data-hf-id="hf-89yd" class="f12-desktop-eyebrow" id="f12-d-eyebrow">Bookkeeper · BOD</div>
+          <div data-hf-id="hf-b3we" class="f12-desktop-title" id="f12-d-title">Cooperative Overview</div>
+          <div data-hf-id="hf-5gtr" class="f12-stat-row" id="f12-d-stats">
+            <div data-hf-id="hf-sq6f" class="f12-stat-tile"><div data-hf-id="hf-2lrv" class="f12-stat-label"></div><div data-hf-id="hf-kv5l" class="f12-stat-accent"></div></div>
+            <div data-hf-id="hf-v89z" class="f12-stat-tile"><div data-hf-id="hf-dim3" class="f12-stat-label"></div><div data-hf-id="hf-7ngt" class="f12-stat-accent"></div></div>
+            <div data-hf-id="hf-utyy" class="f12-stat-tile"><div data-hf-id="hf-d4b2" class="f12-stat-label"></div><div data-hf-id="hf-8udw" class="f12-stat-accent"></div></div>
+          </div>
+          <div data-hf-id="hf-kzi0" class="f12-chart-row" id="f12-d-chart">
+            <div data-hf-id="hf-nupv" class="f12-chart-bar" style="height:42%;"></div>
+            <div data-hf-id="hf-acya" class="f12-chart-bar" style="height:58%;"></div>
+            <div data-hf-id="hf-vrri" class="f12-chart-bar" style="height:36%;"></div>
+            <div data-hf-id="hf-fhye" class="f12-chart-bar" style="height:72%;"></div>
+            <div data-hf-id="hf-x2wy" class="f12-chart-bar" style="height:100%;background:var(--f12-primary-deep);"></div>
+            <div data-hf-id="hf-853w" class="f12-chart-bar" style="height:52%;"></div>
+            <div data-hf-id="hf-ldv3" class="f12-chart-bar" style="height:64%;"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Phone hero -->
+      <div data-hf-id="hf-8c1m" class="f12-phone" id="f12-phone">
+        <div data-hf-id="hf-ntwy" class="f12-phone-glow" id="f12-phone-glow"></div>
+        <div data-hf-id="hf-7w15" class="f12-phone-screen">
+          <div data-hf-id="hf-d9ve" class="f12-phone-header">
+            <span data-hf-id="hf-jsny" class="f12-phone-header-title">Dashboard</span>
+            <span data-hf-id="hf-nnof" class="f12-phone-header-bell"></span>
+          </div>
+          <div data-hf-id="hf-p7vd" class="f12-phone-body" id="f12-phone-content">
+            <div data-hf-id="hf-a8mv" class="f12-phone-card f12-phone-profile" id="f12-p-profile">
+              <div data-hf-id="hf-ryqa" class="f12-phone-avatar"></div>
+              <div data-hf-id="hf-4qfq" style="flex:1;">
+                <div data-hf-id="hf-aiwm" class="f12-phone-line" style="width:70%;"></div>
+                <div data-hf-id="hf-ugyf" class="f12-phone-line" style="width:45%;margin-top:0.32cqw;"></div>
+                <div data-hf-id="hf-ixzi" class="f12-phone-pill">Active</div>
+              </div>
+            </div>
+            <div data-hf-id="hf-kf28" class="f12-phone-card" id="f12-p-migs">
+              <div data-hf-id="hf-it8w" class="f12-phone-migs-head"><span data-hf-id="hf-o5cr">MIGS Standing</span></div>
+              <div data-hf-id="hf-biru" class="f12-migs-track"><div data-hf-id="hf-a15m" class="f12-migs-fill"></div></div>
+            </div>
+          </div>
+          <div data-hf-id="hf-9n7y" class="f12-phone-nav" id="f12-p-nav">
+            <div data-hf-id="hf-nyv6" class="f12-phone-nav-item f12-active"></div>
+            <div data-hf-id="hf-yd08" class="f12-phone-nav-item"></div>
+            <div data-hf-id="hf-giwg" class="f12-phone-nav-item"></div>
+            <div data-hf-id="hf-fbzd" class="f12-phone-nav-item"></div>
+            <div data-hf-id="hf-fqae" class="f12-phone-nav-item"></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var desktopEl  = document.getElementById("f12-desktop");
+  var phoneEl    = document.getElementById("f12-phone");
+  var liveDotEl  = document.getElementById("f12-live-dot");
+  var glowEl     = document.getElementById("f12-phone-glow");
+
+  var dEyebrow = document.getElementById("f12-d-eyebrow");
+  var dTitle   = document.getElementById("f12-d-title");
+  var dStats   = document.getElementById("f12-d-stats");
+  var dChart   = document.getElementById("f12-d-chart");
+  var pProfile = document.getElementById("f12-p-profile");
+  var pMigs    = document.getElementById("f12-p-migs");
+  var pNav     = document.getElementById("f12-p-nav");
+
+  var tl = gsap.timeline({ paused: true });
+
+  // ===================================================================
+  // Scene 1 (0.0–0.5s) — the pair settles into frame at its angled rest
+  // pose. Hero (both devices) fully visible by t<=0.5s.
+  // ===================================================================
+  var deskPose  = { s: 0.86, r: -9, ry: 12, tx: 26, ty: -14 };
+  var deskRest  = { s: 1,    r: -3, ry: 4,  tx: 0,  ty: 0   };
+  var phonePose = { s: 0.86, r: 9,  ry: -12, tx: -22, ty: -10 };
+  var phoneRest = { s: 1,    r: 3,  ry: -4,  tx: 0,   ty: 0   };
+
+  var deskDrift  = { x: 0, y: 0 };
+  var phoneDrift = { x: 0, y: 0 };
+
+  function paintDesktop() {
+    if (!desktopEl) return;
+    desktopEl.style.transform =
+      "translate(" + (deskPose.tx + deskDrift.x) + "px," + (deskPose.ty + deskDrift.y) + "px) " +
+      "rotate(" + deskPose.r + "deg) rotateY(" + deskPose.ry + "deg) scale(" + deskPose.s + ")";
+  }
+  function paintPhone() {
+    if (!phoneEl) return;
+    phoneEl.style.transform =
+      "translate(" + (phonePose.tx + phoneDrift.x) + "px," + (phonePose.ty + phoneDrift.y) + "px) " +
+      "rotate(" + phonePose.r + "deg) rotateY(" + phonePose.ry + "deg) scale(" + phonePose.s + ")";
+  }
+
+  // Pre-render the from-pose synchronously so a t=0 seek is correct
+  // before the timeline ever plays (belt-and-braces alongside fromTo).
+  paintDesktop();
+  paintPhone();
+
+  tl.fromTo(desktopEl, { opacity: 0 }, { opacity: 1, duration: 0.3, ease: "power1.out" }, 0.0)
+    .to(deskPose, {
+      s: deskRest.s, r: deskRest.r, ry: deskRest.ry, tx: deskRest.tx, ty: deskRest.ty,
+      duration: 0.45, ease: "power3.out", onUpdate: paintDesktop
+    }, 0.0);
+
+  tl.fromTo(phoneEl, { opacity: 0 }, { opacity: 1, duration: 0.3, ease: "power1.out" }, 0.08)
+    .to(phonePose, {
+      s: phoneRest.s, r: phoneRest.r, ry: phoneRest.ry, tx: phoneRest.tx, ty: phoneRest.ty,
+      duration: 0.42, ease: "power3.out", onUpdate: paintPhone
+    }, 0.08);
+
+  // ===================================================================
+  // Scene 2 (~0.45–1.2s) — each device's content resolves in one quiet
+  // staggered beat (spring-pop-entrance group form), not front-loaded
+  // with the device shells themselves.
+  // ===================================================================
+  var DESKTOP_CONTENT_AT = 0.5;
+  [dEyebrow, dTitle, dStats, dChart].forEach(function (el, i) {
+    if (!el) return;
+    tl.fromTo(el,
+      { opacity: 0, y: 14 },
+      { opacity: 1, y: 0, duration: 0.4, ease: "power3.out" },
+      DESKTOP_CONTENT_AT + i * 0.08
+    );
+  });
+
+  var PHONE_CONTENT_AT = 0.58;
+  [pProfile, pMigs, pNav].forEach(function (el, i) {
+    if (!el) return;
+    tl.fromTo(el,
+      { opacity: 0, y: 12 },
+      { opacity: 1, y: 0, duration: 0.4, ease: "power3.out" },
+      PHONE_CONTENT_AT + i * 0.08
+    );
+  });
+
+  // Phone screen glow — blooms in sync with the phone's own settle
+  // ("screen glowing"), then breathes gently through the hold.
+  if (glowEl) {
+    tl.fromTo(glowEl,
+      { opacity: 0, scale: 0.82 },
+      { opacity: 0.28, scale: 1, duration: 0.55, ease: "power2.out" },
+      0.35
+    );
+  }
+
+  // Live status dot on the desktop chrome bar — pops in right after the
+  // window settles ("dashboard ticking").
+  if (liveDotEl) {
+    tl.fromTo(liveDotEl,
+      { opacity: 0, scale: 0 },
+      { opacity: 1, scale: 1, duration: 0.3, ease: "power3.out" },
+      0.5
+    );
+  }
+
+  // ===================================================================
+  // Scene 3 (~1.3–5.0s) — the calm hold. A slow shared drift parallaxes
+  // the pair as one viewpoint; the phone carries a touch of independent
+  // motion (closer object, slightly more travel); the live dot pulses
+  // and the phone glow breathes — the only two "alive" cues. All three
+  // idle channels taper to stillness over the final ~20% so the frame
+  // is fully at rest before the crossfade into frame 13.
+  // ===================================================================
+  var IDLE_START = 1.3;
+  var IDLE_END = 5.0;
+  var IDLE_DUR = IDLE_END - IDLE_START;
+  var FADE_FRAC = 0.22;
+
+  function envelopeAt(tNorm) {
+    return tNorm < 1 - FADE_FRAC ? 1 : Math.max(0, (1 - tNorm) / FADE_FRAC);
+  }
+
+  var stageDrift = { p: 0 };
+  var STAGE_CYCLES = 1;
+  tl.to(stageDrift, {
+    p: Math.PI * 2 * STAGE_CYCLES,
+    duration: IDLE_DUR,
+    ease: "none",
+    onUpdate: function () {
+      var tNorm = IDLE_DUR > 0 ? (stageDrift.p / (Math.PI * 2 * STAGE_CYCLES)) : 0;
+      var env = envelopeAt(tNorm);
+      var sx = Math.sin(stageDrift.p) * 2.4 * env;
+      var sy = Math.sin(stageDrift.p * 1.3) * 1.3 * env;
+
+      // shared background-pair drift
+      deskDrift.x = sx;
+      deskDrift.y = sy;
+      // phone (foreground) carries a touch more independent travel,
+      // offset in phase so the two never move in perfect lockstep
+      phoneDrift.x = sx * 1.5 + Math.sin(stageDrift.p * 1.4 + Math.PI / 3) * 1.4 * env;
+      phoneDrift.y = sy * 1.5 + Math.sin(stageDrift.p * 1.1 + Math.PI / 3) * 0.9 * env;
+
+      paintDesktop();
+      paintPhone();
+    }
+  }, IDLE_START);
+
+  // Live dot — finite low-amplitude pulse (yoyo form; nothing else
+  // touches this property).
+  if (liveDotEl) {
+    tl.to(liveDotEl, {
+      scale: 1.22,
+      duration: 0.55,
+      ease: "sine.inOut",
+      yoyo: true,
+      repeat: 5
+    }, 0.95);
+  }
+
+  // Phone glow — bounded breathe, tapering to a steady rest in the
+  // final stretch (long-idle handling: half amplitude, settle-and-fade
+  // tail).
+  if (glowEl) {
+    var glowPhase = { p: 0 };
+    var GLOW_CYCLES = Math.max(1, Math.round(IDLE_DUR / 3));
+    tl.to(glowPhase, {
+      p: Math.PI * 2 * GLOW_CYCLES,
+      duration: IDLE_DUR,
+      ease: "none",
+      onUpdate: function () {
+        var tNorm = GLOW_CYCLES > 0 ? (glowPhase.p / (Math.PI * 2 * GLOW_CYCLES)) : 0;
+        var env = envelopeAt(tNorm);
+        var s = Math.sin(glowPhase.p);
+        glowEl.style.opacity = String(0.28 + s * 0.05 * env);
+        glowEl.style.transform = "scale(" + (1 + s * 0.025 * env) + ")";
+      }
+    }, IDLE_START);
+  }
+
+  window.__timelines = window.__timelines || {};
+  window.__timelines["12-final-ecosystem"] = tl;
+})();
+</script>
+</template>

@@ -1,0 +1,182 @@
+<template>
+  <style>
+    @font-face { font-family: "Poppins"; src: url("assets/fonts/poppins-400.woff2") format("woff2"); font-weight: 400; font-style: normal; font-display: block; }
+    @font-face { font-family: "Poppins"; src: url("assets/fonts/poppins-500.woff2") format("woff2"); font-weight: 500; font-style: normal; font-display: block; }
+    @font-face { font-family: "Poppins"; src: url("assets/fonts/poppins-600.woff2") format("woff2"); font-weight: 600; font-style: normal; font-display: block; }
+    @font-face { font-family: "Poppins"; src: url("assets/fonts/poppins-700.woff2") format("woff2"); font-weight: 700; font-style: normal; font-display: block; }
+    @font-face { font-family: "Poppins"; src: url("assets/fonts/poppins-800.woff2") format("woff2"); font-weight: 800; font-style: normal; font-display: block; }
+
+    #root {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      container-type: size;
+      font-family: "Poppins", sans-serif;
+      box-sizing: border-box;
+    }
+    #root *, #root *::before, #root *::after { box-sizing: border-box; }
+
+    .clip { position: absolute; inset: 0; }
+
+    #root [data-el="bg"] {
+      background: #FFFFFF;
+    }
+
+    #root [data-el="content"] {
+      transform-origin: 50% 45%;
+    }
+
+    #root [data-el="eyebrow"] {
+      position: absolute;
+      top: 6cqw;
+      left: 6cqw;
+      font-size: 0.95cqw;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #32872E;
+    }
+
+    #root [data-el="table-shell"] {
+      position: absolute;
+      left: 6cqw;
+      right: 6cqw;
+      top: 34%;
+      border-radius: 14px;
+      border: 1.5px solid rgba(56, 151, 52, 0.2);
+      overflow: hidden;
+      background: #FFFFFF;
+    }
+
+    #root [data-el="thead"],
+    #root [data-el="row"] {
+      display: grid;
+      grid-template-columns: 1.7fr 1fr 1fr;
+      align-items: center;
+      column-gap: 1cqw;
+    }
+
+    #root [data-el="thead"] {
+      background: #2e7a2a;
+      color: #FFFFFF;
+      padding: 1.15cqw 1.7cqw;
+      font-size: 1.15cqw;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    #root [data-el="row"] {
+      background: #FFFFFF;
+      padding: 1.35cqw 1.7cqw;
+      border-top: 1px solid #EEF1F0;
+    }
+
+    #root [data-el="cell-name"] {
+      font-size: 1.5cqw;
+      font-weight: 600;
+      color: #1F2937;
+    }
+
+    #root [data-el="cell-loans"] {
+      font-size: 1.5cqw;
+      font-weight: 400;
+      color: #64748B;
+    }
+
+    #root [data-el^="chip"] {
+      justify-self: start;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      font-weight: 700;
+      border-radius: 100px;
+      padding: 6px 20px;
+      transform-origin: center;
+    }
+
+    #root [data-el="chip-active"] {
+      background: #d1fae5;
+      color: #047857;
+    }
+
+    #root [data-el="chip-terminated"] {
+      background: #fee2e2;
+      color: #8f1414;
+    }
+  </style>
+
+  <div data-hf-id="hf-zfu2" id="root" data-composition-id="03-module-members" data-width="1920" data-height="1080" data-duration="2.5">
+    <div data-hf-id="hf-fyq3" class="clip" data-el="bg" data-start="0" data-duration="2.5" data-track-index="0"></div>
+
+    <div data-hf-id="hf-t50o" class="clip" data-el="content" data-start="0" data-duration="2.5" data-track-index="1">
+      <div data-hf-id="hf-915c" data-el="eyebrow">Member Management</div>
+
+      <div data-hf-id="hf-2gtj" data-el="table-shell">
+        <div data-hf-id="hf-2ev8" data-el="thead">
+          <span data-hf-id="hf-lrgf">Member</span>
+          <span data-hf-id="hf-9210">Loans</span>
+          <span data-hf-id="hf-1743">Status</span>
+        </div>
+
+        <div data-hf-id="hf-blm5" data-el="row" data-row="1">
+          <span data-hf-id="hf-u7hg" data-el="cell-name">J. Bautista</span>
+          <span data-hf-id="hf-ht4x" data-el="cell-loans">2 active</span>
+          <span data-hf-id="hf-fvjy" data-el="chip-active">Active</span>
+        </div>
+
+        <div data-hf-id="hf-fjq6" data-el="row" data-row="2">
+          <span data-hf-id="hf-mady" data-el="cell-name">M. Reyes</span>
+          <span data-hf-id="hf-9lzb" data-el="cell-loans">0 active</span>
+          <span data-hf-id="hf-q44i" data-el="chip-active">Active</span>
+        </div>
+
+        <div data-hf-id="hf-jhu7" data-el="row" data-row="3">
+          <span data-hf-id="hf-42sg" data-el="cell-name">A. Cruz</span>
+          <span data-hf-id="hf-k556" data-el="cell-loans">1 paid</span>
+          <span data-hf-id="hf-khbo" data-el="chip-terminated">Terminated</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      const scope = document.querySelector('[data-composition-id="03-module-members"]');
+      const eyebrow = scope.querySelector('[data-el="eyebrow"]');
+      const shell = scope.querySelector('[data-el="table-shell"]');
+      const rows = scope.querySelectorAll('[data-el="row"]');
+      const activeChips = scope.querySelectorAll('[data-el="chip-active"]');
+      const terminatedChip = scope.querySelector('[data-el="chip-terminated"]');
+      const content = scope.querySelector('[data-el="content"]');
+
+      const tl = gsap.timeline({ paused: true, defaults: { ease: "power3.out" } });
+
+      // Land the hero (eyebrow + full table) by t <= 0.5s — fast module-cascade beat.
+      tl.fromTo(eyebrow, { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.18 }, 0);
+      tl.fromTo(shell, { opacity: 0, y: 18 }, { opacity: 1, y: 0, duration: 0.22 }, 0.06);
+
+      rows.forEach((row, i) => {
+        tl.fromTo(
+          row,
+          { opacity: 0, x: -26 },
+          { opacity: 1, x: 0, duration: 0.16 },
+          0.16 + i * 0.08
+        );
+      });
+
+      // Quiet settle beat: emphasize the active/terminated split during the hold.
+      tl.to(activeChips, { scale: 1.08, duration: 0.14, ease: "power2.out" }, 0.55);
+      tl.to(activeChips, { scale: 1, duration: 0.16, ease: "power2.inOut" }, 0.69);
+      tl.to(terminatedChip, { scale: 1.1, duration: 0.14, ease: "power2.out" }, 0.95);
+      tl.to(terminatedChip, { scale: 1, duration: 0.16, ease: "power2.inOut" }, 1.09);
+
+      // Restrained camera drift across the full hold.
+      tl.fromTo(content, { scale: 1 }, { scale: 1.025, duration: 2, ease: "sine.inOut" }, 0);
+
+      window.__timelines["03-module-members"] = tl;
+    })();
+  </script>
+</template>
