@@ -222,6 +222,12 @@ export const describeAuditActivity = (row) => {
     }
   }
 
+  if (row.entity_type === "account" && typeof after.can_manage_accounts === "boolean") {
+    return after.can_manage_accounts
+      ? "Gave account management access"
+      : "Removed account management access";
+  }
+
   if (row.entity_type === "account" && (row.action === "deactivate" || row.action === "reactivate")) {
     return `${ACTIVITY_VERB[row.action]} member login account`;
   }

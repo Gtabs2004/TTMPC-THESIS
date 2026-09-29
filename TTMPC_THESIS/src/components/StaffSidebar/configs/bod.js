@@ -5,10 +5,13 @@ import {
   CreditCard,
   History,
   FileText,
-  UserRoundCheck
+  UserRoundCheck,
+  UserCog,
 } from "lucide-react";
 
 // BOD portal navigation. Same list on every standalone BOD page.
+// Account Management is listed for every BOD; the page itself (and the
+// backend) only lets the BOD holding can_manage_accounts use it.
 export const bodNav = [
   { name: "Dashboard",         icon: LayoutDashboard, path: "/BOD-dashboard" },
   { name: "Member Approvals",  icon: UserRoundCheck,           path: "/member-approvals" },
@@ -17,9 +20,5 @@ export const bodNav = [
   { name: "Manage Member",     icon: Users,           path: "/bod-manage-member" },
   { name: "Audit Log",         icon: History,         path: "/bod-audit-log" },
   { name: "Loan Policies",     icon: FileText,        path: "/bod-loan-policies" },
+  { name: "Account Management", icon: UserCog,        path: "/bod-account-management" },
 ];
-
-// Same list, grouped under a "BOD" section header — for pages that show more
-// than one role's menu at once (see secretary.js's secretarySections, and
-// BOD/Components/Secretary_Records.jsx which renders both).
-export const bodSections = [{ section: "BOD", items: bodNav }];

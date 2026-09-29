@@ -24,9 +24,7 @@ import {
   UserPlus,
   Download,
   Archive,
-  AlertTriangle,
   ShieldCheck,
-  X as CloseIcon,
 } from 'lucide-react';
 import logo from "../assets/img/ttmpc logo.png";
 import NotificationBell from "../components/NotificationBell";
@@ -36,7 +34,23 @@ import TableStateRow from "../components/TableStateRow";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 
-/// naku
+// Termination is done by the BOD in Account Management; the Secretary only
+// sees the result here (Status) and on the record details page.
+const STATUS_STYLES = {
+  active: { label: "Active", className: "bg-green-50 text-green-700" },
+  terminated: { label: "Terminated", className: "bg-red-50 text-red-700" },
+  exiting: { label: "Exiting", className: "bg-amber-50 text-amber-700" },
+  closed: { label: "Closed", className: "bg-gray-100 text-gray-700" },
+};
+
+const StatusBadge = ({ status }) => {
+  const style = STATUS_STYLES[String(status || "active").toLowerCase()] || STATUS_STYLES.active;
+  return (
+    <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${style.className}`}>
+      {style.label}
+    </span>
+  );
+};
 
 const Secretary_Records = () => {
     const navigate = useNavigate();
@@ -46,51 +60,6 @@ const Secretary_Records = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 5;
-
-  const [termTarget, setTermTarget] = useState(null);
-  const [termForm, setTermForm] = useState({ resolution_no: "", resolution_date: "", effective_date: "", reason: "", notes: "" });
-  const [termBusy, setTermBusy] = useState(false);
-
-  const openTerminate = (member) => {
-    setTermForm({ resolution_no: "", resolution_date: "", effective_date: "", reason: "", notes: "" });
-    setTermTarget(member);
-  };
-
-  const submitTerminate = async () => {
-    if (!termTarget?.applicant_id) return;
-    if (!termForm.reason.trim()) {
-      addNotification("Reason is required.", "error");
-      return;
-    }
-    setTermBusy(true);
-    try {
-      const res = await fetch(`${API_BASE_URL}/api/admin/staff/termination/request`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          member_id: termTarget.applicant_id,
-          resolution_no: termForm.resolution_no || null,
-          resolution_date: termForm.resolution_date || null,
-          effective_date: termForm.effective_date || null,
-          reason: termForm.reason,
-          notes: termForm.notes || null,
-          requested_by_role: "secretary",
-        }),
-      });
-      const payload = await res.json().catch(() => ({}));
-      if (!res.ok || !payload?.success) {
-        throw new Error(payload?.detail || "Request failed.");
-      }
-      addNotification("Termination submitted. Account locked; awaiting BOD confirmation.", "success");
-      setTermTarget(null);
-    } catch (err) {
-      addNotification(err?.message || "Failed to submit termination.", "error");
-    } finally {
-      setTermBusy(false);
-    }
-  };
-  
-  
 
   const formatCurrency = (value) => `₱${Number(value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const formatDate = (value) => {
@@ -178,15 +147,16 @@ const Secretary_Records = () => {
                   <th className="p-5 font-bold">Date Joined</th>
                   <th className="p-5 font-bold">Shares</th>
                   <th className="p-5 font-bold">Paid Up Capital</th>
+                  <th className="p-5 font-bold">Status</th>
                   <th className="p-5 font-bold">Action</th>
                 </tr>
               </thead>
               <tbody>
                 {loading && (
-                  <TableStateRow colSpan={6} variant="loading" label="Loading..." />
+                  <TableStateRow colSpan={7} variant="loading" label="Loading..." />
                 )}
                 {paginatedRecords.length === 0 && !loading && (
-                  <TableStateRow colSpan={6} variant="empty" icon={Users} label="No records found." />
+                  <TableStateRow colSpan={7} variant="empty" icon={Users} label="No records found." />
                 )}
                 {paginatedRecords.map((member, index) => (
                   <tr key={`${member.member_uuid}-${index}`} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
@@ -196,23 +166,15 @@ const Secretary_Records = () => {
                     <td className="p-5 text-gray-800 font-medium">{Number(member.shares || 0).toFixed(2)}</td>
                     <td className="p-5 text-gray-800 font-medium">{formatCurrency(member.paid_up_capital)}</td>
                     <td className="p-5">
-                      <div className="flex items-center gap-2">
-                        <TableActionButton
-                          icon={Eye}
-                          iconOnly
-                          onClick={() => navigate(`/secretary-record-details/${member.member_uuid}`)}
-                        >
-                          View
-                        </TableActionButton>
-                        <TableActionButton
-                          icon={AlertTriangle}
-                          iconOnly
-                          variant="danger"
-                          onClick={() => openTerminate(member)}
-                        >
-                          Terminate
-                        </TableActionButton>
-                      </div>
+                      <StatusBadge status={member.member_status} />
+                    </td>
+                    <td className="p-5">
+                      <TableActionButton
+                        icon={Eye}
+                        onClick={() => navigate(`/secretary-record-details/${member.member_uuid}`)}
+                      >
+                        View
+                      </TableActionButton>
                     </td>
                   </tr>
                 ))}
@@ -223,93 +185,6 @@ const Secretary_Records = () => {
           <Pagination page={currentPage} totalPages={totalPages} onChange={setCurrentPage} />
         </main>
       </div>
-
-      {termTarget ? (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg">
-            <div className="flex items-center justify-between px-6 p-5 border-b border-gray-100">
-              <div className="flex items-center gap-2">
-                <AlertTriangle className="w-5 h-5 text-red-500" />
-                <h3 className="font-bold text-gray-800">Terminate Membership</h3>
-              </div>
-              <button onClick={() => setTermTarget(null)} className="text-gray-400 hover:text-gray-600">
-                <CloseIcon className="w-5 h-5" />
-              </button>
-            </div>
-            <div className="px-6 p-5 space-y-4">
-              <div className="rounded-md bg-orange-50 border border-orange-200 px-3 py-2 text-xs text-orange-800">
-                Submitting will immediately lock <b>{termTarget.applicant_id}</b> ({termTarget.applicant_name}) and forward a confirmation request to the BOD.
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-gray-500 mb-1">Resolution Number</label>
-                <input
-                  type="text"
-                  value={termForm.resolution_no}
-                  onChange={(e) => setTermForm((f) => ({ ...f, resolution_no: e.target.value }))}
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-                  placeholder="e.g. BR-2026-014"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-gray-500 mb-1">Resolution Date</label>
-                  <input
-                    type="date"
-                    value={termForm.resolution_date}
-                    onChange={(e) => setTermForm((f) => ({ ...f, resolution_date: e.target.value }))}
-                    className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-gray-500 mb-1">Effective Date</label>
-                  <input
-                    type="date"
-                    value={termForm.effective_date}
-                    onChange={(e) => setTermForm((f) => ({ ...f, effective_date: e.target.value }))}
-                    className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-                  />
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-gray-500 mb-1">Reason <span className="text-red-500">*</span></label>
-                <textarea
-                  value={termForm.reason}
-                  onChange={(e) => setTermForm((f) => ({ ...f, reason: e.target.value }))}
-                  rows={2}
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-                  placeholder="e.g. Voluntary resignation, policy violation, etc."
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-gray-500 mb-1">Notes</label>
-                <textarea
-                  value={termForm.notes}
-                  onChange={(e) => setTermForm((f) => ({ ...f, notes: e.target.value }))}
-                  rows={2}
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-                  placeholder="Additional context for the BOD..."
-                />
-              </div>
-            </div>
-            <div className="flex justify-end gap-2 px-6 p-5 border-t border-gray-100">
-              <button
-                onClick={() => setTermTarget(null)}
-                disabled={termBusy}
-                className="text-sm font-bold rounded-md px-4 py-2 border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={submitTerminate}
-                disabled={termBusy || !termForm.reason.trim()}
-                className="bg-red-600 text-white text-sm font-bold rounded-md px-4 py-2 hover:bg-red-700 disabled:opacity-50"
-              >
-                {termBusy ? "Submitting..." : "Submit Termination"}
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
     </div>
   );
 };

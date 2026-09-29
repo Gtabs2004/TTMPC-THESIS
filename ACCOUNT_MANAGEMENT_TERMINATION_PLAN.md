@@ -1,6 +1,12 @@
 # Account Management, Termination & CBU Payout — Plan
 
-Status: **planned, not started** (agreed 2026-09-28). Build in two parts: **Part A** first, then **Part B**.
+Status: **Part A built 2026-09-29** (needs `src/server/account_management_part_a.sql` applied in Supabase); **Part B not started**.
+
+Part A as built — differences from the plan below:
+- Terminate is **refused while the member owes any loan** (balance + penalties). The CBU offset / "Exiting" handling (§8) arrives with Part B; the terminate dialog already shows the §8 settlement preview from `compute_cbu_payout`.
+- Terminating also sets the login's role back to Member and clears the admin flag (a terminated member keeps no staff access).
+- The old termination notices never reached the bell (they wrote a non-existent `payload` column); the new ones use `title`/`message`.
+- `member.termination_cbu_total` was added in Part A (plan had it as "saved" without a column).
 
 ---
 
