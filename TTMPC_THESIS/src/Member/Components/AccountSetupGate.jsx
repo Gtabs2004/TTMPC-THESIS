@@ -25,8 +25,12 @@ const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
  *
  * Steps run in order -- real email, then real password, then the required
  * profile fields -- because the email is where the password OTP is sent.
+ *
+ * Also mounted on every staff portal page by RequireRole: a member given a
+ * staff role while still on a temporary email/password must finish the same
+ * two steps before using the staff portal.
  */
-export default function AccountSetupGate() {
+export default function AccountSetupGate({ signOutTo = "/memberlogin", portalLabel = "member portal" } = {}) {
   const navigate = useNavigate();
   const { signOut } = UserAuth();
   const [status, setStatus] = useState(null);
@@ -44,8 +48,8 @@ export default function AccountSetupGate() {
     } catch {
       /* Clearing the local session below is what matters. */
     }
-    navigate("/memberlogin", { replace: true });
-  }, [signOut, navigate]);
+    navigate(signOutTo, { replace: true });
+  }, [signOut, navigate, signOutTo]);
 
   // `overrideToken` lets a step hand in a token it just minted (see the
   // password step's re-auth). getSession() can still report the previous
@@ -158,7 +162,7 @@ export default function AccountSetupGate() {
   return (
     <Shell
       title="Finish setting up your account"
-      subtitle="For your security, complete these steps before using the member portal."
+      subtitle={`For your security, complete these steps before using the ${portalLabel}.`}
       onSignOut={handleSignOut}
       stepper={<Stepper steps={steps} />}
     >

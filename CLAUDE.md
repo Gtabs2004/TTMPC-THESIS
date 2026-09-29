@@ -97,6 +97,13 @@ A member with an active loan can't renew until 6 monthly payments are recorded (
 - **Frontend:** member request UI is in `Member_ApplyLoans.jsx` + `RenewalOverrideModal.jsx`; Bookkeeper queue/history is `Bookkeeper/Components/Renewal_Overrides.jsx` (`/bookkeeper-renewal-overrides`). `useLoanEligibility` layers approved overrides onto the `get_loan_eligibility` RPC result (`can_renew`, `override_applied`); the loan forms' `sixMonthsPaid` gate honors it. `submitUnifiedLoan` calls `/consume` after a renewal so one approval can't be reused.
 - The override waives the 6-month rule only — not the Bonus May/November window, and it does not pretend payments were made (the existing balance is still deducted in full).
 
+### Account Management & Termination (BOD)
+One login per person: `member_account.role` picks the staff portal; the member portal is open to every member regardless of role (`memberlogin.jsx` never checks it), so assigning a staff role never removes member access.
+- **Frontend:** `src/BOD/Components/Account_Management.jsx` (route `/bod-account-management`) — listed in every BOD sidebar, but only the BOD with `member_account.can_manage_accounts` can use it (page checks via `utils/useAccountAdmin.js`; backend enforces).
+- **Backend:** "Account Management" section of `main.py` (`/api/admin/accounts/*`), all behind `_require_account_admin`. Termination settlement rule lives only in `compute_cbu_payout()` (`CBU_PAYOUT_OFFSETS_LOANS`). Terminating bans the Supabase auth user — `is_active` alone is not checked at sign-in.
+- Secretary Membership Records are view-only; staff with a temporary email/password get `AccountSetupGate` via `RequireRole`.
+- Full spec + Part B (Cashier CBU payout) in `ACCOUNT_MANAGEMENT_TERMINATION_PLAN.md`. Migration: `src/server/account_management_part_a.sql`.
+
 ### Email Notifications
 Sent via Resend API through FastAPI endpoints (`/api/send-status-email`, `/api/loans/notifications/dispatch`, `/api/loans/notifications/member`, `/api/loans/email/dispatch`). Templates in `src/server/services/loan_email_templates.py`.
 

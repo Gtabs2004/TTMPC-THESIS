@@ -93,7 +93,7 @@ import Add_Savings from "./Cashier/Components/Add_Savings";
 import Secretary_Attendance from "./secretary/Secretary_Attendance";
 import Secretary_General_Assembly from "./secretary/Secretary_General_Assembly";
 import Secretary_Records from "./secretary/Secretary_Records";
-import BOD_Secretary_Records from "./BOD/Components/Secretary_Records";
+import Account_Management from "./BOD/Components/Account_Management";
 import Record_Details from "./BOD/Components/Record_Details";
 import BOD_Manage_Member from "./BOD/Components/Manage-Member";
 import Treasurer_Approval from "./Treasurer/Components/Treasurer_Approval";
@@ -229,9 +229,7 @@ export const router = createBrowserRouter([
     {path: "/cashier-audit-log", element: cashierGuarded(<Cashier_Audit_Log/>)},
     {path: "/bod-manage-loans", element: bodGuarded(<BOD_Manage_Loans/>)},
     {path: "/bod-loan-policies", element: bodGuarded(<BOD_Loan_Policies/>)},
-    {path: "/secretary-records", element: bodGuarded(<BOD_Secretary_Records/>)},
-    {path: "/membership-records", element: bodGuarded(<BOD_Secretary_Records/>)},
-    {path: "/record-details/:id", element: bodGuarded(<Record_Details/>)},
+    {path: "/bod-account-management", element: bodGuarded(<Account_Management/>)},
     {path: "/secretary-record-details/:id", element: secretaryGuarded(<Record_Details backPath="/Secretary_Records"/>)},
     {path: "/treasurer-approval", element: treasurerGuarded(<Treasurer_Approval/>)},
     {path:"/treasurer-approval/:id", element: treasurerGuarded(<Treasurer_ApprovalDetails/>)},

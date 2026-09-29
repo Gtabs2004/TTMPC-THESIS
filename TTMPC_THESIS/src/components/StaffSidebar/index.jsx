@@ -214,6 +214,27 @@ export default function StaffSidebar({ portal, items, sections }) {
         />
       )}
 
+      {/* Collapse/expand toggle — desktop only. Vertically centred on the
+          sidebar's right border. Rendered outside <aside>: the aside scrolls
+          (overflow-y-auto) and carries a transform, either of which would
+          clip or re-anchor a button hanging over its edge. `left` tracks the
+          sidebar width (w-64 / w-20) minus half the button, animated with the
+          same duration as the width change. */}
+      <button
+        type="button"
+        onClick={toggleCollapsed}
+        aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+        className={`hidden lg:flex fixed top-1/2 -translate-y-1/2 z-50 h-7 w-7 items-center justify-center rounded-full bg-green-600 text-white shadow-md ring-4 ring-white transition-[left,background-color] duration-300 ease-in-out hover:bg-green-700 ${
+          collapsed ? "left-[calc(5rem-0.875rem)]" : "left-[calc(16rem-0.875rem)]"
+        }`}
+      >
+        <ChevronLeft
+          size={16}
+          strokeWidth={2.5}
+          className={`transition-transform duration-300 ease-in-out ${collapsed ? "rotate-180" : ""}`}
+        />
+      </button>
+
       <aside
         className={`bg-white w-64 p-4 flex flex-col border-r border-gray-200 shrink-0 fixed inset-y-0 left-0 z-40 overflow-y-auto transition-[width,transform] duration-300 ease-in-out lg:static lg:translate-x-0 ${
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
@@ -247,23 +268,6 @@ export default function StaffSidebar({ portal, items, sections }) {
               />
             </div>
           </div>
-
-          {/* Collapse/expand toggle — desktop only, sits right in the header
-              next to the logo (right side when expanded, stacked below the
-              logo when collapsed) so it's always in the same easy-to-find
-              spot at the top of the sidebar. */}
-          <button
-            type="button"
-            onClick={toggleCollapsed}
-            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-            className="hidden lg:flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-green-600 text-white shadow-sm transition-colors hover:bg-green-700"
-          >
-            <ChevronLeft
-              size={16}
-              strokeWidth={2.5}
-              className={`transition-transform duration-300 ease-in-out ${collapsed ? "rotate-180" : ""}`}
-            />
-          </button>
 
           <button
             type="button"

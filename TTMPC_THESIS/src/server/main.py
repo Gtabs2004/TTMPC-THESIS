@@ -611,22 +611,6 @@ class CashierCBUDepositRequest(BaseModel):
     cbu_deposit_id: str | None = None
 
 
-class SecretaryMembershipRecordUpdateRequest(BaseModel):
-    membership_number: str | None = None
-    date_of_membership: str | None = None
-    bod_resolution_number: str | None = None
-    # number_of_shares, amount, and initial_paid_up_capital are accepted
-    # for backward compatibility but intentionally ignored by the PUT
-    # handler below — they're auto-derived from capital_build_up by the
-    # trg_capital_build_up_sync_member_shares DB trigger
-    # (sync_member_shares_from_cbu.sql). Do not write them here.
-    number_of_shares: Decimal | None = None
-    amount: Decimal | None = None
-    initial_paid_up_capital: Decimal | None = None
-    termination_resolution_number: str | None = None
-    termination_date: str | None = None
-
-
 class SavingsTransactionCreateRequest(BaseModel):
     membership_number_id: str = Field(..., min_length=1)
     savings_amount: int | None = None
@@ -7862,7 +7846,7 @@ async def get_secretary_membership_records():
             .select(
                 "id,membership_id,first_name,middle_initial,last_name,"
                 "membership_date,created_at,share_capital_amount,"
-                "number_of_shares,initial_paid_up_capital"
+                "number_of_shares,initial_paid_up_capital,member_status"
             )
             .order("created_at", desc=True)
             .limit(2000)
@@ -7919,7 +7903,8 @@ async def get_secretary_membership_records():
                     "date_joined": joined_value,
                     "shares": decimal_to_float(shares_value),
                     "paid_up_capital": decimal_to_float(paid_up_value),
-                    "editable": True,
+                    "member_status": str(row.get("member_status") or "active").strip().lower(),
+                    "editable": False,
                     "edit_scope": "member",
                 }
             )
@@ -11047,94 +11032,39 @@ async def get_secretary_membership_record_details(member_ref: str):
             "initial_paid_up_capital": decimal_to_float(paid_up_value or 0),
             "termination_resolution_number": (member_row or {}).get("termination_resolution_number") or "",
             "termination_date": (member_row or {}).get("termination_date") or "",
+            "member_status": str((member_row or {}).get("member_status") or "active").strip().lower(),
+            "termination_reason": "",
+            "termination_notes": "",
+            "termination_cbu_total": (member_row or {}).get("termination_cbu_total"),
             "application_id": (latest_application or {}).get("id"),
-            "editable": bool(member_row or pds_row),
+            # Membership records are view-only for the Secretary; termination
+            # is done by the BOD account admin in Account Management.
+            "editable": False,
             "edit_scope": "member" if member_row else "personal_data_sheet",
         }
+
+        if details["member_status"] == "terminated" and membership_number:
+            try:
+                history = (
+                    supabase.table("staff_termination_requests")
+                    .select("reason,notes,requested_at")
+                    .eq("member_id", membership_number)
+                    .eq("status", "approved")
+                    .order("requested_at", desc=True)
+                    .limit(1)
+                    .execute()
+                ).data or []
+                if history:
+                    details["termination_reason"] = history[0].get("reason") or ""
+                    details["termination_notes"] = history[0].get("notes") or ""
+            except Exception:
+                pass
 
         return {"success": True, "data": details}
     except HTTPException as err:
         raise err
     except Exception as err:
         raise HTTPException(status_code=500, detail=f"Failed to load membership record details: {err}")
-
-
-@app.put("/api/secretary/membership-records/{member_ref}")
-async def update_secretary_membership_record(member_ref: str, payload: SecretaryMembershipRecordUpdateRequest):
-    if not supabase:
-        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
-
-    try:
-        member_row = resolve_member_by_ref(member_ref)
-        pds_row = resolve_personal_data_sheet_by_ref(member_ref)
-
-        if not member_row and not pds_row:
-            raise HTTPException(status_code=403, detail="Applicant-only records cannot be edited. Record must exist in member or personal_data_sheet.")
-
-        update_payload = {
-            "membership_id": payload.membership_number,
-            "membership_date": payload.date_of_membership,
-            "bod_resolution_number": payload.bod_resolution_number,
-            # number_of_shares / share_capital_amount / initial_paid_up_capital
-            # are intentionally NOT written here — they're auto-derived from
-            # capital_build_up by trg_capital_build_up_sync_member_shares.
-            "termination_resolution_number": payload.termination_resolution_number,
-            "termination_date": payload.termination_date,
-        }
-        update_payload = {k: v for k, v in update_payload.items() if v is not None}
-        # A termination date is what marks the record terminated (see the note
-        # on Record_Details). member_status is the flag every downstream read
-        # filters on (e.g. /api/bod/terminated-members), so stamp it too —
-        # otherwise the member keeps showing as active.
-        if payload.termination_date:
-            update_payload["member_status"] = "terminated"
-
-        if not update_payload:
-            raise HTTPException(status_code=400, detail="No valid fields provided for update.")
-
-        update_results = {}
-
-        if member_row:
-            member_uuid = str(member_row.get("id") or "").strip()
-            if not member_uuid:
-                raise HTTPException(status_code=400, detail="Member UUID is missing.")
-
-            updated_response = (
-                supabase.table("member")
-                .update(update_payload)
-                .eq("id", member_uuid)
-                .execute()
-            )
-            update_results["member"] = (updated_response.data or [None])[0]
-
-        if pds_row:
-            pds_payload = {
-                "membership_number_id": payload.membership_number,
-                "date_of_membership": payload.date_of_membership,
-                "BOD_resolution_number": payload.bod_resolution_number,
-                # number_of_shares / amount / initial_paid_up_capital are
-                # intentionally NOT written here — see note above.
-            }
-            pds_payload = {k: v for k, v in pds_payload.items() if v is not None}
-
-            if pds_payload:
-                updated_pds_response = (
-                    supabase.table("personal_data_sheet")
-                    .update(pds_payload)
-                    .eq("personal_data_sheet_id", pds_row.get("personal_data_sheet_id"))
-                    .execute()
-                )
-                update_results["personal_data_sheet"] = (updated_pds_response.data or [None])[0]
-
-        return {
-            "success": True,
-            "message": "Membership record updated successfully.",
-            "data": update_results,
-        }
-    except HTTPException as err:
-        raise err
-    except Exception as err:
-        raise HTTPException(status_code=500, detail=f"Failed to update membership record: {err}")
 
 
 # ============================================================================
@@ -15095,10 +15025,21 @@ async def mark_legacy_member_no_history(payload: _NoHistoryPayload):
 
 
 # ============================================================================
-# Staff Account Management (BOD + Secretary)
+# SECTION: Account Management (BOD account admin) & member termination
 # ----------------------------------------------------------------------------
-# Endpoints for changing a member_account role, deactivating/reactivating
-# accounts, and the Secretary -> BOD termination workflow.
+# ACCOUNT_MANAGEMENT_TERMINATION_PLAN.md, Part A.
+#
+# One login per person: member_account.role decides which staff portal a
+# member gets, while the member portal is open to every member regardless of
+# role (memberlogin.jsx never checks it). So "assigning a staff role" is just
+# setting role on the member's own login -- they keep their member portal.
+#
+# Only the BOD holding member_account.can_manage_accounts (the "account
+# admin") may assign roles, grant that flag, or terminate members. Every BOD
+# keeps role 'bod'; a separate role would fail the ~19 SQL helpers and every
+# frontend check that look for exactly 'bod'.
+#
+# Termination is BOD-only and happens here; the Secretary only views it.
 # ============================================================================
 
 ALLOWED_ROLES = {
@@ -15110,312 +15051,446 @@ ALLOWED_ROLES = {
     "secretary",
     "bod",
 }
+STAFF_ROLES = ALLOWED_ROLES - {"member"}
+_ROLE_LABELS = {"bod": "BOD"}
+
+# Plan §8: on termination the member's CBU pays their remaining loans
+# (balance + accrued penalties) first; they receive what's left. This switch
+# and compute_cbu_payout() are the one place that rule lives.
+CBU_PAYOUT_OFFSETS_LOANS = True
 
 
-# ============================================================================
-# SECTION: Admin — Staff Management & Member Termination
-# Endpoints for role changes, deactivation, staff termination request/decision
-# workflow, and BOD-initiated member termination.
-# ============================================================================
-
-class StaffRoleChangeRequest(BaseModel):
-    member_id: str
-    new_role: str
-    actor_user_id: str | None = None
+def _norm_role(value: Any) -> str:
+    return str(value or "").strip().lower()
 
 
-class StaffDeactivateRequest(BaseModel):
-    member_id: str
-    is_active: bool
-    actor_user_id: str | None = None
+def _role_label(role: str) -> str:
+    """Stored casing matches the existing rows ('Cashier', 'BOD', 'Member')."""
+    clean = _norm_role(role)
+    return _ROLE_LABELS.get(clean, clean.capitalize())
 
 
-class StaffTerminationCreateRequest(BaseModel):
-    member_id: str
-    resolution_no: str | None = None
-    resolution_date: str | None = None
+class AccountRoleRequest(BaseModel):
+    membership_id: str
+    role: str  # a staff role, or "member" to remove staff access
+
+
+class AccountAdminFlagRequest(BaseModel):
+    membership_id: str
+    enabled: bool
+
+
+class TerminateMemberRequest(BaseModel):
+    membership_id: str
+    reason: str
     effective_date: str | None = None
-    reason: str | None = None
     notes: str | None = None
-    requested_by: str | None = None
-    requested_by_role: str | None = None
 
 
-class StaffTerminationDecisionRequest(BaseModel):
-    request_id: int
-    decision: Literal["approved", "rejected"]
-    decided_by: str | None = None
-    decision_notes: str | None = None
+_ACCOUNT_COLS = (
+    "user_id, auth_user_id, email, role, membership_id, is_active, "
+    "is_email_dummy, is_temporary, can_manage_accounts"
+)
 
 
-class BodTerminateMemberRequest(BaseModel):
-    """BOD-initiated termination. Resolution number/date are auto-generated
-    server-side; caller only supplies the reason and effective date."""
-    member_id: str
-    reason: str | None = None
-    notes: str | None = None
-    effective_date: str | None = None
-    terminated_by: str | None = None
+def _select_accounts(query_builder):
+    """Run a member_account select, tolerating a database where
+    account_management_part_a.sql hasn't been applied yet (no
+    can_manage_accounts column): that just reads as "nobody is an admin"."""
+    try:
+        return query_builder(_ACCOUNT_COLS).execute().data or []
+    except Exception:
+        rows = query_builder(_ACCOUNT_COLS.replace(", can_manage_accounts", "")).execute().data or []
+        for row in rows:
+            row["can_manage_accounts"] = False
+        return rows
 
 
-def _lookup_member_account(member_id: str):
-    """Find the member_account row by membership_id (e.g. TTMPC-293)."""
-    clean = str(member_id or "").strip()
-    if not clean:
-        raise HTTPException(status_code=400, detail="member_id is required.")
-
-    account_row = None
-    # member_account stores membership_id directly. Try id+is_active first,
-    # then fall back if the is_active column hasn't been migrated yet.
-    for select_cols in (
-        "user_id, auth_user_id, email, role, membership_id, is_active",
-        "user_id, auth_user_id, email, role, membership_id",
-    ):
-        try:
-            account_row = (
-                supabase.table("member_account")
-                .select(select_cols)
-                .eq("membership_id", clean)
-                .limit(1)
-                .execute()
-            ).data
-            account_row = (account_row or [None])[0]
-            break
-        except Exception:
-            continue
-
-    if not account_row:
-        raise HTTPException(status_code=404, detail=f"member_account not found for {clean}.")
-
-    # Synthesize an "id" key the rest of the endpoints can rely on. We use
-    # user_id as the stable identifier for member_account updates.
-    account_row.setdefault("id", account_row.get("user_id"))
-    account_row.setdefault("is_active", True)
-    return {"membership_id": clean}, account_row
+def _account_by_auth_user(auth_user_id: str) -> dict | None:
+    rows = _select_accounts(
+        lambda cols: supabase.table("member_account").select(cols).eq("auth_user_id", auth_user_id).limit(1)
+    )
+    return rows[0] if rows else None
 
 
-@app.post("/api/admin/staff/role")
-def staff_change_role(payload: StaffRoleChangeRequest):
+def _account_for_member(membership_id: str) -> dict | None:
+    rows = _select_accounts(
+        lambda cols: supabase.table("member_account").select(cols).eq("membership_id", membership_id).limit(1)
+    )
+    return rows[0] if rows else None
+
+
+def _is_account_admin(account: dict | None) -> bool:
+    return bool(account) and _norm_role(account.get("role")) == "bod" and bool(account.get("can_manage_accounts"))
+
+
+def _account_admin_count() -> int:
+    try:
+        rows = (
+            supabase.table("member_account")
+            .select("membership_id")
+            .eq("can_manage_accounts", True)
+            .ilike("role", "bod")
+            .execute()
+        ).data or []
+        return len(rows)
+    except Exception:
+        return 0
+
+
+def _require_account_admin(current_user: dict) -> dict:
+    account = _account_by_auth_user(current_user["id"])
+    if not _is_account_admin(account):
+        raise HTTPException(status_code=403, detail="Only the BOD account administrator can manage accounts.")
+    return account
+
+
+def _member_or_404(membership_id: str) -> dict:
+    # Not resolve_member_by_ref(): it tries `id` first, and a non-UUID value
+    # like TTMPC-148 makes that query error, which it swallows -> None.
+    ref = str(membership_id or "").strip()
+    column = "id" if len(ref) == 36 and ref.count("-") == 4 else "membership_id"
+    rows = supabase.table("member").select("*").eq(column, ref).limit(1).execute().data or []
+    if not rows:
+        raise HTTPException(status_code=404, detail=f"Member {membership_id} not found.")
+    return rows[0]
+
+
+def _is_terminated(member: dict) -> bool:
+    return _norm_role(member.get("member_status")) == "terminated"
+
+
+def _set_sign_in_blocked(auth_user_id: str | None, blocked: bool) -> None:
+    """member_account.is_active is not checked at sign-in anywhere, so a
+    'deactivated' account could still log in. A Supabase Auth ban is what
+    actually stops sign-in (and token refresh)."""
+    if not auth_user_id:
+        return
+    try:
+        supabase.auth.admin.update_user_by_id(
+            auth_user_id, {"ban_duration": "876000h" if blocked else "none"}
+        )
+    except Exception as exc:
+        logger.warning("Could not %s auth user %s: %s", "ban" if blocked else "unban", auth_user_id, exc)
+
+
+def _audit_account_event(
+    membership_id: str, action: str, before: dict, after: dict, email: str | None, current_user: dict
+) -> None:
+    """Write an 'account' audit row for changes the member_account trigger
+    doesn't track (the admin flag), then stamp the real actor on it."""
+    try:
+        supabase.rpc("audit_write", {
+            "p_entity_type": "account",
+            "p_entity_id": membership_id,
+            "p_action": action,
+            "p_before": before,
+            "p_after": after,
+            "p_context": {"membership_id": membership_id, "email": email},
+        }).execute()
+    except Exception as exc:
+        logger.warning("audit_write failed for account %s: %s", membership_id, exc)
+        return
+    _correct_audit_actor("account", membership_id, current_user)
+
+
+def _member_cbu_balance(member_uuid: str) -> Decimal:
+    """Latest running CBU balance, ordered the same way as the Cashier's CRJ
+    deposit endpoint: date, then cbu_deposit_id's numeric suffix (never the
+    random `id`), ignoring the future-dated year-end import placeholder."""
+    rows = (
+        supabase.table("capital_build_up")
+        .select("ending_share_capital,transaction_date,cbu_deposit_id,id")
+        .eq("member_id", member_uuid)
+        .execute()
+    ).data or []
+    today = date.today().isoformat()
+    rows = [r for r in rows if str(r.get("transaction_date") or "")[:10] <= today]
+    if not rows:
+        return Decimal("0")
+
+    def order(row: dict) -> tuple:
+        digits = "".join(ch for ch in str(row.get("cbu_deposit_id") or "") if ch.isdigit())
+        return (str(row.get("transaction_date") or ""), int(digits) if digits else -1, str(row.get("id") or ""))
+
+    latest = max(rows, key=order)
+    return Decimal(str(latest.get("ending_share_capital") or 0))
+
+
+async def compute_cbu_payout(membership_id: str) -> dict:
+    """Plan §8 -- the single place the termination settlement rule lives.
+
+    total_cbu      : current CBU balance
+    deductions     : remaining loans (balance + accrued penalty) paid from the
+                     CBU, oldest loan first, until the CBU runs out
+    refundable     : what the member receives (never below 0)
+    shortfall      : loans the CBU can't cover (> 0 means the member can't
+                     leave yet -- plan §8 "Leftover debt")
+    """
+    member = _member_or_404(membership_id)
+    total_cbu = money(_member_cbu_balance(member["id"]))
+
+    loans: list[dict] = []
+    if CBU_PAYOUT_OFFSETS_LOANS:
+        capacity = await get_member_debt_capacity(member.get("membership_id") or member["id"])
+        active = (capacity.get("data") or {}).get("active_loans") or []
+        # Each renewal is a new loan row that pays off the previous one, so
+        # only the latest loan per type is still owed (loan renewal rule).
+        latest_by_type: dict[str, dict] = {}
+        for loan in active:
+            key = str(loan.get("loan_type") or "")
+            when = str(loan.get("disbursal_date") or loan.get("application_date") or "")
+            held = latest_by_type.get(key)
+            if not held or when > str(held.get("disbursal_date") or held.get("application_date") or ""):
+                latest_by_type[key] = loan
+        loans = [l for l in latest_by_type.values() if Decimal(str(l.get("total_with_penalty") or 0)) > 0]
+        loans.sort(key=lambda l: str(l.get("disbursal_date") or l.get("application_date") or ""))
+
+    available = total_cbu
+    deductions: list[dict] = []
+    loans_owed = Decimal("0")
+    for loan in loans:
+        owed = money(Decimal(str(loan.get("total_with_penalty") or 0)))
+        applied = money(min(owed, max(available, Decimal("0"))))
+        available -= applied
+        loans_owed += owed
+        deductions.append({
+            "control_number": loan.get("control_number"),
+            "loan_type": loan.get("loan_type"),
+            "remaining_balance": loan.get("remaining_balance"),
+            "accrued_penalty": loan.get("accrued_penalty"),
+            "owed": decimal_to_float(owed),
+            "applied": decimal_to_float(applied),
+        })
+
+    applied_total = money(sum((Decimal(str(d["applied"])) for d in deductions), Decimal("0")))
+    return {
+        "membership_id": member.get("membership_id"),
+        "member_name": resolve_member_full_name(member),
+        "total_cbu": decimal_to_float(total_cbu),
+        "loans_owed": decimal_to_float(money(loans_owed)),
+        "applied_to_loans": decimal_to_float(applied_total),
+        "refundable": decimal_to_float(money(max(total_cbu - loans_owed, Decimal("0")))),
+        "shortfall": decimal_to_float(money(max(loans_owed - total_cbu, Decimal("0")))),
+        "deductions": deductions,
+    }
+
+
+def _names_by_membership(membership_ids: list[str]) -> dict[str, dict]:
+    if not membership_ids:
+        return {}
+    rows = (
+        supabase.table("member")
+        .select("id,membership_id,first_name,middle_initial,last_name,member_status")
+        .in_("membership_id", membership_ids)
+        .execute()
+    ).data or []
+    return {r["membership_id"]: r for r in rows if r.get("membership_id")}
+
+
+@app.get("/api/admin/accounts/me")
+def accounts_me(current_user: dict = _Depends(_get_current_user)):
+    """Whether the signed-in user is the account admin (drives the BOD
+    sidebar item and the page guard). Never 403s."""
     if supabase is None:
         raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+    account = _account_by_auth_user(current_user["id"]) or {}
+    return {
+        "success": True,
+        "role": _norm_role(account.get("role")),
+        "can_manage_accounts": _is_account_admin(account),
+    }
 
-    new_role = str(payload.new_role or "").strip().lower()
+
+@app.get("/api/admin/accounts/staff")
+def accounts_list_staff(current_user: dict = _Depends(_get_current_user)):
+    """Everyone whose login has a staff role, with their names."""
+    if supabase is None:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+    _require_account_admin(current_user)
+
+    accounts = _select_accounts(
+        lambda cols: supabase.table("member_account").select(cols).not_.ilike("role", "member")
+    )
+    members = _names_by_membership([a["membership_id"] for a in accounts if a.get("membership_id")])
+    rows = []
+    for acct in accounts:
+        role = _norm_role(acct.get("role"))
+        if role not in STAFF_ROLES:
+            continue
+        member = members.get(acct.get("membership_id")) or {}
+        rows.append({
+            "membership_id": acct.get("membership_id"),
+            "name": resolve_member_full_name(member) if member else acct.get("membership_id"),
+            "email": acct.get("email"),
+            "role": role,
+            "is_active": acct.get("is_active") is not False,
+            "has_login": bool(acct.get("auth_user_id")),
+            "needs_setup": bool(acct.get("is_email_dummy")) or str(acct.get("email") or "").lower().endswith(_SYNTHETIC_EMAIL_DOMAIN),
+            "can_manage_accounts": bool(acct.get("can_manage_accounts")),
+            "is_you": acct.get("auth_user_id") == current_user["id"],
+        })
+    role_order = ["bod", "manager", "bookkeeper", "treasurer", "cashier", "secretary"]
+    rows.sort(key=lambda r: (role_order.index(r["role"]) if r["role"] in role_order else 99, r["name"] or ""))
+    return {"success": True, "data": rows}
+
+
+@app.get("/api/admin/accounts/member-search")
+def accounts_member_search(q: str = "", current_user: dict = _Depends(_get_current_user)):
+    """Find a member to assign a role to (by name or membership ID)."""
+    if supabase is None:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+    _require_account_admin(current_user)
+
+    # Commas and parentheses would break the PostgREST or() filter syntax.
+    term = _re.sub(r"[,()*%\\]", " ", str(q or "")).strip()
+    if len(term) < 2:
+        return {"success": True, "data": []}
+
+    members = (
+        supabase.table("member")
+        .select("id,membership_id,first_name,middle_initial,last_name,member_status")
+        .or_(f"membership_id.ilike.%{term}%,first_name.ilike.%{term}%,last_name.ilike.%{term}%")
+        .order("last_name")
+        .limit(20)
+        .execute()
+    ).data or []
+    members = [m for m in members if m.get("membership_id") and not _is_terminated(m)]
+    ids = [m["membership_id"] for m in members]
+    accounts = {
+        a["membership_id"]: a
+        for a in _select_accounts(
+            lambda cols: supabase.table("member_account").select(cols).in_("membership_id", ids or ["-"])
+        )
+    }
+    rows = []
+    for m in members:
+        acct = accounts.get(m["membership_id"]) or {}
+        email = acct.get("email")
+        rows.append({
+            "membership_id": m["membership_id"],
+            "name": resolve_member_full_name(m),
+            "role": _norm_role(acct.get("role")) or "member",
+            "email": email,
+            "has_login": bool(acct.get("auth_user_id")),
+            "needs_setup": bool(acct.get("is_email_dummy")) or str(email or "").lower().endswith(_SYNTHETIC_EMAIL_DOMAIN),
+        })
+    return {"success": True, "data": rows}
+
+
+@app.post("/api/admin/accounts/role")
+def accounts_set_role(payload: AccountRoleRequest, current_user: dict = _Depends(_get_current_user)):
+    """Give a member a staff role, change it, or remove it (role='member').
+    It is the member's own login either way, so they keep the member portal."""
+    if supabase is None:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+    _require_account_admin(current_user)
+
+    new_role = _norm_role(payload.role)
     if new_role not in ALLOWED_ROLES:
-        raise HTTPException(status_code=400, detail=f"Role '{payload.new_role}' is not allowed.")
+        raise HTTPException(status_code=400, detail=f"'{payload.role}' is not a valid role.")
 
-    member_row, account_row = _lookup_member_account(payload.member_id)
+    membership_id = str(payload.membership_id or "").strip()
+    member = _member_or_404(membership_id)
+    if _is_terminated(member):
+        raise HTTPException(status_code=400, detail="This member is terminated.")
+    account = _account_for_member(membership_id)
+    if not account:
+        raise HTTPException(status_code=404, detail="This member has no account record.")
+    if new_role != "member" and not account.get("auth_user_id"):
+        raise HTTPException(
+            status_code=400,
+            detail="This member has no login yet, so a staff role wouldn't let them sign in.",
+        )
 
+    current_role = _norm_role(account.get("role"))
+    if current_role == new_role:
+        return {"success": True, "membership_id": membership_id, "role": new_role, "changed": False}
+
+    is_self = account.get("auth_user_id") == current_user["id"]
+    if is_self and new_role != "bod":
+        raise HTTPException(status_code=400, detail="You can't remove your own BOD role.")
+
+    # The admin flag only means something on a BOD login; it goes with the role.
+    clears_flag = bool(account.get("can_manage_accounts")) and new_role != "bod"
+    if clears_flag and _account_admin_count() <= 1:
+        raise HTTPException(
+            status_code=400,
+            detail="This is the last account administrator. Give another BOD member account access first.",
+        )
+
+    update = {"role": _role_label(new_role)}
+    if clears_flag:
+        update["can_manage_accounts"] = False
     try:
-        supabase.table("member_account").update({"role": new_role}).eq(
-            "user_id", account_row["user_id"]
-        ).execute()
+        supabase.table("member_account").update(update).eq("membership_id", membership_id).execute()
     except Exception as err:
         raise HTTPException(status_code=500, detail=f"Failed to update role: {err}")
 
-    # Best-effort: mirror role into auth.users app_metadata so RLS sees it.
-    auth_user_id = account_row.get("auth_user_id")
-    if auth_user_id:
+    # The member_account audit trigger logged this as change_role; put the
+    # real actor on it (the backend writes as service_role).
+    _correct_audit_actor("account", membership_id, current_user)
+    if clears_flag:
+        _audit_account_event(
+            membership_id, "update", {"can_manage_accounts": True}, {"can_manage_accounts": False},
+            account.get("email"), current_user,
+        )
+
+    if account.get("auth_user_id"):
         try:
-            supabase.auth.admin.update_user_by_id(
-                auth_user_id, {"app_metadata": {"role": new_role}}
-            )
+            supabase.auth.admin.update_user_by_id(account["auth_user_id"], {"app_metadata": {"role": new_role}})
         except Exception:
             pass
 
-    return {"success": True, "member_id": payload.member_id, "role": new_role}
+    return {"success": True, "membership_id": membership_id, "role": new_role, "changed": True}
 
 
-@app.post("/api/admin/staff/deactivate")
-def staff_set_active(payload: StaffDeactivateRequest):
+@app.post("/api/admin/accounts/admin-flag")
+def accounts_set_admin_flag(payload: AccountAdminFlagRequest, current_user: dict = _Depends(_get_current_user)):
+    """Grant or remove Account Management access for a BOD member."""
     if supabase is None:
         raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+    _require_account_admin(current_user)
 
-    _, account_row = _lookup_member_account(payload.member_id)
-
-    try:
-        supabase.table("member_account").update(
-            {"is_active": bool(payload.is_active)}
-        ).eq("id", account_row["id"]).execute()
-    except Exception as err:
-        raise HTTPException(status_code=500, detail=f"Failed to update is_active: {err}")
-
-    # Reactivating an account should also clear a prior termination stamp on
-    # the member row, otherwise the person still shows up as 'terminated' in
-    # every list even though their portal login works again.
-    if bool(payload.is_active):
-        membership_id = str(payload.member_id or "").strip()
-        if membership_id:
-            try:
-                supabase.table("member").update({
-                    "member_status": "active",
-                    "termination_date": None,
-                    "termination_resolution_number": None,
-                }).eq("membership_id", membership_id).execute()
-            except Exception:
-                pass
-
-    return {"success": True, "member_id": payload.member_id, "is_active": bool(payload.is_active)}
-
-
-@app.post("/api/admin/staff/termination/request")
-def staff_request_termination(payload: StaffTerminationCreateRequest):
-    """Secretary submits a termination request.
-
-    Side effects:
-      - Immediately sets member_account.is_active = false (safety lock).
-      - Creates a staff_termination_requests row in 'awaiting_bod_confirmation'.
-      - Inserts a BOD-bound row in loan_notifications (best-effort) so the BOD
-        sees an actionable alert.
-    """
-    if supabase is None:
-        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
-
-    _, account_row = _lookup_member_account(payload.member_id)
-
-    insert_row = {
-        "member_id": str(payload.member_id).strip(),
-        "member_account_id": account_row.get("user_id"),
-        "previous_role": account_row.get("role"),
-        "resolution_no": payload.resolution_no,
-        "resolution_date": payload.resolution_date,
-        "effective_date": payload.effective_date,
-        "reason": payload.reason,
-        "notes": payload.notes,
-        "status": "awaiting_bod_confirmation",
-        "requested_by": payload.requested_by,
-        "requested_by_role": payload.requested_by_role,
-    }
+    membership_id = str(payload.membership_id or "").strip()
+    account = _account_for_member(membership_id)
+    if not account:
+        raise HTTPException(status_code=404, detail="Account not found.")
+    if payload.enabled and _norm_role(account.get("role")) != "bod":
+        raise HTTPException(status_code=400, detail="Only BOD members can manage accounts.")
+    if bool(account.get("can_manage_accounts")) == bool(payload.enabled):
+        return {"success": True, "membership_id": membership_id, "can_manage_accounts": bool(payload.enabled)}
+    if not payload.enabled:
+        if account.get("auth_user_id") == current_user["id"]:
+            raise HTTPException(status_code=400, detail="You can't remove your own account access.")
+        if _account_admin_count() <= 1:
+            raise HTTPException(status_code=400, detail="There must always be at least one account administrator.")
 
     try:
-        created = (
-            supabase.table("staff_termination_requests")
-            .insert(insert_row)
-            .execute()
-        ).data
-        created_row = (created or [None])[0] or insert_row
-    except Exception as err:
-        raise HTTPException(status_code=500, detail=f"Failed to create termination request: {err}")
-
-    # Immediate safety lock.
-    try:
-        supabase.table("member_account").update({"is_active": False}).eq(
-            "user_id", account_row["user_id"]
+        supabase.table("member_account").update({"can_manage_accounts": bool(payload.enabled)}).eq(
+            "membership_id", membership_id
         ).execute()
-    except Exception:
-        pass
+    except Exception as err:
+        raise HTTPException(status_code=500, detail=f"Failed to update account access: {err}")
 
-    # Best-effort BOD notification — non-fatal if the schema/columns differ.
-    try:
-        supabase.table("loan_notifications").insert({
-            "recipient_role": "bod",
-            "notification_type": "staff_termination_pending",
-            "payload": {
-                "request_id": created_row.get("id"),
-                "member_id": payload.member_id,
-                "previous_role": account_row.get("role"),
-                "resolution_no": payload.resolution_no,
-            },
-        }).execute()
-    except Exception:
-        pass
-
-    return {"success": True, "request": created_row}
+    _audit_account_event(
+        membership_id, "update",
+        {"can_manage_accounts": not payload.enabled}, {"can_manage_accounts": bool(payload.enabled)},
+        account.get("email"), current_user,
+    )
+    return {"success": True, "membership_id": membership_id, "can_manage_accounts": bool(payload.enabled)}
 
 
-@app.post("/api/admin/staff/termination/decision")
-def staff_decide_termination(payload: StaffTerminationDecisionRequest):
-    """BOD approves or rejects a pending termination request."""
+@app.get("/api/admin/accounts/terminate-preview/{membership_id}")
+async def accounts_terminate_preview(membership_id: str, current_user: dict = _Depends(_get_current_user)):
+    """The settlement BOD sees before confirming a termination."""
     if supabase is None:
         raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
-
-    if payload.decision not in ("approved", "rejected"):
-        raise HTTPException(status_code=400, detail="Invalid decision.")
-
-    request_row = (
-        supabase.table("staff_termination_requests")
-        .select("*")
-        .eq("id", payload.request_id)
-        .limit(1)
-        .execute()
-    ).data
-    request_row = (request_row or [None])[0]
-    if not request_row:
-        raise HTTPException(status_code=404, detail="Termination request not found.")
-
-    if str(request_row.get("status") or "").lower() != "awaiting_bod_confirmation":
-        raise HTTPException(status_code=409, detail="Request has already been decided.")
-
-    try:
-        supabase.table("staff_termination_requests").update({
-            "status": payload.decision,
-            "decided_by": payload.decided_by,
-            "decision_notes": payload.decision_notes,
-            "decided_at": datetime.utcnow().isoformat(),
-        }).eq("id", payload.request_id).execute()
-    except Exception as err:
-        raise HTTPException(status_code=500, detail=f"Failed to record decision: {err}")
-
-    membership_id = str(request_row.get("member_id") or "").strip()
-
-    if payload.decision == "approved":
-        # Persist termination on the member record itself so every downstream
-        # view (Manage Member, dashboards, loan eligibility) treats the person
-        # as terminated. Without this the row lingers as an active member and
-        # only the request table reflects the decision.
-        if membership_id:
-            try:
-                effective_date = request_row.get("effective_date") or date.today().isoformat()
-                supabase.table("member").update({
-                    "member_status": "terminated",
-                    "termination_date": effective_date,
-                    "termination_resolution_number": request_row.get("resolution_no"),
-                }).eq("membership_id", membership_id).execute()
-            except Exception as err:
-                raise HTTPException(
-                    status_code=500,
-                    detail=f"Termination approved but failed to update member record: {err}",
-                )
-        # Keep the account locked (member_account.is_active already false from
-        # the request step).
-    else:
-        # Rejected: restore the account and clear any prior termination stamp
-        # so this member is fully reinstated.
-        if request_row.get("member_account_id"):
-            try:
-                supabase.table("member_account").update({"is_active": True}).eq(
-                    "user_id", request_row["member_account_id"]
-                ).execute()
-            except Exception:
-                pass
-        if membership_id:
-            try:
-                supabase.table("member").update({
-                    "member_status": "active",
-                    "termination_date": None,
-                    "termination_resolution_number": None,
-                }).eq("membership_id", membership_id).execute()
-            except Exception:
-                pass
-
-    return {"success": True, "request_id": payload.request_id, "decision": payload.decision}
-
-
-@app.get("/api/admin/staff/termination/requests")
-def staff_list_termination_requests(status: str | None = None):
-    if supabase is None:
-        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
-
-    try:
-        query = supabase.table("staff_termination_requests").select("*").order(
-            "requested_at", desc=True
-        )
-        if status:
-            query = query.eq("status", status.strip().lower())
-        data = query.execute().data or []
-    except Exception as err:
-        raise HTTPException(status_code=500, detail=f"Failed to list requests: {err}")
-
-    return {"success": True, "data": data}
+    _require_account_admin(current_user)
+    member = _member_or_404(membership_id)
+    if _is_terminated(member):
+        raise HTTPException(status_code=400, detail="This member is already terminated.")
+    return {"success": True, "data": await compute_cbu_payout(membership_id)}
 
 
 def _generate_termination_resolution_no() -> str:
@@ -15443,114 +15518,205 @@ def _generate_termination_resolution_no() -> str:
         return f"{prefix}{datetime.utcnow().strftime('%m%d%H%M%S')}"
 
 
-@app.post("/api/admin/member/terminate")
-def bod_terminate_member(payload: BodTerminateMemberRequest):
-    """BOD directly terminates a member.
+@app.post("/api/admin/accounts/terminate")
+async def accounts_terminate_member(payload: TerminateMemberRequest, current_user: dict = _Depends(_get_current_user)):
+    """BOD account admin terminates a member.
 
-    Side effects (single atomic-ish flow):
-      - Auto-generates resolution number (TERM-YYYY-NNNN) and resolution date.
-      - Stamps member.termination_date + termination_resolution_number.
-      - Sets member_account.is_active = false (locks all login/portals).
-      - Inserts an 'approved' staff_termination_requests row so the Secretary
-        sees it in their Membership Records inbox for recording.
+    Only when the member owes nothing: the CBU loan settlement (plan §8 --
+    CBU pays the loans, or the member stays / exits once paid) arrives with
+    Part B. Until then a member with unpaid loans can't be terminated.
+
+    Side effects: member stamped terminated (+ resolution no., CBU balance
+    saved for the Cashier's payout); login locked (role back to Member, admin
+    flag cleared, is_active false, Supabase Auth ban); history row in
+    staff_termination_requests; Cashier + Secretary notified.
     """
     if supabase is None:
         raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+    _require_account_admin(current_user)
 
-    membership_id = str(payload.member_id or "").strip()
-    if not membership_id:
-        raise HTTPException(status_code=400, detail="member_id is required.")
+    reason = str(payload.reason or "").strip()
+    if not reason:
+        raise HTTPException(status_code=400, detail="Enter a reason for the termination.")
+    membership_id = str(payload.membership_id or "").strip()
+    member = _member_or_404(membership_id)
+    if _is_terminated(member):
+        raise HTTPException(status_code=400, detail="This member is already terminated.")
 
-    _, account_row = _lookup_member_account(membership_id)
+    account = _account_for_member(membership_id) or {}
+    if account.get("auth_user_id") and account.get("auth_user_id") == current_user["id"]:
+        raise HTTPException(status_code=400, detail="You can't terminate your own membership here.")
+    if account.get("can_manage_accounts") and _account_admin_count() <= 1:
+        raise HTTPException(status_code=400, detail="This member is the last account administrator.")
+
+    settlement = await compute_cbu_payout(membership_id)
+    if settlement["loans_owed"] > 0:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"{settlement['member_name']} still owes ₱{settlement['loans_owed']:,.2f} in unpaid loans "
+                "(including penalties). Terminating a member with unpaid loans isn't available yet — "
+                "the loans need to be settled first."
+            ),
+        )
 
     resolution_no = _generate_termination_resolution_no()
     today_iso = date.today().isoformat()
     effective_iso = payload.effective_date or today_iso
 
-    # 1) Stamp the member row. member_status is the authoritative flag every
-    #    downstream read should filter on ('active' vs 'terminated'); the date
-    #    and resolution number are kept alongside for audit / display.
+    # 1) The member record. member_status is the authoritative flag.
+    member_update = {
+        "member_status": "terminated",
+        "termination_date": effective_iso,
+        "termination_resolution_number": resolution_no,
+        "termination_cbu_total": settlement["total_cbu"],
+    }
     try:
-        supabase.table("member").update({
-            "member_status": "terminated",
-            "termination_date": effective_iso,
-            "termination_resolution_number": resolution_no,
-        }).eq("membership_id", membership_id).execute()
+        supabase.table("member").update(member_update).eq("membership_id", membership_id).execute()
     except Exception as err:
         raise HTTPException(status_code=500, detail=f"Failed to update member: {err}")
 
-    # 2) Deactivate the account so they can't log in anywhere.
-    if account_row.get("user_id"):
+    # 2) Lock every way in: back to Member (no staff portal), no admin flag,
+    #    inactive, and banned in Supabase Auth so sign-in actually fails.
+    if account:
         try:
-            supabase.table("member_account").update({"is_active": False}).eq(
-                "user_id", account_row["user_id"]
-            ).execute()
-        except Exception:
-            # Not fatal — member is already stamped as terminated.
-            pass
+            lock = {"role": "Member", "is_active": False}
+            if account.get("can_manage_accounts"):
+                lock["can_manage_accounts"] = False
+            supabase.table("member_account").update(lock).eq("membership_id", membership_id).execute()
+            _correct_audit_actor("account", membership_id, current_user)
+        except Exception as exc:
+            logger.warning("Could not lock account for %s: %s", membership_id, exc)
+        _set_sign_in_blocked(account.get("auth_user_id"), True)
 
-    # 3) Log to staff_termination_requests as 'approved' so the Secretary can
-    #    see it in their inbox and record it in Membership Records. The BOD is
-    #    both requester and decider in this flow.
+    # 3) History (reason/notes live here) -- shown to the Secretary.
     created_row = None
     try:
         now_iso = datetime.utcnow().isoformat()
-        created = (
-            supabase.table("staff_termination_requests")
-            .insert({
+        created_row = ((
+            supabase.table("staff_termination_requests").insert({
                 "member_id": membership_id,
-                "member_account_id": account_row.get("user_id"),
-                "previous_role": account_row.get("role"),
+                "member_account_id": account.get("user_id"),
+                "previous_role": account.get("role"),
                 "resolution_no": resolution_no,
                 "resolution_date": today_iso,
                 "effective_date": effective_iso,
-                "reason": payload.reason,
-                "notes": payload.notes,
+                "reason": reason,
+                "notes": (payload.notes or "").strip() or None,
                 "status": "approved",
-                "requested_by": payload.terminated_by,
+                "requested_by": current_user["id"],
                 "requested_by_role": "bod",
-                "decided_by": payload.terminated_by,
+                "decided_by": current_user["id"],
                 "decision_notes": "BOD-initiated termination.",
                 "decided_at": now_iso,
-            })
-            .execute()
-        ).data
-        created_row = (created or [None])[0]
-    except Exception:
-        # Audit row is best-effort; the member is already terminated.
-        pass
+            }).execute()
+        ).data or [None])[0]
+        if created_row and created_row.get("id") is not None:
+            _correct_audit_actor("termination", str(created_row["id"]), current_user)
+    except Exception as exc:
+        logger.warning("Termination history row failed for %s: %s", membership_id, exc)
 
-    # 4) Best-effort Secretary notification.
-    try:
-        supabase.table("loan_notifications").insert({
-            "recipient_role": "secretary",
-            "notification_type": "member_terminated",
-            "payload": {
-                "member_id": membership_id,
-                "resolution_no": resolution_no,
-                "effective_date": effective_iso,
-            },
-        }).execute()
-    except Exception:
-        pass
+    # 4) Tell the Secretary (records) and the Cashier (CBU payout). The bell
+    #    reads title/message/redirect_url -- the table has no payload column.
+    who = f"{settlement['member_name']} ({membership_id})"
+    notices = {
+        "secretary": (
+            "Member terminated",
+            f"{who} was terminated by the BOD (resolution {resolution_no}, effective {effective_iso}).",
+            "/Secretary_Records",
+        ),
+        "cashier": (
+            "Member terminated — CBU payout pending",
+            f"{who} was terminated. CBU to pay out: ₱{settlement['refundable']:,.2f}.",
+            None,
+        ),
+    }
+    for recipient, (title, message, redirect_url) in notices.items():
+        try:
+            supabase.table("loan_notifications").insert({
+                "recipient_role": recipient,
+                "title": title,
+                "message": message,
+                "notification_type": "member_terminated",
+                "severity": "warning",
+                "redirect_url": redirect_url,
+                "is_read": False,
+                "created_by": current_user["id"],
+            }).execute()
+        except Exception as exc:
+            logger.warning("Termination notification to %s failed: %s", recipient, exc)
 
     return {
         "success": True,
-        "member_id": membership_id,
+        "membership_id": membership_id,
         "resolution_no": resolution_no,
-        "resolution_date": today_iso,
         "effective_date": effective_iso,
-        "audit_row": created_row,
+        "settlement": settlement,
     }
 
 
-@app.get("/api/admin/staff/account/{member_id}")
-def staff_get_account(member_id: str):
+@app.get("/api/admin/accounts/terminated")
+def accounts_list_terminated(current_user: dict = _Depends(_get_current_user)):
+    """Terminated members with their termination details and CBU payout
+    position. Payouts arrive with Part B, so 'paid so far' is 0 for now."""
     if supabase is None:
         raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+    _require_account_admin(current_user)
 
-    _, account_row = _lookup_member_account(member_id)
-    return {"success": True, "data": account_row}
+    try:
+        members = (
+            supabase.table("member")
+            .select(
+                "membership_id,first_name,middle_initial,last_name,termination_date,"
+                "termination_resolution_number,termination_cbu_total"
+            )
+            .eq("member_status", "terminated")
+            .order("termination_date", desc=True)
+            .execute()
+        ).data or []
+    except Exception:
+        # termination_cbu_total not migrated yet
+        members = (
+            supabase.table("member")
+            .select("membership_id,first_name,middle_initial,last_name,termination_date,termination_resolution_number")
+            .eq("member_status", "terminated")
+            .order("termination_date", desc=True)
+            .execute()
+        ).data or []
+
+    ids = [m["membership_id"] for m in members if m.get("membership_id")]
+    reasons: dict[str, str] = {}
+    if ids:
+        try:
+            for row in (
+                supabase.table("staff_termination_requests")
+                .select("member_id,reason,status,requested_at")
+                .in_("member_id", ids)
+                .eq("status", "approved")
+                .order("requested_at", desc=True)
+                .execute()
+            ).data or []:
+                reasons.setdefault(row.get("member_id"), row.get("reason") or "")
+        except Exception:
+            pass
+
+    rows = []
+    for m in members:
+        total = Decimal(str(m.get("termination_cbu_total") or 0))
+        paid = Decimal("0")
+        remaining = max(total - paid, Decimal("0"))
+        rows.append({
+            "membership_id": m.get("membership_id"),
+            "name": resolve_member_full_name(m),
+            "resolution_no": m.get("termination_resolution_number"),
+            "termination_date": m.get("termination_date"),
+            "reason": reasons.get(m.get("membership_id"), ""),
+            "cbu_total": decimal_to_float(total) if m.get("termination_cbu_total") is not None else None,
+            "paid_so_far": decimal_to_float(paid),
+            "remaining": decimal_to_float(remaining),
+            "payout_status": "Awaiting payout" if remaining > 0 else "Nothing to pay out",
+        })
+    return {"success": True, "data": rows}
 
 
 # =============================================================================

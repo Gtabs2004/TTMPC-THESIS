@@ -13,275 +13,8 @@ import {
   Brain,
 } from "lucide-react";
 import { formatTinNumber } from '../../LOANFORMS/tinFormat';
-import { UserAuth } from '../../contex/AuthContext';
-import { resolveAccountFromSessionUser } from '../../utils/sessionIdentity';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000';
-
-const ROLE_OPTIONS = [
-  { value: 'member', label: 'Member' },
-  { value: 'cashier', label: 'Cashier' },
-  { value: 'bookkeeper', label: 'Bookkeeper' },
-  { value: 'manager', label: 'Manager' },
-  { value: 'treasurer', label: 'Treasurer' },
-  { value: 'secretary', label: 'Secretary' },
-  { value: 'bod', label: 'BOD' },
-];
-
-const StaffAccountPanel = ({ membershipId, viewerRole }) => {
-  const [account, setAccount] = useState(null);
-  const [selectedRole, setSelectedRole] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState('');
-  const [error, setError] = useState('');
-  const [showTerminateModal, setShowTerminateModal] = useState(false);
-  const [termReason, setTermReason] = useState('');
-  const [termEffectiveDate, setTermEffectiveDate] = useState(() => new Date().toISOString().slice(0, 10));
-  const [termNotes, setTermNotes] = useState('');
-
-  const isBod = viewerRole === 'bod';
-
-  const loadAccount = async () => {
-    if (!membershipId) return;
-    try {
-      const res = await fetch(`${API_BASE_URL}/api/admin/staff/account/${encodeURIComponent(membershipId)}`);
-      const payload = await res.json().catch(() => ({}));
-      if (!res.ok || !payload?.success) {
-        throw new Error(payload?.detail || 'Failed to load account.');
-      }
-      setAccount(payload.data);
-      setSelectedRole(String(payload.data?.role || '').toLowerCase());
-    } catch (err) {
-      setError(err?.message || 'Unable to load account.');
-    }
-  };
-
-  useEffect(() => {
-    loadAccount();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [membershipId]);
-
-  const callApi = async (path, body) => {
-    setBusy(true);
-    setMessage('');
-    setError('');
-    try {
-      const res = await fetch(`${API_BASE_URL}${path}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-      const payload = await res.json().catch(() => ({}));
-      if (!res.ok || !payload?.success) {
-        throw new Error(payload?.detail || 'Request failed.');
-      }
-      return payload;
-    } catch (err) {
-      setError(err?.message || 'Request failed.');
-      return null;
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const handleSaveRole = async () => {
-    if (!selectedRole) return;
-    const result = await callApi('/api/admin/staff/role', {
-      member_id: membershipId,
-      new_role: selectedRole,
-    });
-    if (result) {
-      setMessage(`Role updated to ${selectedRole}.`);
-      loadAccount();
-    }
-  };
-
-  const handleReactivate = async () => {
-    const result = await callApi('/api/admin/staff/deactivate', {
-      member_id: membershipId,
-      is_active: true,
-    });
-    if (result) {
-      setMessage('Account reactivated.');
-      loadAccount();
-    }
-  };
-
-  const handleConfirmTerminate = async () => {
-    if (!termReason.trim()) {
-      setError('Please enter a reason for termination.');
-      return;
-    }
-    const result = await callApi('/api/admin/member/terminate', {
-      member_id: membershipId,
-      reason: termReason.trim(),
-      notes: termNotes.trim() || null,
-      effective_date: termEffectiveDate || null,
-    });
-    if (result) {
-      setMessage(
-        `Member terminated. Resolution ${result.resolution_no || ''} generated. Effective ${result.effective_date || ''}.`
-      );
-      setShowTerminateModal(false);
-      setTermReason('');
-      setTermNotes('');
-      loadAccount();
-    }
-  };
-
-  if (!isBod) return null;
-
-  const isActive = account?.is_active ?? true;
-
-  return (
-    <div className="mb-8">
-      <h2 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
-        <ShieldCheck className="w-5 h-5 text-[#1a4a2f]" />
-        Account & Role Management
-      </h2>
-
-      <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
-        {error ? (
-          <div className="mb-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>
-        ) : null}
-        {message ? (
-          <div className="mb-4 rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700">{message}</div>
-        ) : null}
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-          <div>
-            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Current Role</p>
-            <p className="font-bold text-gray-800 capitalize">{account?.role || '—'}</p>
-          </div>
-          <div>
-            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Account Status</p>
-            <span className={`inline-flex items-center px-2.5 py-1 rounded-md text-xs font-bold ${isActive ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-              {isActive ? 'ACTIVE' : 'DEACTIVATED'}
-            </span>
-          </div>
-          <div>
-            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Account Email</p>
-            <p className="font-medium text-gray-800 break-all">{account?.email || '—'}</p>
-          </div>
-        </div>
-
-        <div className="border-t border-gray-100 pt-4">
-            <p className="text-sm font-semibold text-gray-700 mb-3">Assign or Change Role</p>
-            <div className="flex flex-wrap items-center gap-3">
-              <select
-                value={selectedRole}
-                onChange={(e) => setSelectedRole(e.target.value)}
-                className="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-                disabled={busy}
-              >
-                <option value="">— Select role —</option>
-                {ROLE_OPTIONS.map((r) => (
-                  <option key={r.value} value={r.value}>{r.label}</option>
-                ))}
-              </select>
-              <button
-                onClick={handleSaveRole}
-                disabled={busy || !selectedRole || selectedRole === String(account?.role || '').toLowerCase()}
-                className="bg-[#1a4a2f] text-white text-sm font-bold rounded-md px-4 py-2 disabled:opacity-50 hover:bg-[#143a25] transition-colors"
-              >
-                Save Role
-              </button>
-
-              {isActive ? (
-                <button
-                  onClick={() => { setError(''); setMessage(''); setShowTerminateModal(true); }}
-                  disabled={busy}
-                  className="text-sm font-bold rounded-md px-4 py-2 transition-colors bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
-                >
-                  <UserX className="w-4 h-4 inline mr-1" />
-                  Terminate Member
-                </button>
-              ) : (
-                <button
-                  onClick={handleReactivate}
-                  disabled={busy}
-                  className="text-sm font-bold rounded-md px-4 py-2 transition-colors bg-green-600 text-white hover:bg-green-700 disabled:opacity-50"
-                >
-                  <UserX className="w-4 h-4 inline mr-1" />
-                  Reactivate Account
-                </button>
-              )}
-            </div>
-            <p className="text-xs text-gray-400 mt-3">
-              Terminating a member stamps the member record with an auto-generated resolution number, deactivates all their portal accounts, and files the termination for the Secretary to record in Membership Records.
-            </p>
-        </div>
-      </div>
-
-      {showTerminateModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
-          <div className="w-full max-w-lg bg-white rounded-xl shadow-2xl border border-gray-200 overflow-hidden">
-            <div className="px-6 py-4 bg-red-600 text-white">
-              <h3 className="font-bold text-lg flex items-center gap-2">
-                <UserX className="w-5 h-5" /> Terminate Member
-              </h3>
-              <p className="text-xs opacity-90 mt-0.5">
-                Resolution number and date are generated automatically. This action deactivates the member's account.
-              </p>
-            </div>
-            <div className="p-6 space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1">
-                  Reason <span className="text-red-500">*</span>
-                </label>
-                <textarea
-                  value={termReason}
-                  onChange={(e) => setTermReason(e.target.value)}
-                  rows={3}
-                  placeholder="e.g. Voluntary withdrawal, deceased, delinquency after due process, etc."
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1">
-                  Effective Date
-                </label>
-                <input
-                  type="date"
-                  value={termEffectiveDate}
-                  onChange={(e) => setTermEffectiveDate(e.target.value)}
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1">
-                  Additional Notes (optional)
-                </label>
-                <textarea
-                  value={termNotes}
-                  onChange={(e) => setTermNotes(e.target.value)}
-                  rows={2}
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
-                />
-              </div>
-            </div>
-            <div className="px-6 py-4 bg-gray-50 flex justify-end gap-3 border-t border-gray-200">
-              <button
-                onClick={() => setShowTerminateModal(false)}
-                disabled={busy}
-                className="text-sm font-semibold rounded-md px-4 py-2 bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleConfirmTerminate}
-                disabled={busy || !termReason.trim()}
-                className="text-sm font-bold rounded-md px-4 py-2 bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
-              >
-                {busy ? 'Terminating…' : 'Confirm Termination'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-};
 
 const formatPeso = (n) => {
   const v = Number(n);
@@ -437,26 +170,9 @@ const ActiveLoansPanel = ({ membershipId }) => {
 const Member_Details = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { session } = UserAuth();
   const [record, setRecord] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [viewerRole, setViewerRole] = useState('');
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      const user = session?.user;
-      if (!user) return;
-      try {
-        const account = await resolveAccountFromSessionUser(user);
-        if (!cancelled) setViewerRole(String(account?.role || '').trim().toLowerCase());
-      } catch {
-        if (!cancelled) setViewerRole('');
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [session?.user?.id]);
 
   const membershipId = useMemo(() => {
     const fromState = location.state?.member?.member_id;
@@ -468,9 +184,8 @@ const Member_Details = () => {
   }, [location]);
 
   // Which portal the member was opened from, used only for the back link.
-  // Account/role administration is gated separately on the viewer's real role
-  // (see StaffAccountPanel's isBod check), not on this value — ?portal= comes
-  // from the URL and must never decide what a user is allowed to do.
+  // ?portal= comes from the URL and must never decide what a user is allowed
+  // to do. (Roles and termination live in BOD Account Management.)
   const returnPath = useMemo(() => {
     const statePortal = String(location.state?.portal || '').toLowerCase();
     const params = new URLSearchParams(location.search);
@@ -612,7 +327,6 @@ const Member_Details = () => {
 
       <ActiveLoansPanel membershipId={membershipId} />
 
-      <StaffAccountPanel membershipId={membershipId} viewerRole={viewerRole} />
     </div>
   );
 }; 

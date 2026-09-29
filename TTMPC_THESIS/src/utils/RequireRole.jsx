@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { supabase } from "../supabaseClient";
 import { resolveAccountFromSessionUser } from "./sessionIdentity";
+import AccountSetupGate from "../Member/Components/AccountSetupGate";
 
 // Cache the resolved role per access token so tab-to-tab navigation between
 // staff pages doesn't re-hit the account table on every render. Invalidated
@@ -73,5 +74,13 @@ export default function RequireRole({ allow, children }) {
   }, [location.pathname, allow, navigate]);
 
   if (!checked) return null;
-  return children;
+  // A member given a staff role while still on a temporary email/password
+  // must finish account setup before using the staff portal (the gate renders
+  // nothing once both are real).
+  return (
+    <>
+      {children}
+      <AccountSetupGate signOutTo="/Login" portalLabel="staff portal" />
+    </>
+  );
 }
