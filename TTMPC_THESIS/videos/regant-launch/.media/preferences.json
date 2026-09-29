@@ -1,0 +1,48 @@
+{
+  "version": 1,
+  "preferences": {
+    "destination": {
+      "value": "youtube",
+      "confirmed_in": [
+        "regant-launch"
+      ],
+      "updated_at": "2026-09-29T08:17:59.854Z"
+    },
+    "language": {
+      "value": "en",
+      "confirmed_in": [
+        "regant-launch"
+      ],
+      "updated_at": "2026-09-29T08:18:00.132Z"
+    },
+    "flow": {
+      "value": "automation",
+      "confirmed_in": [
+        "regant-launch"
+      ],
+      "updated_at": "2026-09-29T08:18:00.282Z"
+    },
+    "storyboard": {
+      "value": "yes",
+      "confirmed_in": [
+        "regant-launch"
+      ],
+      "updated_at": "2026-09-29T08:18:00.419Z"
+    },
+    "aspect": {
+      "value": "1920x1080",
+      "confirmed_in": [
+        "regant-launch"
+      ],
+      "updated_at": "2026-09-29T08:18:05.282Z"
+    },
+    "style_preset.product-launch-video": {
+      "value": "blue-professional",
+      "confirmed_in": [
+        "regant-launch"
+      ],
+      "updated_at": "2026-09-29T08:24:37.827Z"
+    }
+  },
+  "sightings": {}
+}

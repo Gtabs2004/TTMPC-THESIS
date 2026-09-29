@@ -1,0 +1,329 @@
+<template>
+<div data-hf-id="hf-lg2n" id="root" data-composition-id="02-admin-dashboard" data-width="1920" data-height="1080" data-duration="10.4">
+  <style>
+    @font-face { font-family: "Poppins"; src: url("assets/fonts/poppins-400.woff2") format("woff2"); font-weight: 400; font-style: normal; font-display: block; }
+    @font-face { font-family: "Poppins"; src: url("assets/fonts/poppins-500.woff2") format("woff2"); font-weight: 500; font-style: normal; font-display: block; }
+    @font-face { font-family: "Poppins"; src: url("assets/fonts/poppins-600.woff2") format("woff2"); font-weight: 600; font-style: normal; font-display: block; }
+    @font-face { font-family: "Poppins"; src: url("assets/fonts/poppins-700.woff2") format("woff2"); font-weight: 700; font-style: normal; font-display: block; }
+    @font-face { font-family: "Poppins"; src: url("assets/fonts/poppins-800.woff2") format("woff2"); font-weight: 800; font-style: normal; font-display: block; }
+
+    #root {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      container-type: size;
+      overflow: hidden;
+      font-family: "Poppins", sans-serif;
+      --primary: #389734;
+      --primary-deep: #2e7a2a;
+      --text: #1F2937;
+      --text-muted: #64748B;
+      --text-light: #9A9A9A;
+      --accent-light: rgba(56, 151, 52, 0.08);
+      --accent-medium: rgba(56, 151, 52, 0.15);
+      --border: rgba(56, 151, 52, 0.2);
+      --card-bg: rgba(56, 151, 52, 0.04);
+    }
+
+    #root * { box-sizing: border-box; }
+
+    .adb02-camera {
+      position: absolute;
+      inset: 0;
+      perspective: 2600px;
+      perspective-origin: 50% 40%;
+    }
+
+    .adb02-stage {
+      position: absolute;
+      inset: 0;
+      transform-style: preserve-3d;
+      will-change: transform;
+    }
+
+    .adb02-chrome {
+      position: absolute;
+      top: 2.6cqw;
+      left: 5cqw;
+      right: 5cqw;
+      height: 2.4cqw;
+      display: flex;
+      align-items: center;
+      gap: 0.7cqw;
+      opacity: 0;
+    }
+
+    .adb02-dot {
+      width: 0.55cqw;
+      height: 0.55cqw;
+      border-radius: 50%;
+      background: transparent;
+      border: 1.5px solid var(--text-light);
+    }
+
+    .adb02-url-pill {
+      margin-left: 0.6cqw;
+      padding: 0.35cqw 1.1cqw;
+      border-radius: 100px;
+      background: var(--card-bg);
+      border: 1.5px solid var(--border);
+      color: var(--text-muted);
+      font-size: 0.72cqw;
+      font-weight: 500;
+      letter-spacing: 0.01em;
+    }
+
+    .adb02-header {
+      position: absolute;
+      top: 6.6cqw;
+      left: 5cqw;
+      right: 5cqw;
+    }
+
+    .adb02-eyebrow {
+      opacity: 0;
+      font-size: 0.85cqw;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--primary);
+    }
+
+    .adb02-h2 {
+      opacity: 0;
+      margin-top: 0.5cqw;
+      font-size: 2.5cqw;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+      color: var(--text);
+      line-height: 1.1;
+    }
+
+    .adb02-stats {
+      position: absolute;
+      top: 13.4cqw;
+      left: 5cqw;
+      right: 5cqw;
+      display: flex;
+      gap: 1.4cqw;
+    }
+
+    .adb02-stat-card {
+      flex: 1;
+      opacity: 0;
+      background: var(--card-bg);
+      border: 1.5px solid var(--border);
+      border-radius: 14px;
+      padding: 1.5cqw 1.5cqw 1.4cqw;
+    }
+
+    .adb02-stat-label {
+      font-size: 0.88cqw;
+      font-weight: 500;
+      color: var(--text-muted);
+      line-height: 1.3;
+      min-height: 2.4cqw;
+    }
+
+    .adb02-stat-value {
+      margin-top: 0.7cqw;
+      font-size: 2.15cqw;
+      font-weight: 700;
+      color: var(--primary);
+      line-height: 1;
+    }
+
+    .adb02-forecast {
+      position: absolute;
+      top: 25.6cqw;
+      left: 5cqw;
+      right: 5cqw;
+      bottom: 12.6cqw;
+      opacity: 0;
+      background: var(--card-bg);
+      border: 1.5px solid var(--border);
+      border-radius: 14px;
+      padding: 1.9cqw 2cqw 1.6cqw;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .adb02-forecast-title {
+      opacity: 0;
+      font-size: 1.15cqw;
+      font-weight: 700;
+      color: var(--text);
+      letter-spacing: -0.01em;
+    }
+
+    .adb02-forecast-sub {
+      margin-top: 0.3cqw;
+      font-size: 0.8cqw;
+      font-weight: 400;
+      color: var(--text-muted);
+    }
+
+    .adb02-bars {
+      flex: 1;
+      margin-top: 1.6cqw;
+      display: flex;
+      align-items: flex-end;
+      gap: 1.3cqw;
+      border-bottom: 1.5px solid var(--border);
+      padding-bottom: 0;
+    }
+
+    .adb02-bar-col {
+      flex: 1;
+      height: 100%;
+      display: flex;
+      align-items: flex-end;
+    }
+
+    .adb02-bar {
+      width: 100%;
+      border-radius: 6px 6px 0 0;
+      background: var(--accent-medium);
+      transform-origin: 50% 100%;
+      transform: scaleY(0);
+    }
+
+    .adb02-bar.adb02-bar-peak {
+      background: var(--primary-deep);
+    }
+  </style>
+
+  <div data-hf-id="hf-arug" class="clip" data-start="0" data-duration="10.4" data-track-index="0" style="position:absolute; inset:0; background:#FFFFFF;"></div>
+
+  <div data-hf-id="hf-72of" class="adb02-camera">
+    <div data-hf-id="hf-jlp4" class="adb02-stage">
+
+      <div data-hf-id="hf-hchg" class="adb02-chrome">
+        <span data-hf-id="hf-kwfo" class="adb02-dot"></span>
+        <span data-hf-id="hf-xaa4" class="adb02-dot"></span>
+        <span data-hf-id="hf-w3d1" class="adb02-dot"></span>
+        <span data-hf-id="hf-tqds" class="adb02-url-pill">app.regant.coop/bod/dashboard</span>
+      </div>
+
+      <div data-hf-id="hf-y17x" class="adb02-header">
+        <div data-hf-id="hf-2rkj" class="adb02-eyebrow">Bookkeeper · Board of Directors</div>
+        <div data-hf-id="hf-c5iy" class="adb02-h2">Cooperative Overview</div>
+      </div>
+
+      <div data-hf-id="hf-j0jj" class="adb02-stats">
+        <div data-hf-id="hf-axnr" class="adb02-stat-card">
+          <div data-hf-id="hf-1vuw" class="adb02-stat-label">Total Loan Applications</div>
+          <div data-hf-id="hf-goje" class="adb02-stat-value" data-value="1284">0</div>
+        </div>
+        <div data-hf-id="hf-a3yf" class="adb02-stat-card">
+          <div data-hf-id="hf-3lte" class="adb02-stat-label">Number of Late Payments</div>
+          <div data-hf-id="hf-yinv" class="adb02-stat-value" data-value="37">0</div>
+        </div>
+        <div data-hf-id="hf-9pne" class="adb02-stat-card">
+          <div data-hf-id="hf-bnaq" class="adb02-stat-label">Total Active Loans</div>
+          <div data-hf-id="hf-xtra" class="adb02-stat-value" data-value="902">0</div>
+        </div>
+        <div data-hf-id="hf-9bcd" class="adb02-stat-card">
+          <div data-hf-id="hf-1wza" class="adb02-stat-label">Approved Loan This Month</div>
+          <div data-hf-id="hf-zx7n" class="adb02-stat-value" data-value="64">0</div>
+        </div>
+      </div>
+
+      <div data-hf-id="hf-ls79" class="adb02-forecast">
+        <div data-hf-id="hf-eo7m" class="adb02-forecast-title">12-Month Loan Demand Forecast</div>
+        <div data-hf-id="hf-v87j" class="adb02-forecast-sub">Consolidated &amp; Emergency loan types</div>
+        <div data-hf-id="hf-8bn0" class="adb02-bars">
+          <div data-hf-id="hf-iufw" class="adb02-bar-col"><div data-hf-id="hf-fx2w" class="adb02-bar" style="height:40%;"></div></div>
+          <div data-hf-id="hf-mbv8" class="adb02-bar-col"><div data-hf-id="hf-oxga" class="adb02-bar" style="height:55%;"></div></div>
+          <div data-hf-id="hf-l4y5" class="adb02-bar-col"><div data-hf-id="hf-ddfc" class="adb02-bar" style="height:35%;"></div></div>
+          <div data-hf-id="hf-lj96" class="adb02-bar-col"><div data-hf-id="hf-d15x" class="adb02-bar" style="height:70%;"></div></div>
+          <div data-hf-id="hf-nisb" class="adb02-bar-col"><div data-hf-id="hf-61y6" class="adb02-bar adb02-bar-peak" style="height:100%;"></div></div>
+          <div data-hf-id="hf-nx3c" class="adb02-bar-col"><div data-hf-id="hf-neej" class="adb02-bar" style="height:50%;"></div></div>
+          <div data-hf-id="hf-mq69" class="adb02-bar-col"><div data-hf-id="hf-e5qi" class="adb02-bar" style="height:60%;"></div></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      var root = document.querySelector('[data-composition-id="02-admin-dashboard"]');
+      var stage = root.querySelector('.adb02-stage');
+      var chrome = root.querySelector('.adb02-chrome');
+      var eyebrow = root.querySelector('.adb02-eyebrow');
+      var h2 = root.querySelector('.adb02-h2');
+      var statCards = root.querySelectorAll('.adb02-stat-card');
+      var statValues = root.querySelectorAll('.adb02-stat-value');
+      var forecast = root.querySelector('.adb02-forecast');
+      var forecastTitle = root.querySelector('.adb02-forecast-title');
+      var forecastSub = root.querySelector('.adb02-forecast-sub');
+      var bars = root.querySelectorAll('.adb02-bar');
+      var peakBar = root.querySelector('.adb02-bar-peak');
+
+      var tl = gsap.timeline({ paused: true, defaults: { ease: 'power2.out' } });
+      window.__timelines = window.__timelines || {};
+      window.__timelines['02-admin-dashboard'] = tl;
+
+      // ---- Scene 1 (0.0-3s): chrome + header + 4 stat cards land ----
+      tl.fromTo(chrome, { opacity: 0, y: -10 }, { opacity: 1, y: 0, duration: 0.35 }, 0);
+      tl.fromTo(eyebrow, { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.4 }, 0.12);
+      tl.fromTo(h2, { opacity: 0, y: 16 }, { opacity: 1, y: 0, duration: 0.45 }, 0.22);
+
+      tl.fromTo(
+        statCards,
+        { opacity: 0, y: 42, scale: 0.94 },
+        { opacity: 1, y: 0, scale: 1, duration: 0.55, stagger: 0.16, ease: 'back.out(1.6)' },
+        0.55
+      );
+
+      statValues.forEach(function (el, i) {
+        var target = parseFloat(el.getAttribute('data-value')) || 0;
+        var counter = { v: 0 };
+        tl.to(
+          counter,
+          {
+            v: target,
+            duration: 0.7,
+            ease: 'power1.out',
+            onUpdate: function () {
+              el.textContent = Math.round(counter.v).toLocaleString('en-US');
+            },
+          },
+          0.75 + i * 0.16
+        );
+      });
+
+      // ---- Scene 2 (3.0-6.0s): forecast chart card draws in ----
+      tl.fromTo(forecast, { opacity: 0, y: 34 }, { opacity: 1, y: 0, duration: 0.5 }, 3.0);
+      tl.fromTo(forecastTitle, { opacity: 0, x: -16 }, { opacity: 1, x: 0, duration: 0.4 }, 3.2);
+      tl.fromTo(forecastSub, { opacity: 0, x: -16 }, { opacity: 1, x: 0, duration: 0.4 }, 3.32);
+
+      tl.fromTo(
+        bars,
+        { scaleY: 0 },
+        { scaleY: 1, duration: 0.5, stagger: 0.12, ease: 'power3.out' },
+        3.55
+      );
+
+      if (peakBar) {
+        tl.to(peakBar, { scaleY: 1.045, duration: 0.16, ease: 'power1.out' }, 4.85);
+        tl.to(peakBar, { scaleY: 1, duration: 0.22, ease: 'power2.out' }, 5.01);
+      }
+
+      // ---- Continuous gentle camera parallax/perspective drift across the full 10s ----
+      tl.fromTo(
+        stage,
+        { rotateX: 0, rotateY: 0, scale: 1 },
+        { rotateX: 0.45, rotateY: -0.55, scale: 1.006, duration: 3, ease: 'sine.inOut' },
+        0
+      );
+      tl.to(stage, { rotateX: -0.35, rotateY: 0.5, scale: 1.012, duration: 3, ease: 'sine.inOut' }, 3);
+      tl.to(stage, { rotateX: 1.1, rotateY: -1.4, scale: 1.026, duration: 2.5, ease: 'sine.inOut' }, 6);
+      tl.to(stage, { rotateX: 0.5, rotateY: -0.75, scale: 1.02, duration: 1.5, ease: 'sine.inOut' }, 8.5);
+
+      tl.seek(0);
+    })();
+  </script>
+</div>
+</template>

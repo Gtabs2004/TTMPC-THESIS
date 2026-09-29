@@ -1,0 +1,437 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>REGANT Launch — Storyboard v1</title>
+<style>
+  :root{
+    --bg:#FFFFFF; --ink:#1F2937; --ink-muted:#64748B; --ink-light:#9A9A9A;
+    --primary:#389734; --primary-deep:#2e7a2a;
+    --accent-light:rgba(56,151,52,0.08); --accent-medium:rgba(56,151,52,0.15);
+    --border:rgba(56,151,52,0.2); --card-bg:rgba(56,151,52,0.04);
+    --positive:#059669; --negative:#dc2626;
+    --dark:#0F2E10;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; padding:48px; background:#EDEFE9; color:var(--ink);
+    font-family:'Poppins', system-ui, -apple-system, sans-serif;
+  }
+  header{max-width:1400px;margin:0 auto 36px;}
+  header h1{font-size:34px;font-weight:700;margin:0 0 6px;letter-spacing:-0.01em;}
+  header h1 .v{font-size:16px;font-weight:600;color:var(--primary);vertical-align:middle;margin-left:10px;}
+  header p.dek{font-size:16px;color:var(--ink-muted);margin:0 0 14px;}
+  header .tags{display:flex;gap:10px;flex-wrap:wrap;}
+  .tag{background:var(--accent-light);color:var(--primary-deep);border:1px solid var(--border);border-radius:100px;padding:6px 16px;font-size:13px;font-weight:600;}
+  .act-bar{max-width:1400px;margin:34px auto 14px;padding:10px 18px;background:var(--dark);color:#fff;border-radius:10px;font-size:14px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;display:flex;justify-content:space-between;}
+  .act-bar span.sub{font-weight:400;text-transform:none;letter-spacing:0;opacity:0.75;}
+  .grid{max-width:1400px;margin:0 auto;display:grid;grid-template-columns:repeat(3,1fr);gap:22px;}
+  .cell{background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 8px 24px rgba(15,23,42,0.08);border:1px solid #E5E9EE;}
+  .frame{aspect-ratio:16/9;container-type:inline-size;position:relative;overflow:hidden;background:var(--bg);}
+  .cqw{}
+  .label-row{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-top:1px solid #EEF1F0;}
+  .label-row .name{font-weight:700;font-size:13px;}
+  .label-row .time{font-size:12px;color:var(--ink-muted);font-variant-numeric:tabular-nums;}
+  .note{padding:0 14px 10px;font-size:12px;color:var(--ink-muted);line-height:1.45;}
+  .note b{color:var(--ink);}
+  .seam-chip{margin:0 14px 14px;display:inline-block;background:var(--accent-light);color:var(--primary-deep);border:1px solid var(--border);border-radius:100px;padding:4px 12px;font-size:11px;font-weight:700;letter-spacing:0.04em;}
+
+  /* ---- reusable sketch primitives (all cqw so they scale with the frame) ---- */
+  .pad{padding:6cqw;}
+  .eyebrow{font-size:1.4cqw;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:var(--primary);}
+  .h1s{font-size:5.2cqw;font-weight:800;color:var(--ink);letter-spacing:-0.02em;line-height:1.05;}
+  .h2s{font-size:3cqw;font-weight:700;color:var(--ink);letter-spacing:-0.01em;}
+  .bodys{font-size:1.6cqw;color:var(--ink-muted);}
+  .card{background:var(--card-bg);border:1.5px solid var(--border);border-radius:1.2cqw;}
+  .pillbtn{background:var(--primary);color:#fff;border-radius:100px;font-weight:700;font-size:1.4cqw;padding:1cqw 2.6cqw;display:inline-block;}
+  .stat-row{display:flex;gap:2cqw;position:absolute;left:6cqw;right:6cqw;}
+  .stat-card{flex:1;padding:2.2cqw;}
+  .stat-label{font-size:1.15cqw;color:var(--ink-muted);font-weight:600;}
+  .stat-value{font-size:2.6cqw;font-weight:800;color:var(--primary);margin-top:0.6cqw;}
+  .row-bar{height:1.1cqw;border-radius:2px;background:var(--primary);}
+  .table-shell{position:absolute;left:6cqw;right:6cqw;border-radius:1cqw;overflow:hidden;border:1.5px solid var(--border);}
+  .thead{background:var(--primary-deep);color:#fff;font-size:1.15cqw;font-weight:700;padding:1.1cqw 1.6cqw;display:flex;justify-content:space-between;text-transform:uppercase;letter-spacing:0.04em;}
+  .trow{background:#fff;font-size:1.3cqw;padding:1.3cqw 1.6cqw;display:flex;justify-content:space-between;border-top:1px solid #EEF1F0;color:var(--ink);}
+  .chip-sm{font-size:1cqw;font-weight:700;border-radius:100px;padding:0.3cqw 1.1cqw;}
+  .chip-red{background:#fee2e2;color:#8f1414;} .chip-amber{background:#fffbeb;color:#b45309;} .chip-green{background:#d1fae5;color:#047857;} .chip-blue{background:#dbeafe;color:#1d4ed8;}
+  .phone{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:32cqw;height:66cqw;background:#111;border-radius:4cqw;box-shadow:0 3cqw 3cqw -1cqw rgba(0,0,0,0.35), 0 0 0 0.5cqw #222;}
+  .phone .screen{position:absolute;inset:1.4cqw;border-radius:3cqw;background:#fff;overflow:hidden;}
+  .desktop{position:absolute;top:8%;left:6%;width:56%;height:78%;background:#fff;border-radius:1cqw;box-shadow:0 3cqw 4cqw -1cqw rgba(0,0,0,0.28);border:1px solid #E5E9EE;overflow:hidden;}
+  .desktop .bar{height:6%;background:var(--primary-deep);display:flex;align-items:center;gap:0.6cqw;padding:0 1.4cqw;}
+  .desktop .dot{width:1cqw;height:1cqw;border-radius:50%;background:rgba(255,255,255,0.6);}
+  .logo-img{width:16cqw;height:16cqw;object-fit:contain;filter:drop-shadow(0 1cqw 2cqw rgba(0,0,0,0.35));}
+  .dark-field{background:linear-gradient(160deg,#0F2E10 0%, #06150A 100%);}
+  .green-field{background:linear-gradient(135deg,#1D6021 0%, #389734 100%);}
+  .center-col{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;}
+  .datapath{position:absolute;height:3px;background:repeating-linear-gradient(90deg,var(--primary) 0 6px, transparent 6px 12px);}
+
+  /* ---- real member-app mobile chrome (Member_Dashboard.jsx / MemberMobileNav.jsx) ---- */
+  .m-body{position:absolute;inset:0;background:#F8F9FA;}
+  .m-header{height:11%;background:#fff;border-bottom:1px solid #F0F0F0;display:flex;align-items:center;justify-content:space-between;padding:0 7%;}
+  .m-header .title{font-size:11px;font-weight:800;color:#1a4a2f;}
+  .m-header .bell{width:14px;height:14px;border-radius:50%;border:1.5px solid #D1D5DB;}
+  .m-nav{position:absolute;left:0;right:0;bottom:0;height:13%;background:#fff;border-top:1px solid #E5E7EB;display:flex;align-items:center;justify-content:space-around;padding:0 4%;}
+  .m-nav .item{display:flex;flex-direction:column;align-items:center;gap:2px;position:relative;}
+  .m-nav .dot{width:9px;height:9px;border-radius:3px;background:#9CA3AF;}
+  .m-nav .lbl{font-size:5.5px;font-weight:700;color:#6B7280;}
+  .m-nav .item.active .dot{background:#1D6021;box-shadow:0 0 4px rgba(29,96,33,0.55);}
+  .m-nav .item.active .lbl{color:#1D6021;}
+  .m-nav .item.active::before{content:"";position:absolute;top:-6px;left:50%;transform:translateX(-50%);width:12px;height:2px;border-radius:2px;background:#1D6021;box-shadow:0 0 4px rgba(29,96,33,0.5);}
+  .m-profile-card{background:#fff;border:1px solid #F1F1F1;border-radius:10px;box-shadow:0 2px 6px rgba(15,23,42,0.05);padding:10px;display:flex;gap:10px;align-items:center;}
+  .m-avatar{width:32px;height:32px;border-radius:50%;background:#F3F4F6;border:2.5px solid #EAF1EB;flex-shrink:0;}
+  .m-active-pill{background:#1D6021;color:#fff;font-size:6px;font-weight:800;border-radius:100px;padding:2px 7px;letter-spacing:0.04em;}
+  .m-migs-card{background:#fff;border:1px solid #F1F1F1;border-radius:10px;box-shadow:0 2px 6px rgba(15,23,42,0.05);padding:10px;}
+  .m-migs-bar-track{height:6px;background:#F1F5F2;border-radius:4px;overflow:hidden;margin-top:6px;}
+  .m-migs-bar-fill{height:100%;width:72%;background:#1D6021;border-radius:4px;}
+  .m-select-card{border-radius:10px;padding:9px 10px;font-size:9px;font-weight:700;display:flex;align-items:center;gap:8px;}
+  .m-select-icon{width:20px;height:20px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:10px;flex-shrink:0;}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>REGANT Launch <span class="v">v2</span></h1>
+  <p class="dek">TTMPC/REGANT is a modern, integrated digital cooperative platform connecting members and cooperative officers through desktop and mobile experiences.</p>
+  <div class="tags">
+    <span class="tag">1920×1080</span>
+    <span class="tag">60s target</span>
+    <span class="tag">13 frames</span>
+    <span class="tag">blue-professional → TTMPC green remix</span>
+    <span class="tag">SFX only, no BGM</span>
+  </div>
+</header>
+
+<!-- ============ ACT 1 : BRANDING ============ -->
+<div class="act-bar"><span>Act 1 — Branding Open</span><span class="sub">0–5s</span></div>
+<div class="grid">
+
+  <div class="cell">
+    <div class="frame" style="background:#FFFFFF;" id="frame-01">
+      <div class="center-col">
+        <img class="logo-img" src="capture/assets/ttmpc-logo.png" alt="" style="filter:drop-shadow(0 0.6cqw 1.2cqw rgba(15,23,42,0.12));" />
+        <div style="margin-top:2.4cqw;color:var(--ink);font-weight:800;font-size:3cqw;letter-spacing:0.18em;">REGANT</div>
+        <div style="margin-top:0.6cqw;color:var(--ink-muted);font-size:1.4cqw;">Tubungan Teachers' Multi-Purpose Cooperative</div>
+      </div>
+    </div>
+    <div class="label-row"><span class="name">01 · Branding open</span><span class="time">0–5s</span></div>
+    <div class="note"><b>White field — logo stays fully legible (v2 change).</b> Mark assembles with parallax depth, then the frame pushes through it into the dashboard.</div>
+    <span class="seam-chip">→ zoom-through</span>
+  </div>
+
+</div>
+
+<!-- ============ ACT 2 : ADMIN DASHBOARD ============ -->
+<div class="act-bar"><span>Act 2 — Admin Dashboard</span><span class="sub">5–15s</span></div>
+<div class="grid">
+
+  <div class="cell">
+    <div class="frame" id="frame-02">
+      <div class="pad">
+        <div class="eyebrow">Bookkeeper · Board of Directors</div>
+        <div class="h2s" style="margin-top:0.6cqw;">Cooperative Overview</div>
+      </div>
+      <div class="stat-row" style="top:28%;">
+        <div class="card stat-card"><div class="stat-label">Total Loan Applications</div><div class="stat-value">1,284</div></div>
+        <div class="card stat-card"><div class="stat-label">Late Payments</div><div class="stat-value">37</div></div>
+        <div class="card stat-card"><div class="stat-label">Active Loans</div><div class="stat-value">902</div></div>
+        <div class="card stat-card"><div class="stat-label">Approved This Month</div><div class="stat-value">64</div></div>
+      </div>
+      <div class="card" style="position:absolute;left:6cqw;right:6cqw;top:56%;bottom:6cqw;padding:2cqw;">
+        <div class="bodys" style="font-weight:700;color:var(--ink);">12-Month Loan Demand Forecast</div>
+        <div style="display:flex;align-items:flex-end;gap:1.2cqw;height:60%;margin-top:1.5cqw;">
+          <div class="row-bar" style="height:40%;"></div><div class="row-bar" style="height:55%;"></div><div class="row-bar" style="height:35%;"></div><div class="row-bar" style="height:70%;"></div><div class="row-bar" style="height:100%;background:var(--primary-deep);"></div><div class="row-bar" style="height:50%;"></div><div class="row-bar" style="height:60%;"></div>
+        </div>
+      </div>
+    </div>
+    <div class="label-row"><span class="name">02 · Admin dashboard reveal</span><span class="time">5–15s (10s)</span></div>
+    <div class="note"><b>4 real stat cards land first, then forecast chart + gender/loan charts + activity feed populate.</b> `frame.md` Dashboard treatment — the one dense exception. Source: B-Dashboard.jsx.</div>
+    <span class="seam-chip">← zoom-through / → zoom-through</span>
+  </div>
+
+</div>
+
+<!-- ============ ACT 3 : MODULE CASCADE ============ -->
+<div class="act-bar"><span>Act 3 — Core System Modules</span><span class="sub">15–25s</span></div>
+<div class="grid">
+
+  <div class="cell">
+    <div class="frame" id="frame-03">
+      <div class="pad"><div class="eyebrow">Member Management</div></div>
+      <div class="table-shell" style="top:34%;">
+        <div class="thead"><span>Member</span><span>Loans</span><span>Status</span></div>
+        <div class="trow"><span>J. Bautista</span><span>2 active</span><span class="chip-sm chip-green">Active</span></div>
+        <div class="trow"><span>M. Reyes</span><span>0 active</span><span class="chip-sm chip-green">Active</span></div>
+        <div class="trow"><span>A. Cruz</span><span>1 paid</span><span class="chip-sm chip-red">Terminated</span></div>
+      </div>
+    </div>
+    <div class="label-row"><span class="name">03 · Member Management</span><span class="time">15–17s</span></div>
+    <div class="note">One hero visual — active/terminated split. Source: Manage-Member.jsx.</div>
+    <span class="seam-chip">← zoom-through / → push-slide L</span>
+  </div>
+
+  <div class="cell">
+    <div class="frame" id="frame-04">
+      <div class="pad"><div class="eyebrow">Loan Ledger</div></div>
+      <div class="table-shell" style="top:34%;">
+        <div class="thead"><span>Date</span><span>Paid</span><span>Penalty</span><span>Status</span></div>
+        <div class="trow"><span>Sep 12</span><span>₱4,500</span><span style="color:var(--ink-light);">—</span><span class="chip-sm chip-green">Validated</span></div>
+        <div class="trow"><span>Aug 12</span><span>₱4,500</span><span style="color:#dc2626;font-weight:700;">₱150</span><span class="chip-sm chip-amber">Partial</span></div>
+      </div>
+    </div>
+    <div class="label-row"><span class="name">04 · Loan Ledger</span><span class="time">17–19s</span></div>
+    <div class="note">Real column set + status color logic. Source: Loan-Ledger.jsx. <b>sfx: whoosh</b></div>
+    <span class="seam-chip">push-slide L → push-slide L</span>
+  </div>
+
+  <div class="cell">
+    <div class="frame" id="frame-05">
+      <div class="pad"><div class="eyebrow">Loan Policies</div></div>
+      <div style="position:absolute;left:6cqw;right:6cqw;top:30%;display:flex;gap:1cqw;">
+        <span class="pillbtn" style="font-size:1.2cqw;padding:0.7cqw 1.8cqw;">Consolidated</span>
+        <span class="bodys" style="align-self:center;">Emergency</span><span class="bodys" style="align-self:center;">Bonus</span>
+      </div>
+      <div class="card" style="position:absolute;left:6cqw;right:6cqw;top:44%;bottom:8%;padding:2cqw;display:grid;grid-template-columns:1fr 1fr;gap:1.4cqw;">
+        <div class="bodys">Service Fee <b style="color:var(--ink);">bracket</b></div>
+        <div class="bodys">Interest <b style="color:var(--ink);">2.0%</b></div>
+        <div class="bodys">CBU Deposit <b style="color:var(--ink);">₱500</b></div>
+        <div class="bodys">Insurance <b style="color:var(--ink);">on</b></div>
+      </div>
+    </div>
+    <div class="label-row"><span class="name">05 · Loan Policies</span><span class="time">19–21s</span></div>
+    <div class="note">Real tab strip + per-type fields, view-only gate. Source: Loan-Policies.jsx.</div>
+    <span class="seam-chip">push-slide L → push-slide L</span>
+  </div>
+
+  <div class="cell">
+    <div class="frame" id="frame-06">
+      <div class="pad"><div class="eyebrow">Capital Build-Up</div></div>
+      <div class="table-shell" style="top:34%;">
+        <div class="thead"><span>Member</span><span>CBU Balance</span></div>
+        <div class="trow"><span>J. Bautista</span><span>₱12,400</span></div>
+        <div class="trow"><span>M. Reyes</span><span>₱8,900</span></div>
+      </div>
+    </div>
+    <div class="label-row"><span class="name">06 · Capital Build-Up</span><span class="time">21–23s</span></div>
+    <div class="note">Members + transactions ledger. Source: Bookkeeper_CBU.jsx. <b>sfx: whoosh</b></div>
+    <span class="seam-chip">push-slide L → push-slide L</span>
+  </div>
+
+  <div class="cell">
+    <div class="frame" id="frame-07">
+      <div class="pad"><div class="eyebrow">Audit Log</div></div>
+      <div class="table-shell" style="top:34%;">
+        <div class="thead"><span>Date/Time</span><span>Actor</span><span>Action</span></div>
+        <div class="trow"><span>Sep 29, 10:14</span><span>Bookkeeper</span><span class="chip-sm chip-blue">Posted</span></div>
+        <div class="trow"><span>Sep 29, 09:02</span><span>BOD</span><span class="chip-sm chip-green">Approved</span></div>
+      </div>
+    </div>
+    <div class="label-row"><span class="name">07 · Audit Log</span><span class="time">23–25s</span></div>
+    <div class="note">Closes cascade on accountability. Source: AuditLogViewer.jsx.</div>
+    <span class="seam-chip">push-slide L → <b>zoom-through</b></span>
+  </div>
+
+</div>
+
+<!-- ============ ACT 4 : MOBILE APP ============ -->
+<div class="act-bar"><span>Act 4 — Mobile Member Application</span><span class="sub">25–38s</span></div>
+<div class="grid">
+
+  <div class="cell">
+    <div class="frame" style="background:#EFF2F0;" id="frame-08">
+      <div class="phone"><div class="screen">
+        <div class="m-body">
+          <div class="m-header"><span class="title">Dashboard</span><span class="bell"></span></div>
+          <div style="padding:6% 6% 0;display:flex;flex-direction:column;gap:6px;">
+            <div class="m-profile-card">
+              <div class="m-avatar"></div>
+              <div style="flex:1;">
+                <div style="display:flex;align-items:center;gap:5px;"><span style="font-size:9px;font-weight:800;color:#111827;">J. Bautista</span><span class="m-active-pill">Active</span></div>
+                <div style="font-size:6px;color:#6B7280;margin-top:2px;">Member ID: TT-00214</div>
+              </div>
+            </div>
+            <div class="m-migs-card">
+              <div style="display:flex;justify-content:space-between;align-items:center;"><span style="font-size:7px;font-weight:700;color:#111827;">MIGS Standing</span><span style="font-size:6px;font-weight:800;color:#1D6021;background:#ECFDF3;border-radius:100px;padding:1px 6px;">MIGS</span></div>
+              <div class="m-migs-bar-track"><div class="m-migs-bar-fill"></div></div>
+            </div>
+          </div>
+          <div class="m-nav">
+            <div class="item active"><span class="dot"></span><span class="lbl">Dashboard</span></div>
+            <div class="item"><span class="dot"></span><span class="lbl">Apply</span></div>
+            <div class="item"><span class="dot"></span><span class="lbl">Loans</span></div>
+            <div class="item"><span class="dot"></span><span class="lbl">Statement</span></div>
+            <div class="item"><span class="dot"></span><span class="lbl">Lifecycle</span></div>
+            <div class="item"><span class="dot"></span><span class="lbl">Profile</span></div>
+          </div>
+        </div>
+      </div></div>
+    </div>
+    <div class="label-row"><span class="name">08 · Mobile open + dashboard</span><span class="time">25–29s (4s)</span></div>
+    <div class="note"><b>Matches the real app (v2 change):</b> #F8F9FA body, white header, real profile card + MIGS card, real 6-icon bottom nav with member-green active glow. Source: Member_Dashboard.jsx + MemberMobileNav.jsx. <b>sfx: activation tone</b></div>
+    <span class="seam-chip">← zoom-through / → push-slide U</span>
+  </div>
+
+  <div class="cell">
+    <div class="frame" style="background:#EFF2F0;" id="frame-09">
+      <div class="phone"><div class="screen">
+        <div class="m-body">
+          <div class="m-header"><span class="title">Apply for Loan</span><span class="bell"></span></div>
+          <div style="padding:6% 6% 0;display:flex;flex-direction:column;gap:7px;">
+            <div class="m-select-card" style="background:#EFF6FF;color:#1d4ed8;"><span class="m-select-icon" style="background:#DBEAFE;">▤</span>Consolidated Loan</div>
+            <div class="m-select-card" style="background:#FEF2F2;color:#dc2626;"><span class="m-select-icon" style="background:#FEE2E2;">!</span>Emergency Loan</div>
+            <div class="m-select-card" style="background:#F0FDF4;color:#16a34a;"><span class="m-select-icon" style="background:#DCFCE7;">🎁</span>Bonus Loan</div>
+            <div class="pillbtn" style="background:#1D6021;font-size:9px;padding:8px 0;text-align:center;width:100%;margin-top:6px;">Submit Application</div>
+          </div>
+          <div class="m-nav">
+            <div class="item"><span class="dot"></span><span class="lbl">Dashboard</span></div>
+            <div class="item active"><span class="dot"></span><span class="lbl">Apply</span></div>
+            <div class="item"><span class="dot"></span><span class="lbl">Loans</span></div>
+            <div class="item"><span class="dot"></span><span class="lbl">Statement</span></div>
+            <div class="item"><span class="dot"></span><span class="lbl">Lifecycle</span></div>
+            <div class="item"><span class="dot"></span><span class="lbl">Profile</span></div>
+          </div>
+        </div>
+      </div></div>
+    </div>
+    <div class="label-row"><span class="name">09 · Apply + submit</span><span class="time">29–34s (5s)</span></div>
+    <div class="note"><b>Matches the real app (v2 change):</b> real 3-card selector tones (Consolidated blue, Emergency red, Bonus green) → form → Submit. Source: Member_ApplyLoans.jsx. <b>sfx: tap, confirm</b></div>
+    <span class="seam-chip">push-slide U → push-slide U</span>
+  </div>
+
+  <div class="cell">
+    <div class="frame" style="background:#EFF2F0;" id="frame-10">
+      <div class="phone"><div class="screen">
+        <div class="m-body">
+          <div class="m-header"><span class="title">Member Loans</span><span class="bell"></span></div>
+          <div style="padding:6% 6% 0;">
+            <div class="m-profile-card" style="align-items:flex-start;flex-direction:column;gap:6px;">
+              <div style="display:flex;justify-content:space-between;width:100%;align-items:center;">
+                <span style="font-size:8px;font-weight:800;color:#111827;">Consolidated Loan</span>
+                <span class="chip-sm chip-amber" style="font-size:6px;">Pending Review</span>
+              </div>
+              <div style="font-size:6.5px;color:#6B7280;">₱45,000 · filed just now</div>
+            </div>
+          </div>
+          <div class="m-nav">
+            <div class="item"><span class="dot"></span><span class="lbl">Dashboard</span></div>
+            <div class="item"><span class="dot"></span><span class="lbl">Apply</span></div>
+            <div class="item active"><span class="dot"></span><span class="lbl">Loans</span></div>
+            <div class="item"><span class="dot"></span><span class="lbl">Statement</span></div>
+            <div class="item"><span class="dot"></span><span class="lbl">Lifecycle</span></div>
+            <div class="item"><span class="dot"></span><span class="lbl">Profile</span></div>
+          </div>
+        </div>
+      </div></div>
+    </div>
+    <div class="label-row"><span class="name">10 · Check loan status</span><span class="time">34–38s (4s)</span></div>
+    <div class="note"><b>Matches the real app (v2 change).</b> Closes member loop; plants Frame 11's payoff. Source: Member_Loans.jsx + MemberMobileNav.jsx.</div>
+    <span class="seam-chip">push-slide U → <b>zoom-through</b></span>
+  </div>
+
+</div>
+
+<!-- ============ ACT 5 : CONNECTED SYSTEM ============ -->
+<div class="act-bar"><span>Act 5 — Connected System</span><span class="sub">38–50s</span></div>
+<div class="grid">
+
+  <div class="cell" style="grid-column:span 3;">
+    <div class="frame" style="background:#EFF2F0;" id="frame-11">
+      <div class="phone" style="left:14%;top:50%;width:20cqw;height:42cqw;"><div class="screen"></div></div>
+      <div class="desktop" style="left:44%;">
+        <div class="bar"><div class="dot"></div><div class="dot"></div></div>
+      </div>
+      <div class="datapath" style="left:26%;width:20%;top:50%;"></div>
+      <div style="position:absolute;left:50%;top:14%;transform:translateX(-50%);" class="eyebrow">One connected ecosystem</div>
+    </div>
+    <div class="label-row"><span class="name">11 · Connected system</span><span class="time">38–50s (12s)</span></div>
+    <div class="note"><b>One continuous camera journey (camera-journey blueprint):</b> submit on phone → row lands in admin queue → officer reviews → status flows back to phone. Animated data-flow line connects the two devices — not two separate cuts. Sources: Member_ApplyLoans.jsx, Member-Approvals.jsx, BOD_Loan_Approval.jsx, Member_Loans.jsx. <b>sfx: data-flow, click, confirm</b>. This is the film's structural climax.</div>
+    <span class="seam-chip">← zoom-through / → zoom-through</span>
+  </div>
+
+</div>
+
+<!-- ============ ACT 6 : FINAL SHOWCASE ============ -->
+<div class="act-bar"><span>Act 6 — Final Showcase</span><span class="sub">50–60s</span></div>
+<div class="grid">
+
+  <div class="cell">
+    <div class="frame" style="background:#EFF2F0;" id="frame-12">
+      <div class="desktop" style="left:6%;top:20%;width:52%;height:60%;transform:rotate(-4deg) perspective(800px) rotateY(6deg);"></div>
+      <div class="phone" style="left:74%;top:56%;width:20cqw;height:42cqw;transform:translate(-50%,-50%) rotate(3deg);"></div>
+    </div>
+    <div class="label-row"><span class="name">12 · Final ecosystem</span><span class="time">50–55s (5s)</span></div>
+    <div class="note">Desktop + phone at a slight 3D angle, subtle parallax. Composite reprise of Frames 2 &amp; 8. No single blueprint — composed.</div>
+    <span class="seam-chip">← zoom-through / → crossfade</span>
+  </div>
+
+  <div class="cell">
+    <div class="frame" style="background:#FFFFFF;" id="frame-13">
+      <div class="center-col">
+        <img class="logo-img" src="capture/assets/ttmpc-logo.png" alt="" style="filter:drop-shadow(0 0.6cqw 1.2cqw rgba(15,23,42,0.12));" />
+        <div style="margin-top:2cqw;color:var(--ink);font-weight:800;font-size:2.6cqw;letter-spacing:-0.01em;">Built for the cooperative.</div>
+        <div style="color:var(--ink-muted);font-size:1.6cqw;margin-top:0.6cqw;">REGANT — TTMPC</div>
+      </div>
+    </div>
+    <div class="label-row"><span class="name">13 · Brand outro</span><span class="time">55–60s (5s)</span></div>
+    <div class="note"><b>White field, matching Frame 1 (v2 change)</b> — bookends the film on the same clean ground. Confident, unhurried, not dramatic. <b>sfx: confirmation chime</b></div>
+    <span class="seam-chip">crossfade → end</span>
+  </div>
+
+  <!-- ===== closing cell : seam map ===== -->
+  <div class="cell">
+    <div class="frame" style="background:#0F2E10;padding:5%;color:#fff;">
+      <div style="font-size:11px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:#8FD98B;margin-bottom:10px;">Seam map</div>
+      <div style="font-size:10px;line-height:2.1;font-family:monospace;">
+        01→02 <b style="color:#8FD98B;">zoom-through</b> (act boundary)<br>
+        02→03 <b style="color:#8FD98B;">zoom-through</b> (act boundary)<br>
+        03→04→05→06→07 <b style="color:#8FD98B;">push-slide L</b> (cascade)<br>
+        07→08 <b style="color:#8FD98B;">zoom-through</b> (act boundary)<br>
+        08→09→10 <b style="color:#8FD98B;">push-slide U</b> (mobile flow)<br>
+        10→11 <b style="color:#8FD98B;">zoom-through</b> (act boundary)<br>
+        11→12 <b style="color:#8FD98B;">zoom-through</b> (climax→resolution)<br>
+        12→13 <b style="color:#8FD98B;">crossfade</b> (same act)
+      </div>
+    </div>
+    <div class="label-row"><span class="name">Seam map</span><span class="time">6 zoom-through · 1 crossfade · 2 push-slide runs</span></div>
+  </div>
+
+</div>
+
+<!-- ===== closing cell : tokens ===== -->
+<div class="grid" style="margin-top:22px;">
+  <div class="cell" style="grid-column:span 3;">
+    <div style="padding:28px 32px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:28px;">
+      <div>
+        <div class="eyebrow" style="font-size:12px;">Palette</div>
+        <div style="display:flex;flex-direction:column;gap:6px;margin-top:10px;font-size:13px;">
+          <div><span style="display:inline-block;width:14px;height:14px;background:#389734;border-radius:3px;vertical-align:middle;margin-right:8px;"></span>primary #389734</div>
+          <div><span style="display:inline-block;width:14px;height:14px;background:#2e7a2a;border-radius:3px;vertical-align:middle;margin-right:8px;"></span>primary-deep #2e7a2a</div>
+          <div><span style="display:inline-block;width:14px;height:14px;background:#1D6021;border-radius:3px;vertical-align:middle;margin-right:8px;"></span>member accent #1D6021</div>
+          <div><span style="display:inline-block;width:14px;height:14px;background:#1F2937;border-radius:3px;vertical-align:middle;margin-right:8px;"></span>ink #1F2937</div>
+          <div><span style="display:inline-block;width:14px;height:14px;background:#64748B;border-radius:3px;vertical-align:middle;margin-right:8px;"></span>ink-muted #64748B</div>
+        </div>
+      </div>
+      <div>
+        <div class="eyebrow" style="font-size:12px;">Type / Radii</div>
+        <div style="font-size:13px;color:var(--ink-muted);margin-top:10px;line-height:1.9;">
+          Display + body: <b style="color:var(--ink);">Poppins</b> (400/500/600/700/800)<br>
+          Card radius: 14/12/10px · Pill: 100px<br>
+          Cards: 4% tint fill, 20% border, no shadow
+        </div>
+      </div>
+      <div>
+        <div class="eyebrow" style="font-size:12px;">Bans</div>
+        <div style="font-size:13px;color:var(--ink-muted);margin-top:10px;line-height:1.9;">
+          No slideshow (every beat a fresh card)<br>
+          No screensaver motion (motion that says nothing)<br>
+          No flat/fake UI — every screen traces to real source<br>
+          No SFX on every movement (8 of 13 frames only)<br>
+          No second accent color — green only
+        </div>
+      </div>
+    </div>
+    <div class="label-row"><span class="name">Design tokens</span><span class="time">blue-professional → TTMPC remix</span></div>
+  </div>
+</div>
+
+</body>
+</html>

@@ -1,0 +1,59 @@
+{
+  "lines": [
+    {
+      "id": "01",
+      "sfx": [
+        "whoosh-cinematic"
+      ]
+    },
+    {
+      "id": "02",
+      "sfx": [
+        "click",
+        "notification"
+      ]
+    },
+    {
+      "id": "04",
+      "sfx": [
+        "whoosh-short"
+      ]
+    },
+    {
+      "id": "06",
+      "sfx": [
+        "whoosh-short"
+      ]
+    },
+    {
+      "id": "08",
+      "sfx": [
+        "pop"
+      ]
+    },
+    {
+      "id": "09",
+      "sfx": [
+        "click-soft",
+        "chime"
+      ]
+    },
+    {
+      "id": "11",
+      "sfx": [
+        "whoosh-short",
+        "click",
+        "notification"
+      ]
+    },
+    {
+      "id": "13",
+      "sfx": [
+        "chime"
+      ]
+    }
+  ],
+  "bgm": {
+    "mode": "none"
+  }
+}

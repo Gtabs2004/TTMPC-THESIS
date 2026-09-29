@@ -1,0 +1,251 @@
+Create a **40-second to 1-minute professional promotional/product showcase video** for the **TTMPC Integrated Member Profiling and Financial Decision Support System**.
+
+The video should present TTMPC as a **modern, integrated, professional, and user-friendly cooperative management system**. Make it feel like a polished **SaaS/fintech product launch video**, not a basic slideshow or flat screen recording.
+
+### VISUAL STYLE
+
+Make the video **dynamic, energetic, modern, and visually dimensional**.
+
+Avoid flat presentation of screenshots. Add depth through:
+
+* Layered UI elements
+* Realistic desktop and smartphone mockups
+* Subtle 3D perspective
+* Natural shadows and depth
+* Parallax movement
+* Floating interface elements
+* Smooth camera movements
+* Dynamic zoom-ins and zoom-outs
+* UI elements sliding and appearing naturally
+* Subtle scale and fade animations
+* Data and charts animating in real time
+
+The overall visual style should remain **professional and appropriate for a cooperative financial management system**.
+
+Use the TTMPC green branding throughout the video while maintaining a clean and modern interface.
+
+---
+
+### VIDEO FLOW
+
+#### 0–5 SECONDS — OPENING
+
+Begin with the **TTMPC branding/logo**.
+
+Use a cinematic but clean opening with subtle movement and depth.
+
+The logo or title should smoothly transition into the actual system interface.
+
+Avoid simply displaying the logo on a static background.
+
+**Sound:**
+
+* Begin with a subtle atmospheric electronic tone.
+* Add a gentle rising sound as the TTMPC branding appears.
+* Introduce the main music beat as the system interface is revealed.
+
+---
+
+#### 5–15 SECONDS — ADMIN DASHBOARD
+
+Transition into the desktop/admin interface.
+
+Show the dashboard dynamically:
+
+* Dashboard statistics
+* Loan information
+* Charts
+* Notifications
+* Recent transactions
+* Financial information
+
+Animate the dashboard elements appearing naturally.
+
+Use camera movement and slight perspective changes to make the interface feel dimensional.
+
+Cards can subtly slide or fade into position, while charts and statistics animate as if live data is being loaded.
+
+**Sound:**
+
+* Introduce an upbeat modern electronic/corporate soundtrack.
+* Add subtle UI clicks when important cards or statistics appear.
+* Use soft digital whooshes for major camera or screen transitions.
+* Keep sound effects synchronized with the visual animations.
+
+---
+
+#### 15–25 SECONDS — CORE SYSTEM MODULES
+
+Quickly showcase the major system modules.
+
+Feature examples such as:
+
+* Member Management
+* Member Applications
+* Loan Management
+* Loan Ledger
+* Loan Policies
+* Capital Build-Up / Financial features
+* Audit and transaction monitoring
+
+Move naturally between modules instead of using simple hard cuts.
+
+Use zooms, slides, perspective changes, and smooth camera movement to transition between screens.
+
+Show enough of each module to communicate its purpose without staying too long on one screen.
+
+**Sound:**
+
+* Increase the energy of the background music slightly.
+* Use short transition whooshes between modules.
+* Add subtle interface clicks when buttons, tables, or important information are highlighted.
+* Avoid using an SFX for every single movement.
+
+---
+
+#### 25–38 SECONDS — MOBILE MEMBER APPLICATION
+
+Make the **member mobile application a major feature**.
+
+Introduce a realistic smartphone mockup with the mobile interface displayed clearly.
+
+Show the member experience:
+
+**Open App → Member Dashboard → Loan Application → Submit Application → Check Loan Status**
+
+Use close-up camera movements and realistic phone perspective.
+
+The smartphone should have physical depth, realistic lighting, shadows, and subtle reflections rather than appearing as a flat screenshot.
+
+Show the mobile interface interacting naturally with the user's actions.
+
+**Sound:**
+
+* Use a short musical transition when moving from desktop to mobile.
+* Add a clean digital activation sound as the smartphone appears.
+* Use subtle touch/click sounds when the member interacts with the application.
+* Add a slightly more noticeable confirmation sound when the loan application is submitted.
+
+---
+
+#### 38–50 SECONDS — CONNECTED SYSTEM
+
+Show the connection between the **member mobile application and the admin/officer system**.
+
+Visually communicate the workflow:
+
+**Member submits application on mobile**
+↓
+**Application appears in admin system**
+↓
+**Officer reviews application**
+↓
+**Loan status is updated**
+↓
+**Member sees the updated status on mobile**
+
+Use animated data flows, connected interface elements, or visual lines traveling between the smartphone and desktop interface.
+
+Make this section feel energetic and technologically advanced.
+
+The desktop and smartphone should appear as part of **one connected ecosystem**, rather than two separate applications.
+
+**Sound:**
+
+* Let the background music reach its strongest and most energetic section.
+* Add a subtle digital data-flow sound while information moves between devices.
+* Use carefully timed UI sounds as the application moves through each stage.
+* Build toward a satisfying transition into the final scene.
+
+---
+
+#### 50–60 SECONDS — FINAL SHOWCASE
+
+Bring the **desktop system and mobile application together** in one polished composition.
+
+Show both devices from a slightly angled/3D perspective.
+
+Use subtle parallax movement and camera motion to create depth.
+
+The system should feel like a complete digital ecosystem serving both:
+
+**Cooperative Officers + Members**
+
+Finish with the **TTMPC branding/logo** and a clean closing message.
+
+The ending should feel confident and polished without becoming overly dramatic.
+
+**Sound:**
+
+* Allow the music to resolve naturally.
+* Use a clean final musical chord.
+* Add one subtle confirmation/chime sound as the final branding appears.
+* Let the audio fade out smoothly.
+
+---
+
+### MUSIC & SOUND DESIGN
+
+Use an **energetic modern fintech/SaaS-style soundtrack**.
+
+The music should include:
+
+* Modern electronic synths
+* Soft but noticeable bass
+* Clean percussion
+* Subtle rhythmic elements
+* Light digital textures
+* Gradual energy build
+* Professional cinematic transitions
+
+Target approximately **110–125 BPM**.
+
+The music should feel:
+
+**Modern • Energetic • Innovative • Professional • Clean • Premium**
+
+Avoid:
+
+* Generic corporate elevator music
+* Cheesy motivational music
+* Overly dramatic movie-trailer music
+* Aggressive EDM
+* Excessive bass
+* Distracting vocals
+
+### UI SOUND EFFECTS
+
+Use subtle, high-quality interface sound effects:
+
+* Soft UI clicks
+* Digital taps
+* Short whooshes
+* Notification chimes
+* Data-flow sounds
+* Confirmation sounds
+* Subtle transition impacts
+
+Synchronize important SFX with major visual events.
+
+**Do not add a sound effect to every animation.** Sound effects should emphasize important interactions and transitions while the background music provides the overall energy.
+
+### FINAL AUDIO EXPERIENCE
+
+The audio should gradually build throughout the video:
+
+**Subtle introduction → energetic dashboard → faster system showcase → mobile reveal → peak energy during system connection → clean professional resolution.**
+
+The sound should make the video feel like a **real modern software product launch**, while still being appropriate for an academic thesis/project presentation.
+
+### IMPORTANT
+
+The video should NOT feel like a collection of screenshots.
+
+Everything should feel connected through:
+
+**Camera movement + UI animation + 3D depth + transitions + music + synchronized sound effects.**
+
+The final result should communicate that TTMPC is a **modern, integrated digital cooperative platform connecting members and cooperative officers through desktop and mobile experiences.**
+
+---
+NOTE (added post-brief, confirmed with user): No BGM/music bed in this build — HeyGen sign-in was unavailable in this terminal and the user declined the local MusicGen fallback. All "music" cues above are realized as visual pacing/motion-energy ramp instead; all listed SFX cues stand as written and are sourced from /media-use's bundled offline SFX library. Destination/aspect confirmed as 16:9 1920x1080 (YouTube/embed/presentation), no spoken narration, length target 40-60s.

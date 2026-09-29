@@ -39,6 +39,7 @@ Staff enters through role selection → picks a role and lands on a live, ML-bac
 ## Share copy (draft)
 We gave a small teachers' cooperative a real decision-support system — live credit risk scoring, 12-month loan demand forecasting, and automated MIGS evaluation, running across 8 staff roles. Thesis project, production instincts. 🌱
 
+
 ## Audio direction
 - Role: warm, clean bed with sparse professional accents — the video should feel confident, not hyped
 - Music: `happy-beats-business-moves-vol-9-by-ende-dot-app.mp3` (mid-energy, slightly laid-back; fits `default` without pushing into startup-hype territory)

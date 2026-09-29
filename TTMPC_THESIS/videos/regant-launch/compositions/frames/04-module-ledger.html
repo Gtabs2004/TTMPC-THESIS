@@ -1,0 +1,195 @@
+<template>
+<style>
+  @font-face { font-family: "Poppins"; src: url("assets/fonts/poppins-400.woff2") format("woff2"); font-weight: 400; font-style: normal; font-display: block; }
+  @font-face { font-family: "Poppins"; src: url("assets/fonts/poppins-500.woff2") format("woff2"); font-weight: 500; font-style: normal; font-display: block; }
+  @font-face { font-family: "Poppins"; src: url("assets/fonts/poppins-600.woff2") format("woff2"); font-weight: 600; font-style: normal; font-display: block; }
+  @font-face { font-family: "Poppins"; src: url("assets/fonts/poppins-700.woff2") format("woff2"); font-weight: 700; font-style: normal; font-display: block; }
+  @font-face { font-family: "Poppins"; src: url("assets/fonts/poppins-800.woff2") format("woff2"); font-weight: 800; font-style: normal; font-display: block; }
+
+  #root {
+    width: 1920px;
+    height: 1080px;
+    position: relative;
+    overflow: hidden;
+    container-type: size;
+    font-family: "Poppins", sans-serif;
+  }
+
+  .f04l-bg {
+    position: absolute;
+    inset: 0;
+    background: #FFFFFF;
+  }
+
+  .f04l-content {
+    position: absolute;
+    inset: 0;
+  }
+
+  .f04l-header {
+    position: absolute;
+    left: 5cqw;
+    top: 5cqw;
+  }
+
+  .f04l-eyebrow {
+    font-family: "Poppins", sans-serif;
+    font-weight: 600;
+    font-size: 1.7cqw;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #389734;
+  }
+
+  .f04l-table {
+    position: absolute;
+    left: 6cqw;
+    right: 6cqw;
+    top: 34cqh;
+    background: #FFFFFF;
+    border: 1.5px solid rgba(56, 151, 52, 0.2);
+    border-radius: 14px;
+    overflow: hidden;
+  }
+
+  .f04l-thead,
+  .f04l-row {
+    display: grid;
+    grid-template-columns: 1.1fr 1fr 1fr 1.2fr;
+    align-items: center;
+  }
+
+  .f04l-thead {
+    background: #2e7a2a;
+    padding: 1.15cqw 1.8cqw;
+    font-weight: 700;
+    font-size: 1.05cqw;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #FFFFFF;
+  }
+
+  .f04l-row {
+    background: #FFFFFF;
+    padding: 1.55cqw 1.8cqw;
+    font-weight: 500;
+    font-size: 1.45cqw;
+    color: #1F2937;
+    border-top: 1px solid #EEF1F0;
+  }
+
+  .f04l-cell-date { text-align: left; }
+
+  .f04l-cell-paid {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+  }
+
+  .f04l-cell-penalty {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .f04l-cell-penalty--zero { color: #9A9A9A; font-weight: 400; }
+  .f04l-cell-penalty--due { color: #dc2626; font-weight: 700; }
+
+  .f04l-cell-status { text-align: right; }
+
+  .f04l-chip {
+    display: inline-block;
+    padding: 0.55cqw 1.4cqw;
+    border-radius: 100px;
+    font-size: 1.05cqw;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+  }
+
+  .f04l-chip--green { background: #dcfce7; color: #15803d; }
+  .f04l-chip--amber { background: #fef3c7; color: #b45309; }
+
+  .f04l-sweep {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 20%;
+    left: 0;
+    opacity: 0;
+    background: linear-gradient(90deg, rgba(56, 151, 52, 0) 0%, rgba(56, 151, 52, 0.16) 50%, rgba(56, 151, 52, 0) 100%);
+    pointer-events: none;
+  }
+</style>
+
+<div data-hf-id="hf-jf1p" id="root" data-composition-id="04-module-ledger" data-width="1920" data-height="1080" data-duration="2.5">
+  <div data-hf-id="hf-j97p" class="f04l-bg clip" data-start="0" data-duration="2.5" data-track-index="0"></div>
+
+  <div data-hf-id="hf-8i80" class="f04l-content clip" data-start="0" data-duration="2.5" data-track-index="1">
+    <div data-hf-id="hf-8270" class="f04l-header">
+      <div data-hf-id="hf-8qdb" class="f04l-eyebrow">Loan Ledger</div>
+    </div>
+
+    <div data-hf-id="hf-m169" class="f04l-table">
+      <div data-hf-id="hf-89iv" class="f04l-thead">
+        <span data-hf-id="hf-k64d">Date</span>
+        <span data-hf-id="hf-a5vx" class="f04l-cell-paid">Paid</span>
+        <span data-hf-id="hf-6jot" class="f04l-cell-penalty">Penalty</span>
+        <span data-hf-id="hf-uoe5" class="f04l-cell-status">Status</span>
+      </div>
+      <div data-hf-id="hf-3s60" class="f04l-row" data-row="1">
+        <span data-hf-id="hf-4j2u" class="f04l-cell-date">Sep 12</span>
+        <span data-hf-id="hf-0abl" class="f04l-cell-paid">₱4,500</span>
+        <span data-hf-id="hf-92gp" class="f04l-cell-penalty f04l-cell-penalty--zero">—</span>
+        <span data-hf-id="hf-ifcb" class="f04l-cell-status"><span data-hf-id="hf-37xz" id="f04l-chip-1" class="f04l-chip f04l-chip--green">Validated</span></span>
+      </div>
+      <div data-hf-id="hf-cg1v" class="f04l-row" data-row="2">
+        <span data-hf-id="hf-b06z" class="f04l-cell-date">Aug 12</span>
+        <span data-hf-id="hf-fo0l" class="f04l-cell-paid">₱4,500</span>
+        <span data-hf-id="hf-e6xe" class="f04l-cell-penalty f04l-cell-penalty--due">₱150</span>
+        <span data-hf-id="hf-v7d7" class="f04l-cell-status"><span data-hf-id="hf-lxbh" id="f04l-chip-2" class="f04l-chip f04l-chip--amber">Partial</span></span>
+      </div>
+      <div data-hf-id="hf-vfg5" class="f04l-sweep"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var root = document.currentScript.parentElement;
+  var q = function (sel) { return root.querySelector(sel); };
+
+  var eyebrow = q(".f04l-eyebrow");
+  var table = q(".f04l-table");
+  var thead = q(".f04l-thead");
+  var row1 = root.querySelector('.f04l-row[data-row="1"]');
+  var row2 = root.querySelector('.f04l-row[data-row="2"]');
+  var chip1 = root.querySelector("#f04l-chip-1");
+  var chip2 = root.querySelector("#f04l-chip-2");
+  var penalty2 = row2.querySelector(".f04l-cell-penalty");
+  var sweep = q(".f04l-sweep");
+  var content = q(".f04l-content");
+
+  var tl = gsap.timeline({ paused: true });
+
+  // ---- Entrance: land clearly by t <= 0.5s ----
+  tl.fromTo(eyebrow, { x: -16, opacity: 0 }, { x: 0, opacity: 1, duration: 0.22, ease: "power2.out" }, 0.0);
+  tl.fromTo(table, { y: 22, opacity: 0, scale: 0.985 }, { y: 0, opacity: 1, scale: 1, duration: 0.26, ease: "power2.out" }, 0.05);
+  tl.fromTo(thead, { opacity: 0 }, { opacity: 1, duration: 0.16 }, 0.12);
+  tl.fromTo(row1, { x: -14, opacity: 0 }, { x: 0, opacity: 1, duration: 0.16, ease: "power2.out" }, 0.16);
+  tl.fromTo(chip1, { scale: 0.7, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.16, ease: "back.out(2.2)" }, 0.22);
+  tl.fromTo(row2, { x: -14, opacity: 0 }, { x: 0, opacity: 1, duration: 0.16, ease: "power2.out" }, 0.26);
+  tl.fromTo(penalty2, { opacity: 0 }, { opacity: 1, duration: 0.14 }, 0.30);
+  tl.fromTo(chip2, { scale: 0.7, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.16, ease: "back.out(2.2)" }, 0.32);
+
+  // ---- Hold (0.5s -> ~1.8s): quiet settle + slight parallax, restrained ----
+  tl.fromTo(content, { y: 0 }, { y: -5, duration: 1.25, ease: "sine.inOut" }, 0.55);
+  tl.fromTo(table, { scale: 1 }, { scale: 1.006, duration: 0.65, ease: "sine.inOut" }, 0.55);
+  tl.to(table, { scale: 1, duration: 0.65, ease: "sine.inOut" }, 1.2);
+  tl.fromTo(sweep, { xPercent: -125, opacity: 0 }, { xPercent: 575, opacity: 0.9, duration: 1.0, ease: "power1.inOut" }, 0.55);
+  tl.to(sweep, { opacity: 0, duration: 0.25 }, 1.55);
+
+  window.__timelines = window.__timelines || {};
+  window.__timelines["04-module-ledger"] = tl;
+  tl.seek(0);
+})();
+</script>
+</template>

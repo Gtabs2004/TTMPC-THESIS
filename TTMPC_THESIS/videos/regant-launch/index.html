@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=1920, height=1080">
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js" integrity="sha384-sG0Hv1tP1lZCk9KQmrIbY/XNwi+OY84GQqhMscbnsoBFqAz8KNCil1kvfL3Hbbk2" crossorigin="anonymous"></script>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        width: 1920px;
+        height: 1080px;
+        overflow: hidden;
+        background: #000;
+      }
+      #root {
+        position: relative;
+        width: 1920px;
+        height: 1080px;
+        overflow: hidden;
+        background: #FFFFFF;
+      }
+      .scene {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+      }
+    </style>
+  </head>
+  <body>
+    <div data-hf-id="hf-qbnw" id="root" data-composition-id="main" data-start="0" data-duration="60" data-width="1920" data-height="1080">
+      <div data-hf-id="hf-41m8" id="el-01-branding-open" class="scene" data-composition-id="01-branding-open" data-composition-src="compositions/frames/01-branding-open.html" data-start="0" data-duration="5.4" data-track-index="0"></div>
+
+      <div data-hf-id="hf-q1cp" id="el-02-admin-dashboard" class="scene" data-composition-id="02-admin-dashboard" data-composition-src="compositions/frames/02-admin-dashboard.html" data-start="5" data-duration="10.4" data-track-index="1"></div>
+
+      <div data-hf-id="hf-zqcu" id="el-03-module-members" class="scene" data-composition-id="03-module-members" data-composition-src="compositions/frames/03-module-members.html" data-start="15" data-duration="2.5" data-track-index="0"></div>
+
+      <div data-hf-id="hf-deho" id="el-04-module-ledger" class="scene" data-composition-id="04-module-ledger" data-composition-src="compositions/frames/04-module-ledger.html" data-start="17" data-duration="2.5" data-track-index="1"></div>
+
+      <div data-hf-id="hf-5uax" id="el-05-module-policies" class="scene" data-composition-id="05-module-policies" data-composition-src="compositions/frames/05-module-policies.html" data-start="19" data-duration="2.5" data-track-index="0"></div>
+
+      <div data-hf-id="hf-3uaq" id="el-06-module-cbu" class="scene" data-composition-id="06-module-cbu" data-composition-src="compositions/frames/06-module-cbu.html" data-start="21" data-duration="2.5" data-track-index="1"></div>
+
+      <div data-hf-id="hf-4upg" id="el-07-module-audit" class="scene" data-composition-id="07-module-audit" data-composition-src="compositions/frames/07-module-audit.html" data-start="23" data-duration="2.4" data-track-index="0"></div>
+
+      <div data-hf-id="hf-hplr" id="el-08-mobile-open-dashboard" class="scene" data-composition-id="08-mobile-open-dashboard" data-composition-src="compositions/frames/08-mobile-open-dashboard.html" data-start="25" data-duration="4.5" data-track-index="1"></div>
+
+      <div data-hf-id="hf-yk76" id="el-09-mobile-apply-submit" class="scene" data-composition-id="09-mobile-apply-submit" data-composition-src="compositions/frames/09-mobile-apply-submit.html" data-start="29" data-duration="5.5" data-track-index="0"></div>
+
+      <div data-hf-id="hf-ha02" id="el-10-mobile-status" class="scene" data-composition-id="10-mobile-status" data-composition-src="compositions/frames/10-mobile-status.html" data-start="34" data-duration="4.4" data-track-index="1"></div>
+
+      <div data-hf-id="hf-9suz" id="el-11-connected-system" class="scene" data-composition-id="11-connected-system" data-composition-src="compositions/frames/11-connected-system.html" data-start="38" data-duration="12.4" data-track-index="0"></div>
+
+      <div data-hf-id="hf-bf8w" id="el-12-final-ecosystem" class="scene" data-composition-id="12-final-ecosystem" data-composition-src="compositions/frames/12-final-ecosystem.html" data-start="50" data-duration="5.5" data-track-index="1"></div>
+
+      <div data-hf-id="hf-u3ze" id="el-13-brand-outro" class="scene" data-composition-id="13-brand-outro" data-composition-src="compositions/frames/13-brand-outro.html" data-start="55" data-duration="5" data-track-index="0"></div>
+
+      <!-- SFX -->
+      <audio data-hf-id="hf-lj7z" id="el-sfx-0" src="assets/sfx/whoosh-cinematic.mp3" data-start="0" data-duration="5.54" data-track-index="20" data-volume="0.35"></audio>
+      <audio data-hf-id="hf-pubm" id="el-sfx-1" src="assets/sfx/click.mp3" data-start="5" data-duration="0.37" data-track-index="21" data-volume="0.35"></audio>
+      <audio data-hf-id="hf-0w77" id="el-sfx-2" src="assets/sfx/notification.mp3" data-start="5" data-duration="2.46" data-track-index="22" data-volume="0.35"></audio>
+      <audio data-hf-id="hf-0n3k" id="el-sfx-3" src="assets/sfx/whoosh-short.mp3" data-start="17" data-duration="0.57" data-track-index="23" data-volume="0.35"></audio>
+      <audio data-hf-id="hf-9lrf" id="el-sfx-4" src="assets/sfx/whoosh-short.mp3" data-start="21" data-duration="0.57" data-track-index="24" data-volume="0.35"></audio>
+      <audio data-hf-id="hf-evdg" id="el-sfx-5" src="assets/sfx/pop.mp3" data-start="25" data-duration="0.72" data-track-index="25" data-volume="0.35"></audio>
+      <audio data-hf-id="hf-uvxj" id="el-sfx-6" src="assets/sfx/click-soft.mp3" data-start="29" data-duration="0.37" data-track-index="26" data-volume="0.35"></audio>
+      <audio data-hf-id="hf-3itx" id="el-sfx-7" src="assets/sfx/chime.mp3" data-start="29" data-duration="2.5" data-track-index="27" data-volume="0.35"></audio>
+      <audio data-hf-id="hf-0fhl" id="el-sfx-8" src="assets/sfx/whoosh-short.mp3" data-start="38" data-duration="0.57" data-track-index="28" data-volume="0.35"></audio>
+      <audio data-hf-id="hf-x42m" id="el-sfx-9" src="assets/sfx/click.mp3" data-start="38" data-duration="0.37" data-track-index="29" data-volume="0.35"></audio>
+      <audio data-hf-id="hf-cyb1" id="el-sfx-10" src="assets/sfx/notification.mp3" data-start="38" data-duration="2.46" data-track-index="30" data-volume="0.35"></audio>
+      <audio data-hf-id="hf-id34" id="el-sfx-11" src="assets/sfx/chime.mp3" data-start="55" data-duration="2.5" data-track-index="31" data-volume="0.35"></audio>
+    </div>
+
+    <script>
+      window.__timelines = window.__timelines || {};
+      window.__timelines["main"] = gsap.timeline({ paused: true });
+      // ── frame transitions (injected by transitions.mjs) ──
+      (function () { var tl = window.__timelines["main"];
+        tl.to("#el-01-branding-open", { scale: 2.5, opacity: 0, filter: "blur(8px)", duration: 0.4, ease: "power3.in" }, 5);
+        tl.fromTo("#el-02-admin-dashboard", { scale: 0.5, opacity: 0, filter: "blur(8px)" }, { scale: 1, opacity: 1, filter: "blur(0px)", duration: 0.4, ease: "power3.out" }, 5);
+        tl.to("#el-02-admin-dashboard", { scale: 2.5, opacity: 0, filter: "blur(8px)", duration: 0.4, ease: "power3.in" }, 15);
+        tl.fromTo("#el-03-module-members", { scale: 0.5, opacity: 0, filter: "blur(8px)" }, { scale: 1, opacity: 1, filter: "blur(0px)", duration: 0.4, ease: "power3.out" }, 15);
+        tl.to("#el-03-module-members", { x: -1920, duration: 0.5, ease: "power3.inOut" }, 17);
+        tl.fromTo("#el-04-module-ledger", { x: 1920, opacity: 1 }, { x: 0, opacity: 1, duration: 0.5, ease: "power3.inOut" }, 17);
+        tl.to("#el-04-module-ledger", { x: -1920, duration: 0.5, ease: "power3.inOut" }, 19);
+        tl.fromTo("#el-05-module-policies", { x: 1920, opacity: 1 }, { x: 0, opacity: 1, duration: 0.5, ease: "power3.inOut" }, 19);
+        tl.to("#el-05-module-policies", { x: -1920, duration: 0.5, ease: "power3.inOut" }, 21);
+        tl.fromTo("#el-06-module-cbu", { x: 1920, opacity: 1 }, { x: 0, opacity: 1, duration: 0.5, ease: "power3.inOut" }, 21);
+        tl.to("#el-06-module-cbu", { x: -1920, duration: 0.5, ease: "power3.inOut" }, 23);
+        tl.fromTo("#el-07-module-audit", { x: 1920, opacity: 1 }, { x: 0, opacity: 1, duration: 0.5, ease: "power3.inOut" }, 23);
+        tl.to("#el-07-module-audit", { scale: 2.5, opacity: 0, filter: "blur(8px)", duration: 0.4, ease: "power3.in" }, 25);
+        tl.fromTo("#el-08-mobile-open-dashboard", { scale: 0.5, opacity: 0, filter: "blur(8px)" }, { scale: 1, opacity: 1, filter: "blur(0px)", duration: 0.4, ease: "power3.out" }, 25);
+        tl.to("#el-08-mobile-open-dashboard", { y: -1080, duration: 0.5, ease: "power3.inOut" }, 29);
+        tl.fromTo("#el-09-mobile-apply-submit", { y: 1080, opacity: 1 }, { y: 0, opacity: 1, duration: 0.5, ease: "power3.inOut" }, 29);
+        tl.to("#el-09-mobile-apply-submit", { y: -1080, duration: 0.5, ease: "power3.inOut" }, 34);
+        tl.fromTo("#el-10-mobile-status", { y: 1080, opacity: 1 }, { y: 0, opacity: 1, duration: 0.5, ease: "power3.inOut" }, 34);
+        tl.to("#el-10-mobile-status", { scale: 2.5, opacity: 0, filter: "blur(8px)", duration: 0.4, ease: "power3.in" }, 38);
+        tl.fromTo("#el-11-connected-system", { scale: 0.5, opacity: 0, filter: "blur(8px)" }, { scale: 1, opacity: 1, filter: "blur(0px)", duration: 0.4, ease: "power3.out" }, 38);
+        tl.to("#el-11-connected-system", { scale: 2.5, opacity: 0, filter: "blur(8px)", duration: 0.4, ease: "power3.in" }, 50);
+        tl.fromTo("#el-12-final-ecosystem", { scale: 0.5, opacity: 0, filter: "blur(8px)" }, { scale: 1, opacity: 1, filter: "blur(0px)", duration: 0.4, ease: "power3.out" }, 50);
+        tl.to("#el-12-final-ecosystem", { opacity: 0, duration: 0.5, ease: "power2.inOut" }, 55);
+        tl.fromTo("#el-13-brand-outro", { opacity: 0 }, { opacity: 1, duration: 0.5, ease: "power2.inOut" }, 55);
+        tl.to({}, { duration: 60 }, 0); // full-span anchor — main.duration() == composition total (Studio master duration)
+      })();
+    </script>
+  </body>
+</html>
