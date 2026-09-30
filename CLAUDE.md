@@ -102,7 +102,8 @@ One login per person: `member_account.role` picks the staff portal; the member p
 - **Frontend:** `src/BOD/Components/Account_Management.jsx` (route `/bod-account-management`) — listed in every BOD sidebar, but only the BOD with `member_account.can_manage_accounts` can use it (page checks via `utils/useAccountAdmin.js`; backend enforces).
 - **Backend:** "Account Management" section of `main.py` (`/api/admin/accounts/*`), all behind `_require_account_admin`. Termination settlement rule lives only in `compute_cbu_payout()` (`CBU_PAYOUT_OFFSETS_LOANS`). Terminating bans the Supabase auth user — `is_active` alone is not checked at sign-in.
 - Secretary Membership Records are view-only; staff with a temporary email/password get `AccountSetupGate` via `RequireRole`.
-- Full spec + Part B (Cashier CBU payout) in `ACCOUNT_MANAGEMENT_TERMINATION_PLAN.md`. Migration: `src/server/account_management_part_a.sql`.
+- Termination settlement (Part B): CBU pays loans first via `_apply_cbu_loan_offset` (system payments run through `approve_bookkeeper_payment`); if CBU < loans the member either stays or becomes `exiting` (no new loans; auto-terminates when the balance hits ₱0). Cashier pays the rest out at `/Cashier_CBU_Payout` (`/api/cashier/cbu-payouts`, table `cbu_payouts`); CBU at ₱0 → member `closed`. Member statuses: active / exiting / terminated / closed. On Closed, `_close_member()` (Part C) records a `member_closures` row, clears personal contact fields (keeps name, membership ID, date of birth, all financial history), replaces the account email with `closed-<id>@ttmpc.local`, and deletes the Supabase auth user so the email can be reused. The `auth.users` delete trigger only cleans up applicants who never became members.
+- Full spec in `ACCOUNT_MANAGEMENT_TERMINATION_PLAN.md`. Migrations, in order: `src/server/account_management_part_a.sql`, `account_management_part_b.sql`, `account_management_part_c.sql`.
 
 ### Email Notifications
 Sent via Resend API through FastAPI endpoints (`/api/send-status-email`, `/api/loans/notifications/dispatch`, `/api/loans/notifications/member`, `/api/loans/email/dispatch`). Templates in `src/server/services/loan_email_templates.py`.
@@ -110,6 +111,7 @@ Sent via Resend API through FastAPI endpoints (`/api/send-status-email`, `/api/l
 ### Database Schema
 SQL schema files live in `src/server/*.sql`. Key triggers:
 - CBU auto-sync from loan disbursements (`cbu_sync_from_loan_disbursement_include_emergency.sql` is the current version)
+- `recompute_member_shares()` keeps `member.share_capital_amount` / `number_of_shares` = latest *real* CBU balance (`cbu_share_sync_fix_future_dated.sql`). Any "latest CBU row" lookup must skip the future-dated Dec-31 import placeholder and tie-break on `cbu_deposit_id`'s numeric suffix. The coop's total CBU (dashboards + Bookkeeper Reports) is `_total_member_cbu()` = sum of `member.share_capital_amount`.
 - Audit trail for all member/loan modifications
 
 Migration scripts are in `src/server/migration/` — these are one-off data migration utilities, not part of normal app operation.

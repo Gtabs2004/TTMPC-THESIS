@@ -5287,7 +5287,7 @@ async def get_loan_eligibility(
         if member_row:
             raw_status = str(member_row.get("member_status") or "").strip().lower()
             is_active = member_row.get("is_active")
-            if raw_status in {"inactive", "suspended", "terminated"} or is_active is False:
+            if raw_status in {"inactive", "suspended", "terminated", "exiting", "closed"} or is_active is False:
                 raise HTTPException(
                     status_code=403,
                     detail=f"Member account is {raw_status or 'deactivated'} and is not eligible to apply for loans.",
@@ -5521,7 +5521,7 @@ def create_renewal_override_request(
 
     member_row = resolve_member_by_ref(member_id) or {}
     raw_status = str(member_row.get("member_status") or "").strip().lower()
-    if raw_status in {"inactive", "suspended", "terminated"} or member_row.get("is_active") is False:
+    if raw_status in {"inactive", "suspended", "terminated", "exiting", "closed"} or member_row.get("is_active") is False:
         raise HTTPException(
             status_code=403,
             detail=f"Member account is {raw_status or 'deactivated'} and is not eligible to apply for loans.",
@@ -6642,49 +6642,26 @@ async def get_bookkeeper_dashboard_summary():
 
 
 def _compute_total_share_capital() -> float:
-    """Sum of paid_up_capital across members — same figure the dashboard's
-    fetchShareCapital() derives from /api/secretary/membership-records, but
-    computed directly against `member` + latest-per-member `capital_build_up`
-    without also reading personal_data_sheet (the dashboard never needed the
-    PDS-only applicant rows; those exist for the Membership Records page).
+    """The cooperative's total CBU: every member's current running CBU
+    balance (member.share_capital_amount, kept in sync with capital_build_up
+    by recompute_member_shares() -- see cbu_share_sync_fix_future_dated.sql,
+    which stops the year-end import placeholder from freezing it).
+
+    Deposits add to it; loan CBU offsets and termination payouts subtract
+    from it. (It used to sum initial_paid_up_capital -- each member's one-time
+    joining amount -- which never moved.)
     """
-    members_resp = (
+    return decimal_to_float(_total_member_cbu())
+
+
+def _total_member_cbu() -> Decimal:
+    rows = (
         supabase.table("member")
-        .select("id,share_capital_amount,initial_paid_up_capital")
+        .select("share_capital_amount")
+        .range(0, 9999)
         .execute()
-    )
-    member_rows = members_resp.data or []
-
-    # capital_build_up is indexed on (member_id, transaction_date DESC), so
-    # ordering + taking the first row per member is index-backed, not a
-    # sequential scan.
-    cbu_resp = (
-        supabase.table("capital_build_up")
-        .select("member_id,ending_share_capital,transaction_date")
-        .order("transaction_date", desc=True)
-        .limit(5000)
-        .execute()
-    )
-    latest_cbu_by_member: dict[str, Decimal] = {}
-    for row in cbu_resp.data or []:
-        member_id = str(row.get("member_id") or "").strip()
-        if member_id and member_id not in latest_cbu_by_member:
-            latest_cbu_by_member[member_id] = Decimal(str(row.get("ending_share_capital") or 0))
-
-    total = Decimal("0")
-    for row in member_rows:
-        member_id = str(row.get("id") or "").strip()
-        amount_value = row.get("share_capital_amount")
-        if amount_value is None:
-            amount_value = latest_cbu_by_member.get(member_id, Decimal("0"))
-        else:
-            amount_value = Decimal(str(amount_value))
-
-        paid_up_value = row.get("initial_paid_up_capital")
-        paid_up_value = Decimal(str(paid_up_value)) if paid_up_value is not None else amount_value
-        total += paid_up_value
-
-    return decimal_to_float(total)
+    ).data or []
+    return money(sum((Decimal(str(r.get("share_capital_amount") or 0)) for r in rows), Decimal("0")))
 
 
 def _fetch_recent_activity(limit: int = 8) -> list[dict]:
@@ -7149,7 +7126,7 @@ async def get_bod_terminated_members():
         response = (
             supabase.table("member")
             .select("membership_id,termination_date,termination_resolution_number")
-            .eq("member_status", "terminated")
+            .in_("member_status", ["terminated", "closed"])
             .execute()
         )
         rows = response.data or []
@@ -11043,13 +11020,14 @@ async def get_secretary_membership_record_details(member_ref: str):
             "edit_scope": "member" if member_row else "personal_data_sheet",
         }
 
-        if details["member_status"] == "terminated" and membership_number:
+        if details["member_status"] in ("terminated", "closed", "exiting") and membership_number:
             try:
                 history = (
                     supabase.table("staff_termination_requests")
                     .select("reason,notes,requested_at")
                     .eq("member_id", membership_number)
-                    .eq("status", "approved")
+                    # 'awaiting_bod_confirmation' = an exiting member's pending row.
+                    .in_("status", ["approved", "awaiting_bod_confirmation"])
                     .order("requested_at", desc=True)
                     .limit(1)
                     .execute()
@@ -11057,6 +11035,28 @@ async def get_secretary_membership_record_details(member_ref: str):
                 if history:
                     details["termination_reason"] = history[0].get("reason") or ""
                     details["termination_notes"] = history[0].get("notes") or ""
+            except Exception:
+                pass
+            # CBU settlement position (Part B): offsets/payouts so far, and what
+            # the Cashier still owes the member (their live CBU balance).
+            try:
+                moves = (
+                    supabase.table("cbu_payouts")
+                    .select("kind,amount")
+                    .eq("membership_id", membership_number)
+                    .execute()
+                ).data or []
+                details["cbu_applied_to_loans"] = decimal_to_float(sum(
+                    (Decimal(str(m.get("amount") or 0)) for m in moves if m.get("kind") == "loan_offset"), Decimal("0")
+                ))
+                details["cbu_paid_out"] = decimal_to_float(sum(
+                    (Decimal(str(m.get("amount") or 0)) for m in moves if m.get("kind") == "payout"), Decimal("0")
+                ))
+                details["cbu_remaining"] = (
+                    decimal_to_float(max(_member_cbu_balance(member_uuid), Decimal("0")))
+                    if details["member_status"] == "terminated" and member_uuid
+                    else 0.0
+                )
             except Exception:
                 pass
 
@@ -11499,6 +11499,10 @@ async def approve_bookkeeper_payment(
         # ("System"); attribute it to the Bookkeeper who validated the payment.
         if current_user:
             _correct_audit_actor("loan", loan_id, current_user)
+
+        # An exiting member leaves automatically once nothing is owed (plan §8).
+        if loan_status_update == "fully paid":
+            await _complete_exit_if_settled(loan_id)
 
         return {
             "success": True,
@@ -14572,6 +14576,22 @@ async def backfill_member_auth(dry_run: bool = False, limit: int | None = None):
         raise HTTPException(status_code=500, detail=f"Failed to query member_account: {err}")
 
     candidates = list(missing_response.data or [])
+    # Never (re)create a login for a member who is exiting, terminated or
+    # closed -- a closed member's login was removed on purpose (Part C).
+    try:
+        leaving = {
+            r["membership_id"]
+            for r in (
+                supabase.table("member")
+                .select("membership_id")
+                .in_("member_status", ["exiting", "terminated", "closed"])
+                .execute()
+            ).data or []
+            if r.get("membership_id")
+        }
+    except Exception:
+        leaving = set()
+    candidates = [c for c in candidates if str(c.get("membership_id") or "").strip() not in leaving]
     if isinstance(limit, int) and limit > 0:
         candidates = candidates[:limit]
 
@@ -15085,6 +15105,8 @@ class TerminateMemberRequest(BaseModel):
     reason: str
     effective_date: str | None = None
     notes: str | None = None
+    # Only when CBU < loans owed (plan §8): "stay" | "exit_when_paid".
+    option: str | None = None
 
 
 _ACCOUNT_COLS = (
@@ -15156,8 +15178,134 @@ def _member_or_404(membership_id: str) -> dict:
     return rows[0]
 
 
-def _is_terminated(member: dict) -> bool:
-    return _norm_role(member.get("member_status")) == "terminated"
+def _member_status(member: dict) -> str:
+    return _norm_role(member.get("member_status")) or "active"
+
+
+def _is_leaving(member: dict) -> bool:
+    """Exiting, terminated or closed -- no new staff role, no new termination."""
+    return _member_status(member) in ("exiting", "terminated", "closed")
+
+
+# Marks the staff_termination_requests row of an 'exiting' member (plan §8,
+# Option 2), so the automatic completion can find and close it.
+EXITING_NOTE = "Exiting — CBU applied to loans; leaves when the remaining balance is paid."
+
+
+def _cbu_withdraw(member_uuid: str, amount: Decimal, deposit_account: str, current_user: dict | None) -> dict:
+    """Append a withdrawal line to the member's capital_build_up running
+    balance (capital_added < 0). Same rules as the Cashier's CRJ deposit:
+    date-only transaction_date, starting balance from the latest real row,
+    cbu_deposit_id left to set_cbu_deposit_id()."""
+    balance = _member_cbu_balance(member_uuid)
+    row = (supabase.table("capital_build_up").insert({
+        "member_id": member_uuid,
+        "transaction_date": date.today().isoformat(),
+        "starting_share_capital": decimal_to_float(money(balance)),
+        "capital_added": decimal_to_float(-money(amount)),
+        "ending_share_capital": decimal_to_float(money(balance - amount)),
+        "deposit_account": deposit_account,
+    }).execute().data or [None])[0] or {}
+    if current_user and row.get("cbu_deposit_id"):
+        _correct_audit_actor("cbu", row["cbu_deposit_id"], current_user)
+    return row
+
+
+async def _apply_cbu_loan_offset(member: dict, settlement: dict, current_user: dict) -> None:
+    """Pay the member's loans from their CBU (plan §8): one 'system' loan
+    payment per loan, validated through the same approval logic as every
+    other payment (penalty first, schedule closed, loan status updated), one
+    CBU withdrawal line for the total, and a cbu_payouts 'loan_offset' row per
+    loan. No cash moves."""
+    applied_rows = [d for d in settlement.get("deductions") or [] if Decimal(str(d.get("applied") or 0)) > 0]
+    if not applied_rows:
+        return
+
+    # Loan payments first, the CBU withdrawal line last and only for what was
+    # actually recorded -- so a failure part-way never takes CBU for a loan
+    # that didn't get the payment.
+    recorded: list[tuple[dict, str, Decimal]] = []
+    for d in applied_rows:
+        loan_id = str(d["control_number"])
+        applied = money(Decimal(str(d["applied"])))
+        schedules = (
+            supabase.table("loan_schedules")
+            .select("id,due_date,schedule_status")
+            .eq("loan_id", loan_id)
+            .order("due_date")
+            .execute()
+        ).data or []
+        open_schedule = next(
+            (s for s in schedules if _norm_role(s.get("schedule_status")) in {"unpaid", "pending", "overdue", "partially_paid", ""}),
+            schedules[-1] if schedules else None,
+        )
+        if not open_schedule:
+            logger.warning("CBU offset skipped for loan %s: no schedule on record", loan_id)
+            continue
+
+        reference = f"TTMPCCBU-{uuid4().hex[:10].upper()}"
+        d = {**d, "_reference": reference}
+        supabase.table("loan_payments").insert({
+            "loan_id": loan_id,
+            "schedule_id": open_schedule["id"],
+            "amount_paid": decimal_to_float(applied),
+            "payment_date": datetime.utcnow().isoformat(),
+            "penalties": decimal_to_float(money(Decimal(str(d.get("accrued_penalty") or 0)))),
+            "deficiency": 0,
+            "confirmation_status": "pending_bookkeeper",
+            "entered_by_role": "system",
+            "payment_reference": reference,
+            "transaction_reference": reference,
+        }).execute()
+        recorded.append((d, loan_id, applied))
+        try:
+            await approve_bookkeeper_payment(
+                reference,
+                BookkeeperPaymentDecisionRequest(
+                    validated_by=current_user["id"],
+                    notes="CBU offset — membership termination",
+                ),
+                current_user,
+            )
+        except Exception as exc:
+            # The payment stays pending for the Bookkeeper to validate by hand;
+            # the CBU is still committed to it.
+            logger.warning("CBU offset payment %s for loan %s left pending: %s", reference, loan_id, exc)
+            continue
+
+        # The approval computes the balance from loan_payments only, so a
+        # legacy loan (payments in loan_payments_legacy) would look unpaid.
+        # When the CBU covered this loan in full, close it outright.
+        if applied >= money(Decimal(str(d.get("owed") or 0))):
+            supabase.table("loans").update(
+                {"loan_status": "fully paid", "application_status": "fully paid"}
+            ).eq("control_number", loan_id).execute()
+            for s in schedules:
+                if _norm_role(s.get("schedule_status")) not in {"paid", "completed", "closed"}:
+                    supabase.table("loan_schedules").update({"schedule_status": "Paid"}).eq("id", s["id"]).execute()
+            # A schedule the approval may have opened for the next installment.
+            supabase.table("loan_schedules").update({"schedule_status": "Paid"}).eq("loan_id", loan_id).in_(
+                "schedule_status", ["Unpaid", "unpaid", "pending", "overdue"]
+            ).execute()
+
+    if not recorded:
+        return
+    total_applied = money(sum((applied for _, _, applied in recorded), Decimal("0")))
+    cbu_row = _cbu_withdraw(member["id"], total_applied, "TERMINATION_LOAN_OFFSET", current_user)
+    for d, loan_id, applied in recorded:
+        supabase.table("cbu_payouts").insert({
+            "membership_id": member["membership_id"],
+            "member_id": member["id"],
+            "kind": "loan_offset",
+            "amount": decimal_to_float(applied),
+            "payout_date": date.today().isoformat(),
+            "loan_id": loan_id,
+            "loan_payment_id": d.get("_reference"),
+            "deductions": [{k: v for k, v in d.items() if not k.startswith("_")}],
+            "cbu_row_id": cbu_row.get("id"),
+            "recorded_by": current_user["id"],
+            "recorded_by_email": current_user.get("email"),
+        }).execute()
 
 
 def _set_sign_in_blocked(auth_user_id: str | None, blocked: bool) -> None:
@@ -15355,7 +15503,7 @@ def accounts_member_search(q: str = "", current_user: dict = _Depends(_get_curre
         .limit(20)
         .execute()
     ).data or []
-    members = [m for m in members if m.get("membership_id") and not _is_terminated(m)]
+    members = [m for m in members if m.get("membership_id") and not _is_leaving(m)]
     ids = [m["membership_id"] for m in members]
     accounts = {
         a["membership_id"]: a
@@ -15392,8 +15540,8 @@ def accounts_set_role(payload: AccountRoleRequest, current_user: dict = _Depends
 
     membership_id = str(payload.membership_id or "").strip()
     member = _member_or_404(membership_id)
-    if _is_terminated(member):
-        raise HTTPException(status_code=400, detail="This member is terminated.")
+    if _is_leaving(member):
+        raise HTTPException(status_code=400, detail=f"This member is {_member_status(member)}.")
     account = _account_for_member(membership_id)
     if not account:
         raise HTTPException(status_code=404, detail="This member has no account record.")
@@ -15488,8 +15636,8 @@ async def accounts_terminate_preview(membership_id: str, current_user: dict = _D
         raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
     _require_account_admin(current_user)
     member = _member_or_404(membership_id)
-    if _is_terminated(member):
-        raise HTTPException(status_code=400, detail="This member is already terminated.")
+    if _is_leaving(member):
+        raise HTTPException(status_code=400, detail=f"This member is already {_member_status(member)}.")
     return {"success": True, "data": await compute_cbu_payout(membership_id)}
 
 
@@ -15518,18 +15666,137 @@ def _generate_termination_resolution_no() -> str:
         return f"{prefix}{datetime.utcnow().strftime('%m%d%H%M%S')}"
 
 
+def _finalize_termination(
+    *,
+    member: dict,
+    account: dict,
+    reason: str,
+    notes: str | None,
+    effective_iso: str,
+    cbu_total: Decimal,
+    refundable: Decimal,
+    actor_id: str | None,
+    current_user: dict | None,
+    history_row_id: Any = None,
+) -> str:
+    """Stamp the member terminated (or closed when there is nothing left to
+    pay out), lock every way in, write the history row, notify. Returns the
+    resolution number. Shared by the direct termination and the automatic
+    completion of an exiting member (plan §8)."""
+    membership_id = member.get("membership_id")
+    resolution_no = _generate_termination_resolution_no()
+    today_iso = date.today().isoformat()
+    status = "terminated" if refundable > 0 else "closed"
+
+    # 1) The member record. member_status is the authoritative flag.
+    supabase.table("member").update({
+        "member_status": status,
+        "termination_date": effective_iso,
+        "termination_resolution_number": resolution_no,
+        "termination_cbu_total": decimal_to_float(money(cbu_total)),
+    }).eq("membership_id", membership_id).execute()
+
+    # 2) Lock every way in: back to Member (no staff portal), no admin flag,
+    #    inactive, and banned in Supabase Auth so sign-in actually fails.
+    if account:
+        try:
+            lock = {"role": "Member", "is_active": False}
+            if account.get("can_manage_accounts"):
+                lock["can_manage_accounts"] = False
+            supabase.table("member_account").update(lock).eq("membership_id", membership_id).execute()
+            if current_user:
+                _correct_audit_actor("account", membership_id, current_user)
+        except Exception as exc:
+            logger.warning("Could not lock account for %s: %s", membership_id, exc)
+        _set_sign_in_blocked(account.get("auth_user_id"), True)
+
+    # 3) History (reason/notes live here) -- shown to the Secretary.
+    history = {
+        "resolution_no": resolution_no,
+        "resolution_date": today_iso,
+        "effective_date": effective_iso,
+        "status": "approved",
+        "decided_by": actor_id,
+        "decided_at": datetime.utcnow().isoformat(),
+    }
+    try:
+        if history_row_id is not None:
+            supabase.table("staff_termination_requests").update({
+                **history,
+                "decision_notes": "Remaining loan balance reached ₱0 — termination completed.",
+            }).eq("id", history_row_id).execute()
+            row_id = history_row_id
+        else:
+            created = (supabase.table("staff_termination_requests").insert({
+                **history,
+                "member_id": membership_id,
+                "member_account_id": account.get("user_id"),
+                "previous_role": account.get("role"),
+                "reason": reason,
+                "notes": notes,
+                "requested_by": actor_id,
+                "requested_by_role": "bod",
+                "decision_notes": "BOD-initiated termination.",
+            }).execute().data or [None])[0]
+            row_id = (created or {}).get("id")
+        if current_user and row_id is not None:
+            _correct_audit_actor("termination", str(row_id), current_user)
+    except Exception as exc:
+        logger.warning("Termination history row failed for %s: %s", membership_id, exc)
+
+    # 4) Tell the Secretary (records) and, when CBU is still owed to the
+    #    member, the Cashier (payout). The bell reads title/message/redirect_url.
+    who = f"{resolve_member_full_name(member)} ({membership_id})"
+    notices = [(
+        "secretary",
+        "Member terminated",
+        f"{who} was terminated (resolution {resolution_no}, effective {effective_iso}).",
+        "/Secretary_Records",
+    )]
+    if refundable > 0:
+        notices.append((
+            "cashier",
+            "Member terminated — CBU payout pending",
+            f"{who} was terminated. CBU to pay out: ₱{money(refundable):,.2f}.",
+            "/Cashier_CBU_Payout",
+        ))
+    for recipient, title, message, redirect_url in notices:
+        try:
+            supabase.table("loan_notifications").insert({
+                "recipient_role": recipient,
+                "title": title,
+                "message": message,
+                "notification_type": "member_terminated",
+                "severity": "warning",
+                "redirect_url": redirect_url,
+                "is_read": False,
+                "created_by": actor_id,
+            }).execute()
+        except Exception as exc:
+            logger.warning("Termination notification to %s failed: %s", recipient, exc)
+
+    # Nothing left to pay out -> Closed now: remove the login, clear personal
+    # data (Part C). Never raises.
+    if status == "closed":
+        _close_member(membership_id, actor_id)
+
+    return resolution_no
+
+
 @app.post("/api/admin/accounts/terminate")
 async def accounts_terminate_member(payload: TerminateMemberRequest, current_user: dict = _Depends(_get_current_user)):
-    """BOD account admin terminates a member.
+    """BOD account admin terminates a member (plan §8).
 
-    Only when the member owes nothing: the CBU loan settlement (plan §8 --
-    CBU pays the loans, or the member stays / exits once paid) arrives with
-    Part B. Until then a member with unpaid loans can't be terminated.
+    CBU >= remaining loans (incl. penalties): the CBU pays the loans (CBU
+    offset), the member is terminated, and the Cashier pays out the rest --
+    or the member is Closed straight away when nothing is left.
 
-    Side effects: member stamped terminated (+ resolution no., CBU balance
-    saved for the Cashier's payout); login locked (role back to Member, admin
-    flag cleared, is_active false, Supabase Auth ban); history row in
-    staff_termination_requests; Cashier + Secretary notified.
+    CBU < remaining loans: the member can't leave yet. `option` records what
+    they chose:
+      "stay"             -- nothing changes; kept in the history as withdrawn.
+      "exit_when_paid"   -- CBU is applied to the loans now; the member becomes
+                            'exiting' (no new loans) and the termination
+                            completes automatically when the balance is ₱0.
     """
     if supabase is None:
         raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
@@ -15540,8 +15807,11 @@ async def accounts_terminate_member(payload: TerminateMemberRequest, current_use
         raise HTTPException(status_code=400, detail="Enter a reason for the termination.")
     membership_id = str(payload.membership_id or "").strip()
     member = _member_or_404(membership_id)
-    if _is_terminated(member):
-        raise HTTPException(status_code=400, detail="This member is already terminated.")
+    if _is_leaving(member):
+        raise HTTPException(
+            status_code=400,
+            detail=f"This member is already {_member_status(member)}.",
+        )
 
     account = _account_for_member(membership_id) or {}
     if account.get("auth_user_id") and account.get("auth_user_id") == current_user["id"]:
@@ -15549,150 +15819,207 @@ async def accounts_terminate_member(payload: TerminateMemberRequest, current_use
     if account.get("can_manage_accounts") and _account_admin_count() <= 1:
         raise HTTPException(status_code=400, detail="This member is the last account administrator.")
 
+    notes = (payload.notes or "").strip() or None
+    effective_iso = payload.effective_date or date.today().isoformat()
     settlement = await compute_cbu_payout(membership_id)
-    if settlement["loans_owed"] > 0:
-        raise HTTPException(
-            status_code=409,
-            detail=(
-                f"{settlement['member_name']} still owes ₱{settlement['loans_owed']:,.2f} in unpaid loans "
-                "(including penalties). Terminating a member with unpaid loans isn't available yet — "
-                "the loans need to be settled first."
-            ),
-        )
+    total_cbu = Decimal(str(settlement["total_cbu"]))
+    shortfall = Decimal(str(settlement["shortfall"]))
 
-    resolution_no = _generate_termination_resolution_no()
-    today_iso = date.today().isoformat()
-    effective_iso = payload.effective_date or today_iso
+    if shortfall > 0:
+        option = str(payload.option or "").strip().lower()
+        if option not in ("stay", "exit_when_paid"):
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    f"{settlement['member_name']}'s CBU (₱{total_cbu:,.2f}) doesn't cover their loans "
+                    f"(₱{Decimal(str(settlement['loans_owed'])):,.2f}). Choose whether they stay or use "
+                    "their CBU now and leave once the rest is paid."
+                ),
+            )
 
-    # 1) The member record. member_status is the authoritative flag.
-    member_update = {
-        "member_status": "terminated",
-        "termination_date": effective_iso,
-        "termination_resolution_number": resolution_no,
-        "termination_cbu_total": settlement["total_cbu"],
-    }
-    try:
-        supabase.table("member").update(member_update).eq("membership_id", membership_id).execute()
-    except Exception as err:
-        raise HTTPException(status_code=500, detail=f"Failed to update member: {err}")
+        if option == "stay":
+            try:
+                created = (supabase.table("staff_termination_requests").insert({
+                    "member_id": membership_id,
+                    "member_account_id": account.get("user_id"),
+                    "previous_role": account.get("role"),
+                    "effective_date": effective_iso,
+                    "reason": reason,
+                    "notes": notes,
+                    "status": "rejected",
+                    "requested_by": current_user["id"],
+                    "requested_by_role": "bod",
+                    "decided_by": current_user["id"],
+                    "decision_notes": (
+                        f"Withdrawn — member chose to stay. CBU ₱{total_cbu:,.2f} did not cover "
+                        f"loans of ₱{Decimal(str(settlement['loans_owed'])):,.2f}."
+                    ),
+                    "decided_at": datetime.utcnow().isoformat(),
+                }).execute().data or [None])[0]
+                if created and created.get("id") is not None:
+                    _correct_audit_actor("termination", str(created["id"]), current_user)
+            except Exception as exc:
+                logger.warning("Termination history row failed for %s: %s", membership_id, exc)
+            return {"success": True, "membership_id": membership_id, "outcome": "stayed", "settlement": settlement}
 
-    # 2) Lock every way in: back to Member (no staff portal), no admin flag,
-    #    inactive, and banned in Supabase Auth so sign-in actually fails.
-    if account:
+        # exit_when_paid: CBU goes to the loans now, the member leaves at ₱0.
+        await _apply_cbu_loan_offset(member, settlement, current_user)
+        supabase.table("member").update({
+            "member_status": "exiting",
+            "termination_cbu_total": decimal_to_float(money(total_cbu)),
+        }).eq("membership_id", membership_id).execute()
         try:
-            lock = {"role": "Member", "is_active": False}
-            if account.get("can_manage_accounts"):
-                lock["can_manage_accounts"] = False
-            supabase.table("member_account").update(lock).eq("membership_id", membership_id).execute()
-            _correct_audit_actor("account", membership_id, current_user)
-        except Exception as exc:
-            logger.warning("Could not lock account for %s: %s", membership_id, exc)
-        _set_sign_in_blocked(account.get("auth_user_id"), True)
-
-    # 3) History (reason/notes live here) -- shown to the Secretary.
-    created_row = None
-    try:
-        now_iso = datetime.utcnow().isoformat()
-        created_row = ((
-            supabase.table("staff_termination_requests").insert({
+            created = (supabase.table("staff_termination_requests").insert({
                 "member_id": membership_id,
                 "member_account_id": account.get("user_id"),
                 "previous_role": account.get("role"),
-                "resolution_no": resolution_no,
-                "resolution_date": today_iso,
                 "effective_date": effective_iso,
                 "reason": reason,
-                "notes": (payload.notes or "").strip() or None,
-                "status": "approved",
+                "notes": notes,
+                "status": "awaiting_bod_confirmation",
                 "requested_by": current_user["id"],
                 "requested_by_role": "bod",
-                "decided_by": current_user["id"],
-                "decision_notes": "BOD-initiated termination.",
-                "decided_at": now_iso,
-            }).execute()
-        ).data or [None])[0]
-        if created_row and created_row.get("id") is not None:
-            _correct_audit_actor("termination", str(created_row["id"]), current_user)
-    except Exception as exc:
-        logger.warning("Termination history row failed for %s: %s", membership_id, exc)
-
-    # 4) Tell the Secretary (records) and the Cashier (CBU payout). The bell
-    #    reads title/message/redirect_url -- the table has no payload column.
-    who = f"{settlement['member_name']} ({membership_id})"
-    notices = {
-        "secretary": (
-            "Member terminated",
-            f"{who} was terminated by the BOD (resolution {resolution_no}, effective {effective_iso}).",
-            "/Secretary_Records",
-        ),
-        "cashier": (
-            "Member terminated — CBU payout pending",
-            f"{who} was terminated. CBU to pay out: ₱{settlement['refundable']:,.2f}.",
-            None,
-        ),
-    }
-    for recipient, (title, message, redirect_url) in notices.items():
-        try:
-            supabase.table("loan_notifications").insert({
-                "recipient_role": recipient,
-                "title": title,
-                "message": message,
-                "notification_type": "member_terminated",
-                "severity": "warning",
-                "redirect_url": redirect_url,
-                "is_read": False,
-                "created_by": current_user["id"],
-            }).execute()
+                "decision_notes": EXITING_NOTE,
+            }).execute().data or [None])[0]
+            if created and created.get("id") is not None:
+                _correct_audit_actor("termination", str(created["id"]), current_user)
         except Exception as exc:
-            logger.warning("Termination notification to %s failed: %s", recipient, exc)
+            logger.warning("Exit history row failed for %s: %s", membership_id, exc)
+        return {
+            "success": True,
+            "membership_id": membership_id,
+            "outcome": "exiting",
+            "settlement": settlement,
+            "remaining_loans": decimal_to_float(shortfall),
+        }
 
+    # CBU covers everything: offset the loans, then terminate.
+    await _apply_cbu_loan_offset(member, settlement, current_user)
+    resolution_no = _finalize_termination(
+        member=member,
+        account=account,
+        reason=reason,
+        notes=notes,
+        effective_iso=effective_iso,
+        cbu_total=total_cbu,
+        refundable=Decimal(str(settlement["refundable"])),
+        actor_id=current_user["id"],
+        current_user=current_user,
+    )
     return {
         "success": True,
         "membership_id": membership_id,
+        "outcome": "terminated" if Decimal(str(settlement["refundable"])) > 0 else "closed",
         "resolution_no": resolution_no,
         "effective_date": effective_iso,
         "settlement": settlement,
     }
 
 
+async def _complete_exit_if_settled(loan_id: str) -> None:
+    """Plan §8, Option 2: once an exiting member's remaining loan balance
+    reaches ₱0, their termination completes automatically. Called after a
+    payment is validated; never raises (it must not break the payment)."""
+    try:
+        loan = (
+            supabase.table("loans").select("member_id").eq("control_number", loan_id).limit(1).execute()
+        ).data or []
+        member_uuid = (loan[0] if loan else {}).get("member_id")
+        if not member_uuid:
+            return
+        member = _member_or_404(member_uuid)
+        if _member_status(member) != "exiting":
+            return
+        settlement = await compute_cbu_payout(member["membership_id"])
+        if Decimal(str(settlement["loans_owed"])) > 0:
+            return
+
+        history = (
+            supabase.table("staff_termination_requests")
+            .select("id,reason,notes,effective_date,requested_by")
+            .eq("member_id", member["membership_id"])
+            .eq("decision_notes", EXITING_NOTE)
+            .order("requested_at", desc=True)
+            .limit(1)
+            .execute()
+        ).data or [{}]
+        pending = history[0]
+        _finalize_termination(
+            member=member,
+            account=_account_for_member(member["membership_id"]) or {},
+            reason=pending.get("reason") or "",
+            notes=pending.get("notes"),
+            effective_iso=date.today().isoformat(),
+            cbu_total=Decimal(str(member.get("termination_cbu_total") or 0)),
+            refundable=Decimal(str(settlement["total_cbu"])),
+            actor_id=pending.get("requested_by"),
+            current_user=None,
+            history_row_id=pending.get("id"),
+        )
+    except Exception as exc:
+        logger.warning("Exit completion check failed for loan %s: %s", loan_id, exc)
+
+
 @app.get("/api/admin/accounts/terminated")
-def accounts_list_terminated(current_user: dict = _Depends(_get_current_user)):
-    """Terminated members with their termination details and CBU payout
-    position. Payouts arrive with Part B, so 'paid so far' is 0 for now."""
+async def accounts_list_terminated(current_user: dict = _Depends(_get_current_user)):
+    """Members who are exiting, terminated or closed, with their termination
+    details and CBU settlement position. Exiting members also show the loan
+    balance they still have to pay before they can leave."""
     if supabase is None:
         raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
     _require_account_admin(current_user)
+    rows = _settlement_rows(["exiting", "terminated", "closed"])
+    for row in rows:
+        if row["status"] == "exiting":
+            try:
+                row["loans_left"] = (await compute_cbu_payout(row["membership_id"]))["loans_owed"]
+            except Exception as exc:
+                logger.warning("Remaining-loan lookup failed for %s: %s", row["membership_id"], exc)
+    return {"success": True, "data": rows}
 
-    try:
-        members = (
-            supabase.table("member")
-            .select(
-                "membership_id,first_name,middle_initial,last_name,termination_date,"
-                "termination_resolution_number,termination_cbu_total"
-            )
-            .eq("member_status", "terminated")
-            .order("termination_date", desc=True)
-            .execute()
-        ).data or []
-    except Exception:
-        # termination_cbu_total not migrated yet
-        members = (
-            supabase.table("member")
-            .select("membership_id,first_name,middle_initial,last_name,termination_date,termination_resolution_number")
-            .eq("member_status", "terminated")
-            .order("termination_date", desc=True)
-            .execute()
-        ).data or []
 
+def _settlement_rows(statuses: list[str]) -> list[dict]:
+    """Per-member settlement position: CBU at termination, applied to loans,
+    paid out in cash so far, and what's still owed to the member (their live
+    CBU balance -- every offset and payout is a CBU withdrawal line, so a late
+    correction is picked up automatically)."""
+    members = (
+        supabase.table("member")
+        .select(
+            "id,membership_id,first_name,middle_initial,last_name,member_status,termination_date,"
+            "termination_resolution_number,termination_cbu_total"
+        )
+        .in_("member_status", statuses)
+        .order("termination_date", desc=True)
+        .execute()
+    ).data or []
     ids = [m["membership_id"] for m in members if m.get("membership_id")]
+
+    moves: dict[str, dict[str, Decimal]] = {}
     reasons: dict[str, str] = {}
+    closures: dict[str, dict] = {}
     if ids:
+        try:
+            for row in (
+                supabase.table("member_closures")
+                .select("membership_id,auth_deleted_at,auth_delete_error")
+                .in_("membership_id", ids)
+                .execute()
+            ).data or []:
+                closures[row["membership_id"]] = row
+        except Exception:
+            pass  # member_closures not migrated yet
+        for row in (
+            supabase.table("cbu_payouts").select("membership_id,kind,amount").in_("membership_id", ids).execute()
+        ).data or []:
+            bucket = moves.setdefault(row["membership_id"], {"loan_offset": Decimal("0"), "payout": Decimal("0")})
+            bucket[row["kind"]] = bucket.get(row["kind"], Decimal("0")) + Decimal(str(row.get("amount") or 0))
         try:
             for row in (
                 supabase.table("staff_termination_requests")
                 .select("member_id,reason,status,requested_at")
                 .in_("member_id", ids)
-                .eq("status", "approved")
+                .in_("status", ["approved", "awaiting_bod_confirmation"])
                 .order("requested_at", desc=True)
                 .execute()
             ).data or []:
@@ -15702,21 +16029,403 @@ def accounts_list_terminated(current_user: dict = _Depends(_get_current_user)):
 
     rows = []
     for m in members:
+        status = _member_status(m)
+        mid = m.get("membership_id")
+        applied = moves.get(mid, {}).get("loan_offset", Decimal("0"))
+        paid = moves.get(mid, {}).get("payout", Decimal("0"))
         total = Decimal(str(m.get("termination_cbu_total") or 0))
-        paid = Decimal("0")
-        remaining = max(total - paid, Decimal("0"))
+        remaining = max(_member_cbu_balance(m["id"]), Decimal("0")) if status == "terminated" else Decimal("0")
+        if status == "exiting":
+            payout_label = "Paying remaining loans"
+        elif status == "closed":
+            payout_label = "Closed"
+        elif paid > 0:
+            payout_label = "Partially paid"
+        else:
+            payout_label = "Awaiting payout"
         rows.append({
-            "membership_id": m.get("membership_id"),
+            "membership_id": mid,
             "name": resolve_member_full_name(m),
+            "status": status,
             "resolution_no": m.get("termination_resolution_number"),
             "termination_date": m.get("termination_date"),
-            "reason": reasons.get(m.get("membership_id"), ""),
+            "reason": reasons.get(mid, ""),
             "cbu_total": decimal_to_float(total) if m.get("termination_cbu_total") is not None else None,
+            "applied_to_loans": decimal_to_float(applied),
+            "refundable": decimal_to_float(max(total - applied, Decimal("0"))),
             "paid_so_far": decimal_to_float(paid),
-            "remaining": decimal_to_float(remaining),
-            "payout_status": "Awaiting payout" if remaining > 0 else "Nothing to pay out",
+            "remaining": decimal_to_float(money(remaining)),
+            "loans_left": None,
+            "payout_status": payout_label,
+            # Closed members only: has their login been removed yet (Part C)?
+            "login_removed": bool((closures.get(mid) or {}).get("auth_deleted_at")) if status == "closed" else None,
+            "login_removal_error": (closures.get(mid) or {}).get("auth_delete_error") if status == "closed" else None,
         })
-    return {"success": True, "data": rows}
+    return rows
+
+
+# ----------------------------------------------------------------------------
+# Closing a member (plan Part C). When a member becomes Closed -- fully
+# settled -- their login is removed from Supabase Auth (so the email is free
+# if they re-apply) and their personal contact details are cleared. Their
+# name, membership ID, date of birth (credit-risk Age feature, returning-
+# member check) and every financial record are kept. member_closures is the
+# permanent history row. Every step is idempotent and never raises.
+# ----------------------------------------------------------------------------
+
+# Personal fields cleared from the personal data sheet and the application.
+# date_of_birth is deliberately kept (see above).
+_CLOSE_PERSONAL_FIELDS = [
+    "email", "contact_number", "permanent_address", "place_of_birth", "tin_number",
+    "gsis_number", "spouse_name", "spouse_occupation", "spouse_date_of_birth",
+    "father_name", "mother_name",
+]
+_CLOSE_NOMINEE_FIELDS = ["Nominee Date of Birth", "Nominee_Address"]
+
+
+def _closed_email(membership_id: str) -> str:
+    return f"closed-{str(membership_id).strip().lower()}{_SYNTHETIC_EMAIL_DOMAIN}"
+
+
+def _clear_columns(table: str, match: dict, fields: list[str], placeholder_email: str) -> list[str]:
+    """Blank `fields` on the rows matching `match`. Email columns get the
+    placeholder (they may be NOT NULL / unique); everything else NULL. Falls
+    back field by field when a column is missing or refuses NULL. Returns the
+    'table.field' names actually cleared."""
+    def value_for(field: str):
+        return placeholder_email if field.lower() == "email" else None
+
+    def query(update: dict):
+        q = supabase.table(table).update(update)
+        for col, val in match.items():
+            q = q.ilike(col, val) if col == "email" else q.eq(col, val)
+        return q.execute()
+
+    try:
+        query({f: value_for(f) for f in fields})
+        return [f"{table}.{f}" for f in fields]
+    except Exception:
+        pass
+    cleared = []
+    for f in fields:
+        for candidate in (value_for(f), ""):
+            try:
+                query({f: candidate})
+                cleared.append(f"{table}.{f}")
+                break
+            except Exception:
+                continue
+    return cleared
+
+
+def _close_member(membership_id: str, actor_id: str | None) -> dict:
+    """Plan §12: record the closure, clear personal data, free the email on
+    the account row, then delete the login. Safe to run again (retry)."""
+    result = {"membership_id": membership_id, "login_removed": False, "error": None}
+    try:
+        member = _member_or_404(membership_id)
+        existing = (
+            supabase.table("member_closures").select("*").eq("membership_id", membership_id).limit(1).execute()
+        ).data or []
+        closure = existing[0] if existing else None
+        if closure and closure.get("auth_deleted_at"):
+            result["login_removed"] = True
+            return result
+
+        account = _account_for_member(membership_id) or {}
+        auth_user_id = account.get("auth_user_id") or (closure or {}).get("auth_user_id")
+        real_email = str(account.get("email") or "").strip().lower()
+        placeholder = _closed_email(membership_id)
+
+        # 1) The history row -- written first so a later failure still leaves it.
+        if not closure:
+            pds = (
+                supabase.table("personal_data_sheet")
+                .select("first_name,middle_name,surname,date_of_birth,email")
+                .eq("membership_number_id", membership_id)
+                .limit(1)
+                .execute()
+            ).data or [{}]
+            pds = pds[0]
+            if not real_email or real_email.endswith(_SYNTHETIC_EMAIL_DOMAIN):
+                real_email = str(pds.get("email") or real_email).strip().lower()
+            moves = (
+                supabase.table("cbu_payouts").select("kind,amount").eq("membership_id", membership_id).execute()
+            ).data or []
+            dob = pds.get("date_of_birth")
+            closure = (supabase.table("member_closures").insert({
+                "membership_id": membership_id,
+                "member_id": member["id"],
+                "first_name": pds.get("first_name") or member.get("first_name"),
+                "middle_name": pds.get("middle_name") or member.get("middle_initial"),
+                "surname": pds.get("surname") or member.get("last_name"),
+                "date_of_birth": str(dob)[:10] if dob else None,
+                "resolution_no": member.get("termination_resolution_number"),
+                "termination_date": str(member.get("termination_date") or "")[:10] or None,
+                "cbu_total": member.get("termination_cbu_total"),
+                "cbu_applied_to_loans": decimal_to_float(sum(
+                    (Decimal(str(m.get("amount") or 0)) for m in moves if m.get("kind") == "loan_offset"), Decimal("0"))),
+                "cbu_paid_out": decimal_to_float(sum(
+                    (Decimal(str(m.get("amount") or 0)) for m in moves if m.get("kind") == "payout"), Decimal("0"))),
+                "auth_user_id": auth_user_id,
+                "closed_by": actor_id,
+            }).execute().data or [None])[0] or {}
+
+        # 2) Clear personal data in the coop's own tables.
+        cleared: list[str] = list(closure.get("cleared_fields") or [])
+
+        def note(fields: list[str]):
+            for f in fields:
+                if f not in cleared:
+                    cleared.append(f)
+
+        note(_clear_columns("personal_data_sheet", {"membership_number_id": membership_id}, _CLOSE_PERSONAL_FIELDS, placeholder))
+        note(_clear_columns("member_applications", {"membership_id": membership_id}, _CLOSE_PERSONAL_FIELDS, placeholder))
+        if real_email and not real_email.endswith(_SYNTHETIC_EMAIL_DOMAIN):
+            # Applications filed before a membership ID was assigned.
+            note(_clear_columns("member_applications", {"email": real_email}, _CLOSE_PERSONAL_FIELDS, placeholder))
+            for table, column in (("loan_email_log", "recipient_email"), ("attendance_logs", "member_email")):
+                try:
+                    supabase.table(table).update({column: None}).ilike(column, real_email).execute()
+                    note([f"{table}.{column}"])
+                except Exception:
+                    pass
+        try:
+            supabase.table("loans").update({"user_email": None}).eq("member_id", member["id"]).execute()
+            note(["loans.user_email"])
+        except Exception:
+            pass
+        note(_clear_columns("Savings_Transactions", {"membership_number_id": membership_id}, _CLOSE_NOMINEE_FIELDS, placeholder))
+
+        # Profile photo: the profiles row and the files under profiles/<login id>/.
+        if auth_user_id:
+            try:
+                supabase.table("profiles").update({"avatar_url": None}).eq("id", auth_user_id).execute()
+                folder = f"profiles/{auth_user_id}"
+                files = supabase.storage.from_("Supporting_Documents").list(folder) or []
+                paths = [f"{folder}/{f['name']}" for f in files if f.get("name")]
+                if paths:
+                    supabase.storage.from_("Supporting_Documents").remove(paths)
+                note(["profiles.avatar_url"])
+            except Exception as exc:
+                logger.warning("Avatar cleanup failed for %s: %s", membership_id, exc)
+
+        # 3) Free the email on the account row (keep the row and auth_user_id,
+        #    so audit history still resolves the person's name).
+        try:
+            supabase.table("member_account").update({
+                "email": placeholder,
+                "pending_email": None,
+                "password": None,
+                "is_active": False,
+                "role": "Member",
+                "can_manage_accounts": False,
+            }).eq("membership_id", membership_id).execute()
+            note(["member_account.email"])
+        except Exception as exc:
+            logger.warning("Account row cleanup failed for %s: %s", membership_id, exc)
+
+        supabase.table("member_closures").update({"cleared_fields": cleared}).eq(
+            "membership_id", membership_id
+        ).execute()
+
+        # 4) Delete the login. The auth-delete trigger leaves members alone
+        #    (account_management_part_c.sql).
+        if not auth_user_id:
+            supabase.table("member_closures").update({
+                "auth_deleted_at": datetime.utcnow().isoformat(),
+                "auth_delete_error": None,
+            }).eq("membership_id", membership_id).execute()
+            result["login_removed"] = True
+            return result
+        try:
+            supabase.auth.admin.delete_user(auth_user_id)
+            deleted = True
+        except Exception as exc:
+            text = str(exc).lower()
+            # Already gone (e.g. an earlier attempt succeeded) counts as done.
+            deleted = "not found" in text or "user_not_found" in text
+            if not deleted:
+                result["error"] = str(exc)
+        supabase.table("member_closures").update({
+            "auth_deleted_at": datetime.utcnow().isoformat() if deleted else None,
+            "auth_delete_error": None if deleted else result["error"],
+        }).eq("membership_id", membership_id).execute()
+        result["login_removed"] = deleted
+    except Exception as exc:
+        logger.warning("Closing member %s failed: %s", membership_id, exc)
+        result["error"] = str(exc)
+    return result
+
+
+@app.post("/api/admin/accounts/closures/{membership_id}/retry")
+def accounts_retry_closure(membership_id: str, current_user: dict = _Depends(_get_current_user)):
+    """Re-run the closing steps for a Closed member whose login removal failed."""
+    if supabase is None:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+    _require_account_admin(current_user)
+    member = _member_or_404(membership_id)
+    if _member_status(member) != "closed":
+        raise HTTPException(status_code=400, detail="Only closed members can have their login removed.")
+    outcome = _close_member(member["membership_id"], current_user["id"])
+    if not outcome["login_removed"]:
+        raise HTTPException(status_code=502, detail=f"Login removal failed again: {outcome['error']}")
+    return {"success": True, "data": outcome}
+
+
+@app.get("/api/bod/membership-approval/{application_id}/returning-member")
+def bod_returning_member_check(application_id: str, current_user: dict = _Depends(_get_current_user)):
+    """Is this applicant a former member? Matches closed members by surname +
+    first name, and date of birth when both have one. Information only."""
+    if supabase is None:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+    role = _resolve_staff_role(current_user["id"], current_user.get("email") or "")
+    if role not in ("bod", "secretary"):
+        raise HTTPException(status_code=403, detail="Not allowed.")
+
+    app_rows = (
+        supabase.table("member_applications")
+        .select("first_name,surname,date_of_birth")
+        .eq("application_id", application_id)
+        .limit(1)
+        .execute()
+    ).data or []
+    if not app_rows:
+        return {"success": True, "data": []}
+    applicant = app_rows[0]
+    surname = str(applicant.get("surname") or "").strip()
+    first = str(applicant.get("first_name") or "").strip()
+    if not surname or not first:
+        return {"success": True, "data": []}
+
+    rows = (
+        supabase.table("member_closures")
+        .select("membership_id,first_name,middle_name,surname,date_of_birth,closed_at,resolution_no")
+        .ilike("surname", surname)
+        .ilike("first_name", first)
+        .execute()
+    ).data or []
+    applicant_dob = str(applicant.get("date_of_birth") or "")[:10]
+    matches = []
+    for r in rows:
+        closed_dob = str(r.get("date_of_birth") or "")[:10]
+        if applicant_dob and closed_dob and applicant_dob != closed_dob:
+            continue  # same name, different person
+        matches.append({
+            "membership_id": r.get("membership_id"),
+            "name": " ".join(p for p in (r.get("first_name"), r.get("middle_name"), r.get("surname")) if p),
+            "closed_at": r.get("closed_at"),
+            "resolution_no": r.get("resolution_no"),
+            "date_of_birth_matches": bool(applicant_dob and closed_dob),
+        })
+    return {"success": True, "data": matches}
+
+
+# ----------------------------------------------------------------------------
+# Cashier: CBU payout to terminated members (plan §7). No vault movement --
+# the Treasurer adjusts the vault by hand, as for every CBU transaction.
+# ----------------------------------------------------------------------------
+
+class CbuPayoutRequest(BaseModel):
+    membership_id: str
+    amount: Decimal = Field(..., gt=0)
+    reference: str | None = None
+    notes: str | None = None
+
+
+def _require_cashier(current_user: dict) -> None:
+    role = _resolve_staff_role(current_user["id"], current_user.get("email") or "")
+    if role != "cashier":
+        raise HTTPException(status_code=403, detail="Only the Cashier can record CBU payouts.")
+
+
+@app.get("/api/cashier/cbu-payouts")
+def cashier_list_cbu_payouts(current_user: dict = _Depends(_get_current_user)):
+    """Terminated members still owed CBU, plus the recent payout history."""
+    if supabase is None:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+    _require_cashier(current_user)
+
+    rows = _settlement_rows(["terminated", "closed"])
+    history = (
+        supabase.table("cbu_payouts")
+        .select("id,membership_id,amount,payout_date,reference,notes,recorded_by_email,created_at")
+        .eq("kind", "payout")
+        .order("created_at", desc=True)
+        .limit(100)
+        .execute()
+    ).data or []
+    names = {r["membership_id"]: r["name"] for r in rows}
+    for h in history:
+        h["name"] = names.get(h.get("membership_id"), h.get("membership_id"))
+    return {
+        "success": True,
+        "pending": [r for r in rows if r["status"] == "terminated" and r["remaining"] > 0],
+        "history": history,
+    }
+
+
+@app.post("/api/cashier/cbu-payouts")
+def cashier_record_cbu_payout(payload: CbuPayoutRequest, current_user: dict = _Depends(_get_current_user)):
+    """Record cash handed to a terminated member from their CBU. Partial
+    payouts are allowed; the member becomes Closed when nothing is left."""
+    if supabase is None:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+    _require_cashier(current_user)
+
+    membership_id = str(payload.membership_id or "").strip()
+    member = _member_or_404(membership_id)
+    if _member_status(member) != "terminated":
+        raise HTTPException(status_code=400, detail="CBU is only paid out to terminated members.")
+
+    amount = money(Decimal(str(payload.amount)))
+    remaining = money(max(_member_cbu_balance(member["id"]), Decimal("0")))
+    if amount > remaining:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Amount ₱{amount:,.2f} is more than the ₱{remaining:,.2f} still owed to this member.",
+        )
+
+    reference = (payload.reference or "").strip() or f"CBUPO-{date.today():%Y%m%d}-{uuid4().hex[:6].upper()}"
+    if (supabase.table("cbu_payouts").select("id").eq("reference", reference).limit(1).execute().data or []):
+        raise HTTPException(status_code=409, detail=f"A payout with reference {reference} was already recorded.")
+
+    cbu_row = _cbu_withdraw(member["id"], amount, "TERMINATION_PAYOUT", current_user)
+    payout = (supabase.table("cbu_payouts").insert({
+        "membership_id": membership_id,
+        "member_id": member["id"],
+        "kind": "payout",
+        "amount": decimal_to_float(amount),
+        "payout_date": date.today().isoformat(),
+        "reference": reference,
+        "notes": (payload.notes or "").strip() or None,
+        "cbu_row_id": cbu_row.get("id"),
+        "recorded_by": current_user["id"],
+        "recorded_by_email": current_user.get("email"),
+    }).execute().data or [None])[0]
+
+    remaining_after = money(remaining - amount)
+    closed = remaining_after <= 0
+    if closed:
+        supabase.table("member").update({"member_status": "closed"}).eq("membership_id", membership_id).execute()
+        # Fully settled -> remove the login, clear personal data (Part C).
+        # Runs after the payout is saved and never raises.
+        _close_member(membership_id, current_user["id"])
+
+    return {
+        "success": True,
+        "data": {
+            "reference": reference,
+            "membership_id": membership_id,
+            "name": resolve_member_full_name(member),
+            "amount": decimal_to_float(amount),
+            "remaining_before": decimal_to_float(remaining),
+            "remaining_after": decimal_to_float(max(remaining_after, Decimal("0"))),
+            "closed": closed,
+            "payout_date": (payout or {}).get("payout_date") or date.today().isoformat(),
+            "recorded_by": current_user.get("email"),
+        },
+    }
 
 
 # =============================================================================
@@ -16989,20 +17698,13 @@ async def get_bookkeeper_reports():
     ]
 
     # ── 4. Share Capital ────────────────────────────────────────────────────
+    # Same figure as the dashboards: each member's current CBU balance
+    # (member.share_capital_amount). Reading capital_build_up here missed
+    # rows past PostgREST's 1,000-row cap and took the year-end import
+    # placeholder as "latest".
     total_share_capital = 0.0
     try:
-        cbu_resp = (
-            supabase.table("capital_build_up")
-            .select("ending_share_capital,member_id")
-            .order("transaction_date", desc=True)
-            .execute()
-        )
-        seen_cbu_members: set[str] = set()
-        for row in (cbu_resp.data or []):
-            mid = str(row.get("member_id") or "").strip()
-            if mid and mid not in seen_cbu_members:
-                seen_cbu_members.add(mid)
-                total_share_capital += float(row.get("ending_share_capital") or 0)
+        total_share_capital = float(_total_member_cbu())
     except Exception:
         total_share_capital = 0.0
 
