@@ -1,5 +1,7 @@
-﻿import React, { useEffect, useMemo, useState } from 'react';
+﻿import React, { useEffect, useMemo, useState, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { useRealtimeVersion } from "../../hooks/useRealtimeRefetch";
+import { RT } from "../../lib/realtimeSync";
 import { getLoanTypeDotClass as loanTypeAccent } from "../../utils/loanTypeColors";
 import {
   ArrowLeft,
@@ -27,12 +29,16 @@ const ActiveLoansPanel = ({ membershipId }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
+  const rtVersionLoans = useRealtimeVersion([...RT.LOANS, ...RT.CBU]);
+  const rtSeenLoans = useRef(rtVersionLoans);
   useEffect(() => {
+    const silent = rtSeenLoans.current !== rtVersionLoans;
+    rtSeenLoans.current = rtVersionLoans;
     if (!membershipId) return;
     let cancelled = false;
     (async () => {
-      setLoading(true);
-      setError('');
+      if (!silent) setLoading(true);
+      if (!silent) setError('');
       try {
         const res = await fetch(`${API_BASE_URL}/api/member/${encodeURIComponent(membershipId)}/debt-capacity`);
         const payload = await res.json().catch(() => ({}));
@@ -41,13 +47,14 @@ const ActiveLoansPanel = ({ membershipId }) => {
         }
         if (!cancelled) setData(payload.data);
       } catch (err) {
+        if (silent) return;
         if (!cancelled) setError(err?.message || 'Unable to load active loans.');
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!cancelled && !silent) setLoading(false);
       }
     })();
     return () => { cancelled = true; };
-  }, [membershipId]);
+  }, [membershipId, rtVersionLoans]);
 
   const activeLoans = Array.isArray(data?.active_loans) ? data.active_loans : [];
 
@@ -197,15 +204,19 @@ const Member_Details = () => {
     return '/manage-member';
   }, [location]);
 
+  const rtVersionRecord = useRealtimeVersion(RT.MEMBERS);
+  const rtSeenRecord = useRef(rtVersionRecord);
   useEffect(() => {
+    const silent = rtSeenRecord.current !== rtVersionRecord;
+    rtSeenRecord.current = rtVersionRecord;
     async function loadRecord() {
       if (!membershipId) {
         setError('No member selected. Please open details from Manage Member.');
         return;
       }
 
-      setLoading(true);
-      setError('');
+      if (!silent) setLoading(true);
+      if (!silent) setError('');
       try {
         const response = await fetch(`${API_BASE_URL}/api/personal_data_sheet/${encodeURIComponent(membershipId)}`, {
           method: 'GET',
@@ -218,15 +229,16 @@ const Member_Details = () => {
 
         setRecord(payload.data || null);
       } catch (err) {
+        if (silent) return;
         setError(err?.message || 'Unable to load member details.');
         setRecord(null);
       } finally {
-        setLoading(false);
+        if (!silent) setLoading(false);
       }
     }
 
     loadRecord();
-  }, [membershipId]);
+  }, [membershipId, rtVersionRecord]);
 
   const fullName = useMemo(() => {
     const first = String(record?.first_name || '').trim();

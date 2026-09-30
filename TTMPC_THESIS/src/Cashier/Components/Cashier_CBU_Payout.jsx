@@ -1,4 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
+import { useRealtimeRefetch } from "../../hooks/useRealtimeRefetch";
+import { RT } from "../../lib/realtimeSync";
 import { HandCoins, History, Printer, X as CloseIcon, AlertTriangle, Wallet } from "lucide-react";
 import StaffSidebar from "../../components/StaffSidebar";
 import { cashierNav } from "../../components/StaffSidebar/configs/cashier";
@@ -165,18 +167,20 @@ const Cashier_CBU_Payout = () => {
   const [paying, setPaying] = useState(null);
   const [receipt, setReceipt] = useState(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async ({ silent = false } = {}) => {
+    if (!silent) setLoading(true);
     try {
       const body = await api("/api/cashier/cbu-payouts");
       setPending(body.pending || []);
       setHistory(body.history || []);
     } catch (err) {
+      if (silent) return;
       addNotification(err.message || "Failed to load CBU payouts.", "error");
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [addNotification]);
+  useRealtimeRefetch([...RT.CBU, ...RT.MEMBERS, ...RT.LOANS], () => load({ silent: true }));
 
   useEffect(() => {
     load();

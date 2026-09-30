@@ -1,5 +1,7 @@
 ﻿import React, { useEffect, useMemo, useRef, useState } from "react";
 import StaffSidebar from "../../components/StaffSidebar";
+import { useRealtimeRefetch } from "../../hooks/useRealtimeRefetch";
+import { RT } from "../../lib/realtimeSync";
 import { cashierNav } from "../../components/StaffSidebar/configs/cashier";
 import { UserAuth } from "../../contex/AuthContext";
 import { useNotification } from "../../contex/NotificationContext";
@@ -420,9 +422,9 @@ const Cashier_Payments = () => {
     fetchLoans();
   }, []);
 
-  async function fetchLoans() {
-    setLoadingLoans(true);
-    setLoansError("");
+  async function fetchLoans({ silent = false } = {}) {
+    if (!silent) setLoadingLoans(true);
+    if (!silent) setLoansError("");
     try {
       const response = await fetch(`${API_BASE_URL}/api/cashier/loan-payments/loans`, {
         method: "GET",
@@ -514,6 +516,7 @@ const Cashier_Payments = () => {
       setLoans(enrichedLoans);
       setPaymentRecords(rawPaymentRecords);
     } catch (error) {
+      if (silent) return;
       console.error("Failed to fetch cashier loan data:", error);
       setLoans([]);
       setPaymentRecords([]);
@@ -521,9 +524,10 @@ const Cashier_Payments = () => {
       setLoansError(message);
       addNotification(`Failed to load loans: ${message}`, "error");
     } finally {
-      setLoadingLoans(false);
+      if (!silent) setLoadingLoans(false);
     }
   }
+  useRealtimeRefetch(RT.LOANS, () => fetchLoans({ silent: true }));
 
   async function processPayment(paymentPayload) {
     const response = await fetch(`${API_BASE_URL}/api/cashier/loan-payments`, {

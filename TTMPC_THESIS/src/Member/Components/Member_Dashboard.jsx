@@ -1,5 +1,7 @@
-﻿import React, { useEffect, useMemo, useState } from "react";
+﻿import React, { useEffect, useMemo, useState, useRef } from "react";
 import { Link } from 'react-router-dom';
+import { useRealtimeVersion } from "../../hooks/useRealtimeRefetch";
+import { RT } from "../../lib/realtimeSync";
 import { useNavigate, NavLink } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
 import { useTheme } from "../../contex/ThemeContext";
@@ -11,7 +13,7 @@ import TableStateRow from "../../components/TableStateRow";
 import LoanCalculatorModal from "./LoanCalculatorModal";
 import MemberDashboardLoading from "./MemberDashboardLoading";
 import AccountSetupGate from "./AccountSetupGate";
-import { getOrFetch, peek } from "../memberDataCache";
+import { getOrFetch, invalidate, peek } from "../memberDataCache";
 import { pickLatestCbuRow } from "../../utils/cbuOrdering";
 import {
   LayoutDashboard,
@@ -191,7 +193,11 @@ const MemberDashboard = () => {
     return data?.signedUrl || '';
   };
 
+  const rtVersion = useRealtimeVersion([...RT.LOANS, ...RT.SAVINGS, ...RT.CBU, "member"]);
+  const rtSeen = useRef(rtVersion);
   useEffect(() => {
+    const silent = rtSeen.current !== rtVersion;
+    rtSeen.current = rtVersion;
     let isMounted = true;
 
     const applySnapshot = (snap) => {
@@ -559,12 +565,14 @@ const MemberDashboard = () => {
 
     const loadDashboardData = async () => {
       try {
-        setProfileError('');
+        if (!silent) setProfileError('');
         const { data: authData } = await supabase.auth.getUser();
         const cacheKey = `member-dashboard:${authData?.user?.id || 'anon'}`;
+        if (silent) invalidate(cacheKey);
 
         // FAST PATH 1 — Try sessionStorage cache (pre-loaded by AuthContext on login)
-        const cachedBundle = loadCachedBundle();
+        // A realtime re-run must not repaint the login-time bundle.
+        const cachedBundle = silent ? null : loadCachedBundle();
         if (cachedBundle && isMounted) {
           try {
             // Process bundle synchronously using same logic as buildSnapshotFromRpc
@@ -685,7 +693,7 @@ const MemberDashboard = () => {
             };
 
             applySnapshot(cachedSnapshot);
-            setLoadingProfile(false);
+            if (!silent) setLoadingProfile(false);
             console.log('[Member_Dashboard] Loaded from sessionStorage cache');
           } catch (cacheErr) {
             console.warn('[Member_Dashboard] Error processing cached bundle:', cacheErr?.message);
@@ -697,14 +705,15 @@ const MemberDashboard = () => {
         const cached = peek(cacheKey);
         if (cached) {
           applySnapshot(cached);
-          setLoadingProfile(false);
+          if (!silent) setLoadingProfile(false);
         } else {
-          setLoadingProfile(true);
+          if (!silent) setLoadingProfile(true);
         }
 
         const snap = await getOrFetch(cacheKey, buildSnapshot, 60_000);
         applySnapshot(snap);
       } catch (err) {
+        if (silent) return;
         if (isMounted) {
           setProfileError(err.message || 'Unable to load member dashboard data.');
           setRecentTransactions([]);
@@ -712,7 +721,7 @@ const MemberDashboard = () => {
         }
       } finally {
         if (isMounted) {
-          setLoadingProfile(false);
+          if (!silent) setLoadingProfile(false);
         }
       }
     };
@@ -721,7 +730,7 @@ const MemberDashboard = () => {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [rtVersion]);
 
   // The temporary-password warning used to be a toast here. AccountSetupGate
   // now covers it (along with the email and profile steps) as a blocking

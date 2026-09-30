@@ -1,5 +1,7 @@
-﻿import React, { useEffect, useMemo, useState } from "react";
+﻿import React, { useEffect, useMemo, useState, useRef } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
+import { useRealtimeVersion } from "../hooks/useRealtimeRefetch";
+import { RT } from "../lib/realtimeSync";
 import StaffSidebar from "../components/StaffSidebar";
 import { secretaryNav } from "../components/StaffSidebar/configs/secretary";
 import { UserAuth } from "../contex/AuthContext";
@@ -69,9 +71,13 @@ const Secretary_Records = () => {
     return d.toLocaleDateString("en-US", { year: "numeric", month: "2-digit", day: "2-digit" });
   };
 
+  const rtVersion = useRealtimeVersion(RT.MEMBERS);
+  const rtSeen = useRef(rtVersion);
   useEffect(() => {
+    const silent = rtSeen.current !== rtVersion;
+    rtSeen.current = rtVersion;
     async function loadRecords() {
-      setLoading(true);
+      if (!silent) setLoading(true);
       try {
         const response = await fetch(`${API_BASE_URL}/api/secretary/membership-records`, {
           method: "GET",
@@ -85,15 +91,16 @@ const Secretary_Records = () => {
         setRecords(Array.isArray(payload.data) ? payload.data : []);
         addNotification("Membership records loaded successfully", "success");
       } catch (err) {
+        if (silent) return;
         addNotification(err?.message || "Unable to load membership records.", "error");
         setRecords([]);
       } finally {
-        setLoading(false);
+        if (!silent) setLoading(false);
       }
     }
 
     loadRecords();
-  }, [addNotification]);
+  }, [addNotification, rtVersion]);
 
   const filteredRecords = useMemo(() => {
     const key = String(searchQuery || "").trim().toLowerCase();

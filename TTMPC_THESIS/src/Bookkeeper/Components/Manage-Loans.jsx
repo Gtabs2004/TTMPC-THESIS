@@ -1,5 +1,7 @@
 ﻿import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
+import { useRealtimeRefetch } from "../../hooks/useRealtimeRefetch";
+import { RT } from "../../lib/realtimeSync";
 import { getLoanTypeChipClass as getLoanTypeStyle } from "../../utils/loanTypeColors";
 import { StatCard, StatCardRow } from "../../components/StatCard";
 import { TableToolbar } from "../../components/TableToolbar";
@@ -120,9 +122,9 @@ const ManageLoans = () => {
     });
   }, [loans, searchTerm, activeTab, loanTypeFilter, memberTypeFilter]);
 
-  async function fetchApprovedLoans() {
-    setLoading(true);
-    setLoadError("");
+  async function fetchApprovedLoans({ silent = false } = {}) {
+    if (!silent) setLoading(true);
+    if (!silent) setLoadError("");
     try {
       const response = await fetch(`${API_BASE_URL}/api/bookkeeper/manage-loans`);
       const result = await response.json();
@@ -134,13 +136,15 @@ const ManageLoans = () => {
       setLoans(rows);
       addNotification("Loans data synced successfully", "success");
     } catch (error) {
+      if (silent) return;
       addNotification(error?.message || "Unable to sync approved loans from backend.", "error");
       setLoadError(error?.message || "Unable to sync approved loans from backend.");
       setLoans([]);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }
+  useRealtimeRefetch(RT.LOANS, () => fetchApprovedLoans({ silent: true }));
 
   useEffect(() => {
     // One-shot fetch on mount. The 10s polling interval was removed because it

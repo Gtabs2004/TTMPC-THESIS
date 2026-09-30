@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useMemo } from "react";
+import { useRealtimeRefetch } from "../../hooks/useRealtimeRefetch";
+import { RT } from "../../lib/realtimeSync";
 import { useNavigate } from "react-router-dom";
 import { getLoanTypeChipClass as getLoanTypeStyle } from "../../utils/loanTypeColors";
 import { StatCard, StatCardRow } from "../../components/StatCard";
@@ -65,9 +67,9 @@ const Treasurer_Approval = () => {
     fetchLoans();
   }, [addNotification]);
 
-  const fetchLoans = async () => {
+  const fetchLoans = async ({ silent = false } = {}) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
 
       const { data: loansData, error: loansError } = await supabase
         .from("loans")
@@ -157,19 +159,22 @@ const Treasurer_Approval = () => {
         .sort((a, b) => new Date(b.application_date || 0) - new Date(a.application_date || 0));
 
       setLoans(combinedQueue);
-      addNotification("Loan applications loaded successfully", "success");
+      if (!silent) addNotification("Loan applications loaded successfully", "success");
     } catch (err) {
       console.error("Error fetching loans:", err.message);
+      if (silent) return;
       addNotification(err?.message || "Unable to load loan applications.", "error");
       setLoans([]);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
-  const fetchRescheduled = async () => {
-    setRescheduledLoading(true);
-    setRescheduledError("");
+  const fetchRescheduled = async ({ silent = false } = {}) => {
+    if (!silent) {
+      setRescheduledLoading(true);
+      setRescheduledError("");
+    }
     try {
       const response = await fetch(`${API_BASE_URL}/api/treasurer/disbursements/rescheduled`, {
         method: "GET",
@@ -183,12 +188,20 @@ const Treasurer_Approval = () => {
       setVault(result.data?.vault || { balance: 0, committed: 0, available: 0 });
       setRescheduledLoaded(true);
     } catch (err) {
+      if (silent) return;
       setRescheduledError(err?.message || "Unable to load rescheduled loans.");
       setRescheduled([]);
     } finally {
-      setRescheduledLoading(false);
+      if (!silent) setRescheduledLoading(false);
     }
   };
+
+  // Realtime: keep the queue (and the Rescheduled tab, once opened) current
+  // as Manager approvals, Cashier releases and vault postings land.
+  useRealtimeRefetch([...RT.LOANS, ...RT.VAULT], () => {
+    fetchLoans({ silent: true });
+    if (rescheduledLoaded) fetchRescheduled({ silent: true });
+  });
 
   // Loaded once, the first time the Rescheduled tab is opened; refreshed on
   // demand from there. Tab 1's own load stays exactly as it was.

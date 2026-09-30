@@ -1,4 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { useRealtimeRefetch } from "../../hooks/useRealtimeRefetch";
+import { RT } from "../../lib/realtimeSync";
 import {
   UserCog,
   Users,
@@ -519,8 +521,8 @@ const Account_Management = () => {
   const [showTerminate, setShowTerminate] = useState(false);
   const [roleFilter, setRoleFilter] = useState("all");
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async ({ silent = false } = {}) => {
+    if (!silent) setLoading(true);
     try {
       const [staffBody, termBody] = await Promise.all([
         api("/api/admin/accounts/staff"),
@@ -529,11 +531,13 @@ const Account_Management = () => {
       setStaff(staffBody.data || []);
       setTerminated(termBody.data || []);
     } catch (err) {
+      if (silent) return;
       addNotification(err.message || "Failed to load accounts.", "error");
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [addNotification]);
+  useRealtimeRefetch([...RT.MEMBERS, ...RT.CBU, ...RT.LOANS], () => load({ silent: true }));
 
   useEffect(() => {
     if (isAdmin) load();

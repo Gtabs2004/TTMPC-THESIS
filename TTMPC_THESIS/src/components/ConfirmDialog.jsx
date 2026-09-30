@@ -46,7 +46,7 @@ const ConfirmDialog = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm dialog-enter"
+      className="fixed inset-0 z-[150] flex items-center justify-center bg-black/40 backdrop-blur-sm dialog-enter"
       onClick={() => !loading && onCancel?.()}
     >
       <div

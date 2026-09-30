@@ -1,4 +1,6 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useRef } from 'react';
+import { useRealtimeVersion } from "../../hooks/useRealtimeRefetch";
+import { RT } from "../../lib/realtimeSync";
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, Building2, MapPin, Award, Phone, Calendar, Mail, X, Check,
@@ -32,10 +34,14 @@ const MemberApprovalDetails = () => {
   const [paymentStatusLoading, setPaymentStatusLoading] = useState(false);
   const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000';
 
+  const rtVersion = useRealtimeVersion(RT.MEMBERS);
+  const rtSeen = useRef(rtVersion);
   useEffect(() => {
+    const silent = rtSeen.current !== rtVersion;
+    rtSeen.current = rtVersion;
     const fetchMemberDetails = async () => {
-      setLoading(true);
-      setFetchError('');
+      if (!silent) setLoading(true);
+      if (!silent) setFetchError('');
 
       const { data, error } = await supabase
         .from('member_applications')
@@ -46,23 +52,27 @@ const MemberApprovalDetails = () => {
       if (error) {
         setFetchError(error.message || 'Unable to fetch member details.');
         setMemberRow(null);
-        setLoading(false);
+        if (!silent) setLoading(false);
         return;
       }
 
       setMemberRow(data || null);
-      setLoading(false);
+      if (!silent) setLoading(false);
     };
 
     fetchMemberDetails();
-  }, [id]);
+  }, [id, rtVersion]);
 
   // Fetch membership payment + paid-up capital verification status from backend
+  const rtVersionPay = useRealtimeVersion(RT.MEMBERS);
+  const rtSeenPay = useRef(rtVersionPay);
   useEffect(() => {
+    const silent = rtSeenPay.current !== rtVersionPay;
+    rtSeenPay.current = rtVersionPay;
     if (!id) return;
     let cancelled = false;
     (async () => {
-      setPaymentStatusLoading(true);
+      if (!silent) setPaymentStatusLoading(true);
       try {
         const res = await fetch(
           `${apiBaseUrl}/api/bod/membership-approval/${encodeURIComponent(id)}/payment-status`,
@@ -73,15 +83,16 @@ const MemberApprovalDetails = () => {
           setPaymentStatus(payload.data || null);
         }
       } catch (_err) {
+        if (silent) return;
         // Non-fatal — UI will simply show "unknown" status
       } finally {
-        if (!cancelled) setPaymentStatusLoading(false);
+        if (!silent) if (!cancelled) setPaymentStatusLoading(false);
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [id, apiBaseUrl]);
+  }, [id, apiBaseUrl, rtVersionPay]);
 
   useEffect(() => {
     if (!id) return;

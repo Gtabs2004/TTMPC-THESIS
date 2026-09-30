@@ -1,5 +1,7 @@
 ﻿import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
+import { useRealtimeRefetch } from "../../hooks/useRealtimeRefetch";
+import { RT } from "../../lib/realtimeSync";
 import { StatCard, StatCardRow } from "../../components/StatCard";
 import StaffSidebar from "../../components/StaffSidebar";
 import { bodNav } from "../../components/StaffSidebar/configs/bod";
@@ -138,9 +140,9 @@ const Member_Approvals = () => {
     return [...new Set(ids)];
   };
 
-  const fetchData = async (pageNumber = 1, roleOverride = portalRole) => {
+  const fetchData = async (pageNumber = 1, roleOverride = portalRole, { silent = false } = {}) => {
     const requestId = ++fetchRequestIdRef.current;
-    setLoading(true);
+    if (!silent) setLoading(true);
     const from = (pageNumber - 1) * LIMIT;
     const to = from + LIMIT - 1;
 
@@ -353,6 +355,15 @@ const Member_Approvals = () => {
   useEffect(() => {
     setPage(1);
   }, [activeTab]);
+
+  // Realtime: applications submitted, paid, trained or approved by anyone —
+  // refresh the current tab/page, the tab counts and the KPI strip.
+  useRealtimeRefetch([...RT.MEMBERS, ...RT.ATTENDANCE], () => {
+    if (!authReady) return;
+    fetchData(page, portalRole, { silent: true });
+    fetchTabCounts(portalRole);
+    fetchStats();
+  });
 
 
   const normalizeStatus = (applicationStatus, trainingStatus) => {

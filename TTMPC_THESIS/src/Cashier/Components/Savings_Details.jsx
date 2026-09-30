@@ -1,4 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { useRealtimeRefetch } from "../../hooks/useRealtimeRefetch";
+import { RT } from "../../lib/realtimeSync";
 import { StatCard, StatCardRow } from "../../components/StatCard";
 import StaffSidebar from "../../components/StaffSidebar";
 import { cashierNav } from "../../components/StaffSidebar/configs/cashier";
@@ -82,10 +84,10 @@ const useSavingsAccount = (accountParam) => {
   const [status, setStatus] = useState("idle");
   const [error, setError] = useState(null);
 
-  const fetchAccount = useCallback(async () => {
+  const fetchAccount = useCallback(async ({ silent = false } = {}) => {
     if (!accountParam) return;
-    setStatus("loading");
-    setError(null);
+    if (!silent) setStatus("loading");
+    if (!silent) setError(null);
     try {
       const [accountRes, ledgerRes] = await Promise.all([
         fetch(`${API_BASE_URL}/api/savings/accounts/${encodeURIComponent(accountParam)}`),
@@ -103,10 +105,12 @@ const useSavingsAccount = (accountParam) => {
       setLedger(Array.isArray(ledgerJson?.data) ? ledgerJson.data : []);
       setStatus("ready");
     } catch (err) {
+      if (silent) return;
       setError(err?.message || "Unable to fetch savings account.");
       setStatus("error");
     }
   }, [accountParam]);
+  useRealtimeRefetch(RT.SAVINGS, () => fetchAccount({ silent: true }));
 
   useEffect(() => {
     fetchAccount();

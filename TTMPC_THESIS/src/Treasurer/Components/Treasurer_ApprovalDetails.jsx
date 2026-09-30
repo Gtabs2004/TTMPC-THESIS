@@ -1,4 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import { useRealtimeVersion } from "../../hooks/useRealtimeRefetch";
+import { RT } from "../../lib/realtimeSync";
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '../../supabaseClient';
 import { useMigsLabel, getMigsBadgeClasses } from '../../hooks/useMigsLabel';
@@ -115,6 +117,11 @@ const Treasurer_ApprovalDetails = () => {
   const [loanDetails, setLoanDetails] = useState(null);
   const [vaultBalance, setVaultBalance] = useState(null);
 
+  // Realtime: re-read this loan, the vault and the funds check whenever loan
+  // or vault tables change elsewhere (e.g. another Treasurer releases a loan).
+  const rtVersion = useRealtimeVersion([...RT.LOANS, ...RT.VAULT]);
+  const rtSeen = useRef(rtVersion);
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -126,7 +133,7 @@ const Treasurer_ApprovalDetails = () => {
       if (!cancelled) setVaultBalance(Number(data?.current_balance || 0));
     })();
     return () => { cancelled = true; };
-  }, []);
+  }, [rtVersion]);
 
   // Real Available-funds figures for the Reschedule/Disburse modals —
   // {balance, committed, available} for the whole vault, and this specific
@@ -179,7 +186,7 @@ const Treasurer_ApprovalDetails = () => {
     })();
 
     return () => { cancelled = true; };
-  }, [isBookkeeperFlow, isKoicaSource, loanDetails?.id, loanDetails?.loanAmount]);
+  }, [isBookkeeperFlow, isKoicaSource, loanDetails?.id, loanDetails?.loanAmount, rtVersion]);
   const [borrowerMemberId, setBorrowerMemberId] = useState(null);
   const { data: migsLabel, status: migsStatusFetch } = useMigsLabel(borrowerMemberId);
   const [supportingDocs, setSupportingDocs] = useState([]);
@@ -249,6 +256,8 @@ const Treasurer_ApprovalDetails = () => {
 
   useEffect(() => {
     let isMounted = true;
+    const silent = rtSeen.current !== rtVersion;
+    rtSeen.current = rtVersion;
 
     const fetchMemberById = async (memberId) => {
       if (!memberId) return null;
@@ -273,8 +282,10 @@ const Treasurer_ApprovalDetails = () => {
       }
 
       try {
-        setLoading(true);
-        setLoadError('');
+        if (!silent) {
+          setLoading(true);
+          setLoadError('');
+        }
 
         let data = null;
         let tableName = 'loans';
@@ -534,11 +545,11 @@ const Treasurer_ApprovalDetails = () => {
           setSupportingDocs(normalizeSupportingDocuments(mapped.rawPayload || {}));
         }
       } catch (err) {
-        if (isMounted) {
+        if (isMounted && !silent) {
           setLoadError(err.message || 'Failed to load loan details.');
         }
       } finally {
-        if (isMounted) {
+        if (isMounted && !silent) {
           setLoading(false);
         }
       }
@@ -548,7 +559,7 @@ const Treasurer_ApprovalDetails = () => {
     return () => {
       isMounted = false;
     };
-  }, [id]);
+  }, [id, rtVersion]);
 
   useEffect(() => {
     let active = true;

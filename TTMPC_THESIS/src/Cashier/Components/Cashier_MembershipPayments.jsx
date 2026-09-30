@@ -1,4 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { useRealtimeRefetch } from "../../hooks/useRealtimeRefetch";
+import { RT } from "../../lib/realtimeSync";
 import StaffSidebar from "../../components/StaffSidebar";
 import { cashierNav } from "../../components/StaffSidebar/configs/cashier";
 import { useNavigate, NavLink } from "react-router-dom";
@@ -112,9 +114,9 @@ const Cashier_MembershipPayments = () => {
     });
   };
 
-  const fetchAll = async () => {
-    setLoading(true);
-    setLoadError("");
+  const fetchAll = async ({ silent = false } = {}) => {
+    if (!silent) setLoading(true);
+    if (!silent) setLoadError("");
     try {
       const [appsRes, txRes] = await Promise.all([
         fetch(`${API_BASE_URL}/api/cashier/membership-payments/applicants`, {
@@ -137,13 +139,15 @@ const Cashier_MembershipPayments = () => {
       setApplicants(Array.isArray(appsJson.data) ? appsJson.data : []);
       setTransactions(Array.isArray(txJson.data) ? txJson.data : []);
     } catch (err) {
+      if (silent) return;
       setLoadError(err?.message || "Unable to load membership payment data.");
       setApplicants([]);
       setTransactions([]);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
+  useRealtimeRefetch(RT.MEMBERS, () => fetchAll({ silent: true }));
 
   useEffect(() => {
     fetchAll();

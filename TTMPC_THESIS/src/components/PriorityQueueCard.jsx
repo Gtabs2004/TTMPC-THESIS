@@ -1,4 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
+import { useRealtimeRefetch } from "../hooks/useRealtimeRefetch";
+import { RT } from "../lib/realtimeSync";
 import { useNavigate } from "react-router-dom";
 import { AlertCircle, ArrowRight, ChevronLeft, ChevronRight, Clock, ListOrdered, Loader2, RefreshCw } from "lucide-react";
 
@@ -31,9 +33,11 @@ const PriorityQueueCard = ({ className = "", limit = 10, seeAllHref = "/treasure
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const fetchQueue = useCallback(async (offset = 0) => {
-    setLoading(true);
-    setError("");
+  const fetchQueue = useCallback(async (offset = 0, { silent = false } = {}) => {
+    if (!silent) {
+      setLoading(true);
+      setError("");
+    }
     try {
       const res = await fetch(
         `${API_BASE_URL}/api/treasurer/disbursements/priority-queue?limit=${limit}&offset=${offset}`,
@@ -47,13 +51,17 @@ const PriorityQueueCard = ({ className = "", limit = 10, seeAllHref = "/treasure
       setSummary(payload.summary || { total_count: 0, total_amount: 0 });
       setPagination(payload.pagination || { offset: 0, total: 0, has_more: false });
     } catch (err) {
-      setError(err?.message || "Failed to load priority queue.");
+      if (!silent) setError(err?.message || "Failed to load priority queue.");
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [limit]);
 
   useEffect(() => { fetchQueue(0); }, [fetchQueue]);
+  // Realtime: stay on the page being viewed as loans are approved/released.
+  useRealtimeRefetch([...RT.LOANS, ...RT.VAULT], () =>
+    fetchQueue(pagination.offset || 0, { silent: true }),
+  );
 
   const currentPage = Math.floor((pagination.offset || 0) / limit) + 1;
   const totalPages = Math.max(1, Math.ceil((pagination.total || 0) / limit));

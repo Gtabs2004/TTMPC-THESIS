@@ -1,4 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { useRealtimeRefetch } from "../../hooks/useRealtimeRefetch";
+import { RT } from "../../lib/realtimeSync";
 import { getLoanTypeChipClass as getLoanTypeStyle } from "../../utils/loanTypeColors";
 import { StatCard, StatCardRow } from "../../components/StatCard";
 import { TableToolbar } from "../../components/TableToolbar";
@@ -203,9 +205,9 @@ const Manager_Manage_Loans = () => {
     return groupedLoans.slice(start, start + ITEMS_PER_PAGE);
   }, [groupedLoans, currentPage]);
 
-  async function fetchLoans() {
-    setLoading(true);
-    setLoadError("");
+  async function fetchLoans({ silent = false } = {}) {
+    if (!silent) setLoading(true);
+    if (!silent) setLoadError("");
     try {
       const response = await fetch(`${API_BASE_URL}/api/bookkeeper/manage-loans`);
       const result = await response.json();
@@ -215,13 +217,15 @@ const Manager_Manage_Loans = () => {
       const rows = Array.isArray(result?.data?.rows) ? result.data.rows : [];
       setLoans(rows);
     } catch (error) {
+      if (silent) return;
       addNotification(error?.message || "Unable to load loans.", "error");
       setLoadError(error?.message || "Unable to load loans.");
       setLoans([]);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }
+  useRealtimeRefetch(RT.LOANS, () => fetchLoans({ silent: true }));
 
   useEffect(() => {
     fetchLoans();

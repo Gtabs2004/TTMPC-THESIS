@@ -8,6 +8,7 @@ import Pagination from "../../components/Pagination";
 import TableStateRow from "../../components/TableStateRow";
 import StaffSidebar from "../../components/StaffSidebar";
 import { treasurerNav } from "../../components/StaffSidebar/configs/treasurer";
+import { useRealtimeRefetch } from "../../hooks/useRealtimeRefetch";
 import {
   Search,
   Wallet,
@@ -98,9 +99,13 @@ const Treasurer_Payments = () => {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
 
-  const fetchLedger = useCallback(async () => {
-    setLoading(true);
-    setLoadError("");
+  // `silent` = realtime refresh: keep the current page and the rows on
+  // screen, no spinner, and don't replace good data with an error.
+  const fetchLedger = useCallback(async ({ silent = false } = {}) => {
+    if (!silent) {
+      setLoading(true);
+      setLoadError("");
+    }
     try {
       const params = new URLSearchParams({
         start_date: startDate,
@@ -115,15 +120,28 @@ const Treasurer_Payments = () => {
         throw new Error(payload?.detail || "Failed to load ledger.");
       }
       setLedger(payload.data);
-      setPage(1);
+      if (!silent) setPage(1);
     } catch (e) {
-      setLoadError(e?.message || "Unable to load ledger.");
+      if (!silent) setLoadError(e?.message || "Unable to load ledger.");
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [startDate, endDate, typeFilter]);
 
   useEffect(() => { fetchLedger(); }, [fetchLedger]);
+  // The tables /api/treasurer/cash-ledger reads from.
+  useRealtimeRefetch(
+    [
+      "loan_payments",
+      "loan_payments_legacy",
+      "loans",
+      "savings_ledger",
+      "capital_build_up",
+      "membership_payments",
+      "vault_entries",
+    ],
+    () => fetchLedger({ silent: true }),
+  );
 
   // Client-side search filter across description + member + reference. The
   // backend already applied the date window and type filter; search is

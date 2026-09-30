@@ -21,6 +21,7 @@ import Breadcrumb from "../../components/Breadcrumb";
 import { TableToolbar } from "../../components/TableToolbar";
 import TableStateRow from "../../components/TableStateRow";
 import Pagination from "../../components/Pagination";
+import { useRealtimeRefetch } from "../../hooks/useRealtimeRefetch";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 const PAGE_SIZE = 10;
@@ -65,10 +66,13 @@ const useSavingsAccount = (accountParam) => {
   const [status, setStatus] = useState("idle");
   const [error, setError] = useState(null);
 
-  const fetchAccount = useCallback(async () => {
+  // `silent` = realtime refresh: no loading state, keep data on failure.
+  const fetchAccount = useCallback(async ({ silent = false } = {}) => {
     if (!accountParam) return;
-    setStatus("loading");
-    setError(null);
+    if (!silent) {
+      setStatus("loading");
+      setError(null);
+    }
     try {
       const [accountRes, ledgerRes] = await Promise.all([
         fetch(`${API_BASE_URL}/api/savings/accounts/${encodeURIComponent(accountParam)}`),
@@ -86,6 +90,7 @@ const useSavingsAccount = (accountParam) => {
       setLedger(Array.isArray(ledgerJson?.data) ? ledgerJson.data : []);
       setStatus("ready");
     } catch (err) {
+      if (silent) return;
       setError(err?.message || "Unable to fetch savings account.");
       setStatus("error");
     }
@@ -94,6 +99,10 @@ const useSavingsAccount = (accountParam) => {
   useEffect(() => {
     fetchAccount();
   }, [fetchAccount]);
+  useRealtimeRefetch(
+    ["savings_accounts", "savings_ledger"],
+    () => fetchAccount({ silent: true }),
+  );
 
   return { data, ledger, status, error, refresh: fetchAccount };
 };

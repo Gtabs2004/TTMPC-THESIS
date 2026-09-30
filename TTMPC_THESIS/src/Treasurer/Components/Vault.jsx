@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 import { FORECAST_LOAN_TYPE_COLORS } from "../../lib/chartColors";
 import { formatWithCommas, stripCommas } from "../../utils/numberFormat";
+import { useRealtimeRefetch } from "../../hooks/useRealtimeRefetch";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 // Shared with LoanDemandForecastCard.jsx via chartColors.js — both forecast
@@ -77,9 +78,13 @@ const Vault = () => {
   // -------------------------------------------------------------------------
   // Data fetching — direct Supabase (RLS enforced by is_vault_reader).
   // -------------------------------------------------------------------------
-  const fetchData = useCallback(async () => {
-    setLoading(true);
-    setError("");
+  // `silent` = realtime refresh while the page is open: no spinner, and a
+  // failed refresh keeps the figures already on screen.
+  const fetchData = useCallback(async ({ silent = false } = {}) => {
+    if (!silent) {
+      setLoading(true);
+      setError("");
+    }
     try {
       const [balRes, entriesRes] = await Promise.all([
         supabase.from("vault_balance_v").select("*").limit(1).maybeSingle(),
@@ -93,13 +98,16 @@ const Vault = () => {
       setBalance(balRes.data || { current_balance: 0, last_updated_at: null, entry_count: 0 });
       setEntries(entriesRes.data || []);
     } catch (err) {
-      setError(err?.message || "Failed to load vault data.");
+      if (!silent) setError(err?.message || "Failed to load vault data.");
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, []);
 
   useEffect(() => { fetchData(); }, [fetchData]);
+  // vault_balance_v is computed from vault_entries, which loan releases and
+  // cashier-side vault postings write to.
+  useRealtimeRefetch(["vault_entries"], () => fetchData({ silent: true }));
 
   // Pull the SARIMA forecast for the *next calendar month* for both loan
   // types, so the treasurer can compare vault-on-hand against upcoming

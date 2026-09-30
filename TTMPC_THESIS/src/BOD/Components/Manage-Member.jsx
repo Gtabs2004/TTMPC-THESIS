@@ -1,5 +1,7 @@
-﻿import React, { useEffect, useMemo, useState } from "react";
+﻿import React, { useEffect, useMemo, useState, useRef } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
+import { useRealtimeVersion } from "../../hooks/useRealtimeRefetch";
+import { RT } from "../../lib/realtimeSync";
 import StaffSidebar from "../../components/StaffSidebar";
 import { bodNav } from "../../components/StaffSidebar/configs/bod";
 import { UserAuth } from "../../contex/AuthContext";
@@ -50,9 +52,13 @@ const BOD_Manage_Member = () => {
 
 
 
+  const rtVersion = useRealtimeVersion(RT.MEMBERS);
+  const rtSeen = useRef(rtVersion);
   useEffect(() => {
+    const silent = rtSeen.current !== rtVersion;
+    rtSeen.current = rtVersion;
     async function loadData() {
-      setLoading(true);
+      if (!silent) setLoading(true);
 
       try {
         // member-loan-summary returns only {activeCount, paidCount} per
@@ -94,17 +100,18 @@ const BOD_Manage_Member = () => {
         setTerminatedByMemberId(terminatedByMember);
         addNotification("Member data loaded successfully", "success");
       } catch (err) {
+        if (silent) return;
         addNotification(err?.message || "Unable to load personal datasheet.", "error");
         setRows([]);
         setLoanSummaryByMemberId({});
         setTerminatedByMemberId({});
       } finally {
-        setLoading(false);
+        if (!silent) setLoading(false);
       }
     }
 
     loadData();
-  }, [addNotification]);
+  }, [addNotification, rtVersion]);
 
   // Split once, here, so every other memo below just reads activeRows /
   // terminatedRows — the two tables never see each other's records, per the

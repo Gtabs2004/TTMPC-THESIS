@@ -1,5 +1,7 @@
 ﻿import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
+import { useRealtimeRefetch } from "../../hooks/useRealtimeRefetch";
+import { RT } from "../../lib/realtimeSync";
 import { StatCard, StatCardRow } from "../../components/StatCard";
 import StaffSidebar from "../../components/StaffSidebar";
 import { bookkeeperNav } from "../../components/StaffSidebar/configs/bookkeeper";
@@ -312,9 +314,9 @@ const Reports = () => {
   const [error, setError] = useState(null);
   const [generatedAt, setGeneratedAt] = useState(null);
 
-  const fetchReports = useCallback(async () => {
-    setLoading(true);
-    setError(null);
+  const fetchReports = useCallback(async ({ silent = false } = {}) => {
+    if (!silent) setLoading(true);
+    if (!silent) setError(null);
     try {
       const res = await fetch(`${API_BASE}/api/bookkeeper/reports`);
       if (!res.ok) throw new Error(`Server error ${res.status}`);
@@ -322,11 +324,13 @@ const Reports = () => {
       setReportData(json);
       setGeneratedAt(json.generated_at);
     } catch (err) {
+      if (silent) return;
       setError(err.message || "Failed to load report data.");
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, []);
+  useRealtimeRefetch([...RT.LOANS, ...RT.SAVINGS, ...RT.CBU, ...RT.MEMBERS, ...RT.VAULT], () => fetchReports({ silent: true }));
 
   useEffect(() => { fetchReports(); }, [fetchReports]);
 

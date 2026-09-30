@@ -1,5 +1,6 @@
-﻿import React, { useEffect, useMemo, useState } from "react";
+﻿import React, { useEffect, useMemo, useState, useRef } from "react";
 import { useNavigate, NavLink, Link } from "react-router-dom";
+import { useRealtimeVersion } from "../../hooks/useRealtimeRefetch";
 import { StatCard, StatCardRow } from "../../components/StatCard";
 import { TableToolbar } from "../../components/TableToolbar";
 import StaffSidebar from "../../components/StaffSidebar";
@@ -58,10 +59,14 @@ const Grocery = () => {
   const [activeTab, setActiveTab] = useState('All');
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
+  const rtVersion = useRealtimeVersion(["GROCERY_TRANSACTIONS"]);
+  const rtSeen = useRef(rtVersion);
   useEffect(() => {
+    const silent = rtSeen.current !== rtVersion;
+    rtSeen.current = rtVersion;
     let cancelled = false;
     const load = async () => {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const { data, error } = await supabase
         .from("GROCERY_TRANSACTIONS")
         .select("*")
@@ -69,11 +74,11 @@ const Grocery = () => {
         .limit(200);
       if (cancelled) return;
       if (!error) setTransactions(data || []);
-      setLoading(false);
+      if (!silent) setLoading(false);
     };
     load();
     return () => { cancelled = true; };
-  }, []);
+  }, [rtVersion]);
 
   const rows = useMemo(() => transactions.map((t) => ({
     id: t.GroceryID,

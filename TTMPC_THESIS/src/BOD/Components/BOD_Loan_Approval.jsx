@@ -1,4 +1,6 @@
 import React, { useEffect, useState } from "react";
+import { useRealtimeRefetch } from "../../hooks/useRealtimeRefetch";
+import { RT } from "../../lib/realtimeSync";
 import { StatCard, StatCardRow } from "../../components/StatCard";
 import { TableToolbar } from "../../components/TableToolbar";
 import StaffSidebar from "../../components/StaffSidebar";
@@ -53,8 +55,8 @@ const BOD_Loan_Approval = () => {
 
 
 
-  const load = async () => {
-    setLoading(true);
+  const load = async ({ silent = false } = {}) => {
+    if (!silent) setLoading(true);
     try {
       const { data, error } = await supabase
         .from("loans")
@@ -91,12 +93,14 @@ const BOD_Loan_Approval = () => {
       ).length;
       setAvgApplicationsPerMonth(highValueCount / AVG_WINDOW_MONTHS);
     } catch (err) {
+      if (silent) return;
       addNotification(err?.message || "Failed to load BOD loan queue.", "error");
       setLoans([]);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
+  useRealtimeRefetch(RT.LOANS, () => load({ silent: true }));
 
   useEffect(() => {
     load();

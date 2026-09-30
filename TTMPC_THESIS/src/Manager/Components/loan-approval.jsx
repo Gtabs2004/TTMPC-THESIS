@@ -1,5 +1,7 @@
 ﻿import React, { useState, useEffect } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
+import { useRealtimeRefetch } from "../../hooks/useRealtimeRefetch";
+import { RT } from "../../lib/realtimeSync";
 import { getLoanTypeChipClass as getLoanTypeStyle } from "../../utils/loanTypeColors";
 import { StatCard, StatCardRow } from "../../components/StatCard";
 import { TableToolbar } from "../../components/TableToolbar";
@@ -43,9 +45,9 @@ const Loan_Approval = () => {
     fetchLoans();
   }, []);
 
-  const fetchLoans = async () => {
+  const fetchLoans = async ({ silent = false } = {}) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       
       // Using Supabase relational queries to fetch joined data
       const { data: loansData, error: loansError } = await supabase
@@ -99,14 +101,16 @@ const Loan_Approval = () => {
         .sort((a, b) => new Date(b.application_date || 0) - new Date(a.application_date || 0));
 
       setLoans(managerQueue);
-      addNotification("Loan applications loaded successfully", "success");
+      if (!silent) addNotification("Loan applications loaded successfully", "success");
     } catch (err) {
+      if (silent) return;
       addNotification(err.message || "Unable to load loans.", "error");
       console.error("Error fetching loans:", err.message);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
+  useRealtimeRefetch(RT.LOANS, () => fetchLoans({ silent: true }));
 
 
   // Helper functions for badge styling

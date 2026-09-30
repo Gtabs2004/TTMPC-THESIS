@@ -1,5 +1,7 @@
 ﻿import React, { useEffect, useState } from "react";
 import StaffSidebar from "../components/StaffSidebar";
+import { useRealtimeRefetch } from "../hooks/useRealtimeRefetch";
+import { RT } from "../lib/realtimeSync";
 import { StatCard, StatCardRow } from "../components/StatCard";
 import { secretaryNav } from "../components/StaffSidebar/configs/secretary";
 import { UserAuth } from "../contex/AuthContext";
@@ -174,8 +176,8 @@ const Secretary_Attendance = () => {
     return "";
   };
 
-  const fetchAttendanceRows = async () => {
-    setLoading(true);
+  const fetchAttendanceRows = async ({ silent = false } = {}) => {
+    if (!silent) setLoading(true);
     const [{ data, error }, logsResponse, rescheduleLogsResponse] = await Promise.all([
       supabase
         .from("member_applications")
@@ -195,7 +197,7 @@ const Secretary_Attendance = () => {
 
     if (error) {
       addNotification(error.message || "Unable to load attendance records.", "error");
-      setLoading(false);
+      if (!silent) setLoading(false);
       return;
     }
 
@@ -312,8 +314,9 @@ const Secretary_Attendance = () => {
     }
 
     setTableData(grouped);
-    setLoading(false);
+    if (!silent) setLoading(false);
   };
+  useRealtimeRefetch([...RT.ATTENDANCE, "member"], () => fetchAttendanceRows({ silent: true }));
 
   const persistAttendanceToApplication = async (member) => {
     const payload = {

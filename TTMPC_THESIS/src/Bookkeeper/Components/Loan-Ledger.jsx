@@ -1,4 +1,6 @@
-import React, { memo, useEffect, useMemo, useState } from "react";
+import React, { memo, useEffect, useMemo, useState, useRef } from "react";
+import { useRealtimeVersion } from "../../hooks/useRealtimeRefetch";
+import { RT } from "../../lib/realtimeSync";
 import { NavLink, useLocation, useNavigate, useParams } from "react-router-dom";
 import StaffSidebar from "../../components/StaffSidebar";
 import { bookkeeperNav } from "../../components/StaffSidebar/configs/bookkeeper";
@@ -353,12 +355,16 @@ const LoanLedger = () => {
     }
   };
 
+  const rtVersion = useRealtimeVersion(RT.LOANS);
+  const rtSeen = useRef(rtVersion);
   useEffect(() => {
+    const silent = rtSeen.current !== rtVersion;
+    rtSeen.current = rtVersion;
     async function fetchLedger() {
       if (!loanId) return;
 
-      setLoading(true);
-      setLoadError("");
+      if (!silent) setLoading(true);
+      if (!silent) setLoadError("");
       try {
         const response = await fetch(`${API_BASE_URL}/api/bookkeeper/loan-ledger/${encodeURIComponent(loanId)}`);
         const result = await response.json();
@@ -367,14 +373,15 @@ const LoanLedger = () => {
         }
         setSelectedLoan(result.data);
       } catch (error) {
+        if (silent) return;
         setLoadError(error?.message || "Unable to load live ledger data.");
       } finally {
-        setLoading(false);
+        if (!silent) setLoading(false);
       }
     }
 
     fetchLedger();
-  }, [loanId]);
+  }, [loanId, rtVersion]);
 
   const paymentRows = useMemo(
     () => (selectedLoan.payment_history || []).map(toPaymentRow),

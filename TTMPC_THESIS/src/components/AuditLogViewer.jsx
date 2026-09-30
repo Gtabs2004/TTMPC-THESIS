@@ -1,4 +1,6 @@
 import React, { useEffect, useState } from "react";
+import { useRealtimeRefetch } from "../hooks/useRealtimeRefetch";
+import { RT } from "../lib/realtimeSync";
 import { supabase } from "../supabaseClient";
 import { StatCard, StatCardRow } from "./StatCard";
 import { TableToolbar } from "./TableToolbar";
@@ -304,8 +306,8 @@ const AuditLogViewer = ({ showActorRoleFilter = true, onError }) => {
   const [showModuleMenu, setShowModuleMenu] = useState(false);
   const [showDateMenu, setShowDateMenu] = useState(false);
 
-  const loadRows = async () => {
-    setLoading(true);
+  const loadRows = async ({ silent = false } = {}) => {
+    if (!silent) setLoading(true);
     try {
       const qs = buildAuditQuery(filters, { page, page_size: PAGE_SIZE });
       const res = await fetch(`${API_BASE}/api/audit-log?${qs}`, {
@@ -316,12 +318,13 @@ const AuditLogViewer = ({ showActorRoleFilter = true, onError }) => {
       setRows(body.rows || []);
       setTotal(body.total || 0);
     } catch (err) {
+      if (silent) return;
       const msg = err?.message || "Failed to load audit log.";
       if (onError) onError(msg);
       setRows([]);
       setTotal(0);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
@@ -337,6 +340,10 @@ const AuditLogViewer = ({ showActorRoleFilter = true, onError }) => {
       /* KPIs are decorative; the table is the source of truth. */
     }
   };
+  useRealtimeRefetch(RT.AUDIT, () => {
+    loadRows({ silent: true });
+    loadKpis();
+  });
 
   useEffect(() => {
     loadRows();

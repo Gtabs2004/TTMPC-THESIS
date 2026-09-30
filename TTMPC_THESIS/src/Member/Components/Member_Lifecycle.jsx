@@ -1,5 +1,7 @@
 ﻿import React, { useEffect, useMemo, useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
+import { useRealtimeRefetch } from "../../hooks/useRealtimeRefetch";
+import { RT } from "../../lib/realtimeSync";
 import { UserAuth } from "../../contex/AuthContext";
 import { useNotification } from "../../contex/NotificationContext";
 import { useTheme } from "../../contex/ThemeContext";
@@ -360,9 +362,9 @@ const Member_Lifecycle = () => {
              
             };
 
-  const loadLifecycleData = async () => {
-    setLoading(true);
-    setError("");
+  const loadLifecycleData = async ({ silent = false } = {}) => {
+    if (!silent) setLoading(true);
+    if (!silent) setError("");
     setScheduleWarning("");
     setFetchStage("Initializing member fetch...");
 
@@ -471,6 +473,7 @@ const Member_Lifecycle = () => {
       setLastSynced(new Date().toISOString());
       setFetchStage(`Loaded ${normalizedLoans.length} loans, ${paymentRows.length} payments, ${normalizedSchedules.length} schedules.`);
     } catch (err) {
+      if (silent) return;
       setError(err?.message || "Unable to load member lifecycle data.");
       setLoans([]);
       setPayments([]);
@@ -479,9 +482,10 @@ const Member_Lifecycle = () => {
       setAvatarUrl('');
       setFetchStage("Fetch failed.");
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
+  useRealtimeRefetch([...RT.LOANS, ...RT.CBU, ...RT.MEMBERS], () => loadLifecycleData({ silent: true }));
 
   useEffect(() => {
     loadLifecycleData();

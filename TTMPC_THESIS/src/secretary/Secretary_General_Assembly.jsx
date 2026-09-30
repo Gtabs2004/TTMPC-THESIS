@@ -1,4 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { useRealtimeRefetch } from "../hooks/useRealtimeRefetch";
+import { RT } from "../lib/realtimeSync";
 import StaffSidebar from "../components/StaffSidebar";
 import { secretaryNav } from "../components/StaffSidebar/configs/secretary";
 import { NavLink, useNavigate } from "react-router-dom";
@@ -58,8 +60,8 @@ const Secretary_General_Assembly = () => {
 
 
 
-  const fetchRoster = useCallback(async () => {
-    setLoading(true);
+  const fetchRoster = useCallback(async ({ silent = false } = {}) => {
+    if (!silent) setLoading(true);
     try {
       const response = await fetch(
         `${API_BASE_URL}/api/secretary/general-assembly/${SCORING_YEAR}`
@@ -74,12 +76,14 @@ const Secretary_General_Assembly = () => {
         setMeetingDate(result.default_meeting_date);
       }
     } catch (err) {
+      if (silent) return;
       addNotification(err?.message || "Unable to load roster.", "error");
       setRows([]);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [addNotification]);
+  useRealtimeRefetch([...RT.ATTENDANCE, "member"], () => fetchRoster({ silent: true }));
 
   useEffect(() => {
     fetchRoster();

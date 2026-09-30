@@ -1,5 +1,6 @@
-﻿import React, { useEffect, useMemo, useState } from "react";
+﻿import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, NavLink, Link } from "react-router-dom";
+import { useRealtimeVersion } from "../../hooks/useRealtimeRefetch";
 import { StatCard, StatCardRow } from "../../components/StatCard";
 import { TableToolbar } from "../../components/TableToolbar";
 import StaffSidebar from "../../components/StaffSidebar";
@@ -53,11 +54,16 @@ const Cashier_Grocery = () => {
   const [activeTab, setActiveTab] = useState('All');
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
+  // Realtime: POS webhook inserts land in GROCERY_TRANSACTIONS.
+  const rtVersion = useRealtimeVersion(["GROCERY_TRANSACTIONS"]);
+  const rtSeen = useRef(rtVersion);
 
   useEffect(() => {
     let cancelled = false;
+    const silent = rtSeen.current !== rtVersion;
+    rtSeen.current = rtVersion;
     const load = async () => {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const { data, error } = await supabase
         .from("GROCERY_TRANSACTIONS")
         .select("*")
@@ -69,7 +75,7 @@ const Cashier_Grocery = () => {
     };
     load();
     return () => { cancelled = true; };
-  }, []);
+  }, [rtVersion]);
 
   const rows = useMemo(() => transactions.map((t) => ({
     id: t.GroceryID,

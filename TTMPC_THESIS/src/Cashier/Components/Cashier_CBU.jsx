@@ -1,5 +1,7 @@
 ﻿import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
+import { useRealtimeRefetch } from "../../hooks/useRealtimeRefetch";
+import { RT } from "../../lib/realtimeSync";
 import StaffSidebar from "../../components/StaffSidebar";
 import { cashierNav } from "../../components/StaffSidebar/configs/cashier";
 import { UserAuth } from "../../contex/AuthContext";
@@ -118,9 +120,9 @@ const Cashier_CBU = () => {
     }
   }, [transactionPage, totalTransactionPages]);
 
-  async function fetchCbuData() {
-    setLoading(true);
-    setLoadError("");
+  async function fetchCbuData({ silent = false } = {}) {
+    if (!silent) setLoading(true);
+    if (!silent) setLoadError("");
     try {
       const [membersRes, txRes] = await Promise.all([
         fetch(`${API_BASE_URL}/api/cashier/cbu/members`, { method: "GET", headers: { Accept: "application/json" } }),
@@ -140,13 +142,15 @@ const Cashier_CBU = () => {
       setMembers(Array.isArray(membersPayload.data) ? membersPayload.data : []);
       setTransactions(Array.isArray(txPayload.data) ? txPayload.data : []);
     } catch (err) {
+      if (silent) return;
       setLoadError(err?.message || "Unable to load CBU data.");
       setMembers([]);
       setTransactions([]);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }
+  useRealtimeRefetch([...RT.CBU, ...RT.MEMBERS], () => fetchCbuData({ silent: true }));
 
   useEffect(() => {
     fetchCbuData();
