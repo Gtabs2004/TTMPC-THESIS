@@ -67,6 +67,35 @@ const formatOverrideDate = (iso) => {
     : d.toLocaleDateString("en-PH", { year: "numeric", month: "short", day: "numeric" });
 };
 
+// A member who is exiting (CBU applied to loans, leaving once paid),
+// terminated or closed can't apply for new loans or renewals. The RPC doesn't
+// look at member status; a trigger on public.loans enforces it, and this
+// shows the member why instead of letting the submit fail.
+const LEAVING_REASON = {
+  exiting: "You're leaving the cooperative once your remaining loan balance is paid, so new loans and renewals aren't available.",
+  terminated: "Your membership has been terminated, so new loans and renewals aren't available.",
+  closed: "Your membership is closed, so new loans and renewals aren't available.",
+};
+
+const applyMemberStatus = async (result, memberId) => {
+  const perType = result?.per_type;
+  if (!perType || !memberId) return result;
+  let status = "";
+  try {
+    const { data } = await supabase.from("member").select("member_status").eq("id", memberId).maybeSingle();
+    status = String(data?.member_status || "").trim().toLowerCase();
+  } catch {
+    return result;
+  }
+  const reason = LEAVING_REASON[status];
+  if (!reason) return result;
+  const next = {};
+  for (const [type, bucket] of Object.entries(perType)) {
+    next[type] = bucket ? { ...bucket, can_apply_new: false, can_renew: false, reason, member_status: status } : bucket;
+  }
+  return { ...result, per_type: next };
+};
+
 /**
  * Unlocks Renewal on any bucket the Bookkeeper has approved a 6-month-rule
  * override for. The RPC only knows about payment counts, so this layers the
@@ -160,7 +189,7 @@ export const useLoanEligibility = (memberId, { allowSimulation = false, loanType
 
       if (rpcError) throw new Error(rpcError.message || "Failed to load loan eligibility.");
 
-      const withOverrides = await applyRenewalOverrides(result);
+      const withOverrides = await applyMemberStatus(await applyRenewalOverrides(result), memberId);
 
       // If caller asked for a single loan type, extract just that bucket
       if (normalizedType) {

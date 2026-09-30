@@ -72,7 +72,16 @@ const Record_Details = ({ backPath = '/Secretary_Records' }) => {
   }, [id]);
 
   const r = record || {};
-  const terminated = String(r.member_status || "").toLowerCase() === "terminated";
+  const status = String(r.member_status || "active").toLowerCase();
+  // Closed = terminated and CBU fully settled; exiting = CBU applied to loans,
+  // leaves once the rest is paid. Both show the termination section.
+  const terminated = status === "terminated" || status === "closed";
+  const STATUS = {
+    active: { label: "Active", className: "bg-green-50 text-green-700" },
+    exiting: { label: "Exiting — balance due", className: "bg-amber-50 text-amber-800" },
+    terminated: { label: "Terminated", className: "bg-red-50 text-red-700" },
+    closed: { label: "Closed", className: "bg-gray-100 text-gray-700" },
+  }[status] || { label: "Active", className: "bg-green-50 text-green-700" };
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-8">
@@ -89,8 +98,8 @@ const Record_Details = ({ backPath = '/Secretary_Records' }) => {
           <div className="flex flex-wrap items-center justify-between gap-3 mb-8">
             <h1 className="text-3xl font-bold text-gray-800">{r.name || "Membership Record"}</h1>
             {record ? (
-              <span className={`rounded-full px-3 py-1 text-xs font-bold ${terminated ? "bg-red-50 text-red-700" : "bg-green-50 text-green-700"}`}>
-                {terminated ? "Terminated" : "Active"}
+              <span className={`rounded-full px-3 py-1 text-xs font-bold ${STATUS.className}`}>
+                {STATUS.label}
               </span>
             ) : null}
           </div>
@@ -135,7 +144,7 @@ const Record_Details = ({ backPath = '/Secretary_Records' }) => {
           <div className="mb-8">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-semibold text-gray-700">Section 3: Termination of Membership</h2>
-              <span className="text-xs font-semibold text-gray-400 uppercase">{terminated ? "Terminated" : "Status Active"}</span>
+              <span className="text-xs font-semibold text-gray-400 uppercase">{STATUS.label}</span>
             </div>
             {terminated ? (
               <>
@@ -143,13 +152,26 @@ const Record_Details = ({ backPath = '/Secretary_Records' }) => {
                   <ReadOnlyField label="Termination BOD Resolution Number" value={r.termination_resolution_number} />
                   <ReadOnlyField label="Effective Date" value={formatDate(r.termination_date)} />
                   <ReadOnlyField label="Reason" value={r.termination_reason} />
-                  <ReadOnlyField label="CBU at Termination" value={peso(r.termination_cbu_total)} hint="Paid out to the member by the Cashier" />
+                  <ReadOnlyField label="CBU at Termination" value={peso(r.termination_cbu_total)} />
+                  <ReadOnlyField label="CBU Applied to Loans" value={peso(r.cbu_applied_to_loans ?? 0)} />
+                  <ReadOnlyField label="CBU Paid Out" value={peso(r.cbu_paid_out ?? 0)} hint="Handed to the member by the Cashier" />
+                  <ReadOnlyField label="CBU Still Owed to Member" value={peso(r.cbu_remaining ?? 0)} hint={status === "closed" ? "Fully settled — membership closed" : undefined} />
                 </div>
                 {r.termination_notes ? (
                   <div className="mt-6">
                     <ReadOnlyField label="Notes" value={r.termination_notes} />
                   </div>
                 ) : null}
+              </>
+            ) : status === "exiting" ? (
+              <>
+                <p className="mb-4 text-sm text-amber-900 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
+                  This member&apos;s CBU was applied to their loans. They leave the cooperative automatically once the remaining loan balance is paid.
+                </p>
+                <div className="grid grid-cols-2 gap-6">
+                  <ReadOnlyField label="Reason" value={r.termination_reason} />
+                  <ReadOnlyField label="CBU Applied to Loans" value={peso(r.cbu_applied_to_loans ?? 0)} />
+                </div>
               </>
             ) : (
               <p className="text-sm text-gray-500 bg-gray-50 border border-gray-200 rounded-lg px-4 py-3">

@@ -332,25 +332,54 @@ function TerminateModal({ onClose, onDone }) {
     }
   };
 
-  const owesLoans = (preview?.loans_owed || 0) > 0;
-  const canSubmit = preview && !owesLoans && form.reason.trim() && !busy;
+  // CBU < loans owed: the member can't leave yet (coop rule) and picks one of
+  // two options -- stay, or use their CBU now and leave once the rest is paid.
+  const hasShortfall = (preview?.shortfall || 0) > 0;
+  const [option, setOption] = useState("");
+  const canSubmit = preview && form.reason.trim() && (!hasShortfall || option) && !busy;
+
+  const confirmCopy = !hasShortfall
+    ? {
+        title: "Terminate membership",
+        message: `Terminate ${member?.name} (${member?.membership_id})? ${
+          (preview?.applied_to_loans || 0) > 0 ? `${peso(preview?.applied_to_loans)} of their CBU pays off their loans now. ` : ""
+        }Their login is locked immediately and this can't be undone — a returning member re-applies from scratch.`,
+        confirmLabel: "Terminate",
+      }
+    : option === "stay"
+      ? {
+          title: "Member stays",
+          message: `${member?.name} stays a member and keeps paying their loans normally. Nothing changes; the request is kept in the history.`,
+          confirmLabel: "Record choice",
+        }
+      : {
+          title: "Use CBU now, leave when paid",
+          message: `All of ${member?.name}'s CBU (${peso(preview?.total_cbu)}) is applied to their loans now. They still owe ${peso(preview?.shortfall)}, can't take new loans, and are terminated automatically once that reaches ₱0.`,
+          confirmLabel: "Apply CBU",
+        };
 
   const submit = async () => {
-    const ok = await confirm({
-      title: "Terminate membership",
-      message: `Terminate ${member.name} (${member.membership_id})? Their login is locked immediately and this can't be undone — a returning member re-applies from scratch.`,
-      confirmLabel: "Terminate",
-      tone: "destructive",
-    });
+    const ok = await confirm({ ...confirmCopy, tone: option === "stay" ? "default" : "destructive" });
     if (!ok) return;
     setBusy(true);
     setError("");
     try {
       const body = await api("/api/admin/accounts/terminate", {
         method: "POST",
-        body: { membership_id: member.membership_id, ...form, notes: form.notes || null },
+        body: {
+          membership_id: member.membership_id,
+          ...form,
+          notes: form.notes || null,
+          option: hasShortfall ? option : null,
+        },
       });
-      addNotification(`${member.name} terminated. Resolution ${body.resolution_no}.`, "success");
+      const messages = {
+        stayed: `${member.name} stays a member. The choice was recorded.`,
+        exiting: `${member.name}'s CBU was applied to their loans. They leave once the remaining ${peso(body.remaining_loans)} is paid.`,
+        closed: `${member.name} terminated and closed — nothing left to pay out. Resolution ${body.resolution_no}.`,
+        terminated: `${member.name} terminated. Resolution ${body.resolution_no}. The Cashier will pay out their CBU.`,
+      };
+      addNotification(messages[body.outcome] || `${member.name} updated.`, "success");
       onDone();
     } catch (err) {
       setError(err.message);
@@ -370,8 +399,8 @@ function TerminateModal({ onClose, onDone }) {
         member ? (
           <>
             <button onClick={onClose} disabled={busy} className={secondaryBtn}>Cancel</button>
-            <button onClick={submit} disabled={!canSubmit} className={dangerBtn}>
-              {busy ? "Terminating…" : "Terminate member"}
+            <button onClick={submit} disabled={!canSubmit} className={option === "stay" ? primaryBtn : dangerBtn}>
+              {busy ? "Saving…" : !hasShortfall ? "Terminate member" : option === "stay" ? "Record: member stays" : "Apply CBU to loans"}
             </button>
           </>
         ) : null
@@ -386,7 +415,7 @@ function TerminateModal({ onClose, onDone }) {
               <p className="truncate font-semibold text-gray-800">{member.name}</p>
               <p className="truncate text-xs text-gray-500">{member.membership_id} · {roleLabel(member.role)}</p>
             </div>
-            <button onClick={() => { setMember(null); setPreview(null); setError(""); }} disabled={busy} className="text-xs font-semibold text-green-700 hover:underline">
+            <button onClick={() => { setMember(null); setPreview(null); setError(""); setOption(""); }} disabled={busy} className="text-xs font-semibold text-green-700 hover:underline">
               Change
             </button>
           </div>
@@ -399,30 +428,50 @@ function TerminateModal({ onClose, onDone }) {
               <dl className="space-y-1.5 px-4 py-3 text-sm">
                 <div className="flex justify-between"><dt className="text-gray-600">Total CBU</dt><dd className="font-semibold text-gray-900">{peso(preview.total_cbu)}</dd></div>
                 {preview.deductions.map((d) => (
-                  <div key={d.control_number} className="flex justify-between text-gray-600">
-                    <dt>{d.loan_type} loan {d.control_number} <span className="text-[11px]">(incl. {peso(d.accrued_penalty)} penalty)</span></dt>
-                    <dd className="text-red-700">− {peso(d.owed)}</dd>
+                  <div key={d.control_number} className="flex justify-between gap-3 text-gray-600">
+                    <dt>{d.loan_type} loan {d.control_number} <span className="text-[11px]">(owes {peso(d.owed)} incl. {peso(d.accrued_penalty)} penalty)</span></dt>
+                    <dd className="shrink-0 text-red-700">− {peso(d.applied)}</dd>
                   </div>
                 ))}
                 <div className="flex justify-between border-t border-gray-100 pt-1.5">
                   <dt className="font-semibold text-gray-800">Member receives</dt>
                   <dd className="font-bold text-green-700">{peso(preview.refundable)}</dd>
                 </div>
+                {hasShortfall ? (
+                  <div className="flex justify-between">
+                    <dt className="font-semibold text-red-700">Loans still owed after CBU</dt>
+                    <dd className="font-bold text-red-700">{peso(preview.shortfall)}</dd>
+                  </div>
+                ) : null}
               </dl>
             </div>
           ) : null}
 
-          {owesLoans ? (
-            <div className="flex gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800">
-              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-              <p>
-                {member.name} still owes <b>{peso(preview.loans_owed)}</b> in unpaid loans (including penalties).
-                Terminating a member with unpaid loans isn't available yet — the loans need to be settled first.
-              </p>
+          {hasShortfall ? (
+            <div className="space-y-2">
+              <div className="flex gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                <p>
+                  {member.name}&apos;s CBU doesn&apos;t cover their loans, so they <b>can&apos;t leave the cooperative</b> until
+                  the balance is settled. Record what they chose:
+                </p>
+              </div>
+              {[
+                { value: "stay", title: "Stay as a member", text: "Nothing changes. They keep their membership and keep paying their loans normally." },
+                { value: "exit_when_paid", title: "Use CBU now, leave when paid", text: `All ${peso(preview.total_cbu)} of CBU is applied to the loans now. They pay the remaining ${peso(preview.shortfall)}, can't take new loans, and are terminated automatically at ₱0.` },
+              ].map((o) => (
+                <label key={o.value} className={`flex cursor-pointer gap-3 rounded-lg border px-3 py-2.5 ${option === o.value ? "border-green-600 bg-green-50" : "border-gray-200 hover:bg-gray-50"}`}>
+                  <input type="radio" name="termination-option" value={o.value} checked={option === o.value} onChange={() => setOption(o.value)} disabled={busy} className="mt-1 accent-green-600" />
+                  <span>
+                    <span className="block text-sm font-semibold text-gray-800">{o.title}</span>
+                    <span className="block text-xs text-gray-600">{o.text}</span>
+                  </span>
+                </label>
+              ))}
             </div>
           ) : null}
 
-          {preview && !owesLoans ? (
+          {preview ? (
             <>
               <div>
                 <label className="mb-1 block text-xs font-bold text-gray-700">Reason <span className="text-red-500">*</span></label>
@@ -436,7 +485,11 @@ function TerminateModal({ onClose, onDone }) {
                 <label className="mb-1 block text-xs font-bold text-gray-700">Notes</label>
                 <textarea rows={2} value={form.notes} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} className={inputClass} disabled={busy} />
               </div>
-              <p className="text-[11px] text-gray-500">The resolution number is generated automatically.</p>
+              <p className="text-[11px] text-gray-500">
+                {hasShortfall && option === "exit_when_paid"
+                  ? "The resolution number is generated when their balance reaches ₱0."
+                  : "The resolution number is generated automatically."}
+              </p>
             </>
           ) : null}
 
@@ -446,6 +499,12 @@ function TerminateModal({ onClose, onDone }) {
     </Modal>
   );
 }
+
+const STATUS_BADGE = {
+  exiting: "bg-amber-50 text-amber-800",
+  terminated: "bg-red-50 text-red-700",
+  closed: "bg-gray-100 text-gray-700",
+};
 
 /* --------------------------------------------------------------------- page */
 
@@ -479,6 +538,22 @@ const Account_Management = () => {
   useEffect(() => {
     if (isAdmin) load();
   }, [isAdmin, load]);
+
+  // Part C: a Closed member's login is removed from Supabase Auth. If that
+  // failed, it can be retried from here (the login stays blocked meanwhile).
+  const [retrying, setRetrying] = useState("");
+  const retryLoginRemoval = async (row) => {
+    setRetrying(row.membership_id);
+    try {
+      await api(`/api/admin/accounts/closures/${encodeURIComponent(row.membership_id)}/retry`, { method: "POST" });
+      addNotification(`${row.name}'s login was removed. Their email is free to use again.`, "success");
+      load();
+    } catch (err) {
+      addNotification(err.message, "error");
+    } finally {
+      setRetrying("");
+    }
+  };
 
   const toggleAdmin = async (row) => {
     const enabling = !row.can_manage_accounts;
@@ -633,7 +708,7 @@ const Account_Management = () => {
 
               {/* Terminated members */}
               <div className="mt-6 overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm">
-                <TableToolbar title="Terminated Members" subtitle={`${terminated.length} terminated · CBU is paid out by the Cashier`}>
+                <TableToolbar title="Leaving & Terminated Members" subtitle={`${terminated.length} members · CBU is paid out by the Cashier`}>
                   <button
                     type="button"
                     onClick={() => setShowTerminate(true)}
@@ -647,18 +722,20 @@ const Account_Management = () => {
                     <thead>
                       <tr className="bg-primary-deep text-[10px] font-extrabold uppercase tracking-wider text-white">
                         <th className="p-5 font-bold">Member</th>
+                        <th className="p-5 font-bold">Status</th>
                         <th className="p-5 font-bold">Resolution No.</th>
-                        <th className="p-5 font-bold">Effective Date</th>
                         <th className="p-5 font-bold">Reason</th>
-                        <th className="p-5 font-bold text-right">CBU at Termination</th>
-                        <th className="p-5 font-bold">Payout</th>
+                        <th className="p-5 font-bold text-right">CBU</th>
+                        <th className="p-5 font-bold text-right">To Loans</th>
+                        <th className="p-5 font-bold text-right">Paid Out</th>
+                        <th className="p-5 font-bold text-right">Still Owed</th>
                       </tr>
                     </thead>
                     <tbody>
                       {loading ? (
-                        <TableStateRow colSpan={6} variant="loading" label="Loading…" />
+                        <TableStateRow colSpan={8} variant="loading" label="Loading…" />
                       ) : terminated.length === 0 ? (
-                        <TableStateRow colSpan={6} variant="empty" icon={UserX} label="No terminated members." />
+                        <TableStateRow colSpan={8} variant="empty" icon={UserX} label="No terminated members." />
                       ) : (
                         terminated.map((row) => (
                           <tr key={row.membership_id} className="border-b border-gray-100 transition-colors hover:bg-gray-50/50">
@@ -666,14 +743,47 @@ const Account_Management = () => {
                               <p className="font-semibold text-gray-800">{row.name}</p>
                               <p className="text-xs text-gray-500">{row.membership_id}</p>
                             </td>
-                            <td className="p-5 text-gray-700">{row.resolution_no || "—"}</td>
-                            <td className="p-5 text-gray-700">{formatDate(row.termination_date)}</td>
-                            <td className="max-w-[16rem] p-5 text-gray-600">{row.reason || "—"}</td>
-                            <td className="p-5 text-right font-semibold text-gray-800">{peso(row.cbu_total)}</td>
                             <td className="p-5">
-                              <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${row.remaining > 0 ? "bg-amber-50 text-amber-700" : "bg-gray-100 text-gray-600"}`}>
+                              <span className={`whitespace-nowrap rounded-full px-2.5 py-1 text-[11px] font-bold ${STATUS_BADGE[row.status] || STATUS_BADGE.terminated}`}>
                                 {row.payout_status}
                               </span>
+                              {row.status === "closed" && row.login_removed === true ? (
+                                <p className="mt-1.5 text-[11px] text-gray-500">Login removed · email freed</p>
+                              ) : null}
+                              {row.status === "closed" && row.login_removed === false ? (
+                                <div className="mt-1.5">
+                                  <p className="text-[11px] text-amber-700" title={row.login_removal_error || undefined}>Login removal pending</p>
+                                  <button
+                                    type="button"
+                                    onClick={() => retryLoginRemoval(row)}
+                                    disabled={retrying === row.membership_id}
+                                    className="mt-0.5 text-[11px] font-bold text-green-700 hover:underline disabled:opacity-50"
+                                  >
+                                    {retrying === row.membership_id ? "Retrying…" : "Retry"}
+                                  </button>
+                                </div>
+                              ) : null}
+                            </td>
+                            <td className="p-5 text-gray-700">
+                              {row.resolution_no || "—"}
+                              {row.termination_date ? <p className="text-[11px] text-gray-500">{formatDate(row.termination_date)}</p> : null}
+                            </td>
+                            <td className="max-w-[14rem] p-5 text-gray-600">{row.reason || "—"}</td>
+                            <td className="p-5 text-right text-gray-800">{peso(row.cbu_total)}</td>
+                            <td className="p-5 text-right text-gray-700">{peso(row.applied_to_loans)}</td>
+                            <td className="p-5 text-right text-gray-700">{peso(row.paid_so_far)}</td>
+                            <td className="p-5 text-right font-semibold">
+                              {row.status === "exiting" ? (
+                                <span className="text-red-700" title="Loan balance they must pay before they can leave">
+                                  {peso(row.loans_left)}
+                                  <span className="block text-[10px] font-normal">loans left</span>
+                                </span>
+                              ) : (
+                                <span className={row.remaining > 0 ? "text-amber-700" : "text-gray-600"}>
+                                  {peso(row.remaining)}
+                                  <span className="block text-[10px] font-normal">CBU to pay out</span>
+                                </span>
+                              )}
                             </td>
                           </tr>
                         ))

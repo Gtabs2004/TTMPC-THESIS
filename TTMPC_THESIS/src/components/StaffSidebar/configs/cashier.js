@@ -22,6 +22,7 @@ export const cashierNav = [
     subItems: [
       { name: "Savings",           path: "/Cashier_Savings" },
       { name: "Capital Build-Up",  path: "/Cashier_CBU" },
+      { name: "CBU Payout",        path: "/Cashier_CBU_Payout" },
     ],
   },
   { name: "Withdrawals",  icon: ArrowDownLeft, path: "/Cashier_Withdrawals" },

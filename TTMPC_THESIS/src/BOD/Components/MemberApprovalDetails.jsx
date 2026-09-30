@@ -26,6 +26,9 @@ const MemberApprovalDetails = () => {
   const [notifying, setNotifying] = useState(false);
   const [notifyMessage, setNotifyMessage] = useState('');
   const [paymentStatus, setPaymentStatus] = useState(null);
+  // Former members who were closed out (Part C) and match this applicant by
+  // name (+ date of birth when both have one). Information for the BOD only.
+  const [returningMatches, setReturningMatches] = useState([]);
   const [paymentStatusLoading, setPaymentStatusLoading] = useState(false);
   const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000';
 
@@ -73,6 +76,27 @@ const MemberApprovalDetails = () => {
         // Non-fatal — UI will simply show "unknown" status
       } finally {
         if (!cancelled) setPaymentStatusLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [id, apiBaseUrl]);
+
+  useEffect(() => {
+    if (!id) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const res = await fetch(
+          `${apiBaseUrl}/api/bod/membership-approval/${encodeURIComponent(id)}/returning-member`,
+          { headers: { Accept: 'application/json', Authorization: `Bearer ${session?.access_token || ''}` } }
+        );
+        const payload = await res.json().catch(() => ({}));
+        if (!cancelled && res.ok && payload?.success) setReturningMatches(payload.data || []);
+      } catch {
+        // Informational only; no note when the check can't run.
       }
     })();
     return () => {
@@ -547,6 +571,23 @@ const MemberApprovalDetails = () => {
           <Download className="w-4 h-4 " /> Export Application as PDF
         </button>
       </div>
+
+      {returningMatches.length > 0 ? (
+        <div className="mb-6 flex gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
+          <div>
+            <p className="font-bold">Possible returning member</p>
+            {returningMatches.map((m) => (
+              <p key={m.membership_id} className="mt-0.5">
+                Matches former member <b>{m.name}</b> ({m.membership_id}), closed {formatDate(m.closed_at)}
+                {m.resolution_no ? ` · resolution ${m.resolution_no}` : ''}
+                {m.date_of_birth_matches ? ' · same date of birth' : ' · name only — date of birth not on file'}.
+              </p>
+            ))}
+            <p className="mt-1 text-xs text-amber-800">For your information only — approve or decline as usual. A returning member gets a new membership ID.</p>
+          </div>
+        </div>
+      ) : null}
 
       {/* --- PERSONAL INFORMATION --- */}
       <SectionCard icon={User} title="Personal Information">
