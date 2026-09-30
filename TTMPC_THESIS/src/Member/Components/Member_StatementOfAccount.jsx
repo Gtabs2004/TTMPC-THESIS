@@ -1,5 +1,7 @@
-﻿import React, { useEffect, useMemo, useState } from "react";
+﻿import React, { useEffect, useMemo, useState, useRef } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
+import { useRealtimeVersion, useRealtimeRefetch } from "../../hooks/useRealtimeRefetch";
+import { RT } from "../../lib/realtimeSync";
 import { getLoanTypeCardStyle } from "../../utils/loanTypeColors";
 import { UserAuth } from "../../contex/AuthContext";
 import { useNotification } from "../../contex/NotificationContext";
@@ -119,6 +121,10 @@ const Member_StatementOfAccount = () => {
 
   const [cbuLoaded, setCbuLoaded] = useState(false);
   const [loadingCbu, setLoadingCbu] = useState(false);
+  // Realtime: Savings/CBU tabs load once; clearing the flag reloads the
+  // open tab (or the next time it's opened).
+  useRealtimeRefetch(RT.SAVINGS, () => setSavingsLoaded(false));
+  useRealtimeRefetch(RT.CBU, () => setCbuLoaded(false));
   const [cbuError, setCbuError] = useState("");
   const [cbuRows, setCbuRows] = useState([]);
 
@@ -151,13 +157,17 @@ const Member_StatementOfAccount = () => {
     }
   };
 
+  const rtVersionLoans = useRealtimeVersion(RT.LOANS);
+  const rtSeenLoans = useRef(rtVersionLoans);
   useEffect(() => {
+    const silent = rtSeenLoans.current !== rtVersionLoans;
+    rtSeenLoans.current = rtVersionLoans;
     let isMounted = true;
 
     const fetchLoans = async () => {
       try {
-        setLoadingLoans(true);
-        setLoanError("");
+        if (!silent) setLoadingLoans(true);
+        if (!silent) setLoanError("");
 
         const { memberId: mId, fullName, avatarUrl: signedAvatarUrl, memberRow, account } = await resolveMemberIdentity();
         if (!mId) throw new Error("Please sign in again to load your loans.");
@@ -209,9 +219,10 @@ const Member_StatementOfAccount = () => {
           setMemberId(mId);
         }
       } catch (err) {
+        if (silent) return;
         if (isMounted) setLoanError(err.message || "Unable to load loans.");
       } finally {
-        if (isMounted) setLoadingLoans(false);
+        if (!silent) if (isMounted) setLoadingLoans(false);
       }
     };
 
@@ -219,9 +230,13 @@ const Member_StatementOfAccount = () => {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [rtVersionLoans]);
 
+  const rtVersionRows = useRealtimeVersion(RT.LOANS);
+  const rtSeenRows = useRef(rtVersionRows);
   useEffect(() => {
+    const silent = rtSeenRows.current !== rtVersionRows;
+    rtSeenRows.current = rtVersionRows;
     if (!selectedLoan || !memberId) {
       setRows([]);
       return;
@@ -230,8 +245,8 @@ const Member_StatementOfAccount = () => {
 
     const fetchRows = async () => {
       try {
-        setLoadingRows(true);
-        setRowsError("");
+        if (!silent) setLoadingRows(true);
+        if (!silent) setRowsError("");
         const { data, error } = await supabase
           .from("member_statement_of_account")
           .select(
@@ -244,9 +259,10 @@ const Member_StatementOfAccount = () => {
         if (error) throw error;
         if (isMounted) setRows(data || []);
       } catch (err) {
+        if (silent) return;
         if (isMounted) setRowsError(err.message || "Unable to load payment history.");
       } finally {
-        if (isMounted) setLoadingRows(false);
+        if (!silent) if (isMounted) setLoadingRows(false);
       }
     };
 
@@ -254,7 +270,7 @@ const Member_StatementOfAccount = () => {
     return () => {
       isMounted = false;
     };
-  }, [selectedLoan, memberId]);
+  }, [selectedLoan, memberId, rtVersionRows]);
 
   useEffect(() => {
     if (activeTab !== "savings" || savingsLoaded || !memberId) return;

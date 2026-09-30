@@ -1,5 +1,7 @@
 ﻿import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
+import { useRealtimeRefetch } from "../../hooks/useRealtimeRefetch";
+import { RT } from "../../lib/realtimeSync";
 import { StatCard, StatCardRow } from "../../components/StatCard";
 import StaffSidebar from "../../components/StaffSidebar";
 import { bookkeeperNav } from "../../components/StaffSidebar/configs/bookkeeper";
@@ -78,9 +80,9 @@ const useSavingsAccounts = () => {
   const [status, setStatus] = useState("idle");
   const [error, setError] = useState(null);
 
-  const fetchAccounts = useCallback(async () => {
-    setStatus("loading");
-    setError(null);
+  const fetchAccounts = useCallback(async ({ silent = false } = {}) => {
+    if (!silent) setStatus("loading");
+    if (!silent) setError(null);
     try {
       const response = await fetch(`${API_BASE_URL}/api/savings/accounts`);
       const result = await response.json().catch(() => ({}));
@@ -90,11 +92,13 @@ const useSavingsAccounts = () => {
       setAccounts(Array.isArray(result.data) ? result.data : []);
       setStatus("ready");
     } catch (err) {
+      if (silent) return;
       setError(err?.message || "Unable to fetch savings accounts.");
       setAccounts([]);
       setStatus("error");
     }
   }, []);
+  useRealtimeRefetch([...RT.SAVINGS, "member"], () => fetchAccounts({ silent: true }));
 
   useEffect(() => {
     fetchAccounts();

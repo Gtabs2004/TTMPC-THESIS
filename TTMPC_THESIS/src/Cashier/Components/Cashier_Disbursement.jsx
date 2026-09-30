@@ -1,4 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { useRealtimeRefetch } from "../../hooks/useRealtimeRefetch";
+import { RT } from "../../lib/realtimeSync";
 import StaffSidebar from "../../components/StaffSidebar";
 import { cashierNav } from "../../components/StaffSidebar/configs/cashier";
 import { NavLink, useNavigate } from "react-router-dom";
@@ -87,9 +89,9 @@ const Cashier_Disbursement = () => {
     fetchReadyLoans();
   }, []);
 
-  const fetchReadyLoans = async () => {
-    setLoading(true);
-    setErrorMessage("");
+  const fetchReadyLoans = async ({ silent = false } = {}) => {
+    if (!silent) setLoading(true);
+    if (!silent) setErrorMessage("");
 
     try {
       const response = await fetch(`${API_BASE_URL}/api/cashier/disbursements/ready-loans`, {
@@ -104,12 +106,14 @@ const Cashier_Disbursement = () => {
 
       setReadyLoans(result?.data || []);
     } catch (error) {
+      if (silent) return;
       setErrorMessage(error.message || "Unable to load disbursement loans.");
       setReadyLoans([]);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
+  useRealtimeRefetch([...RT.LOANS, ...RT.VAULT], () => fetchReadyLoans({ silent: true }));
 
   const openDisbursementPreview = async (loan) => {
     setErrorMessage("");

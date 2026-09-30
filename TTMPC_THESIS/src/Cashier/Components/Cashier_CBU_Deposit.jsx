@@ -1,5 +1,7 @@
 ﻿import React, { useEffect, useState } from "react";
 import { useNavigate, NavLink, useParams } from "react-router-dom";
+import { useRealtimeRefetch } from "../../hooks/useRealtimeRefetch";
+import { RT } from "../../lib/realtimeSync";
 import StaffSidebar from "../../components/StaffSidebar";
 import { cashierNav } from "../../components/StaffSidebar/configs/cashier";
 import { UserAuth } from "../../contex/AuthContext";
@@ -66,10 +68,10 @@ const Cashier_CBU_Deposit = () => {
   const totalBalance = currentBalance + (Number.isFinite(amount) ? Math.max(amount, 0) : 0);
   const totalShares = totalBalance / SHARE_VALUE;
 
-  const loadMember = async () => {
+  const loadMember = async ({ silent = false } = {}) => {
     if (!memberId) return;
-    setLoadingMember(true);
-    setLoadError("");
+    if (!silent) setLoadingMember(true);
+    if (!silent) setLoadError("");
     try {
       const response = await fetch(
         `${API_BASE_URL}/api/cashier/cbu/members/${encodeURIComponent(memberId)}`,
@@ -81,12 +83,14 @@ const Cashier_CBU_Deposit = () => {
       }
       setSelectedMember(payload.data || null);
     } catch (err) {
+      if (silent) return;
       setLoadError(err?.message || "Unable to load selected member.");
       setSelectedMember(null);
     } finally {
-      setLoadingMember(false);
+      if (!silent) setLoadingMember(false);
     }
   };
+  useRealtimeRefetch(RT.CBU, () => loadMember({ silent: true }));
 
   useEffect(() => {
     loadMember();

@@ -1,5 +1,6 @@
-﻿import React, { useState, useEffect, useMemo } from "react";
+﻿import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
+import { useRealtimeVersion } from "../../hooks/useRealtimeRefetch";
 import { StatCard, StatCardRow } from "../../components/StatCard";
 import { TableToolbar } from "../../components/TableToolbar";
 import StaffSidebar from "../../components/StaffSidebar";
@@ -139,10 +140,14 @@ const Grocery_Ledger = () => {
   const [transactions, setTransactions] = useState([]);
   const [memberLookup, setMemberLookup] = useState({});
   const [loading, setLoading] = useState(true);
+  const rtVersion = useRealtimeVersion(["GROCERY_TRANSACTIONS"]);
+  const rtSeen = useRef(rtVersion);
   useEffect(() => {
+    const silent = rtSeen.current !== rtVersion;
+    rtSeen.current = rtVersion;
     let cancelled = false;
     const load = async () => {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const { data: txs } = await supabase
         .from("GROCERY_TRANSACTIONS")
         .select("*")
@@ -160,11 +165,11 @@ const Grocery_Ledger = () => {
       });
       setMemberLookup(lookup);
       setTransactions(txs || []);
-      setLoading(false);
+      if (!silent) setLoading(false);
     };
     load();
     return () => { cancelled = true; };
-  }, []);
+  }, [rtVersion]);
 
   const currentLedgerData = useMemo(() => {
     const groups = new Map();

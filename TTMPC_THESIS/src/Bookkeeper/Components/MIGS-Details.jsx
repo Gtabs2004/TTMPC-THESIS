@@ -1,5 +1,7 @@
-﻿import React, { useEffect, useState } from "react";
+﻿import React, { useEffect, useState, useRef } from "react";
 import { NavLink, useNavigate, useSearchParams } from "react-router-dom";
+import { useRealtimeVersion } from "../../hooks/useRealtimeRefetch";
+import { RT } from "../../lib/realtimeSync";
 import StaffSidebar from "../../components/StaffSidebar";
 import { bookkeeperNav } from "../../components/StaffSidebar/configs/bookkeeper";
 import { UserAuth } from "../../contex/AuthContext";
@@ -65,17 +67,22 @@ const MIGSDetails = () => {
 
 
 
+  const rtVersion = useRealtimeVersion([...RT.MEMBERS, ...RT.LOANS, ...RT.CBU]);
+  const rtSeen = useRef(rtVersion);
   useEffect(() => {
+    const silent = rtSeen.current !== rtVersion;
+    rtSeen.current = rtVersion;
     const loadMemberData = async () => {
-      setLoading(true);
-      setError("");
+      if (!silent) setLoading(true);
+      if (!silent) setError("");
       try {
         setMemberData(await fetchMember());
       } catch (err) {
+        if (silent) return;
         setError(err?.message || "Failed to load member data");
         setMemberData(null);
       } finally {
-        setLoading(false);
+        if (!silent) setLoading(false);
       }
     };
 
@@ -83,9 +90,9 @@ const MIGSDetails = () => {
       loadMemberData();
     } else {
       setError("No member selected.");
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
-  }, [memberId]);
+  }, [memberId, rtVersion]);
 
 
   const handleRecalculate = async () => {

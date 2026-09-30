@@ -1,5 +1,7 @@
 ﻿import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
+import { useRealtimeRefetch } from "../../hooks/useRealtimeRefetch";
+import { RT } from "../../lib/realtimeSync";
 import { getLoanTypeChipClass as getLoanTypeStyle } from "../../utils/loanTypeColors";
 import { StatCard, StatCardRow } from "../../components/StatCard";
 import StaffSidebar from "../../components/StaffSidebar";
@@ -227,8 +229,8 @@ const BookkeeperPayments = () => {
     return result;
   };
 
-  async function fetchPendingPayments() {
-    setLoading(true);
+  async function fetchPendingPayments({ silent = false } = {}) {
+    if (!silent) setLoading(true);
 
     try {
       const [pendingRes, loansRes] = await Promise.all([
@@ -274,13 +276,15 @@ const BookkeeperPayments = () => {
       setPayments([...queueRows, ...historyRows]);
       addNotification("Payment data synced successfully", "success");
     } catch (error) {
+      if (silent) return;
       setLoans([]);
       setPayments([]);
       addNotification(error?.message || "Unable to sync payments queue.", "error");
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }
+  useRealtimeRefetch(RT.LOANS, () => fetchPendingPayments({ silent: true }));
 
   async function approvePayment(paymentId) {
     setWorkingPaymentId(paymentId);

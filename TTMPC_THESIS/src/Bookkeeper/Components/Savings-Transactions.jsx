@@ -1,5 +1,7 @@
 ﻿  import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
+import { useRealtimeRefetch } from "../../hooks/useRealtimeRefetch";
+import { RT } from "../../lib/realtimeSync";
 import StaffSidebar from "../../components/StaffSidebar";
 import { bookkeeperNav } from "../../components/StaffSidebar/configs/bookkeeper";
 import { UserAuth } from "../../contex/AuthContext";
@@ -99,8 +101,8 @@ const BookkeeperSavingsTransactions = () => {
     return { pending, validated, rejected };
   }, [withdrawalRows]);
 
-  async function fetchRows() {
-    setLoading(true);
+  async function fetchRows({ silent = false } = {}) {
+    if (!silent) setLoading(true);
     try {
       const response = await fetch(`${API_BASE_URL}/api/bookkeeper/savings-transactions`);
       const payload = await response.json().catch(() => ({}));
@@ -108,14 +110,16 @@ const BookkeeperSavingsTransactions = () => {
         throw new Error(payload?.detail || "Failed to load savings transaction queue.");
       }
       setRows(Array.isArray(payload.data) ? payload.data : []);
-      addNotification("Savings transactions loaded successfully", "success");
+      if (!silent) addNotification("Savings transactions loaded successfully", "success");
     } catch (error) {
+      if (silent) return;
       setRows([]);
       addNotification(error?.message || "Unable to load savings transaction queue.", "error");
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }
+  useRealtimeRefetch(RT.SAVINGS, () => fetchRows({ silent: true }));
 
   useEffect(() => {
     fetchRows();

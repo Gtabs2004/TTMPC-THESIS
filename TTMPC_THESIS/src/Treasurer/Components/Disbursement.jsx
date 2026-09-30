@@ -1,5 +1,7 @@
 ﻿import React, { useMemo, useRef, useEffect, useState, useCallback } from "react";
 import { useNotification } from "../../contex/NotificationContext";
+import { useRealtimeRefetch } from "../../hooks/useRealtimeRefetch";
+import { RT } from "../../lib/realtimeSync";
 import { getLoanTypeChipClass as getLoanTypeStyle } from "../../utils/loanTypeColors";
 import { StatCard, StatCardRow } from "../../components/StatCard";
 import { TableToolbar } from "../../components/TableToolbar";
@@ -87,9 +89,11 @@ const Disbursements = () => {
 
   const bannerNotice = "Read-only view. Only loans released by the Cashier are shown here for treasury monitoring and audit.";
 
-  const fetchReleasedLoans = useCallback(async () => {
-    setIsLoading(true);
-    setErrorMessage("");
+  const fetchReleasedLoans = useCallback(async ({ silent = false } = {}) => {
+    if (!silent) {
+      setIsLoading(true);
+      setErrorMessage("");
+    }
     try {
       const response = await fetch(`${API_BASE_URL}/api/treasurer/disbursements/released-loans`, {
         method: "GET",
@@ -119,16 +123,18 @@ const Disbursements = () => {
       );
       if (result?.summary) setSummary(result.summary);
     } catch (err) {
+      if (silent) return;
       setErrorMessage(err.message || "Unable to load released loans.");
       setRows([]);
     } finally {
-      setIsLoading(false);
+      if (!silent) setIsLoading(false);
     }
   }, []);
 
   useEffect(() => {
     fetchReleasedLoans();
   }, [fetchReleasedLoans]);
+  useRealtimeRefetch(RT.LOANS, () => fetchReleasedLoans({ silent: true }));
 
   const formatCurrency = (n) =>
     new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP", minimumFractionDigits: 2 }).format(n || 0);

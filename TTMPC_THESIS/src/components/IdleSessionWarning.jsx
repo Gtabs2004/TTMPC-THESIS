@@ -69,7 +69,7 @@ export default function IdleSessionWarning() {
   if (!session || !idle) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 px-4">
+    <div className="fixed inset-0 z-[170] flex items-center justify-center bg-black/50 px-4">
       <div
         role="alertdialog"
         aria-modal="true"

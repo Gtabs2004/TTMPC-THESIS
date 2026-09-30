@@ -1,4 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRealtimeVersion } from "../../hooks/useRealtimeRefetch";
+import { RT } from "../../lib/realtimeSync";
 import { useNavigate } from "react-router-dom";
 import {
   Search,
@@ -162,6 +164,8 @@ const Bookkeeper_ISC = () => {
   // Preferences" section reappears on a fresh page load rather than only
   // right after clicking Post ISC in the current session. Matches on
   // period_start/period_end the way isc_post's own overlap constraint does.
+  // Realtime: pick up a posting made from another session.
+  const rtVersion = useRealtimeVersion(RT.CBU);
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -183,7 +187,7 @@ const Bookkeeper_ISC = () => {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [rtVersion]);
 
   const amountNum = Number(amountInput);
   // Rounded to the centavo: isc_post re-verifies rule 7 with EXACT equality

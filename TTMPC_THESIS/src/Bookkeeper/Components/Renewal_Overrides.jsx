@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
+import { useRealtimeRefetch } from "../../hooks/useRealtimeRefetch";
 import { FileText, X } from "lucide-react";
 import StaffSidebar from "../../components/StaffSidebar";
 import { bookkeeperNav } from "../../components/StaffSidebar/configs/bookkeeper";
@@ -94,22 +95,27 @@ const RenewalOverrides = () => {
   const [saving, setSaving] = useState(null); // 'approved' | 'rejected' | null
   const [formError, setFormError] = useState("");
 
-  const load = useCallback(async (status, isStale = () => false) => {
-    setLoading(true);
-    setLoadError("");
+  const load = useCallback(async (status, isStale = () => false, silent = false) => {
+    if (!silent) {
+      setLoading(true);
+      setLoadError("");
+    }
     try {
       const result = await fetchBookkeeperOverrideRequests(status);
       if (isStale()) return;
       setRows(result.data || []);
       setPendingCount(result.pending_count || 0);
     } catch (err) {
-      if (isStale()) return;
+      if (isStale() || silent) return;
       setRows([]);
       setLoadError(err?.message || "Unable to load override requests.");
     } finally {
-      if (!isStale()) setLoading(false);
+      if (!isStale() && !silent) setLoading(false);
     }
   }, []);
+
+  // Realtime: new member requests and other Bookkeepers' decisions.
+  useRealtimeRefetch(["loan_renewal_override_requests"], () => load(tab, undefined, true));
 
   useEffect(() => {
     let stale = false;

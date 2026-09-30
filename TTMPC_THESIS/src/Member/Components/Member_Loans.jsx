@@ -1,5 +1,7 @@
-﻿import React, { useEffect, useMemo, useState } from "react";
+﻿import React, { useEffect, useMemo, useState, useRef } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
+import { useRealtimeVersion } from "../../hooks/useRealtimeRefetch";
+import { RT } from "../../lib/realtimeSync";
 import { UserAuth } from "../../contex/AuthContext";
 import { useTheme } from "../../contex/ThemeContext";
 import { supabase } from "../../supabaseClient";
@@ -7,7 +9,7 @@ import { resolveMemberIdentity } from "../../utils/memberIdentity";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
 import TableStateRow from "../../components/TableStateRow";
 import LoanCalculatorModal from "./LoanCalculatorModal";
-import { getOrFetch, peek } from "../memberDataCache";
+import { getOrFetch, invalidate, peek } from "../memberDataCache";
 import { 
   LayoutDashboard, 
   Users, 
@@ -273,34 +275,40 @@ const Member_Loans = () => {
     setAvatarUrl(snap.avatarUrl);
   };
 
+  const rtVersion = useRealtimeVersion(RT.LOANS);
+  const rtSeen = useRef(rtVersion);
   useEffect(() => {
+    const silent = rtSeen.current !== rtVersion;
+    rtSeen.current = rtVersion;
     let isMounted = true;
     (async () => {
       try {
-        setLoanError('');
+        if (!silent) setLoanError('');
         const { data: authData } = await supabase.auth.getUser();
         const cacheKey = `member-loans:${authData?.user?.id || 'anon'}`;
+        if (silent) invalidate(cacheKey);
         const cached = peek(cacheKey);
         if (cached) {
           applyLoansSnapshot(cached);
-          setLoadingLoans(false);
+          if (!silent) setLoadingLoans(false);
         } else {
-          setLoadingLoans(true);
+          if (!silent) setLoadingLoans(true);
         }
         const snap = await getOrFetch(cacheKey, buildLoansSnapshot, 60_000);
         if (isMounted) applyLoansSnapshot(snap);
       } catch (err) {
+        if (silent) return;
         if (isMounted) {
           setLoanError(err.message || 'Unable to load loan records.');
           setMemberLabel('Member');
           setAvatarUrl('');
         } 
       } finally {
-        if (isMounted) setLoadingLoans(false);
+        if (!silent) if (isMounted) setLoadingLoans(false);
       }
     })();
     return () => { isMounted = false; };
-  }, []);
+  }, [rtVersion]);
 
   const totalOutstanding = useMemo(
     () => loans.reduce((sum, loan) => sum + (loan.numericBalance || 0), 0),

@@ -1,4 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { useRealtimeRefetch } from "../../hooks/useRealtimeRefetch";
+import { RT } from "../../lib/realtimeSync";
 import { StatCard, StatCardRow } from "../../components/StatCard";
 import { TableToolbar } from "../../components/TableToolbar";
 import StaffSidebar from "../../components/StaffSidebar";
@@ -304,9 +306,9 @@ const BOD_Manage_Loans = () => {
     return totals;
   }, [filteredLoans]);
 
-  const fetchManageLoans = async () => {
-    setLoading(true);
-    setLoadError("");
+  const fetchManageLoans = async ({ silent = false } = {}) => {
+    if (!silent) setLoading(true);
+    if (!silent) setLoadError("");
     try {
       const response = await fetch(`${API_BASE_URL}/api/bookkeeper/manage-loans`);
       const payload = await response.json().catch(() => ({}));
@@ -316,12 +318,14 @@ const BOD_Manage_Loans = () => {
       const rows = Array.isArray(payload?.data?.rows) ? payload.data.rows : [];
       setLoans(rows);
     } catch (err) {
+      if (silent) return;
       setLoadError(err?.message || "Unable to load loan ledger data.");
       setLoans([]);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
+  useRealtimeRefetch(RT.LOANS, () => fetchManageLoans({ silent: true }));
 
   useEffect(() => {
     fetchManageLoans();

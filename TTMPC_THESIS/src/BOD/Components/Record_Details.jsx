@@ -1,4 +1,6 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
+import { useRealtimeVersion } from "../../hooks/useRealtimeRefetch";
+import { RT } from "../../lib/realtimeSync";
 import { useNavigate, useParams } from "react-router-dom";
 import { ChevronLeft, Lock } from 'lucide-react';
 
@@ -46,11 +48,15 @@ const Record_Details = ({ backPath = '/Secretary_Records' }) => {
   const [error, setError] = useState("");
   const [record, setRecord] = useState(null);
 
+  const rtVersion = useRealtimeVersion(RT.MEMBERS);
+  const rtSeen = useRef(rtVersion);
   useEffect(() => {
+    const silent = rtSeen.current !== rtVersion;
+    rtSeen.current = rtVersion;
     async function loadDetails() {
       if (!id) return;
-      setLoading(true);
-      setError("");
+      if (!silent) setLoading(true);
+      if (!silent) setError("");
       try {
         const response = await fetch(`${API_BASE_URL}/api/secretary/membership-records/${encodeURIComponent(id)}`, {
           method: "GET",
@@ -62,14 +68,15 @@ const Record_Details = ({ backPath = '/Secretary_Records' }) => {
         }
         setRecord(payload.data || {});
       } catch (err) {
+        if (silent) return;
         setError(err?.message || "Unable to load record details.");
       } finally {
-        setLoading(false);
+        if (!silent) setLoading(false);
       }
     }
 
     loadDetails();
-  }, [id]);
+  }, [id, rtVersion]);
 
   const r = record || {};
   const status = String(r.member_status || "active").toLowerCase();

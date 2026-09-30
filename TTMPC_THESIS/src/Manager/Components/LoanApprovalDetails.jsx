@@ -1,5 +1,7 @@
-﻿import React, { useCallback, useEffect, useState } from 'react';
+﻿import React, { useCallback, useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import { useRealtimeVersion } from "../../hooks/useRealtimeRefetch";
+import { RT } from "../../lib/realtimeSync";
 import { supabase } from '../../supabaseClient';
 import { formatTinNumber } from '../../LOANFORMS/tinFormat';
 import { printLoanApplicationForm } from '../../LOANFORMS/staffLoanPrint';
@@ -376,21 +378,25 @@ const LoanApprovalDetails = () => {
     };
   }, [loadCoMakerMembers]);
 
+  const rtVersion = useRealtimeVersion(RT.LOANS);
+  const rtSeen = useRef(rtVersion);
   useEffect(() => {
+    const silent = rtSeen.current !== rtVersion;
+    rtSeen.current = rtVersion;
     let isMounted = true;
 
     const fetchLoanDetails = async () => {
       if (!id) {
         if (isMounted) {
           setLoadError('Loan ID is missing.');
-          setLoading(false);
+          if (!silent) setLoading(false);
         }
         return;
       }
 
       try {
-        setLoading(true);
-        setLoadError('');
+        if (!silent) setLoading(true);
+        if (!silent) setLoadError('');
 
         let data = null;
         let tableName = 'loans';
@@ -624,12 +630,13 @@ const LoanApprovalDetails = () => {
           setSupportingDocs(normalizeSupportingDocuments(mapped.rawPayload || {}));
         }
       } catch (err) {
+        if (silent) return;
         if (isMounted) {
           setLoadError(err.message || 'Failed to load loan details.');
         }
       } finally {
         if (isMounted) {
-          setLoading(false);
+          if (!silent) setLoading(false);
         }
       }
     };
@@ -638,10 +645,14 @@ const LoanApprovalDetails = () => {
     return () => {
       isMounted = false;
     };
-  }, [id]);
+  }, [id, rtVersion]);
 
   // Load cached risk assessment for this loan (if any)
+  const rtVersionRisk = useRealtimeVersion(["risk_assessments"]);
+  const rtSeenRisk = useRef(rtVersionRisk);
   useEffect(() => {
+    const silent = rtSeenRisk.current !== rtVersionRisk;
+    rtSeenRisk.current = rtVersionRisk;
     if (!id) return;
     let isMounted = true;
     (async () => {
@@ -653,18 +664,19 @@ const LoanApprovalDetails = () => {
           .maybeSingle();
         if (!isMounted) return;
         if (error) {
-          setRiskError('');
+          if (!silent) setRiskError('');
           return;
         }
         if (data) setRiskAssessment(data);
       } catch (_err) {
+        if (silent) return;
         // silent — empty assessment state means "not yet scored"
       }
     })();
     return () => {
       isMounted = false;
     };
-  }, [id]);
+  }, [id, rtVersionRisk]);
 
   // Reprint the borrower's original application form. Same backend templates
   // the member portal uses; personal data is re-read from the PDS because

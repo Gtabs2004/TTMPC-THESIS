@@ -1,4 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { useRealtimeRefetch } from "../../hooks/useRealtimeRefetch";
+import { RT } from "../../lib/realtimeSync";
 import { StatCard, StatCardRow } from "../../components/StatCard";
 import StaffSidebar from "../../components/StaffSidebar";
 import { bookkeeperNav } from "../../components/StaffSidebar/configs/bookkeeper";
@@ -53,9 +55,9 @@ const useCbuLedger = () => {
   const [status, setStatus] = useState("idle");
   const [error, setError] = useState(null);
 
-  const fetchCbu = useCallback(async () => {
-    setStatus("loading");
-    setError(null);
+  const fetchCbu = useCallback(async ({ silent = false } = {}) => {
+    if (!silent) setStatus("loading");
+    if (!silent) setError(null);
     try {
       const [membersRes, txRes] = await Promise.all([
         fetch(`${API_BASE_URL}/api/cashier/cbu/members`, { headers: { Accept: "application/json" } }),
@@ -76,12 +78,14 @@ const useCbuLedger = () => {
       setTransactions(Array.isArray(txPayload.data) ? txPayload.data : []);
       setStatus("ready");
     } catch (err) {
+      if (silent) return;
       setError(err?.message || "Unable to load CBU data.");
       setMembers([]);
       setTransactions([]);
       setStatus("error");
     }
   }, []);
+  useRealtimeRefetch([...RT.CBU, ...RT.MEMBERS], () => fetchCbu({ silent: true }));
 
   useEffect(() => {
     fetchCbu();

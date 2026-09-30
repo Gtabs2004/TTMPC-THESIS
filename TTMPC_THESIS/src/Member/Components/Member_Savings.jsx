@@ -1,5 +1,7 @@
-﻿import React, { useEffect, useMemo, useState } from "react";
+﻿import React, { useEffect, useMemo, useState, useRef } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
+import { useRealtimeVersion } from "../../hooks/useRealtimeRefetch";
+import { RT } from "../../lib/realtimeSync";
 import { UserAuth } from "../../contex/AuthContext";
 import { useNotification } from "../../contex/NotificationContext";
 import { useTheme } from "../../contex/ThemeContext";
@@ -8,7 +10,7 @@ import { resolveMemberIdentity } from "../../utils/memberIdentity";
 import { pickLatestCbuRow } from "../../utils/cbuOrdering";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
 import TableStateRow from "../../components/TableStateRow";
-import { getOrFetch, peek } from "../memberDataCache";
+import { getOrFetch, invalidate, peek } from "../memberDataCache";
 import {
   LayoutDashboard,
   Users,
@@ -141,7 +143,11 @@ const Member_Savings = () => {
     }
   };
 
+  const rtVersion = useRealtimeVersion(RT.SAVINGS);
+  const rtSeen = useRef(rtVersion);
   useEffect(() => {
+    const silent = rtSeen.current !== rtVersion;
+    rtSeen.current = rtVersion;
     let isMounted = true;
 
     const buildSavingsSnapshot = async () => {
@@ -267,19 +273,21 @@ const Member_Savings = () => {
 
     (async () => {
       try {
-        setSavingsError('');
+        if (!silent) setSavingsError('');
         const { data: authData } = await supabase.auth.getUser();
         const cacheKey = `member-savings:${authData?.user?.id || 'anon'}`;
+        if (silent) invalidate(cacheKey);
         const cached = peek(cacheKey);
         if (cached) {
           applySavingsSnapshot(cached);
-          setLoadingSavings(false);
+          if (!silent) setLoadingSavings(false);
         } else {
-          setLoadingSavings(true);
+          if (!silent) setLoadingSavings(true);
         }
         const snap = await getOrFetch(cacheKey, buildSavingsSnapshot, 60_000);
         if (isMounted) applySavingsSnapshot(snap);
       } catch (err) {
+        if (silent) return;
         if (isMounted) {
           setSavingsError(err?.message || 'Unable to load savings data.');
           setAvatarUrl('');
@@ -288,13 +296,13 @@ const Member_Savings = () => {
           setTimeDeposit(0);
         }
       } finally {
-        if (isMounted) setLoadingSavings(false);
+        if (!silent) if (isMounted) setLoadingSavings(false);
       }
     })();
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [rtVersion]);
 
   const totalSavings = useMemo(() => regularSavings + timeDeposit, [regularSavings, timeDeposit]);
 

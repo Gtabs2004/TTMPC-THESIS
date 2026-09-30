@@ -1,5 +1,7 @@
-﻿import React, { useEffect, useMemo, useState } from "react";
+﻿import React, { useEffect, useMemo, useState, useRef } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
+import { useRealtimeVersion } from "../../hooks/useRealtimeRefetch";
+import { RT } from "../../lib/realtimeSync";
 import { StatCard, StatCardRow } from "../../components/StatCard";
 import StaffSidebar from "../../components/StaffSidebar";
 import { managerNav } from "../../components/StaffSidebar/configs/manager";
@@ -74,11 +76,15 @@ const Manager_Reports = () => {
 
 
 
+  const rtVersion = useRealtimeVersion([...RT.LOANS, ...RT.SAVINGS, ...RT.CBU, ...RT.MEMBERS, ...RT.VAULT]);
+  const rtSeen = useRef(rtVersion);
   useEffect(() => {
+    const silent = rtSeen.current !== rtVersion;
+    rtSeen.current = rtVersion;
     let isMounted = true;
     const loadReports = async () => {
-      setLoading(true);
-      setError(null);
+      if (!silent) setLoading(true);
+      if (!silent) setError(null);
       try {
         const now = new Date();
         const yearStart = `${now.getFullYear()}-01-01`;
@@ -258,12 +264,13 @@ const Manager_Reports = () => {
             .slice(0, 5)
         );
       } catch (err) {
+        if (silent) return;
         if (isMounted) {
           setError(err?.message || "Unable to load reports.");
           addNotification(err?.message || "Unable to load reports.", "error");
         }
       } finally {
-        if (isMounted) setLoading(false);
+        if (isMounted && !silent) setLoading(false);
       }
     };
     loadReports();
@@ -271,7 +278,7 @@ const Manager_Reports = () => {
       isMounted = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [rtVersion]);
 
   const migsTotal = useMemo(
     () => migsBreakdown.reduce((s, b) => s + b.value, 0),

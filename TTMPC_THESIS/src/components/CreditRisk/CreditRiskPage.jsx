@@ -1,4 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { useRealtimeRefetch } from "../../hooks/useRealtimeRefetch";
+import { RT } from "../../lib/realtimeSync";
 import StaffSidebar from "../StaffSidebar";
 import { bookkeeperNav } from "../StaffSidebar/configs/bookkeeper";
 import { managerNav } from "../StaffSidebar/configs/manager";
@@ -106,7 +108,7 @@ const CreditRiskPage = ({ portal = "bookkeeper" }) => {
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedLoan, setSelectedLoan] = useState(null);
 
-  const fetchQueue = async () => {
+  const fetchQueue = async ({ silent = false } = {}) => {
     try {
       const res = await fetch(`${API_BASE_URL}/api/credit-risk/queue`);
       const json = await res.json();
@@ -127,15 +129,17 @@ const CreditRiskPage = ({ portal = "bookkeeper" }) => {
       } catch {
         setModelInfo(null);
       }
-      setLoadError("");
+      if (!silent) setLoadError("");
     } catch (err) {
+      if (silent) return;
       console.error("credit risk load failed", err);
       setLoadError(err?.message || "Unable to load credit risk data.");
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
       setRefreshing(false);
     }
   };
+  useRealtimeRefetch(RT.LOANS, () => fetchQueue({ silent: true }));
 
   useEffect(() => {
     fetchQueue();

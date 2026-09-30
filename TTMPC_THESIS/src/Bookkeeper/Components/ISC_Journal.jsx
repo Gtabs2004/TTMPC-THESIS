@@ -1,4 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useRealtimeVersion } from "../../hooks/useRealtimeRefetch";
+import { RT } from "../../lib/realtimeSync";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { ChevronLeft, Download, Search, Users, Calendar } from "lucide-react";
 import StaffSidebar from "../../components/StaffSidebar";
@@ -82,10 +84,14 @@ const ISC_Journal = () => {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
 
+  const rtVersion = useRealtimeVersion(RT.CBU);
+  const rtSeen = useRef(rtVersion);
   useEffect(() => {
+    const silent = rtSeen.current !== rtVersion;
+    rtSeen.current = rtVersion;
     (async () => {
-      setStatus("loading");
-      setError("");
+      if (!silent) setStatus("loading");
+      if (!silent) setError("");
       try {
         const { data, error: rpcError } = await supabase.rpc("isc_calculate_preview", {
           p_period_start: PERIOD_START,
@@ -96,13 +102,14 @@ const ISC_Journal = () => {
         setRows(Array.isArray(data) ? data : []);
         setStatus("ready");
       } catch (err) {
+        if (silent) return;
         setError(err?.message || "Unable to load the journal.");
         setRows([]);
         setStatus("error");
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [year]);
+  }, [year, rtVersion]);
 
   useEffect(() => {
     setSearchParams((prev) => {

@@ -1,5 +1,7 @@
-﻿import React, { useEffect, useMemo, useState } from "react";
+﻿import React, { useEffect, useMemo, useState, useRef } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
+import { useRealtimeVersion } from "../../hooks/useRealtimeRefetch";
+import { RT } from "../../lib/realtimeSync";
 import StaffSidebar from "../../components/StaffSidebar";
 import { bookkeeperNav } from "../../components/StaffSidebar/configs/bookkeeper";
 import { UserAuth } from "../../contex/AuthContext";
@@ -60,9 +62,13 @@ const MIGS = () => {
   const [sortBy, setSortBy] = useState("Name A-Z");
   const [computing, setComputing] = useState(false);
   const [lastComputeRun, setLastComputeRun] = useState(null);
+  const rtVersion = useRealtimeVersion([...RT.MEMBERS, ...RT.LOANS, ...RT.CBU]);
+  const rtSeen = useRef(rtVersion);
   useEffect(() => {
+    const silent = rtSeen.current !== rtVersion;
+    rtSeen.current = rtVersion;
     const fetchMigsMembers = async () => {
-      setLoading(true);
+      if (!silent) setLoading(true);
       try {
         const response = await fetch(
           `${API_BASE_URL}/api/migs/members?year=${encodeURIComponent(yearFilter)}`
@@ -77,14 +83,15 @@ const MIGS = () => {
           "success"
         );
       } catch (err) {
+        if (silent) return;
         setRows([]);
         addNotification(err?.message || "Unable to fetch MIGS members.", "error");
       } finally {
-        setLoading(false);
+        if (!silent) setLoading(false);
       }
     };
     fetchMigsMembers();
-  }, [yearFilter]);
+  }, [yearFilter, rtVersion]);
 
   const filtered = useMemo(() => {
     let result = rows;

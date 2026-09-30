@@ -1,4 +1,6 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
+import { useRealtimeVersion } from "../hooks/useRealtimeRefetch";
+import { RT } from "../lib/realtimeSync";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../supabaseClient";
 import { History, ArrowRight } from "lucide-react";
@@ -23,7 +25,11 @@ const RecentActivityCard = ({ to, limit = 5, title = "Recent Activity" }) => {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  const rtVersion = useRealtimeVersion(RT.AUDIT);
+  const rtSeen = useRef(rtVersion);
   useEffect(() => {
+    const silent = rtSeen.current !== rtVersion;
+    rtSeen.current = rtVersion;
     let cancelled = false;
     (async () => {
       try {
@@ -40,11 +46,11 @@ const RecentActivityCard = ({ to, limit = 5, title = "Recent Activity" }) => {
           }
         }
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!silent) if (!cancelled) setLoading(false);
       }
     })();
     return () => { cancelled = true; };
-  }, [limit]);
+  }, [limit, rtVersion]);
 
   const handleNav = () => {
     if (to) navigate(to);

@@ -1,5 +1,7 @@
 ﻿import React, { useState } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
+import { useRealtimeVersion } from "../../hooks/useRealtimeRefetch";
+import { RT } from "../../lib/realtimeSync";
 import StaffSidebar from "../../components/StaffSidebar";
 import { cashierNav } from "../../components/StaffSidebar/configs/cashier";
 import { UserAuth } from "../../contex/AuthContext";
@@ -51,11 +53,19 @@ const Cashier_Withdrawals = () => {
    
 
 
+  // Realtime: savings withdrawals posted or verified anywhere.
+  const rtVersion = useRealtimeVersion(RT.SAVINGS);
+  const rtSeen = React.useRef(rtVersion);
+
   React.useEffect(() => {
+    const silent = rtSeen.current !== rtVersion;
+    rtSeen.current = rtVersion;
     const fetchRows = async () => {
       try {
-        setLoading(true);
-        setFetchError(null);
+        if (!silent) {
+          setLoading(true);
+          setFetchError(null);
+        }
 
         const response = await fetch(`${API_BASE_URL}/api/cashier/withdrawals/transactions`);
         const result = await response.json();
@@ -65,15 +75,16 @@ const Cashier_Withdrawals = () => {
 
         setRows(Array.isArray(result.data) ? result.data : []);
       } catch (error) {
+        if (silent) return;
         setFetchError(error?.message || "Unable to fetch withdrawal transactions.");
         setRows([]);
       } finally {
-        setLoading(false);
+        if (!silent) setLoading(false);
       }
     };
 
     fetchRows();
-  }, []);
+  }, [rtVersion]);
 
   const filteredRows = rows.filter((row) => {
     const text = searchTerm.trim().toLowerCase();

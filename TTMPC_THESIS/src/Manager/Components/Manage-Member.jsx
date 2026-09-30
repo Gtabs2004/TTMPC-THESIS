@@ -1,5 +1,7 @@
-﻿import React, { useEffect, useMemo, useState } from "react";
+﻿import React, { useEffect, useMemo, useState, useRef } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
+import { useRealtimeVersion } from "../../hooks/useRealtimeRefetch";
+import { RT } from "../../lib/realtimeSync";
 import StaffSidebar from "../../components/StaffSidebar";
 import { managerNav } from "../../components/StaffSidebar/configs/manager";
 import { UserAuth } from "../../contex/AuthContext";
@@ -36,9 +38,13 @@ const Manager_Manage_Member = () => {
 
 
 
+  const rtVersion = useRealtimeVersion(RT.MEMBERS);
+  const rtSeen = useRef(rtVersion);
   useEffect(() => {
+    const silent = rtSeen.current !== rtVersion;
+    rtSeen.current = rtVersion;
     async function loadData() {
-      setLoading(true);
+      if (!silent) setLoading(true);
       try {
         const response = await fetch(`${API_BASE_URL}/api/personal_data_sheet`, { method: "GET", headers: { Accept: "application/json" } });
         const payload = await response.json().catch(() => ({}));
@@ -48,14 +54,15 @@ const Manager_Manage_Member = () => {
         setRows(Array.isArray(payload.data) ? payload.data : []);
         addNotification("Member data loaded successfully", "success");
       } catch (err) {
+        if (silent) return;
         addNotification(err?.message || "Unable to load personal datasheet.", "error");
         setRows([]);
       } finally {
-        setLoading(false);
+        if (!silent) setLoading(false);
       }
     }
     loadData();
-  }, [addNotification]);
+  }, [addNotification, rtVersion]);
 
   const filtered = useMemo(() => {
     const key = String(query || "").trim().toLowerCase();

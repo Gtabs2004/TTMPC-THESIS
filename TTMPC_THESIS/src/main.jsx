@@ -11,6 +11,7 @@ import DocumentTitleSync from "./components/DocumentTitleSync.jsx";
 import PwaInstallGate from "./components/PwaInstallGate.jsx";
 import StandaloneMemberOnlyGuard from "./components/StandaloneMemberOnlyGuard.jsx";
 import IdleSessionWarning from "./components/IdleSessionWarning.jsx";
+import RealtimeSync from "./components/RealtimeSync.jsx";
 import { ConfirmProvider } from "./contex/ConfirmContext.jsx";
 import { ThemeProvider } from "./contex/ThemeContext.jsx";
 import { StaffLayoutProvider } from "./contex/StaffLayoutContext.jsx";
@@ -29,6 +30,7 @@ createRoot(document.getElementById('root')).render(
              <PwaInstallGate />
              <StandaloneMemberOnlyGuard />
              <IdleSessionWarning />
+             <RealtimeSync />
              <StaffLayoutProvider>
                <RouterProvider router={router} />
              </StaffLayoutProvider>
