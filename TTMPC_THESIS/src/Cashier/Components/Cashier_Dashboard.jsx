@@ -542,7 +542,6 @@ const Cashier_Dashboard = () => {
                 <h3 className="text-gray-800 font-bold text-lg">Recent Activity</h3>
                 <p className="text-xs text-gray-400 mt-1">Last updated: 3 mins ago</p>
               </div>
-              <button className="text-green-700 text-sm font-bold hover:underline">View All</button>
             </div>
 
             <div className="overflow-x-auto">
