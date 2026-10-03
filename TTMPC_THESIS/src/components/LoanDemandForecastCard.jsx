@@ -1,15 +1,15 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
-  Area,
   CartesianGrid,
   ComposedChart,
   Line,
+  ReferenceLine,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from "recharts";
-import { TrendingUp, Loader2, AlertCircle, Info } from "lucide-react";
+import { TrendingUp, TrendingDown, Minus, Loader2, AlertCircle, Info } from "lucide-react";
 import { FORECAST_LOAN_TYPE_COLORS } from "../lib/chartColors";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
@@ -42,6 +42,27 @@ const PHP_COMPACT = (value) => {
 };
 
 const MONTH_LABELS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+// Diamond marker (per reference design) instead of Recharts' default circle —
+// rendered as a small rotated square so both the actual and forecast lines
+// read as a single consistent mark family.
+const DiamondDot = (fill) => (props) => {
+  const { cx, cy, payload, dataKey } = props;
+  if (cx === null || cy === null || payload?.[dataKey] === null || payload?.[dataKey] === undefined) return null;
+  const s = 7;
+  return (
+    <rect
+      x={cx - s / 2}
+      y={cy - s / 2}
+      width={s}
+      height={s}
+      fill={fill}
+      stroke="#fff"
+      strokeWidth={1.5}
+      transform={`rotate(45 ${cx} ${cy})`}
+    />
+  );
+};
 
 // Normalize any period representation ("2026-01", "2026-01-31", Date, …) to "YYYY-MM"
 // so we can join actuals and forecast by month regardless of source format.
@@ -243,7 +264,8 @@ const LoanDemandForecastCard = ({ className = "" }) => {
   }, [actuals, forecasts, periods]);
 
   // Headline figures per loan type — the numbers an executive reads first,
-  // shown as stat tiles above each chart instead of inside the bullets.
+  // shown as KPI callouts above each chart: trend direction, projected
+  // growth rate, and the end-of-period target.
   const statsByType = useMemo(() => {
     const out = {};
     for (const t of LOAN_TYPES) {
@@ -251,12 +273,42 @@ const LoanDemandForecastCard = ({ className = "" }) => {
       const predicted = series.filter((r) => r.predicted !== null);
       const actual = series.filter((r) => r.actual !== null);
       const peak = predicted.reduce((best, r) => (best === null || r.predicted > best.predicted ? r : best), null);
+
+      // Growth rate: first vs. last forecast month (falls back to actual's
+      // last value when the forecast horizon doesn't start at the view's
+      // first month, so the figure always compares like-for-like direction).
+      const first = predicted[0] ?? actual[0] ?? null;
+      const last = predicted[predicted.length - 1] ?? actual[actual.length - 1] ?? null;
+      let growthPct = null;
+      if (first && last && first !== last && first.predicted !== undefined) {
+        const a = first.predicted ?? first.actual;
+        const b = last.predicted ?? last.actual;
+        if (a) growthPct = ((b - a) / a) * 100;
+      }
+      const trend = growthPct === null ? "flat" : growthPct > 2 ? "up" : growthPct < -2 ? "down" : "flat";
+
       out[t.value] = {
         projectedTotal: predicted.length ? predicted.reduce((sum, r) => sum + r.predicted, 0) : null,
         peak,
         actualTotal: actual.reduce((sum, r) => sum + r.actual, 0),
         actualLoans: actual.reduce((sum, r) => sum + r.loanCount, 0),
+        endOfPeriod: last ? (last.predicted ?? last.actual) : null,
+        endOfPeriodLabel: last?.fullLabel || null,
+        growthPct,
+        trend,
       };
+    }
+    return out;
+  }, [seriesByType]);
+
+  // X-axis label of the last month that has an actual, so the chart can draw
+  // a reference line at the historical/forecast transition.
+  const transitionLabelByType = useMemo(() => {
+    const out = {};
+    for (const t of LOAN_TYPES) {
+      const series = seriesByType[t.value] || [];
+      const actualRows = series.filter((r) => r.actual !== null);
+      out[t.value] = actualRows.length ? actualRows[actualRows.length - 1].label : null;
     }
     return out;
   }, [seriesByType]);
@@ -458,14 +510,6 @@ const LoanDemandForecastCard = ({ className = "" }) => {
                     />
                     Forecast
                   </span>
-                  <span className="flex items-center gap-1">
-                    <span className="inline-block w-3 h-2.5 rounded-sm" style={{ background: t.color, opacity: 0.35 }} />
-                    80% range
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <span className="inline-block w-3 h-2.5 rounded-sm" style={{ background: t.color, opacity: 0.15 }} />
-                    95% range
-                  </span>
                 </div>
               </div>
               {typeErrors[t.value] && (
@@ -476,22 +520,29 @@ const LoanDemandForecastCard = ({ className = "" }) => {
               )}
               {(() => {
                 const st = statsByType[t.value] || {};
+                const TrendIcon = st.trend === "up" ? TrendingUp : st.trend === "down" ? TrendingDown : Minus;
+                const trendColor =
+                  st.trend === "up" ? "text-emerald-600" : st.trend === "down" ? "text-red-500" : "text-gray-400";
                 const tiles = [
                   {
-                    label: `Projected, ${periodPhrase}`,
-                    value: st.projectedTotal != null ? PHP_COMPACT(st.projectedTotal) : "—",
-                    title: st.projectedTotal != null ? PHP(st.projectedTotal) : undefined,
+                    label: "Trend direction",
+                    value: (
+                      <span className={`inline-flex items-center gap-1 ${trendColor}`}>
+                        <TrendIcon className="w-4 h-4" />
+                        {st.growthPct != null ? `${st.growthPct >= 0 ? "+" : ""}${st.growthPct.toFixed(0)}%` : "Flat"}
+                      </span>
+                    ),
+                    sub: "projected growth",
+                  },
+                  {
+                    label: st.endOfPeriodLabel ? `End-of-period target (${st.endOfPeriodLabel})` : "End-of-period target",
+                    value: st.endOfPeriod != null ? PHP_COMPACT(st.endOfPeriod) : "—",
+                    title: st.endOfPeriod != null ? PHP(st.endOfPeriod) : undefined,
                   },
                   {
                     label: "Busiest month (forecast)",
-                    value: st.peak ? st.peak.fullLabel : "—",
-                    sub: st.peak ? PHP_COMPACT(st.peak.predicted) : null,
-                  },
-                  {
-                    label: "Actual loans filed",
-                    value: PHP_COMPACT(st.actualTotal || 0),
-                    title: PHP(st.actualTotal || 0),
-                    sub: `${st.actualLoans || 0} loan${st.actualLoans === 1 ? "" : "s"}`,
+                    value: st.peak ? PHP_COMPACT(st.peak.predicted) : "—",
+                    sub: st.peak ? st.peak.fullLabel : null,
                   },
                 ];
                 return (
@@ -512,7 +563,7 @@ const LoanDemandForecastCard = ({ className = "" }) => {
                 <div className="h-60">
                   <ResponsiveContainer debounce={200} width="100%" height="100%">
                     <ComposedChart data={seriesByType[t.value]} margin={{ top: 10, right: 12, left: 0, bottom: 0 }}>
-                      <CartesianGrid stroke="#eef2f7" vertical={false} />
+                      <CartesianGrid stroke="#f0f0f0" vertical={false} />
                       <XAxis dataKey="label" axisLine={{ stroke: "#e5e7eb" }} tickLine={false} tick={{ fontSize: 11, fill: "#6b7280" }} />
                       <YAxis
                         axisLine={false}
@@ -523,33 +574,19 @@ const LoanDemandForecastCard = ({ className = "" }) => {
                         domain={[0, "auto"]}
                       />
                       <Tooltip content={makeTooltip(t)} />
-                      {/* 95% drawn first so the narrower 80% band sits on top. */}
-                      <Area
-                        type="monotone"
-                        dataKey="band95"
-                        stroke="none"
-                        fill={t.color}
-                        fillOpacity={0.1}
-                        connectNulls={false}
-                        isAnimationActive={false}
-                        activeDot={false}
-                      />
-                      <Area
-                        type="monotone"
-                        dataKey="band80"
-                        stroke="none"
-                        fill={t.color}
-                        fillOpacity={0.18}
-                        connectNulls={false}
-                        isAnimationActive={false}
-                        activeDot={false}
-                      />
+                      {transitionLabelByType[t.value] && (
+                        <ReferenceLine
+                          x={transitionLabelByType[t.value]}
+                          stroke="#d1d5db"
+                          strokeDasharray="3 3"
+                        />
+                      )}
                       <Line
                         type="monotone"
                         dataKey="actual"
                         stroke={t.color}
                         strokeWidth={2}
-                        dot={{ r: 4, strokeWidth: 2, stroke: "#fff", fill: t.color }}
+                        dot={DiamondDot(t.color)}
                         activeDot={{ r: 5 }}
                         name={`${t.label} (actual)`}
                         connectNulls={false}
@@ -561,7 +598,7 @@ const LoanDemandForecastCard = ({ className = "" }) => {
                         stroke={t.color}
                         strokeWidth={2}
                         strokeDasharray="5 4"
-                        dot={false}
+                        dot={DiamondDot(t.color)}
                         activeDot={{ r: 5 }}
                         name={`${t.label} (forecast)`}
                         connectNulls={false}
