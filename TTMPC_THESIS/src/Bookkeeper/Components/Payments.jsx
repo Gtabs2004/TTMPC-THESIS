@@ -395,7 +395,7 @@ const BookkeeperPayments = () => {
 
         <main className="animate-page-in p-8">
           <div className="flex items-center justify-between mb-6">
-                      <Breadcrumb portal="Bookkeeper" page="Payments Confirmation" />
+                      <Breadcrumb portal="Bookkeeper" page="Loan Payments Confirmation" />
             <button
               type="button"
               onClick={fetchPendingPayments}

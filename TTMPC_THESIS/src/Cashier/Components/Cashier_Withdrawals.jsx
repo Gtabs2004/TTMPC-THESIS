@@ -113,8 +113,8 @@ const Cashier_Withdrawals = () => {
 
         {/* 3. PAGE CONTENT */}
         <main className="animate-page-in p-8 overflow-auto">
-          <Breadcrumb portal="Cashier" page="Withdrawals" />
-          <h1 className="text-2xl font-bold text-[#1F3E35] mb-6">Withdrawals</h1>
+          <Breadcrumb portal="Cashier" page="Savings Withdrawals Ledger" />
+          <h1 className="text-2xl font-bold text-[#1F3E35] mb-6">Savings Withdrawals Ledger</h1>
 
           {/* Main Card Container */}
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">

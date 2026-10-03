@@ -9297,6 +9297,67 @@ def _load_outside_loan_declarations(year: int) -> dict[str, bool]:
 # all scores for a year, and fetch individual member score details/labels.
 # ============================================================================
 
+@app.get("/api/migs/classifications")
+async def list_migs_classifications():
+    """Bulk, view-only MIGS/Non-MIGS label per member, keyed by membership_id.
+
+    For table columns elsewhere (e.g. Manager's Manage Member) that just need
+    to show the badge, not re-run scoring. Reads the latest persisted
+    member_classification_temporal snapshot per member — same source and
+    "most recent row wins" rule as the MIGS distribution stat on BOD Reports.
+    Members never scored come back as "unscored" rather than being omitted.
+    """
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+
+    try:
+        member_table = _resolve_member_table(supabase)
+        members_resp = (
+            supabase.table(member_table).select("id,membership_id").execute()
+        )
+        members = members_resp.data or []
+        membership_by_id = {m["id"]: m.get("membership_id") for m in members if m.get("id")}
+
+        snap_resp = (
+            supabase.table("member_classification_temporal")
+            .select("membership_number_id,classification_level_id,accrual_date")
+            .order("accrual_date", desc=True)
+            .execute()
+        )
+        level_resp = (
+            supabase.table("classification_level")
+            .select("classification_level_id,code")
+            .execute()
+        )
+        level_code_by_id = {
+            str(r["classification_level_id"]): str(r.get("code") or "").lower()
+            for r in (level_resp.data or [])
+        }
+
+        labels: dict[str, str] = {}
+        seen: set[str] = set()
+        for row in snap_resp.data or []:
+            member_uuid = str(row.get("membership_number_id") or "").strip()
+            if not member_uuid or member_uuid in seen:
+                continue
+            seen.add(member_uuid)
+            membership_id = membership_by_id.get(member_uuid)
+            if not membership_id:
+                continue
+            code = level_code_by_id.get(str(row.get("classification_level_id") or ""), "")
+            labels[membership_id] = "migs" if code == "migs" else "non_migs"
+
+        # Members with no snapshot yet are explicitly "unscored" rather than
+        # left out, so the UI can tell "not MIGS" from "never scored".
+        for membership_id in membership_by_id.values():
+            if membership_id and membership_id not in labels:
+                labels[membership_id] = "unscored"
+
+        return {"success": True, "data": labels}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Failed to load MIGS classifications: {exc}")
+
+
 @app.get("/api/migs/members")
 async def list_migs_members(year: int | None = None):
     """List all members with the raw inputs needed for MIGS scoring.
@@ -15756,9 +15817,9 @@ def _finalize_termination(
     if refundable > 0:
         notices.append((
             "cashier",
-            "Member terminated — CBU payout pending",
+            "Member terminated — CBU exit payout pending",
             f"{who} was terminated. CBU to pay out: ₱{money(refundable):,.2f}.",
-            "/Cashier_CBU_Payout",
+            "/Cashier_CBU_Exit_Payout",
         ))
     for recipient, title, message, redirect_url in notices:
         try:
@@ -17182,17 +17243,27 @@ def read_audit_log(
             q = q.or_(f"entity_id.ilike.%{s}%,actor_email.ilike.%{s}%")
         return q
 
-    rows_q = scoped("*", count_mode="exact")
-
     start = (page - 1) * page_size
-    try:
-        resp = (
-            rows_q.order("occurred_at", desc=True)
+
+    def run_query():
+        return (
+            scoped("*", count_mode="exact")
+            .order("occurred_at", desc=True)
             .range(start, start + page_size - 1)
             .execute()
         )
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"Could not read the audit log: {exc}")
+
+    # Same stale-pooled-connection retry as _resolve_staff_role above: the
+    # first request after the backend has been idle can hit a dead PostgREST
+    # connection and surface as "Server disconnected" even though the query
+    # itself is fine. One retry on a fresh connection clears it.
+    try:
+        resp = run_query()
+    except Exception:
+        try:
+            resp = run_query()
+        except Exception as exc:
+            raise HTTPException(status_code=500, detail=f"Could not read the audit log: {exc}")
 
     rows = resp.data or []
     _attach_audit_actor_names(rows)
