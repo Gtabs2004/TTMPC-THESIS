@@ -22,7 +22,7 @@ export const bookkeeperNav = [
   { name: "Manage Loans",   icon: Briefcase,       path: "/manage-loans" },
   { name: "Renewal Overrides", icon: Unlock,       path: "/bookkeeper-renewal-overrides" },
   { name: "Credit Risk",    icon: Brain,           path: "/bookkeeper-credit-risk" },
-  { name: "Payments",       icon: Wallet,          path: "/payments" },
+  { name: "Loan Payments Confirmation", icon: Wallet, path: "/payments" },
   {
     name: "Savings Accounts",
     icon: PiggyBank,

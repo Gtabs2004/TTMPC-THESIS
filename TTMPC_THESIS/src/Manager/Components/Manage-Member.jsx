@@ -35,6 +35,7 @@ const Manager_Manage_Member = () => {
   const [loading, setLoading] = useState(false);
   const [query, setQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
+  const [migsByMember, setMigsByMember] = useState({});
 
 
 
@@ -63,6 +64,23 @@ const Manager_Manage_Member = () => {
     }
     loadData();
   }, [addNotification, rtVersion]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/migs/classifications`, { headers: { Accept: "application/json" } });
+        const payload = await res.json().catch(() => ({}));
+        if (!cancelled && res.ok && payload?.success) {
+          setMigsByMember(payload.data || {});
+        }
+      } catch {
+        // Badge is a nice-to-have on this view — a failed lookup just leaves
+        // the column blank instead of breaking the member list.
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [rtVersion]);
 
   const filtered = useMemo(() => {
     const key = String(query || "").trim().toLowerCase();
@@ -123,13 +141,14 @@ const Manager_Manage_Member = () => {
                     <th className="p-5 font-bold">Email</th>
                     <th className="p-5 font-bold">Contact</th>
                     <th className="p-5 font-bold">Address</th>
+                    <th className="p-5 font-bold text-center">MIGS Status</th>
                     <th className="p-5 font-bold text-center">Action</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filtered.length === 0 ? (
                     <TableStateRow
-                      colSpan={6}
+                      colSpan={7}
                       variant="empty"
                       icon={Users}
                       label="No personal datasheet records found."
@@ -142,6 +161,30 @@ const Manager_Manage_Member = () => {
                         <td className="p-5 text-sm text-gray-700">{r.email}</td>
                         <td className="p-5 text-sm text-gray-700">{r.contact_number}</td>
                         <td className="p-5 text-sm text-gray-700">{r.address}</td>
+                        <td className="p-5 text-sm text-center">
+                          {(() => {
+                            const status = migsByMember[r.member_id];
+                            if (status === "migs") {
+                              return (
+                                <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold tracking-wide bg-green-50 text-green-700 ring-1 ring-green-200">
+                                  MIGS
+                                </span>
+                              );
+                            }
+                            if (status === "non_migs") {
+                              return (
+                                <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold tracking-wide bg-amber-50 text-amber-700 ring-1 ring-amber-200">
+                                  Non-MIGS
+                                </span>
+                              );
+                            }
+                            return (
+                              <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold tracking-wide bg-gray-50 text-gray-500 ring-1 ring-gray-200">
+                                Unscored
+                              </span>
+                            );
+                          })()}
+                        </td>
                         <td className="p-5 text-sm text-center">
                           <TableActionButton
                             onClick={() => navigate(`/member_details?member_id=${encodeURIComponent(String(r.member_id || ""))}`, { state: { member: r, portal: 'manager' } })}

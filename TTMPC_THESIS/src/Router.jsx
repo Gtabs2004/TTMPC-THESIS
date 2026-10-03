@@ -99,7 +99,7 @@ import BOD_Manage_Member from "./BOD/Components/Manage-Member";
 import Treasurer_Approval from "./Treasurer/Components/Treasurer_Approval";
 import Treasurer_ApprovalDetails from "./Treasurer/Components/Treasurer_ApprovalDetails";
 import Cashier_CBU from "./Cashier/Components/Cashier_CBU";
-import Cashier_CBU_Payout from "./Cashier/Components/Cashier_CBU_Payout";
+import Cashier_CBU_Exit_Payout from "./Cashier/Components/Cashier_CBU_Exit_Payout";
 import Cashier_CBU_Deposit from "./Cashier/Components/Cashier_CBU_Deposit";
 import Cashier_Withdrawals from "./Cashier/Components/Cashier_Withdrawals";
 import Cashier_Payments from "./Cashier/Components/Cashier_Payments";
@@ -235,7 +235,7 @@ export const router = createBrowserRouter([
     {path: "/treasurer-approval", element: treasurerGuarded(<Treasurer_Approval/>)},
     {path:"/treasurer-approval/:id", element: treasurerGuarded(<Treasurer_ApprovalDetails/>)},
     {path: "/Cashier_CBU", element: cashierGuarded(<Cashier_CBU/>)},
-    {path: "/Cashier_CBU_Payout", element: cashierGuarded(<Cashier_CBU_Payout/>)},
+    {path: "/Cashier_CBU_Exit_Payout", element: cashierGuarded(<Cashier_CBU_Exit_Payout/>)},
     {path: "/Cashier_CBU_Deposit/:memberId", element: cashierGuarded(<Cashier_CBU_Deposit/>)},
     {path: "/Cashier_Withdrawals", element: cashierGuarded(<Cashier_Withdrawals/>)},
     {path: "/Cashier_Payments", element: cashierGuarded(<Cashier_Payments/>)},

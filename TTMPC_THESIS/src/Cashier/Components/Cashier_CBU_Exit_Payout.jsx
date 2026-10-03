@@ -17,10 +17,11 @@ import { supabase } from "../../supabaseClient";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 
-// CBU payout to terminated members (Account Management plan, Part B).
-// When the BOD terminates a member, their CBU first pays off any remaining
-// loans; what's left is handed to the member here, in one or more payouts.
-// No cash-vault movement: the Treasurer adjusts the vault by hand.
+// CBU Exit Payout — cash settlement for terminated/exiting members
+// (Account Management plan, Part B). When the BOD terminates a member,
+// their CBU first pays off any remaining loans; what's left is handed to
+// the member here, in one or more payouts. No cash-vault movement: the
+// Treasurer adjusts the vault by hand.
 
 const peso = (n) =>
   `₱${Number(n || 0).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -56,10 +57,10 @@ function printReceipt(r) {
   const win = window.open("", "_blank", "width=420,height=600");
   if (!win) return;
   const row = (label, value) => `<tr><td style="padding:4px 0;color:#555">${label}</td><td style="padding:4px 0;text-align:right;font-weight:600">${value}</td></tr>`;
-  win.document.write(`<!doctype html><html><head><title>CBU Payout ${esc(r.reference)}</title></head>
+  win.document.write(`<!doctype html><html><head><title>CBU Exit Payout ${esc(r.reference)}</title></head>
     <body style="font-family:Arial,sans-serif;padding:24px;color:#111">
       <h2 style="margin:0">TTMPC</h2>
-      <p style="margin:2px 0 16px;color:#555">CBU Payout Receipt</p>
+      <p style="margin:2px 0 16px;color:#555">CBU Exit Payout Receipt</p>
       <table style="width:100%;border-collapse:collapse;font-size:14px">
         ${row("Reference", esc(r.reference))}
         ${row("Date", formatDate(r.payout_date))}
@@ -88,7 +89,7 @@ function PayoutModal({ member, onClose, onRecorded }) {
 
   const submit = async () => {
     const ok = await confirm({
-      title: "Record CBU payout",
+      title: "Record CBU exit payout",
       message: `Pay ${peso(value)} in cash to ${member.name}? ${
         value < member.remaining ? `${peso(member.remaining - value)} will still be owed to them.` : "This settles their CBU and closes their membership."
       }`,
@@ -114,7 +115,7 @@ function PayoutModal({ member, onClose, onRecorded }) {
       <div role="dialog" aria-modal="true" className="w-full max-w-md overflow-hidden rounded-xl bg-white shadow-xl">
         <div className="flex items-start justify-between border-b border-gray-100 px-6 py-5">
           <div>
-            <h3 className="font-bold text-gray-800">Record CBU payout</h3>
+            <h3 className="font-bold text-gray-800">Record CBU exit payout</h3>
             <p className="mt-0.5 text-xs text-gray-500">{member.name} · {member.membership_id}</p>
           </div>
           <button onClick={onClose} disabled={busy} aria-label="Close" className="text-gray-400 hover:text-gray-600">
@@ -159,7 +160,7 @@ function PayoutModal({ member, onClose, onRecorded }) {
   );
 }
 
-const Cashier_CBU_Payout = () => {
+const Cashier_CBU_Exit_Payout = () => {
   const { addNotification } = useNotification();
   const [pending, setPending] = useState([]);
   const [history, setHistory] = useState([]);
@@ -175,7 +176,7 @@ const Cashier_CBU_Payout = () => {
       setHistory(body.history || []);
     } catch (err) {
       if (silent) return;
-      addNotification(err.message || "Failed to load CBU payouts.", "error");
+      addNotification(err.message || "Failed to load CBU exit payouts.", "error");
     } finally {
       if (!silent) setLoading(false);
     }
@@ -196,8 +197,8 @@ const Cashier_CBU_Payout = () => {
         <StaffTopbar portal="Cashier" notifications={<LoanNotificationBell role="cashier" />} />
 
         <main className="animate-page-in overflow-auto p-8">
-          <Breadcrumb portal="Cashier" page="CBU Payout" />
-          <h1 className="mb-1 text-2xl font-bold text-[#1F3E35]">CBU Payout</h1>
+          <Breadcrumb portal="Cashier" page="CBU Exit Payout" />
+          <h1 className="mb-1 text-2xl font-bold text-[#1F3E35]">CBU Exit Payout</h1>
           <p className="mb-6 text-sm text-gray-500">
             Hand terminated members the CBU still owed to them. Their loans were already paid from their CBU when the BOD terminated them.
           </p>
@@ -227,7 +228,7 @@ const Cashier_CBU_Payout = () => {
                   {loading ? (
                     <TableStateRow colSpan={7} variant="loading" label="Loading…" />
                   ) : pending.length === 0 ? (
-                    <TableStateRow colSpan={7} variant="empty" icon={Wallet} label="No CBU payouts pending." />
+                    <TableStateRow colSpan={7} variant="empty" icon={Wallet} label="No CBU exit payouts pending." />
                   ) : (
                     pending.map((row) => (
                       <tr key={row.membership_id} className="border-b border-gray-100 transition-colors hover:bg-gray-50/50">
@@ -255,7 +256,7 @@ const Cashier_CBU_Payout = () => {
           </div>
 
           <div className="mt-6 overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm">
-            <TableToolbar title="Payout History" subtitle="Latest 100 CBU payouts" />
+            <TableToolbar title="Payout History" subtitle="Latest 100 CBU exit payouts" />
             <div className="overflow-x-auto">
               <table className="w-full border-collapse text-left text-sm">
                 <thead>
@@ -343,4 +344,4 @@ const Cashier_CBU_Payout = () => {
   );
 };
 
-export default Cashier_CBU_Payout;
+export default Cashier_CBU_Exit_Payout;

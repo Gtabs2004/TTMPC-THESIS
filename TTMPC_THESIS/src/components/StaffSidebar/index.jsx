@@ -1,6 +1,6 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { NavLink, useNavigate } from "react-router-dom";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { ChevronDown, ChevronRight, ChevronLeft, X, LogOut } from "lucide-react";
 import { UserAuth } from "../../contex/AuthContext";
 import { usePortalRole } from "../../utils/usePortalRole";
@@ -62,10 +62,36 @@ const flyoutSubNavLinkClass = ({ isActive }) =>
 export default function StaffSidebar({ portal, items, sections }) {
   const { signOut } = UserAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const portalRole = usePortalRole();
-  const [openDropdowns, setOpenDropdowns] = useState({});
   const { sidebarOpen, setSidebarOpen, collapsed, setCollapsed, toggleCollapsed } =
     useStaffLayout();
+
+  // Every staff page mounts its own <StaffSidebar/> from scratch (no shared
+  // layout wrapper across pages), so plain useState(() => ({})) would forget
+  // which dropdown was open the instant a subItem link navigates — it reads
+  // as the menu "closing itself" on click, even though the navigation
+  // succeeded. Seed from the current route instead, so the group containing
+  // the active page starts open.
+  const findActiveDropdown = () => {
+    const pools = sections ? sections.flatMap((g) => g.items) : items;
+    const match = (pools || []).find(
+      (i) => i.isDropdown && i.subItems?.some((s) => s.path === location.pathname)
+    );
+    return match?.name || null;
+  };
+  const [openDropdowns, setOpenDropdowns] = useState(() => {
+    const active = findActiveDropdown();
+    return active ? { [active]: true } : {};
+  });
+
+  // Keep the active dropdown open (without forcibly closing ones the user
+  // opened by hand) whenever the route changes underneath this mount.
+  useEffect(() => {
+    const active = findActiveDropdown();
+    if (active) setOpenDropdowns((prev) => (prev[active] ? prev : { ...prev, [active]: true }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.pathname]);
 
   // Collapsed-rail hover flyout (module-name tooltip, or the subitem list for
   // a dropdown group). Portaled straight to document.body — see the render
@@ -126,11 +152,14 @@ export default function StaffSidebar({ portal, items, sections }) {
 
   // Shared label wrapper: fades/slides out (rather than disappearing
   // instantly) when collapsed, and never collapses on mobile since the
-  // drawer there always renders full-width.
+  // drawer there always renders full-width. Allowed to wrap onto a second
+  // line (rather than clipping with overflow-hidden) since a few labels —
+  // e.g. "Savings Withdrawals Ledger" — don't fit on one line at this width
+  // and silent clipping read as the label overlapping the collapse button.
   const renderLabel = (text) => (
     <span
-      className={`overflow-hidden whitespace-nowrap transition-all duration-300 ease-in-out ${
-        collapsed ? "lg:max-w-0 lg:opacity-0" : "max-w-[11rem] opacity-100"
+      className={`transition-all duration-300 ease-in-out leading-tight ${
+        collapsed ? "lg:max-w-0 lg:opacity-0 overflow-hidden whitespace-nowrap" : "max-w-[11rem] opacity-100"
       }`}
     >
       {text}

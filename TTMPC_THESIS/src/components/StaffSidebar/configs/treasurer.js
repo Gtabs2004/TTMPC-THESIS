@@ -13,11 +13,11 @@ import {
 // a single-line edit here and a single-line edit in Router.jsx.
 export const treasurerNav = [
   { name: "Dashboard",     icon: LayoutDashboard, path: "/Treasurer_Dashboard" },
-  { name: "Disbursement",  icon: CreditCard,      path: "/disbursement" },
+  { name: "Loan Approval", icon: FileText,      path: "/treasurer-approval" },
+  { name: "Release Loans", icon: CreditCard,      path: "/disbursement" },
   { name: "Vault",         icon: Wallet,          path: "/treasurer-vault" },
   { name: "Savings ", icon: PiggyBank,    path: "/treasurer-savings-accounts" },
-  { name: "Payments",      icon: Users,           path: "/treasurer-payments" },
-  { name: "Loan Approval", icon: FileText,      path: "/treasurer-approval" },
+  { name: "Cash Ledger",   icon: Users,           path: "/treasurer-payments" },
   { name: "Audit Log",     icon: History,         path: "/treasurer-audit-log" },
 ];
 

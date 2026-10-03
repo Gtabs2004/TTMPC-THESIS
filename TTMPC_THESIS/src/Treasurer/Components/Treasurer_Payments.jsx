@@ -205,7 +205,7 @@ const Treasurer_Payments = () => {
         <main className="animate-page-in p-8">
           {/* Breadcrumb + Header */}
           <div className="mb-6">
-            <Breadcrumb portal="Treasurer" page="Payments" />
+            <Breadcrumb portal="Treasurer" page="Cash Ledger" />
 
           </div>
 
