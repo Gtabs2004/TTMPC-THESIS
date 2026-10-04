@@ -12,7 +12,6 @@ import { UserAuth } from "../../contex/AuthContext";
 import { useNotification } from "../../contex/NotificationContext";
 import StaffTopbar from "../../components/StaffTopbar";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
-import Breadcrumb from "../../components/Breadcrumb";
 import Pagination from "../../components/Pagination";
 import {
   LayoutDashboard,
@@ -263,11 +262,7 @@ const Manager_Manage_Loans = () => {
         />
 
         <main className="animate-page-in p-8">
-          {/* Breadcrumb + title */}
-          <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-8 gap-4">
-            <div>
-              <Breadcrumb portal="Manager" page="Manage Loans" />
-            </div>
+          <div className="flex flex-col md:flex-row items-start md:items-center justify-end mb-8 gap-4">
             <button
               type="button"
               onClick={fetchLoans}

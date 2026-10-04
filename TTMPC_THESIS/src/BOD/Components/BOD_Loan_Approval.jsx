@@ -9,7 +9,6 @@ import { NavLink, useNavigate } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
 import { useNotification } from "../../contex/NotificationContext";
 import StaffTopbar from "../../components/StaffTopbar";
-import Breadcrumb from "../../components/Breadcrumb";
 import { supabase } from "../../supabaseClient";
 import TableActionButton from "../../components/TableActionButton";
 import {
@@ -127,7 +126,6 @@ const BOD_Loan_Approval = () => {
         />
 
         <main className="animate-page-in p-8 flex-1">
-          <Breadcrumb portal="BOD" page="Loan Approvals" />
           <StatCardRow cols={3}>
             <StatCard label="Pending Loan Applications" value={loans.length} icon={UserPlus} iconColor="text-[#2C7A3F]" />
             <StatCard

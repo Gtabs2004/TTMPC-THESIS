@@ -6,7 +6,6 @@ import StaffSidebar from "../../components/StaffSidebar";
 import { cashierNav } from "../../components/StaffSidebar/configs/cashier";
 import StaffTopbar from "../../components/StaffTopbar";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
-import Breadcrumb from "../../components/Breadcrumb";
 import { StatCard, StatCardRow } from "../../components/StatCard";
 import { TableToolbar } from "../../components/TableToolbar";
 import TableStateRow from "../../components/TableStateRow";
@@ -197,7 +196,6 @@ const Cashier_CBU_Exit_Payout = () => {
         <StaffTopbar portal="Cashier" notifications={<LoanNotificationBell role="cashier" />} />
 
         <main className="animate-page-in overflow-auto p-8">
-          <Breadcrumb portal="Cashier" page="CBU Exit Payout" />
           <h1 className="mb-1 text-2xl font-bold text-[#1F3E35]">CBU Exit Payout</h1>
           <p className="mb-6 text-sm text-gray-500">
             Hand terminated members the CBU still owed to them. Their loans were already paid from their CBU when the BOD terminated them.

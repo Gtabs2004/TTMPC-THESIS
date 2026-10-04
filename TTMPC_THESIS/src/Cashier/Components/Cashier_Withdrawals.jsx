@@ -8,7 +8,6 @@ import { UserAuth } from "../../contex/AuthContext";
 import { useNotification } from "../../contex/NotificationContext";
 import StaffTopbar from "../../components/StaffTopbar";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
-import Breadcrumb from "../../components/Breadcrumb";
 import { TableToolbar } from "../../components/TableToolbar";
 import TableStateRow from "../../components/TableStateRow";
 import { 
@@ -113,7 +112,6 @@ const Cashier_Withdrawals = () => {
 
         {/* 3. PAGE CONTENT */}
         <main className="animate-page-in p-8 overflow-auto">
-          <Breadcrumb portal="Cashier" page="Savings Withdrawals Ledger" />
           <h1 className="text-2xl font-bold text-[#1F3E35] mb-6">Savings Withdrawals Ledger</h1>
 
           {/* Main Card Container */}

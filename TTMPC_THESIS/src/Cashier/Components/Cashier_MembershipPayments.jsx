@@ -9,7 +9,6 @@ import { useNotification } from "../../contex/NotificationContext";
 import { useConfirm } from "../../contex/ConfirmContext";
 import StaffTopbar from "../../components/StaffTopbar";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
-import Breadcrumb from "../../components/Breadcrumb";
 import { TableToolbar } from "../../components/TableToolbar";
 import Pagination from "../../components/Pagination";
 import ConfirmDialog from "../../components/ConfirmDialog";
@@ -304,7 +303,6 @@ const Cashier_MembershipPayments = () => {
         <main className="animate-page-in p-8 overflow-auto">
           <div className="flex items-center justify-between mb-6">
             <div>
-              <Breadcrumb portal="Cashier" page="Membership Payments" />
               <h1 className="text-2xl font-bold text-[#1F3E35]">Membership Payments</h1>
               <p className="text-sm text-gray-500 mt-1">
                 Collect the ₱{MEMBERSHIP_FEE.toLocaleString()} Membership Fee and the

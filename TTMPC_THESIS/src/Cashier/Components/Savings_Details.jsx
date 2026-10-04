@@ -34,7 +34,6 @@ import { useNotification } from "../../contex/NotificationContext";
 import { useConfirm } from "../../contex/ConfirmContext";
 import StaffTopbar from "../../components/StaffTopbar";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
-import Breadcrumb from "../../components/Breadcrumb";
 import { TableToolbar } from "../../components/TableToolbar";
 import TableStateRow from "../../components/TableStateRow";
 import Pagination from "../../components/Pagination";
@@ -331,7 +330,6 @@ const Savings_Details = () => {
             <>
               {/* TITLE BLOCK */}
               <div className="mb-8">
-                <Breadcrumb portal="Cashier" page="Account Details" />
                 <div className="flex items-center justify-between gap-4 mb-6">
                   <div>
                     <div className="flex items-center gap-3 mb-1">

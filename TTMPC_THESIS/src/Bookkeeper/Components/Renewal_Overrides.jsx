@@ -5,7 +5,6 @@ import StaffSidebar from "../../components/StaffSidebar";
 import { bookkeeperNav } from "../../components/StaffSidebar/configs/bookkeeper";
 import StaffTopbar from "../../components/StaffTopbar";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
-import Breadcrumb from "../../components/Breadcrumb";
 import { TableToolbar } from "../../components/TableToolbar";
 import TableStateRow from "../../components/TableStateRow";
 import Pagination from "../../components/Pagination";
@@ -175,7 +174,6 @@ const RenewalOverrides = () => {
 
         <main className="animate-page-in p-8">
           <div className="mb-6">
-            <Breadcrumb portal="Bookkeeper" page="Renewal Overrides" />
             <h1 className="font-bold text-2xl text-gray-800">6-Month Rule Override Requests</h1>
             <p className="text-sm text-gray-500 mt-1">
               Members asking to renew a loan before completing 6 monthly payments. Approving unlocks Renewal for that loan for a limited time.

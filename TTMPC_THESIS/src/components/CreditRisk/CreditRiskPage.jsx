@@ -5,7 +5,6 @@ import StaffSidebar from "../StaffSidebar";
 import { bookkeeperNav } from "../StaffSidebar/configs/bookkeeper";
 import { managerNav } from "../StaffSidebar/configs/manager";
 import StaffTopbar from "../StaffTopbar";
-import Breadcrumb from "../Breadcrumb";
 import LoanNotificationBell from "../LoanNotificationBell";
 import Pagination from "../Pagination";
 import TableStateRow from "../TableStateRow";
@@ -223,7 +222,6 @@ const CreditRiskPage = ({ portal = "bookkeeper" }) => {
         />
 
         <main className="animate-page-in p-8">
-          <Breadcrumb portal={portalLabel} page="Credit Risk" />
 
           <div className="flex items-start justify-between mb-6 gap-3 flex-wrap">
             <div>

@@ -5,7 +5,6 @@ import { NavLink, useNavigate } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
 import { useNotification } from "../../contex/NotificationContext";
 import StaffTopbar from "../../components/StaffTopbar";
-import Breadcrumb from "../../components/Breadcrumb";
 import AuditLogViewer from "../../components/AuditLogViewer";
 import {
   LayoutDashboard,
@@ -33,7 +32,6 @@ const Audit_Log = () => {
         <StaffTopbar portal="BOD" notifications={<NotificationBell />} />
 
         <main className="animate-page-in flex-1 overflow-y-auto p-8">
-          <Breadcrumb portal="BOD" page="Audit Log" />
           <AuditLogViewer
             showActorRoleFilter
             onError={(msg) => addNotification(msg, "error")}

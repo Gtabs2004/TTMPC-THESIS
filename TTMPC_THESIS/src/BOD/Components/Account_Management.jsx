@@ -16,7 +16,6 @@ import {
 import StaffSidebar from "../../components/StaffSidebar";
 import { bodNav } from "../../components/StaffSidebar/configs/bod";
 import StaffTopbar from "../../components/StaffTopbar";
-import Breadcrumb from "../../components/Breadcrumb";
 import NotificationBell from "../../components/NotificationBell";
 import { StatCard, StatCardRow } from "../../components/StatCard";
 import { TableToolbar } from "../../components/TableToolbar";
@@ -602,7 +601,6 @@ const Account_Management = () => {
         <StaffTopbar portal="BOD" notifications={<NotificationBell />} />
 
         <main className="animate-page-in flex-1 overflow-y-auto p-8">
-          <Breadcrumb portal="BOD" page="Account Management" />
 
           {isAdmin === null ? (
             <p className="mt-6 text-sm text-gray-400">Loading…</p>

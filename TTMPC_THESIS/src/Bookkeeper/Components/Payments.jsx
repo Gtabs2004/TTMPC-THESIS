@@ -12,7 +12,6 @@ import { useConfirm } from "../../contex/ConfirmContext";
 import ConfirmDialog from "../../components/ConfirmDialog";
 import StaffTopbar from "../../components/StaffTopbar";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
-import Breadcrumb from "../../components/Breadcrumb";
 import Pagination from "../../components/Pagination";
 import { TableToolbar } from "../../components/TableToolbar";
 import TableActionButton from "../../components/TableActionButton";
@@ -395,7 +394,6 @@ const BookkeeperPayments = () => {
 
         <main className="animate-page-in p-8">
           <div className="flex items-center justify-between mb-6">
-                      <Breadcrumb portal="Bookkeeper" page="Loan Payments Confirmation" />
             <button
               type="button"
               onClick={fetchPendingPayments}

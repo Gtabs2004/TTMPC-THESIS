@@ -7,7 +7,6 @@ import { managerNav } from "../../components/StaffSidebar/configs/manager";
 import { UserAuth } from "../../contex/AuthContext";
 import { useNotification } from "../../contex/NotificationContext";
 import StaffTopbar from "../../components/StaffTopbar";
-import Breadcrumb from "../../components/Breadcrumb";
 import { TableToolbar } from "../../components/TableToolbar";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
 import Pagination from "../../components/Pagination";
@@ -114,7 +113,6 @@ const Manager_Manage_Member = () => {
         <StaffTopbar portal="Manager" notifications={<LoanNotificationBell role="manager" />} />
 
         <main className="animate-page-in p-8">
-          <Breadcrumb portal="Manager" page="Manage Member" />
           {/* TITLE */}
           <div className="flex items-center justify-between mb-6">
             <div>

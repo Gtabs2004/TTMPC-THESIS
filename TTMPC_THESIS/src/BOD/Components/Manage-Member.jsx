@@ -7,7 +7,6 @@ import { bodNav } from "../../components/StaffSidebar/configs/bod";
 import { UserAuth } from "../../contex/AuthContext";
 import { useNotification } from "../../contex/NotificationContext";
 import StaffTopbar from "../../components/StaffTopbar";
-import Breadcrumb from "../../components/Breadcrumb";
 import Pagination from "../../components/Pagination";
 import {
   LayoutDashboard,
@@ -171,7 +170,6 @@ const BOD_Manage_Member = () => {
         <StaffTopbar portal="BOD" notifications={<NotificationBell />} />
 
         <main className="animate-page-in flex-1 overflow-y-auto p-8">
-          <Breadcrumb portal="BOD" page="Manage Member" />
           <h1 className="font-bold text-2xl mb-6">Manage Member</h1>
           <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
             <TableToolbar

@@ -8,7 +8,6 @@ import { TableToolbar } from "../../components/TableToolbar";
 import { useNotification } from "../../contex/NotificationContext";
 import StaffTopbar from "../../components/StaffTopbar";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
-import Breadcrumb from "../../components/Breadcrumb";
 import Pagination from "../../components/Pagination";
 import { apiErrorMessage } from "../../utils/apiError";
 import { supabase } from "../../supabaseClient";

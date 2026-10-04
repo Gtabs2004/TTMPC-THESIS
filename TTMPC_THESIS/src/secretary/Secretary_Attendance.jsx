@@ -7,7 +7,6 @@ import { secretaryNav } from "../components/StaffSidebar/configs/secretary";
 import { UserAuth } from "../contex/AuthContext";
 import { useNotification } from "../contex/NotificationContext";
 import StaffTopbar from "../components/StaffTopbar";
-import Breadcrumb from "../components/Breadcrumb";
 import TableStateRow from "../components/TableStateRow";
 import Pagination from "../components/Pagination";
 import ConfirmDialog from "../components/ConfirmDialog";
@@ -682,7 +681,6 @@ const Secretary_Attendance = () => {
         <StaffTopbar portal="Secretary" notifications={<NotificationBell viewAllPath="/Secretary_Records" />} />
 
         <main className="animate-page-in flex-1 overflow-y-auto p-8">
-          <Breadcrumb portal="Secretary" page="Training Attendance" />
           {/* Top Stats Cards — reflect the Secretary's active workload on this
               page: recording attendance, handling reschedules, and locking in
               verified rescheduled sessions. */}

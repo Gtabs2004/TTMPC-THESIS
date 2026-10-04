@@ -3,7 +3,6 @@ import { StatCard, StatCardRow } from "../../components/StatCard";
 import { TableToolbar } from "../../components/TableToolbar";
 import StaffTopbar from "../../components/StaffTopbar";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
-import Breadcrumb from "../../components/Breadcrumb";
 import Pagination from "../../components/Pagination";
 import TableStateRow from "../../components/TableStateRow";
 import StaffSidebar from "../../components/StaffSidebar";
@@ -203,12 +202,6 @@ const Treasurer_Payments = () => {
         />
 
         <main className="animate-page-in p-8">
-          {/* Breadcrumb + Header */}
-          <div className="mb-6">
-            <Breadcrumb portal="Treasurer" page="Cash Ledger" />
-
-          </div>
-
           {/* KPI STRIP */}
           <StatCardRow cols={3}>
             <StatCard

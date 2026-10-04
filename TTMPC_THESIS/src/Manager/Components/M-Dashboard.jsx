@@ -6,7 +6,6 @@ import { managerNav } from "../../components/StaffSidebar/configs/manager";
 import { UserAuth } from "../../contex/AuthContext";
 import { useNotification } from "../../contex/NotificationContext";
 import StaffTopbar from "../../components/StaffTopbar";
-import Breadcrumb from "../../components/Breadcrumb";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
 import LoanDemandForecastCard from "../../components/LoanDemandForecastCard";
 import { supabase } from "../../supabaseClient";
@@ -276,7 +275,6 @@ const M_Dashboard = () => {
 
         {/* PAGE CONTENT */}
         <main className="animate-page-in p-8">
-          <Breadcrumb portal="Manager" page="Dashboard" />
           {/* TITLE */}
           <div className="flex items-center justify-between mb-6">
             <div>

@@ -6,7 +6,6 @@ import { bookkeeperNav } from "../../components/StaffSidebar/configs/bookkeeper"
 import { UserAuth } from "../../contex/AuthContext";
 import StaffTopbar from "../../components/StaffTopbar";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
-import Breadcrumb from "../../components/Breadcrumb";
 import { supabase } from "../../supabaseClient";
 import { useQuery } from "@tanstack/react-query";
 import { queryClient } from "../../lib/queryClient";
@@ -323,7 +322,6 @@ const Dashboard = () => {
         <StaffTopbar portal="Bookkeeper" notifications={<LoanNotificationBell role="bookkeeper" />} />
 
         <main className="animate-page-in p-8">
-          <Breadcrumb portal="Bookkeeper" page="Dashboard" />
           {loadError ? (
             <div className="mb-6 rounded-lg border border-red-200 bg-red-50 text-red-700 px-4 py-3 text-sm">
               {loadError}

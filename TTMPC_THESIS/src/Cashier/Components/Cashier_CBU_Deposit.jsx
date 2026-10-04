@@ -11,7 +11,6 @@ import { formatWithCommas, stripCommas } from "../../utils/numberFormat";
 import { authHeaders } from "../../utils/authHeaders";
 import StaffTopbar from "../../components/StaffTopbar";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
-import Breadcrumb from "../../components/Breadcrumb";
 import {
   LayoutDashboard,
   Search,
@@ -183,7 +182,6 @@ const Cashier_CBU_Deposit = () => {
 
         <main className="animate-page-in p-8 overflow-auto">
           <div className="flex items-center justify-between mb-6">
-            <Breadcrumb portal="Cashier" page="CBU Deposit Entry" />
             <h1 className="text-2xl font-bold text-[#1F3E35]">CBU Deposit Entry</h1>
             <button
               type="button"
