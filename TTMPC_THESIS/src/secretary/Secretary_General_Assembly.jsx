@@ -26,7 +26,6 @@ import {
 import { UserAuth } from "../contex/AuthContext";
 import { useNotification } from "../contex/NotificationContext";
 import StaffTopbar from "../components/StaffTopbar";
-import Breadcrumb from "../components/Breadcrumb";
 import { TableToolbar } from "../components/TableToolbar";
 import Pagination from "../components/Pagination";
 import ConfirmDialog from "../components/ConfirmDialog";
@@ -294,7 +293,6 @@ const Secretary_General_Assembly = () => {
           {/* Title */}
           <div className="flex items-center justify-between mb-4">
             <div>
-              <Breadcrumb portal="Secretary" page="General Assembly" />
               <h1 className="text-xl font-bold text-gray-900">General Assembly Attendance</h1>
               <p className="text-xs text-gray-500 mt-0.5">
                 Record member attendance for the {SCORING_YEAR} General Assembly. Used as MIGS scoring input.

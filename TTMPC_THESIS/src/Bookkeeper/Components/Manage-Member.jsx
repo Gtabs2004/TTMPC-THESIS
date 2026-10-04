@@ -28,7 +28,6 @@ import {
 } from "lucide-react";
 import StaffTopbar from "../../components/StaffTopbar";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
-import Breadcrumb from "../../components/Breadcrumb";
 import { TableToolbar } from "../../components/TableToolbar";
 import Pagination from "../../components/Pagination";
 import TableActionButton from "../../components/TableActionButton";
@@ -186,7 +185,6 @@ const Manage_Member = () => {
         <StaffTopbar portal="Bookkeeper" notifications={<LoanNotificationBell role="bookkeeper" />} />
 
         <main className="animate-page-in p-8">
-          <Breadcrumb portal="Bookkeeper" page="Members Profile" />
           {/* TABLE SECTION (title/count + search & filter toolbar + table share one card) */}
           <div
             className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm transition-shadow duration-150 ease-in-out hover:shadow-md"

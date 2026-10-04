@@ -6,7 +6,6 @@ import { bookkeeperNav } from "../../components/StaffSidebar/configs/bookkeeper"
 import { UserAuth } from "../../contex/AuthContext";
 import StaffTopbar from "../../components/StaffTopbar";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
-import Breadcrumb from "../../components/Breadcrumb";
 import {
   LayoutDashboard,
   Users,
@@ -44,7 +43,6 @@ const LoanApplication = () => {
 
         
         <main className="animate-page-in p-8">
-          <Breadcrumb portal="Bookkeeper" page="Loan Application" />
           <h1 className="font-bold text-2xl">Loan-Application</h1>
 
          <StatCardRow cols={4} className="mt-4">

@@ -34,7 +34,6 @@ import {
 } from "lucide-react";
 import StaffTopbar from "../../components/StaffTopbar";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
-import Breadcrumb from "../../components/Breadcrumb";
 import Pagination from "../../components/Pagination";
 import TableActionButton from "../../components/TableActionButton";
 import TableStateRow from "../../components/TableStateRow";
@@ -262,7 +261,6 @@ const BookkeeperLoanApproval = () => {
         <StaffTopbar portal="Bookkeeper" notifications={<LoanNotificationBell role="bookkeeper" />} />
 
         <main className="animate-page-in p-8 flex-1">
-          <Breadcrumb portal="Bookkeeper" page="Loan Approvals" />
 
           <StatCardRow cols={3}>
             <StatCard label="Pending Review" value={queueStats.pendingCount} icon={UserPlus} iconColor="text-[#2C7A3F]" />

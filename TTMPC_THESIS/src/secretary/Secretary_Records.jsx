@@ -7,7 +7,6 @@ import { secretaryNav } from "../components/StaffSidebar/configs/secretary";
 import { UserAuth } from "../contex/AuthContext";
 import { useNotification } from "../contex/NotificationContext";
 import StaffTopbar from "../components/StaffTopbar";
-import Breadcrumb from "../components/Breadcrumb";
 import Pagination from "../components/Pagination";
 import {
   LayoutDashboard,
@@ -133,7 +132,6 @@ const Secretary_Records = () => {
         />
 
         <main className="animate-page-in p-8">
-          <Breadcrumb portal="Secretary" page="Membership Records" />
 
           <div className="bg-white w-full rounded-2xl m-auto mt-6 shadow-sm border border-gray-100 min-h-fit overflow-hidden">
             <TableToolbar

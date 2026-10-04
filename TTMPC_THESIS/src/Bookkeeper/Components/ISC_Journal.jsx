@@ -7,7 +7,6 @@ import StaffSidebar from "../../components/StaffSidebar";
 import { bookkeeperNav } from "../../components/StaffSidebar/configs/bookkeeper";
 import StaffTopbar from "../../components/StaffTopbar";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
-import Breadcrumb from "../../components/Breadcrumb";
 import Pagination from "../../components/Pagination";
 import TableStateRow from "../../components/TableStateRow";
 import { supabase } from "../../supabaseClient";
@@ -282,7 +281,6 @@ const ISC_Journal = () => {
         <StaffTopbar portal="Bookkeeper" notifications={<LoanNotificationBell role="bookkeeper" />} />
 
         <main className="animate-page-in p-8 min-w-0">
-          <Breadcrumb portal="Bookkeeper" page="ISC Journal" />
 
           <button
             type="button"

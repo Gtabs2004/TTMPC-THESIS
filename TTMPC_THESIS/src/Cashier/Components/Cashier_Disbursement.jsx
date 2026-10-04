@@ -9,7 +9,6 @@ import { useNotification } from "../../contex/NotificationContext";
 import { useConfirm } from "../../contex/ConfirmContext";
 import StaffTopbar from "../../components/StaffTopbar";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
-import Breadcrumb from "../../components/Breadcrumb";
 import { TableToolbar } from "../../components/TableToolbar";
 import TableStateRow from "../../components/TableStateRow";
 import Pagination from "../../components/Pagination";
@@ -323,7 +322,6 @@ const Cashier_Disbursement = () => {
           <div className="mb-8">
             <div className="flex items-center justify-between gap-4 mb-6">
               <div>
-                <Breadcrumb portal="Cashier" page="Loan Disbursement" />
                 <h1 className="text-3xl font-bold text-gray-900">Loan Disbursement</h1>
                 <p className="text-sm text-gray-500 mt-1">Release approved loans and generate payment schedules</p>
               </div>

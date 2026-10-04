@@ -9,7 +9,6 @@ import TableActionButton from "../../components/TableActionButton";
 import TableStateRow from "../../components/TableStateRow";
 import StaffTopbar from "../../components/StaffTopbar";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
-import Breadcrumb from "../../components/Breadcrumb";
 import Pagination from "../../components/Pagination";
 import StaffSidebar from "../../components/StaffSidebar";
 import { treasurerNav } from "../../components/StaffSidebar/configs/treasurer";
@@ -207,7 +206,6 @@ const Disbursements = () => {
           {/* Page Header */}
           <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4 mb-8">
             <div>
-              <Breadcrumb portal="Treasurer" page="Disbursement Audit" />
               <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">Released Loans</h1>
               <p className="text-sm text-gray-500 mt-1 font-medium">Audit view of loans successfully disbursed by the Cashier.</p>
             </div>

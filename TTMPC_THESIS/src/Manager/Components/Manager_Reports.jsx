@@ -8,7 +8,6 @@ import { managerNav } from "../../components/StaffSidebar/configs/manager";
 import { UserAuth } from "../../contex/AuthContext";
 import { useNotification } from "../../contex/NotificationContext";
 import StaffTopbar from "../../components/StaffTopbar";
-import Breadcrumb from "../../components/Breadcrumb";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
 import { supabase } from "../../supabaseClient";
 import {
@@ -295,7 +294,6 @@ const Manager_Reports = () => {
         <StaffTopbar portal="Manager" notifications={<LoanNotificationBell role="manager" />} />
 
         <main className="animate-page-in p-8">
-          <Breadcrumb portal="Manager" page="Portfolio Reports" />
           {/* TITLE */}
           <div className="flex items-center justify-between mb-6">
             <div>

@@ -9,7 +9,6 @@ import { UserAuth } from "../../contex/AuthContext";
 import { useNotification } from "../../contex/NotificationContext";
 import StaffTopbar from "../../components/StaffTopbar";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
-import Breadcrumb from "../../components/Breadcrumb";
 import TableStateRow from "../../components/TableStateRow";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -410,7 +409,6 @@ const Reports = () => {
           {/* Page header */}
           <div className="flex justify-between items-end mb-6">
             <div>
-              <Breadcrumb portal="Bookkeeper" page="Reports" />
               <h1 className="font-bold text-2xl text-[#1E293B]">Reports</h1>
               {generatedAt && (
                 <p className="text-xs text-gray-400 mt-0.5">

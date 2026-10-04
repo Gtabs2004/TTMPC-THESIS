@@ -7,7 +7,6 @@ import { UserAuth } from "../../contex/AuthContext";
 import { useNotification } from "../../contex/NotificationContext";
 import StaffTopbar from "../../components/StaffTopbar";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
-import Breadcrumb from "../../components/Breadcrumb";
 import StaffSidebar from "../../components/StaffSidebar";
 import { treasurerNav } from "../../components/StaffSidebar/configs/treasurer";
 import {
@@ -210,7 +209,6 @@ const Vault = () => {
           {/* HEADER + REFRESH */}
           <div className="flex items-start justify-between gap-4">
             <div>
-                 <Breadcrumb portal="Treasurer" page="Cooperative Vault" />
               <h1 className="text-3xl font-bold text-gray-900">Vault</h1>
               <p className="text-sm text-gray-600 mt-1">
                 Track the coop's cash-on-hand for loan disbursements. Every entry is permanent — corrections are recorded as new adjustment rows.

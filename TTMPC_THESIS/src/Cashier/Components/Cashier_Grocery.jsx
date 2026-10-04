@@ -9,7 +9,6 @@ import { UserAuth } from "../../contex/AuthContext";
 import { supabase } from "../../supabaseClient";
 import StaffTopbar from "../../components/StaffTopbar";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
-import Breadcrumb from "../../components/Breadcrumb";
 import TableStateRow from "../../components/TableStateRow";
 import { 
   LayoutDashboard,
@@ -132,7 +131,6 @@ const Cashier_Grocery = () => {
 
         {/* Page Content */}
         <main className="animate-page-in p-8 max-w-7xl mx-auto w-full">
-          <Breadcrumb portal="Cashier" page="Grocery" />
 
           {/* Page Title & Actions */}
 

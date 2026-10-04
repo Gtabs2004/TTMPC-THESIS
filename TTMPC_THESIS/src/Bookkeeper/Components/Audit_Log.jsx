@@ -6,7 +6,6 @@ import { UserAuth } from "../../contex/AuthContext";
 import { useNotification } from "../../contex/NotificationContext";
 import StaffTopbar from "../../components/StaffTopbar";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
-import Breadcrumb from "../../components/Breadcrumb";
 import AuditLogViewer from "../../components/AuditLogViewer";
 import {
   LayoutDashboard,
@@ -41,7 +40,6 @@ const Bookkeeper_Audit_Log = () => {
         <StaffTopbar portal="Bookkeeper" notifications={<LoanNotificationBell role="bookkeeper" />} />
 
         <main className="animate-page-in p-8 flex-1 min-w-0">
-          <Breadcrumb portal="Bookkeeper" page="Audit Trail" />
           <AuditLogViewer showActorRoleFilter={false} onError={(msg) => addNotification(msg, "error")} />
         </main>
       </div>

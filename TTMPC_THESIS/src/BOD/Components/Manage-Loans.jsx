@@ -9,7 +9,6 @@ import { NavLink, useNavigate } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
 import StaffTopbar from "../../components/StaffTopbar";
 import NotificationBell from "../../components/NotificationBell";
-import Breadcrumb from "../../components/Breadcrumb";
 import Pagination from "../../components/Pagination";
 import {
   LayoutDashboard,
@@ -348,7 +347,6 @@ const BOD_Manage_Loans = () => {
           <div className="p-6 sm:p-8">
             {/* Page Header */}
             <div className="mb-8">
-              <Breadcrumb portal="BOD" page="Loan Ledger" />
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-2">
                 <h1 className="text-3xl font-bold text-gray-900">Loan Ledger</h1>
                

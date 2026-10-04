@@ -1,7 +1,6 @@
 ﻿import React from "react";
 import StaffTopbar from "../../components/StaffTopbar";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
-import Breadcrumb from "../../components/Breadcrumb";
 import StaffSidebar from "../../components/StaffSidebar";
 import { treasurerNav } from "../../components/StaffSidebar/configs/treasurer";
 import { Search, Bell, User } from 'lucide-react';
@@ -19,7 +18,6 @@ const Accounting = () => {
 
         {/* Page Content */}
         <main className="animate-page-in p-8">
-          <Breadcrumb portal="Treasurer" page="Accounting" />
           <h1 className="font-bold text-2xl">Dashboard</h1>
         </main>
       </div>

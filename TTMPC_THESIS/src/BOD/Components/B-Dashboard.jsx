@@ -6,7 +6,6 @@ import { bodNav } from "../../components/StaffSidebar/configs/bod";
 import { UserAuth } from "../../contex/AuthContext";
 import { useNotification } from "../../contex/NotificationContext";
 import StaffTopbar from "../../components/StaffTopbar";
-import Breadcrumb from "../../components/Breadcrumb";
 import LoanDemandForecastCard from "../../components/LoanDemandForecastCard";
 import { supabase } from "../../supabaseClient";
 import { useQuery } from "@tanstack/react-query";
@@ -515,7 +514,6 @@ const Dashboard_BOD = () => {
 
         {/* SCROLLABLE DASHBOARD CONTENT */}
         <main className="animate-page-in flex-1 overflow-y-auto p-8">
-          <Breadcrumb portal="BOD" page="Dashboard" />
           {/* Action Header */}
           <div className="flex justify-between items-center mb-8">
             <div>
