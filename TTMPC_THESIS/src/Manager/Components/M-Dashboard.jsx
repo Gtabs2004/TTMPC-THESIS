@@ -303,15 +303,14 @@ const M_Dashboard = () => {
               loading={loading}
               icon={CheckCircle}
               iconColor="text-green-600"
-              subtext="Disbursed this month"
+              subtext="Approveed Loans"
             />
             <StatCard
-              label="Total Loans on File"
+              label="Total Loans"
               value={stats.totalLoans}
               loading={loading}
               icon={Wallet}
               iconColor="text-blue-500"
-              subtext={loading ? <Skeleton className="h-3 w-40 mt-1" /> : `${stats.activeLoans} active (released or partially paid)`}
             />
             <StatCard
               label="Delinquent Rate"
@@ -483,11 +482,6 @@ const M_Dashboard = () => {
               </p>
             )}
           </button>
-
-          {/* My Audit Activity */}
-          <div className="mb-6">
-            <RecentActivityCard to="/manager-audit-log" title="My Audit Activity" />
-          </div>
 
           {/* RECENT REQUESTS TABLE */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">

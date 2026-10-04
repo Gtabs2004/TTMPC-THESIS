@@ -654,7 +654,7 @@ const Dashboard_BOD = () => {
 
           <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
             <div className="p-6 border-b border-gray-100 flex justify-between items-center">
-              <h3 className="text-lg font-bold text-gray-800">Recent Transactions</h3>
+              <h3 className="text-lg font-bold text-gray-800">Cooperative Transactions</h3>
               <button
                 onClick={() => navigate('/bod-audit-log')}
                 className="text-sm text-[#2C7A3F] font-medium hover:underline"

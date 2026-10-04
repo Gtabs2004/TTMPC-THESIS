@@ -16,16 +16,16 @@ export const cashierNav = [
   { name: "Loan Disbursement",     icon: Send,            path: "/Cashier_Disbursement" },
   { name: "Membership Payments",   icon: UserPlus,        path: "/Cashier_MembershipPayments" },
   {
-    name: "Savings Account",
+    name: "Account Transactions",
     icon: PiggyBank,
     isDropdown: true,
     subItems: [
-      { name: "Savings",           path: "/Cashier_Savings" },
+      { name: "Savings Accounts",           path: "/Cashier_Savings" },
       { name: "Capital Build-Up",  path: "/Cashier_CBU" },
       { name: "CBU Exit Payout",   path: "/Cashier_CBU_Exit_Payout" },
     ],
   },
   { name: "Savings Withdrawals Ledger", icon: ArrowDownLeft, path: "/Cashier_Withdrawals" },
-  { name: "Grocery",      icon: ShoppingCart,  path: "/Cashier_Grocery" },
+  { name: "Grocery Transactions",      icon: ShoppingCart,  path: "/Cashier_Grocery" },
   { name: "Audit Log",    icon: History,       path: "/cashier-audit-log" },
 ];

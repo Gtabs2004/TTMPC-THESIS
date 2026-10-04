@@ -14,10 +14,10 @@ import {
 export const treasurerNav = [
   { name: "Dashboard",     icon: LayoutDashboard, path: "/Treasurer_Dashboard" },
   { name: "Loan Approval", icon: FileText,      path: "/treasurer-approval" },
-  { name: "Release Loans", icon: CreditCard,      path: "/disbursement" },
-  { name: "Vault",         icon: Wallet,          path: "/treasurer-vault" },
-  { name: "Savings ", icon: PiggyBank,    path: "/treasurer-savings-accounts" },
-  { name: "Cash Ledger",   icon: Users,           path: "/treasurer-payments" },
+  { name: "Released Loans", icon: CreditCard,      path: "/disbursement" },
+  { name: "Cooperative Vault",         icon: Wallet,          path: "/treasurer-vault" },
+  { name: "Savings Account ", icon: PiggyBank,    path: "/treasurer-savings-accounts" },
+  { name: "Ledger Transactions",   icon: Users,           path: "/treasurer-payments" },
   { name: "Audit Log",     icon: History,         path: "/treasurer-audit-log" },
 ];
 

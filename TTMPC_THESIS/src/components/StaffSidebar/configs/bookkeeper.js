@@ -19,7 +19,7 @@ export const bookkeeperNav = [
   { name: "Dashboard",      icon: LayoutDashboard, path: "/dashboard" },
   { name: "Manage Member",  icon: Users,           path: "/manage-member" },
   { name: "Loan Approval",  icon: FileText,        path: "/bookkeeper-loan-approval" },
-  { name: "Manage Loans",   icon: Briefcase,       path: "/manage-loans" },
+  { name: "Member Loans",   icon: Briefcase,       path: "/manage-loans" },
   { name: "Renewal Overrides", icon: Unlock,       path: "/bookkeeper-renewal-overrides" },
   { name: "Credit Risk",    icon: Brain,           path: "/bookkeeper-credit-risk" },
   { name: "Loan Payments Confirmation", icon: Wallet, path: "/payments" },
