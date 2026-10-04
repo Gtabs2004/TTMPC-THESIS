@@ -180,10 +180,6 @@ const Treasurer_Dashboard = () => {
             <PriorityQueueCard limit={10} seeAllHref="/treasurer-approval" />
           </div>
           <div className="mt-8">
-            <RecentActivityCard to="/treasurer-audit-log" title="My Audit Activity" />
-          </div>
-
-          <div className="mt-8">
             <LoanDemandForecastCard defaultLoanType="consolidated" periods={12} />
           </div>
 
