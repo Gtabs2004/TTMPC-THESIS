@@ -91,7 +91,6 @@ export function PortalTopbarIdentity({ className = "", fallbackRole = "User" }) 
   return (
     <div className="ml-2 flex flex-col leading-tight">
       <p className={className}>{roleLabel}</p>
-      <p className="text-[10px] text-gray-400">{userEmail}</p>
     </div>
   );
 }
