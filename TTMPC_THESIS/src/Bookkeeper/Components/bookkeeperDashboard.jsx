@@ -47,9 +47,6 @@ import {
   ResponsiveContainer,
   Tooltip,
   Legend,
-  ScatterChart,
-  Scatter,
-  ZAxis,
   ReferenceLine,
   Cell,
 } from "recharts";
@@ -391,13 +388,13 @@ const Dashboard = () => {
               </div>
             </div>
 
-            {/* Repayment Behavior — monthly scatter for a selected year */}
+            {/* Repayment Behavior — monthly delinquency bars for a selected year */}
             <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
               <div className="flex justify-between items-start mb-4 gap-3 flex-wrap">
                 <div>
                   <h3 className="text-gray-800 font-bold text-lg">Repayment Behavior</h3>
                   <p className="text-gray-400 text-xs">
-                    Each dot = 1 month · dot size = payment volume · higher = more delinquent
+                    Monthly delinquency rate · higher = more delinquent
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -423,10 +420,9 @@ const Dashboard = () => {
               </div>
               <div className="h-56">
                 {loading ? <SkeletonChart /> : <ResponsiveContainer debounce={200} width="100%" height="100%" minWidth={1} minHeight={1}>
-                  <ScatterChart margin={{ top: 10, right: 20, left: -5, bottom: 5 }}>
+                  <BarChart data={monthlyBehaviorData} margin={{ top: 10, right: 20, left: -5, bottom: 5 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                     <XAxis
-                      type="category"
                       dataKey="name"
                       name="Month"
                       tick={{ fill: "#9ca3af", fontSize: 11 }}
@@ -435,7 +431,6 @@ const Dashboard = () => {
                       padding={{ left: 20, right: 20 }}
                     />
                     <YAxis
-                      type="number"
                       dataKey="latePct"
                       name="% Delinquent"
                       domain={[0, (dataMax) => Math.max(15, Math.ceil((dataMax + 2) / 5) * 5)]}
@@ -444,11 +439,10 @@ const Dashboard = () => {
                       axisLine={false}
                       tickLine={false}
                     />
-                    <ZAxis type="number" dataKey="total" range={[60, 500]} name="Payments" />
                     <ReferenceLine y={2} stroke={SEMANTIC_COLORS.warning} strokeDasharray="4 4" label={{ value: "2%", fill: "#b45309", fontSize: 10, position: "insideRight" }} />
                     <ReferenceLine y={5} stroke={SEMANTIC_COLORS.danger} strokeDasharray="4 4" label={{ value: "5%", fill: "#b91c1c", fontSize: 10, position: "insideRight" }} />
                     <Tooltip
-                      cursor={{ strokeDasharray: "3 3" }}
+                      cursor={{ fill: "#f8fafc" }}
                       content={({ active, payload }) => {
                         if (!active || !payload?.length) return null;
                         const r = payload[0].payload;
@@ -472,7 +466,7 @@ const Dashboard = () => {
                         );
                       }}
                     />
-                    <Scatter data={monthlyBehaviorData}>
+                    <Bar dataKey="latePct" name="% Delinquent" radius={[4, 4, 0, 0]} barSize={28}>
                       {monthlyBehaviorData.map((entry, idx) => {
                         const color =
                           entry.total === 0 ? REPAYMENT_HEALTH_COLORS.noData
@@ -481,8 +475,8 @@ const Dashboard = () => {
                           : REPAYMENT_HEALTH_COLORS.healthy;
                         return <Cell key={idx} fill={color} fillOpacity={0.8} />;
                       })}
-                    </Scatter>
-                  </ScatterChart>
+                    </Bar>
+                  </BarChart>
                 </ResponsiveContainer>}
               </div>
             </div>

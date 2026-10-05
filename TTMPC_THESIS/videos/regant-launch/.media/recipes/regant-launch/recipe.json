@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "name": "regant-launch",
+  "workflow": "product-launch-video",
+  "approved_at": "2026-09-29T13:43:08.767Z",
+  "source_project": "regant-launch",
+  "destination": "youtube",
+  "aspect": "1920x1080",
+  "language": "en",
+  "style_preset": "blue-professional"
+}
