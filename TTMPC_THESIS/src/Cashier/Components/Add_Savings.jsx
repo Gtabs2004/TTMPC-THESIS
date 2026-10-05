@@ -333,7 +333,7 @@ function Add_Savings() {
                 </span>
               ) : (
                 <span className="flex-1 text-gray-400">Search member by name or member ID...</span>
-              )}
+              )}  
               <span className="text-xs font-semibold text-green-700 shrink-0">
                 {selectedMemberLabel ? 'Change' : 'Select'}
               </span>
