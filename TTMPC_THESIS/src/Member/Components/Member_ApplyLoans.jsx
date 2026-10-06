@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
+import { useMemberSettings } from "../../contex/MemberSettingsContext";
 import { UserAuth } from "../../contex/AuthContext";
 import { supabase } from "../../supabaseClient";
 import { resolveMemberIdentity } from "../../utils/memberIdentity";
@@ -112,6 +113,7 @@ const menuItems = [
 const Member_ApplyLoans = () => {
   const { signOut } = UserAuth();
   const navigate = useNavigate();
+  const { openSettings } = useMemberSettings();
   const [memberLabel, setMemberLabel] = useState("Member");
   const [avatarUrl, setAvatarUrl] = useState("");
   const [isCalculatorOpen, setIsCalculatorOpen] = useState(false);
@@ -324,7 +326,7 @@ const Member_ApplyLoans = () => {
             <LoanNotificationBell role="member" accentClass="bg-member-green" />
             <button
               type="button"
-              onClick={() => { navigate('/members-profile'); navigate('/members-profile/settings'); }}
+              onClick={openSettings}
               className="p-2 rounded-md text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
               aria-label="Settings"
             >

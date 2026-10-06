@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useRealtimeVersion } from "../../hooks/useRealtimeRefetch";
 import { RT } from "../../lib/realtimeSync";
 import { useNavigate, NavLink } from "react-router-dom";
+import { useMemberSettings } from "../../contex/MemberSettingsContext";
 import { UserAuth } from "../../contex/AuthContext";
 import { supabase } from "../../supabaseClient";
 import { resolveMemberContextFromSessionUser } from "../../utils/sessionIdentity";
@@ -108,6 +109,7 @@ const styles = `
 const MemberDashboard = () => {
   const { session, signOut } = UserAuth();
   const navigate = useNavigate();
+  const { openSettings } = useMemberSettings();
   const [profile, setProfile] = useState(null);
   const [migsMemberKey, setMigsMemberKey] = useState(null);
   const { data: migsLabel, status: migsLabelStatus } = useMigsLabel(migsMemberKey);
@@ -847,7 +849,7 @@ const MemberDashboard = () => {
                   <LoanNotificationBell role="member" accentClass="bg-member-green" />
                   <button
                     type="button"
-                    onClick={() => { navigate('/members-profile'); navigate('/members-profile/settings'); }}
+                    onClick={openSettings}
                     className="p-2 rounded-md text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
                     aria-label="Settings"
                   >

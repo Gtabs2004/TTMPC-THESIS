@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, NavLink, useSearchParams } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
 import { useNotification } from "../../contex/NotificationContext";
+import { useMemberSettings } from "../../contex/MemberSettingsContext";
 import ConfirmDialog from "../../components/ConfirmDialog";
 import { supabase } from "../../supabaseClient";
 import { resolveMemberIdentity } from "../../utils/memberIdentity";
@@ -22,7 +23,6 @@ import {
   Contact2,
   ShieldCheck,
   Settings,
-  ChevronRight,
   Receipt,
   MapPin,
   HeartHandshake,
@@ -221,6 +221,7 @@ const styles = `
 const Members_Profile = () => {
   const { signOut } = UserAuth();
   const navigate = useNavigate();
+  const { openSettings } = useMemberSettings();
   const [searchParams, setSearchParams] = useSearchParams();
   const { addNotification } = useNotification();
 
@@ -764,7 +765,7 @@ const Members_Profile = () => {
             <LoanNotificationBell role="member" accentClass="bg-member-green" />
             <button
               type="button"
-              onClick={() => { navigate('/members-profile'); navigate('/members-profile/settings'); }}
+              onClick={openSettings}
               className="p-2 rounded-md text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
               aria-label="Settings"
             >
@@ -1068,17 +1069,6 @@ const Members_Profile = () => {
                   </div>
                 );
               })}
-
-              {/* Password, notifications and email live on the Settings page. */}
-              <button
-                type="button"
-                onClick={() => navigate('/members-profile/settings')}
-                className="w-full flex items-center gap-3 p-4 sm:p-5 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
-              >
-                <Settings className="w-5 h-5 text-gray-500" />
-                <span className="flex-1 text-left text-sm font-bold text-gray-700 dark:text-gray-300">Settings</span>
-                <ChevronRight className="w-4 h-4 text-gray-400" />
-              </button>
               
             </div>
           </div>
