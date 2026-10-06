@@ -30,14 +30,14 @@ const SettingsRow = ({ icon, title, description, onClick }) => {
   <button
     type="button"
     onClick={onClick}
-    className="w-full flex items-center gap-3 px-5 py-4 text-left hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+    className="w-full flex items-center gap-3 px-5 py-4 text-left hover:bg-gray-50 dark:hover:bg-mdark-elevated transition-colors"
   >
-    <div className="w-9 h-9 shrink-0 rounded-full bg-member-green/10 dark:bg-green-900/30 flex items-center justify-center">
-      <Icon className="w-4 h-4 text-member-green dark:text-green-400" />
+    <div className="w-9 h-9 shrink-0 rounded-full bg-member-green/10 dark:bg-mdark-accent/15 flex items-center justify-center">
+      <Icon className="w-4 h-4 text-member-green dark:text-mdark-accent" />
     </div>
     <div className="min-w-0 flex-1">
-      <p className="text-sm font-bold text-gray-900 dark:text-white">{title}</p>
-      <p className="text-xs text-gray-500 dark:text-gray-400">{description}</p>
+      <p className="text-sm font-bold text-gray-900 dark:text-mdark-text">{title}</p>
+      <p className="text-xs text-gray-500 dark:text-mdark-text-secondary">{description}</p>
     </div>
     <ChevronRight className="w-4 h-4 shrink-0 text-gray-400" />
   </button>
@@ -53,7 +53,7 @@ const Switch = ({ checked, disabled, onChange, labelledBy }) => (
     disabled={disabled}
     onClick={() => onChange(!checked)}
     className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors disabled:opacity-50 ${
-      checked ? "bg-member-green" : "bg-gray-300 dark:bg-gray-600"
+      checked ? "bg-member-green" : "bg-gray-300 dark:bg-mdark-elevated"
     }`}
   >
     <span
@@ -155,20 +155,20 @@ export default function SettingsDrawer() {
         role="dialog"
         aria-modal="true"
         aria-label="Settings"
-        className={`fixed inset-y-0 right-0 z-[45] w-full sm:w-[420px] bg-white dark:bg-gray-900 shadow-xl flex flex-col transition-transform duration-300 ease-in-out ${
+        className={`fixed inset-y-0 right-0 z-[45] w-full sm:w-[420px] bg-white dark:bg-mdark-elevated shadow-xl flex flex-col transition-transform duration-300 ease-in-out ${
           isOpen ? "translate-x-0" : "translate-x-full"
         }`}
       >
         <div className="flex items-center justify-between px-6 sm:px-8 pt-6 sm:pt-8 pb-2 shrink-0">
           <div>
-            <h1 className="text-2xl font-extrabold text-[#1a4a2f] dark:text-green-400">Settings</h1>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Manage your sign-in, email and notifications.</p>
+            <h1 className="text-2xl font-extrabold text-[#1a4a2f] dark:text-mdark-accent">Settings</h1>
+            <p className="text-xs text-gray-500 dark:text-mdark-text-secondary mt-1">Manage your sign-in, email and notifications.</p>
           </div>
           <button
             type="button"
             onClick={closeSettings}
             aria-label="Close settings"
-            className="p-2 -mr-2 rounded-md text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-600 dark:hover:text-gray-300 transition-colors shrink-0"
+            className="p-2 -mr-2 rounded-md text-gray-400 hover:bg-gray-100 dark:hover:bg-mdark-elevated hover:text-gray-600 dark:hover:text-mdark-text transition-colors shrink-0"
           >
             <X className="w-5 h-5" />
           </button>
@@ -176,8 +176,8 @@ export default function SettingsDrawer() {
 
         <div className="flex-1 overflow-y-auto px-6 sm:px-8 pb-8">
           <section className="mb-6">
-            <h2 className="text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2">Account</h2>
-            <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl shadow-sm overflow-hidden divide-y divide-gray-100 dark:divide-gray-800">
+            <h2 className="text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-mdark-text-secondary mb-2">Account</h2>
+            <div className="bg-white dark:bg-mdark-card border border-gray-200 dark:border-mdark-border rounded-2xl shadow-sm overflow-hidden divide-y divide-gray-100 dark:divide-mdark-border">
               <SettingsRow
                 icon={KeyRound}
                 title="Change Password"
@@ -194,20 +194,20 @@ export default function SettingsDrawer() {
           </section>
 
           <section className="mb-6">
-            <h2 className="text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2">Appearance</h2>
-            <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl shadow-sm overflow-hidden">
+            <h2 className="text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-mdark-text-secondary mb-2">Appearance</h2>
+            <div className="bg-white dark:bg-mdark-card border border-gray-200 dark:border-mdark-border rounded-2xl shadow-sm overflow-hidden">
               <div className="flex items-center justify-between gap-4 px-5 py-4">
                 <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-9 h-9 shrink-0 rounded-full bg-member-green/10 dark:bg-green-900/30 flex items-center justify-center">
+                  <div className="w-9 h-9 shrink-0 rounded-full bg-member-green/10 dark:bg-mdark-accent/15 flex items-center justify-center">
                     {isDark ? (
-                      <Sun className="w-4 h-4 text-member-green dark:text-green-400" />
+                      <Sun className="w-4 h-4 text-member-green dark:text-mdark-accent" />
                     ) : (
-                      <Moon className="w-4 h-4 text-member-green dark:text-green-400" />
+                      <Moon className="w-4 h-4 text-member-green dark:text-mdark-accent" />
                     )}
                   </div>
                   <div className="min-w-0">
-                    <p id="pref-dark-mode" className="text-sm font-bold text-gray-900 dark:text-white">Dark Mode</p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">Switch between light and dark appearance.</p>
+                    <p id="pref-dark-mode" className="text-sm font-bold text-gray-900 dark:text-mdark-text">Dark Mode</p>
+                    <p className="text-xs text-gray-500 dark:text-mdark-text-secondary">Switch between light and dark appearance.</p>
                   </div>
                 </div>
                 <Switch checked={isDark} onChange={toggleTheme} labelledBy="pref-dark-mode" />
@@ -216,29 +216,29 @@ export default function SettingsDrawer() {
           </section>
 
           <section>
-            <h2 className="text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2">Notifications</h2>
-            <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl shadow-sm overflow-hidden">
-              <div className="flex items-center gap-3 px-5 py-4 border-b border-gray-100 dark:border-gray-800">
-                <div className="w-9 h-9 shrink-0 rounded-full bg-member-green/10 dark:bg-green-900/30 flex items-center justify-center">
-                  <Bell className="w-4 h-4 text-member-green dark:text-green-400" />
+            <h2 className="text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-mdark-text-secondary mb-2">Notifications</h2>
+            <div className="bg-white dark:bg-mdark-card border border-gray-200 dark:border-mdark-border rounded-2xl shadow-sm overflow-hidden">
+              <div className="flex items-center gap-3 px-5 py-4 border-b border-gray-100 dark:border-mdark-border">
+                <div className="w-9 h-9 shrink-0 rounded-full bg-member-green/10 dark:bg-mdark-accent/15 flex items-center justify-center">
+                  <Bell className="w-4 h-4 text-member-green dark:text-mdark-accent" />
                 </div>
                 <div>
-                  <p className="text-sm font-bold text-gray-900 dark:text-white">Email notifications</p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">Choose which loan updates are emailed to you.</p>
+                  <p className="text-sm font-bold text-gray-900 dark:text-mdark-text">Email notifications</p>
+                  <p className="text-xs text-gray-500 dark:text-mdark-text-secondary">Choose which loan updates are emailed to you.</p>
                 </div>
               </div>
 
               {prefsError ? (
                 <p role="alert" className="px-5 py-4 text-sm text-red-600 dark:text-red-400">{prefsError}</p>
               ) : !prefs ? (
-                <p className="px-5 py-4 text-sm text-gray-500 dark:text-gray-400">Loading…</p>
+                <p className="px-5 py-4 text-sm text-gray-500 dark:text-mdark-text-secondary">Loading…</p>
               ) : (
-                <ul className="divide-y divide-gray-100 dark:divide-gray-800">
+                <ul className="divide-y divide-gray-100 dark:divide-mdark-border">
                   {EMAIL_TOGGLES.map((toggle) => (
                     <li key={toggle.key} className="flex items-center justify-between gap-4 px-5 py-4">
                       <div className="min-w-0">
-                        <p id={`pref-${toggle.key}`} className="text-sm font-semibold text-gray-800 dark:text-gray-200">{toggle.label}</p>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">{toggle.description}</p>
+                        <p id={`pref-${toggle.key}`} className="text-sm font-semibold text-gray-800 dark:text-mdark-text">{toggle.label}</p>
+                        <p className="text-xs text-gray-500 dark:text-mdark-text-secondary">{toggle.description}</p>
                       </div>
                       <Switch
                         checked={Boolean(prefs[toggle.key])}
@@ -251,7 +251,7 @@ export default function SettingsDrawer() {
                 </ul>
               )}
 
-              <p className="px-5 py-3 bg-gray-50 dark:bg-gray-800/60 text-[11px] text-gray-500 dark:text-gray-400">
+              <p className="px-5 py-3 bg-gray-50 dark:bg-mdark-elevated/60 text-[11px] text-gray-500 dark:text-mdark-text-secondary">
                 Your in-app notification bell always stays on, and security codes (password or email changes) are always emailed.
               </p>
             </div>

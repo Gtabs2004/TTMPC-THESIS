@@ -780,7 +780,7 @@ const MemberDashboard = () => {
   }
 
   return (
-  <div className="relative flex h-screen overflow-hidden bg-[#F8F9FA] dark:bg-gray-950">
+  <div className="relative flex h-screen overflow-hidden bg-[#F8F9FA] dark:bg-mdark-bg">
       <style>{styles}</style>
       {/* Blocks the dashboard until the email, password and profile steps are
           done. Renders nothing once the account is fully set up. */}
@@ -789,19 +789,19 @@ const MemberDashboard = () => {
           bottom bar, rendered once by MemberLayout for every Member route;
           this drawer duplicated the same links via a hamburger toggle. */}
       <aside
-        className="hidden lg:flex fixed inset-y-0 left-0 z-30 w-64 bg-white dark:bg-gray-900 p-4 flex-col border-r border-gray-200 dark:border-gray-800"
+        className="hidden lg:flex fixed inset-y-0 left-0 z-30 w-64 bg-white dark:bg-mdark-nav p-4 flex-col border-r border-gray-200 dark:border-mdark-border"
       >
         <div className="flex flex-row items-start gap-2 mb-6">
           <img src="/img/ttmpc logo.png" alt="Logo" className="h-12 w-auto" />
           <div className="flex flex-col">
             <h1 className="text-xl font-bold text-primary">TTMPC</h1>
-            <p className="text-[10px] uppercase tracking-wider text-gray-500 dark:text-gray-400 font-bold">
+            <p className="text-[10px] uppercase tracking-wider text-gray-500 dark:text-mdark-text-secondary font-bold">
               Members Portal
             </p>
           </div>
         </div>
     
-        <hr className="w-full border-gray-100 dark:border-gray-800 mb-6" />
+        <hr className="w-full border-gray-100 dark:border-mdark-border mb-6" />
    
         <nav className="flex flex-col gap-2 text-sm flex-grow">
           {(() => {
@@ -825,8 +825,8 @@ const MemberDashboard = () => {
                   className={({ isActive }) =>
                     `flex items-center gap-3 p-2.5 rounded-lg transition-colors ${
                       isActive
-                        ? 'bg-[#EAF1EB] text-member-green font-bold dark:bg-green-900/30 dark:text-green-400'
-                        : 'text-gray-600 hover:bg-gray-50 hover:text-member-green font-medium dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-green-400'
+                        ? 'bg-[#EAF1EB] text-member-green font-bold dark:bg-mdark-accent/15 dark:text-mdark-accent'
+                        : 'text-gray-600 hover:bg-gray-50 hover:text-member-green font-medium dark:text-mdark-text-secondary dark:hover:bg-mdark-elevated dark:hover:text-mdark-accent'
                     }`
                   }
                 >
@@ -844,7 +844,7 @@ const MemberDashboard = () => {
    
         <button
           onClick={handleSignOut}
-          className="mt-auto w-full rounded-lg p-2.5 text-sm bg-member-green hover:bg-[#154718] text-white font-bold transition-colors"
+          className="mt-auto w-full rounded-lg p-2.5 text-sm bg-member-green hover:bg-[#154718] dark:bg-mdark-accent dark:hover:bg-mdark-accent/90 text-white font-bold transition-colors"
         >
           Sign out
         </button>
@@ -853,18 +853,18 @@ const MemberDashboard = () => {
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col overflow-hidden lg:ml-64">
               {/* Header */}
-              <header className="bg-white dark:bg-gray-900 h-16 shrink-0 shadow-sm flex items-center justify-between px-4 sm:px-6 lg:px-8 z-10 border-b border-gray-100 dark:border-gray-800">
+              <header className="bg-white dark:bg-mdark-nav h-16 shrink-0 shadow-sm flex items-center justify-between px-4 sm:px-6 lg:px-8 z-10 border-b border-gray-100 dark:border-mdark-border">
                 <div className="flex items-center gap-2 sm:gap-3 pl-2 sm:pl-0">
-                  <h1 className="text-base sm:text-lg font-extrabold text-[#1a4a2f] dark:text-green-400 lg:hidden">Dashboard</h1>
+                  <h1 className="text-base sm:text-lg font-extrabold text-[#1a4a2f] dark:text-mdark-accent lg:hidden">Dashboard</h1>
                 </div>
 
                 <div className="flex items-center gap-2 sm:gap-4">
                   
-                  <LoanNotificationBell role="member" accentClass="bg-member-green" />
+                  <LoanNotificationBell role="member" accentClass="bg-member-green dark:bg-mdark-accent" />
                   <button
                     type="button"
                     onClick={openSettings}
-                    className="p-2 rounded-md text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                    className="p-2 rounded-md text-gray-500 dark:text-mdark-text-secondary hover:bg-gray-100 dark:hover:bg-mdark-elevated transition-colors"
                     aria-label="Settings"
                   >
                     <Settings className="w-5 h-5" />
@@ -875,7 +875,7 @@ const MemberDashboard = () => {
         {/* Scrollable Main */}
         <main className="animate-page-in p-4 sm:p-6 lg:p-8 overflow-y-auto pb-28 lg:pb-0">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
-            <h1 className="hidden lg:block font-extrabold text-[#1a4a2f] dark:text-green-400 text-2xl">Dashboard</h1>
+            <h1 className="hidden lg:block font-extrabold text-[#1a4a2f] dark:text-mdark-accent text-2xl">Dashboard</h1>
 
           
           </div>
@@ -896,13 +896,13 @@ const MemberDashboard = () => {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 mb-6">
             
             {/* Profile Card */}
-            <div className="bg-white dark:bg-gray-900 p-4 sm:p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 lg:col-span-2 flex flex-col sm:flex-row items-center sm:items-start gap-4 sm:gap-6 relative">
+            <div className="bg-white dark:bg-mdark-card p-4 sm:p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-mdark-border lg:col-span-2 flex flex-col sm:flex-row items-center sm:items-start gap-4 sm:gap-6 relative">
               <div className="relative">
-                <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full border-4 border-[#EAF1EB] overflow-hidden bg-gray-100 dark:bg-gray-700">
+                <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full border-4 border-[#EAF1EB] overflow-hidden bg-gray-100 dark:bg-mdark-elevated">
                   {avatarUrl ? (
                     <img src={avatarUrl} alt={profile?.fullName || 'Member profile'} className="w-full h-full object-cover" />
                   ) : (
-                    <div className="w-full h-full flex items-center justify-center text-gray-500 dark:text-gray-400">
+                    <div className="w-full h-full flex items-center justify-center text-gray-500 dark:text-mdark-text-secondary">
                       <User className="w-10 h-10" />
                     </div>
                   )}
@@ -913,20 +913,20 @@ const MemberDashboard = () => {
               <div className="flex-1 text-center sm:text-left">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
                   <div className="flex items-center justify-center sm:justify-start gap-3">
-                    <h2 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white">{profile?.fullName || 'Loading...'}</h2>
-                    <span className={`${profile?.isActive ? 'bg-member-green' : 'bg-gray-500'} text-white px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wider uppercase`}>
+                    <h2 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-mdark-text">{profile?.fullName || 'Loading...'}</h2>
+                    <span className={`${profile?.isActive ? 'bg-member-green dark:bg-mdark-accent' : 'bg-gray-500 dark:bg-mdark-text-muted'} text-white px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wider uppercase`}>
                       {profile?.isActive ? 'Active' : 'Inactive'}
                     </span>
                   </div>
                 </div>
                 
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between text-sm text-gray-500 dark:text-gray-400 mb-6">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between text-sm text-gray-500 dark:text-mdark-text-secondary mb-6">
                   <div>
-                    <p className="font-medium">Member ID: <span className="text-gray-900 dark:text-gray-200">{profile?.membershipId || 'N/A'}</span></p>
-                    <p className="font-medium">Join Date: <span className="text-gray-900 dark:text-gray-200">{profile?.joinDate || 'N/A'}</span></p>
+                    <p className="font-medium">Member ID: <span className="text-gray-900 dark:text-mdark-text">{profile?.membershipId || 'N/A'}</span></p>
+                    <p className="font-medium">Join Date: <span className="text-gray-900 dark:text-mdark-text">{profile?.joinDate || 'N/A'}</span></p>
                   </div>
                   <div className="mt-2 sm:mt-0 font-medium">
-                    Type: <span className="text-gray-900 dark:text-gray-200">{profile?.memberType || 'Member'}</span>
+                    Type: <span className="text-gray-900 dark:text-mdark-text">{profile?.memberType || 'Member'}</span>
                   </div>
                 </div>
 
@@ -935,7 +935,7 @@ const MemberDashboard = () => {
                 ) : null}
 
                 <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
-                  <button onClick={() => navigate('/members-profile')} className="flex items-center justify-center gap-2 border border-member-green text-member-green hover:bg-[#EAF1EB] dark:border-green-500 dark:text-green-400 dark:hover:bg-green-900/30 transition-colors font-bold rounded-lg px-4 py-2 text-sm">
+                  <button onClick={() => navigate('/members-profile')} className="flex items-center justify-center gap-2 border border-member-green text-member-green hover:bg-[#EAF1EB] dark:border-mdark-accent dark:text-mdark-accent dark:hover:bg-mdark-accent/15 transition-colors font-bold rounded-lg px-4 py-2 text-sm">
                   <Pencil className="w-4 h-4" /> Edit Profile
                   </button>
                 </div>
@@ -943,7 +943,7 @@ const MemberDashboard = () => {
             </div>
 
             {/* MIGS Progress Summary Card */}
-            <div className="bg-white dark:bg-gray-900 p-5 sm:p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col justify-center w-full">
+            <div className="bg-white dark:bg-mdark-card p-5 sm:p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-mdark-border flex flex-col justify-center w-full">
               {(() => {
                 // Basic calculations
                 const score = migsLabel?.score || 0;
@@ -957,23 +957,23 @@ const MemberDashboard = () => {
 
                 // Dynamic styling based on status
                 const barColor = isUnscored
-                  ? 'bg-gray-300 dark:bg-gray-700'
-                  : (isMigs ? 'bg-member-green' : 'bg-rose-500');
+                  ? 'bg-gray-300 dark:bg-mdark-elevated'
+                  : (isMigs ? 'bg-member-green dark:bg-mdark-accent' : 'bg-rose-500');
 
                 const badgeClasses = isUnscored
-                  ? 'bg-gray-100 text-gray-500 border-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-700'
-                  : (isMigs ? 'bg-green-50 text-member-green border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800' : 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-900/30 dark:text-rose-400 dark:border-rose-800');
+                  ? 'bg-gray-100 text-gray-500 border-gray-200 dark:bg-mdark-elevated dark:text-mdark-text-secondary dark:border-mdark-border'
+                  : (isMigs ? 'bg-green-50 text-member-green border-green-200 dark:bg-mdark-accent/15 dark:text-mdark-accent dark:border-mdark-accent/30' : 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-900/30 dark:text-rose-400 dark:border-rose-800');
 
                 // Loading State
                 if (migsLabelStatus === 'loading') {
                   return (
                     <div className="animate-pulse flex flex-col gap-4 w-full">
                       <div className="flex justify-between items-start w-full">
-                        <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-24 mb-2"></div>
-                        <div className="h-6 bg-gray-200 dark:bg-gray-700 rounded w-16"></div>
+                        <div className="h-4 bg-gray-200 dark:bg-mdark-elevated rounded w-24 mb-2"></div>
+                        <div className="h-6 bg-gray-200 dark:bg-mdark-elevated rounded w-16"></div>
                       </div>
-                      <div className="h-8 bg-gray-200 dark:bg-gray-700 rounded w-20"></div>
-                      <div className="h-2.5 bg-gray-200 dark:bg-gray-700 rounded-full w-full mt-2"></div>
+                      <div className="h-8 bg-gray-200 dark:bg-mdark-elevated rounded w-20"></div>
+                      <div className="h-2.5 bg-gray-200 dark:bg-mdark-elevated rounded-full w-full mt-2"></div>
                     </div>
                   );
                 }
@@ -983,14 +983,14 @@ const MemberDashboard = () => {
                     {/* Top Section: Title, Score, and Badge */}
                     <div className="flex justify-between items-start mb-5">
                       <div>
-                        <h3 className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">
+                        <h3 className="text-xs font-bold text-gray-500 dark:text-mdark-text-secondary uppercase tracking-wider mb-1">
                           MIGS Classification
                         </h3>
                         <div className="flex items-baseline gap-1.5">
-                          <span className="text-xl sm:text-2xl lg:text-3xl font-extrabold text-gray-900 dark:text-white leading-none">
+                          <span className="text-xl sm:text-2xl lg:text-3xl font-extrabold text-gray-900 dark:text-mdark-text leading-none">
                             {isUnscored ? '—' : score}
                           </span>
-                          <span className="text-sm font-semibold text-gray-400 dark:text-gray-500">
+                          <span className="text-sm font-semibold text-gray-400 dark:text-mdark-text-muted">
                             / {maxScore}
                           </span>
                         </div>
@@ -1007,12 +1007,12 @@ const MemberDashboard = () => {
                     
                     <div className="mt-1">
                       <div className="flex justify-between items-center text-xs font-bold mb-2">
-                        <span className="text-gray-500 dark:text-gray-400"> Progress</span>
-                        <span className={isMigs ? "text-member-green dark:text-green-400" : (isUnscored ? "text-gray-400 dark:text-gray-500" : "text-rose-600 dark:text-rose-400")}>
+                        <span className="text-gray-500 dark:text-mdark-text-secondary"> Progress</span>
+                        <span className={isMigs ? "text-member-green dark:text-mdark-accent" : (isUnscored ? "text-gray-400 dark:text-mdark-text-muted" : "text-rose-600 dark:text-rose-400")}>
                           {percentage}%
                         </span>
                       </div>
-                      <div className="w-full bg-gray-100 dark:bg-gray-800 rounded-full h-2.5 overflow-hidden flex shadow-inner">
+                      <div className="w-full bg-gray-100 dark:bg-mdark-elevated rounded-full h-2.5 overflow-hidden flex shadow-inner">
                         <div 
                           className={`h-full rounded-full transition-all duration-1000 ease-out ${barColor}`} 
                           style={{ width: `${percentage}%` }}
@@ -1030,37 +1030,37 @@ const MemberDashboard = () => {
               grid elsewhere in the app), same 4-up layout from lg up. */}
           <div className="grid grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4 lg:gap-6 mb-8">
             {/* Share Capital */}
-            <div className="bg-white dark:bg-gray-900 p-3.5 sm:p-5 lg:p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col">
-              <div className="w-8 h-8 rounded-lg bg-[#EAF1EB] dark:bg-green-900/30 flex items-center justify-center mb-2.5 sm:mb-4">
-                <Wallet className="w-4 h-4 text-member-green dark:text-green-400" />
+            <div className="bg-white dark:bg-mdark-card p-3.5 sm:p-5 lg:p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-mdark-border flex flex-col">
+              <div className="w-8 h-8 rounded-lg bg-[#EAF1EB] dark:bg-mdark-accent/15 flex items-center justify-center mb-2.5 sm:mb-4">
+                <Wallet className="w-4 h-4 text-member-green dark:text-mdark-accent" />
               </div>
-              <p className="text-[11px] sm:text-xs font-bold text-gray-500 dark:text-gray-400 mb-1">Share Capital</p>
-              <h3 className="text-base sm:text-xl lg:text-2xl font-black text-gray-900 dark:text-white mb-1.5 sm:mb-2 break-words">{formatCurrency(profile?.shareCapital || 0)}</h3>
-              <p className="text-[10px] font-bold text-green-600 dark:text-green-400 flex items-center mt-auto">
+              <p className="text-[11px] sm:text-xs font-bold text-gray-500 dark:text-mdark-text-secondary mb-1">Share Capital</p>
+              <h3 className="text-base sm:text-xl lg:text-2xl font-black text-gray-900 dark:text-mdark-text mb-1.5 sm:mb-2 break-words">{formatCurrency(profile?.shareCapital || 0)}</h3>
+              <p className="text-[10px] font-bold text-green-600 dark:text-mdark-accent flex items-center mt-auto">
                 <ArrowUpRight className="w-3 h-3 mr-0.5 shrink-0" /> +5.2% from last month
               </p>
             </div>
 
             {/* Total Savings */}
-            <div className="bg-white dark:bg-gray-900 p-3.5 sm:p-5 lg:p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col">
+            <div className="bg-white dark:bg-mdark-card p-3.5 sm:p-5 lg:p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-mdark-border flex flex-col">
               <div className="w-8 h-8 rounded-lg bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center mb-2.5 sm:mb-4">
                 <PiggyBank className="w-4 h-4 text-blue-600 dark:text-blue-400" />
               </div>
-              <p className="text-[11px] sm:text-xs font-bold text-gray-500 dark:text-gray-400 mb-1">Total Savings</p>
-              <h3 className="text-base sm:text-xl lg:text-2xl font-black text-gray-900 dark:text-white mb-1.5 sm:mb-2 break-words">{formatCurrency(totalSavings)}</h3>
-              <p className="text-[10px] font-semibold text-gray-500 dark:text-gray-400 mt-auto">
+              <p className="text-[11px] sm:text-xs font-bold text-gray-500 dark:text-mdark-text-secondary mb-1">Total Savings</p>
+              <h3 className="text-base sm:text-xl lg:text-2xl font-black text-gray-900 dark:text-mdark-text mb-1.5 sm:mb-2 break-words">{formatCurrency(totalSavings)}</h3>
+              <p className="text-[10px] font-semibold text-gray-500 dark:text-mdark-text-secondary mt-auto">
                 Based on savings account balances
               </p>
             </div>
 
             {/* Active Loan Balance */}
-            <div className="bg-white dark:bg-gray-900 p-3.5 sm:p-5 lg:p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col">
+            <div className="bg-white dark:bg-mdark-card p-3.5 sm:p-5 lg:p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-mdark-border flex flex-col">
               <div className="w-8 h-8 rounded-lg bg-red-50 dark:bg-red-900/30 flex items-center justify-center mb-2.5 sm:mb-4">
                 <CreditCard className="w-4 h-4 text-red-500 dark:text-red-400" />
               </div>
-              <p className="text-[11px] sm:text-xs font-bold text-gray-500 dark:text-gray-400 mb-1">Active Loan Balance</p>
-              <h3 className="text-base sm:text-xl lg:text-2xl font-black text-gray-900 dark:text-white mb-1.5 sm:mb-2 break-words">{formatCurrency(activeLoanBalance)}</h3>
-              <p className="text-[10px] font-semibold text-gray-400 dark:text-gray-500 mt-auto">
+              <p className="text-[11px] sm:text-xs font-bold text-gray-500 dark:text-mdark-text-secondary mb-1">Active Loan Balance</p>
+              <h3 className="text-base sm:text-xl lg:text-2xl font-black text-gray-900 dark:text-mdark-text mb-1.5 sm:mb-2 break-words">{formatCurrency(activeLoanBalance)}</h3>
+              <p className="text-[10px] font-semibold text-gray-400 dark:text-mdark-text-muted mt-auto">
                 {activeLoans.length ? `${activeLoans.length} active loan(s)` : 'No active loans'}
               </p>
             </div>
@@ -1086,16 +1086,16 @@ const MemberDashboard = () => {
             {/* Recent Transactions Table */}
             <div>
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center">
-                  <History className="w-5 h-5 mr-2 text-member-green dark:text-green-400" /> Recent Transaction
+                <h3 className="text-lg font-bold text-gray-900 dark:text-mdark-text flex items-center">
+                  <History className="w-5 h-5 mr-2 text-member-green dark:text-mdark-accent" /> Recent Transaction
                 </h3>
               </div>
               
-              <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 overflow-hidden">
+              <div className="bg-white dark:bg-mdark-card rounded-2xl shadow-sm border border-gray-100 dark:border-mdark-border overflow-hidden">
                 <div className="hidden md:block overflow-x-auto">
                 <table className="w-full text-left border-collapse">
                   <thead>
-                    <tr className="bg-primary-deep text-[10px] uppercase tracking-wider text-white font-extrabold">
+                    <tr className="bg-primary-deep dark:bg-mdark-nav text-[10px] uppercase tracking-wider text-white dark:text-mdark-text font-extrabold">
                       <th className="p-5 font-bold">Date</th>
                       <th className="p-5 font-bold">Description</th>
                       <th className="p-5 font-bold">Category</th>
@@ -1104,15 +1104,15 @@ const MemberDashboard = () => {
                   </thead>
                   <tbody>
                     {recentTransactions.length ? recentTransactions.map((tx) => (
-                      <tr key={tx.id} className="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50/50 dark:hover:bg-gray-800/50 transition-colors">
-                        <td className="p-5 text-xs text-gray-500 dark:text-gray-400 font-medium">{tx.date}</td>
-                        <td className="p-5 text-sm font-bold text-gray-800 dark:text-gray-200">{tx.desc}</td>
+                      <tr key={tx.id} className="border-b border-gray-100 dark:border-mdark-border hover:bg-gray-50/50 dark:hover:bg-mdark-elevated/50 transition-colors">
+                        <td className="p-5 text-xs text-gray-500 dark:text-mdark-text-secondary font-medium">{tx.date}</td>
+                        <td className="p-5 text-sm font-bold text-gray-800 dark:text-mdark-text">{tx.desc}</td>
                         <td className="p-5">
                           <span className={`badge-animated px-2 py-1 rounded text-[9px] font-extrabold tracking-wider ${getCategoryStyle(tx.type)}`}>
                             {tx.category}
                           </span>
                         </td>
-                        <td className={`p-5 text-sm font-bold text-right ${tx.highlight ? 'text-member-green dark:text-green-400' : 'text-gray-900 dark:text-white'}`}>
+                        <td className={`p-5 text-sm font-bold text-right ${tx.highlight ? 'text-member-green dark:text-mdark-accent' : 'text-gray-900 dark:text-mdark-text'}`}>
                           {tx.amount}
                         </td>
                       </tr>
@@ -1123,20 +1123,20 @@ const MemberDashboard = () => {
                 </table>
                 </div>
 
-                <div className="divide-y divide-gray-100 dark:divide-gray-800 md:hidden">
+                <div className="divide-y divide-gray-100 dark:divide-mdark-border md:hidden">
                   {recentTransactions.length ? recentTransactions.map((tx) => (
-                    <div key={tx.id} className="px-4 py-3.5 hover:bg-gray-50/50 dark:hover:bg-gray-800/50 transition-colors">
+                    <div key={tx.id} className="px-4 py-3.5 hover:bg-gray-50/50 dark:hover:bg-mdark-elevated/50 transition-colors">
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
-                          <p className="truncate text-sm font-bold text-gray-800 dark:text-gray-200">{tx.desc}</p>
+                          <p className="truncate text-sm font-bold text-gray-800 dark:text-mdark-text">{tx.desc}</p>
                           <div className="mt-1 flex items-center gap-2">
                             <span className={`badge-animated inline-flex px-2 py-0.5 rounded text-[9px] font-extrabold tracking-wider ${getCategoryStyle(tx.type)}`}>
                               {tx.category}
                             </span>
-                            <span className="text-xs text-gray-500 dark:text-gray-400">{tx.date}</span>
+                            <span className="text-xs text-gray-500 dark:text-mdark-text-secondary">{tx.date}</span>
                           </div>
                         </div>
-                        <span className={`shrink-0 text-sm font-bold ${tx.highlight ? 'text-member-green dark:text-green-400' : 'text-gray-900 dark:text-white'}`}>
+                        <span className={`shrink-0 text-sm font-bold ${tx.highlight ? 'text-member-green dark:text-mdark-accent' : 'text-gray-900 dark:text-mdark-text'}`}>
                           {tx.amount}
                         </span>
                       </div>

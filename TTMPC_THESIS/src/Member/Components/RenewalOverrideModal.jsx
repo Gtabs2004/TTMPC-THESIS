@@ -63,15 +63,15 @@ function OverrideForm({ onClose, loanType, kind = "six_month", bucket, onSubmitt
         role="dialog"
         aria-modal="true"
         aria-labelledby="renewal-override-title"
-        className="w-full sm:max-w-lg rounded-t-2xl sm:rounded-2xl bg-white p-5 sm:p-6 shadow-xl dark:bg-gray-900"
+        className="w-full sm:max-w-lg rounded-t-2xl sm:rounded-2xl bg-white p-5 sm:p-6 shadow-xl dark:bg-mdark-elevated"
       >
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
-            <h2 id="renewal-override-title" className="text-lg font-bold text-gray-900 dark:text-white">
+            <h2 id="renewal-override-title" className="text-lg font-bold text-gray-900 dark:text-mdark-text">
               {isWindow ? "Request to apply outside the Bonus window" : `Request early ${typeLabel} renewal`}
             </h2>
             {!isWindow && (
-              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              <p className="mt-1 text-xs text-gray-500 dark:text-mdark-text-secondary">
                 {typeLabel} Loan {bucket?.active_loan_id || ""}
               </p>
             )}
@@ -81,7 +81,7 @@ function OverrideForm({ onClose, loanType, kind = "six_month", bucket, onSubmitt
             onClick={onClose}
             disabled={submitting}
             aria-label="Close"
-            className="rounded-md p-1.5 text-gray-500 hover:bg-gray-100 disabled:opacity-50 dark:text-gray-400 dark:hover:bg-gray-800"
+            className="rounded-md p-1.5 text-gray-500 hover:bg-gray-100 disabled:opacity-50 dark:text-mdark-text-secondary dark:hover:bg-mdark-elevated"
           >
             <X className="h-5 w-5" />
           </button>
@@ -103,7 +103,7 @@ function OverrideForm({ onClose, loanType, kind = "six_month", bucket, onSubmitt
           )}
         </p>
 
-        <label htmlFor="renewal-override-reason" className="mt-4 block text-sm font-semibold text-gray-800 dark:text-gray-200">
+        <label htmlFor="renewal-override-reason" className="mt-4 block text-sm font-semibold text-gray-800 dark:text-mdark-text">
           Why do you need this loan now?
         </label>
         <textarea
@@ -114,9 +114,9 @@ function OverrideForm({ onClose, loanType, kind = "six_month", bucket, onSubmitt
           rows={5}
           disabled={submitting}
           placeholder="e.g. Hospital admission for a family member; the bill is due next week."
-          className="mt-1.5 w-full resize-y rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-member-green focus:outline-none focus:ring-2 focus:ring-member-green/30 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
+          className="mt-1.5 w-full resize-y rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-member-green focus:outline-none focus:ring-2 focus:ring-member-green/30 dark:border-mdark-border dark:bg-mdark-elevated dark:text-mdark-text"
         />
-        <div className="mt-1 flex items-center justify-between text-[11px] text-gray-500 dark:text-gray-400">
+        <div className="mt-1 flex items-center justify-between text-[11px] text-gray-500 dark:text-mdark-text-secondary">
           <span className={tooShort && trimmedLength > 0 ? "text-red-600 dark:text-red-400" : ""}>
             At least {OVERRIDE_REASON_MIN} characters
           </span>
@@ -134,14 +134,14 @@ function OverrideForm({ onClose, loanType, kind = "six_month", bucket, onSubmitt
             type="button"
             onClick={onClose}
             disabled={submitting}
-            className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
+            className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-mdark-border dark:text-mdark-text-secondary dark:hover:bg-mdark-elevated"
           >
             Cancel
           </button>
           <button
             type="submit"
             disabled={tooShort || submitting}
-            className="inline-flex items-center justify-center gap-2 rounded-lg bg-member-green px-4 py-2 text-sm font-bold text-white hover:bg-[#154718] disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex items-center justify-center gap-2 rounded-lg bg-member-green hover:bg-[#154718] dark:bg-mdark-accent dark:hover:bg-mdark-accent/90 px-4 py-2 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
           >
             {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
             {submitting ? "Sending..." : "Send to Bookkeeper"}

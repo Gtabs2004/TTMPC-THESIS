@@ -31,8 +31,8 @@ const MemberMobileNav = () => {
   const iconRefs = useRef({});
   const hasPlacedRef = useRef(false);
 
-  const glow = isDark ? 'rgba(74, 222, 128, 0.65)' : 'rgba(29, 96, 33, 0.5)';
-  const indicatorColor = isDark ? 'var(--color-member-green-dark)' : 'var(--color-member-green)';
+  const glow = isDark ? 'rgba(102, 181, 56, 0.65)' : 'rgba(29, 96, 33, 0.5)';
+  const indicatorColor = isDark ? 'var(--color-mdark-accent)' : 'var(--color-member-green)';
 
   // Index of the item matching the current route, or -1 when the visitor is
   // somewhere the bottom nav doesn't track (e.g. Savings) — the line fades
@@ -97,7 +97,7 @@ const MemberMobileNav = () => {
   }, []);
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 lg:hidden bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800 px-2 py-2">
+    <nav className="fixed bottom-0 left-0 right-0 lg:hidden bg-white dark:bg-mdark-nav border-t border-gray-200 dark:border-mdark-border px-2 py-2">
       <div className="max-w-lg mx-auto">
         <div ref={containerRef} className="relative flex items-center justify-around gap-1">
           {/* Sliding indicator line — rests on the top border, glides to sit exactly over the active icon */}
@@ -128,8 +128,8 @@ const MemberMobileNav = () => {
                 className={({ isActive }) =>
                   `flex flex-col items-center justify-center px-2.5 py-2 transition-colors duration-300 ${
                     isActive
-                      ? 'text-member-green dark:text-green-400'
-                      : 'text-gray-600 hover:text-member-green dark:text-gray-400 dark:hover:text-green-400'
+                      ? 'text-member-green dark:text-mdark-accent'
+                      : 'text-gray-600 hover:text-member-green dark:text-mdark-text-secondary dark:hover:text-mdark-accent'
                   }`
                 }
                 style={{ transitionTimingFunction: EASE }}

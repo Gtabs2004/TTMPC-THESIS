@@ -328,24 +328,24 @@ export default function LoanCalculatorModal({ open, onClose }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 sm:px-4 sm:py-6 overflow-y-auto">
-      <div className="w-full sm:max-w-xl bg-white dark:bg-gray-900 sm:rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-800 sm:my-auto flex flex-col max-h-screen sm:max-h-[90vh]">
+      <div className="w-full sm:max-w-xl bg-white dark:bg-mdark-elevated sm:rounded-2xl shadow-2xl border border-gray-200 dark:border-mdark-border sm:my-auto flex flex-col max-h-screen sm:max-h-[90vh]">
 
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 dark:border-gray-800 bg-gradient-to-r from-[#F3F9F1] to-white dark:from-green-950/40 dark:to-gray-900 rounded-t-2xl shrink-0">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 dark:border-mdark-border bg-gradient-to-r from-[#F3F9F1] to-white dark:from-mdark-accent/10 dark:to-mdark-card rounded-t-2xl shrink-0">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-member-green flex items-center justify-center shadow-sm">
+            <div className="w-9 h-9 rounded-xl bg-member-green dark:bg-mdark-accent flex items-center justify-center shadow-sm">
               <Calculator className="w-4 h-4 text-white" />
             </div>
             <div>
-              <h2 className="text-sm font-extrabold text-gray-900 dark:text-white">Loan Calculator</h2>
-              <p className="text-[11px] text-gray-400 dark:text-gray-500 font-medium">Simulation only — no application submitted</p>
+              <h2 className="text-sm font-extrabold text-gray-900 dark:text-mdark-text">Loan Calculator</h2>
+              <p className="text-[11px] text-gray-400 dark:text-mdark-text-muted font-medium">Simulation only — no application submitted</p>
             </div>
           </div>
           <button
             type="button"
             onClick={onClose}
             aria-label="Close calculator"
-            className="rounded-lg p-1.5 text-gray-400 dark:text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
+            className="rounded-lg p-1.5 text-gray-400 dark:text-mdark-text-muted hover:bg-gray-100 dark:hover:bg-mdark-elevated hover:text-gray-700 dark:hover:text-mdark-text transition-colors"
           >
             <X className="w-4 h-4" />
           </button>
@@ -356,14 +356,14 @@ export default function LoanCalculatorModal({ open, onClose }) {
 
           {/* Loan Type */}
           <div>
-            <label className="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5">
+            <label className="block text-[10px] font-bold text-gray-500 dark:text-mdark-text-secondary uppercase tracking-wider mb-1.5">
               Loan Type
             </label>
             <div className="relative">
               <select
                 value={loanType}
                 onChange={(e) => handleLoanTypeChange(e.target.value)}
-                className="w-full appearance-none border border-gray-200 dark:border-gray-700 rounded-xl px-4 py-2.5 text-sm font-semibold bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100 focus:ring-2 focus:ring-[#66B538] outline-none pr-9"
+                className="w-full appearance-none border border-gray-200 dark:border-mdark-border rounded-xl px-4 py-2.5 text-sm font-semibold bg-white dark:bg-mdark-elevated text-gray-800 dark:text-mdark-text focus:ring-2 focus:ring-[#66B538] outline-none pr-9"
               >
                 {LOAN_TYPES.map((t) => (
                   <option key={t.code} value={t.code} disabled={!t.available}>
@@ -371,7 +371,7 @@ export default function LoanCalculatorModal({ open, onClose }) {
                   </option>
                 ))}
               </select>
-              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-500 pointer-events-none" />
+              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-mdark-text-muted pointer-events-none" />
             </div>
             {loanType === "EMERGENCY" && (
               <p className="text-[11px] text-sky-700 dark:text-sky-400 bg-sky-50 dark:bg-sky-900/20 border border-sky-200 dark:border-sky-800/60 rounded-lg px-2.5 py-1.5 mt-2 leading-snug">
@@ -389,8 +389,8 @@ export default function LoanCalculatorModal({ open, onClose }) {
           {selectedType.available ? (
             <div>
               <div className="flex items-center justify-between mb-1.5">
-                <label className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Loan Amount</label>
-                <span className="text-lg font-extrabold text-member-green dark:text-green-400">{formatPHP(amountNum)}</span>
+                <label className="text-[10px] font-bold text-gray-500 dark:text-mdark-text-secondary uppercase tracking-wider">Loan Amount</label>
+                <span className="text-lg font-extrabold text-member-green dark:text-mdark-accent">{formatPHP(amountNum)}</span>
               </div>
 
               <div className="mb-3">
@@ -402,7 +402,7 @@ export default function LoanCalculatorModal({ open, onClose }) {
                       setIsCustomAmount(false);
                       setLoanAmount(Number(e.target.value));
                     }}
-                    className="w-full appearance-none border border-gray-200 dark:border-gray-700 rounded-xl px-4 py-2.5 text-sm font-semibold bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100 focus:ring-2 focus:ring-primary outline-none pr-9"
+                    className="w-full appearance-none border border-gray-200 dark:border-mdark-border rounded-xl px-4 py-2.5 text-sm font-semibold bg-white dark:bg-mdark-elevated text-gray-800 dark:text-mdark-text focus:ring-2 focus:ring-primary outline-none pr-9"
                   >
                     {(loanType === "EMERGENCY" ? EMERGENCY_AMOUNT_QUICK_PICKS : loanType === "BONUS" ? BONUS_AMOUNT_QUICK_PICKS : CONSOLIDATED_AMOUNT_QUICK_PICKS)
                       .filter((v) => v >= selectedType.min && v <= effectiveMax)
@@ -411,12 +411,12 @@ export default function LoanCalculatorModal({ open, onClose }) {
                       ))}
                     <option value="custom">Custom amount…</option>
                   </select>
-                  <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-500 pointer-events-none" />
+                  <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-mdark-text-muted pointer-events-none" />
                 </div>
 
                 {isCustomAmount && (
                   <div className="relative mt-2">
-                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-semibold text-gray-400 dark:text-gray-500">₱</span>
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-semibold text-gray-400 dark:text-mdark-text-muted">₱</span>
                     <input
                       type="text"
                       inputMode="decimal"
@@ -431,13 +431,13 @@ export default function LoanCalculatorModal({ open, onClose }) {
                         const clamped = Math.min(Math.max(Number(raw), selectedType.min), effectiveMax);
                         if (clamped !== Number(raw)) setLoanAmount(clamped);
                       }}
-                      className="w-full border border-gray-200 dark:border-gray-700 rounded-xl pl-8 pr-4 py-2.5 text-sm font-semibold bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100 focus:ring-2 focus:ring-primary outline-none"
+                      className="w-full border border-gray-200 dark:border-mdark-border rounded-xl pl-8 pr-4 py-2.5 text-sm font-semibold bg-white dark:bg-mdark-elevated text-gray-800 dark:text-mdark-text focus:ring-2 focus:ring-primary outline-none"
                       placeholder={`Between ${formatPHPCompact(selectedType.min)} and ${formatPHPCompact(effectiveMax)}`}
                     />
                   </div>
                 )}
 
-                <div className="flex justify-between text-[10px] text-gray-400 dark:text-gray-500 font-medium mt-1.5">
+                <div className="flex justify-between text-[10px] text-gray-400 dark:text-mdark-text-muted font-medium mt-1.5">
                   <span>Min {formatPHPCompact(selectedType.min)}</span>
                   <span>Max {formatPHPCompact(effectiveMax)}</span>
                 </div>
@@ -450,7 +450,7 @@ export default function LoanCalculatorModal({ open, onClose }) {
               </div>
             </div>
           ) : (
-            <p className="text-xs text-gray-500 dark:text-gray-400 italic px-3 py-2 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
+            <p className="text-xs text-gray-500 dark:text-mdark-text-secondary italic px-3 py-2 bg-gray-50 dark:bg-mdark-elevated rounded-xl border border-gray-200 dark:border-mdark-border">
               This loan type is not yet available for simulation.
             </p>
           )}
@@ -458,10 +458,10 @@ export default function LoanCalculatorModal({ open, onClose }) {
           {/* Term / Rate — varies per loan type */}
           <div>
             <div className="flex items-center justify-between mb-1.5">
-              <label className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+              <label className="text-[10px] font-bold text-gray-500 dark:text-mdark-text-secondary uppercase tracking-wider">
                 {loanType === "BONUS" ? "Months Until Bonus Payout" : "Term"}
               </label>
-              <span className="text-sm font-extrabold text-gray-800 dark:text-gray-100">{term} months</span>
+              <span className="text-sm font-extrabold text-gray-800 dark:text-mdark-text">{term} months</span>
             </div>
             {loanType === "EMERGENCY" ? (
               <div className="grid grid-cols-2 gap-2">
@@ -472,8 +472,8 @@ export default function LoanCalculatorModal({ open, onClose }) {
                     onClick={() => setTerm(t)}
                     className={`text-xs font-bold py-2.5 rounded-xl border transition-colors ${
                       Number(term) === t
-                        ? "bg-member-green text-white border-member-green shadow-sm"
-                        : "bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:border-[#66B538] dark:hover:border-green-500 hover:text-member-green dark:hover:text-green-400"
+                        ? "bg-member-green text-white border-member-green dark:bg-mdark-accent dark:border-mdark-accent shadow-sm"
+                        : "bg-white dark:bg-mdark-elevated text-gray-600 dark:text-mdark-text-secondary border-gray-200 dark:border-mdark-border hover:border-[#66B538] dark:hover:border-green-500 hover:text-member-green dark:hover:text-mdark-accent"
                     }`}
                   >
                     {t} months
@@ -490,8 +490,8 @@ export default function LoanCalculatorModal({ open, onClose }) {
                       onClick={() => setTerm(t)}
                       className={`text-xs font-bold py-2 rounded-xl border transition-colors ${
                         Number(term) === t
-                          ? "bg-member-green text-white border-member-green shadow-sm"
-                          : "bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:border-[#66B538] dark:hover:border-green-500 hover:text-member-green dark:hover:text-green-400"
+                          ? "bg-member-green text-white border-member-green dark:bg-mdark-accent dark:border-mdark-accent shadow-sm"
+                          : "bg-white dark:bg-mdark-elevated text-gray-600 dark:text-mdark-text-secondary border-gray-200 dark:border-mdark-border hover:border-[#66B538] dark:hover:border-green-500 hover:text-member-green dark:hover:text-mdark-accent"
                       }`}
                     >
                       {t} mo
@@ -499,7 +499,7 @@ export default function LoanCalculatorModal({ open, onClose }) {
                   ))}
                 </div>
                 <div className="mt-2 flex items-center gap-2">
-                  <span className="text-[11px] text-gray-400 dark:text-gray-500 shrink-0">Custom:</span>
+                  <span className="text-[11px] text-gray-400 dark:text-mdark-text-muted shrink-0">Custom:</span>
                   <input
                     type="number"
                     min={1}
@@ -516,13 +516,13 @@ export default function LoanCalculatorModal({ open, onClose }) {
                       if (term === "" || term == null) { setTerm(1); return; }
                       setTerm(Math.min(Math.max(Number(term), 1), 12));
                     }}
-                    className="w-20 border rounded-lg px-2.5 py-1.5 text-sm font-semibold text-center bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-[#66B538] outline-none border-gray-200 dark:border-gray-700"
+                    className="w-20 border rounded-lg px-2.5 py-1.5 text-sm font-semibold text-center bg-white dark:bg-mdark-elevated text-gray-900 dark:text-mdark-text focus:ring-2 focus:ring-[#66B538] outline-none border-gray-200 dark:border-mdark-border"
                   />
-                  <span className="text-[11px] text-gray-400 dark:text-gray-500">months (1–12)</span>
+                  <span className="text-[11px] text-gray-400 dark:text-mdark-text-muted">months (1–12)</span>
                 </div>
                 {/* Rate toggle */}
                 <div className="mt-3">
-                  <p className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5">Interest Rate</p>
+                  <p className="text-[10px] font-bold text-gray-500 dark:text-mdark-text-secondary uppercase tracking-wider mb-1.5">Interest Rate</p>
                   <div className="grid grid-cols-2 gap-2">
                     {[
                       { label: "2%/mo — MIGS Member", rate: BONUS_RATE_MIGS },
@@ -534,8 +534,8 @@ export default function LoanCalculatorModal({ open, onClose }) {
                         onClick={() => setBonusMonthlyRate(rate)}
                         className={`text-xs font-bold py-2 px-2 rounded-xl border transition-colors text-center leading-tight ${
                           bonusMonthlyRate === rate
-                            ? "bg-member-green text-white border-member-green shadow-sm"
-                            : "bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:border-[#66B538] dark:hover:border-green-500 hover:text-member-green dark:hover:text-green-400"
+                            ? "bg-member-green text-white border-member-green dark:bg-mdark-accent dark:border-mdark-accent shadow-sm"
+                            : "bg-white dark:bg-mdark-elevated text-gray-600 dark:text-mdark-text-secondary border-gray-200 dark:border-mdark-border hover:border-[#66B538] dark:hover:border-green-500 hover:text-member-green dark:hover:text-mdark-accent"
                         }`}
                       >
                         {label}
@@ -554,8 +554,8 @@ export default function LoanCalculatorModal({ open, onClose }) {
                       onClick={() => setTerm(t)}
                       className={`text-xs font-bold py-2 rounded-xl border transition-colors ${
                         Number(term) === t
-                          ? "bg-member-green text-white border-member-green shadow-sm"
-                          : "bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:border-[#66B538] dark:hover:border-green-500 hover:text-member-green dark:hover:text-green-400"
+                          ? "bg-member-green text-white border-member-green dark:bg-mdark-accent dark:border-mdark-accent shadow-sm"
+                          : "bg-white dark:bg-mdark-elevated text-gray-600 dark:text-mdark-text-secondary border-gray-200 dark:border-mdark-border hover:border-[#66B538] dark:hover:border-green-500 hover:text-member-green dark:hover:text-mdark-accent"
                       }`}
                     >
                       {t} mo
@@ -563,7 +563,7 @@ export default function LoanCalculatorModal({ open, onClose }) {
                   ))}
                 </div>
                 <div className="mt-2 flex items-center gap-2">
-                  <span className="text-[11px] text-gray-400 dark:text-gray-500 shrink-0">Custom:</span>
+                  <span className="text-[11px] text-gray-400 dark:text-mdark-text-muted shrink-0">Custom:</span>
                   <input
                     type="number"
                     min={TERM_MIN}
@@ -580,13 +580,13 @@ export default function LoanCalculatorModal({ open, onClose }) {
                       if (term === "" || term == null) { setTerm(TERM_MIN); return; }
                       setTerm(Math.min(Math.max(Number(term), TERM_MIN), TERM_MAX));
                     }}
-                    className={`w-20 border rounded-lg px-2.5 py-1.5 text-sm font-semibold text-center bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-[#66B538] outline-none ${
+                    className={`w-20 border rounded-lg px-2.5 py-1.5 text-sm font-semibold text-center bg-white dark:bg-mdark-elevated text-gray-900 dark:text-mdark-text focus:ring-2 focus:ring-[#66B538] outline-none ${
                       term !== "" && (Number(term) < TERM_MIN || Number(term) > TERM_MAX)
                         ? "border-red-300 dark:border-red-700 text-red-600 dark:text-red-400"
-                        : "border-gray-200 dark:border-gray-700"
+                        : "border-gray-200 dark:border-mdark-border"
                     }`}
                   />
-                  <span className="text-[11px] text-gray-400 dark:text-gray-500">months ({TERM_MIN}–{TERM_MAX})</span>
+                  <span className="text-[11px] text-gray-400 dark:text-mdark-text-muted">months ({TERM_MIN}–{TERM_MAX})</span>
                 </div>
               </>
             )}
@@ -595,221 +595,221 @@ export default function LoanCalculatorModal({ open, onClose }) {
           {/* Results panel */}
           {result ? (
             result.type === "EMERGENCY" ? (
-              <div className="rounded-2xl border border-[#D8EBD3] dark:border-green-900 bg-[#F3F9F1] dark:bg-green-950/30 overflow-hidden">
+              <div className="rounded-2xl border border-[#D8EBD3] dark:border-mdark-accent/30 bg-[#F3F9F1] dark:bg-mdark-accent/15 overflow-hidden">
                 {/* Header — range since installments vary */}
-                <div className="px-5 py-4 bg-member-green text-white text-center">
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-green-200 mb-1">Monthly Payment Range</p>
+                <div className="px-5 py-4 bg-member-green dark:bg-mdark-elevated text-white dark:text-mdark-text text-center">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-green-200 dark:text-mdark-text-secondary mb-1">Monthly Payment Range</p>
                   <p className="text-2xl font-extrabold tracking-tight">
                     {formatPHP(result.lastMonthly)} – {formatPHP(result.firstMonthly)}
                   </p>
-                  <p className="text-[11px] text-green-200 mt-1">decreasing each month · {result.term} payments</p>
+                  <p className="text-[11px] text-green-200 dark:text-mdark-text-secondary mt-1">decreasing each month · {result.term} payments</p>
                 </div>
 
                 {/* Summary stats */}
-                <div className="grid grid-cols-2 divide-x divide-[#D8EBD3] dark:divide-green-900 border-b border-[#D8EBD3] dark:border-green-900">
+                <div className="grid grid-cols-2 divide-x divide-[#D8EBD3] dark:divide-mdark-accent/30 border-b border-[#D8EBD3] dark:border-mdark-accent/30">
                   <div className="px-4 py-3 text-center">
                     <div className="flex items-center justify-center gap-1 mb-0.5">
-                      <TrendingUp className="w-3 h-3 text-member-green dark:text-green-400" />
-                      <p className="text-[10px] font-bold text-[#2d6a38] dark:text-green-400 uppercase tracking-wider">Total Interest</p>
+                      <TrendingUp className="w-3 h-3 text-member-green dark:text-mdark-accent" />
+                      <p className="text-[10px] font-bold text-[#2d6a38] dark:text-mdark-accent uppercase tracking-wider">Total Interest</p>
                     </div>
-                    <p className="text-base font-extrabold text-gray-900 dark:text-white">{formatPHP(result.totalInterest)}</p>
+                    <p className="text-base font-extrabold text-gray-900 dark:text-mdark-text">{formatPHP(result.totalInterest)}</p>
                   </div>
                   <div className="px-4 py-3 text-center">
                     <div className="flex items-center justify-center gap-1 mb-0.5">
-                      <Wallet className="w-3 h-3 text-member-green dark:text-green-400" />
-                      <p className="text-[10px] font-bold text-[#2d6a38] dark:text-green-400 uppercase tracking-wider">Total Repayment</p>
+                      <Wallet className="w-3 h-3 text-member-green dark:text-mdark-accent" />
+                      <p className="text-[10px] font-bold text-[#2d6a38] dark:text-mdark-accent uppercase tracking-wider">Total Repayment</p>
                     </div>
-                    <p className="text-base font-extrabold text-gray-900 dark:text-white">{formatPHP(result.totalRepayment)}</p>
+                    <p className="text-base font-extrabold text-gray-900 dark:text-mdark-text">{formatPHP(result.totalRepayment)}</p>
                   </div>
                 </div>
 
                 {/* Deductions on release */}
-                <div className="px-4 py-3 border-b border-[#D8EBD3] dark:border-green-900 space-y-1.5">
-                  <p className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-1">Deductions Upon Release</p>
+                <div className="px-4 py-3 border-b border-[#D8EBD3] dark:border-mdark-accent/30 space-y-1.5">
+                  <p className="text-[10px] font-bold text-gray-400 dark:text-mdark-text-muted uppercase tracking-wider mb-1">Deductions Upon Release</p>
                   <FormulaRow label="Gross loan" value={formatPHP(result.principal)} />
                   <FormulaRow label="− Service fee" value={`− ${formatPHP(result.serviceFee)}`} />
                   <FormulaRow label="− CBU (2%)" value={`− ${formatPHP(result.cbuDeduction)}`} />
-                  <div className="border-t border-dashed border-[#D8EBD3] dark:border-green-900 pt-1.5">
+                  <div className="border-t border-dashed border-[#D8EBD3] dark:border-mdark-accent/30 pt-1.5">
                     <FormulaRow label="Net amount you receive" value={formatPHP(result.netRelease)} highlight />
                   </div>
                 </div>
 
                 {/* Month-by-month schedule — always visible */}
-                <div className="px-4 py-3 border-t border-[#D8EBD3] dark:border-green-900">
-                  <p className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2">Amortization Schedule (2% Diminishing)</p>
+                <div className="px-4 py-3 border-t border-[#D8EBD3] dark:border-mdark-accent/30">
+                  <p className="text-[10px] font-bold text-gray-400 dark:text-mdark-text-muted uppercase tracking-wider mb-2">Amortization Schedule (2% Diminishing)</p>
                   <table className="w-full text-[11px]">
                     <thead>
-                      <tr className="bg-[#eaf5e4] dark:bg-green-900/40 rounded">
-                        <th className="text-left px-2 py-1.5 font-bold text-[#2d6a38] dark:text-green-400 rounded-l">Mo.</th>
-                        <th className="text-right px-2 py-1.5 font-bold text-[#2d6a38] dark:text-green-400">Principal</th>
-                        <th className="text-right px-2 py-1.5 font-bold text-[#2d6a38] dark:text-green-400">Interest</th>
-                        <th className="text-right px-2 py-1.5 font-bold text-[#2d6a38] dark:text-green-400">Total</th>
-                        <th className="text-right px-2 py-1.5 font-bold text-[#2d6a38] dark:text-green-400 rounded-r">Balance</th>
+                      <tr className="bg-[#eaf5e4] dark:bg-mdark-accent/20 rounded">
+                        <th className="text-left px-2 py-1.5 font-bold text-[#2d6a38] dark:text-mdark-accent rounded-l">Mo.</th>
+                        <th className="text-right px-2 py-1.5 font-bold text-[#2d6a38] dark:text-mdark-accent">Principal</th>
+                        <th className="text-right px-2 py-1.5 font-bold text-[#2d6a38] dark:text-mdark-accent">Interest</th>
+                        <th className="text-right px-2 py-1.5 font-bold text-[#2d6a38] dark:text-mdark-accent">Total</th>
+                        <th className="text-right px-2 py-1.5 font-bold text-[#2d6a38] dark:text-mdark-accent rounded-r">Balance</th>
                       </tr>
                     </thead>
                     <tbody>
                       {result.schedule.map((row, i) => (
                         <tr
                           key={row.month}
-                          className={`border-b border-[#D8EBD3]/60 dark:border-green-900/40 ${i % 2 === 0 ? "" : "bg-[#f9fdf7] dark:bg-green-950/20"}`}
+                          className={`border-b border-[#D8EBD3]/60 dark:border-mdark-accent/20 ${i % 2 === 0 ? "" : "bg-[#f9fdf7] dark:bg-mdark-accent/10"}`}
                         >
-                          <td className="px-2 py-1.5 font-bold text-gray-600 dark:text-gray-300">{row.month}</td>
-                          <td className="px-2 py-1.5 text-right text-gray-700 dark:text-gray-200">{formatPHP(row.principal)}</td>
+                          <td className="px-2 py-1.5 font-bold text-gray-600 dark:text-mdark-text-secondary">{row.month}</td>
+                          <td className="px-2 py-1.5 text-right text-gray-700 dark:text-mdark-text">{formatPHP(row.principal)}</td>
                           <td className="px-2 py-1.5 text-right text-red-600 dark:text-red-400">{formatPHP(row.interest)}</td>
-                          <td className="px-2 py-1.5 text-right font-bold text-gray-900 dark:text-white">{formatPHP(row.total)}</td>
-                          <td className="px-2 py-1.5 text-right text-gray-500 dark:text-gray-400">{formatPHP(row.balance)}</td>
+                          <td className="px-2 py-1.5 text-right font-bold text-gray-900 dark:text-mdark-text">{formatPHP(row.total)}</td>
+                          <td className="px-2 py-1.5 text-right text-gray-500 dark:text-mdark-text-secondary">{formatPHP(row.balance)}</td>
                         </tr>
                       ))}
                     </tbody>
                     <tfoot>
-                      <tr className="border-t-2 border-[#D8EBD3] dark:border-green-900 bg-[#eaf5e4] dark:bg-green-900/40">
-                        <td className="px-2 py-1.5 font-bold text-[#2d6a38] dark:text-green-400 text-[10px] uppercase">Total</td>
-                        <td className="px-2 py-1.5 text-right font-bold text-gray-800 dark:text-gray-100">{formatPHP(result.principal)}</td>
+                      <tr className="border-t-2 border-[#D8EBD3] dark:border-mdark-accent/30 bg-[#eaf5e4] dark:bg-mdark-accent/20">
+                        <td className="px-2 py-1.5 font-bold text-[#2d6a38] dark:text-mdark-accent text-[10px] uppercase">Total</td>
+                        <td className="px-2 py-1.5 text-right font-bold text-gray-800 dark:text-mdark-text">{formatPHP(result.principal)}</td>
                         <td className="px-2 py-1.5 text-right font-bold text-red-600 dark:text-red-400">{formatPHP(result.totalInterest)}</td>
-                        <td className="px-2 py-1.5 text-right font-bold text-gray-900 dark:text-white">{formatPHP(result.totalRepayment)}</td>
-                        <td className="px-2 py-1.5 text-right font-bold text-gray-400 dark:text-gray-500">₱0.00</td>
+                        <td className="px-2 py-1.5 text-right font-bold text-gray-900 dark:text-mdark-text">{formatPHP(result.totalRepayment)}</td>
+                        <td className="px-2 py-1.5 text-right font-bold text-gray-400 dark:text-mdark-text-muted">₱0.00</td>
                       </tr>
                     </tfoot>
                   </table>
                 </div>
 
                 {/* Summary footer */}
-                <div className="px-4 py-3 flex items-center gap-4 flex-wrap border-t border-[#D8EBD3] dark:border-green-900">
+                <div className="px-4 py-3 flex items-center gap-4 flex-wrap border-t border-[#D8EBD3] dark:border-mdark-accent/30">
                   <div className="flex items-center gap-1.5">
-                    <Calendar className="w-3.5 h-3.5 text-gray-400 dark:text-gray-500" />
-                    <span className="text-[11px] text-gray-500 dark:text-gray-400 font-medium">Loan: <span className="font-bold text-gray-700 dark:text-gray-200">{formatPHP(result.principal)}</span></span>
+                    <Calendar className="w-3.5 h-3.5 text-gray-400 dark:text-mdark-text-muted" />
+                    <span className="text-[11px] text-gray-500 dark:text-mdark-text-secondary font-medium">Loan: <span className="font-bold text-gray-700 dark:text-mdark-text">{formatPHP(result.principal)}</span></span>
                   </div>
                   <div className="flex items-center gap-1.5">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-gray-400 dark:text-gray-500" />
-                    <span className="text-[11px] text-gray-500 dark:text-gray-400 font-medium">Rate: <span className="font-bold text-gray-700 dark:text-gray-200">2%/mo diminishing</span></span>
+                    <CheckCircle2 className="w-3.5 h-3.5 text-gray-400 dark:text-mdark-text-muted" />
+                    <span className="text-[11px] text-gray-500 dark:text-mdark-text-secondary font-medium">Rate: <span className="font-bold text-gray-700 dark:text-mdark-text">2%/mo diminishing</span></span>
                   </div>
                 </div>
               </div>
             ) : result.type === "BONUS" ? (
-              <div className="rounded-2xl border border-[#D8EBD3] dark:border-green-900 bg-[#F3F9F1] dark:bg-green-950/30 overflow-hidden">
+              <div className="rounded-2xl border border-[#D8EBD3] dark:border-mdark-accent/30 bg-[#F3F9F1] dark:bg-mdark-accent/15 overflow-hidden">
                 {/* Header — lump sum due at bonus month */}
-                <div className="px-5 py-4 bg-member-green text-white text-center">
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-green-200 mb-1">Lump-Sum Due at Payout Month</p>
+                <div className="px-5 py-4 bg-member-green dark:bg-mdark-elevated text-white dark:text-mdark-text text-center">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-green-200 dark:text-mdark-text-secondary mb-1">Lump-Sum Due at Payout Month</p>
                   <p className="text-3xl font-extrabold tracking-tight">{formatPHP(result.lumpSumDue)}</p>
-                  <p className="text-[11px] text-green-200 mt-1">
+                  <p className="text-[11px] text-green-200 dark:text-mdark-text-secondary mt-1">
                     {result.principal > 0 ? `${formatPHP(result.principal)} principal + ${formatPHP(result.totalInterest)} interest` : ""}
                   </p>
                 </div>
 
                 {/* Summary stats */}
-                <div className="grid grid-cols-2 divide-x divide-[#D8EBD3] dark:divide-green-900 border-b border-[#D8EBD3] dark:border-green-900">
+                <div className="grid grid-cols-2 divide-x divide-[#D8EBD3] dark:divide-mdark-accent/30 border-b border-[#D8EBD3] dark:border-mdark-accent/30">
                   <div className="px-4 py-3 text-center">
                     <div className="flex items-center justify-center gap-1 mb-0.5">
-                      <TrendingUp className="w-3 h-3 text-member-green dark:text-green-400" />
-                      <p className="text-[10px] font-bold text-[#2d6a38] dark:text-green-400 uppercase tracking-wider">Total Interest</p>
+                      <TrendingUp className="w-3 h-3 text-member-green dark:text-mdark-accent" />
+                      <p className="text-[10px] font-bold text-[#2d6a38] dark:text-mdark-accent uppercase tracking-wider">Total Interest</p>
                     </div>
-                    <p className="text-base font-extrabold text-gray-900 dark:text-white">{formatPHP(result.totalInterest)}</p>
+                    <p className="text-base font-extrabold text-gray-900 dark:text-mdark-text">{formatPHP(result.totalInterest)}</p>
                   </div>
                   <div className="px-4 py-3 text-center">
                     <div className="flex items-center justify-center gap-1 mb-0.5">
-                      <Wallet className="w-3 h-3 text-member-green dark:text-green-400" />
-                      <p className="text-[10px] font-bold text-[#2d6a38] dark:text-green-400 uppercase tracking-wider">Net Release</p>
+                      <Wallet className="w-3 h-3 text-member-green dark:text-mdark-accent" />
+                      <p className="text-[10px] font-bold text-[#2d6a38] dark:text-mdark-accent uppercase tracking-wider">Net Release</p>
                     </div>
-                    <p className="text-base font-extrabold text-gray-900 dark:text-white">{formatPHP(result.netRelease)}</p>
-                    <p className="text-[10px] text-gray-400 dark:text-gray-500">after ₱100 service fee</p>
+                    <p className="text-base font-extrabold text-gray-900 dark:text-mdark-text">{formatPHP(result.netRelease)}</p>
+                    <p className="text-[10px] text-gray-400 dark:text-mdark-text-muted">after ₱100 service fee</p>
                   </div>
                 </div>
 
                 {/* Interest accrual table */}
                 <div className="px-4 py-3">
-                  <p className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2">
+                  <p className="text-[10px] font-bold text-gray-400 dark:text-mdark-text-muted uppercase tracking-wider mb-2">
                     Interest Accrual ({result.rate * 100}%/mo · single-shot repayment)
                   </p>
                   <table className="w-full text-[11px]">
                     <thead>
-                      <tr className="bg-[#eaf5e4] dark:bg-green-900/40">
-                        <th className="text-left px-2 py-1.5 font-bold text-[#2d6a38] dark:text-green-400 rounded-l">Mo.</th>
-                        <th className="text-right px-2 py-1.5 font-bold text-[#2d6a38] dark:text-green-400">Interest</th>
-                        <th className="text-right px-2 py-1.5 font-bold text-[#2d6a38] dark:text-green-400">Cumulative Int.</th>
-                        <th className="text-right px-2 py-1.5 font-bold text-[#2d6a38] dark:text-green-400 rounded-r">Total Due</th>
+                      <tr className="bg-[#eaf5e4] dark:bg-mdark-accent/20">
+                        <th className="text-left px-2 py-1.5 font-bold text-[#2d6a38] dark:text-mdark-accent rounded-l">Mo.</th>
+                        <th className="text-right px-2 py-1.5 font-bold text-[#2d6a38] dark:text-mdark-accent">Interest</th>
+                        <th className="text-right px-2 py-1.5 font-bold text-[#2d6a38] dark:text-mdark-accent">Cumulative Int.</th>
+                        <th className="text-right px-2 py-1.5 font-bold text-[#2d6a38] dark:text-mdark-accent rounded-r">Total Due</th>
                       </tr>
                     </thead>
                     <tbody>
                       {result.schedule.map((row, i) => (
                         <tr
                           key={row.month}
-                          className={`border-b border-[#D8EBD3]/60 dark:border-green-900/40 ${i % 2 === 0 ? "" : "bg-[#f9fdf7] dark:bg-green-950/20"}`}
+                          className={`border-b border-[#D8EBD3]/60 dark:border-mdark-accent/20 ${i % 2 === 0 ? "" : "bg-[#f9fdf7] dark:bg-mdark-accent/10"}`}
                         >
-                          <td className="px-2 py-1.5 font-bold text-gray-600 dark:text-gray-300">{row.month}</td>
+                          <td className="px-2 py-1.5 font-bold text-gray-600 dark:text-mdark-text-secondary">{row.month}</td>
                           <td className="px-2 py-1.5 text-right text-red-600 dark:text-red-400">{formatPHP(row.interestCharge)}</td>
-                          <td className="px-2 py-1.5 text-right text-gray-500 dark:text-gray-400">{formatPHP(row.cumulativeInterest)}</td>
-                          <td className="px-2 py-1.5 text-right font-bold text-gray-900 dark:text-white">{formatPHP(row.totalDue)}</td>
+                          <td className="px-2 py-1.5 text-right text-gray-500 dark:text-mdark-text-secondary">{formatPHP(row.cumulativeInterest)}</td>
+                          <td className="px-2 py-1.5 text-right font-bold text-gray-900 dark:text-mdark-text">{formatPHP(row.totalDue)}</td>
                         </tr>
                       ))}
                     </tbody>
                     <tfoot>
-                      <tr className="border-t-2 border-[#D8EBD3] dark:border-green-900 bg-[#eaf5e4] dark:bg-green-900/40">
-                        <td className="px-2 py-1.5 font-bold text-[#2d6a38] dark:text-green-400 text-[10px] uppercase" colSpan={2}>Final payout month</td>
+                      <tr className="border-t-2 border-[#D8EBD3] dark:border-mdark-accent/30 bg-[#eaf5e4] dark:bg-mdark-accent/20">
+                        <td className="px-2 py-1.5 font-bold text-[#2d6a38] dark:text-mdark-accent text-[10px] uppercase" colSpan={2}>Final payout month</td>
                         <td className="px-2 py-1.5 text-right font-bold text-red-600 dark:text-red-400">{formatPHP(result.totalInterest)}</td>
-                        <td className="px-2 py-1.5 text-right font-bold text-gray-900 dark:text-white">{formatPHP(result.lumpSumDue)}</td>
+                        <td className="px-2 py-1.5 text-right font-bold text-gray-900 dark:text-mdark-text">{formatPHP(result.lumpSumDue)}</td>
                       </tr>
                     </tfoot>
                   </table>
                 </div>
 
                 {/* Footer */}
-                <div className="px-4 py-3 flex items-center gap-4 flex-wrap border-t border-[#D8EBD3] dark:border-green-900">
+                <div className="px-4 py-3 flex items-center gap-4 flex-wrap border-t border-[#D8EBD3] dark:border-mdark-accent/30">
                   <div className="flex items-center gap-1.5">
-                    <Calendar className="w-3.5 h-3.5 text-gray-400 dark:text-gray-500" />
-                    <span className="text-[11px] text-gray-500 dark:text-gray-400 font-medium">Loan: <span className="font-bold text-gray-700 dark:text-gray-200">{formatPHP(result.principal)}</span></span>
+                    <Calendar className="w-3.5 h-3.5 text-gray-400 dark:text-mdark-text-muted" />
+                    <span className="text-[11px] text-gray-500 dark:text-mdark-text-secondary font-medium">Loan: <span className="font-bold text-gray-700 dark:text-mdark-text">{formatPHP(result.principal)}</span></span>
                   </div>
                   <div className="flex items-center gap-1.5">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-gray-400 dark:text-gray-500" />
-                    <span className="text-[11px] text-gray-500 dark:text-gray-400 font-medium">Rate: <span className="font-bold text-gray-700 dark:text-gray-200">{result.rate * 100}%/mo flat</span></span>
+                    <CheckCircle2 className="w-3.5 h-3.5 text-gray-400 dark:text-mdark-text-muted" />
+                    <span className="text-[11px] text-gray-500 dark:text-mdark-text-secondary font-medium">Rate: <span className="font-bold text-gray-700 dark:text-mdark-text">{result.rate * 100}%/mo flat</span></span>
                   </div>
                 </div>
               </div>
             ) : (
-              <div className="rounded-2xl border border-[#D8EBD3] dark:border-green-900 bg-[#F3F9F1] dark:bg-green-950/30 overflow-hidden">
+              <div className="rounded-2xl border border-[#D8EBD3] dark:border-mdark-accent/30 bg-[#F3F9F1] dark:bg-mdark-accent/15 overflow-hidden">
                 {/* Primary stat */}
-                <div className="px-5 py-4 bg-member-green text-white text-center">
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-green-200 mb-1">Monthly Amortization</p>
+                <div className="px-5 py-4 bg-member-green dark:bg-mdark-elevated text-white dark:text-mdark-text text-center">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-green-200 dark:text-mdark-text-secondary mb-1">Monthly Amortization</p>
                   <p className="text-3xl font-extrabold tracking-tight">{formatPHP(result.monthly)}</p>
-                  <p className="text-[11px] text-green-200 mt-1">per month for {result.term} months</p>
+                  <p className="text-[11px] text-green-200 dark:text-mdark-text-secondary mt-1">per month for {result.term} months</p>
                 </div>
 
                 {/* Secondary stats */}
-                <div className="grid grid-cols-2 divide-x divide-[#D8EBD3] dark:divide-green-900 border-b border-[#D8EBD3] dark:border-green-900">
+                <div className="grid grid-cols-2 divide-x divide-[#D8EBD3] dark:divide-mdark-accent/30 border-b border-[#D8EBD3] dark:border-mdark-accent/30">
                   <div className="px-4 py-3 text-center">
                     <div className="flex items-center justify-center gap-1 mb-0.5">
-                      <TrendingUp className="w-3 h-3 text-member-green dark:text-green-400" />
-                      <p className="text-[10px] font-bold text-[#2d6a38] dark:text-green-400 uppercase tracking-wider">Total Interest</p>
+                      <TrendingUp className="w-3 h-3 text-member-green dark:text-mdark-accent" />
+                      <p className="text-[10px] font-bold text-[#2d6a38] dark:text-mdark-accent uppercase tracking-wider">Total Interest</p>
                     </div>
-                    <p className="text-base font-extrabold text-gray-900 dark:text-white">{formatPHP(result.totalInterest)}</p>
+                    <p className="text-base font-extrabold text-gray-900 dark:text-mdark-text">{formatPHP(result.totalInterest)}</p>
                   </div>
                   <div className="px-4 py-3 text-center">
                     <div className="flex items-center justify-center gap-1 mb-0.5">
-                      <Wallet className="w-3 h-3 text-member-green dark:text-green-400" />
-                      <p className="text-[10px] font-bold text-[#2d6a38] dark:text-green-400 uppercase tracking-wider">Total Repayment</p>
+                      <Wallet className="w-3 h-3 text-member-green dark:text-mdark-accent" />
+                      <p className="text-[10px] font-bold text-[#2d6a38] dark:text-mdark-accent uppercase tracking-wider">Total Repayment</p>
                     </div>
-                    <p className="text-base font-extrabold text-gray-900 dark:text-white">{formatPHP(result.totalRepayment)}</p>
+                    <p className="text-base font-extrabold text-gray-900 dark:text-mdark-text">{formatPHP(result.totalRepayment)}</p>
                   </div>
                 </div>
 
                 {/* Formula breakdown (collapsible) */}
-                <div className="border-b border-[#D8EBD3] dark:border-green-900">
+                <div className="border-b border-[#D8EBD3] dark:border-mdark-accent/30">
                   <button
                     type="button"
                     onClick={() => setShowFormula((v) => !v)}
-                    className="w-full flex items-center justify-between px-4 py-2.5 text-left hover:bg-[#eaf5e4] dark:hover:bg-green-900/30 transition-colors"
+                    className="w-full flex items-center justify-between px-4 py-2.5 text-left hover:bg-[#eaf5e4] dark:hover:bg-mdark-accent/15 transition-colors"
                   >
-                    <span className="flex items-center gap-1.5 text-[11px] font-bold text-member-green dark:text-green-400">
+                    <span className="flex items-center gap-1.5 text-[11px] font-bold text-member-green dark:text-mdark-accent">
                       <Info className="w-3.5 h-3.5" /> How is this computed?
                     </span>
-                    <ChevronDown className={`w-3.5 h-3.5 text-member-green dark:text-green-400 transition-transform ${showFormula ? "rotate-180" : ""}`} />
+                    <ChevronDown className={`w-3.5 h-3.5 text-member-green dark:text-mdark-accent transition-transform ${showFormula ? "rotate-180" : ""}`} />
                   </button>
                   {showFormula && (
                     <div className="px-4 pb-3 space-y-1.5 text-xs">
-                      <p className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2">Interest Computation (Add-on, 0.83%/mo)</p>
+                      <p className="text-[10px] font-bold text-gray-400 dark:text-mdark-text-muted uppercase tracking-wider mb-2">Interest Computation (Add-on, 0.83%/mo)</p>
                       <FormulaRow label="Principal" value={formatPHP(result.principal)} />
                       <FormulaRow label="× Interest rate" value="0.83% / month" />
                       <FormulaRow label={`× Term (${result.term} months)`} value={`= ${formatPHP(result.totalInterest)}`} highlight />
-                      <div className="border-t border-dashed border-[#D8EBD3] dark:border-green-900 pt-1.5 mt-1.5 space-y-1">
+                      <div className="border-t border-dashed border-[#D8EBD3] dark:border-mdark-accent/30 pt-1.5 mt-1.5 space-y-1">
                         <FormulaRow label="Principal ÷ Term" value={formatPHP(result.principal / result.term)} />
                         <FormulaRow label="+ Monthly interest" value={formatPHP(result.principal * MONTHLY_INTEREST_FACTOR)} />
                         <FormulaRow label="= Monthly amortization" value={formatPHP(result.monthly)} highlight />
@@ -821,22 +821,22 @@ export default function LoanCalculatorModal({ open, onClose }) {
                 {/* Summary row */}
                 <div className="px-4 py-3 flex items-center gap-4 flex-wrap">
                   <div className="flex items-center gap-1.5">
-                    <Calendar className="w-3.5 h-3.5 text-gray-400 dark:text-gray-500" />
-                    <span className="text-[11px] text-gray-500 dark:text-gray-400 font-medium">Loan amount: <span className="font-bold text-gray-700 dark:text-gray-200">{formatPHP(result.principal)}</span></span>
+                    <Calendar className="w-3.5 h-3.5 text-gray-400 dark:text-mdark-text-muted" />
+                    <span className="text-[11px] text-gray-500 dark:text-mdark-text-secondary font-medium">Loan amount: <span className="font-bold text-gray-700 dark:text-mdark-text">{formatPHP(result.principal)}</span></span>
                   </div>
                   <div className="flex items-center gap-1.5">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-gray-400 dark:text-gray-500" />
-                    <span className="text-[11px] text-gray-500 dark:text-gray-400 font-medium">Rate: <span className="font-bold text-gray-700 dark:text-gray-200">0.83%/mo add-on</span></span>
+                    <CheckCircle2 className="w-3.5 h-3.5 text-gray-400 dark:text-mdark-text-muted" />
+                    <span className="text-[11px] text-gray-500 dark:text-mdark-text-secondary font-medium">Rate: <span className="font-bold text-gray-700 dark:text-mdark-text">0.83%/mo add-on</span></span>
                   </div>
                 </div>
 
                 {/* Renewal breakdown */}
                 {result.renewalActive && (
-                  <div className="border-t border-[#D8EBD3] dark:border-green-900 bg-white dark:bg-gray-900 mx-0 p-4 space-y-2">
-                    <p className="text-[10px] font-extrabold text-member-green dark:text-green-400 uppercase tracking-wider mb-2">Renewal Breakdown</p>
+                  <div className="border-t border-[#D8EBD3] dark:border-mdark-accent/30 bg-white dark:bg-mdark-elevated mx-0 p-4 space-y-2">
+                    <p className="text-[10px] font-extrabold text-member-green dark:text-mdark-accent uppercase tracking-wider mb-2">Renewal Breakdown</p>
                     <FormulaRow label="New gross loan" value={formatPHP(result.principal)} />
                     <FormulaRow label="Less: remaining balance" value={`− ${formatPHP(result.remainingBalance)}`} />
-                    <div className="border-t border-dashed border-gray-200 dark:border-gray-700 pt-2">
+                    <div className="border-t border-dashed border-gray-200 dark:border-mdark-border pt-2">
                       <FormulaRow label="Net proceeds to you" value={formatPHP(result.netProceeds)} highlight />
                     </div>
                     {result.netProceeds <= 0 && (
@@ -850,25 +850,25 @@ export default function LoanCalculatorModal({ open, onClose }) {
               </div>
             )
           ) : (
-            <div className="rounded-2xl border border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/60 py-8 text-center">
-              <div className="w-12 h-12 rounded-full bg-[#EAF1EB] dark:bg-green-900/30 flex items-center justify-center mx-auto mb-3">
-                <Calculator className="w-5 h-5 text-member-green dark:text-green-400" />
+            <div className="rounded-2xl border border-gray-100 dark:border-mdark-border bg-gray-50 dark:bg-mdark-elevated/60 py-8 text-center">
+              <div className="w-12 h-12 rounded-full bg-[#EAF1EB] dark:bg-mdark-accent/15 flex items-center justify-center mx-auto mb-3">
+                <Calculator className="w-5 h-5 text-member-green dark:text-mdark-accent" />
               </div>
-              <p className="text-sm font-bold text-gray-500 dark:text-gray-400">Adjust the amount and term</p>
-              <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Your monthly amortization will appear here.</p>
+              <p className="text-sm font-bold text-gray-500 dark:text-mdark-text-secondary">Adjust the amount and term</p>
+              <p className="text-xs text-gray-400 dark:text-mdark-text-muted mt-1">Your monthly amortization will appear here.</p>
             </div>
           )}
 
           {/* Renewal toggle — Consolidated only */}
           {loanType === "CONSOLIDATED" && (
           <div className={`rounded-xl border p-3.5 transition-colors ${
-            renewalEnabled ? "border-member-green/30 dark:border-green-800 bg-[#F3F9F1] dark:bg-green-950/30" : "border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800"
+            renewalEnabled ? "border-member-green/30 dark:border-mdark-accent/30 bg-[#F3F9F1] dark:bg-mdark-accent/15" : "border-gray-200 dark:border-mdark-border bg-gray-50 dark:bg-mdark-elevated"
           }`}>
             <div className="flex items-start gap-3">
-              <RefreshCw className={`w-4 h-4 mt-0.5 shrink-0 ${renewalEnabled ? "text-member-green dark:text-green-400" : "text-gray-400 dark:text-gray-500"}`} />
+              <RefreshCw className={`w-4 h-4 mt-0.5 shrink-0 ${renewalEnabled ? "text-member-green dark:text-mdark-accent" : "text-gray-400 dark:text-mdark-text-muted"}`} />
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between gap-2">
-                  <p className="text-xs font-bold text-gray-800 dark:text-gray-100">Simulate Loan Renewal</p>
+                  <p className="text-xs font-bold text-gray-800 dark:text-mdark-text">Simulate Loan Renewal</p>
                   <label className={`relative inline-flex items-center ${activeLoan ? "cursor-pointer" : "cursor-not-allowed opacity-40"}`}>
                     <input
                       type="checkbox"
@@ -877,22 +877,22 @@ export default function LoanCalculatorModal({ open, onClose }) {
                       onChange={(e) => setRenewalEnabled(e.target.checked)}
                       disabled={!activeLoan}
                     />
-                    <span className="w-9 h-5 bg-gray-300 dark:bg-gray-600 rounded-full peer-checked:bg-member-green transition-colors relative">
+                    <span className="w-9 h-5 bg-gray-300 dark:bg-mdark-elevated rounded-full peer-checked:bg-member-green transition-colors relative">
                       <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${renewalEnabled ? "translate-x-4" : ""}`} />
                     </span>
                   </label>
                 </div>
                 {activeLoanLoading ? (
-                  <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-1">Checking your active loans…</p>
+                  <p className="text-[11px] text-gray-400 dark:text-mdark-text-muted mt-1">Checking your active loans…</p>
                 ) : activeLoanError ? (
                   <p className="text-[11px] text-red-500 dark:text-red-400 mt-1">{activeLoanError}</p>
                 ) : activeLoan ? (
-                  <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1">
-                    Active loan <span className="font-semibold text-gray-700 dark:text-gray-200">{activeLoan.controlNumber}</span> — remaining{" "}
-                    <span className="font-semibold text-member-green dark:text-green-400">{formatPHP(activeLoan.remaining)}</span>
+                  <p className="text-[11px] text-gray-500 dark:text-mdark-text-secondary mt-1">
+                    Active loan <span className="font-semibold text-gray-700 dark:text-mdark-text">{activeLoan.controlNumber}</span> — remaining{" "}
+                    <span className="font-semibold text-member-green dark:text-mdark-accent">{formatPHP(activeLoan.remaining)}</span>
                   </p>
                 ) : (
-                  <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-1">No active loan found — renewal simulation unavailable.</p>
+                  <p className="text-[11px] text-gray-400 dark:text-mdark-text-muted mt-1">No active loan found — renewal simulation unavailable.</p>
                 )}
               </div>
             </div>
@@ -901,14 +901,14 @@ export default function LoanCalculatorModal({ open, onClose }) {
         </div>
 
         {/* Footer */}
-        <div className="px-5 py-3.5 border-t border-gray-100 dark:border-gray-800 flex items-center justify-between bg-gray-50 dark:bg-gray-800 rounded-b-2xl shrink-0">
-          <p className="text-[10px] text-gray-400 dark:text-gray-500 font-medium uppercase tracking-wider">
+        <div className="px-5 py-3.5 border-t border-gray-100 dark:border-mdark-border flex items-center justify-between bg-gray-50 dark:bg-mdark-elevated rounded-b-2xl shrink-0">
+          <p className="text-[10px] text-gray-400 dark:text-mdark-text-muted font-medium uppercase tracking-wider">
             Read-only · Figures are indicative
           </p>
           <button
             type="button"
             onClick={onClose}
-            className="bg-member-green hover:bg-[#154718] text-white text-sm font-bold px-5 py-2 rounded-xl transition-colors"
+            className="bg-member-green hover:bg-[#154718] dark:bg-mdark-accent dark:hover:bg-mdark-accent/90 text-white text-sm font-bold px-5 py-2 rounded-xl transition-colors"
           >
             Close
           </button>
@@ -921,8 +921,8 @@ export default function LoanCalculatorModal({ open, onClose }) {
 function FormulaRow({ label, value, highlight = false }) {
   return (
     <div className="flex items-center justify-between gap-3">
-      <span className="text-gray-500 dark:text-gray-400 text-xs">{label}</span>
-      <span className={`font-bold text-xs ${highlight ? "text-member-green dark:text-green-400" : "text-gray-800 dark:text-gray-100"}`}>{value}</span>
+      <span className="text-gray-500 dark:text-mdark-text-secondary text-xs">{label}</span>
+      <span className={`font-bold text-xs ${highlight ? "text-member-green dark:text-mdark-accent" : "text-gray-800 dark:text-mdark-text"}`}>{value}</span>
     </div>
   );
 }

@@ -4,6 +4,27 @@ import { useMemberSettings } from "../../contex/MemberSettingsContext";
 import { useRealtimeVersion, useRealtimeRefetch } from "../../hooks/useRealtimeRefetch";
 import { RT } from "../../lib/realtimeSync";
 import { getLoanTypeCardStyle } from "../../utils/loanTypeColors";
+
+// loanTypeColors.js is shared with 9 staff-portal files — its own comment
+// notes the dark: classes baked into `ring`/`chip`/etc. are meant as inert
+// extras for portals that never toggle dark mode, not tuned for an actual
+// dark UI. Editing that file risks a staff page picking up a Member-tuned
+// color in the rare case .dark leaks across portals (the toggle persists via
+// localStorage, not per-tab sessionStorage). So it stays untouched, and this
+// page layers its own Member-dark border color on top instead for just the
+// full-card border — the one place the shared hue read as too loud wrapping
+// an entire card (vs. the small icon badge/pill, which stay as shared,
+// semantic color is the right call there). Inferred from the light-mode
+// class the shared util already resolved to, so no need to duplicate its
+// loan-type keyword matching here.
+const memberDarkCardRing = (ringClass) => {
+  if (ringClass.includes("green")) return "dark:border-mdark-accent/30";
+  if (ringClass.includes("red")) return "dark:border-red-900/50";
+  if (ringClass.includes("blue")) return "dark:border-blue-900/50";
+  if (ringClass.includes("indigo")) return "dark:border-indigo-900/50";
+  return "dark:border-mdark-border";
+};
+const lightRingOnly = (ringClass) => ringClass.replace(/\s*dark:\S+/g, "").trim();
 import { UserAuth } from "../../contex/AuthContext";
 import { useNotification } from "../../contex/NotificationContext";
 import { supabase } from "../../supabaseClient";
@@ -631,24 +652,24 @@ const Member_StatementOfAccount = () => {
   };
 
   return (
-    <div className="relative flex h-screen overflow-hidden bg-[#F8F9FA] dark:bg-gray-950">
+    <div className="relative flex h-screen overflow-hidden bg-[#F8F9FA] dark:bg-mdark-bg">
       <style>{styles}</style>
 
       {/* Sidebar — desktop only. Mobile navigation is MemberMobileNav's fixed
           bottom bar, rendered once by MemberLayout for every Member route;
           this drawer duplicated the same links via a hamburger toggle. */}
       <aside
-        className="hidden lg:flex fixed inset-y-0 left-0 z-30 w-64 bg-white dark:bg-gray-900 p-4 flex-col border-r border-gray-200 dark:border-gray-800"
+        className="hidden lg:flex fixed inset-y-0 left-0 z-30 w-64 bg-white dark:bg-mdark-nav p-4 flex-col border-r border-gray-200 dark:border-mdark-border"
       >
         <div className="flex flex-row items-start gap-2 mb-6">
           <img src="/img/ttmpc logo.png" alt="Logo" className="h-12 w-auto" />
           <div className="flex flex-col">
             <h1 className="text-xl font-bold text-primary">TTMPC</h1>
-            <p className="text-[10px] uppercase tracking-wider text-gray-500 dark:text-gray-400 font-bold">Members Portal</p>
+            <p className="text-[10px] uppercase tracking-wider text-gray-500 dark:text-mdark-text-secondary font-bold">Members Portal</p>
           </div>
         </div>
 
-        <hr className="w-full border-gray-100 dark:border-gray-800 mb-6" />
+        <hr className="w-full border-gray-100 dark:border-mdark-border mb-6" />
 
         <nav className="flex grow flex-col gap-2 text-sm">
           {menuItems.map((item) => {
@@ -661,8 +682,8 @@ const Member_StatementOfAccount = () => {
                 className={({ isActive }) =>
                   `flex items-center gap-3 p-2.5 rounded-lg transition-colors ${
                     isActive
-                      ? "bg-[#EAF1EB] text-member-green font-bold dark:bg-green-900/30 dark:text-green-400"
-                      : "text-gray-600 hover:bg-gray-50 hover:text-member-green font-medium dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-green-400"
+                      ? "bg-[#EAF1EB] text-member-green font-bold dark:bg-mdark-accent/15 dark:text-mdark-accent"
+                      : "text-gray-600 hover:bg-gray-50 hover:text-member-green font-medium dark:text-mdark-text-secondary dark:hover:bg-mdark-elevated dark:hover:text-mdark-accent"
                   }`
                 }
               >
@@ -679,25 +700,25 @@ const Member_StatementOfAccount = () => {
 
         <button
           onClick={handleSignOut}
-          className="mt-auto w-full rounded-lg p-2.5 text-sm bg-member-green hover:bg-[#154718] text-white font-bold transition-colors"
+          className="mt-auto w-full rounded-lg p-2.5 text-sm bg-member-green hover:bg-[#154718] dark:bg-mdark-accent dark:hover:bg-mdark-accent/90 text-white font-bold transition-colors"
         >
           Sign out
         </button>
       </aside>
 
       <div className="flex-1 flex flex-col overflow-hidden lg:ml-64">
-        <header className="bg-white dark:bg-gray-900 h-16 shrink-0 shadow-sm flex items-center justify-between px-4 sm:px-6 lg:px-8 z-10 border-b border-gray-100 dark:border-gray-800">
+        <header className="bg-white dark:bg-mdark-nav h-16 shrink-0 shadow-sm flex items-center justify-between px-4 sm:px-6 lg:px-8 z-10 border-b border-gray-100 dark:border-mdark-border">
           <div className="flex items-center gap-2 sm:gap-3 pl-2 sm:pl-0">
-            <h1 className="text-base sm:text-lg font-extrabold text-[#1a4a2f] dark:text-green-400 lg:hidden">Statement of Account</h1>
+            <h1 className="text-base sm:text-lg font-extrabold text-[#1a4a2f] dark:text-mdark-accent lg:hidden">Statement of Account</h1>
           </div>
 
           <div className="flex items-center gap-2 sm:gap-4">
             
-            <LoanNotificationBell role="member" accentClass="bg-member-green" />
+            <LoanNotificationBell role="member" accentClass="bg-member-green dark:bg-mdark-accent" />
             <button
               type="button"
               onClick={openSettings}
-              className="p-2 rounded-md text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+              className="p-2 rounded-md text-gray-500 dark:text-mdark-text-secondary hover:bg-gray-100 dark:hover:bg-mdark-elevated transition-colors"
               aria-label="Settings"
             >
               <Settings className="w-5 h-5" />
@@ -706,13 +727,13 @@ const Member_StatementOfAccount = () => {
         </header>
 
         <main className="animate-page-in p-4 sm:p-6 lg:p-8 overflow-y-auto pb-28 lg:pb-0 animate-fade-in-up">
-          <h1 className="hidden lg:block font-extrabold text-[#1a4a2f] dark:text-green-400 text-2xl mb-2">Statement of Account</h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400 font-medium mb-6">
+          <h1 className="hidden lg:block font-extrabold text-[#1a4a2f] dark:text-mdark-accent text-2xl mb-2">Statement of Account</h1>
+          <p className="text-sm text-gray-500 dark:text-mdark-text-secondary font-medium mb-6">
             Review your loan, savings, and capital build-up statements.
           </p>
 
           {/* Statement Tabs */}
-          <div className="flex items-center gap-2 sm:gap-4 lg:gap-8 border-b border-gray-200 dark:border-gray-800 mb-8 overflow-x-auto">
+          <div className="flex items-center gap-2 sm:gap-4 lg:gap-8 border-b border-gray-200 dark:border-mdark-border mb-8 overflow-x-auto">
             {STATEMENT_TABS.map((tab) => (
               <button
                 key={tab.key}
@@ -720,8 +741,8 @@ const Member_StatementOfAccount = () => {
                 onClick={() => setActiveTab(tab.key)}
                 className={`pb-3 -mb-px text-sm font-bold border-b-2 transition-colors ${
                   activeTab === tab.key
-                    ? "border-member-green text-member-green dark:text-green-400"
-                    : "border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                    ? "border-member-green text-member-green dark:text-mdark-accent"
+                    : "border-transparent text-gray-500 hover:text-gray-700 dark:text-mdark-text-secondary dark:hover:text-mdark-text"
                 }`}
               >
                 {tab.label}
@@ -732,20 +753,20 @@ const Member_StatementOfAccount = () => {
           {activeTab === "loan" && (
           !selectedLoan ? (
             <>
-              <p className="text-sm text-gray-500 dark:text-gray-400 font-medium mb-8">
+              <p className="text-sm text-gray-500 dark:text-mdark-text-secondary font-medium mb-8">
                 Select a loan to view its payment history and download the statement.
               </p>
 
               {loadingLoans ? (
-                <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 p-8 text-sm text-gray-500 dark:text-gray-400">
+                <div className="bg-white dark:bg-mdark-card rounded-2xl shadow-sm border border-gray-100 dark:border-mdark-border p-8 text-sm text-gray-500 dark:text-mdark-text-secondary">
                   Loading your loans…
                 </div>
               ) : loanError ? (
-                <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 p-8 text-sm text-red-600">
+                <div className="bg-white dark:bg-mdark-card rounded-2xl shadow-sm border border-gray-100 dark:border-mdark-border p-8 text-sm text-red-600">
                   {loanError}
                 </div>
               ) : loans.length === 0 ? (
-                <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 p-8 text-sm text-gray-500 dark:text-gray-400">
+                <div className="bg-white dark:bg-mdark-card rounded-2xl shadow-sm border border-gray-100 dark:border-mdark-border p-8 text-sm text-gray-500 dark:text-mdark-text-secondary">
                   No Consolidated, Emergency, or Bonus loans found on your account.
                 </div>
               ) : (
@@ -757,7 +778,7 @@ const Member_StatementOfAccount = () => {
                         key={loan.control_number}
                         type="button"
                         onClick={() => setSelectedLoan(loan)}
-                        className={`text-left bg-white dark:bg-gray-900 rounded-2xl shadow-sm border ${k.ring} p-6 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 flex flex-col`}
+                        className={`text-left bg-white dark:bg-mdark-card rounded-2xl shadow-sm border ${lightRingOnly(k.ring)} ${memberDarkCardRing(k.ring)} p-6 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 flex flex-col`}
                       >
                         <div className="flex items-start justify-between mb-4">
                           <div className={`w-10 h-10 rounded-lg ${k.bg} flex items-center justify-center`}>
@@ -768,27 +789,27 @@ const Member_StatementOfAccount = () => {
                           </span>
                         </div>
 
-                        <p className="text-xs font-bold text-gray-500 dark:text-gray-400 mb-1">{loan.type}</p>
-                        <p className="text-[10px] font-mono text-gray-400 dark:text-gray-500 mb-4 break-all">{loan.control_number}</p>
+                        <p className="text-xs font-bold text-gray-500 dark:text-mdark-text-secondary mb-1">{loan.type}</p>
+                        <p className="text-[10px] font-mono text-gray-400 dark:text-mdark-text-muted mb-4 break-all">{loan.control_number}</p>
 
                         <div className="flex justify-between text-sm mb-2">
-                          <span className="text-gray-500 dark:text-gray-400 font-medium">Principal</span>
-                          <span className="font-bold text-gray-900 dark:text-white">{formatCurrency(loan.principal)}</span>
+                          <span className="text-gray-500 dark:text-mdark-text-secondary font-medium">Principal</span>
+                          <span className="font-bold text-gray-900 dark:text-mdark-text">{formatCurrency(loan.principal)}</span>
                         </div>
                         <div className="flex justify-between text-sm mb-2">
-                          <span className="text-gray-500 dark:text-gray-400 font-medium">Total Interest</span>
-                          <span className="font-bold text-gray-900 dark:text-white">{formatCurrency(loan.totalInterest)}</span>
+                          <span className="text-gray-500 dark:text-mdark-text-secondary font-medium">Total Interest</span>
+                          <span className="font-bold text-gray-900 dark:text-mdark-text">{formatCurrency(loan.totalInterest)}</span>
                         </div>
                         <div className="flex justify-between text-sm mb-4">
-                          <span className="text-gray-500 dark:text-gray-400 font-medium">Monthly</span>
-                          <span className="font-bold text-member-green dark:text-green-400">{formatCurrency(loan.monthly)}</span>
+                          <span className="text-gray-500 dark:text-mdark-text-secondary font-medium">Monthly</span>
+                          <span className="font-bold text-member-green dark:text-mdark-accent">{formatCurrency(loan.monthly)}</span>
                         </div>
 
-                        <div className="mt-auto pt-4 border-t border-gray-100 dark:border-gray-800 flex items-center justify-between">
-                          <span className="text-[10px] uppercase tracking-wider font-bold text-gray-400 dark:text-gray-500">
+                        <div className="mt-auto pt-4 border-t border-gray-100 dark:border-mdark-border flex items-center justify-between">
+                          <span className="text-[10px] uppercase tracking-wider font-bold text-gray-400 dark:text-mdark-text-muted">
                             Applied {formatDate(loan.applicationDate)}
                           </span>
-                          <span className="inline-flex items-center gap-1 text-xs font-bold text-member-green dark:text-green-400">
+                          <span className="inline-flex items-center gap-1 text-xs font-bold text-member-green dark:text-mdark-accent">
                             View Summary <ChevronRight className="w-4 h-4" />
                           </span>
                         </div>
@@ -805,12 +826,12 @@ const Member_StatementOfAccount = () => {
                   <button
                     type="button"
                     onClick={() => setSelectedLoan(null)}
-                    className="inline-flex items-center gap-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-xs font-bold text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700"
+                    className="inline-flex items-center gap-2 rounded-lg border border-gray-200 dark:border-mdark-border bg-white dark:bg-mdark-elevated px-3 py-2 text-xs font-bold text-gray-700 dark:text-mdark-text hover:bg-gray-50 dark:hover:bg-mdark-elevated"
                   >
                     <ArrowLeft className="w-4 h-4" /> Back to loans
                   </button>
                   <div>
-                    <h1 className="font-extrabold text-[#1a4a2f] dark:text-green-400 text-xl sm:text-2xl mt-4">{selectedLoan.type}</h1>
+                    <h1 className="font-extrabold text-[#1a4a2f] dark:text-mdark-accent text-xl sm:text-2xl mt-4">{selectedLoan.type}</h1>
                     <p className="text-[10px] font-mono text-gray-400">{selectedLoan.control_number}</p>
                   </div>
                 </div>
@@ -818,37 +839,37 @@ const Member_StatementOfAccount = () => {
                   type="button"
                   onClick={handleDownloadPdf}
                   disabled={loadingRows || rows.length === 0}
-                  className="inline-flex items-center gap-2 rounded-lg bg-member-green px-4 py-2.5 text-xs font-bold text-white hover:bg-[#154718] disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+                  className="inline-flex items-center gap-2 rounded-lg bg-member-green hover:bg-[#154718] dark:bg-mdark-accent dark:hover:bg-mdark-accent/90 px-4 py-2.5 text-xs font-bold text-white disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
                 >
                   <Download className="w-4 h-4" /> Download as PDF
                 </button>
               </div>
 
-              <div className="mb-6 rounded-xl border border-green-200 dark:border-green-900 bg-green-50 dark:bg-green-900/20 p-4 grid grid-cols-1 sm:grid-cols-4 gap-4">
+              <div className="mb-6 rounded-xl border border-green-200 dark:border-mdark-accent/30 bg-green-50 dark:bg-mdark-accent/10 p-4 grid grid-cols-1 sm:grid-cols-4 gap-4">
                 <div>
-                  <p className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Member Name</p>
-                  <p className="text-sm font-bold text-member-green dark:text-green-400">{memberLabel}</p>
+                  <p className="text-[10px] font-bold text-gray-500 dark:text-mdark-text-secondary uppercase tracking-wider">Member Name</p>
+                  <p className="text-sm font-bold text-member-green dark:text-mdark-accent">{memberLabel}</p>
                 </div>
                 <div>
-                  <p className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Account Number</p>
-                  <p className="text-sm font-bold text-member-green dark:text-green-400">{accountNumber}</p>
+                  <p className="text-[10px] font-bold text-gray-500 dark:text-mdark-text-secondary uppercase tracking-wider">Account Number</p>
+                  <p className="text-sm font-bold text-member-green dark:text-mdark-accent">{accountNumber}</p>
                 </div>
                 <div>
-                  <p className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Loan Principal</p>
-                  <p className="text-sm font-bold text-member-green dark:text-green-400">{formatCurrency(selectedLoan.principal)}</p>
+                  <p className="text-[10px] font-bold text-gray-500 dark:text-mdark-text-secondary uppercase tracking-wider">Loan Principal</p>
+                  <p className="text-sm font-bold text-member-green dark:text-mdark-accent">{formatCurrency(selectedLoan.principal)}</p>
                 </div>
                 <div>
-                  <p className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Generated On</p>
-                  <p className="text-sm font-bold text-member-green dark:text-green-400">
+                  <p className="text-[10px] font-bold text-gray-500 dark:text-mdark-text-secondary uppercase tracking-wider">Generated On</p>
+                  <p className="text-sm font-bold text-member-green dark:text-mdark-accent">
                     {new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "2-digit" })}
                   </p>
                 </div>
               </div>
 
-              <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 overflow-hidden mb-8 flex flex-col">
-                <div className="p-6 flex items-center justify-between border-b border-gray-100 dark:border-gray-800">
-                  <h3 className="text-lg font-bold text-gray-900 dark:text-white">Payment History</h3>
-                  <span className="bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 px-3 py-1 rounded text-[9px] font-extrabold tracking-widest uppercase">
+              <div className="bg-white dark:bg-mdark-card rounded-2xl shadow-sm border border-gray-100 dark:border-mdark-border overflow-hidden mb-8 flex flex-col">
+                <div className="p-6 flex items-center justify-between border-b border-gray-100 dark:border-mdark-border">
+                  <h3 className="text-lg font-bold text-gray-900 dark:text-mdark-text">Payment History</h3>
+                  <span className="bg-gray-100 dark:bg-mdark-elevated text-gray-500 dark:text-mdark-text-secondary px-3 py-1 rounded text-[9px] font-extrabold tracking-widest uppercase">
                     {rows.length} {rows.length === 1 ? "Entry" : "Entries"}
                   </span>
                 </div>
@@ -856,7 +877,7 @@ const Member_StatementOfAccount = () => {
                 <div className="hidden md:block overflow-x-auto">
                   <table className="w-full min-w-[1100px] text-left border-collapse">
                     <thead>
-                      <tr className="bg-primary-deep text-[10px] uppercase tracking-wider text-white font-extrabold">
+                      <tr className="bg-primary-deep dark:bg-mdark-nav text-[10px] uppercase tracking-wider text-white dark:text-mdark-text font-extrabold">
                         <th className="p-5 font-bold">Payment Date</th>
                         <th className="p-5 font-bold">Reference ID</th>
                         <th className="p-5 font-bold text-right">Principal Paid</th>
@@ -878,22 +899,22 @@ const Member_StatementOfAccount = () => {
                         <TableStateRow colSpan={8} variant="empty" icon={Receipt} label="No validated payments found for this loan." />
                       ) : (
                         rows.map((r) => (
-                          <tr key={r.payment_id} className="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50/50 dark:hover:bg-gray-800/50 transition-colors">
-                            <td className="p-5 text-sm font-medium text-gray-700 dark:text-gray-200">{formatDate(r.payment_date)}</td>
-                            <td className="p-5 text-xs font-mono text-gray-600 dark:text-gray-400 break-all">{r.reference_id || "—"}</td>
-                            <td className="p-5 text-sm font-bold text-gray-700 dark:text-gray-200 text-right">{formatCurrency(r.principal_paid)}</td>
-                            <td className="p-5 text-sm font-bold text-gray-700 dark:text-gray-200 text-right">{formatCurrency(r.interest_paid)}</td>
-                            <td className="p-5 text-sm font-medium text-gray-600 dark:text-gray-400 text-right">{formatCurrency(r.deficiency)}</td>
+                          <tr key={r.payment_id} className="border-b border-gray-100 dark:border-mdark-border hover:bg-gray-50/50 dark:hover:bg-mdark-elevated/50 transition-colors">
+                            <td className="p-5 text-sm font-medium text-gray-700 dark:text-mdark-text">{formatDate(r.payment_date)}</td>
+                            <td className="p-5 text-xs font-mono text-gray-600 dark:text-mdark-text-secondary break-all">{r.reference_id || "—"}</td>
+                            <td className="p-5 text-sm font-bold text-gray-700 dark:text-mdark-text text-right">{formatCurrency(r.principal_paid)}</td>
+                            <td className="p-5 text-sm font-bold text-gray-700 dark:text-mdark-text text-right">{formatCurrency(r.interest_paid)}</td>
+                            <td className="p-5 text-sm font-medium text-gray-600 dark:text-mdark-text-secondary text-right">{formatCurrency(r.deficiency)}</td>
                             <td className="p-5 text-sm font-medium text-red-400 text-right">{formatCurrency(r.penalty)}</td>
-                            <td className="p-5 text-sm font-black text-member-green dark:text-green-400 text-right">{formatCurrency(r.total_amount_paid)}</td>
-                            <td className="p-5 text-sm font-bold text-gray-900 dark:text-white text-right">{formatCurrency(r.outstanding_balance)}</td>
+                            <td className="p-5 text-sm font-black text-member-green dark:text-mdark-accent text-right">{formatCurrency(r.total_amount_paid)}</td>
+                            <td className="p-5 text-sm font-bold text-gray-900 dark:text-mdark-text text-right">{formatCurrency(r.outstanding_balance)}</td>
                           </tr>
                         ))
                       )}
                     </tbody>
                     {!loadingRows && !rowsError && rows.length > 0 ? (
                       <tfoot>
-                        <tr className="bg-[#EAF1EB] text-member-green dark:bg-green-900/30 dark:text-green-400">
+                        <tr className="bg-[#EAF1EB] text-member-green dark:bg-mdark-accent/15 dark:text-mdark-accent">
                           <td className="p-5 text-xs font-extrabold uppercase tracking-wider" colSpan="2">Totals</td>
                           <td className="p-5 text-sm font-black text-right">{formatCurrency(totals.principal)}</td>
                           <td className="p-5 text-sm font-black text-right">{formatCurrency(totals.interest)}</td>
@@ -913,7 +934,7 @@ const Member_StatementOfAccount = () => {
                   </table>
                 </div>
 
-                <div className="divide-y divide-gray-100 dark:divide-gray-800 md:hidden">
+                <div className="divide-y divide-gray-100 dark:divide-mdark-border md:hidden">
                   {loadingRows ? (
                     <TableStateRow bare variant="loading" label="Loading payment history…" />
                   ) : rowsError ? (
@@ -922,40 +943,40 @@ const Member_StatementOfAccount = () => {
                     <TableStateRow bare variant="empty" icon={Receipt} label="No validated payments found for this loan." />
                   ) : (
                     rows.map((r) => (
-                      <div key={r.payment_id} className="px-4 py-3.5 hover:bg-gray-50/50 dark:hover:bg-gray-800/50 transition-colors">
+                      <div key={r.payment_id} className="px-4 py-3.5 hover:bg-gray-50/50 dark:hover:bg-mdark-elevated/50 transition-colors">
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0">
-                            <p className="text-sm font-bold text-gray-700 dark:text-gray-200">{formatDate(r.payment_date)}</p>
-                            <p className="truncate text-[10px] font-mono text-gray-500 dark:text-gray-400">{r.reference_id || "—"}</p>
+                            <p className="text-sm font-bold text-gray-700 dark:text-mdark-text">{formatDate(r.payment_date)}</p>
+                            <p className="truncate text-[10px] font-mono text-gray-500 dark:text-mdark-text-secondary">{r.reference_id || "—"}</p>
                           </div>
-                          <span className="shrink-0 text-sm font-black text-member-green dark:text-green-400">{formatCurrency(r.total_amount_paid)}</span>
+                          <span className="shrink-0 text-sm font-black text-member-green dark:text-mdark-accent">{formatCurrency(r.total_amount_paid)}</span>
                         </div>
                         <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 text-xs">
                           <div>
-                            <p className="text-gray-400 dark:text-gray-500 font-medium">Principal Paid</p>
-                            <p className="font-bold text-gray-700 dark:text-gray-200">{formatCurrency(r.principal_paid)}</p>
+                            <p className="text-gray-400 dark:text-mdark-text-muted font-medium">Principal Paid</p>
+                            <p className="font-bold text-gray-700 dark:text-mdark-text">{formatCurrency(r.principal_paid)}</p>
                           </div>
                           <div>
-                            <p className="text-gray-400 dark:text-gray-500 font-medium">Interest Paid</p>
-                            <p className="font-bold text-gray-700 dark:text-gray-200">{formatCurrency(r.interest_paid)}</p>
+                            <p className="text-gray-400 dark:text-mdark-text-muted font-medium">Interest Paid</p>
+                            <p className="font-bold text-gray-700 dark:text-mdark-text">{formatCurrency(r.interest_paid)}</p>
                           </div>
                           <div>
-                            <p className="text-gray-400 dark:text-gray-500 font-medium">Deficiency</p>
-                            <p className="font-medium text-gray-600 dark:text-gray-400">{formatCurrency(r.deficiency)}</p>
+                            <p className="text-gray-400 dark:text-mdark-text-muted font-medium">Deficiency</p>
+                            <p className="font-medium text-gray-600 dark:text-mdark-text-secondary">{formatCurrency(r.deficiency)}</p>
                           </div>
                           <div>
-                            <p className="text-gray-400 dark:text-gray-500 font-medium">Penalty</p>
+                            <p className="text-gray-400 dark:text-mdark-text-muted font-medium">Penalty</p>
                             <p className="font-medium text-red-400">{formatCurrency(r.penalty)}</p>
                           </div>
                         </div>
-                        <p className="mt-2.5 text-[11px] text-gray-500 dark:text-gray-400">
-                          Outstanding Balance: <span className="font-bold text-gray-900 dark:text-white">{formatCurrency(r.outstanding_balance)}</span>
+                        <p className="mt-2.5 text-[11px] text-gray-500 dark:text-mdark-text-secondary">
+                          Outstanding Balance: <span className="font-bold text-gray-900 dark:text-mdark-text">{formatCurrency(r.outstanding_balance)}</span>
                         </p>
                       </div>
                     ))
                   )}
                   {!loadingRows && !rowsError && rows.length > 0 ? (
-                    <div className="px-4 py-3.5 bg-[#EAF1EB] dark:bg-green-900/30 text-member-green dark:text-green-400">
+                    <div className="px-4 py-3.5 bg-[#EAF1EB] dark:bg-mdark-accent/15 text-member-green dark:text-mdark-accent">
                       <p className="text-[10px] font-extrabold uppercase tracking-wider mb-2">Totals</p>
                       <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-xs font-black">
                         <span>Principal: {formatCurrency(totals.principal)}</span>
@@ -981,30 +1002,30 @@ const Member_StatementOfAccount = () => {
           {activeTab === "savings" && (
             <>
               <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:gap-6 mb-8">
-                <div className="bg-white dark:bg-gray-900 p-3.5 sm:p-5 lg:p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col">
-                  <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-[#EAF1EB] dark:bg-green-900/30 flex items-center justify-center mb-2.5 sm:mb-6">
-                    <Wallet className="w-4 h-4 sm:w-5 sm:h-5 text-member-green dark:text-green-400" />
+                <div className="bg-white dark:bg-mdark-card p-3.5 sm:p-5 lg:p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-mdark-border flex flex-col">
+                  <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-[#EAF1EB] dark:bg-mdark-accent/15 flex items-center justify-center mb-2.5 sm:mb-6">
+                    <Wallet className="w-4 h-4 sm:w-5 sm:h-5 text-member-green dark:text-mdark-accent" />
                   </div>
-                  <p className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-1">Current Balance</p>
-                  <h3 className="text-base sm:text-2xl lg:text-3xl font-black text-gray-900 dark:text-white break-words">{formatCurrency(regularSavings)}</h3>
+                  <p className="text-[10px] font-bold text-gray-500 dark:text-mdark-text-secondary uppercase tracking-widest mb-1">Current Balance</p>
+                  <h3 className="text-base sm:text-2xl lg:text-3xl font-black text-gray-900 dark:text-mdark-text break-words">{formatCurrency(regularSavings)}</h3>
                 </div>
-                <div className="bg-white dark:bg-gray-900 p-3.5 sm:p-5 lg:p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col">
-                  <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-member-green flex items-center justify-center mb-2.5 sm:mb-6">
+                <div className="bg-white dark:bg-mdark-card p-3.5 sm:p-5 lg:p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-mdark-border flex flex-col">
+                  <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-member-green dark:bg-mdark-accent flex items-center justify-center mb-2.5 sm:mb-6">
                     <Banknote className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
                   </div>
-                  <p className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-1">Entries</p>
-                  <h3 className="text-base sm:text-2xl lg:text-3xl font-black text-gray-900 dark:text-white">{savingsRows.length}</h3>
+                  <p className="text-[10px] font-bold text-gray-500 dark:text-mdark-text-secondary uppercase tracking-widest mb-1">Entries</p>
+                  <h3 className="text-base sm:text-2xl lg:text-3xl font-black text-gray-900 dark:text-mdark-text">{savingsRows.length}</h3>
                 </div>
               </div>
 
-              <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 overflow-hidden mb-8 flex flex-col">
-                <div className="p-6 flex items-center justify-between border-b border-gray-100 dark:border-gray-800">
-                  <h3 className="text-lg font-bold text-gray-900 dark:text-white">Savings Statement</h3>
+              <div className="bg-white dark:bg-mdark-card rounded-2xl shadow-sm border border-gray-100 dark:border-mdark-border overflow-hidden mb-8 flex flex-col">
+                <div className="p-6 flex items-center justify-between border-b border-gray-100 dark:border-mdark-border">
+                  <h3 className="text-lg font-bold text-gray-900 dark:text-mdark-text">Savings Statement</h3>
                   <button
                     type="button"
                     onClick={handleDownloadSavingsPdf}
                     disabled={loadingSavings || savingsRows.length === 0}
-                    className="inline-flex items-center gap-2 rounded-lg bg-member-green px-4 py-2.5 text-xs font-bold text-white hover:bg-[#154718] disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+                    className="inline-flex items-center gap-2 rounded-lg bg-member-green hover:bg-[#154718] dark:bg-mdark-accent dark:hover:bg-mdark-accent/90 px-4 py-2.5 text-xs font-bold text-white disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
                   >
                     <Download className="w-4 h-4" /> Download as PDF
                   </button>
@@ -1013,7 +1034,7 @@ const Member_StatementOfAccount = () => {
                 <div className="hidden md:block overflow-x-auto">
                   <table className="w-full min-w-[720px] text-left border-collapse">
                     <thead>
-                      <tr className="bg-primary-deep text-[10px] uppercase tracking-wider text-white font-extrabold">
+                      <tr className="bg-primary-deep dark:bg-mdark-nav text-[10px] uppercase tracking-wider text-white dark:text-mdark-text font-extrabold">
                         <th className="p-5 font-bold">Date</th>
                         <th className="p-5 font-bold">Transaction Type</th>
                         <th className="p-5 font-bold">Reference</th>
@@ -1035,14 +1056,14 @@ const Member_StatementOfAccount = () => {
                           const isCredit = String(r?.entry_type || "").toLowerCase() === "credit";
                           const amount = Number(r?.amount || 0);
                           return (
-                            <tr key={r.id} className="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50/50 dark:hover:bg-gray-800/50 transition-colors">
-                              <td className="p-5 text-sm font-medium text-gray-700 dark:text-gray-200">{formatDate(r.posted_at)}</td>
-                              <td className="p-5 text-sm font-bold text-gray-700 dark:text-gray-200">{r.remarks || (isCredit ? "Savings Deposit" : "Savings Withdrawal")}</td>
-                              <td className="p-5 text-xs font-mono text-gray-600 dark:text-gray-400 break-all">{r.reference || "—"}</td>
-                              <td className={`p-5 text-sm font-bold text-right ${isCredit ? "text-green-600 dark:text-green-400" : "text-red-500 dark:text-red-400"}`}>
+                            <tr key={r.id} className="border-b border-gray-100 dark:border-mdark-border hover:bg-gray-50/50 dark:hover:bg-mdark-elevated/50 transition-colors">
+                              <td className="p-5 text-sm font-medium text-gray-700 dark:text-mdark-text">{formatDate(r.posted_at)}</td>
+                              <td className="p-5 text-sm font-bold text-gray-700 dark:text-mdark-text">{r.remarks || (isCredit ? "Savings Deposit" : "Savings Withdrawal")}</td>
+                              <td className="p-5 text-xs font-mono text-gray-600 dark:text-mdark-text-secondary break-all">{r.reference || "—"}</td>
+                              <td className={`p-5 text-sm font-bold text-right ${isCredit ? "text-green-600 dark:text-mdark-accent" : "text-red-500 dark:text-red-400"}`}>
                                 {isCredit ? "+" : "-"}{formatCurrency(amount)}
                               </td>
-                              <td className="p-5 text-sm font-black text-gray-900 dark:text-white text-right">{formatCurrency(r.running_balance)}</td>
+                              <td className="p-5 text-sm font-black text-gray-900 dark:text-mdark-text text-right">{formatCurrency(r.running_balance)}</td>
                             </tr>
                           );
                         })
@@ -1050,7 +1071,7 @@ const Member_StatementOfAccount = () => {
                     </tbody>
                     {!loadingSavings && !savingsError && savingsRows.length > 0 ? (
                       <tfoot>
-                        <tr className="bg-[#EAF1EB] text-member-green dark:bg-green-900/30 dark:text-green-400">
+                        <tr className="bg-[#EAF1EB] text-member-green dark:bg-mdark-accent/15 dark:text-mdark-accent">
                           <td className="p-5 text-xs font-extrabold uppercase tracking-wider" colSpan="3">Totals</td>
                           <td className="p-5 text-sm font-black text-right">
                             +{formatCurrency(savingsTotals.credits)} / -{formatCurrency(savingsTotals.debits)}
@@ -1062,7 +1083,7 @@ const Member_StatementOfAccount = () => {
                   </table>
                 </div>
 
-                <div className="divide-y divide-gray-100 dark:divide-gray-800 md:hidden">
+                <div className="divide-y divide-gray-100 dark:divide-mdark-border md:hidden">
                   {loadingSavings ? (
                     <TableStateRow bare variant="loading" label="Loading savings statement…" />
                   ) : savingsError ? (
@@ -1074,26 +1095,26 @@ const Member_StatementOfAccount = () => {
                       const isCredit = String(r?.entry_type || "").toLowerCase() === "credit";
                       const amount = Number(r?.amount || 0);
                       return (
-                        <div key={r.id} className="px-4 py-3.5 hover:bg-gray-50/50 dark:hover:bg-gray-800/50 transition-colors">
+                        <div key={r.id} className="px-4 py-3.5 hover:bg-gray-50/50 dark:hover:bg-mdark-elevated/50 transition-colors">
                           <div className="flex items-start justify-between gap-3">
                             <div className="min-w-0">
-                              <p className="truncate text-sm font-bold text-gray-700 dark:text-gray-200">{r.remarks || (isCredit ? "Savings Deposit" : "Savings Withdrawal")}</p>
-                              <p className="text-xs text-gray-500 dark:text-gray-400">{formatDate(r.posted_at)}</p>
+                              <p className="truncate text-sm font-bold text-gray-700 dark:text-mdark-text">{r.remarks || (isCredit ? "Savings Deposit" : "Savings Withdrawal")}</p>
+                              <p className="text-xs text-gray-500 dark:text-mdark-text-secondary">{formatDate(r.posted_at)}</p>
                             </div>
-                            <span className={`shrink-0 text-sm font-bold ${isCredit ? "text-green-600 dark:text-green-400" : "text-red-500 dark:text-red-400"}`}>
+                            <span className={`shrink-0 text-sm font-bold ${isCredit ? "text-green-600 dark:text-mdark-accent" : "text-red-500 dark:text-red-400"}`}>
                               {isCredit ? "+" : "-"}{formatCurrency(amount)}
                             </span>
                           </div>
-                          <div className="mt-2 flex items-center justify-between text-[11px] text-gray-500 dark:text-gray-400">
+                          <div className="mt-2 flex items-center justify-between text-[11px] text-gray-500 dark:text-mdark-text-secondary">
                             <span className="truncate font-mono">{r.reference || "—"}</span>
-                            <span>Balance: <span className="font-black text-gray-900 dark:text-white">{formatCurrency(r.running_balance)}</span></span>
+                            <span>Balance: <span className="font-black text-gray-900 dark:text-mdark-text">{formatCurrency(r.running_balance)}</span></span>
                           </div>
                         </div>
                       );
                     })
                   )}
                   {!loadingSavings && !savingsError && savingsRows.length > 0 ? (
-                    <div className="px-4 py-3.5 bg-[#EAF1EB] dark:bg-green-900/30 text-member-green dark:text-green-400 flex items-center justify-between text-xs font-black">
+                    <div className="px-4 py-3.5 bg-[#EAF1EB] dark:bg-mdark-accent/15 text-member-green dark:text-mdark-accent flex items-center justify-between text-xs font-black">
                       <span>Totals: +{formatCurrency(savingsTotals.credits)} / -{formatCurrency(savingsTotals.debits)}</span>
                       <span>{formatCurrency(regularSavings)}</span>
                     </div>
@@ -1106,32 +1127,32 @@ const Member_StatementOfAccount = () => {
           {activeTab === "cbu" && (
             <>
               <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:gap-6 mb-8">
-                <div className="bg-white dark:bg-gray-900 p-3.5 sm:p-5 lg:p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col">
-                  <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-[#EAF1EB] dark:bg-green-900/30 flex items-center justify-center mb-2.5 sm:mb-6">
-                    <PiggyBank className="w-4 h-4 sm:w-5 sm:h-5 text-member-green dark:text-green-400" />
+                <div className="bg-white dark:bg-mdark-card p-3.5 sm:p-5 lg:p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-mdark-border flex flex-col">
+                  <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-[#EAF1EB] dark:bg-mdark-accent/15 flex items-center justify-center mb-2.5 sm:mb-6">
+                    <PiggyBank className="w-4 h-4 sm:w-5 sm:h-5 text-member-green dark:text-mdark-accent" />
                   </div>
-                  <p className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-1">Ending Share Capital</p>
-                  <h3 className="text-base sm:text-2xl lg:text-3xl font-black text-gray-900 dark:text-white break-words">
+                  <p className="text-[10px] font-bold text-gray-500 dark:text-mdark-text-secondary uppercase tracking-widest mb-1">Ending Share Capital</p>
+                  <h3 className="text-base sm:text-2xl lg:text-3xl font-black text-gray-900 dark:text-mdark-text break-words">
                     {formatCurrency(cbuRows[cbuRows.length - 1]?.ending_share_capital || 0)}
                   </h3>
                 </div>
-                <div className="bg-white dark:bg-gray-900 p-3.5 sm:p-5 lg:p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col">
-                  <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-member-green flex items-center justify-center mb-2.5 sm:mb-6">
+                <div className="bg-white dark:bg-mdark-card p-3.5 sm:p-5 lg:p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-mdark-border flex flex-col">
+                  <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-member-green dark:bg-mdark-accent flex items-center justify-center mb-2.5 sm:mb-6">
                     <Banknote className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
                   </div>
-                  <p className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-1">Total Capital Added</p>
-                  <h3 className="text-base sm:text-2xl lg:text-3xl font-black text-gray-900 dark:text-white break-words">{formatCurrency(cbuTotals.added)}</h3>
+                  <p className="text-[10px] font-bold text-gray-500 dark:text-mdark-text-secondary uppercase tracking-widest mb-1">Total Capital Added</p>
+                  <h3 className="text-base sm:text-2xl lg:text-3xl font-black text-gray-900 dark:text-mdark-text break-words">{formatCurrency(cbuTotals.added)}</h3>
                 </div>
               </div>
 
-              <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 overflow-hidden mb-8 flex flex-col">
-                <div className="p-6 flex items-center justify-between border-b border-gray-100 dark:border-gray-800">
-                  <h3 className="text-lg font-bold text-gray-900 dark:text-white">Capital Build-Up Statement</h3>
+              <div className="bg-white dark:bg-mdark-card rounded-2xl shadow-sm border border-gray-100 dark:border-mdark-border overflow-hidden mb-8 flex flex-col">
+                <div className="p-6 flex items-center justify-between border-b border-gray-100 dark:border-mdark-border">
+                  <h3 className="text-lg font-bold text-gray-900 dark:text-mdark-text">Capital Build-Up Statement</h3>
                   <button
                     type="button"
                     onClick={handleDownloadCbuPdf}
                     disabled={loadingCbu || cbuRows.length === 0}
-                    className="inline-flex items-center gap-2 rounded-lg bg-member-green px-4 py-2.5 text-xs font-bold text-white hover:bg-[#154718] disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+                    className="inline-flex items-center gap-2 rounded-lg bg-member-green hover:bg-[#154718] dark:bg-mdark-accent dark:hover:bg-mdark-accent/90 px-4 py-2.5 text-xs font-bold text-white disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
                   >
                     <Download className="w-4 h-4" /> Download as PDF
                   </button>
@@ -1140,7 +1161,7 @@ const Member_StatementOfAccount = () => {
                 <div className="hidden md:block overflow-x-auto">
                   <table className="w-full min-w-[760px] text-left border-collapse">
                     <thead>
-                      <tr className="bg-primary-deep text-[10px] uppercase tracking-wider text-white font-extrabold">
+                      <tr className="bg-primary-deep dark:bg-mdark-nav text-[10px] uppercase tracking-wider text-white dark:text-mdark-text font-extrabold">
                         <th className="p-5 font-bold">Date</th>
                         <th className="p-5 font-bold">Source</th>
                         <th className="p-5 font-bold text-right">Starting Share Capital</th>
@@ -1160,18 +1181,18 @@ const Member_StatementOfAccount = () => {
                       ) : (
                         cbuRows.map((r) => (
                           <tr key={r.id} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
-                            <td className="p-5 text-sm font-medium text-gray-700 dark:text-gray-200">{formatDate(r.transaction_date)}</td>
-                            <td className="p-5 text-sm font-bold text-gray-700 dark:text-gray-200">{humanizeSource(r.deposit_account)}</td>
-                            <td className="p-5 text-sm font-medium text-gray-600 dark:text-gray-400 text-right">{formatCurrency(r.starting_share_capital)}</td>
-                            <td className={`p-5 text-sm font-bold text-right ${Number(r.capital_added || 0) < 0 ? "text-red-500 dark:text-red-400" : "text-green-600 dark:text-green-400"}`}>{formatSignedCurrency(r.capital_added)}</td>
-                            <td className="p-5 text-sm font-black text-gray-900 dark:text-white text-right">{formatCurrency(r.ending_share_capital)}</td>
+                            <td className="p-5 text-sm font-medium text-gray-700 dark:text-mdark-text">{formatDate(r.transaction_date)}</td>
+                            <td className="p-5 text-sm font-bold text-gray-700 dark:text-mdark-text">{humanizeSource(r.deposit_account)}</td>
+                            <td className="p-5 text-sm font-medium text-gray-600 dark:text-mdark-text-secondary text-right">{formatCurrency(r.starting_share_capital)}</td>
+                            <td className={`p-5 text-sm font-bold text-right ${Number(r.capital_added || 0) < 0 ? "text-red-500 dark:text-red-400" : "text-green-600 dark:text-mdark-accent"}`}>{formatSignedCurrency(r.capital_added)}</td>
+                            <td className="p-5 text-sm font-black text-gray-900 dark:text-mdark-text text-right">{formatCurrency(r.ending_share_capital)}</td>
                           </tr>
                         ))
                       )}
                     </tbody>
                     {!loadingCbu && !cbuError && cbuRows.length > 0 ? (
                       <tfoot>
-                        <tr className="bg-[#EAF1EB] text-member-green dark:bg-green-900/30 dark:text-green-400">
+                        <tr className="bg-[#EAF1EB] text-member-green dark:bg-mdark-accent/15 dark:text-mdark-accent">
                           <td className="p-5 text-xs font-extrabold uppercase tracking-wider" colSpan="3">Totals</td>
                           <td className="p-5 text-sm font-black text-right">{formatSignedCurrency(cbuTotals.added)}</td>
                           <td className="p-5 text-sm font-black text-right">
@@ -1183,7 +1204,7 @@ const Member_StatementOfAccount = () => {
                   </table>
                 </div>
 
-                <div className="divide-y divide-gray-100 dark:divide-gray-800 md:hidden">
+                <div className="divide-y divide-gray-100 dark:divide-mdark-border md:hidden">
                   {loadingCbu ? (
                     <TableStateRow bare variant="loading" label="Loading capital build-up statement…" />
                   ) : cbuError ? (
@@ -1192,23 +1213,23 @@ const Member_StatementOfAccount = () => {
                     <TableStateRow bare variant="empty" icon={PiggyBank} label="No capital build-up transactions found." />
                   ) : (
                     cbuRows.map((r) => (
-                      <div key={r.id} className="px-4 py-3.5 hover:bg-gray-50/50 dark:hover:bg-gray-800/50 transition-colors">
+                      <div key={r.id} className="px-4 py-3.5 hover:bg-gray-50/50 dark:hover:bg-mdark-elevated/50 transition-colors">
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0">
-                            <p className="truncate text-sm font-bold text-gray-700 dark:text-gray-200">{humanizeSource(r.deposit_account)}</p>
-                            <p className="text-xs text-gray-500 dark:text-gray-400">{formatDate(r.transaction_date)}</p>
+                            <p className="truncate text-sm font-bold text-gray-700 dark:text-mdark-text">{humanizeSource(r.deposit_account)}</p>
+                            <p className="text-xs text-gray-500 dark:text-mdark-text-secondary">{formatDate(r.transaction_date)}</p>
                           </div>
-                          <span className={`shrink-0 text-sm font-bold ${Number(r.capital_added || 0) < 0 ? "text-red-500 dark:text-red-400" : "text-green-600 dark:text-green-400"}`}>{formatSignedCurrency(r.capital_added)}</span>
+                          <span className={`shrink-0 text-sm font-bold ${Number(r.capital_added || 0) < 0 ? "text-red-500 dark:text-red-400" : "text-green-600 dark:text-mdark-accent"}`}>{formatSignedCurrency(r.capital_added)}</span>
                         </div>
-                        <div className="mt-2 flex items-center justify-between text-[11px] text-gray-500 dark:text-gray-400">
+                        <div className="mt-2 flex items-center justify-between text-[11px] text-gray-500 dark:text-mdark-text-secondary">
                           <span>Starting: {formatCurrency(r.starting_share_capital)}</span>
-                          <span>Ending: <span className="font-black text-gray-900 dark:text-white">{formatCurrency(r.ending_share_capital)}</span></span>
+                          <span>Ending: <span className="font-black text-gray-900 dark:text-mdark-text">{formatCurrency(r.ending_share_capital)}</span></span>
                         </div>
                       </div>
                     ))
                   )}
                   {!loadingCbu && !cbuError && cbuRows.length > 0 ? (
-                    <div className="px-4 py-3.5 bg-[#EAF1EB] dark:bg-green-900/30 text-member-green dark:text-green-400 flex items-center justify-between text-xs font-black">
+                    <div className="px-4 py-3.5 bg-[#EAF1EB] dark:bg-mdark-accent/15 text-member-green dark:text-mdark-accent flex items-center justify-between text-xs font-black">
                       <span>Totals: {formatSignedCurrency(cbuTotals.added)}</span>
                       <span>{formatCurrency(cbuRows[cbuRows.length - 1]?.ending_share_capital || 0)}</span>
                     </div>
