@@ -136,6 +136,7 @@ const Grocery = () => {
 
         {/* Page Content */}
         <main className="animate-page-in p-8 max-w-7xl mx-auto w-full">
+          <h1 className="text-2xl font-bold text-gray-900 mb-6">Grocery</h1>
 
           {/* Summary Cards */}
           <StatCardRow cols={3}>

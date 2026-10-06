@@ -132,6 +132,7 @@ const Secretary_Records = () => {
         />
 
         <main className="animate-page-in p-8">
+          <h1 className="text-2xl font-bold text-gray-900 mb-6">Membership Records</h1>
 
           <div className="bg-white w-full rounded-2xl m-auto mt-6 shadow-sm border border-gray-100 min-h-fit overflow-hidden">
             <TableToolbar

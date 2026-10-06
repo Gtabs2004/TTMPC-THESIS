@@ -394,6 +394,7 @@ const BookkeeperPayments = () => {
 
         <main className="animate-page-in p-8">
           <div className="flex items-center justify-between mb-6">
+            <h1 className="text-2xl font-bold text-gray-900">Loan Payments Confirmation</h1>
             <button
               type="button"
               onClick={fetchPendingPayments}
@@ -454,9 +455,7 @@ const BookkeeperPayments = () => {
             </TableToolbar>
 
             <div className="px-6 py-3">
-              <div className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-                Business Rules: Non-Member accounts are limited to Bonus loans. KOICA users are limited to KOICA or ABF loans.
-              </div>
+              
 
               {loading && (
                 <div className="mt-3 rounded border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700">

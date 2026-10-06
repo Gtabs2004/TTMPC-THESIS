@@ -359,6 +359,7 @@ const Cashier_Dashboard = () => {
 
         {/* DASHBOARD CONTENT */}
         <main className="animate-page-in p-8">
+          <h1 className="text-2xl font-bold text-gray-900 mb-6">Dashboard</h1>
 
           {/* KPI Cards */}
           <StatCardRow cols={4}>

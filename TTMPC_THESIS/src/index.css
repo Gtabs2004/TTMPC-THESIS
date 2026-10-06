@@ -28,6 +28,18 @@ body {
   font-size: 12px;
 }
 
+/* Fully hidden scrollbar — for internal panels (sidebar nav, etc.) that need
+ * to scroll but shouldn't show a visible scrollbar at all. Still scrolls
+ * normally via wheel/trackpad/touch/keyboard, just nothing is drawn for it.
+ * Firefox via scrollbar-width:none, everyone else via the hidden
+ * ::-webkit-scrollbar pseudo-element. */
+.scrollbar-hidden {
+  scrollbar-width: none;
+}
+.scrollbar-hidden::-webkit-scrollbar {
+  display: none;
+}
+
 /* Toast Notifications */
 @keyframes slideIn {
   from {

@@ -185,6 +185,7 @@ const Manage_Member = () => {
         <StaffTopbar portal="Bookkeeper" notifications={<LoanNotificationBell role="bookkeeper" />} />
 
         <main className="animate-page-in p-8">
+          <h1 className="text-2xl font-bold text-gray-900 mb-6">Members Profile</h1>
           {/* TABLE SECTION (title/count + search & filter toolbar + table share one card) */}
           <div
             className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm transition-shadow duration-150 ease-in-out hover:shadow-md"

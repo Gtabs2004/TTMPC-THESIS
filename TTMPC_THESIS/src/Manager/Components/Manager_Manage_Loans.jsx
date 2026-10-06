@@ -262,7 +262,8 @@ const Manager_Manage_Loans = () => {
         />
 
         <main className="animate-page-in p-8">
-          <div className="flex flex-col md:flex-row items-start md:items-center justify-end mb-8 gap-4">
+          <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-8 gap-4">
+            <h1 className="text-2xl font-bold text-gray-900">Manage Loans</h1>
             <button
               type="button"
               onClick={fetchLoans}

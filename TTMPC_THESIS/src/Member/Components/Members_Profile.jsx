@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, NavLink, useSearchParams } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
 import { useNotification } from "../../contex/NotificationContext";
-import { useTheme } from "../../contex/ThemeContext";
 import ConfirmDialog from "../../components/ConfirmDialog";
 import { supabase } from "../../supabaseClient";
 import { resolveMemberIdentity } from "../../utils/memberIdentity";
@@ -32,8 +31,6 @@ import {
   AlertCircle,
   Wallet,
   Phone,
-  Moon,
-  Sun,
   ChevronDown ,
   Scroll,
   Camera,
@@ -239,7 +236,6 @@ const Members_Profile = () => {
   const [resolvedMemberId, setResolvedMemberId] = useState('');
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [passwordSuccess, setPasswordSuccess] = useState('');
-  const { isDark, toggleTheme } = useTheme();
 
   // PDS form state
   const [activeTab, setActiveTab] = useState(PROFILE_SECTIONS[0].id);
@@ -767,11 +763,12 @@ const Members_Profile = () => {
            
             <LoanNotificationBell role="member" accentClass="bg-member-green" />
             <button
-              onClick={toggleTheme}
+              type="button"
+              onClick={() => { navigate('/members-profile'); navigate('/members-profile/settings'); }}
               className="p-2 rounded-md text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-              aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
+              aria-label="Settings"
             >
-              {isDark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+              <Settings className="w-5 h-5" />
             </button>
           </div>
         </header>

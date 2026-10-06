@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Bell, ChevronRight, KeyRound, Mail } from "lucide-react";
+import { ArrowLeft, Bell, ChevronRight, KeyRound, Mail, Moon, Sun } from "lucide-react";
 import { useNotification } from "../../contex/NotificationContext";
+import { useTheme } from "../../contex/ThemeContext";
 import { authHeaders } from "../../utils/authHeaders";
 import { apiErrorMessage } from "../../utils/apiError";
 import ChangePasswordModal from "./ChangePasswordModal";
@@ -65,6 +66,7 @@ const Switch = ({ checked, disabled, onChange, labelledBy }) => (
 export default function Member_Settings() {
   const navigate = useNavigate();
   const { addNotification } = useNotification();
+  const { isDark, toggleTheme } = useTheme();
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [prefs, setPrefs] = useState(null);
   const [prefsError, setPrefsError] = useState("");
@@ -140,6 +142,28 @@ export default function Member_Settings() {
             description="Update the email address linked to your TTMPC account."
             onClick={() => navigate("/members-profile/change-email")}
           />
+        </div>
+      </section>
+
+      <section className="mb-6">
+        <h2 className="text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2">Appearance</h2>
+        <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl shadow-sm overflow-hidden">
+          <div className="flex items-center justify-between gap-4 px-5 py-4">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-9 h-9 shrink-0 rounded-full bg-member-green/10 dark:bg-green-900/30 flex items-center justify-center">
+                {isDark ? (
+                  <Sun className="w-4 h-4 text-member-green dark:text-green-400" />
+                ) : (
+                  <Moon className="w-4 h-4 text-member-green dark:text-green-400" />
+                )}
+              </div>
+              <div className="min-w-0">
+                <p id="pref-dark-mode" className="text-sm font-bold text-gray-900 dark:text-white">Dark Mode</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">Switch between light and dark appearance.</p>
+              </div>
+            </div>
+            <Switch checked={isDark} onChange={toggleTheme} labelledBy="pref-dark-mode" />
+          </div>
         </div>
       </section>
 
