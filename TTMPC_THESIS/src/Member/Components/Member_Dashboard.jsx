@@ -110,18 +110,32 @@ const MemberDashboard = () => {
   const { session, signOut } = UserAuth();
   const navigate = useNavigate();
   const { openSettings } = useMemberSettings();
-  const [profile, setProfile] = useState(null);
-  const [migsMemberKey, setMigsMemberKey] = useState(null);
+
+  // Member pages have no shared layout (see StaffLayoutContext.jsx's sidebar
+  // comment for the staff-side equivalent of this), so every navigation back
+  // to the dashboard fully unmounts and remounts it — loadingProfile used to
+  // always start at `true`, so clicking Dashboard flashed the full loading
+  // skeleton every single time, even seconds after you'd already loaded it.
+  // memberDataCache's in-memory store (unlike the per-mount local state
+  // above) survives exactly that remount, so peek()ing it here — during the
+  // initial render, not inside an effect — lets a warm visit skip the flash
+  // entirely: real data paints on the very first frame instead of a skeleton
+  // that gets replaced a tick later. A cold visit (nothing cached yet) still
+  // falls through to the normal loading state, unchanged.
+  const _initialDashboardSnapshot = peek(`member-dashboard:${session?.user?.id || 'anon'}`);
+
+  const [profile, setProfile] = useState(_initialDashboardSnapshot?.profile ?? null);
+  const [migsMemberKey, setMigsMemberKey] = useState(_initialDashboardSnapshot?.migsMemberKey ?? null);
   const { data: migsLabel, status: migsLabelStatus } = useMigsLabel(migsMemberKey);
   const [isCalculatorOpen, setIsCalculatorOpen] = useState(false);
-  const [memberLoans, setMemberLoans] = useState([]);
-  const [recentTransactions, setRecentTransactions] = useState([]);
-  const [totalSavings, setTotalSavings] = useState(0);
-  const [nextDueDate, setNextDueDate] = useState(null);
-  const [loadingProfile, setLoadingProfile] = useState(true);
+  const [memberLoans, setMemberLoans] = useState(_initialDashboardSnapshot?.normalizedLoans ?? []);
+  const [recentTransactions, setRecentTransactions] = useState(_initialDashboardSnapshot?.latestTransactions ?? []);
+  const [totalSavings, setTotalSavings] = useState(_initialDashboardSnapshot?.savingsAccountTotal ?? 0);
+  const [nextDueDate, setNextDueDate] = useState(_initialDashboardSnapshot?.derivedNextDueDate ?? null);
+  const [loadingProfile, setLoadingProfile] = useState(!_initialDashboardSnapshot);
   const [profileError, setProfileError] = useState("");
-  const [avatarUrl, setAvatarUrl] = useState("");
-  const [isTemporaryAccount, setIsTemporaryAccount] = useState(false);
+  const [avatarUrl, setAvatarUrl] = useState(_initialDashboardSnapshot?.resolvedAvatarUrl ?? "");
+  const [isTemporaryAccount, setIsTemporaryAccount] = useState(_initialDashboardSnapshot?.isTemporary ?? false);
   const [memberLabel, setMemberLabel] = useState('Member');
 
   const menuItems = [

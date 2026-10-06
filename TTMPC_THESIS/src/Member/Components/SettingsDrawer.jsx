@@ -3,10 +3,10 @@ import { X, Bell, ChevronRight, KeyRound, Mail, Moon, Sun } from "lucide-react";
 import { useNotification } from "../../contex/NotificationContext";
 import { useTheme } from "../../contex/ThemeContext";
 import { useMemberSettings } from "../../contex/MemberSettingsContext";
-import { router } from "../../Router";
 import { authHeaders } from "../../utils/authHeaders";
 import { apiErrorMessage } from "../../utils/apiError";
 import ChangePasswordModal from "./ChangePasswordModal";
+import ChangeEmailModal from "./ChangeEmailModal";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 
@@ -77,6 +77,7 @@ export default function SettingsDrawer() {
   const { isDark, toggleTheme } = useTheme();
   const { isOpen, closeSettings } = useMemberSettings();
   const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [showEmailModal, setShowEmailModal] = useState(false);
   const [prefs, setPrefs] = useState(null);
   const [prefsError, setPrefsError] = useState("");
   const [savingKey, setSavingKey] = useState(null);
@@ -187,10 +188,7 @@ export default function SettingsDrawer() {
                 icon={Mail}
                 title="Change Email"
                 description="Update the email address linked to your TTMPC account."
-                onClick={() => {
-                  closeSettings();
-                  router.navigate("/members-profile/change-email");
-                }}
+                onClick={() => setShowEmailModal(true)}
               />
             </div>
           </section>
@@ -267,6 +265,15 @@ export default function SettingsDrawer() {
         onChanged={() => {
           setShowPasswordModal(false);
           addNotification("Password updated successfully.", "success");
+        }}
+      />
+
+      <ChangeEmailModal
+        open={showEmailModal}
+        onClose={() => setShowEmailModal(false)}
+        onChanged={() => {
+          setShowEmailModal(false);
+          addNotification("Email updated successfully.", "success");
         }}
       />
     </>

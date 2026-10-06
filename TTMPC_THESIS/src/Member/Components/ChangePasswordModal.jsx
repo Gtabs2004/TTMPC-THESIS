@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
 import { supabase } from "../../supabaseClient";
 import { invalidateSecurityStatus } from "../securityStatusCache";
+import { router } from "../../Router";
 import PasswordInput from "../../components/PasswordInput";
 import PasswordRequirements from "../../components/PasswordRequirements";
 import { getPasswordRequirementError } from "../../utils/passwordValidation";
@@ -23,7 +23,6 @@ const passwordAuthHeaders = async () => {
 // Mounted only while open, so every opening starts from a clean form.
 function PasswordForm({ onClose, onChanged, mustChange }) {
   const { session } = UserAuth();
-  const navigate = useNavigate();
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [currentPassword, setCurrentPassword] = useState("");
@@ -57,7 +56,7 @@ function PasswordForm({ onClose, onChanged, mustChange }) {
     const { error: reAuthError } = await supabase.auth.signInWithPassword({ email, password: newPassword });
     if (reAuthError) {
       await supabase.auth.signOut();
-      navigate("/memberlogin");
+      router.navigate("/memberlogin");
       return false;
     }
     return true;
