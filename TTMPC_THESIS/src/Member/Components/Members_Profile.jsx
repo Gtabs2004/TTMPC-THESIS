@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, NavLink, useSearchParams } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
 import { useNotification } from "../../contex/NotificationContext";
-import { useTheme } from "../../contex/ThemeContext";
+import { useMemberSettings } from "../../contex/MemberSettingsContext";
 import ConfirmDialog from "../../components/ConfirmDialog";
 import { supabase } from "../../supabaseClient";
 import { resolveMemberIdentity } from "../../utils/memberIdentity";
@@ -23,7 +23,6 @@ import {
   Contact2,
   ShieldCheck,
   Settings,
-  ChevronRight,
   Receipt,
   MapPin,
   HeartHandshake,
@@ -32,8 +31,6 @@ import {
   AlertCircle,
   Wallet,
   Phone,
-  Moon,
-  Sun,
   ChevronDown ,
   Scroll,
   Camera,
@@ -224,6 +221,7 @@ const styles = `
 const Members_Profile = () => {
   const { signOut } = UserAuth();
   const navigate = useNavigate();
+  const { openSettings } = useMemberSettings();
   const [searchParams, setSearchParams] = useSearchParams();
   const { addNotification } = useNotification();
 
@@ -239,7 +237,6 @@ const Members_Profile = () => {
   const [resolvedMemberId, setResolvedMemberId] = useState('');
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [passwordSuccess, setPasswordSuccess] = useState('');
-  const { isDark, toggleTheme } = useTheme();
 
   // PDS form state
   const [activeTab, setActiveTab] = useState(PROFILE_SECTIONS[0].id);
@@ -767,11 +764,12 @@ const Members_Profile = () => {
            
             <LoanNotificationBell role="member" accentClass="bg-member-green" />
             <button
-              onClick={toggleTheme}
+              type="button"
+              onClick={openSettings}
               className="p-2 rounded-md text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-              aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
+              aria-label="Settings"
             >
-              {isDark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+              <Settings className="w-5 h-5" />
             </button>
           </div>
         </header>
@@ -1071,17 +1069,6 @@ const Members_Profile = () => {
                   </div>
                 );
               })}
-
-              {/* Password, notifications and email live on the Settings page. */}
-              <button
-                type="button"
-                onClick={() => navigate('/members-profile/settings')}
-                className="w-full flex items-center gap-3 p-4 sm:p-5 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
-              >
-                <Settings className="w-5 h-5 text-gray-500" />
-                <span className="flex-1 text-left text-sm font-bold text-gray-700 dark:text-gray-300">Settings</span>
-                <ChevronRight className="w-4 h-4 text-gray-400" />
-              </button>
               
             </div>
           </div>

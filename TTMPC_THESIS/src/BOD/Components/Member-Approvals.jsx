@@ -443,6 +443,7 @@ const Member_Approvals = () => {
        <div className="flex-1 min-w-0 flex flex-col h-screen overflow-hidden">
         <StaffTopbar portal="BOD" notifications={<NotificationBell />} />
         <main className="animate-page-in flex-1 overflow-y-auto p-8">
+          <h1 className="text-2xl font-bold text-gray-900 mb-6">Member Approvals</h1>
           <StatCardRow cols={4}>
             <StatCard label="New This Month" value={stats.newThisMonth ?? "—"} icon={UserPlus} iconColor="text-[#2C7A3F]" />
             <StatCard

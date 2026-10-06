@@ -1,9 +1,9 @@
 import React, { useEffect, useMemo, useState, useRef } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
+import { useMemberSettings } from "../../contex/MemberSettingsContext";
 import { useRealtimeVersion } from "../../hooks/useRealtimeRefetch";
 import { RT } from "../../lib/realtimeSync";
 import { UserAuth } from "../../contex/AuthContext";
-import { useTheme } from "../../contex/ThemeContext";
 import { supabase } from "../../supabaseClient";
 import { resolveMemberIdentity } from "../../utils/memberIdentity";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
@@ -29,8 +29,7 @@ import {
   Calculator,
   ArrowRight,
   Receipt,
-  Moon,
-  Sun,
+  Settings,
   Scroll,
   ChevronLeft,
   ChevronRight,
@@ -91,7 +90,7 @@ const StatusBadge = ({ loan }) => {
 const Member_Loans = () => {
   const { signOut } = UserAuth();
   const navigate = useNavigate();
-  const { isDark, toggleTheme } = useTheme();
+  const { openSettings } = useMemberSettings();
   const [loans, setLoans] = useState([]);
   const [payments, setPayments] = useState([]);
   const [loadingLoans, setLoadingLoans] = useState(true);
@@ -302,11 +301,12 @@ const Member_Loans = () => {
           <div className="flex items-center gap-2 sm:gap-4">
             <LoanNotificationBell role="member" accentClass="bg-member-green" />
             <button
-              onClick={toggleTheme}
+              type="button"
+              onClick={openSettings}
               className="p-2 rounded-md text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-              aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
+              aria-label="Settings"
             >
-              {isDark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+              <Settings className="w-5 h-5" />
             </button>
           </div>
         </header>

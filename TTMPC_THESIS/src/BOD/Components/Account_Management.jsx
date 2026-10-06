@@ -601,6 +601,7 @@ const Account_Management = () => {
         <StaffTopbar portal="BOD" notifications={<NotificationBell />} />
 
         <main className="animate-page-in flex-1 overflow-y-auto p-8">
+          <h1 className="text-2xl font-bold text-gray-900 mb-6">Account Management</h1>
 
           {isAdmin === null ? (
             <p className="mt-6 text-sm text-gray-400">Loading…</p>

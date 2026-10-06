@@ -32,6 +32,7 @@ const Audit_Log = () => {
         <StaffTopbar portal="BOD" notifications={<NotificationBell />} />
 
         <main className="animate-page-in flex-1 overflow-y-auto p-8">
+          <h1 className="text-2xl font-bold text-gray-900 mb-6">Audit Log</h1>
           <AuditLogViewer
             showActorRoleFilter
             onError={(msg) => addNotification(msg, "error")}
