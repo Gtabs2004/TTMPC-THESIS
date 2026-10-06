@@ -6015,6 +6015,66 @@ def review_renewal_override_request(
     return {"success": True, "data": row}
 
 
+# ============================================================================
+# SECTION: Member Notification Preferences
+# Member Settings > Notifications. Only the optional loan status emails can be
+# turned off; security codes always send and the in-app bell is unaffected.
+# Enforced in services/notification_service.py. Schema:
+# member_notification_preferences.sql. Identity comes from the verified JWT.
+# ============================================================================
+
+NOTIFICATION_PREFERENCE_FIELDS = ("loan_review_emails", "loan_release_emails")
+
+
+class NotificationPreferencesUpdate(BaseModel):
+    loan_review_emails: bool
+    loan_release_emails: bool
+
+
+@app.get("/api/member/notification-preferences")
+def get_member_notification_preferences(current_user: dict = _Depends(_get_current_user)):
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+    member_id = _override_account(current_user)["member_id"]
+    try:
+        resp = (
+            supabase.table("member_notification_preferences")
+            .select(",".join(NOTIFICATION_PREFERENCE_FIELDS))
+            .eq("member_id", member_id)
+            .limit(1)
+            .execute()
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Could not load notification settings: {exc}")
+    row = (resp.data or [None])[0] or {}
+    # No row yet means every email is on.
+    return {
+        "success": True,
+        "data": {field: row.get(field) is not False for field in NOTIFICATION_PREFERENCE_FIELDS},
+    }
+
+
+@app.put("/api/member/notification-preferences")
+def update_member_notification_preferences(
+    body: NotificationPreferencesUpdate,
+    current_user: dict = _Depends(_get_current_user),
+):
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+    member_id = _override_account(current_user)["member_id"]
+    record = {
+        "member_id": member_id,
+        "loan_review_emails": body.loan_review_emails,
+        "loan_release_emails": body.loan_release_emails,
+        "updated_at": datetime.utcnow().isoformat() + "Z",
+    }
+    try:
+        supabase.table("member_notification_preferences").upsert(record, on_conflict="member_id").execute()
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Could not save notification settings: {exc}")
+    return {"success": True, "data": {field: record[field] for field in NOTIFICATION_PREFERENCE_FIELDS}}
+
+
 @app.get("/api/member/{member_key}/debt-capacity")
 async def get_member_debt_capacity(member_key: str):
     """Compute maximum borrowable amount per loan type for a member.
