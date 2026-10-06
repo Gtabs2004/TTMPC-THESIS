@@ -46,7 +46,7 @@ const selectorOptions = [
     label: "Bonus Loan",
     path: "/Bonus_Loan",
     icon: Gift,
-    tone: "bg-[#F0FDF4] text-green-600 dark:bg-green-900/30 dark:text-green-400",
+    tone: "bg-[#F0FDF4] text-green-600 dark:bg-mdark-accent/15 dark:text-mdark-accent",
   },
 ];
 
@@ -245,25 +245,25 @@ const Member_ApplyLoans = () => {
   };
 
   return (
-    <div className="relative flex h-screen overflow-hidden bg-[#F8F9FA] dark:bg-gray-950">
+    <div className="relative flex h-screen overflow-hidden bg-[#F8F9FA] dark:bg-mdark-bg">
       <style>{styles}</style>
       {/* Sidebar — desktop only. Mobile navigation is MemberMobileNav's fixed
           bottom bar, rendered once by MemberLayout for every Member route;
           this drawer duplicated the same links via a hamburger toggle. */}
       <aside
-        className="hidden lg:flex fixed inset-y-0 left-0 z-30 w-64 bg-white p-4 flex-col border-r border-gray-200 dark:bg-gray-900 dark:border-gray-800"
+        className="hidden lg:flex fixed inset-y-0 left-0 z-30 w-64 bg-white p-4 flex-col border-r border-gray-200 dark:bg-mdark-nav dark:border-mdark-border"
       >
         <div className="flex flex-row items-start gap-2 mb-6">
           <img src="/img/ttmpc logo.png" alt="Logo" className="h-12 w-auto" />
           <div className="flex flex-col">
             <h1 className="text-xl font-bold text-primary">TTMPC</h1>
-            <p className="text-[10px] uppercase tracking-wider text-gray-500 dark:text-gray-400 font-bold">
+            <p className="text-[10px] uppercase tracking-wider text-gray-500 dark:text-mdark-text-secondary font-bold">
               Members Portal
             </p>
           </div>
         </div>
    
-        <hr className="w-full border-gray-100 dark:border-gray-800 mb-6" />
+        <hr className="w-full border-gray-100 dark:border-mdark-border mb-6" />
    
         <nav className="flex grow flex-col gap-2 text-sm">
           {(() => {
@@ -287,8 +287,8 @@ const Member_ApplyLoans = () => {
                   className={({ isActive }) =>
                     `flex items-center gap-3 p-2.5 rounded-lg transition-colors ${
                       isActive
-                        ? 'bg-[#EAF1EB] text-member-green font-bold dark:bg-green-900/30 dark:text-green-400'
-                        : 'text-gray-600 hover:bg-gray-50 hover:text-member-green font-medium dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-green-400'
+                        ? 'bg-[#EAF1EB] text-member-green font-bold dark:bg-mdark-accent/15 dark:text-mdark-accent'
+                        : 'text-gray-600 hover:bg-gray-50 hover:text-member-green font-medium dark:text-mdark-text-secondary dark:hover:bg-mdark-elevated dark:hover:text-mdark-accent'
                     }`
                   }
                 >
@@ -306,7 +306,7 @@ const Member_ApplyLoans = () => {
    
         <button
           onClick={handleSignOut}
-          className="mt-auto w-full rounded-lg p-2.5 text-sm bg-member-green hover:bg-[#154718] text-white font-bold transition-colors"
+          className="mt-auto w-full rounded-lg p-2.5 text-sm bg-member-green hover:bg-[#154718] dark:bg-mdark-accent dark:hover:bg-mdark-accent/90 text-white font-bold transition-colors"
         >
           Sign out
         </button>
@@ -316,18 +316,18 @@ const Member_ApplyLoans = () => {
       {/* Main Content */}
       <div className="min-w-0 flex-1 flex flex-col overflow-hidden lg:ml-64">
         {/* Header */}
-        <header className="bg-white dark:bg-gray-900 h-16 shrink-0 shadow-sm flex items-center justify-between px-4 sm:px-6 lg:px-8 z-10 border-b border-gray-100 dark:border-gray-800">
+        <header className="bg-white dark:bg-mdark-nav h-16 shrink-0 shadow-sm flex items-center justify-between px-4 sm:px-6 lg:px-8 z-10 border-b border-gray-100 dark:border-mdark-border">
           <div className="flex items-center gap-2 sm:gap-3 pl-2 sm:pl-0">
-            <h1 className="text-base sm:text-lg font-extrabold text-[#1a4a2f] dark:text-green-400 lg:hidden">Apply for Loans</h1>
+            <h1 className="text-base sm:text-lg font-extrabold text-[#1a4a2f] dark:text-mdark-accent lg:hidden">Apply for Loans</h1>
           </div>
 
           <div className="flex items-center gap-2 sm:gap-4">
             
-            <LoanNotificationBell role="member" accentClass="bg-member-green" />
+            <LoanNotificationBell role="member" accentClass="bg-member-green dark:bg-mdark-accent" />
             <button
               type="button"
               onClick={openSettings}
-              className="p-2 rounded-md text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+              className="p-2 rounded-md text-gray-500 dark:text-mdark-text-secondary hover:bg-gray-100 dark:hover:bg-mdark-elevated transition-colors"
               aria-label="Settings"
             >
               <Settings className="w-5 h-5" />
@@ -337,19 +337,19 @@ const Member_ApplyLoans = () => {
 
         {/* Scrollable Page Content */}
         <main className="animate-page-in p-3 sm:p-6 lg:p-8 overflow-y-auto pb-28 lg:pb-0">
-          <h1 className="hidden lg:block font-extrabold text-[#1a4a2f] dark:text-green-400 text-2xl mb-6 lg:mb-8">Apply for Loans</h1>
+          <h1 className="hidden lg:block font-extrabold text-[#1a4a2f] dark:text-mdark-accent text-2xl mb-6 lg:mb-8">Apply for Loans</h1>
 
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 sm:p-6 dark:bg-gray-900 dark:border-gray-800">
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 sm:p-6 dark:bg-mdark-card dark:border-mdark-border">
             <div className="flex flex-col gap-3 mb-5 sm:flex-row sm:items-center sm:justify-between">
               <div className="min-w-0">
-                <h3 className="text-lg font-bold text-gray-900 dark:text-white">Choose Loan Type</h3>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Select your loan type to continue with the application form.</p>
+                <h3 className="text-lg font-bold text-gray-900 dark:text-mdark-text">Choose Loan Type</h3>
+                <p className="text-xs text-gray-500 dark:text-mdark-text-secondary mt-1">Select your loan type to continue with the application form.</p>
               </div>
               <div className="w-full sm:w-auto">
                 <button
                   type="button"
                   onClick={() => setIsCalculatorOpen(true)}
-                  className="inline-flex w-full items-center justify-center gap-1.5 rounded-full border border-member-green px-3 py-2 text-[11px] font-bold text-member-green hover:bg-[#EAF1EB] dark:border-green-500 dark:text-green-400 dark:hover:bg-green-900/30 sm:w-auto sm:py-1"
+                  className="inline-flex w-full items-center justify-center gap-1.5 rounded-full border border-member-green px-3 py-2 text-[11px] font-bold text-member-green hover:bg-[#EAF1EB] dark:border-mdark-accent dark:text-mdark-accent dark:hover:bg-mdark-accent/15 sm:w-auto sm:py-1"
                 >
                   <Calculator className="w-3.5 h-3.5" /> Loan Calculator
                 </button>
@@ -434,7 +434,7 @@ const Member_ApplyLoans = () => {
                   // inside another button.
                   <div
                     key={item.key}
-                    className={`min-h-36 bg-white rounded-2xl flex flex-col items-center justify-center shadow-sm border border-slate-100 transition-all group p-4 sm:p-6 dark:bg-gray-800 dark:border-gray-700 ${
+                    className={`min-h-36 bg-white rounded-2xl flex flex-col items-center justify-center shadow-sm border border-slate-100 transition-all group p-4 sm:p-6 dark:bg-mdark-elevated dark:border-mdark-border ${
                       disabled ? "opacity-75" : "hover:shadow-lg hover:border-[#A0D284]"
                     }`}
                   >
@@ -454,21 +454,21 @@ const Member_ApplyLoans = () => {
                       <div className={`${item.tone} p-3 sm:p-4 rounded-full mb-2 sm:mb-3 ${disabled ? "" : "group-hover:scale-110"} transition-transform duration-300`}>
                         <Icon size={28} strokeWidth={2} className="sm:h-8 sm:w-8" />
                       </div>
-                      <h1 className="font-bold text-slate-800 text-sm text-center dark:text-gray-200">{item.label}</h1>
+                      <h1 className="font-bold text-slate-800 text-sm text-center dark:text-mdark-text">{item.label}</h1>
                       {disabled && (
                         <span className="mt-2 text-[10px] font-bold uppercase tracking-wider text-red-600 dark:text-red-400">
                           {!eligibilityReady ? 'Checking...' : bonusClosed ? 'Window closed' : 'Locked'}
                         </span>
                       )}
                       {item.key === 'bonus' && !bonusMonthOpen && bonusWindowOverride && (
-                        <span className="mt-2 text-[10px] font-bold uppercase tracking-wider text-member-green dark:text-green-400">
+                        <span className="mt-2 text-[10px] font-bold uppercase tracking-wider text-member-green dark:text-mdark-accent">
                           Opened by Bookkeeper
                         </span>
                       )}
                     </button>
 
                     {canRequestWindow && (
-                      <div className="mt-3 w-full border-t border-slate-100 pt-3 text-center dark:border-gray-700">
+                      <div className="mt-3 w-full border-t border-slate-100 pt-3 text-center dark:border-mdark-border">
                         {windowPending ? (
                           <>
                             <p className="text-[10px] font-semibold text-amber-700 dark:text-amber-300">
@@ -478,7 +478,7 @@ const Member_ApplyLoans = () => {
                               type="button"
                               onClick={() => handleCancelOverride(latestWindowRequest.id)}
                               disabled={cancellingId === latestWindowRequest.id}
-                              className="mt-1.5 rounded-md border border-slate-300 px-2 py-1 text-[11px] font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
+                              className="mt-1.5 rounded-md border border-slate-300 px-2 py-1 text-[11px] font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-50 dark:border-mdark-border dark:text-mdark-text-secondary dark:hover:bg-mdark-elevated"
                             >
                               {cancellingId === latestWindowRequest.id ? "Cancelling..." : "Cancel request"}
                             </button>
@@ -493,7 +493,7 @@ const Member_ApplyLoans = () => {
                             <button
                               type="button"
                               onClick={() => openOverrideModal("bonus", "bonus_window")}
-                              className="rounded-md border border-[#2C7A3F] px-2.5 py-1 text-[11px] font-bold text-[#2C7A3F] hover:bg-[#EAF6DF] dark:border-green-500 dark:text-green-400 dark:hover:bg-green-900/30"
+                              className="rounded-md border border-[#2C7A3F] px-2.5 py-1 text-[11px] font-bold text-[#2C7A3F] hover:bg-[#EAF6DF] dark:border-mdark-accent dark:text-mdark-accent dark:hover:bg-mdark-accent/15"
                             >
                               {windowDeclined ? "Request again" : "Request Window Override"}
                             </button>
@@ -503,7 +503,7 @@ const Member_ApplyLoans = () => {
                     )}
 
                     {canRequestOverride && (
-                      <div className="mt-3 w-full border-t border-slate-100 pt-3 text-center dark:border-gray-700">
+                      <div className="mt-3 w-full border-t border-slate-100 pt-3 text-center dark:border-mdark-border">
                         {isPending ? (
                           <>
                             <p className="text-[10px] font-semibold text-amber-700 dark:text-amber-300">
@@ -513,7 +513,7 @@ const Member_ApplyLoans = () => {
                               type="button"
                               onClick={() => handleCancelOverride(request.id)}
                               disabled={cancellingId === request.id}
-                              className="mt-1.5 rounded-md border border-slate-300 px-2 py-1 text-[11px] font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
+                              className="mt-1.5 rounded-md border border-slate-300 px-2 py-1 text-[11px] font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-50 dark:border-mdark-border dark:text-mdark-text-secondary dark:hover:bg-mdark-elevated"
                             >
                               {cancellingId === request.id ? "Cancelling..." : "Cancel request"}
                             </button>
@@ -528,7 +528,7 @@ const Member_ApplyLoans = () => {
                             <button
                               type="button"
                               onClick={() => openOverrideModal(item.key, "six_month")}
-                              className="rounded-md border border-[#2C7A3F] px-2.5 py-1 text-[11px] font-bold text-[#2C7A3F] hover:bg-[#EAF6DF] dark:border-green-500 dark:text-green-400 dark:hover:bg-green-900/30"
+                              className="rounded-md border border-[#2C7A3F] px-2.5 py-1 text-[11px] font-bold text-[#2C7A3F] hover:bg-[#EAF6DF] dark:border-mdark-accent dark:text-mdark-accent dark:hover:bg-mdark-accent/15"
                             >
                               {isDeclined ? "Request again" : "Request Early Renewal"}
                             </button>

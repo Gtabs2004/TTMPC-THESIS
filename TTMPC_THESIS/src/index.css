@@ -8,10 +8,34 @@
   --color-primary: #389734;
   --color-primary-deep: #2e7a2a;
   /* Member Green — scoped to the Member self-service portal only (DESIGN.md
-   * "Member Portal Accent"). Always pair with member-green-dark in dark mode;
-   * never use bare for text/icons on dark surfaces (1.9–2.6:1 contrast). */
+   * "Member Portal Accent"), light mode only. */
   --color-member-green: #1d6021;
+  /* Superseded by --color-mdark-accent below (the real TTMPC green, #66B538,
+   * tuned for dark surfaces) — kept defined in case anything external still
+   * points at it, but nothing in this codebase references it anymore. */
   --color-member-green-dark: #4ade80;
+
+  /* Member Portal dark-mode hierarchy — scoped to the Member self-service
+   * portal only. Staff portals have no dark-mode styling at all today and
+   * must never reference these tokens; the handful of components shared
+   * between Member and Staff (ConfirmDialog, TableStateRow,
+   * LoanNotificationBell, PasswordRequirements, PwaInstallPrompt,
+   * IdleSessionWarning) deliberately stay on generic dark:gray-* Tailwind
+   * classes rather than these, so a staff page can never pick up a
+   * Member-tuned color even in the edge case where .dark ends up applied
+   * there (the toggle persists via localStorage, not per-tab sessionStorage).
+   * Replaces the old flat convention of reusing dark:bg-gray-900 for the
+   * page background, the sidebar, AND cards interchangeably — this gives
+   * each surface its own step instead. */
+  --color-mdark-bg: #121416;             /* page background */
+  --color-mdark-nav: #0D0F10;            /* sidebar / mobile nav bar */
+  --color-mdark-card: #181B1D;           /* cards, panels, table rows */
+  --color-mdark-elevated: #1E2224;       /* modals, dropdowns, popovers */
+  --color-mdark-border: #2A2F32;         /* borders, dividers */
+  --color-mdark-text: #F1F3F2;           /* primary text */
+  --color-mdark-text-secondary: #A7AEAA; /* secondary text */
+  --color-mdark-text-muted: #737B76;     /* muted / placeholder text */
+  --color-mdark-accent: #66B538;         /* TTMPC green, dark-mode accent */
 }
 
 html{

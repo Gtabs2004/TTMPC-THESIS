@@ -149,8 +149,8 @@ const RECENT_PAYMENTS = 5;
 
 const DetailRow = ({ label, children, emphasis = false }) => (
   <div className="flex items-center justify-between gap-3 text-sm">
-    <span className="text-gray-600 dark:text-gray-400 font-medium">{label}</span>
-    <span className={`text-right ${emphasis ? "font-extrabold text-member-green dark:text-green-400" : "font-bold text-gray-900 dark:text-white"}`}>
+    <span className="text-gray-600 dark:text-mdark-text-secondary font-medium">{label}</span>
+    <span className={`text-right ${emphasis ? "font-extrabold text-member-green dark:text-mdark-accent" : "font-bold text-gray-900 dark:text-mdark-text"}`}>
       {children}
     </span>
   </div>
@@ -167,9 +167,9 @@ function DiminishingBreakdown({ loan }) {
   const monthlyPrincipal = firstRow.principal;
 
   return (
-    <div className="rounded-xl border border-gray-100 dark:border-gray-700 bg-[#FAF9FB] dark:bg-gray-800 p-4">
-      <p className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">How Your Payments Are Computed</p>
-      <p className="mt-2 text-xs text-gray-600 dark:text-gray-300">
+    <div className="rounded-xl border border-gray-100 dark:border-mdark-border bg-[#FAF9FB] dark:bg-mdark-elevated p-4">
+      <p className="text-[10px] font-bold text-gray-500 dark:text-mdark-text-secondary uppercase tracking-wider">How Your Payments Are Computed</p>
+      <p className="mt-2 text-xs text-gray-600 dark:text-mdark-text-secondary">
         This is a <span className="font-bold">diminishing</span> loan. You pay the same principal every month, but interest
         is charged only on your remaining balance &mdash; so your payment gets <span className="font-bold">smaller each month</span>.
       </p>
@@ -179,44 +179,44 @@ function DiminishingBreakdown({ loan }) {
         </p>
       ) : null}
 
-      <div className="mt-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-3">
-        <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+      <div className="mt-3 rounded-lg border border-gray-200 dark:border-mdark-border bg-white dark:bg-mdark-card p-3">
+        <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500 dark:text-mdark-text-secondary">
           Where {formatCurrency(firstRow.total)} comes from
         </p>
-        <ol className="mt-2 space-y-2 text-[11px] text-gray-700 dark:text-gray-300">
+        <ol className="mt-2 space-y-2 text-[11px] text-gray-700 dark:text-mdark-text-secondary">
           <li>
             <span className="font-bold">1. Principal per month</span> &mdash; your loan split evenly over the term.
-            <div className="mt-0.5 font-mono text-[11px] text-gray-900 dark:text-white">
+            <div className="mt-0.5 font-mono text-[11px] text-gray-900 dark:text-mdark-text">
               {formatPlain(loan.principal)} &divide; {loan.term} = {formatPlain(monthlyPrincipal)}
             </div>
           </li>
           <li>
             <span className="font-bold">2. Balance after that payment</span> &mdash; interest is charged on what remains.
-            <div className="mt-0.5 font-mono text-[11px] text-gray-900 dark:text-white">
+            <div className="mt-0.5 font-mono text-[11px] text-gray-900 dark:text-mdark-text">
               {formatPlain(loan.principal)} &minus; {formatPlain(monthlyPrincipal)} = {formatPlain(firstRow.balance)}
             </div>
           </li>
           <li>
             <span className="font-bold">3. Interest for month 1</span> &mdash; {ratePercentLabel} of that balance.
-            <div className="mt-0.5 font-mono text-[11px] text-gray-900 dark:text-white">
+            <div className="mt-0.5 font-mono text-[11px] text-gray-900 dark:text-mdark-text">
               {formatPlain(firstRow.balance)} &times; {ratePercentLabel} = {formatPlain(firstRow.interest)}
             </div>
           </li>
           <li>
             <span className="font-bold">4. First payment</span> &mdash; principal plus interest.
-            <div className="mt-0.5 font-mono text-[11px] font-bold text-member-green dark:text-green-400">
+            <div className="mt-0.5 font-mono text-[11px] font-bold text-member-green dark:text-mdark-accent">
               {formatPlain(monthlyPrincipal)} + {formatPlain(firstRow.interest)} = {formatPlain(firstRow.total)}
             </div>
           </li>
         </ol>
-        <p className="mt-2 border-t border-gray-100 dark:border-gray-700 pt-2 text-[11px] text-gray-600 dark:text-gray-300">
+        <p className="mt-2 border-t border-gray-100 dark:border-mdark-border pt-2 text-[11px] text-gray-600 dark:text-mdark-text-secondary">
           Every following month repeats steps 2&ndash;4 on the smaller balance, which is why the payment keeps going down.
         </p>
       </div>
       <div className="mt-3 overflow-x-auto">
         <table className="w-full min-w-[560px] text-xs">
           <thead>
-            <tr className="text-left text-[10px] uppercase tracking-wider text-gray-500 dark:text-gray-400">
+            <tr className="text-left text-[10px] uppercase tracking-wider text-gray-500 dark:text-mdark-text-secondary">
               <th className="py-2 pr-2 font-bold">Mo</th>
               <th className="py-2 px-2 font-bold text-right">Principal</th>
               <th className="py-2 px-2 font-bold text-right">Interest</th>
@@ -225,13 +225,13 @@ function DiminishingBreakdown({ loan }) {
               <th className="py-2 pl-2 font-bold text-right">Balance</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+          <tbody className="divide-y divide-gray-200 dark:divide-mdark-border">
             {rows.map((row) => (
-              <tr key={row.key} className={row.isPaid ? "text-gray-400 dark:text-gray-500" : "text-gray-900 dark:text-white"}>
+              <tr key={row.key} className={row.isPaid ? "text-gray-400 dark:text-mdark-text-muted" : "text-gray-900 dark:text-mdark-text"}>
                 <td className="py-2 pr-2 font-bold">{row.installmentNo}</td>
                 <td className="py-2 px-2 text-right font-mono">{formatCurrency(row.principal)}</td>
                 <td className="py-2 px-2 text-right font-mono">{formatCurrency(row.interest)}</td>
-                <td className="py-2 px-2 font-mono text-[10px] text-gray-500 dark:text-gray-400 whitespace-nowrap">
+                <td className="py-2 px-2 font-mono text-[10px] text-gray-500 dark:text-mdark-text-secondary whitespace-nowrap">
                   {formatPlain(row.balance)} &times; {ratePercentLabel}
                 </td>
                 <td className="py-2 px-2 text-right font-mono font-bold">{formatCurrency(row.total)}</td>
@@ -240,18 +240,18 @@ function DiminishingBreakdown({ loan }) {
             ))}
           </tbody>
           <tfoot>
-            <tr className="border-t-2 border-gray-300 dark:border-gray-600 font-bold text-gray-900 dark:text-white">
+            <tr className="border-t-2 border-gray-300 dark:border-mdark-border font-bold text-gray-900 dark:text-mdark-text">
               <td className="py-2 pr-2 text-[10px] uppercase tracking-wider">Total</td>
               <td className="py-2 px-2 text-right font-mono">{formatCurrency(sumBy(rows, "principal"))}</td>
-              <td className="py-2 px-2 text-right font-mono text-member-green dark:text-green-400">{formatCurrency(sumBy(rows, "interest"))}</td>
-              <td className="py-2 px-2 text-[10px] font-medium text-gray-500 dark:text-gray-400">sum of column</td>
+              <td className="py-2 px-2 text-right font-mono text-member-green dark:text-mdark-accent">{formatCurrency(sumBy(rows, "interest"))}</td>
+              <td className="py-2 px-2 text-[10px] font-medium text-gray-500 dark:text-mdark-text-secondary">sum of column</td>
               <td className="py-2 px-2 text-right font-mono">{formatCurrency(sumBy(rows, "total"))}</td>
               <td className="py-2 pl-2 text-right font-mono">{formatCurrency(0)}</td>
             </tr>
           </tfoot>
         </table>
       </div>
-      <p className="mt-3 text-[11px] text-gray-500 dark:text-gray-400">
+      <p className="mt-3 text-[11px] text-gray-500 dark:text-mdark-text-secondary">
         Total interest is the sum of the interest column &mdash; not the first payment multiplied by the term, because every
         payment differs.
       </p>
@@ -261,26 +261,26 @@ function DiminishingBreakdown({ loan }) {
 
 function AddOnBreakdown({ loan }) {
   return (
-    <div className="rounded-xl border border-gray-100 dark:border-gray-700 bg-[#FAF9FB] dark:bg-gray-800 p-4">
-      <p className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">How Total Interest is Computed</p>
+    <div className="rounded-xl border border-gray-100 dark:border-mdark-border bg-[#FAF9FB] dark:bg-mdark-elevated p-4">
+      <p className="text-[10px] font-bold text-gray-500 dark:text-mdark-text-secondary uppercase tracking-wider mb-3">How Total Interest is Computed</p>
       <div className="space-y-2">
         <div className="flex flex-col gap-1 text-xs sm:flex-row sm:items-center sm:justify-between">
-          <span className="text-gray-500 dark:text-gray-400">Monthly Amortization × Term</span>
-          <span className="break-words font-bold text-gray-900 dark:text-white font-mono sm:text-right">
+          <span className="text-gray-500 dark:text-mdark-text-secondary">Monthly Amortization × Term</span>
+          <span className="break-words font-bold text-gray-900 dark:text-mdark-text font-mono sm:text-right">
             {formatCurrency(loan.monthly_amortization)} × {loan.term} mo
           </span>
         </div>
         <div className="flex items-center justify-between gap-3 text-xs">
-          <span className="text-gray-500 dark:text-gray-400">= Total Payable</span>
-          <span className="shrink-0 font-bold text-gray-900 dark:text-white">{formatCurrency(loan.total_payable)}</span>
+          <span className="text-gray-500 dark:text-mdark-text-secondary">= Total Payable</span>
+          <span className="shrink-0 font-bold text-gray-900 dark:text-mdark-text">{formatCurrency(loan.total_payable)}</span>
         </div>
         <div className="flex items-center justify-between gap-3 text-xs">
-          <span className="text-gray-500 dark:text-gray-400">− Principal (Loan Amount)</span>
-          <span className="shrink-0 font-bold text-gray-900 dark:text-white">− {formatCurrency(loan.principal)}</span>
+          <span className="text-gray-500 dark:text-mdark-text-secondary">− Principal (Loan Amount)</span>
+          <span className="shrink-0 font-bold text-gray-900 dark:text-mdark-text">− {formatCurrency(loan.principal)}</span>
         </div>
-        <div className="border-t border-gray-200 dark:border-gray-600 pt-2 flex items-center justify-between gap-3">
-          <span className="text-xs font-bold text-gray-700 dark:text-gray-300">= Total Interest</span>
-          <span className="text-sm font-extrabold text-member-green dark:text-green-400">{formatCurrency(loan.total_interest)}</span>
+        <div className="border-t border-gray-200 dark:border-mdark-border pt-2 flex items-center justify-between gap-3">
+          <span className="text-xs font-bold text-gray-700 dark:text-mdark-text-secondary">= Total Interest</span>
+          <span className="text-sm font-extrabold text-member-green dark:text-mdark-accent">{formatCurrency(loan.total_interest)}</span>
         </div>
       </div>
     </div>
@@ -300,20 +300,20 @@ const installmentAmount = (sched, monthlyAmortization) => {
 };
 
 const StatTile = ({ label, children }) => (
-  <div className="rounded-xl bg-[#FAF9FB] dark:bg-gray-800 border border-gray-100 dark:border-gray-700 px-3 py-2.5 min-w-0">
-    <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">{label}</p>
-    <p className="mt-0.5 truncate text-sm font-extrabold text-gray-900 dark:text-white">{children}</p>
+  <div className="rounded-xl bg-[#FAF9FB] dark:bg-mdark-elevated border border-gray-100 dark:border-mdark-border px-3 py-2.5 min-w-0">
+    <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500 dark:text-mdark-text-secondary">{label}</p>
+    <p className="mt-0.5 truncate text-sm font-extrabold text-gray-900 dark:text-mdark-text">{children}</p>
   </div>
 );
 
 const stageCircleClass = (isFinalTrophy, isComplete, isActive) =>
   isFinalTrophy
-    ? "bg-member-green text-white ring-4 ring-member-green/20"
+    ? "bg-member-green text-white ring-4 ring-member-green/20 dark:bg-mdark-accent dark:ring-mdark-accent/20"
     : isComplete && !isActive
-      ? "bg-member-green text-white"
+      ? "bg-member-green text-white dark:bg-mdark-accent"
       : isActive
         ? "bg-[#66B53B] text-white ring-4 ring-[#66B53B]/20"
-        : "bg-gray-100 dark:bg-gray-700 text-gray-400";
+        : "bg-gray-100 dark:bg-mdark-elevated text-gray-400";
 
 const StageIconFor = ({ stage, isFinalTrophy, isComplete, isActive, size = "w-4 h-4" }) => {
   if (isFinalTrophy) return <Trophy className={size} />;
@@ -324,15 +324,15 @@ const StageIconFor = ({ stage, isFinalTrophy, isComplete, isActive, size = "w-4 
 
 const BreakdownGroup = ({ title, children }) => (
   <div>
-    <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500">{title}</p>
+    <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-gray-400 dark:text-mdark-text-muted">{title}</p>
     <div className="space-y-2">{children}</div>
   </div>
 );
 
 const TotalRow = ({ label, children, emphasis = false }) => (
-  <div className="flex items-center justify-between gap-3 border-t border-dashed border-gray-200 dark:border-gray-700 pt-2 text-sm">
-    <span className="font-bold text-gray-800 dark:text-gray-200">{label}</span>
-    <span className={`text-right font-extrabold ${emphasis ? "text-member-green dark:text-green-400" : "text-gray-900 dark:text-white"}`}>
+  <div className="flex items-center justify-between gap-3 border-t border-dashed border-gray-200 dark:border-mdark-border pt-2 text-sm">
+    <span className="font-bold text-gray-800 dark:text-mdark-text">{label}</span>
+    <span className={`text-right font-extrabold ${emphasis ? "text-member-green dark:text-mdark-accent" : "text-gray-900 dark:text-mdark-text"}`}>
       {children}
     </span>
   </div>
@@ -347,15 +347,15 @@ const Collapsible = ({ icon, title, open, onToggle, children }) => {
         type="button"
         onClick={onToggle}
         aria-expanded={open}
-        className="w-full px-4 sm:px-5 py-3.5 sm:py-4 flex items-center justify-between gap-3 text-left hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+        className="w-full px-4 sm:px-5 py-3.5 sm:py-4 flex items-center justify-between gap-3 text-left hover:bg-gray-50 dark:hover:bg-mdark-elevated transition-colors"
       >
         <span className="flex items-center gap-2 min-w-0">
-          <Icon className="w-4 h-4 shrink-0 text-member-green dark:text-green-400" />
-          <span className="text-sm sm:text-base font-extrabold text-gray-900 dark:text-white">{title}</span>
+          <Icon className="w-4 h-4 shrink-0 text-member-green dark:text-mdark-accent" />
+          <span className="text-sm sm:text-base font-extrabold text-gray-900 dark:text-mdark-text">{title}</span>
         </span>
         {open ? <ChevronUp className="w-4 h-4 shrink-0 text-gray-500" /> : <ChevronDown className="w-4 h-4 shrink-0 text-gray-500" />}
       </button>
-      {open ? <div className="border-t border-gray-100 dark:border-gray-800">{children}</div> : null}
+      {open ? <div className="border-t border-gray-100 dark:border-mdark-border">{children}</div> : null}
     </div>
   );
 };
@@ -399,13 +399,13 @@ export default function LoanJourneyPanel({ loan, payments }) {
       {/* Summary */}
       <div className={`rounded-2xl border shadow-sm p-4 sm:p-6 animate-fade-in-up ${
         isFullyPaid
-          ? "bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-950/40 dark:to-emerald-950/40 border-green-200 dark:border-green-800"
-          : "bg-white dark:bg-gray-900 border-gray-100 dark:border-gray-800"
+          ? "bg-gradient-to-br from-green-50 to-emerald-50 dark:from-mdark-accent/10 dark:to-emerald-950/40 border-green-200 dark:border-mdark-accent/30"
+          : "bg-white dark:bg-mdark-card border-gray-100 dark:border-mdark-border"
       }`}>
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-sm font-bold text-gray-900 dark:text-white">{loan.loan_type}</p>
-            <p className="text-[11px] text-gray-500 dark:text-gray-400 font-mono truncate">{loan.loan_id}</p>
+            <p className="text-sm font-bold text-gray-900 dark:text-mdark-text">{loan.loan_type}</p>
+            <p className="text-[11px] text-gray-500 dark:text-mdark-text-secondary font-mono truncate">{loan.loan_id}</p>
           </div>
           <span className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-bold border ${toneStyles[status.tone]}`}>
             {isFullyPaid ? <Trophy className="w-3 h-3" /> : <CheckCircle2 className="w-3 h-3" />}
@@ -413,28 +413,28 @@ export default function LoanJourneyPanel({ loan, payments }) {
           </span>
         </div>
 
-        <p className="mt-4 text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">{headlineLabel}</p>
-        <p className="text-3xl sm:text-4xl font-black text-gray-900 dark:text-white leading-tight">{formatCurrency(headline)}</p>
+        <p className="mt-4 text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-mdark-text-secondary">{headlineLabel}</p>
+        <p className="text-3xl sm:text-4xl font-black text-gray-900 dark:text-mdark-text leading-tight">{formatCurrency(headline)}</p>
 
         {owing ? (
           <div className="mt-3">
-            <div className="h-2 w-full rounded-full bg-gray-100 dark:bg-gray-700 overflow-hidden">
+            <div className="h-2 w-full rounded-full bg-gray-100 dark:bg-mdark-elevated overflow-hidden">
               <div
                 className="h-full bg-gradient-to-r from-member-green to-[#66B53B] transition-all duration-500"
                 style={{ width: `${loan.progress_percent}%` }}
               />
             </div>
-            <p className="mt-1.5 flex justify-between gap-2 text-[11px] text-gray-500 dark:text-gray-400">
+            <p className="mt-1.5 flex justify-between gap-2 text-[11px] text-gray-500 dark:text-mdark-text-secondary">
               <span>{formatCurrency(loan.amount_paid)} paid of {formatCurrency(loan.total_payable)}</span>
-              <span className="font-bold text-member-green dark:text-green-400">{loan.progress_percent}%</span>
+              <span className="font-bold text-member-green dark:text-mdark-accent">{loan.progress_percent}%</span>
             </p>
           </div>
         ) : null}
 
         {isFullyPaid ? (
           <div className="mt-3 rounded-xl bg-member-green/10 border border-member-green/20 px-3 py-2.5 flex items-center gap-2.5">
-            <CheckCircle2 className="w-4 h-4 text-member-green dark:text-green-400 shrink-0" />
-            <p className="text-xs font-semibold text-[#1a4a2f] dark:text-green-300">Loan fully settled. This loan is now closed.</p>
+            <CheckCircle2 className="w-4 h-4 text-member-green dark:text-mdark-accent shrink-0" />
+            <p className="text-xs font-semibold text-[#1a4a2f] dark:text-mdark-accent">Loan fully settled. This loan is now closed.</p>
           </div>
         ) : null}
 
@@ -447,40 +447,40 @@ export default function LoanJourneyPanel({ loan, payments }) {
       </div>
 
       {/* Lifecycle */}
-      <div className="rounded-2xl border shadow-sm p-4 sm:p-6 bg-white dark:bg-gray-900 border-gray-100 dark:border-gray-800">
+      <div className="rounded-2xl border shadow-sm p-4 sm:p-6 bg-white dark:bg-mdark-card border-gray-100 dark:border-mdark-border">
         <div className="flex items-center gap-2 mb-3 md:mb-5">
-          <CalendarClock className="w-4 h-4 sm:w-5 sm:h-5 text-member-green dark:text-green-400" />
-          <h3 className="text-sm sm:text-base font-extrabold text-gray-900 dark:text-white">Loan Lifecycle</h3>
-          <span className="ml-auto text-[11px] font-bold text-gray-500 dark:text-gray-400 md:hidden">
+          <CalendarClock className="w-4 h-4 sm:w-5 sm:h-5 text-member-green dark:text-mdark-accent" />
+          <h3 className="text-sm sm:text-base font-extrabold text-gray-900 dark:text-mdark-text">Loan Lifecycle</h3>
+          <span className="ml-auto text-[11px] font-bold text-gray-500 dark:text-mdark-text-secondary md:hidden">
             Step {currentIdx + 1} of {LIFECYCLE_STAGES.length}
           </span>
         </div>
 
         {/* Mobile: compact progress, full list on demand */}
         <div className="md:hidden">
-          <p className="text-sm font-bold text-member-green dark:text-green-400">{LIFECYCLE_STAGES[currentIdx].label}</p>
+          <p className="text-sm font-bold text-member-green dark:text-mdark-accent">{LIFECYCLE_STAGES[currentIdx].label}</p>
           <div className="mt-2 flex gap-1" aria-hidden="true">
             {LIFECYCLE_STAGES.map((stage, idx) => (
               <span
                 key={stage.id}
                 className={`h-1.5 flex-1 rounded-full ${
                   idx < currentIdx || isFullyPaid
-                    ? "bg-member-green"
+                    ? "bg-member-green dark:bg-mdark-accent"
                     : idx === currentIdx
                       ? "bg-[#66B53B]"
-                      : "bg-gray-200 dark:bg-gray-700"
+                      : "bg-gray-200 dark:bg-mdark-elevated"
                 }`}
               />
             ))}
           </div>
-          <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+          <p className="mt-2 text-xs text-gray-500 dark:text-mdark-text-secondary">
             {isFullyPaid ? "All payments received and validated." : LIFECYCLE_STAGES[stageIndex]?.description}
           </p>
           <button
             type="button"
             onClick={() => setShowAllSteps((v) => !v)}
             aria-expanded={showAllSteps}
-            className="mt-2 text-xs font-bold text-member-green dark:text-green-400 hover:underline"
+            className="mt-2 text-xs font-bold text-member-green dark:text-mdark-accent hover:underline"
           >
             {showAllSteps ? "Hide steps" : "Show all steps"}
           </button>
@@ -495,8 +495,8 @@ export default function LoanJourneyPanel({ loan, payments }) {
                     </div>
                     <p className={`text-sm font-semibold ${
                       s.isFinalTrophy || s.isActive
-                        ? "text-member-green dark:text-green-400"
-                        : s.isComplete ? "text-gray-800 dark:text-gray-200" : "text-gray-400"
+                        ? "text-member-green dark:text-mdark-accent"
+                        : s.isComplete ? "text-gray-800 dark:text-mdark-text" : "text-gray-400"
                     }`}>
                       {stage.label}
                     </p>
@@ -520,29 +520,29 @@ export default function LoanJourneyPanel({ loan, payments }) {
                     </div>
                     <p className={`mt-2 text-[11px] font-bold leading-tight ${
                       s.isFinalTrophy || s.isActive
-                        ? "text-member-green dark:text-green-400"
-                        : s.isComplete ? "text-gray-700 dark:text-gray-300" : "text-gray-400"
+                        ? "text-member-green dark:text-mdark-accent"
+                        : s.isComplete ? "text-gray-700 dark:text-mdark-text-secondary" : "text-gray-400"
                     }`}>
                       {stage.label}
                     </p>
                   </div>
                   {idx < lastIdx ? (
-                    <div className={`flex-1 h-0.5 mt-5 ${isFullyPaid || idx < stageIndex ? "bg-member-green" : "bg-gray-200 dark:bg-gray-700"}`} />
+                    <div className={`flex-1 h-0.5 mt-5 ${isFullyPaid || idx < stageIndex ? "bg-member-green" : "bg-gray-200 dark:bg-mdark-elevated"}`} />
                   ) : null}
                 </React.Fragment>
               );
             })}
           </div>
-          <p className="mt-5 text-sm text-gray-600 dark:text-gray-400 font-medium">
-            <span className="font-bold text-member-green dark:text-green-400">{isFullyPaid ? "Status:" : "Current step:"}</span>{" "}
+          <p className="mt-5 text-sm text-gray-600 dark:text-mdark-text-secondary font-medium">
+            <span className="font-bold text-member-green dark:text-mdark-accent">{isFullyPaid ? "Status:" : "Current step:"}</span>{" "}
             {isFullyPaid ? "All payments received and validated. This loan is fully closed." : LIFECYCLE_STAGES[stageIndex]?.description}
           </p>
         </div>
       </div>
 
       {/* Breakdown: loan, payments and release deductions in one card */}
-      <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 p-4 sm:p-6">
-        <h3 className="text-sm sm:text-base font-extrabold text-gray-900 dark:text-white">Breakdown</h3>
+      <div className="bg-white dark:bg-mdark-card rounded-2xl shadow-sm border border-gray-100 dark:border-mdark-border p-4 sm:p-6">
+        <h3 className="text-sm sm:text-base font-extrabold text-gray-900 dark:text-mdark-text">Breakdown</h3>
 
         <div className="mt-3 grid grid-cols-1 lg:grid-cols-3 gap-x-8 gap-y-4">
           <BreakdownGroup title="Loan">
@@ -566,12 +566,12 @@ export default function LoanJourneyPanel({ loan, payments }) {
               <DetailRow label="Notarial fee">{formatCurrency(loan.fees.notarial_fee)}</DetailRow>
               <TotalRow label="Net proceeds" emphasis>{formatCurrency(loan.fees.net_proceeds)}</TotalRow>
               {!loan.fees.saved_at_application ? (
-                <p className="text-[11px] text-gray-500 dark:text-gray-400">
+                <p className="text-[11px] text-gray-500 dark:text-mdark-text-secondary">
                   Based on the current fee policy; fees weren't recorded when this loan was submitted.
                 </p>
               ) : null}
               {String(loan.application_type || "").toLowerCase() === "renewal" ? (
-                <p className="text-[11px] text-gray-500 dark:text-gray-400">
+                <p className="text-[11px] text-gray-500 dark:text-mdark-text-secondary">
                   Renewal: the old loan's remaining balance is also deducted at release.
                 </p>
               ) : null}
@@ -579,36 +579,36 @@ export default function LoanJourneyPanel({ loan, payments }) {
           ) : null}
         </div>
 
-        <p className="mt-4 pt-3 border-t border-gray-100 dark:border-gray-800 text-[11px] text-gray-500 dark:text-gray-400">
+        <p className="mt-4 pt-3 border-t border-gray-100 dark:border-mdark-border text-[11px] text-gray-500 dark:text-mdark-text-secondary">
           Applied {formatShortDate(loan.application_date)}
           {loan.disbursal_date ? ` · Disbursed ${formatShortDate(loan.disbursal_date)}` : ""}
         </p>
       </div>
 
       {/* Payments for this loan only */}
-      <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm overflow-hidden">
-        <div className="px-4 sm:px-5 py-3.5 sm:py-4 border-b border-gray-100 dark:border-gray-800 flex items-center gap-2">
-          <Wallet className="w-4 h-4 text-member-green dark:text-green-400" />
-          <h3 className="text-sm sm:text-base font-extrabold text-gray-900 dark:text-white">
+      <div className="bg-white dark:bg-mdark-card rounded-2xl border border-gray-100 dark:border-mdark-border shadow-sm overflow-hidden">
+        <div className="px-4 sm:px-5 py-3.5 sm:py-4 border-b border-gray-100 dark:border-mdark-border flex items-center gap-2">
+          <Wallet className="w-4 h-4 text-member-green dark:text-mdark-accent" />
+          <h3 className="text-sm sm:text-base font-extrabold text-gray-900 dark:text-mdark-text">
             {isFullyPaid || showAllPayments ? "Payment History" : "Recent Payments"}
           </h3>
           {loanPayments.length > 0 ? (
-            <span className="ml-auto text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
+            <span className="ml-auto text-[10px] font-bold text-gray-400 dark:text-mdark-text-muted uppercase tracking-wider">
               {loanPayments.length} payment{loanPayments.length !== 1 ? "s" : ""}
             </span>
           ) : null}
         </div>
         {visiblePayments.length === 0 ? (
-          <p className="px-4 py-6 text-center text-sm text-gray-500 dark:text-gray-400">No payments recorded for this loan yet.</p>
+          <p className="px-4 py-6 text-center text-sm text-gray-500 dark:text-mdark-text-secondary">No payments recorded for this loan yet.</p>
         ) : (
-          <ul className="divide-y divide-gray-100 dark:divide-gray-800">
+          <ul className="divide-y divide-gray-100 dark:divide-mdark-border">
             {visiblePayments.map((row, idx) => {
               const paymentStatus = paymentStatusLabel(row.confirmation_status);
               return (
                 <li key={`${row.payment_id}-${idx}`} className="px-4 sm:px-5 py-3 flex items-center justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="text-sm font-bold text-gray-900 dark:text-white">{formatCurrency(row.amount_paid)}</p>
-                    <p className="text-[11px] text-gray-500 dark:text-gray-400 font-medium">
+                    <p className="text-sm font-bold text-gray-900 dark:text-mdark-text">{formatCurrency(row.amount_paid)}</p>
+                    <p className="text-[11px] text-gray-500 dark:text-mdark-text-secondary font-medium">
                       {formatShortDate(row.payment_date)}
                       {row.penalties > 0 ? ` · includes ${formatCurrency(row.penalties)} penalty` : ""}
                     </p>
@@ -622,11 +622,11 @@ export default function LoanJourneyPanel({ loan, payments }) {
           </ul>
         )}
         {!isFullyPaid && loanPayments.length > RECENT_PAYMENTS ? (
-          <div className="border-t border-gray-100 dark:border-gray-800 px-4 py-3 text-center">
+          <div className="border-t border-gray-100 dark:border-mdark-border px-4 py-3 text-center">
             <button
               type="button"
               onClick={() => setShowAllPayments((v) => !v)}
-              className="text-xs font-bold text-member-green hover:underline dark:text-green-400"
+              className="text-xs font-bold text-member-green hover:underline dark:text-mdark-accent"
             >
               {showAllPayments ? "Show recent payments only" : `View all ${loanPayments.length} payments`}
             </button>
@@ -634,7 +634,7 @@ export default function LoanJourneyPanel({ loan, payments }) {
         ) : null}
       </div>
 
-      <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm overflow-hidden divide-y divide-gray-100 dark:divide-gray-800">
+      <div className="bg-white dark:bg-mdark-card rounded-2xl border border-gray-100 dark:border-mdark-border shadow-sm overflow-hidden divide-y divide-gray-100 dark:divide-mdark-border">
         <Collapsible
           icon={ShieldCheck}
           title="How payments are computed"
@@ -653,17 +653,17 @@ export default function LoanJourneyPanel({ loan, payments }) {
             open={showSchedule}
             onToggle={() => setShowSchedule((v) => !v)}
           >
-            <ul className="divide-y divide-gray-100 dark:divide-gray-800">
+            <ul className="divide-y divide-gray-100 dark:divide-mdark-border">
               {loan.schedules.map((sched, idx) => {
                 const isPaid = sched.schedule_status === "Paid";
                 return (
                   <li key={`${sched.schedule_id || sched.installment_no}-${idx}`} className="px-4 sm:px-5 py-3 flex items-center justify-between gap-3">
                     <div>
-                      <p className="text-sm font-bold text-gray-900 dark:text-white">Installment #{sched.installment_no}</p>
-                      <p className="text-[11px] text-gray-500 dark:text-gray-400 font-medium">Due {formatShortDate(sched.due_date)}</p>
+                      <p className="text-sm font-bold text-gray-900 dark:text-mdark-text">Installment #{sched.installment_no}</p>
+                      <p className="text-[11px] text-gray-500 dark:text-mdark-text-secondary font-medium">Due {formatShortDate(sched.due_date)}</p>
                     </div>
                     <div className="text-right">
-                      <p className="text-sm font-extrabold text-gray-900 dark:text-white">
+                      <p className="text-sm font-extrabold text-gray-900 dark:text-mdark-text">
                         {formatCurrency(installmentAmount(sched, loan.monthly_amortization))}
                       </p>
                       <span className={`inline-block mt-1 rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider border ${toneStyles[isPaid ? "success" : "warn"]}`}>

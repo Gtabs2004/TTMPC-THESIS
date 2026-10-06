@@ -134,13 +134,13 @@ export default function AccountSetupGate({ signOutTo = "/memberlogin", portalLab
         tone="danger"
         onSignOut={handleSignOut}
       >
-        <p className="text-sm text-gray-600 dark:text-gray-400">
+        <p className="text-sm text-gray-600 dark:text-mdark-text-secondary">
           Check your connection and try again.
         </p>
         <button
           type="button"
           onClick={() => load()}
-          className="mt-4 rounded-lg bg-member-green px-6 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-[#154718]"
+          className="mt-4 rounded-lg bg-member-green hover:bg-[#154718] dark:bg-mdark-accent dark:hover:bg-mdark-accent/90 px-6 py-2.5 text-sm font-bold text-white shadow-sm"
         >
           Try again
         </button>
@@ -190,9 +190,9 @@ function Shell({ title, subtitle, tone = "warning", onSignOut, stepper, children
       aria-modal="true"
       aria-labelledby="account-setup-title"
     >
-      <div className="my-auto w-full max-w-xl overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-gray-900">
+      <div className="my-auto w-full max-w-xl overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-mdark-elevated">
         {/* Header — gray-50 with a hairline rule, per the modal spec. */}
-        <div className="border-b border-gray-200 bg-gray-50 px-6 py-5 dark:border-gray-800 dark:bg-gray-900/40">
+        <div className="border-b border-gray-200 bg-gray-50 px-6 py-5 dark:border-mdark-border dark:bg-mdark-card">
           <div className="flex items-start gap-3">
             <span className={`flex-none rounded-lg p-2 ${toneClass}`}>
               <ShieldAlert className="h-5 w-5" />
@@ -200,12 +200,12 @@ function Shell({ title, subtitle, tone = "warning", onSignOut, stepper, children
             <div className="min-w-0">
               <h2
                 id="account-setup-title"
-                className="text-base font-bold leading-snug text-gray-900 dark:text-white"
+                className="text-base font-bold leading-snug text-gray-900 dark:text-mdark-text"
               >
                 {title}
               </h2>
               {subtitle ? (
-                <p className="mt-0.5 text-xs leading-relaxed text-gray-600 dark:text-gray-400">
+                <p className="mt-0.5 text-xs leading-relaxed text-gray-600 dark:text-mdark-text-secondary">
                   {subtitle}
                 </p>
               ) : null}
@@ -219,14 +219,14 @@ function Shell({ title, subtitle, tone = "warning", onSignOut, stepper, children
 
         {/* Footer — gray-50, hairline rule, the one way out of the gate. */}
         {onSignOut ? (
-          <div className="flex flex-col items-center gap-1 border-t border-gray-200 bg-gray-50 px-6 py-3 text-center dark:border-gray-800 dark:bg-gray-900/40 sm:flex-row sm:justify-between sm:text-left">
-            <p className="text-[11px] text-gray-500 dark:text-gray-400">
+          <div className="flex flex-col items-center gap-1 border-t border-gray-200 bg-gray-50 px-6 py-3 text-center dark:border-mdark-border dark:bg-mdark-card sm:flex-row sm:justify-between sm:text-left">
+            <p className="text-[11px] text-gray-500 dark:text-mdark-text-secondary">
               Not ready? Sign out and finish later — the portal stays locked.
             </p>
             <button
               type="button"
               onClick={onSignOut}
-              className="inline-flex flex-none items-center gap-1.5 rounded-lg px-2 py-1 text-xs font-bold text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200"
+              className="inline-flex flex-none items-center gap-1.5 rounded-lg px-2 py-1 text-xs font-bold text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-mdark-text-secondary dark:hover:bg-mdark-elevated dark:hover:text-mdark-text"
             >
               <LogOut className="h-3.5 w-3.5" /> Sign out
             </button>
@@ -252,10 +252,10 @@ function Stepper({ steps }) {
             <span
               className={`flex h-6 w-6 flex-none items-center justify-center rounded-full text-[11px] font-bold transition-colors ${
                 step.done
-                  ? "bg-member-green text-white"
+                  ? "bg-member-green text-white dark:bg-mdark-accent"
                   : isCurrent
                     ? "bg-amber-500 text-white ring-4 ring-amber-500/20"
-                    : "bg-gray-200 text-gray-500 dark:bg-gray-700 dark:text-gray-400"
+                    : "bg-gray-200 text-gray-500 dark:bg-mdark-elevated dark:text-mdark-text-secondary"
               }`}
             >
               {step.done ? <Check className="h-3.5 w-3.5" /> : index + 1}
@@ -263,10 +263,10 @@ function Stepper({ steps }) {
             <span
               className={`ml-2 text-xs font-semibold ${
                 step.done
-                  ? "text-gray-400 dark:text-gray-500"
+                  ? "text-gray-400 dark:text-mdark-text-muted"
                   : isCurrent
-                    ? "text-gray-900 dark:text-white"
-                    : "text-gray-400 dark:text-gray-500"
+                    ? "text-gray-900 dark:text-mdark-text"
+                    : "text-gray-400 dark:text-mdark-text-muted"
               }`}
             >
               {step.label}
@@ -275,7 +275,7 @@ function Stepper({ steps }) {
               <span
                 aria-hidden="true"
                 className={`mx-3 h-px flex-1 ${
-                  step.done ? "bg-member-green/40" : "bg-gray-200 dark:bg-gray-700"
+                  step.done ? "bg-member-green/40" : "bg-gray-200 dark:bg-mdark-elevated"
                 }`}
               />
             ) : null}
@@ -289,7 +289,7 @@ function Stepper({ steps }) {
 function Field({ label, children, hint }) {
   return (
     <label className="block">
-      <span className="mb-1 block text-xs font-bold text-gray-700 dark:text-gray-300">
+      <span className="mb-1 block text-xs font-bold text-gray-700 dark:text-mdark-text-secondary">
         {label}
       </span>
       {children}
@@ -303,7 +303,7 @@ function Field({ label, children, hint }) {
 // Per DESIGN.md: gray-50 at rest, brightening to white on focus, hairline
 // border, rounded-lg, 2px accent focus ring.
 const inputClass =
-  "w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 text-sm text-gray-900 transition-colors placeholder:text-gray-400 focus:border-primary focus:bg-white focus:outline-none focus:ring-2 focus:ring-primary/50 dark:border-gray-700 dark:bg-gray-800 dark:text-white";
+  "w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 text-sm text-gray-900 transition-colors placeholder:text-gray-400 focus:border-primary focus:bg-white focus:outline-none focus:ring-2 focus:ring-primary/50 dark:border-mdark-border dark:bg-mdark-elevated dark:text-mdark-text";
 
 function ErrorText({ children }) {
   if (!children) return null;
@@ -319,7 +319,7 @@ function SubmitButton({ busy, children }) {
     <button
       type="submit"
       disabled={busy}
-      className="w-full rounded-lg bg-member-green px-6 py-2.5 text-sm font-bold text-white shadow-sm transition-all hover:bg-[#154718] disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto sm:min-w-[11rem]"
+      className="w-full rounded-lg bg-member-green hover:bg-[#154718] dark:bg-mdark-accent dark:hover:bg-mdark-accent/90 px-6 py-2.5 text-sm font-bold text-white shadow-sm transition-all disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto sm:min-w-[11rem]"
     >
       {busy ? "Working…" : children}
     </button>
@@ -393,10 +393,10 @@ function EmailStep({ currentEmail, onDone }) {
 
   return (
     <form onSubmit={sent ? confirmOtp : requestOtp}>
-      <p className="text-sm font-bold text-gray-900 dark:text-white">
+      <p className="text-sm font-bold text-gray-900 dark:text-mdark-text">
         Set your email address
       </p>
-      <p className="mt-1 text-xs text-gray-600 dark:text-gray-400">
+      <p className="mt-1 text-xs text-gray-600 dark:text-mdark-text-secondary">
         Your account uses the system-generated address{" "}
         <span className="font-mono">{currentEmail}</span>. Add a real email so
         you can receive verification codes and notices.
@@ -525,10 +525,10 @@ function PasswordStep({ currentEmail, onDone }) {
 
   return (
     <form onSubmit={submit}>
-      <p className="text-sm font-bold text-gray-900 dark:text-white">
+      <p className="text-sm font-bold text-gray-900 dark:text-mdark-text">
         Change your password
       </p>
-      <p className="mt-1 text-xs leading-relaxed text-gray-600 dark:text-gray-400">
+      <p className="mt-1 text-xs leading-relaxed text-gray-600 dark:text-mdark-text-secondary">
         Your account is still on the temporary password issued by the
         cooperative. Choose one only you know.
       </p>

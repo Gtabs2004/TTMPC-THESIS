@@ -114,7 +114,7 @@ function EmailForm({ onClose, onChanged }) {
   if (loadingStatus) {
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-        <div className="w-full max-w-md bg-white dark:bg-gray-900 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 p-6 text-sm text-gray-500 dark:text-gray-400">
+        <div className="w-full max-w-md bg-white dark:bg-mdark-elevated rounded-xl shadow-xl border border-gray-200 dark:border-mdark-border p-6 text-sm text-gray-500 dark:text-mdark-text-secondary">
           Loading…
         </div>
       </div>
@@ -125,17 +125,17 @@ function EmailForm({ onClose, onChanged }) {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
       <form
         onSubmit={step === 2 ? confirmOtp : requestOtp}
-        className="w-full max-w-md max-h-[90vh] overflow-y-auto bg-white dark:bg-gray-900 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 p-6"
+        className="w-full max-w-md max-h-[90vh] overflow-y-auto bg-white dark:bg-mdark-elevated rounded-xl shadow-xl border border-gray-200 dark:border-mdark-border p-6"
       >
         <div className="flex items-center gap-3 mb-1">
-          <div className="w-9 h-9 shrink-0 rounded-full bg-member-green/10 dark:bg-green-900/30 flex items-center justify-center">
-            <Mail className="w-4 h-4 text-member-green dark:text-green-400" />
+          <div className="w-9 h-9 shrink-0 rounded-full bg-member-green/10 dark:bg-mdark-accent/15 flex items-center justify-center">
+            <Mail className="w-4 h-4 text-member-green dark:text-mdark-accent" />
           </div>
-          <h3 className="text-lg font-bold text-gray-900 dark:text-white">
+          <h3 className="text-lg font-bold text-gray-900 dark:text-mdark-text">
             {step === 2 ? "Verify Your New Email" : "Change Email"}
           </h3>
         </div>
-        <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
+        <p className="text-xs text-gray-500 dark:text-mdark-text-secondary mb-4">
           {step === 2
             ? "Enter the 6-digit code we sent to your new address."
             : "Update the email address linked to your TTMPC account."}
@@ -144,16 +144,16 @@ function EmailForm({ onClose, onChanged }) {
         {step === 1 ? (
           <>
             <div>
-              <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Current email</label>
+              <label className="block text-sm font-semibold text-gray-700 dark:text-mdark-text-secondary mb-1">Current email</label>
               <input
                 type="email"
                 value={currentEmail}
                 disabled
-                className="w-full border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 rounded-lg px-3 py-2 text-sm text-gray-500 dark:text-gray-400"
+                className="w-full border border-gray-200 dark:border-mdark-border bg-gray-50 dark:bg-mdark-elevated rounded-lg px-3 py-2 text-sm text-gray-500 dark:text-mdark-text-secondary"
               />
             </div>
             <div className="mb-4 mt-4">
-              <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">New email</label>
+              <label className="block text-sm font-semibold text-gray-700 dark:text-mdark-text-secondary mb-1">New email</label>
               <input
                 type="email"
                 value={newEmail}
@@ -162,9 +162,9 @@ function EmailForm({ onClose, onChanged }) {
                 autoComplete="email"
                 required
                 disabled={submitting}
-                className="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-member-green"
+                className="w-full border border-gray-300 dark:border-mdark-border dark:bg-mdark-elevated dark:text-mdark-text rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-member-green"
               />
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+              <p className="text-xs text-gray-500 dark:text-mdark-text-secondary mt-1">
                 We'll send a 6-digit code to this address to verify you own it.
               </p>
             </div>
@@ -177,7 +177,7 @@ function EmailForm({ onClose, onChanged }) {
                 Code sent to <strong>{newEmail.trim().toLowerCase()}</strong>. Check your inbox (and spam).
               </span>
             </div>
-            <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">6-digit code</label>
+            <label className="block text-sm font-semibold text-gray-700 dark:text-mdark-text-secondary mb-1">6-digit code</label>
             <input
               type="text"
               inputMode="numeric"
@@ -187,13 +187,13 @@ function EmailForm({ onClose, onChanged }) {
               onChange={(e) => { setCode(e.target.value.replace(/\D/g, "").slice(0, 6)); setError(""); }}
               required
               disabled={submitting}
-              className="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 rounded-lg px-3 py-2 text-lg tracking-[0.5em] text-center font-bold focus:outline-none focus:ring-2 focus:ring-member-green"
+              className="w-full border border-gray-300 dark:border-mdark-border dark:bg-mdark-elevated dark:text-mdark-text rounded-lg px-3 py-2 text-lg tracking-[0.5em] text-center font-bold focus:outline-none focus:ring-2 focus:ring-member-green"
             />
             <button
               type="button"
               onClick={requestOtp}
               disabled={cooldown > 0 || submitting}
-              className="mt-2 text-xs text-member-green dark:text-green-400 hover:underline disabled:text-gray-400 disabled:no-underline"
+              className="mt-2 text-xs text-member-green dark:text-mdark-accent hover:underline disabled:text-gray-400 disabled:no-underline"
             >
               {cooldown > 0 ? `Resend code in ${cooldown}s` : "Resend code"}
             </button>
@@ -207,7 +207,7 @@ function EmailForm({ onClose, onChanged }) {
             <button
               type="button"
               onClick={() => { setStep(1); setCode(""); setError(""); }}
-              className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 text-sm font-semibold hover:bg-gray-50 dark:hover:bg-gray-800"
+              className="px-4 py-2 rounded-lg border border-gray-300 dark:border-mdark-border text-gray-700 dark:text-mdark-text-secondary text-sm font-semibold hover:bg-gray-50 dark:hover:bg-mdark-elevated"
             >
               Back
             </button>
@@ -215,7 +215,7 @@ function EmailForm({ onClose, onChanged }) {
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 text-sm font-semibold hover:bg-gray-50 dark:hover:bg-gray-800"
+              className="px-4 py-2 rounded-lg border border-gray-300 dark:border-mdark-border text-gray-700 dark:text-mdark-text-secondary text-sm font-semibold hover:bg-gray-50 dark:hover:bg-mdark-elevated"
             >
               Cancel
             </button>
@@ -223,7 +223,7 @@ function EmailForm({ onClose, onChanged }) {
           <button
             type="submit"
             disabled={submitting}
-            className="px-4 py-2 rounded-lg bg-member-green text-white text-sm font-semibold hover:bg-[#154718] disabled:opacity-50"
+            className="px-4 py-2 rounded-lg bg-member-green hover:bg-[#154718] dark:bg-mdark-accent dark:hover:bg-mdark-accent/90 text-white text-sm font-semibold disabled:opacity-50"
           >
             {submitting
               ? (step === 2 ? "Verifying…" : "Sending code…")

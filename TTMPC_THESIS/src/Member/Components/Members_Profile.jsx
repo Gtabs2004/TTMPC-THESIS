@@ -685,25 +685,25 @@ const Members_Profile = () => {
   }, []);
 
   return (
-    <div className="relative flex h-screen overflow-hidden bg-[#F8F9FA] dark:bg-gray-950">
+    <div className="relative flex h-screen overflow-hidden bg-[#F8F9FA] dark:bg-mdark-bg">
       <style>{styles}</style>
       {/* Sidebar — desktop only. Mobile navigation is MemberMobileNav's fixed
           bottom bar, rendered once by MemberLayout for every Member route;
           this drawer duplicated the same links via a hamburger toggle. */}
       <aside
-        className="hidden lg:flex fixed inset-y-0 left-0 z-30 w-64 bg-white dark:bg-gray-900 p-4 flex-col border-r border-gray-200 dark:border-gray-800"
+        className="hidden lg:flex fixed inset-y-0 left-0 z-30 w-64 bg-white dark:bg-mdark-nav p-4 flex-col border-r border-gray-200 dark:border-mdark-border"
       >
         <div className="flex flex-row items-start gap-2 mb-6">
           <img src="/img/ttmpc logo.png" alt="Logo" className="h-12 w-auto" />
           <div className="flex flex-col">
             <h1 className="text-xl font-bold text-primary">TTMPC</h1>
-            <p className="text-[10px] uppercase tracking-wider text-gray-500 dark:text-gray-400 font-bold">
+            <p className="text-[10px] uppercase tracking-wider text-gray-500 dark:text-mdark-text-secondary font-bold">
               Members Portal
             </p>
           </div>
         </div>
     
-        <hr className="w-full border-gray-100 dark:border-gray-800 mb-6" />
+        <hr className="w-full border-gray-100 dark:border-mdark-border mb-6" />
    
         <nav className="flex grow flex-col gap-2 text-sm">
           {(() => {
@@ -727,8 +727,8 @@ const Members_Profile = () => {
                   className={({ isActive }) =>
                     `flex items-center gap-3 p-2.5 rounded-lg transition-colors ${
                       isActive
-                        ? 'bg-[#EAF1EB] text-member-green font-bold dark:bg-green-900/30 dark:text-green-400'
-                        : 'text-gray-600 hover:bg-gray-50 hover:text-member-green font-medium dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-green-400'
+                        ? 'bg-[#EAF1EB] text-member-green font-bold dark:bg-mdark-accent/15 dark:text-mdark-accent'
+                        : 'text-gray-600 hover:bg-gray-50 hover:text-member-green font-medium dark:text-mdark-text-secondary dark:hover:bg-mdark-elevated dark:hover:text-mdark-accent'
                     }`
                   }
                 >
@@ -746,7 +746,7 @@ const Members_Profile = () => {
    
         <button
           onClick={handleSignOut}
-          className="mt-auto w-full rounded-lg p-2.5 text-sm bg-member-green hover:bg-[#154718] text-white font-bold transition-colors"
+          className="mt-auto w-full rounded-lg p-2.5 text-sm bg-member-green hover:bg-[#154718] dark:bg-mdark-accent dark:hover:bg-mdark-accent/90 text-white font-bold transition-colors"
         >
           Sign out
         </button>
@@ -755,18 +755,18 @@ const Members_Profile = () => {
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden lg:ml-64">
         {/* Header */}
-        <header className="bg-white dark:bg-gray-900 h-16 shrink-0 shadow-sm flex items-center justify-between px-4 sm:px-6 lg:px-8 z-10 border-b border-gray-100 dark:border-gray-800">
+        <header className="bg-white dark:bg-mdark-nav h-16 shrink-0 shadow-sm flex items-center justify-between px-4 sm:px-6 lg:px-8 z-10 border-b border-gray-100 dark:border-mdark-border">
           <div className="flex items-center gap-2 sm:gap-3 pl-2 sm:pl-0">
-            <h1 className="text-base sm:text-lg font-extrabold text-[#1a4a2f] dark:text-green-400 lg:hidden">Profile</h1>
+            <h1 className="text-base sm:text-lg font-extrabold text-[#1a4a2f] dark:text-mdark-accent lg:hidden">Profile</h1>
           </div>
 
           <div className="flex items-center gap-2 sm:gap-4">
            
-            <LoanNotificationBell role="member" accentClass="bg-member-green" />
+            <LoanNotificationBell role="member" accentClass="bg-member-green dark:bg-mdark-accent" />
             <button
               type="button"
               onClick={openSettings}
-              className="p-2 rounded-md text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+              className="p-2 rounded-md text-gray-500 dark:text-mdark-text-secondary hover:bg-gray-100 dark:hover:bg-mdark-elevated transition-colors"
               aria-label="Settings"
             >
               <Settings className="w-5 h-5" />
@@ -777,14 +777,14 @@ const Members_Profile = () => {
         <main className="animate-page-in p-4 sm:p-6 lg:p-8 overflow-y-auto pb-28 lg:pb-0">
           
           {/* Profile Header Card */}
-          <div className="w-full bg-white dark:bg-gray-900 p-4 sm:p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col sm:flex-row items-center justify-between mb-8 gap-4">
+          <div className="w-full bg-white dark:bg-mdark-card p-4 sm:p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-mdark-border flex flex-col sm:flex-row items-center justify-between mb-8 gap-4">
             <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-6 text-center sm:text-left">
               <div className="relative w-20 h-20 shrink-0">
-                <div className="w-full h-full rounded-full bg-[#EAF1EB] dark:bg-green-900/30 overflow-hidden border border-gray-200 dark:border-gray-700">
+                <div className="w-full h-full rounded-full bg-[#EAF1EB] dark:bg-mdark-accent/15 overflow-hidden border border-gray-200 dark:border-mdark-border">
                   {avatarUrl ? (
                     <img src={avatarUrl} alt={profile?.fullName || 'Member profile'} className="w-full h-full object-cover" />
                   ) : (
-                    <div className="w-full h-full flex items-center justify-center text-gray-500 bg-gray-100 dark:bg-gray-800">
+                    <div className="w-full h-full flex items-center justify-center text-gray-500 bg-gray-100 dark:bg-mdark-elevated">
                       <User className="w-8 h-8" />
                     </div>
                   )}
@@ -800,7 +800,7 @@ const Members_Profile = () => {
                   disabled={uploadingAvatar}
                   aria-label="Change photo"
                   title="Change photo"
-                  className="absolute -bottom-0.5 -right-0.5 w-8 h-8 rounded-full bg-member-green text-white border-2 border-white dark:border-gray-900 shadow flex items-center justify-center hover:bg-[#154718] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                  className="absolute -bottom-0.5 -right-0.5 w-8 h-8 rounded-full bg-member-green text-white border-2 border-white dark:border-mdark-border shadow flex items-center justify-center hover:bg-[#154718] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   <Camera className="w-4 h-4" />
                 </button>
@@ -813,12 +813,12 @@ const Members_Profile = () => {
                 />
               </div>
               <div>
-                <h1 className="text-xl sm:text-2xl font-black text-gray-900 dark:text-white mb-2">{profile?.fullName || 'Loading...'}</h1>
+                <h1 className="text-xl sm:text-2xl font-black text-gray-900 dark:text-mdark-text mb-2">{profile?.fullName || 'Loading...'}</h1>
                 <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 text-sm">
-                  <span className="bg-[#EAF1EB] text-member-green dark:bg-green-900/30 dark:text-green-400 px-2.5 py-1 rounded text-[10px] font-extrabold tracking-widest uppercase">
+                  <span className="bg-[#EAF1EB] text-member-green dark:bg-mdark-accent/15 dark:text-mdark-accent px-2.5 py-1 rounded text-[10px] font-extrabold tracking-widest uppercase">
                     {profile?.memberType || 'Member'}
                   </span>
-                  <span className="text-gray-400 dark:text-gray-500 font-medium">Joined {profile?.joinedDate || 'N/A'}</span>
+                  <span className="text-gray-400 dark:text-mdark-text-muted font-medium">Joined {profile?.joinedDate || 'N/A'}</span>
                 </div>
               </div>
             </div>
@@ -865,25 +865,25 @@ const Members_Profile = () => {
           ) : null}
 
           {loadingProfile ? (
-            <div className="w-full mb-6 p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm text-gray-600 dark:text-gray-400">
+            <div className="w-full mb-6 p-4 rounded-xl border border-gray-200 dark:border-mdark-border bg-white dark:bg-mdark-elevated text-sm text-gray-600 dark:text-mdark-text-secondary">
               Loading profile data...
             </div>
           ) : null}
 
           {/* Profile Completion Bar */}
-          <div className="w-full mb-6 bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 p-5 flex flex-col sm:flex-row sm:items-center gap-4">
+          <div className="w-full mb-6 bg-white dark:bg-mdark-card rounded-2xl shadow-sm border border-gray-100 dark:border-mdark-border p-5 flex flex-col sm:flex-row sm:items-center gap-4">
             <div className="flex-1">
               <div className="flex items-center justify-between mb-2">
-                <p className="text-sm font-bold text-gray-900 dark:text-white">Profile Completion</p>
-                <p className="text-sm font-extrabold text-member-green dark:text-green-400">{completionPercent}%</p>
+                <p className="text-sm font-bold text-gray-900 dark:text-mdark-text">Profile Completion</p>
+                <p className="text-sm font-extrabold text-member-green dark:text-mdark-accent">{completionPercent}%</p>
               </div>
-              <div className="h-2 w-full rounded-full bg-gray-100 dark:bg-gray-700 overflow-hidden">
+              <div className="h-2 w-full rounded-full bg-gray-100 dark:bg-mdark-elevated overflow-hidden">
                 <div
-                  className="h-full bg-member-green transition-all duration-500"
+                  className="h-full bg-member-green dark:bg-mdark-accent transition-all duration-500"
                   style={{ width: `${completionPercent}%` }}
                 />
               </div>
-              <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-2 font-medium">
+              <p className="text-[11px] text-gray-500 dark:text-mdark-text-secondary mt-2 font-medium">
                 {completionPercent === 100
                   ? 'Your profile is complete and up to date.'
                   : 'Complete every section to keep your records audit-ready.'}
@@ -909,7 +909,7 @@ const Members_Profile = () => {
 
           {/* ACCORDION EDITOR LAYOUT */}
           <div className="w-full">
-            <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 overflow-hidden flex flex-col divide-y divide-gray-100 dark:divide-gray-800">
+            <div className="bg-white dark:bg-mdark-card rounded-2xl shadow-sm border border-gray-100 dark:border-mdark-border overflow-hidden flex flex-col divide-y divide-gray-100 dark:divide-mdark-border">
               
               {visibleSections.map((section) => {
                 const Icon = section.icon;
@@ -925,19 +925,19 @@ const Members_Profile = () => {
                       onClick={() => handleTabClick(section.id)}
                       className={`w-full flex items-center justify-between p-4 sm:p-5 transition-colors ${
                         isActive 
-                          ? 'bg-[#EAF1EB]/50 dark:bg-green-900/10' 
-                          : 'hover:bg-gray-50 dark:hover:bg-gray-800'
+                          ? 'bg-[#EAF1EB]/50 dark:bg-mdark-accent/10' 
+                          : 'hover:bg-gray-50 dark:hover:bg-mdark-elevated'
                       }`}
                     >
                       <div className="flex items-center gap-3">
-                        <Icon className={`w-5 h-5 ${isActive ? "text-member-green dark:text-green-400" : "text-gray-500"}`} />
-                        <span className={`text-sm font-bold ${isActive ? "text-member-green dark:text-green-400" : "text-gray-700 dark:text-gray-300"}`}>
+                        <Icon className={`w-5 h-5 ${isActive ? "text-member-green dark:text-mdark-accent" : "text-gray-500"}`} />
+                        <span className={`text-sm font-bold ${isActive ? "text-member-green dark:text-mdark-accent" : "text-gray-700 dark:text-mdark-text-secondary"}`}>
                           {section.label}
                         </span>
                       </div>
                       <div className="flex items-center gap-4">
                         <span className={`text-[10px] font-bold rounded-full px-2 py-0.5 ${
-                          isActive ? 'bg-white dark:bg-gray-800 text-member-green dark:text-green-400' : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400'
+                          isActive ? 'bg-white dark:bg-mdark-elevated text-member-green dark:text-mdark-accent' : 'bg-gray-100 dark:bg-mdark-elevated text-gray-500 dark:text-mdark-text-secondary'
                         }`}>
                           {sectionFilled}/{section.fields.length}
                         </span>
@@ -947,19 +947,19 @@ const Members_Profile = () => {
 
                     {/* Expanded Content (View/Edit) */}
                     {isActive && (
-                      <div className="p-5 sm:p-7 border-t border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900 animate-fade-in-up">
+                      <div className="p-5 sm:p-7 border-t border-gray-100 dark:border-mdark-border bg-white dark:bg-mdark-card animate-fade-in-up">
                         <div className="flex items-center justify-between mb-6">
-                          <p className="text-sm text-gray-500 dark:text-gray-400 font-medium">{section.description}</p>
+                          <p className="text-sm text-gray-500 dark:text-mdark-text-secondary font-medium">{section.description}</p>
                           
                           <div className="flex items-center gap-2">
                             {section.readOnly ? (
-                              <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider">
+                              <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 dark:bg-mdark-elevated text-gray-600 dark:text-mdark-text-secondary px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider">
                                 <ShieldCheck className="w-3 h-3" /> Read-only
                               </span>
                             ) : !isEditing ? (
                               <button
                                 onClick={(e) => { e.stopPropagation(); setEditingSection(section.id); }}
-                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-member-green text-member-green hover:bg-[#EAF1EB] dark:border-green-500 dark:text-green-400 dark:hover:bg-green-900/30 transition-colors text-xs font-bold"
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-member-green text-member-green hover:bg-[#EAF1EB] dark:border-mdark-accent dark:text-mdark-accent dark:hover:bg-mdark-accent/15 transition-colors text-xs font-bold"
                               >
                                 <Pencil className="w-3.5 h-3.5" /> Edit 
                               </button>
@@ -973,15 +973,15 @@ const Members_Profile = () => {
                             const error = fieldErrors[field.key];
                             const value = formData[field.key] ?? '';
                             const inputClass = `w-full rounded-lg border ${
-                              error ? 'border-red-300 focus:ring-red-200' : 'border-gray-200 dark:border-gray-700 focus:ring-member-green/30 focus:border-member-green'
-                            } bg-white dark:bg-gray-800 px-3 py-2.5 text-sm text-gray-900 dark:text-gray-100 outline-none focus:ring-2 transition disabled:bg-gray-50 dark:disabled:bg-gray-700 disabled:text-gray-500 dark:disabled:text-gray-500 disabled:cursor-not-allowed`;
+                              error ? 'border-red-300 focus:ring-red-200' : 'border-gray-200 dark:border-mdark-border focus:ring-member-green/30 focus:border-member-green'
+                            } bg-white dark:bg-mdark-elevated px-3 py-2.5 text-sm text-gray-900 dark:text-mdark-text outline-none focus:ring-2 transition disabled:bg-gray-50 dark:disabled:bg-gray-700 disabled:text-gray-500 dark:disabled:text-gray-500 disabled:cursor-not-allowed`;
                             const disabled = section.readOnly || loadingProfile;
                             const isFull = field.fullWidth;
                             
                             return isEditing ? (
                               // EDIT MODE
                               <div key={field.key} className={isFull ? 'md:col-span-2' : ''}>
-                                <label className="block text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1.5">
+                                <label className="block text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-mdark-text-secondary mb-1.5">
                                   {field.label}{field.required ? <span className="text-red-500 ml-0.5">*</span> : null}
                                 </label>
                                 {field.type === 'textarea' ? (
@@ -1026,15 +1026,15 @@ const Members_Profile = () => {
                               </div>
                             ) : (
                               // VIEW MODE
-                              <div key={field.key} className={`border-b border-gray-50 dark:border-gray-800 pb-3 ${isFull ? 'md:col-span-2' : ''}`}>
-                                <label className="block text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1">
+                              <div key={field.key} className={`border-b border-gray-50 dark:border-mdark-border pb-3 ${isFull ? 'md:col-span-2' : ''}`}>
+                                <label className="block text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-mdark-text-secondary mb-1">
                                   {field.label}
                                 </label>
-                                <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                                <div className="text-sm font-semibold text-gray-900 dark:text-mdark-text">
                                   {isFieldFilled(value) ? (
                                     field.type === 'date' ? displayDate(value) : value
                                   ) : (
-                                    <span className="italic text-gray-400 dark:text-gray-500 font-medium">Not provided</span>
+                                    <span className="italic text-gray-400 dark:text-mdark-text-muted font-medium">Not provided</span>
                                   )}
                                 </div>
                               </div>
@@ -1044,12 +1044,12 @@ const Members_Profile = () => {
 
                         {/* Footer Actions Contextually rendered for editing state */}
                         {isEditing && (
-                          <div className="mt-6 pt-5 border-t border-gray-100 dark:border-gray-800 flex flex-col sm:flex-row sm:items-center justify-end gap-3">
+                          <div className="mt-6 pt-5 border-t border-gray-100 dark:border-mdark-border flex flex-col sm:flex-row sm:items-center justify-end gap-3">
                             <button
                               type="button"
                               onClick={handleDiscardChanges}
                               disabled={savingProfile}
-                              className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 text-sm font-semibold hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed"
+                              className="px-4 py-2 rounded-lg border border-gray-300 dark:border-mdark-border text-gray-700 dark:text-mdark-text-secondary text-sm font-semibold hover:bg-gray-100 dark:hover:bg-mdark-elevated disabled:opacity-40 disabled:cursor-not-allowed"
                             >
                               Cancel
                             </button>
@@ -1057,7 +1057,7 @@ const Members_Profile = () => {
                               type="button"
                               onClick={handleRequestSave}
                               disabled={!isDirty || savingProfile}
-                              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-member-green text-white text-sm font-semibold hover:bg-[#154718] disabled:opacity-40 disabled:cursor-not-allowed"
+                              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-member-green hover:bg-[#154718] dark:bg-mdark-accent dark:hover:bg-mdark-accent/90 text-white text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed"
                             >
                               <Save className="w-4 h-4" /> Save Changes
                             </button>
@@ -1106,7 +1106,7 @@ const Members_Profile = () => {
             <button
               type="button"
               onClick={handleSignOut}
-              className="w-full flex items-center justify-center gap-2 rounded-2xl bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 shadow-sm px-6 py-4 text-sm font-bold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+              className="w-full flex items-center justify-center gap-2 rounded-2xl bg-white dark:bg-mdark-card border border-gray-100 dark:border-mdark-border shadow-sm px-6 py-4 text-sm font-bold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
             >
               <LogOut className="w-4 h-4" /> Sign out
             </button>
