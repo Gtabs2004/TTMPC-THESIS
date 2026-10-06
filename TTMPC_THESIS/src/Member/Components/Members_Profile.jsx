@@ -9,9 +9,7 @@ import { resolveMemberIdentity } from "../../utils/memberIdentity";
 import { invalidate } from "../memberDataCache";
 import { invalidateSecurityStatus } from "../securityStatusCache";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
-import PasswordInput from "../../components/PasswordInput";
-import PasswordRequirements from "../../components/PasswordRequirements";
-import { getPasswordRequirementError } from "../../utils/passwordValidation";
+import ChangePasswordModal from "./ChangePasswordModal";
 import {
   LayoutDashboard,
   Users,
@@ -24,7 +22,8 @@ import {
   Briefcase,
   Contact2,
   ShieldCheck,
-  Lock,
+  Settings,
+  ChevronRight,
   Receipt,
   MapPin,
   HeartHandshake,
@@ -223,7 +222,7 @@ const styles = `
 `;
 
 const Members_Profile = () => {
-  const { session, signOut } = UserAuth();
+  const { signOut } = UserAuth();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { addNotification } = useNotification();
@@ -239,16 +238,7 @@ const Members_Profile = () => {
   const [accountTableName, setAccountTableName] = useState('member_account');
   const [resolvedMemberId, setResolvedMemberId] = useState('');
   const [showPasswordModal, setShowPasswordModal] = useState(false);
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [passwordError, setPasswordError] = useState('');
   const [passwordSuccess, setPasswordSuccess] = useState('');
-  const [updatingPassword, setUpdatingPassword] = useState(false);
-  const [passwordStep, setPasswordStep] = useState(1); 
-  const [currentPasswordInput, setCurrentPasswordInput] = useState('');
-  const [passwordOtp, setPasswordOtp] = useState('');
-  const [passwordOtpCooldown, setPasswordOtpCooldown] = useState(0);
-  const [passwordRecoveryMode, setPasswordRecoveryMode] = useState(false);
   const { isDark, toggleTheme } = useTheme();
 
   // PDS form state
@@ -433,12 +423,6 @@ const Members_Profile = () => {
   }, []);
 
   useEffect(() => {
-    if (passwordOtpCooldown <= 0) return;
-    const t = setTimeout(() => setPasswordOtpCooldown((c) => c - 1), 1000);
-    return () => clearTimeout(t);
-  }, [passwordOtpCooldown]);
-
-  useEffect(() => {
     if (searchParams.get('forcePassword') === '1') {
       handleOpenChangePassword();
       const next = new URLSearchParams(searchParams);
@@ -468,19 +452,8 @@ const Members_Profile = () => {
   const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000';
 
   const handleOpenChangePassword = () => {
-    setPasswordError('');
     setPasswordSuccess('');
-    setNewPassword('');
-    setConfirmPassword('');
-    setCurrentPasswordInput('');
-    setPasswordOtp('');
-    setPasswordStep(1);
-    setPasswordRecoveryMode(false);
     setShowPasswordModal(true);
-  };
-
-  const handleOpenChangeEmail = () => {
-    navigate('/members-profile/change-email');
   };
 
   const handleOpenFilePicker = () => {
@@ -535,181 +508,6 @@ const Members_Profile = () => {
       setAvatarUploadError(err?.message || 'Unable to upload profile photo.');
     } finally {
       setUploadingAvatar(false);
-    }
-  };
-
-  const _passwordAuthHeaders = async () => {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.access_token) throw new Error('Your session has expired. Please sign in again.');
-    return {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${session.access_token}`,
-    };
-  };
-
-  const handleDirectPasswordChange = async (e) => {
-    e.preventDefault();
-    setPasswordError('');
-
-    if (!currentPasswordInput) {
-      setPasswordError('Enter your current password.');
-      return;
-    }
-    if (!newPassword || !confirmPassword) {
-      setPasswordError('Please fill in all password fields.');
-      return;
-    }
-    const requirementError = getPasswordRequirementError(newPassword);
-    if (requirementError) {
-      setPasswordError(requirementError);
-      return;
-    }
-    if (newPassword !== confirmPassword) {
-      setPasswordError('Password confirmation does not match.');
-      return;
-    }
-    if (newPassword === currentPasswordInput) {
-      setPasswordError('New password must differ from your current password.');
-      return;
-    }
-
-    try {
-      setUpdatingPassword(true);
-      const res = await fetch(`${API_BASE}/api/account/password/change-direct`, {
-        method: 'POST',
-        headers: await _passwordAuthHeaders(),
-        body: JSON.stringify({
-          current_password: currentPasswordInput,
-          new_password: newPassword,
-        }),
-      });
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(body.detail || 'Unable to update password.');
-
-      // Supabase revokes every session for a user when their password changes,
-      // so the token still sitting in sessionStorage is already dead. Left in
-      // place it 401s the next security-status call and 403s the next
-      // getUser() revalidation, which signs the member out mid-session. Mint a
-      // fresh session with the password we just set instead.
-      const reAuthEmail = session?.user?.email;
-      if (reAuthEmail) {
-        const { error: reAuthError } = await supabase.auth.signInWithPassword({
-          email: reAuthEmail,
-          password: newPassword,
-        });
-        if (reAuthError) {
-          // Never leave a revoked token behind -- send them through a clean
-          // login rather than letting the dead session fail somewhere later.
-          await supabase.auth.signOut();
-          navigate('/memberlogin');
-          return;
-        }
-      }
-
-      setIsTemporaryAccount(false);
-      // Let the onboarding guard re-read status instead of serving the
-      // cached "still temporary" answer for up to a minute.
-      invalidateSecurityStatus();
-      setPasswordSuccess('Password updated successfully.');
-      setShowPasswordModal(false);
-      setNewPassword('');
-      setConfirmPassword('');
-      setCurrentPasswordInput('');
-    } catch (err) {
-      setPasswordError(err.message || 'Unable to update password.');
-    } finally {
-      setUpdatingPassword(false);
-    }
-  };
-
-  const handleRequestPasswordOtp = async (e) => {
-    e?.preventDefault?.();
-    setPasswordError('');
-
-    try {
-      setUpdatingPassword(true);
-      const res = await fetch(`${API_BASE}/api/account/password/send-code`, {
-        method: 'POST',
-        headers: await _passwordAuthHeaders(),
-      });
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(body.detail || 'Failed to send verification code.');
-
-      setPasswordStep(2);
-      setPasswordOtpCooldown(60);
-      setPasswordOtp('');
-      setNewPassword('');
-      setConfirmPassword('');
-    } catch (err) {
-      setPasswordError(err.message || 'Unable to send code.');
-    } finally {
-      setUpdatingPassword(false);
-    }
-  };
-
-  const handleConfirmPasswordOtp = async (e) => {
-    e.preventDefault();
-    setPasswordError('');
-
-    if (!/^\d{6}$/.test(passwordOtp)) {
-      setPasswordError('Enter the 6-digit code.');
-      return;
-    }
-    if (!newPassword || !confirmPassword) {
-      setPasswordError('Please fill in your new password.');
-      return;
-    }
-    const requirementError = getPasswordRequirementError(newPassword);
-    if (requirementError) {
-      setPasswordError(requirementError);
-      return;
-    }
-    if (newPassword !== confirmPassword) {
-      setPasswordError('Password confirmation does not match.');
-      return;
-    }
-
-    try {
-      setUpdatingPassword(true);
-      const res = await fetch(`${API_BASE}/api/account/password/verify-and-set`, {
-        method: 'POST',
-        headers: await _passwordAuthHeaders(),
-        body: JSON.stringify({ code: passwordOtp, new_password: newPassword }),
-      });
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(body.detail || 'Invalid code.');
-
-      // Same session revocation as the direct change: verify-and-set calls
-      // admin.update_user_by_id, which kills every existing session. Re-auth
-      // with the password just set so the member keeps their session.
-      const reAuthEmail = session?.user?.email;
-      if (reAuthEmail) {
-        const { error: reAuthError } = await supabase.auth.signInWithPassword({
-          email: reAuthEmail,
-          password: newPassword,
-        });
-        if (reAuthError) {
-          await supabase.auth.signOut();
-          navigate('/memberlogin');
-          return;
-        }
-      }
-
-      setIsTemporaryAccount(false);
-      // Let the onboarding guard re-read status instead of serving the
-      // cached "still temporary" answer for up to a minute.
-      invalidateSecurityStatus();
-      setPasswordSuccess('Password updated successfully.');
-      setShowPasswordModal(false);
-      setPasswordStep(1);
-      setNewPassword('');
-      setConfirmPassword('');
-      setCurrentPasswordInput('');
-      setPasswordOtp('');
-    } catch (err) {
-      setPasswordError(err.message || 'Unable to update password.');
-    } finally {
-      setUpdatingPassword(false);
     }
   };
 
@@ -983,14 +781,38 @@ const Members_Profile = () => {
           {/* Profile Header Card */}
           <div className="w-full bg-white dark:bg-gray-900 p-4 sm:p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col sm:flex-row items-center justify-between mb-8 gap-4">
             <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-6 text-center sm:text-left">
-              <div className="w-20 h-20 rounded-full bg-[#EAF1EB] dark:bg-green-900/30 overflow-hidden border border-gray-200 dark:border-gray-700">
-                {avatarUrl ? (
-                  <img src={avatarUrl} alt={profile?.fullName || 'Member profile'} className="w-full h-full object-cover" />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center text-gray-500 bg-gray-100 dark:bg-gray-800">
-                    <User className="w-8 h-8" />
-                  </div>
-                )}
+              <div className="relative w-20 h-20 shrink-0">
+                <div className="w-full h-full rounded-full bg-[#EAF1EB] dark:bg-green-900/30 overflow-hidden border border-gray-200 dark:border-gray-700">
+                  {avatarUrl ? (
+                    <img src={avatarUrl} alt={profile?.fullName || 'Member profile'} className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-gray-500 bg-gray-100 dark:bg-gray-800">
+                      <User className="w-8 h-8" />
+                    </div>
+                  )}
+                  {uploadingAvatar ? (
+                    <div className="absolute inset-0 rounded-full bg-black/40 flex items-center justify-center">
+                      <span className="inline-block h-6 w-6 rounded-full border-2 border-white border-t-transparent animate-spin" />
+                    </div>
+                  ) : null}
+                </div>
+                <button
+                  type="button"
+                  onClick={handleOpenFilePicker}
+                  disabled={uploadingAvatar}
+                  aria-label="Change photo"
+                  title="Change photo"
+                  className="absolute -bottom-0.5 -right-0.5 w-8 h-8 rounded-full bg-member-green text-white border-2 border-white dark:border-gray-900 shadow flex items-center justify-center hover:bg-[#154718] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  <Camera className="w-4 h-4" />
+                </button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleAvatarFileChange}
+                />
               </div>
               <div>
                 <h1 className="text-xl sm:text-2xl font-black text-gray-900 dark:text-white mb-2">{profile?.fullName || 'Loading...'}</h1>
@@ -1001,37 +823,6 @@ const Members_Profile = () => {
                   <span className="text-gray-400 dark:text-gray-500 font-medium">Joined {profile?.joinedDate || 'N/A'}</span>
                 </div>
               </div>
-            </div>
-            <div className="mt-4 sm:mt-0 flex flex-col sm:flex-row gap-2">
-              <button
-                onClick={handleOpenFilePicker}
-                disabled={uploadingAvatar}
-                className="flex items-center justify-center gap-2 border border-member-green text-member-green hover:bg-member-green/10 dark:border-green-500 dark:text-green-400 dark:hover:bg-green-900/30 transition-colors font-bold rounded-lg px-5 py-2.5 text-sm disabled:opacity-60 disabled:cursor-not-allowed"
-              >
-                {uploadingAvatar ? (
-                  <>
-                    <span className="inline-block h-4 w-4 rounded-full border-2 border-member-green border-t-transparent animate-spin" />
-                    Uploading...
-                  </>
-                ) : (
-                  <>
-                    <Camera className="w-4 h-4" /> Change Photo
-                  </>
-                )}
-              </button>
-              <button
-                onClick={handleOpenChangeEmail}
-                className="flex items-center justify-center gap-2 border border-member-green text-member-green hover:bg-member-green/10 dark:border-green-500 dark:text-green-400 dark:hover:bg-green-900/30 transition-colors font-bold rounded-lg px-5 py-2.5 text-sm"
-              >
-                <Pencil className="w-4 h-4" /> Change Email
-              </button>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={handleAvatarFileChange}
-              />
             </div>
           </div>
           {avatarUploadError ? (
@@ -1281,14 +1072,15 @@ const Members_Profile = () => {
                 );
               })}
 
-              {/* Security Button Appended to Bottom of Accordion */}
+              {/* Password, notifications and email live on the Settings page. */}
               <button
                 type="button"
-                onClick={handleOpenChangePassword}
+                onClick={() => navigate('/members-profile/settings')}
                 className="w-full flex items-center gap-3 p-4 sm:p-5 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
               >
-                <Lock className="w-5 h-5 text-gray-500" />
-                <span className="text-sm font-bold text-gray-700 dark:text-gray-300">Account Security</span>
+                <Settings className="w-5 h-5 text-gray-500" />
+                <span className="flex-1 text-left text-sm font-bold text-gray-700 dark:text-gray-300">Settings</span>
+                <ChevronRight className="w-4 h-4 text-gray-400" />
               </button>
               
             </div>
@@ -1335,184 +1127,16 @@ const Members_Profile = () => {
 
         </main>
 
-        {showPasswordModal ? (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-            <form
-              onSubmit={
-                passwordStep === 2
-                  ? handleConfirmPasswordOtp
-                  : (passwordRecoveryMode ? handleRequestPasswordOtp : handleDirectPasswordChange)
-              }
-              className="w-full max-w-md bg-white dark:bg-gray-900 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 p-6"
-            >
-              <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-1">
-                {passwordStep === 2
-                  ? 'Verify Code & Set New Password'
-                  : (passwordRecoveryMode ? 'Recover Password' : 'Change Password')}
-              </h3>
-              <p className="text-xs text-gray-500 mb-4">
-                {passwordStep === 2
-                  ? 'Enter the 6-digit code we emailed you, then choose a new password.'
-                  : (passwordRecoveryMode
-                      ? "We'll email a 6-digit code to your address on file. You can set your new password after verifying the code."
-                      : 'Enter your current password and choose a new one.')}
-              </p>
-
-              {passwordStep === 1 ? (
-                <>
-                  {!passwordRecoveryMode && (
-                    <>
-                      <div className="mb-4">
-                        <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Current Password</label>
-                        <PasswordInput
-                          value={currentPasswordInput}
-                          onChange={(e) => setCurrentPasswordInput(e.target.value)}
-                          autoComplete="current-password"
-                          toggleClassName="text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
-                          className="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 rounded-lg pl-3 pr-10 py-2 text-sm focus:ring-2 focus:ring-member-green outline-none"
-                          placeholder="Enter your current password"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => { setPasswordRecoveryMode(true); setCurrentPasswordInput(''); setNewPassword(''); setConfirmPassword(''); setPasswordError(''); }}
-                          className="mt-2 text-xs text-member-green dark:text-green-400 hover:underline"
-                        >
-                          Forgot your current password?
-                        </button>
-                      </div>
-
-                      <div className="mb-4">
-                        <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">New Password</label>
-                        <PasswordInput
-                          value={newPassword}
-                          onChange={(e) => setNewPassword(e.target.value)}
-                          autoComplete="new-password"
-                          toggleClassName="text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
-                          className="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 rounded-lg pl-3 pr-10 py-2 text-sm focus:ring-2 focus:ring-member-green outline-none"
-                          placeholder="At least 8 characters"
-                        />
-                        <PasswordRequirements password={newPassword} />
-                      </div>
-
-                      <div className="mb-4">
-                        <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Confirm New Password</label>
-                        <PasswordInput
-                          value={confirmPassword}
-                          onChange={(e) => setConfirmPassword(e.target.value)}
-                          autoComplete="new-password"
-                          toggleClassName="text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
-                          className="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 rounded-lg pl-3 pr-10 py-2 text-sm focus:ring-2 focus:ring-member-green outline-none"
-                          placeholder="Repeat new password"
-                        />
-                      </div>
-                    </>
-                  )}
-
-                  {passwordRecoveryMode && (
-                    <div className="mb-4 text-xs text-blue-800 bg-blue-50 border border-blue-100 rounded-lg p-3">
-                      A verification code will be sent to your email on file.
-                      <button
-                        type="button"
-                        onClick={() => { setPasswordRecoveryMode(false); setPasswordError(''); }}
-                        className="block mt-1 text-member-green dark:text-green-400 hover:underline"
-                      >
-                        I remember my current password
-                      </button>
-                    </div>
-                  )}
-                </>
-              ) : (
-                <>
-                  <div className="mb-4">
-                    <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">6-digit Code</label>
-                    <input
-                      type="text"
-                      inputMode="numeric"
-                      pattern="\d{6}"
-                      maxLength={6}
-                      value={passwordOtp}
-                      onChange={(e) => setPasswordOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                      className="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 rounded-lg px-3 py-2 text-lg tracking-[0.5em] text-center font-bold focus:ring-2 focus:ring-member-green outline-none"
-                      placeholder="000000"
-                    />
-                    <button
-                      type="button"
-                      onClick={handleRequestPasswordOtp}
-                      disabled={passwordOtpCooldown > 0 || updatingPassword}
-                      className="mt-2 text-xs text-member-green dark:text-green-400 hover:underline disabled:text-gray-400 disabled:no-underline"
-                    >
-                      {passwordOtpCooldown > 0 ? `Resend code in ${passwordOtpCooldown}s` : 'Resend code'}
-                    </button>
-                  </div>
-
-                  <div className="mb-4">
-                    <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">New Password</label>
-                    <PasswordInput
-                      value={newPassword}
-                      onChange={(e) => setNewPassword(e.target.value)}
-                      autoComplete="new-password"
-                      toggleClassName="text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
-                      className="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 rounded-lg pl-3 pr-10 py-2 text-sm focus:ring-2 focus:ring-member-green outline-none"
-                      placeholder="At least 8 characters"
-                    />
-                    <PasswordRequirements password={newPassword} />
-                  </div>
-
-                  <div className="mb-4">
-                    <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Confirm New Password</label>
-                    <PasswordInput
-                      value={confirmPassword}
-                      onChange={(e) => setConfirmPassword(e.target.value)}
-                      autoComplete="new-password"
-                      toggleClassName="text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
-                      className="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 rounded-lg pl-3 pr-10 py-2 text-sm focus:ring-2 focus:ring-member-green outline-none"
-                      placeholder="Repeat new password"
-                    />
-                  </div>
-                </>
-              )}
-
-              {passwordError ? (
-                <p className="text-sm text-red-600 mb-4">{passwordError}</p>
-              ) : null}
-
-              <div className="flex items-center justify-end gap-3">
-                {passwordStep === 2 ? (
-                  <button
-                    type="button"
-                    onClick={() => { setPasswordStep(1); setPasswordOtp(''); setPasswordError(''); }}
-                    className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 text-sm font-semibold hover:bg-gray-50 dark:hover:bg-gray-800"
-                  >
-                    Back
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => setShowPasswordModal(false)}
-                    disabled={isTemporaryAccount}
-                    className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 text-sm font-semibold hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-40 disabled:cursor-not-allowed"
-                    title={isTemporaryAccount ? 'You must change your temporary password before continuing.' : ''}
-                  >
-                    Cancel
-                  </button>
-                )}
-                <button
-                  type="submit"
-                  disabled={updatingPassword}
-                  className="px-4 py-2 rounded-lg bg-member-green text-white text-sm font-semibold hover:bg-[#154718] disabled:opacity-50"
-                >
-                  {updatingPassword
-                    ? (passwordStep === 2
-                        ? 'Verifying…'
-                        : (passwordRecoveryMode ? 'Sending code…' : 'Updating…'))
-                    : (passwordStep === 2
-                        ? 'Verify & Update Password'
-                        : (passwordRecoveryMode ? 'Send Code' : 'Update Password'))}
-                </button>
-              </div>
-            </form>
-          </div>
-        ) : null}
+        <ChangePasswordModal
+          open={showPasswordModal}
+          mustChange={isTemporaryAccount}
+          onClose={() => setShowPasswordModal(false)}
+          onChanged={() => {
+            setIsTemporaryAccount(false);
+            setShowPasswordModal(false);
+            setPasswordSuccess('Password updated successfully.');
+          }}
+        />
 
       </div>
     </div>

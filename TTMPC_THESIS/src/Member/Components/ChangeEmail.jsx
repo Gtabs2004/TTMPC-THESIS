@@ -110,9 +110,9 @@ export default function ChangeEmail() {
       invalidateSecurityStatus();
 
       // First-login flow → go to password change next if still temporary.
-      // Steady-state → back to profile.
+      // Steady-state → back to Settings, where Change Email lives.
       const { data: { session } } = await supabase.auth.getSession();
-      let nextRoute = "/members-profile";
+      let nextRoute = isInitial ? "/members-profile" : "/members-profile/settings";
       if (session?.access_token) {
         try {
           const r = await fetch(`${API_BASE}/api/account/security-status`, {
@@ -138,10 +138,10 @@ export default function ChangeEmail() {
     <div className="animate-page-in p-6 sm:p-8 max-w-2xl mx-auto">
       {!isInitial && (
         <button
-          onClick={() => navigate("/members-profile")}
+          onClick={() => navigate("/members-profile/settings")}
           className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white mb-4"
         >
-          <ArrowLeft className="w-4 h-4" /> Back to profile
+          <ArrowLeft className="w-4 h-4" /> Back to settings
         </button>
       )}
 

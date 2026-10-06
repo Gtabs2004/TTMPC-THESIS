@@ -160,6 +160,7 @@ def _normalize_loan_row(supabase, row: dict, *, source_table: str) -> dict[str, 
 
     return {
         "control_number": _safe(row.get("control_number")),
+        "member_id": _safe(row.get("member_id")),
         "source_table": source_table,
         "member_name": member_name,
         "member_email": member_email.lower() if member_email else "",
@@ -221,6 +222,28 @@ def _update_last_emailed_status(supabase, *, source_table: str, loan_id: str, st
         logger.debug("notification: failed to update last_emailed_status: %s", err)
 
 
+def _member_opted_out(supabase, member_id: str, stage: str) -> bool:
+    """True when the member turned this category of loan email off in Settings
+    (member_notification_preferences.sql). No row, or any lookup failure,
+    means the email is sent."""
+    if not supabase or not member_id:
+        return False
+    column = "loan_release_emails" if stage == "treasurer" else "loan_review_emails"
+    try:
+        resp = (
+            supabase.table("member_notification_preferences")
+            .select(column)
+            .eq("member_id", member_id)
+            .limit(1)
+            .execute()
+        )
+    except Exception as err:
+        logger.debug("notification: preference lookup failed for %s: %s", member_id, err)
+        return False
+    row = (resp.data or [None])[0]
+    return bool(row) and row.get(column) is False
+
+
 def dispatch_loan_status_email(
     supabase,
     *,
@@ -273,7 +296,10 @@ def dispatch_loan_status_email(
 
     # --- Recipient #1: the member ---
     member_email = (override_member_email or loan["member_email"] or "").strip().lower()
-    if member_email and email_service.is_valid_email(member_email):
+    if _member_opted_out(supabase, loan.get("member_id"), stage_norm):
+        result.skipped += 1
+        result.details.append({"role": "member", "reason": "member_opted_out"})
+    elif member_email and email_service.is_valid_email(member_email):
         dedup_key = _dedup_key(loan["control_number"], stage_norm, action_norm, status_label, member_email)
         if _dedup_already_succeeded(supabase, dedup_key):
             result.skipped += 1
