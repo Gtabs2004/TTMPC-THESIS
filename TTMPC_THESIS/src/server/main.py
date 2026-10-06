@@ -2747,6 +2747,171 @@ async def get_treasurer_rescheduled_loans():
     }
 
 
+@app.get("/api/treasurer/disbursements/decision-queue")
+async def get_treasurer_decision_queue(limit: int = 5):
+    """Dashboard summary of loans awaiting the Treasurer's funding decision
+    (`loan_status = 'to be disbursed'` — the Loan Approval page's Awaiting tab),
+    each judged against the vault the same way Treasurer_ApprovalDetails does:
+    shortfall = max(net_cash_out − available, 0).
+
+    Read-only. No new math: net cash out comes from _net_cash_out_for_rows(),
+    the vault figures from _compute_vault_available(), the order from
+    _compute_disbursement_rank() (rank asc, then longest-waiting first).
+    KOICA rows have no fee/renewal computation (the Cashier flow never touches
+    koica_loans), so they're shown at gross and flagged `is_estimated` — their
+    funding status is "review", never "fundable".
+    """
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+
+    try:
+        loans_resp = (
+            supabase.table("loans")
+            .select(
+                "control_number,member_id,loan_amount,principal_amount,loan_status,application_date,"
+                f"application_type,{LOAN_FEE_SNAPSHOT_COLUMNS},"
+                "member:member_id(first_name,last_name,is_bona_fide),"
+                "loan_type:loan_type_id(name,code)"
+            )
+            .execute()
+        )
+        all_loans = loans_resp.data or []
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to load loans: {e}")
+
+    awaiting_loans = [
+        r for r in all_loans
+        if str(r.get("loan_status") or "").strip().lower() == "to be disbursed"
+    ]
+    rescheduled_loans = [
+        r for r in all_loans
+        if str(r.get("loan_status") or "").strip().lower() == "pending rescheduling"
+    ]
+
+    try:
+        koica_resp = (
+            supabase.table("koica_loans")
+            .select("control_number,loan_amount,loan_status,application_date,full_name,loan_type_code")
+            .execute()
+        )
+        koica_all = koica_resp.data or []
+    except Exception as e:
+        logger.warning("koica_loans lookup failed for decision queue: %s", e)
+        koica_all = []
+    koica_awaiting = [r for r in koica_all if str(r.get("loan_status") or "").strip().lower() == "to be disbursed"]
+    koica_rescheduled = [r for r in koica_all if str(r.get("loan_status") or "").strip().lower() == "pending rescheduling"]
+
+    figures = _compute_vault_available()
+    available = figures["available"]
+    now = datetime.now()
+
+    def _days_waiting(app_date_str):
+        if not app_date_str:
+            return None
+        try:
+            app_dt = datetime.fromisoformat(str(app_date_str).replace("Z", "+00:00"))
+            return max(0, (now - app_dt.replace(tzinfo=None)).days)
+        except (ValueError, TypeError):
+            return None
+
+    def _funding(net_cash_out: Decimal, is_estimated: bool) -> tuple[str, Decimal]:
+        shortfall = money(max(net_cash_out - available, Decimal("0")))
+        if is_estimated:
+            return "review", shortfall
+        return ("fundable" if shortfall <= 0 else "insufficient"), shortfall
+
+    queue = []
+    awaiting_net = _net_cash_out_for_rows(awaiting_loans)
+    for r in awaiting_loans:
+        cn = str(r.get("control_number") or "")
+        member = r.get("member") or {}
+        loan_type = _normalize_disbursement_loan_type((r.get("loan_type") or {}).get("name") or "")
+        migs = _classify_migs(member)
+        rank, rank_label = _compute_disbursement_rank(loan_type, migs)
+        net_cash_out = awaiting_net.get(cn, Decimal("0"))
+        status, shortfall = _funding(net_cash_out, False)
+        queue.append({
+            "loan_id": cn,
+            "source": "loans",
+            "member_name": f"{member.get('first_name') or ''} {member.get('last_name') or ''}".strip() or "Unknown Member",
+            "migs": migs,
+            "loan_type": loan_type,
+            "rank": rank,
+            "rank_label": rank_label,
+            "loan_amount": decimal_to_float(r.get("principal_amount") or r.get("loan_amount") or 0),
+            "net_cash_out": decimal_to_float(net_cash_out),
+            "is_renewal": str(r.get("application_type") or "").strip().lower() == "renewal",
+            "is_estimated": False,
+            "days_waiting": _days_waiting(r.get("application_date")),
+            "funding_status": status,
+            "shortfall": decimal_to_float(shortfall),
+        })
+
+    for r in koica_awaiting:
+        loan_type = _normalize_disbursement_loan_type(
+            "Nonmember Bonus Loan" if r.get("loan_type_code") == "NONMEMBER_BONUS" else "ABFF Loan"
+        )
+        rank, rank_label = _compute_disbursement_rank(loan_type, "Non-Member")
+        gross = Decimal(str(r.get("loan_amount") or 0))
+        status, shortfall = _funding(gross, True)
+        queue.append({
+            "loan_id": r.get("control_number"),
+            "source": "koica",
+            "member_name": r.get("full_name") or "Unknown Applicant",
+            "migs": "Non-Member",
+            "loan_type": loan_type,
+            "rank": rank,
+            "rank_label": rank_label,
+            "loan_amount": decimal_to_float(gross),
+            "net_cash_out": decimal_to_float(gross),
+            "is_renewal": False,
+            "is_estimated": True,
+            "days_waiting": _days_waiting(r.get("application_date")),
+            "funding_status": status,
+            "shortfall": decimal_to_float(shortfall),
+        })
+
+    # Same ordering as the priority queue: rank asc, then longest-waiting first.
+    queue.sort(key=lambda r: (r["rank"], -(r["days_waiting"] or 0)))
+
+    total_net = sum((Decimal(str(r["net_cash_out"])) for r in queue), Decimal("0"))
+    counts = {"fundable": 0, "review": 0, "insufficient": 0}
+    for r in queue:
+        counts[r["funding_status"]] += 1
+
+    # Rescheduled loans whose shortfall has cleared (same live recompute as
+    # the Rescheduled tab) — worth surfacing so they don't sit forgotten.
+    rescheduled_net = _net_cash_out_for_rows(rescheduled_loans)
+    rescheduled_now_fundable = sum(1 for v in rescheduled_net.values() if v <= available)
+    rescheduled_now_fundable += sum(
+        1 for r in koica_rescheduled if Decimal(str(r.get("loan_amount") or 0)) <= available
+    )
+
+    limit_clean = max(1, min(int(limit), 50))
+    return {
+        "success": True,
+        "data": {
+            "vault": {
+                "balance": decimal_to_float(figures["balance"]),
+                "committed": decimal_to_float(figures["committed"]),
+                "available": decimal_to_float(available),
+            },
+            "rows": queue[:limit_clean],
+            "summary": {
+                "total_count": len(queue),
+                "total_net_cash_out": decimal_to_float(money(total_net)),
+                "fundable_count": counts["fundable"],
+                "review_count": counts["review"],
+                "insufficient_count": counts["insufficient"],
+                # Loans that individually fit in `available` (KOICA judged at gross).
+                "fits_count": sum(1 for r in queue if r["shortfall"] <= 0),
+                "rescheduled_count": len(rescheduled_loans) + len(koica_rescheduled),
+                "rescheduled_now_fundable": rescheduled_now_fundable,
+            },
+        },
+    }
+
+
 @app.get("/api/treasurer/vault/entries")
 async def get_treasurer_vault_entries(
     limit: int = 50,

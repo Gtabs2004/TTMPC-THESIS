@@ -21,8 +21,6 @@ import {
   UserPlus,
   ClipboardList,
   BadgeCheck,
-  ChevronLeft,
-  ChevronRight,
   User,
   Inbox,
   Wallet,
@@ -31,7 +29,8 @@ import {
 } from "lucide-react";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
-const RESCHEDULED_PAGE_SIZE = 10;
+const RESCHEDULED_PAGE_SIZE = 5;
+const AWAITING_PAGE_SIZE = 5;
 
 const PHP = (v) =>
   `₱${Number(v || 0).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -61,6 +60,7 @@ const Treasurer_Approval = () => {
   const [rescheduledError, setRescheduledError] = useState("");
   const [rescheduledLoaded, setRescheduledLoaded] = useState(false);
   const [rescheduledPage, setRescheduledPage] = useState(1);
+  const [awaitingPage, setAwaitingPage] = useState(1);
 
   useEffect(() => {
     fetchLoans();
@@ -263,6 +263,13 @@ const Treasurer_Approval = () => {
     };
   });
 
+  const totalAwaitingPages = Math.max(1, Math.ceil(displayLoans.length / AWAITING_PAGE_SIZE));
+  const paginatedAwaiting = displayLoans.slice(
+    (awaitingPage - 1) * AWAITING_PAGE_SIZE,
+    awaitingPage * AWAITING_PAGE_SIZE,
+  );
+  useEffect(() => setAwaitingPage(1), [loans.length]);
+
   const totalRescheduledPages = Math.max(1, Math.ceil(rescheduled.length / RESCHEDULED_PAGE_SIZE));
   const paginatedRescheduled = useMemo(() => {
     const start = (rescheduledPage - 1) * RESCHEDULED_PAGE_SIZE;
@@ -335,7 +342,7 @@ const Treasurer_Approval = () => {
                       ) : displayLoans.length === 0 ? (
                         <TableStateRow colSpan={9} variant="empty" icon={Inbox} label="No loans found." />
                       ) : (
-                        displayLoans.map((loan, idx) => (
+                        paginatedAwaiting.map((loan, idx) => (
                           <tr key={idx} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
                             <td className="p-5 text-sm text-gray-500 font-medium">{loan.id}</td>
                             <td className="p-5 text-sm font-bold text-gray-800">{loan.name}</td>
@@ -374,28 +381,9 @@ const Treasurer_Approval = () => {
                   </table>
                 </div>
 
-                <div className="flex items-center justify-center p-6 gap-2 border-t border-gray-100">
-                  <button className="w-8 h-8 flex items-center justify-center rounded-full border border-gray-300 bg-white text-gray-500 transition-colors hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed" disabled>
-                    <ChevronLeft className="w-4 h-4" />
-                  </button>
-
-                  {[1, 2, 3, 4, 5].map((page) => (
-                    <button
-                      key={page}
-                      className={`w-8 h-8 flex items-center justify-center rounded-full border text-xs font-semibold transition-colors ${
-                        page === 1
-                          ? "bg-[#16A34A] text-white border-[#16A34A]"
-                          : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"
-                      }`}
-                    >
-                      {page}
-                    </button>
-                  ))}
-
-                  <button className="w-8 h-8 flex items-center justify-center rounded-full border border-gray-300 bg-white text-gray-500 transition-colors hover:bg-gray-50">
-                    <ChevronRight className="w-4 h-4" />
-                  </button>
-                </div>
+                {!loading && !fetchError && (
+                  <Pagination page={awaitingPage} totalPages={totalAwaitingPages} onChange={setAwaitingPage} />
+                )}
               </>
             )}
 
@@ -529,7 +517,7 @@ const Treasurer_Approval = () => {
                   </table>
                 </div>
 
-                {!rescheduledLoading && !rescheduledError && rescheduled.length > RESCHEDULED_PAGE_SIZE && (
+                {!rescheduledLoading && !rescheduledError && (
                   <Pagination page={rescheduledPage} totalPages={totalRescheduledPages} onChange={setRescheduledPage} />
                 )}
               </>

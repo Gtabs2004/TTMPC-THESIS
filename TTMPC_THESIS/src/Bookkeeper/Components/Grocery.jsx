@@ -10,6 +10,7 @@ import { supabase } from "../../supabaseClient";
 import StaffTopbar from "../../components/StaffTopbar";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
 import TableStateRow from "../../components/TableStateRow";
+import Pagination from "../../components/Pagination";
 import {
   LayoutDashboard,
   Users,
@@ -39,6 +40,8 @@ import {
   ShieldAlert,
   Brain,
 } from "lucide-react";
+
+const PAGE_SIZE = 10;
 
 // --- MOCK DATA FOR THE TABLE ---
 const MOCK_TRANSACTIONS = [
@@ -95,6 +98,12 @@ const Grocery = () => {
     if (activeTab === "On Credit") return rows.filter((r) => r.rawStatus === "On Credit");
     return rows;
   }, [rows, activeTab]);
+
+  const [pageState, setPage] = useState(1);
+  const totalPages = Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE));
+  // Clamp so a shrinking list (realtime refetch) never strands us past the last page.
+  const page = Math.min(pageState, totalPages);
+  const paginatedRows = filteredRows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const totals = useMemo(() => {
     const paid = rows.filter((r) => r.rawStatus === "Completed").length;
@@ -169,7 +178,7 @@ const Grocery = () => {
                 { value: "On Credit", label: "On Credit", count: totals.credit },
               ]}
               activeTab={activeTab}
-              onTabChange={setActiveTab}
+              onTabChange={(tab) => { setActiveTab(tab); setPage(1); }}
             >
               <div className="relative w-full sm:w-64">
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
@@ -216,7 +225,7 @@ const Grocery = () => {
                       icon={ShoppingCart}
                       label="No transactions yet."
                     />
-                  ) : filteredRows.map((tx) => (
+                  ) : paginatedRows.map((tx) => (
                     <tr key={tx.id} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
                       <td className="p-5 text-sm font-medium text-gray-700">{tx.id}</td>
                       <td className="p-5 text-sm font-medium text-gray-700">{tx.memberId}</td>
@@ -238,26 +247,9 @@ const Grocery = () => {
             </div>
 
             {/* Pagination */}
-            <div className="flex items-center justify-center p-6 gap-2 border-t border-gray-100">
-              <button className="w-8 h-8 flex items-center justify-center rounded-full border border-gray-300 bg-white text-gray-500 transition-colors hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">
-                <ChevronLeft className="w-4 h-4" />
-              </button>
-              {[1, 2, 3, 4, 5].map((page) => (
-                <button
-                  key={page}
-                  className={`w-8 h-8 flex items-center justify-center rounded-full border text-xs font-semibold transition-colors ${
-                    page === 1
-                      ? 'bg-[#16A34A] text-white border-[#16A34A]'
-                      : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
-                  }`}
-                >
-                  {page}
-                </button>
-              ))}
-              <button className="w-8 h-8 flex items-center justify-center rounded-full border border-gray-300 bg-white text-gray-500 transition-colors hover:bg-gray-50">
-                <ChevronRight className="w-4 h-4" />
-              </button>
-            </div>
+            {!loading && (
+              <Pagination page={page} totalPages={totalPages} onChange={setPage} />
+            )}
 
           </div>
         </main>

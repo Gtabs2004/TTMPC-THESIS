@@ -13,6 +13,7 @@ import StaffTopbar from "../../components/StaffTopbar";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
 import TableActionButton from "../../components/TableActionButton";
 import TableStateRow from "../../components/TableStateRow";
+import Pagination from "../../components/Pagination";
 import { supabase } from "../../supabaseClient"; // Make sure this path is correct
 import {
   LayoutDashboard,
@@ -23,14 +24,14 @@ import {
   ClipboardList,
   BadgeCheck,
   Banknote,
-  ChevronLeft,
-  ChevronRight,
   BarChart3,
   History,
   ClipboardCheck,
   Brain,
   Briefcase,
 } from "lucide-react";
+
+const PAGE_SIZE = 10;
 
 const Loan_Approval = () => {
     const navigate = useNavigate();
@@ -162,6 +163,11 @@ const Loan_Approval = () => {
     };
   });
 
+  const [page, setPage] = useState(1);
+  const totalPages = Math.max(1, Math.ceil(displayLoans.length / PAGE_SIZE));
+  const paginatedLoans = displayLoans.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  useEffect(() => setPage(1), [loans.length]);
+
   return (
    <div className="flex min-h-screen bg-gray-50">
          {/* SIDEBAR (Kept from your original code) */}
@@ -221,7 +227,7 @@ const Loan_Approval = () => {
                   ) : displayLoans.length === 0 ? (
                     <TableStateRow colSpan={8} variant="empty" icon={Banknote} label="No loans found." />
                   ) : (
-                    displayLoans.map((loan, idx) => (
+                    paginatedLoans.map((loan, idx) => (
                       <tr key={idx} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
                         <td className="p-5 text-sm text-gray-500 font-medium">{loan.id}</td>
                         <td className="p-5 text-sm font-bold text-gray-800">{loan.name}</td>
@@ -253,28 +259,9 @@ const Loan_Approval = () => {
             </div>
 
             {/* Pagination */}
-            <div className="flex items-center justify-center p-6 gap-2 border-t border-gray-100">
-              <button className="w-8 h-8 flex items-center justify-center rounded-full border border-gray-300 bg-white text-gray-500 transition-colors hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed" disabled>
-                <ChevronLeft className="w-4 h-4" />
-              </button>
-
-              {[1, 2, 3, 4, 5].map((page) => (
-                <button
-                  key={page}
-                  className={`w-8 h-8 flex items-center justify-center rounded-full border text-xs font-semibold transition-colors ${
-                    page === 1
-                      ? "bg-[#16A34A] text-white border-[#16A34A]"
-                      : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"
-                  }`}
-                >
-                  {page}
-                </button>
-              ))}
-
-              <button className="w-8 h-8 flex items-center justify-center rounded-full border border-gray-300 bg-white text-gray-500 transition-colors hover:bg-gray-50">
-                <ChevronRight className="w-4 h-4" />
-              </button>
-            </div>
+            {!loading && (
+              <Pagination page={page} totalPages={totalPages} onChange={setPage} />
+            )}
           </div>
           
         </main>
