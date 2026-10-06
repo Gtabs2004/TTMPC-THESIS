@@ -377,8 +377,8 @@ const Member_Loans = () => {
 
           {/* All loans */}
           <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 overflow-hidden mb-8 flex flex-col">
-            <div className="p-5 sm:p-6 flex items-center justify-between border-b border-gray-100 dark:border-gray-800">
-              <h3 className="text-lg font-bold text-gray-900 dark:text-white">All Loans</h3>
+            <div className="px-4 py-3.5 sm:p-6 flex items-center justify-between border-b border-gray-100 dark:border-gray-800">
+              <h3 className="text-base sm:text-lg font-bold text-gray-900 dark:text-white">All Loans</h3>
               <span className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
                 {loans.length} loan{loans.length === 1 ? '' : 's'}
               </span>
@@ -454,51 +454,53 @@ const Member_Loans = () => {
                 <TableStateRow bare variant="empty" icon={Banknote} label="No loan records found." />
               ) : pageLoans.map((loan) => {
                 const isSelected = loan.loan_id === selectedLoanId;
+                // One headline figure per card: what is still owed on an active
+                // loan, otherwise the amount borrowed / applied for.
+                const owing = isActiveLoan(loan);
+                const headline = owing ? formatCurrency(loan.remaining_balance) : formatCurrency(loan.principal);
+                const headlineLabel = owing
+                  ? `left of ${formatCurrency(loan.principal)}`
+                  : isReleasedLoan(loan) ? 'loan amount' : 'applied for';
                 return (
                   <button
                     type="button"
                     key={loan.loan_id}
                     onClick={() => toggleLoan(loan.loan_id)}
                     aria-expanded={isSelected}
-                    className={`block w-full text-left px-4 py-3.5 transition-colors ${
-                      isSelected ? 'bg-[#EAF1EB]/60 dark:bg-green-900/20' : 'hover:bg-gray-50/50 dark:hover:bg-gray-800/50'
+                    className={`flex w-full items-center gap-3 text-left px-4 py-3 transition-colors ${
+                      isSelected
+                        ? 'bg-[#EAF1EB]/70 dark:bg-green-900/20 shadow-[inset_3px_0_0_0_var(--color-member-green)]'
+                        : 'active:bg-gray-50 dark:active:bg-gray-800/60'
                     }`}
                   >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-2">
                         <p className="truncate text-sm font-bold text-gray-900 dark:text-white">{loan.loan_type}</p>
-                        <p className="text-[10px] text-gray-400 dark:text-gray-500 font-medium">ID: {loan.loan_id}</p>
+                        <StatusBadge loan={loan} />
                       </div>
-                      <StatusBadge loan={loan} />
+                      <p className="mt-1 text-lg font-black leading-tight text-gray-900 dark:text-white">
+                        {headline}
+                        <span className="ml-1.5 text-[11px] font-medium text-gray-500 dark:text-gray-400">{headlineLabel}</span>
+                      </p>
+                      <p className="mt-1 truncate text-[11px] text-gray-500 dark:text-gray-400">
+                        <span className="font-semibold text-member-green dark:text-green-400">{paymentLabel(loan)}/mo</span>
+                        <span className="mx-1.5 text-gray-300 dark:text-gray-600">·</span>
+                        {rateLabel(loan)} monthly
+                        <span className="mx-1.5 text-gray-300 dark:text-gray-600">·</span>
+                        <span className="font-mono">{loan.loan_id}</span>
+                      </p>
                     </div>
-                    <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 text-xs">
-                      <div>
-                        <p className="text-gray-400 dark:text-gray-500 font-medium">Original Amount</p>
-                        <p className="font-bold text-gray-600 dark:text-gray-400">{formatCurrency(loan.principal)}</p>
-                      </div>
-                      <div>
-                        <p className="text-gray-400 dark:text-gray-500 font-medium">Remaining Balance</p>
-                        <p className="font-black text-gray-900 dark:text-white">{balanceLabel(loan)}</p>
-                      </div>
-                      <div>
-                        <p className="text-gray-400 dark:text-gray-500 font-medium">Interest Rate</p>
-                        <p className="font-bold text-gray-700 dark:text-gray-200">{rateLabel(loan)}</p>
-                      </div>
-                      <div>
-                        <p className="text-gray-400 dark:text-gray-500 font-medium">Monthly Payment</p>
-                        <p className="font-bold text-member-green dark:text-green-400">{paymentLabel(loan)}</p>
-                      </div>
-                    </div>
-                    <p className="mt-2.5 text-[11px] font-bold text-member-green dark:text-green-400">
-                      {isSelected ? 'Tap to close details' : 'Tap to view details'}
-                    </p>
+                    <ChevronRight
+                      className={`w-4 h-4 shrink-0 text-gray-400 transition-transform ${isSelected ? 'rotate-90 text-member-green' : ''}`}
+                      aria-hidden="true"
+                    />
                   </button>
                 );
               })}
             </div>
 
             {loans.length > LOANS_PAGE_SIZE && (
-              <div className="flex items-center justify-center p-6 gap-2 border-t border-gray-100 dark:border-gray-800">
+              <div className="flex items-center justify-center p-4 sm:p-6 gap-2 border-t border-gray-100 dark:border-gray-800">
                 {(() => {
                   const groupStart = Math.floor((loansPage - 1) / 5) * 5 + 1;
                   const groupEnd = Math.min(groupStart + 4, totalPages);
@@ -546,15 +548,16 @@ const Member_Loans = () => {
           {/* Selected loan */}
           {selectedLoan ? (
             <section ref={detailRef} className="scroll-mt-6">
-              <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <h2 className="text-lg font-extrabold text-gray-900 dark:text-white">Selected Loan</h2>
-                <div className="flex w-full items-center gap-2 sm:w-auto">
+              <div className="mb-3 sm:mb-4 flex items-center justify-between gap-3">
+                <h2 className="text-base sm:text-lg font-extrabold text-gray-900 dark:text-white">Loan Details</h2>
+                <div className="flex items-center gap-2">
+                  {/* On phones the loan cards above are the switcher. */}
                   {loans.length > 1 ? (
                     <select
                       value={selectedLoanId}
                       onChange={(e) => setSelectedLoanId(e.target.value)}
                       aria-label="Select a loan"
-                      className="min-w-0 flex-1 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-700 focus:outline-none focus:ring-2 focus:ring-member-green/30 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 sm:max-w-sm"
+                      className="hidden sm:block min-w-0 max-w-sm rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-700 focus:outline-none focus:ring-2 focus:ring-member-green/30 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
                     >
                       {loans.map((l) => (
                         <option key={l.loan_id} value={l.loan_id}>
