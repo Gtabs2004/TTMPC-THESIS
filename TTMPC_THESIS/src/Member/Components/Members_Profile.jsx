@@ -774,7 +774,7 @@ const Members_Profile = () => {
           </div>
         </header>
    
-        <main className="animate-page-in p-4 sm:p-6 lg:p-8 overflow-y-auto pb-28 lg:pb-0">
+        <main className="scrollbar-hidden animate-page-in p-4 sm:p-6 lg:p-8 overflow-y-auto pb-28 lg:pb-0">
           
           {/* Profile Header Card */}
           <div className="w-full bg-white dark:bg-mdark-card p-4 sm:p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-mdark-border flex flex-col sm:flex-row items-center justify-between mb-8 gap-4">

@@ -404,7 +404,7 @@ const Member_Savings = () => {
         </header>
    
         {/* Scrollable Main */}
-        <main className="animate-page-in p-4 sm:p-6 lg:p-8 overflow-y-auto pb-28 lg:pb-0">
+        <main className="scrollbar-hidden animate-page-in p-4 sm:p-6 lg:p-8 overflow-y-auto pb-28 lg:pb-0">
           
           {/* Top Summary Cards — 2-up on phones, 3-up from md, matching the
               compact tile grid used on the dashboard. */}

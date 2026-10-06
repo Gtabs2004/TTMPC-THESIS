@@ -336,7 +336,7 @@ const Member_ApplyLoans = () => {
         </header>
 
         {/* Scrollable Page Content */}
-        <main className="animate-page-in p-3 sm:p-6 lg:p-8 overflow-y-auto pb-28 lg:pb-0">
+        <main className="scrollbar-hidden animate-page-in p-3 sm:p-6 lg:p-8 overflow-y-auto pb-28 lg:pb-0">
           <h1 className="hidden lg:block font-extrabold text-[#1a4a2f] dark:text-mdark-accent text-2xl mb-6 lg:mb-8">Apply for Loans</h1>
 
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 sm:p-6 dark:bg-mdark-card dark:border-mdark-border">

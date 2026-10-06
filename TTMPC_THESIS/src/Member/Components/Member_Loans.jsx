@@ -311,7 +311,7 @@ const Member_Loans = () => {
           </div>
         </header>
 
-        <main className="animate-page-in p-4 sm:p-6 lg:p-8 overflow-y-auto pb-28 lg:pb-8">
+        <main className="scrollbar-hidden animate-page-in p-4 sm:p-6 lg:p-8 overflow-y-auto pb-28 lg:pb-8">
           <div className="mb-6 lg:mb-8 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h1 className="hidden lg:block font-extrabold text-[#1a4a2f] dark:text-mdark-accent text-2xl">My Loans</h1>
