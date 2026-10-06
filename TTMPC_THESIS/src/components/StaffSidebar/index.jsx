@@ -265,7 +265,7 @@ export default function StaffSidebar({ portal, items, sections }) {
       </button>
 
       <aside
-        className={`bg-white w-64 p-4 flex flex-col border-r border-gray-200 shrink-0 fixed inset-y-0 left-0 z-40 overflow-y-auto transition-[width,transform] duration-300 ease-in-out lg:static lg:translate-x-0 ${
+        className={`bg-white w-64 p-4 flex flex-col border-r border-gray-200 shrink-0 fixed inset-y-0 left-0 z-40 overflow-hidden transition-[width,transform] duration-300 ease-in-out lg:static lg:h-screen lg:translate-x-0 ${
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         } ${collapsed ? "lg:w-20" : "lg:w-64"}`}
       >
@@ -310,7 +310,7 @@ export default function StaffSidebar({ portal, items, sections }) {
 
         <hr className="w-full border-gray-200 mb-6" />
 
-      <nav className="flex flex-col gap-2 text-sm flex-grow">
+      <nav className="scrollbar-hidden flex flex-col gap-2 text-sm flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
         {sections
           ? sections.map((group) => (
               <div key={group.section} className="mb-4 flex flex-col gap-2">

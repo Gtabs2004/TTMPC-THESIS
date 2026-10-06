@@ -126,6 +126,7 @@ const BOD_Loan_Approval = () => {
         />
 
         <main className="animate-page-in p-8 flex-1">
+          <h1 className="text-2xl font-bold text-gray-900 mb-6">Loan Approvals</h1>
           <StatCardRow cols={3}>
             <StatCard label="Pending Loan Applications" value={loans.length} icon={UserPlus} iconColor="text-[#2C7A3F]" />
             <StatCard

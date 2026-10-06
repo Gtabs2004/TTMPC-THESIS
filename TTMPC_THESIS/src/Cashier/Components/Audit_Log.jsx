@@ -31,6 +31,7 @@ const Cashier_Audit_Log = () => {
         <StaffTopbar portal="Cashier" notifications={<LoanNotificationBell role="cashier" />} />
 
         <main className="animate-page-in p-8 min-w-0">
+          <h1 className="text-2xl font-bold text-gray-900 mb-6">Audit Log</h1>
           <AuditLogViewer showActorRoleFilter={false} onError={(msg) => addNotification(msg, "error")} />
         </main>
       </div>

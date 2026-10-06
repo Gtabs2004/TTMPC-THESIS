@@ -261,6 +261,7 @@ const BookkeeperLoanApproval = () => {
         <StaffTopbar portal="Bookkeeper" notifications={<LoanNotificationBell role="bookkeeper" />} />
 
         <main className="animate-page-in p-8 flex-1">
+          <h1 className="text-2xl font-bold text-gray-900 mb-6">Loan Approvals</h1>
 
           <StatCardRow cols={3}>
             <StatCard label="Pending Review" value={queueStats.pendingCount} icon={UserPlus} iconColor="text-[#2C7A3F]" />

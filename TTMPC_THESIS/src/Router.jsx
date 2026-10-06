@@ -51,8 +51,6 @@ import Member_Dashboard from "./Member/Components/Member_Dashboard";
 import Member_Loans from "./Member/Components/Member_Loans";
 import Member_ApplyLoans from "./Member/Components/Member_ApplyLoans";
 import Members_Profile from "./Member/Components/Members_Profile";
-import ChangeEmail from "./Member/Components/ChangeEmail";
-import Member_Settings from "./Member/Components/Member_Settings";
 import MemberOnboardingGuard from "./Member/Components/MemberOnboardingGuard";
 import MemberLayout from "./Member/Components/MemberLayout";
 import RequireRole from "./utils/RequireRole";
@@ -195,8 +193,6 @@ export const router = createBrowserRouter([
         // Loan Lifecycle was merged into My Loans; keep old links working.
         {path: "/member-lifecycle", element: <Navigate to="/member-loans" replace/>},
         {path: "/members-profile", element: <Members_Profile/>},
-        {path: "/members-profile/change-email", element: <ChangeEmail/>},
-        {path: "/members-profile/settings", element: <Member_Settings/>},
         {path: "/member-savings", element: <Member_Savings/>},
         {path: "/member-statement-of-account", element: <Member_StatementOfAccount/>},
       ],

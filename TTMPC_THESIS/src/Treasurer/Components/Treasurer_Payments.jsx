@@ -202,6 +202,7 @@ const Treasurer_Payments = () => {
         />
 
         <main className="animate-page-in p-8">
+          <h1 className="text-2xl font-bold text-gray-900 mb-6">Cash Ledger</h1>
           {/* KPI STRIP */}
           <StatCardRow cols={3}>
             <StatCard
