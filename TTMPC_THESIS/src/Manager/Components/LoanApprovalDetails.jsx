@@ -7,6 +7,7 @@ import { formatTinNumber } from '../../LOANFORMS/tinFormat';
 import { printLoanApplicationForm } from '../../LOANFORMS/staffLoanPrint';
 import { useMigsLabel, getMigsBadgeClasses } from '../../hooks/useMigsLabel';
 import ConfirmDialog from '../../components/ConfirmDialog';
+import LoanDeductionsCard from '../../components/LoanDeductionsCard';
 import { useNotification } from '../../contex/NotificationContext';
 import { useConfirm } from '../../contex/ConfirmContext';
 import { formatWithCommas, stripCommas } from '../../utils/numberFormat';
@@ -435,6 +436,12 @@ const LoanApprovalDetails = () => {
               interest_rate,
               total_interest,
               monthly_amortization,
+              service_fee,
+              cbu_deduction,
+              insurance_fee,
+              notarial_fee,
+              net_proceeds,
+              application_type,
               term,
               loan_status,
               application_status,
@@ -615,6 +622,14 @@ const LoanApprovalDetails = () => {
             monthlyPrincipalPortion: formatCurrency(monthlyPrincipalAmount),
             monthlyAmortization: formatCurrency(monthlyAmortization),
             emergencySchedule: emergencyScheduleRows,
+          },
+          deductions: isKoicaSource ? null : {
+            service_fee: data.service_fee,
+            cbu_deduction: data.cbu_deduction,
+            insurance_fee: data.insurance_fee,
+            notarial_fee: data.notarial_fee,
+            net_proceeds: data.net_proceeds,
+            isRenewal: String(data.application_type || '').toLowerCase() === 'renewal',
           },
           risk: {
             prevLoans: { value: 'N/A', label: 'NOT YET COMPUTED', color: 'text-gray-500' },
@@ -1767,6 +1782,14 @@ const LoanApprovalDetails = () => {
                   </div>
                 </div>
               ) : null}
+
+              {loanDetails.deductions && (
+                <LoanDeductionsCard
+                  loan={loanDetails.deductions}
+                  isRenewal={loanDetails.deductions.isRenewal}
+                  className="mt-4"
+                />
+              )}
             </div>
           
 

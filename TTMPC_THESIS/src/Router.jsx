@@ -71,7 +71,6 @@ const cashierGuarded    = (el) => <RequireRole allow="cashier">{el}</RequireRole
 const bodGuarded        = (el) => <RequireRole allow="bod">{el}</RequireRole>;
 const secretaryGuarded  = (el) => <RequireRole allow="secretary">{el}</RequireRole>;
 import Member_Savings from "./Member/Components/Member_Savings";
-import Member_Lifecycle from "./Member/Components/Member_Lifecycle";
 import Member_StatementOfAccount from "./Member/Components/Member_StatementOfAccount";
 import Koica_Forms from "./LOANFORMS/Koica_Forms";
 import Loan_Services from "./Index_Pages/loan_services";
@@ -192,7 +191,8 @@ export const router = createBrowserRouter([
         {path: "/member-dashboard", element: <Member_Dashboard/>},
         {path: "/member-loans", element: <Member_Loans/>},
         {path: "/member-apply-loans", element: <Member_ApplyLoans/>},
-        {path: "/member-lifecycle", element: <Member_Lifecycle/>},
+        // Loan Lifecycle was merged into My Loans; keep old links working.
+        {path: "/member-lifecycle", element: <Navigate to="/member-loans" replace/>},
         {path: "/members-profile", element: <Members_Profile/>},
         {path: "/members-profile/change-email", element: <ChangeEmail/>},
         {path: "/member-savings", element: <Member_Savings/>},

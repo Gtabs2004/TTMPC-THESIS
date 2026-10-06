@@ -12,7 +12,6 @@ import {
   Activity,
   Search,
   Bell,
-  History,
   User,
   Receipt,
   Library,
@@ -107,9 +106,8 @@ const styles = `
 const menuItems = [
   { name: "Dashboard", label: "Dashboard", icon: LayoutDashboard },
   { name: "Apply for Loan", label: "Apply", icon: Scroll },
-  { name: "Member Loans", label: "Loans", icon: Activity },
+  { name: "My Loans", label: "Loans", icon: Activity },
   { name: "Statement of Account", label: "Statement", icon: Receipt },
-  { name: "Loan Lifecycle", label: "Lifecycle", icon: History },
   { name: "Member Profile", label: "Profile", icon: Users }
 ];
 
@@ -128,7 +126,10 @@ const Member_ApplyLoans = () => {
   // Per-type helpers. An active loan of one type does not block other types.
   const bucketFor = (key) => perType[key] || null;
   const currentMonth = new Date().getMonth() + 1;
-  const bonusWindowOpen = BONUS_APPLICATION_MONTHS.includes(currentMonth);
+  const bonusMonthOpen = BONUS_APPLICATION_MONTHS.includes(currentMonth);
+  // An approved Bookkeeper override opens the window for this member only.
+  const bonusWindowOverride = Boolean(perType.bonus?.bonus_window_override);
+  const bonusWindowOpen = bonusMonthOpen || bonusWindowOverride;
 
   const isLocked = (key) => {
     if (key === 'bonus' && !bonusWindowOpen) return true;
@@ -151,6 +152,11 @@ const Member_ApplyLoans = () => {
   // declined states need handling here.
   const [overrideRequests, setOverrideRequests] = useState([]);
   const [overrideModalType, setOverrideModalType] = useState(null);
+  const [overrideModalKind, setOverrideModalKind] = useState("six_month");
+  const openOverrideModal = (type, kind) => {
+    setOverrideModalKind(kind);
+    setOverrideModalType(type);
+  };
   const [overrideActionError, setOverrideActionError] = useState("");
   const [cancellingId, setCancellingId] = useState(null);
 
@@ -165,8 +171,10 @@ const Member_ApplyLoans = () => {
   // currently active (an older request for a since-renewed loan is history).
   const latestOverrideFor = (key, bucket) =>
     overrideRequests.find(
-      (r) => r.loan_type === key && r.loan_id === bucket?.active_loan_id,
+      (r) => r.override_kind !== "bonus_window" && r.loan_type === key && r.loan_id === bucket?.active_loan_id,
     ) || null;
+  const latestWindowRequest =
+    overrideRequests.find((r) => r.override_kind === "bonus_window") || null;
 
   const handleCancelOverride = async (requestId) => {
     setCancellingId(requestId);
@@ -263,9 +271,8 @@ const Member_ApplyLoans = () => {
              const routeMap = {
               "Dashboard": "/member-dashboard",
               "Apply for Loan": "/member-apply-loans",
-              "Member Loans": "/member-loans",
+              "My Loans": "/member-loans",
               "Statement of Account": "/member-statement-of-account",
-              "Loan Lifecycle": "/member-lifecycle",
            
               "Member Profile": "/members-profile", 
             };
@@ -416,6 +423,10 @@ const Member_ApplyLoans = () => {
                 const request = canRequestOverride ? latestOverrideFor(item.key, bucket) : null;
                 const isPending = request?.status === "pending";
                 const isDeclined = request?.status === "rejected";
+                // A closed Bonus window can be waived per member by the Bookkeeper.
+                const canRequestWindow = bonusClosed && eligibilityReady;
+                const windowPending = latestWindowRequest?.status === "pending";
+                const windowDeclined = latestWindowRequest?.status === "rejected";
 
                 return (
                   // The card is a wrapper, not a button: the override action
@@ -449,7 +460,47 @@ const Member_ApplyLoans = () => {
                           {!eligibilityReady ? 'Checking...' : bonusClosed ? 'Window closed' : 'Locked'}
                         </span>
                       )}
+                      {item.key === 'bonus' && !bonusMonthOpen && bonusWindowOverride && (
+                        <span className="mt-2 text-[10px] font-bold uppercase tracking-wider text-member-green dark:text-green-400">
+                          Opened by Bookkeeper
+                        </span>
+                      )}
                     </button>
+
+                    {canRequestWindow && (
+                      <div className="mt-3 w-full border-t border-slate-100 pt-3 text-center dark:border-gray-700">
+                        {windowPending ? (
+                          <>
+                            <p className="text-[10px] font-semibold text-amber-700 dark:text-amber-300">
+                              Override requested. Waiting for the Bookkeeper.
+                            </p>
+                            <button
+                              type="button"
+                              onClick={() => handleCancelOverride(latestWindowRequest.id)}
+                              disabled={cancellingId === latestWindowRequest.id}
+                              className="mt-1.5 rounded-md border border-slate-300 px-2 py-1 text-[11px] font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
+                            >
+                              {cancellingId === latestWindowRequest.id ? "Cancelling..." : "Cancel request"}
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            {windowDeclined && (
+                              <p className="mb-1.5 text-[10px] font-semibold text-red-600 dark:text-red-400">
+                                Declined{latestWindowRequest.review_note ? `: ${latestWindowRequest.review_note}` : "."}
+                              </p>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => openOverrideModal("bonus", "bonus_window")}
+                              className="rounded-md border border-[#2C7A3F] px-2.5 py-1 text-[11px] font-bold text-[#2C7A3F] hover:bg-[#EAF6DF] dark:border-green-500 dark:text-green-400 dark:hover:bg-green-900/30"
+                            >
+                              {windowDeclined ? "Request again" : "Request Window Override"}
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    )}
 
                     {canRequestOverride && (
                       <div className="mt-3 w-full border-t border-slate-100 pt-3 text-center dark:border-gray-700">
@@ -476,7 +527,7 @@ const Member_ApplyLoans = () => {
                             )}
                             <button
                               type="button"
-                              onClick={() => setOverrideModalType(item.key)}
+                              onClick={() => openOverrideModal(item.key, "six_month")}
                               className="rounded-md border border-[#2C7A3F] px-2.5 py-1 text-[11px] font-bold text-[#2C7A3F] hover:bg-[#EAF6DF] dark:border-green-500 dark:text-green-400 dark:hover:bg-green-900/30"
                             >
                               {isDeclined ? "Request again" : "Request Early Renewal"}
@@ -499,6 +550,7 @@ const Member_ApplyLoans = () => {
         open={Boolean(overrideModalType)}
         onClose={() => setOverrideModalType(null)}
         loanType={overrideModalType}
+        kind={overrideModalKind}
         bucket={overrideModalType ? bucketFor(overrideModalType) : null}
         onSubmitted={() => {
           setOverrideActionError("");

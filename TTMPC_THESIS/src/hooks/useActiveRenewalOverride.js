@@ -16,7 +16,9 @@ export const useActiveRenewalOverride = (loanType) => {
     const wanted = String(loanType || "").toLowerCase();
     fetchActiveOverrides()
       .then((list) => {
-        if (!cancelled) setOverride(list.find((o) => o.loan_type === wanted) || null);
+        if (!cancelled) {
+          setOverride(list.find((o) => o.loan_type === wanted && o.override_kind !== "bonus_window") || null);
+        }
       })
       .catch(() => {});
     return () => {

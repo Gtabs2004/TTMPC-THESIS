@@ -5,7 +5,6 @@ import {
   FileText,
   Activity,
   Receipt,
-  History,
   Users,
 } from 'lucide-react';
 import { useTheme } from '../../contex/ThemeContext';
@@ -15,7 +14,6 @@ const NAV_ITEMS = [
   { key: 'apply',     label: 'Apply',     icon: FileText,       to: '/member-apply-loans' },
   { key: 'loans',     label: 'Loans',     icon: Activity,        to: '/member-loans' },
   { key: 'statement', label: 'Statement', icon: Receipt,         to: '/member-statement-of-account' },
-  { key: 'lifecycle', label: 'Lifecycle', icon: History,         to: '/member-lifecycle' },
   { key: 'profile',   label: 'Profile',   icon: Users,           to: '/members-profile' },
 ];
 

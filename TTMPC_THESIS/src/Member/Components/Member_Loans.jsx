@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useMemo, useState, useRef } from "react";
+import React, { useEffect, useMemo, useState, useRef } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
 import { useRealtimeVersion } from "../../hooks/useRealtimeRefetch";
 import { RT } from "../../lib/realtimeSync";
@@ -9,155 +9,97 @@ import { resolveMemberIdentity } from "../../utils/memberIdentity";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
 import TableStateRow from "../../components/TableStateRow";
 import LoanCalculatorModal from "./LoanCalculatorModal";
+import LoanJourneyPanel from "./LoanJourneyPanel";
+import {
+  formatCurrency,
+  formatShortDate,
+  isFullyPaidLoan,
+  isReleasedLoan,
+  memberStatusLabel,
+  toneStyles,
+} from "./loanDisplay";
 import { getOrFetch, invalidate, peek } from "../memberDataCache";
-import { 
-  LayoutDashboard, 
-  Users, 
-  CreditCard, 
-  Activity, 
-  Search,
-  Bell,
+import {
+  LayoutDashboard,
+  Users,
+  Activity,
   Banknote,
   CalendarClock,
   FileText,
   Calculator,
   ArrowRight,
-  Info,
-  History,
-  User,
   Receipt,
-  Library,
   Moon,
   Sun,
   Scroll,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Wallet,
+  X,
 } from 'lucide-react';
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 
 const styles = `
   @keyframes fadeInUp {
-    from {
-      opacity: 0;
-      transform: translateY(20px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
   }
-
-  @keyframes fadeIn {
-    from {
-      opacity: 0;
-    }
-    to {
-      opacity: 1;
-    }
-  }
-
-  @keyframes slideInLeft {
-    from {
-      opacity: 0;
-      transform: translateX(-20px);
-    }
-    to {
-      opacity: 1;
-      transform: translateX(0);
-    }
-  }
-
-  @keyframes spin-slow {
-    from {
-      transform: rotate(0deg);
-    }
-    to {
-      transform: rotate(360deg);
-    }
-  }
-
-  .animate-fade-in-up {
-    animation: fadeInUp 0.6s ease-out;
-  }
-
-  .animate-fade-in {
-    animation: fadeIn 0.4s ease-out;
-  }
-
-  .animate-slide-in-left {
-    animation: slideInLeft 0.5s ease-out;
-  }
-
-  .animate-spin-slow {
-    animation: spin-slow 1.5s linear;
-  }
-
-  .transition-all-smooth {
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  }
-
-  tbody tr {
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  }
-
-  tbody tr:hover {
-    transform: translateX(2px);
-  }
+  .animate-fade-in-up { animation: fadeInUp 0.6s ease-out; }
+  .transition-all-smooth { transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
 `;
 
-const normalizeMonthlyInterestPercent = (loan) => {
-  let ratePercent = Number(loan?.interest_rate);
-  const loanType = String(loan?.loan_type?.name || '').trim().toLowerCase();
+const LOANS_PAGE_SIZE = 5;
 
-  if (!Number.isFinite(ratePercent) || ratePercent <= 0) return null;
+const menuItems = [
+  { name: "Dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { name: "Apply for Loan", label: "Apply", icon: Scroll },
+  { name: "My Loans", label: "Loans", icon: Activity },
+  { name: "Statement of Account", label: "Statement", icon: Receipt },
+  { name: "Member Profile", label: "Profile", icon: Users },
+];
 
-  if (loanType.includes('consolidated')) {
-    // Normalize legacy consolidated representations:
-    // 83 -> 0.83%, 8.3 -> 0.83%, 0.083 -> 0.83%, 0.0083 -> 0.83%
-    if (ratePercent >= 10) {
-      ratePercent /= 100;
-    } else if (ratePercent >= 1 && ratePercent < 10) {
-      ratePercent /= 10;
-    } else if (ratePercent > 0 && ratePercent < 0.01) {
-      ratePercent *= 100;
-    } else if (ratePercent > 0 && ratePercent < 0.1) {
-      ratePercent *= 10;
-    }
-  } else if (ratePercent > 0 && ratePercent < 0.01) {
-    // Decimal rates for non-consolidated loans (e.g., 0.02) convert to percent.
-    ratePercent *= 100;
-  }
-
-  return ratePercent;
+const routeMap = {
+  "Dashboard": "/member-dashboard",
+  "Apply for Loan": "/member-apply-loans",
+  "My Loans": "/member-loans",
+  "Statement of Account": "/member-statement-of-account",
+  "Member Profile": "/members-profile",
 };
 
-const formatInterestRate = (loan) => {
-  const ratePercent = normalizeMonthlyInterestPercent(loan);
-  if (!ratePercent) return 'N/A';
-  return `${ratePercent.toFixed(2)}%`;
+// Released and still being paid. Pending applications owe nothing yet.
+const isActiveLoan = (loan) => isReleasedLoan(loan) && !isFullyPaidLoan(loan);
+
+// The installment actually due next, from the repayment schedule. Emergency
+// loans are diminishing, so this is smaller than the first amortization later on.
+const nextInstallmentAmount = (loan) => {
+  const next = loan.next_due_schedule;
+  if (!next) return Number(loan.monthly_amortization || 0);
+  const components = Number(next.expected_principal || 0) + Number(next.expected_interest || 0);
+  return components > 0 ? components : Number(next.expected_amount || loan.monthly_amortization || 0);
+};
+
+const StatusBadge = ({ loan }) => {
+  const status = memberStatusLabel(loan);
+  return (
+    <span className={`inline-flex whitespace-nowrap rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider ${toneStyles[status.tone]}`}>
+      {status.text}
+    </span>
+  );
 };
 
 const Member_Loans = () => {
-  const { session, signOut } = UserAuth();
+  const { signOut } = UserAuth();
   const navigate = useNavigate();
+  const { isDark, toggleTheme } = useTheme();
   const [loans, setLoans] = useState([]);
+  const [payments, setPayments] = useState([]);
   const [loadingLoans, setLoadingLoans] = useState(true);
   const [loanError, setLoanError] = useState('');
-  const [memberLabel, setMemberLabel] = useState('Member');
-  const [avatarUrl, setAvatarUrl] = useState('');
   const [isCalculatorOpen, setIsCalculatorOpen] = useState(false);
-  const { isDark, toggleTheme } = useTheme();
-  // Pagination for the Active Loans Summary table.
   const [loansPage, setLoansPage] = useState(1);
-  const LOANS_PAGE_SIZE = 5;
-
-  const menuItems = [
-      { name: "Dashboard", label: "Dashboard", icon: LayoutDashboard },
-      { name: "Apply for Loan", label: "Apply", icon: Scroll },
-      { name: "Member Loans", label: "Loans", icon: Activity },
-      { name: "Statement of Account", label: "Statement", icon: Receipt },
-      { name: "Loan Lifecycle", label: "Lifecycle", icon: History },
-      { name: "Member Profile", label: "Profile", icon: Users },
-    ];
+  const [selectedLoanId, setSelectedLoanId] = useState('');
+  const detailRef = useRef(null);
 
   const handleSignOut = async (e) => {
     e.preventDefault();
@@ -169,110 +111,38 @@ const Member_Loans = () => {
     }
   };
 
-  const formatCurrency = (value) => `₱${Number(value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-  const formatDate = (value) => {
-    if (!value) return 'N/A';
-    const d = new Date(value);
-    if (Number.isNaN(d.getTime())) return 'N/A';
-    return d.toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' });
-  };
-  const toStatus = (value) => {
-    const raw = String(value || '').trim().toLowerCase();
-    if (raw === 'pending') return 'Active';
-    if (raw === 'to be disbursed') return 'Active';
-    if (raw === 'approved') return 'Active';
-    if (raw === 'released') return 'Active';
-    if (raw === 'rejected') return 'Rejected';
-    return raw ? raw.charAt(0).toUpperCase() + raw.slice(1) : 'Unknown';
-  };
-
+  // One source for every figure on this page: /api/member/lifecycle, which
+  // uses the Cashier's balance, fee and interest-rate functions.
   const buildLoansSnapshot = async () => {
-      const { memberId, fullName, avatarUrl: signedAvatarUrl } = await resolveMemberIdentity();
-      if (!memberId) throw new Error('Please sign in again to load your loans.');
+    const { memberId } = await resolveMemberIdentity();
+    if (!memberId) throw new Error('Please sign in again to load your loans.');
 
-      const { data, error } = await supabase
-        .from('loans')
-        .select(`
-          control_number,
-          loan_amount,
-          principal_amount,
-          interest_rate,
-          total_interest,
-          monthly_amortization,
-          term,
-          loan_status,
-          application_date,
-          loan_type:loan_type_id (
-            name
-          )
-        `)
-        .eq('member_id', memberId)
-        .order('application_date', { ascending: false });
+    const response = await fetch(`${API_BASE_URL}/api/member/lifecycle/${encodeURIComponent(memberId)}`, {
+      headers: { Accept: "application/json" },
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok || !payload?.success) {
+      throw new Error(payload?.detail || payload?.message || "Unable to load your loans.");
+    }
 
-      if (error) throw error;
-
-      const rows = (data || []).map((loan) => {
-        const principal = Number(loan.principal_amount ?? loan.loan_amount ?? 0);
-        const totalInterest = Number(loan.total_interest ?? 0);
-        const totalPayable = principal + totalInterest;
-        const monthly = Number(loan.monthly_amortization ?? 0);
-        const term = Number(loan.term ?? 0);
-
-        // Service fee, per TTMPC policy files (see project_*_loan_policy memories).
-        // Consolidated: ₱100 per ₱50,000 of loan applied.
-        // Emergency & Bonus: ₱100 flat.
-        // Others (KOICA/unknown): 0 — surfaced as ₱0.00, not hidden, so nothing
-        // is silently wrong; the loan-computation summary is the source of truth.
-        const loanTypeName = String(loan.loan_type?.name || '').toLowerCase();
-        let serviceFee = 0;
-        if (loanTypeName.includes('consolidated')) {
-          // Round up to nearest 50k tier, then × ₱100. A ₱260k loan pays ₱600 (6 tiers).
-          serviceFee = Math.ceil(principal / 50000) * 100;
-        } else if (loanTypeName.includes('emergency') || loanTypeName.includes('bonus')) {
-          serviceFee = 100;
-        }
-
-        // CLIMBS insurance, Consolidated only: loan_amount × 1.35 × 12 ÷ 1000
-        // (per Consolidated policy memory). Zero for other types.
-        const insurance = loanTypeName.includes('consolidated')
-          ? (principal * 1.35 * 12) / 1000
-          : 0;
-
-        return {
-          id: loan.control_number,
-          type: loan.loan_type?.name || 'N/A',
-          originalAmount: formatCurrency(principal),
-          balance: formatCurrency(totalPayable),
-          interestRate: formatInterestRate(loan),
-          payment: monthly > 0 ? formatCurrency(monthly) : 'N/A',
-          nextDue: formatDate(loan.application_date),
-          status: toStatus(loan.loan_status),
-          numericBalance: totalPayable,
-          numericPayment: monthly,
-          // New fields for the Loan Summary card:
-          termMonths: term,
-          totalInterest,
-          totalPayable,
-          serviceFee,
-          insurance,
-          _principal: principal,
-          _loanTypeKey: loanTypeName,
-        };
-      });
-
+    const data = payload.data || {};
+    const loanRows = (Array.isArray(data.loans) ? data.loans : []).map((loan) => {
+      const totalPayable = Number(loan.total_payable || 0);
+      const amountPaid = Number(loan.amount_paid || 0);
       return {
-        rows,
-        memberLabel: fullName || 'Member',
-        avatarUrl: signedAvatarUrl || '',
-        _sessionUserId: memberId,
+        ...loan,
+        progress_percent: totalPayable > 0 ? Math.min(100, Math.round((amountPaid / totalPayable) * 100)) : 0,
       };
-  };
-
-  const applyLoansSnapshot = (snap) => {
-    if (!snap) return;
-    setLoans(snap.rows);
-    setMemberLabel(snap.memberLabel);
-    setAvatarUrl(snap.avatarUrl);
+    });
+    const paymentRows = (Array.isArray(data.payments) ? data.payments : []).map((row) => ({
+      loan_id: row.loan_id,
+      payment_id: row.payment_id || "N/A",
+      amount_paid: Number(row.amount_paid || 0),
+      penalties: Number(row.penalties || 0),
+      payment_date: row.payment_date,
+      confirmation_status: row.confirmation_status || "pending_bookkeeper",
+    }));
+    return { loans: loanRows, payments: paymentRows };
   };
 
   const rtVersion = useRealtimeVersion(RT.LOANS);
@@ -286,56 +156,97 @@ const Member_Loans = () => {
         if (!silent) setLoanError('');
         const { data: authData } = await supabase.auth.getUser();
         const cacheKey = `member-loans:${authData?.user?.id || 'anon'}`;
-        if (silent) invalidate(cacheKey);
+        // Also drop an entry cached in the older { rows } shape.
+        if (silent || (peek(cacheKey) && !peek(cacheKey).loans)) invalidate(cacheKey);
         const cached = peek(cacheKey);
-        if (cached) {
-          applyLoansSnapshot(cached);
+        if (cached?.loans) {
+          setLoans(cached.loans);
+          setPayments(cached.payments);
           if (!silent) setLoadingLoans(false);
-        } else {
-          if (!silent) setLoadingLoans(true);
+        } else if (!silent) {
+          setLoadingLoans(true);
         }
         const snap = await getOrFetch(cacheKey, buildLoansSnapshot, 60_000);
-        if (isMounted) applyLoansSnapshot(snap);
+        if (isMounted && snap?.loans) {
+          setLoans(snap.loans);
+          setPayments(snap.payments);
+        }
       } catch (err) {
         if (silent) return;
-        if (isMounted) {
-          setLoanError(err.message || 'Unable to load loan records.');
-          setMemberLabel('Member');
-          setAvatarUrl('');
-        } 
+        if (isMounted) setLoanError(err.message || 'Unable to load loan records.');
       } finally {
-        if (!silent) if (isMounted) setLoadingLoans(false);
+        if (!silent && isMounted) setLoadingLoans(false);
       }
     })();
     return () => { isMounted = false; };
   }, [rtVersion]);
 
+  // Nothing is open until the member clicks View; drop a selection whose loan
+  // disappeared on refresh.
+  useEffect(() => {
+    if (selectedLoanId && !loans.some((l) => l.loan_id === selectedLoanId)) setSelectedLoanId('');
+  }, [loans, selectedLoanId]);
+
+  const selectedLoan = useMemo(
+    () => loans.find((l) => l.loan_id === selectedLoanId) || null,
+    [loans, selectedLoanId]
+  );
+
+  const activeLoans = useMemo(() => loans.filter(isActiveLoan), [loans]);
+
   const totalOutstanding = useMemo(
-    () => loans.reduce((sum, loan) => sum + (loan.numericBalance || 0), 0),
-    [loans]
+    () => activeLoans.reduce((sum, loan) => sum + Number(loan.remaining_balance || 0), 0),
+    [activeLoans]
   );
 
   const totalMonthly = useMemo(
-    () => loans.reduce((sum, loan) => sum + (loan.numericPayment || 0), 0),
-    [loans]
+    () => activeLoans.reduce((sum, loan) => sum + nextInstallmentAmount(loan), 0),
+    [activeLoans]
   );
 
-  const latestLoan = loans[0] || null;
+  const nextPayment = useMemo(() => {
+    const upcoming = activeLoans
+      .filter((loan) => loan.next_due_schedule?.due_date)
+      .sort((a, b) => String(a.next_due_schedule.due_date).localeCompare(String(b.next_due_schedule.due_date)));
+    return upcoming[0] || null;
+  }, [activeLoans]);
 
-  const loanTypeBadges = useMemo(() => {
-    const unique = [...new Set(loans.map((loan) => String(loan.type || '').trim()).filter(Boolean))];
-    return unique.slice(0, 3);
-  }, [loans]);
+  const activeTypes = useMemo(
+    () => [...new Set(activeLoans.map((loan) => String(loan.loan_type || '').trim()).filter(Boolean))],
+    [activeLoans]
+  );
+
+  // View opens a loan; clicking View on the open loan closes it again.
+  const toggleLoan = (loanId) => {
+    if (loanId === selectedLoanId) {
+      setSelectedLoanId('');
+      return;
+    }
+    setSelectedLoanId(loanId);
+  };
+
+  // Scroll after the panel has rendered, not before it exists.
+  useEffect(() => {
+    if (selectedLoanId) detailRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [selectedLoanId]);
+
+  const totalPages = Math.max(1, Math.ceil(loans.length / LOANS_PAGE_SIZE));
+  const pageLoans = loans.slice((loansPage - 1) * LOANS_PAGE_SIZE, loansPage * LOANS_PAGE_SIZE);
+
+  // A loan closed by a renewal never records the payoff as a payment, so its
+  // computed balance isn't zero; its status is what says it's closed.
+  const balanceLabel = (loan) => {
+    if (isFullyPaidLoan(loan)) return 'Closed';
+    return isReleasedLoan(loan) ? formatCurrency(loan.remaining_balance) : '—';
+  };
+  const rateLabel = (loan) => (loan.interest_rate ? `${Number(loan.interest_rate).toFixed(2)}%` : 'N/A');
+  const paymentLabel = (loan) => (Number(loan.monthly_amortization) > 0 ? formatCurrency(loan.monthly_amortization) : 'N/A');
 
   return (
     <div className="relative flex h-screen overflow-hidden bg-[#F8F9FA] dark:bg-gray-950">
       <style>{styles}</style>
-      {/* Sidebar — desktop only. Mobile navigation is MemberMobileNav's fixed
-          bottom bar, rendered once by MemberLayout for every Member route;
-          this drawer duplicated the same links via a hamburger toggle. */}
-      <aside
-        className="hidden lg:flex fixed inset-y-0 left-0 z-30 w-64 bg-white dark:bg-gray-900 p-4 flex-col border-r border-gray-200 dark:border-gray-800"
-      >
+      {/* Sidebar — desktop only. Mobile navigation is MemberMobileNav. */}
+      <aside className="hidden lg:flex fixed inset-y-0 left-0 z-30 w-64 bg-white dark:bg-gray-900 p-4 flex-col border-r border-gray-200 dark:border-gray-800">
         <div className="flex flex-row items-start gap-2 mb-6">
           <img src="/img/ttmpc logo.png" alt="Logo" className="h-12 w-auto" />
           <div className="flex flex-col">
@@ -345,49 +256,35 @@ const Member_Loans = () => {
             </p>
           </div>
         </div>
-   
+
         <hr className="w-full border-gray-100 dark:border-gray-800 mb-6" />
-   
+
         <nav className="flex grow flex-col gap-2 text-sm">
-          {(() => {
-             const routeMap = {
-              "Dashboard": "/member-dashboard",
-              "Apply for Loan": "/member-apply-loans",
-              "Member Loans": "/member-loans",
-              "Statement of Account": "/member-statement-of-account",
-              "Loan Lifecycle": "/member-lifecycle",
-              "Member Profile": "/members-profile", 
-            
-            };
-       
-            return menuItems.map((item) => {
-              const Icon = item.icon;
-              const to = routeMap[item.name] || `/${item.name.toLowerCase().replace(/\s+/g, '-')}`;
-       
-              return (
-                <NavLink
-                  key={item.name}
-                  to={to}
-                  className={({ isActive }) =>
-                    `flex items-center gap-3 p-2.5 rounded-lg transition-colors ${
-                      isActive
-                        ? 'bg-[#EAF1EB] text-member-green font-bold dark:bg-green-900/30 dark:text-green-400'
-                        : 'text-gray-600 hover:bg-gray-50 hover:text-member-green font-medium dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-green-400'
-                    }`
-                  }
-                >
-                  {({ isActive }) => (
-                    <>
-                      <Icon size={18} strokeWidth={isActive ? 2.5 : 2} />
-                      <span>{item.name}</span>
-                    </>
-                  )}
-                </NavLink>
-              );
-            });
-          })()}
+          {menuItems.map((item) => {
+            const Icon = item.icon;
+            return (
+              <NavLink
+                key={item.name}
+                to={routeMap[item.name]}
+                className={({ isActive }) =>
+                  `flex items-center gap-3 p-2.5 rounded-lg transition-colors ${
+                    isActive
+                      ? 'bg-[#EAF1EB] text-member-green font-bold dark:bg-green-900/30 dark:text-green-400'
+                      : 'text-gray-600 hover:bg-gray-50 hover:text-member-green font-medium dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-green-400'
+                  }`
+                }
+              >
+                {({ isActive }) => (
+                  <>
+                    <Icon size={18} strokeWidth={isActive ? 2.5 : 2} />
+                    <span>{item.name}</span>
+                  </>
+                )}
+              </NavLink>
+            );
+          })}
         </nav>
-   
+
         <button
           onClick={handleSignOut}
           className="mt-auto w-full rounded-lg p-2.5 text-sm bg-member-green hover:bg-[#154718] text-white font-bold transition-colors"
@@ -395,17 +292,14 @@ const Member_Loans = () => {
           Sign out
         </button>
       </aside>
-   
+
       {/* Main Content */}
-      <div className="flex-1 flex flex-col overflow-hidden lg:ml-64">
-        {/* Header */}
+      <div className="flex-1 min-w-0 flex flex-col overflow-hidden lg:ml-64">
         <header className="bg-white dark:bg-gray-900 h-16 shrink-0 shadow-sm flex items-center justify-between px-4 sm:px-6 lg:px-8 z-10 border-b border-gray-100 dark:border-gray-800">
           <div className="flex items-center gap-2 sm:gap-3 pl-2 sm:pl-0">
-            <h1 className="text-base sm:text-lg font-extrabold text-[#1a4a2f] dark:text-green-400 lg:hidden">Loans</h1>
+            <h1 className="text-base sm:text-lg font-extrabold text-[#1a4a2f] dark:text-green-400 lg:hidden">My Loans</h1>
           </div>
-
           <div className="flex items-center gap-2 sm:gap-4">
-            
             <LoanNotificationBell role="member" accentClass="bg-member-green" />
             <button
               onClick={toggleTheme}
@@ -416,133 +310,139 @@ const Member_Loans = () => {
             </button>
           </div>
         </header>
-   
-        {/* Scrollable Page Content */}
-        <main className="animate-page-in p-4 sm:p-6 lg:p-8 overflow-y-auto pb-28 lg:pb-0">
-          <h1 className="hidden lg:block font-extrabold text-[#1a4a2f] dark:text-green-400 text-2xl mb-8">Loans</h1>
 
-          <div className="mb-6 rounded-xl border border-green-200 dark:border-green-900 bg-green-50 dark:bg-green-900/20 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <main className="animate-page-in p-4 sm:p-6 lg:p-8 overflow-y-auto pb-28 lg:pb-8">
+          <div className="mb-6 lg:mb-8 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <p className="text-sm font-bold text-member-green dark:text-green-400">Need the full loan lifecycle?</p>
-              <p className="text-xs text-gray-600 dark:text-gray-400">View approvals, status transitions, and real-time recorded payments in one screen.</p>
+              <h1 className="hidden lg:block font-extrabold text-[#1a4a2f] dark:text-green-400 text-2xl">My Loans</h1>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                What you owe, where each loan is, and the payments you've made.
+              </p>
             </div>
             <button
               type="button"
-              onClick={() => navigate('/member-lifecycle')}
-              className="inline-flex items-center gap-2 rounded-lg bg-member-green px-4 py-2 text-xs font-bold text-white hover:bg-[#154718]"
+              onClick={() => setIsCalculatorOpen(true)}
+              className="inline-flex w-full items-center justify-center gap-1.5 rounded-full border border-member-green px-4 py-2 text-xs font-bold text-member-green hover:bg-[#EAF1EB] dark:border-green-500 dark:text-green-400 dark:hover:bg-green-900/30 sm:w-auto"
             >
-              <History className="w-4 h-4" /> Open Lifecycle View
+              <Calculator className="w-4 h-4" /> Loan Calculator
             </button>
           </div>
-          
-          {/* Top Summary Cards — 2-up on phones, 3-up from md, matching the
-              compact tile grid used on the dashboard. */}
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4 lg:gap-6 mb-8">
 
-            {/* Balance Card */}
-            <div className="bg-white dark:bg-gray-900 p-3.5 sm:p-5 lg:p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col relative overflow-hidden">
+          {/* Summary cards — released loans only */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 lg:gap-6 mb-8">
+            <div className="bg-white dark:bg-gray-900 p-3.5 sm:p-5 lg:p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col">
               <div className="w-8 h-8 rounded-lg bg-gray-50 dark:bg-gray-800 flex items-center justify-center mb-2.5 sm:mb-4 border border-gray-200 dark:border-gray-700">
                 <Banknote className="w-4 h-4 text-gray-600 dark:text-gray-400" />
               </div>
               <p className="text-[11px] sm:text-xs font-bold text-gray-500 dark:text-gray-400 mb-1">Total Outstanding Balance</p>
-              <h3 className="text-base sm:text-2xl lg:text-3xl font-black text-gray-900 dark:text-white mb-1.5 sm:mb-2 break-words">{formatCurrency(totalOutstanding)}</h3>
-              <p className="text-[9px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider mt-auto flex items-center">
-                <CalendarClock className="w-3 h-3 mr-1 shrink-0" /> Last Updated: {latestLoan?.nextDue || 'N/A'}
-              </p>
+              <h3 className="text-base sm:text-2xl font-black text-gray-900 dark:text-white break-words">{formatCurrency(totalOutstanding)}</h3>
+              <p className="text-[10px] font-medium text-gray-500 dark:text-gray-400 mt-auto pt-2">Across active loans</p>
             </div>
 
-            {/* Commitment Card */}
-            <div className="bg-white dark:bg-gray-900 p-3.5 sm:p-5 lg:p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col relative overflow-hidden">
-               <div className="absolute top-3 right-3 sm:top-6 sm:right-6 bg-[#EAF1EB] text-member-green dark:bg-green-900/30 dark:text-green-400 px-1.5 py-0.5 sm:px-2 sm:py-1 rounded text-[8px] sm:text-[9px] font-extrabold tracking-wider uppercase text-right">
-                Auto-Debit Active
-              </div>
+            <div className="bg-white dark:bg-gray-900 p-3.5 sm:p-5 lg:p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col">
               <div className="w-8 h-8 rounded-lg bg-gray-50 dark:bg-gray-800 flex items-center justify-center mb-2.5 sm:mb-4 border border-gray-200 dark:border-gray-700">
                 <CalendarClock className="w-4 h-4 text-member-green dark:text-green-400" />
               </div>
-              <p className="text-[11px] sm:text-xs font-bold text-gray-500 dark:text-gray-400 mb-1">Monthly Commitment</p>
-              <h3 className="text-base sm:text-2xl lg:text-3xl font-black text-gray-900 dark:text-white mb-1.5 sm:mb-2 break-words">{formatCurrency(totalMonthly)}</h3>
-              <p className="text-[10px] font-bold text-gray-600 dark:text-gray-400 mt-auto">
-                Next Deduction: {latestLoan?.nextDue || 'N/A'}
-              </p>
+              <p className="text-[11px] sm:text-xs font-bold text-gray-500 dark:text-gray-400 mb-1">Total Monthly Payment</p>
+              <h3 className="text-base sm:text-2xl font-black text-gray-900 dark:text-white break-words">{formatCurrency(totalMonthly)}</h3>
+              <p className="text-[10px] font-medium text-gray-500 dark:text-gray-400 mt-auto pt-2">Next installment of each active loan</p>
             </div>
 
-            {/* Active Loans Card */}
-            <div className="col-span-2 md:col-span-1 bg-white dark:bg-gray-900 p-3.5 sm:p-5 lg:p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col relative overflow-hidden">
+            <div className="bg-white dark:bg-gray-900 p-3.5 sm:p-5 lg:p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col">
               <div className="w-8 h-8 rounded-lg bg-gray-50 dark:bg-gray-800 flex items-center justify-center mb-2.5 sm:mb-4 border border-gray-200 dark:border-gray-700">
                 <FileText className="w-4 h-4 text-gray-600 dark:text-gray-400" />
               </div>
               <p className="text-[11px] sm:text-xs font-bold text-gray-500 dark:text-gray-400 mb-1">Active Loans</p>
-              <h3 className="text-base sm:text-2xl lg:text-3xl font-black text-gray-900 dark:text-white mb-1.5 sm:mb-2">{loans.length}</h3>
-
-              <div className="flex items-center gap-2 mt-auto">
-                <div className="flex -space-x-1.5">
-                  {loanTypeBadges.map((type, idx) => (
-                    <div key={`${type}-${idx}`} className="w-5 h-5 rounded-full bg-blue-500 border border-white flex items-center justify-center text-[8px] text-white font-bold">
-                      {type.slice(0, 2).toUpperCase()}
-                    </div>
-                  ))}
-                </div>
-                <p className="text-[10px] font-medium text-gray-400 dark:text-gray-500">{loanTypeBadges.join(', ') || 'No loans'}</p>
-              </div>
+              <h3 className="text-base sm:text-2xl font-black text-gray-900 dark:text-white">{activeLoans.length}</h3>
+              <p className="text-[10px] font-medium text-gray-500 dark:text-gray-400 mt-auto pt-2 break-words">
+                {activeTypes.join(', ') || 'No active loans'}
+              </p>
             </div>
 
+            <div className="bg-white dark:bg-gray-900 p-3.5 sm:p-5 lg:p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col">
+              <div className="w-8 h-8 rounded-lg bg-gray-50 dark:bg-gray-800 flex items-center justify-center mb-2.5 sm:mb-4 border border-gray-200 dark:border-gray-700">
+                <Wallet className="w-4 h-4 text-gray-600 dark:text-gray-400" />
+              </div>
+              <p className="text-[11px] sm:text-xs font-bold text-gray-500 dark:text-gray-400 mb-1">Next Payment Due</p>
+              <h3 className="text-base sm:text-2xl font-black text-gray-900 dark:text-white break-words">
+                {nextPayment ? formatShortDate(nextPayment.next_due_schedule.due_date) : '—'}
+              </h3>
+              <p className="text-[10px] font-medium text-gray-500 dark:text-gray-400 mt-auto pt-2 break-words">
+                {nextPayment
+                  ? `${formatCurrency(nextInstallmentAmount(nextPayment))} · ${nextPayment.loan_type}`
+                  : 'No upcoming payment'}
+              </p>
+            </div>
           </div>
 
-          {/* Active Loans Summary Table */}
+          {/* All loans */}
           <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 overflow-hidden mb-8 flex flex-col">
-            <div className="p-6 flex items-center justify-between border-b border-gray-100 dark:border-gray-800">
-               <h3 className="text-lg font-bold text-gray-900 dark:text-white">Active Loans Summary</h3>
-               <span className="bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 px-3 py-1 rounded text-[9px] font-extrabold tracking-widest uppercase">
-                 Read-Only View
-               </span>
+            <div className="p-5 sm:p-6 flex items-center justify-between border-b border-gray-100 dark:border-gray-800">
+              <h3 className="text-lg font-bold text-gray-900 dark:text-white">All Loans</h3>
+              <span className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
+                {loans.length} loan{loans.length === 1 ? '' : 's'}
+              </span>
             </div>
-            
+
             <div className="hidden md:block overflow-x-auto">
-            <table className="w-full min-w-[900px] text-left border-collapse">
-              <thead>
-                <tr className="bg-primary-deep text-[10px] uppercase tracking-wider text-white font-extrabold">
-                  <th className="p-5 font-bold">Loan Type</th>
-                  <th className="p-5 font-bold">Original Amount</th>
-                  <th className="p-5 font-bold">Remaining Balance</th>
-                  <th className="p-5 font-bold">Interest Rate</th>
-                  <th className="p-5 font-bold">Monthly Payment</th>
-                  <th className="p-5 font-bold">Next Due</th>
-                  <th className="p-5 font-bold">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {loadingLoans ? (
-                  <TableStateRow colSpan={7} variant="loading" label="Loading loans..." />
-                ) : loanError ? (
-                  <tr>
-                    <td colSpan="7" className="p-5 text-sm text-red-600 dark:text-red-400">{loanError}</td>
+              <table className="w-full min-w-[900px] text-left border-collapse">
+                <thead>
+                  <tr className="bg-primary-deep text-[10px] uppercase tracking-wider text-white font-extrabold">
+                    <th className="p-5 font-bold">Loan Type</th>
+                    <th className="p-5 font-bold">Original Amount</th>
+                    <th className="p-5 font-bold">Remaining Balance</th>
+                    <th className="p-5 font-bold">Interest Rate</th>
+                    <th className="p-5 font-bold">Monthly Payment</th>
+                    <th className="p-5 font-bold">Status</th>
+                    <th className="p-5 font-bold text-right">Action</th>
                   </tr>
-                ) : loans.length === 0 ? (
-                  <TableStateRow colSpan={7} variant="empty" icon={Banknote} label="No loan records found." />
-                ) : loans
-                    .slice((loansPage - 1) * LOANS_PAGE_SIZE, loansPage * LOANS_PAGE_SIZE)
-                    .map((loan, idx) => (
-                  <tr key={idx} className="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50/50 dark:hover:bg-gray-800/50 transition-colors">
-                    <td className="p-5">
-                      <p className="text-sm font-bold text-gray-900 dark:text-white">{loan.type}</p>
-                      <p className="text-[10px] text-gray-400 dark:text-gray-500 font-medium">ID: {loan.id}</p>
-                    </td>
-                    <td className="p-5 text-sm font-bold text-gray-600 dark:text-gray-400">{loan.originalAmount}</td>
-                    <td className="p-5 text-sm font-black text-gray-900 dark:text-white">{loan.balance}</td>
-                    <td className="p-5 text-sm font-bold text-gray-700 dark:text-gray-200">{loan.interestRate}</td>
-                    <td className="p-5 text-sm font-bold text-member-green dark:text-green-400">{loan.payment}</td>
-                    <td className="p-5 text-sm font-medium text-gray-500 dark:text-gray-400">{loan.nextDue}</td>
-                    <td className="p-5">
-                      <span className={`badge-animated px-2.5 py-1 rounded text-[10px] font-extrabold tracking-wider ${
-                        loan.status === 'Active' || loan.status === 'Fully paid' ? 'bg-[#EAF1EB] text-member-green dark:bg-green-900/30 dark:text-green-400' : loan.status === 'Rejected' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' : 'bg-[#FEF08A] text-[#854D0E] dark:bg-amber-900/30 dark:text-amber-400'
-                      }`}>
-                        {loan.status}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {loadingLoans ? (
+                    <TableStateRow colSpan={7} variant="loading" label="Loading loans..." />
+                  ) : loanError ? (
+                    <tr>
+                      <td colSpan="7" className="p-5 text-sm text-red-600 dark:text-red-400">{loanError}</td>
+                    </tr>
+                  ) : loans.length === 0 ? (
+                    <TableStateRow colSpan={7} variant="empty" icon={Banknote} label="No loan records found." />
+                  ) : pageLoans.map((loan) => {
+                    const isSelected = loan.loan_id === selectedLoanId;
+                    return (
+                      <tr
+                        key={loan.loan_id}
+                        className={`border-b border-gray-100 dark:border-gray-800 transition-colors ${
+                          isSelected ? 'bg-[#EAF1EB]/60 dark:bg-green-900/20' : 'hover:bg-gray-50/50 dark:hover:bg-gray-800/50'
+                        }`}
+                      >
+                        <td className="p-5">
+                          <p className="text-sm font-bold text-gray-900 dark:text-white">{loan.loan_type}</p>
+                          <p className="text-[10px] text-gray-400 dark:text-gray-500 font-medium">ID: {loan.loan_id}</p>
+                        </td>
+                        <td className="p-5 text-sm font-bold text-gray-600 dark:text-gray-400">{formatCurrency(loan.principal)}</td>
+                        <td className="p-5 text-sm font-black text-gray-900 dark:text-white">{balanceLabel(loan)}</td>
+                        <td className="p-5 text-sm font-bold text-gray-700 dark:text-gray-200">{rateLabel(loan)}</td>
+                        <td className="p-5 text-sm font-bold text-member-green dark:text-green-400">{paymentLabel(loan)}</td>
+                        <td className="p-5"><StatusBadge loan={loan} /></td>
+                        <td className="p-5 text-right">
+                          <button
+                            type="button"
+                            onClick={() => toggleLoan(loan.loan_id)}
+                            aria-expanded={isSelected}
+                            className={`inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-bold transition-colors ${
+                              isSelected
+                                ? 'bg-member-green text-white hover:bg-[#154718]'
+                                : 'border border-member-green text-member-green hover:bg-[#EAF1EB] dark:border-green-500 dark:text-green-400 dark:hover:bg-green-900/30'
+                            }`}
+                          >
+                            {isSelected ? <>Close <X className="w-3.5 h-3.5" /></> : <>View <ArrowRight className="w-3.5 h-3.5" /></>}
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
 
             <div className="divide-y divide-gray-100 dark:divide-gray-800 md:hidden">
@@ -552,66 +452,67 @@ const Member_Loans = () => {
                 <p className="p-6 text-sm text-red-600 dark:text-red-400 text-center">{loanError}</p>
               ) : loans.length === 0 ? (
                 <TableStateRow bare variant="empty" icon={Banknote} label="No loan records found." />
-              ) : loans
-                  .slice((loansPage - 1) * LOANS_PAGE_SIZE, loansPage * LOANS_PAGE_SIZE)
-                  .map((loan, idx) => (
-                <div key={idx} className="px-4 py-3.5 hover:bg-gray-50/50 dark:hover:bg-gray-800/50 transition-colors">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-bold text-gray-900 dark:text-white">{loan.type}</p>
-                      <p className="text-[10px] text-gray-400 dark:text-gray-500 font-medium">ID: {loan.id}</p>
+              ) : pageLoans.map((loan) => {
+                const isSelected = loan.loan_id === selectedLoanId;
+                return (
+                  <button
+                    type="button"
+                    key={loan.loan_id}
+                    onClick={() => toggleLoan(loan.loan_id)}
+                    aria-expanded={isSelected}
+                    className={`block w-full text-left px-4 py-3.5 transition-colors ${
+                      isSelected ? 'bg-[#EAF1EB]/60 dark:bg-green-900/20' : 'hover:bg-gray-50/50 dark:hover:bg-gray-800/50'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-bold text-gray-900 dark:text-white">{loan.loan_type}</p>
+                        <p className="text-[10px] text-gray-400 dark:text-gray-500 font-medium">ID: {loan.loan_id}</p>
+                      </div>
+                      <StatusBadge loan={loan} />
                     </div>
-                    <span className={`shrink-0 badge-animated px-2.5 py-1 rounded text-[10px] font-extrabold tracking-wider ${
-                      loan.status === 'Active' || loan.status === 'Fully paid' ? 'bg-[#EAF1EB] text-member-green dark:bg-green-900/30 dark:text-green-400' : loan.status === 'Rejected' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' : 'bg-[#FEF08A] text-[#854D0E] dark:bg-amber-900/30 dark:text-amber-400'
-                    }`}>
-                      {loan.status}
-                    </span>
-                  </div>
-                  <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 text-xs">
-                    <div>
-                      <p className="text-gray-400 dark:text-gray-500 font-medium">Original Amount</p>
-                      <p className="font-bold text-gray-600 dark:text-gray-400">{loan.originalAmount}</p>
+                    <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 text-xs">
+                      <div>
+                        <p className="text-gray-400 dark:text-gray-500 font-medium">Original Amount</p>
+                        <p className="font-bold text-gray-600 dark:text-gray-400">{formatCurrency(loan.principal)}</p>
+                      </div>
+                      <div>
+                        <p className="text-gray-400 dark:text-gray-500 font-medium">Remaining Balance</p>
+                        <p className="font-black text-gray-900 dark:text-white">{balanceLabel(loan)}</p>
+                      </div>
+                      <div>
+                        <p className="text-gray-400 dark:text-gray-500 font-medium">Interest Rate</p>
+                        <p className="font-bold text-gray-700 dark:text-gray-200">{rateLabel(loan)}</p>
+                      </div>
+                      <div>
+                        <p className="text-gray-400 dark:text-gray-500 font-medium">Monthly Payment</p>
+                        <p className="font-bold text-member-green dark:text-green-400">{paymentLabel(loan)}</p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-gray-400 dark:text-gray-500 font-medium">Remaining Balance</p>
-                      <p className="font-black text-gray-900 dark:text-white">{loan.balance}</p>
-                    </div>
-                    <div>
-                      <p className="text-gray-400 dark:text-gray-500 font-medium">Interest Rate</p>
-                      <p className="font-bold text-gray-700 dark:text-gray-200">{loan.interestRate}</p>
-                    </div>
-                    <div>
-                      <p className="text-gray-400 dark:text-gray-500 font-medium">Monthly Payment</p>
-                      <p className="font-bold text-member-green dark:text-green-400">{loan.payment}</p>
-                    </div>
-                  </div>
-                  <p className="mt-2.5 text-[11px] text-gray-500 dark:text-gray-400">
-                    Next Due: <span className="font-semibold text-gray-700 dark:text-gray-300">{loan.nextDue}</span>
-                  </p>
-                </div>
-              ))}
+                    <p className="mt-2.5 text-[11px] font-bold text-member-green dark:text-green-400">
+                      {isSelected ? 'Tap to close details' : 'Tap to view details'}
+                    </p>
+                  </button>
+                );
+              })}
             </div>
 
-            {/* Pagination — matches the pattern from Cashier_Payments /
-                Treasurer_Payments so paginators feel identical across portals.
-                Hidden when everything fits on one page. */}
             {loans.length > LOANS_PAGE_SIZE && (
               <div className="flex items-center justify-center p-6 gap-2 border-t border-gray-100 dark:border-gray-800">
                 {(() => {
-                  const totalPages = Math.max(1, Math.ceil(loans.length / LOANS_PAGE_SIZE));
                   const groupStart = Math.floor((loansPage - 1) / 5) * 5 + 1;
                   const groupEnd = Math.min(groupStart + 4, totalPages);
                   return (
                     <>
                       <button
                         type="button"
+                        aria-label="Previous page"
                         className="w-8 h-8 flex items-center justify-center rounded-full border border-gray-300 bg-white text-gray-500 transition-colors hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed dark:bg-gray-800 dark:border-gray-700 dark:text-gray-400"
                         disabled={loansPage <= 1}
                         onClick={() => setLoansPage(Math.max(loansPage - 1, 1))}
                       >
                         <ChevronLeft className="w-4 h-4" />
                       </button>
-
                       {Array.from({ length: groupEnd - groupStart + 1 }, (_, i) => groupStart + i).map((p) => (
                         <button
                           type="button"
@@ -626,9 +527,9 @@ const Member_Loans = () => {
                           {p}
                         </button>
                       ))}
-
                       <button
                         type="button"
+                        aria-label="Next page"
                         className="w-8 h-8 flex items-center justify-center rounded-full border border-gray-300 bg-white text-gray-500 transition-colors hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed dark:bg-gray-800 dark:border-gray-700 dark:text-gray-400"
                         disabled={loansPage >= totalPages}
                         onClick={() => setLoansPage(Math.min(loansPage + 1, totalPages))}
@@ -642,109 +543,41 @@ const Member_Loans = () => {
             )}
           </div>
 
-          {/* Bottom Grid: Breakdown & Eligibility */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
-            
-            {/* Loan Summary — was "Recent Payment Breakdown" (renamed because
-                it shows loan setup, not payment history; payment history lives
-                on Statement of Account). All fields below are either fetched
-                directly or derived from data already in the loans row —
-                no extra query. */}
-            <div className="lg:col-span-2 bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 p-5 sm:p-8 flex flex-col">
-              <div className="mb-6 pb-6 border-b border-gray-100 dark:border-gray-800">
-                <h3 className="text-lg font-bold text-gray-900 dark:text-white">Loan Summary</h3>
-                <p className="text-xs text-gray-400 dark:text-gray-500 font-medium mt-1">{latestLoan ? `${latestLoan.id} (${latestLoan.type})` : 'No loan selected'}</p>
+          {/* Selected loan */}
+          {selectedLoan ? (
+            <section ref={detailRef} className="scroll-mt-6">
+              <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <h2 className="text-lg font-extrabold text-gray-900 dark:text-white">Selected Loan</h2>
+                <div className="flex w-full items-center gap-2 sm:w-auto">
+                  {loans.length > 1 ? (
+                    <select
+                      value={selectedLoanId}
+                      onChange={(e) => setSelectedLoanId(e.target.value)}
+                      aria-label="Select a loan"
+                      className="min-w-0 flex-1 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-700 focus:outline-none focus:ring-2 focus:ring-member-green/30 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 sm:max-w-sm"
+                    >
+                      {loans.map((l) => (
+                        <option key={l.loan_id} value={l.loan_id}>
+                          {l.loan_type} — {formatCurrency(l.principal)} ({l.loan_id})
+                        </option>
+                      ))}
+                    </select>
+                  ) : null}
+                  <button
+                    type="button"
+                    onClick={() => setSelectedLoanId('')}
+                    className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-gray-300 px-3 py-2 text-xs font-bold text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
+                  >
+                    <X className="w-3.5 h-3.5" /> Close
+                  </button>
+                </div>
               </div>
+              {/* key resets the panel's expand/collapse state per loan */}
+              <LoanJourneyPanel key={selectedLoan.loan_id} loan={selectedLoan} payments={payments} />
+            </section>
+          ) : null}
 
-              <div className="space-y-4 flex-1">
-                <div className="flex justify-between items-center text-sm">
-                  <span className="text-gray-600 dark:text-gray-400 font-medium">Principal Amount</span>
-                  <span className="font-bold text-gray-900 dark:text-white">{latestLoan?.originalAmount || 'N/A'}</span>
-                </div>
-                <div className="flex justify-between items-center text-sm">
-                  <span className="text-gray-600 dark:text-gray-400 font-medium">Interest Rate</span>
-                  <span className="font-bold text-gray-900 dark:text-white">{latestLoan?.interestRate || 'N/A'}</span>
-                </div>
-                <div className="flex justify-between items-center text-sm">
-                  <span className="text-gray-600 dark:text-gray-400 font-medium">Term</span>
-                  <span className="font-bold text-gray-900 dark:text-white">
-                    {latestLoan?.termMonths ? `${latestLoan.termMonths} months` : 'N/A'}
-                  </span>
-                </div>
-                <div className="flex justify-between items-center text-sm">
-                  <span className="text-gray-600 dark:text-gray-400 font-medium">Total Interest</span>
-                  <span className="font-bold text-gray-900 dark:text-white">
-                    {latestLoan ? formatCurrency(latestLoan.totalInterest) : 'N/A'}
-                  </span>
-                </div>
-                <div className="flex justify-between items-center text-sm">
-                  <span className="text-gray-600 dark:text-gray-400 font-medium">Total Payable</span>
-                  <span className="font-bold text-gray-900 dark:text-white">
-                    {latestLoan ? formatCurrency(latestLoan.totalPayable) : 'N/A'}
-                  </span>
-                </div>
-                <div className="flex justify-between items-center text-sm">
-                  <span className="text-gray-600 dark:text-gray-400 font-medium">Service Fee</span>
-                  <span className="font-bold text-gray-900 dark:text-white">
-                    {latestLoan ? formatCurrency(latestLoan.serviceFee) : 'N/A'}
-                  </span>
-                </div>
-                {latestLoan?._loanTypeKey?.includes('consolidated') && (
-                  <div className="flex justify-between items-center text-sm">
-                    <span className="text-gray-600 dark:text-gray-400 font-medium">CLIMBS Insurance</span>
-                    <span className="font-bold text-gray-900 dark:text-white">
-                      {formatCurrency(latestLoan.insurance)}
-                    </span>
-                  </div>
-                )}
-              </div>
-
-              <div className="flex justify-between items-center mt-8 pt-6 border-t border-gray-100 dark:border-gray-800">
-                <span className="font-bold text-gray-900 dark:text-white">Total Monthly Amortization</span>
-                <span className="text-xl font-black text-member-green dark:text-green-400">{latestLoan?.payment || 'N/A'}</span>
-              </div>
-            </div>
-
-            {/* Loan Eligibility Tool */}
-            <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 p-5 sm:p-8 flex flex-col">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-8 h-8 rounded-lg bg-[#EAF1EB] dark:bg-green-900/30 flex items-center justify-center border border-green-100 dark:border-green-800">
-                  <Calculator className="w-4 h-4 text-member-green dark:text-green-400" />
-                </div>
-                <h3 className="text-lg font-bold text-gray-900 dark:text-white">Loan Eligibility</h3>
-              </div>
-              
-              <p className="text-sm text-gray-500 dark:text-gray-400 font-medium mb-8 leading-relaxed">
-                Wondering if you qualify for a new loan? Use our calculator to check your borrowing capacity based on your current net take-home pay.
-              </p>
-
-              <div className="bg-[#FAF9FB] dark:bg-gray-800 rounded-xl p-5 mb-8 border border-gray-100 dark:border-gray-700">
-                <div className="flex justify-between items-start mb-4">
-                  <p className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Quick<br/>Status</p>
-                  <p className="text-[10px] font-extrabold text-member-green dark:text-green-400 uppercase tracking-wider text-right">Ready To<br/>Calculate</p>
-                </div>
-                <p className="text-[10px] text-gray-400 dark:text-gray-500 font-medium italic">
-                  Last payroll data synced:<br/>10/28/2023
-                </p>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setIsCalculatorOpen(true)}
-                className="w-full bg-member-green hover:bg-[#154718] text-white font-bold text-sm py-3.5 rounded-xl transition-colors flex items-center justify-center gap-2 mb-4"
-              >
-                <ArrowRight className="w-4 h-4" /> Open Loan Calculator
-              </button>
-              
-              <p className="text-center text-[9px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mt-auto">
-                Institutional Planning Tool
-              </p>
-            </div>
-
-          </div>
-          
         </main>
-
       </div>
 
       <LoanCalculatorModal open={isCalculatorOpen} onClose={() => setIsCalculatorOpen(false)} />
