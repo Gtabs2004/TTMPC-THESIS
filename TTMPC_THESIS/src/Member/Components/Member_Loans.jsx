@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState, useRef } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
+import { useMemberSettings } from "../../contex/MemberSettingsContext";
 import { useRealtimeVersion } from "../../hooks/useRealtimeRefetch";
 import { RT } from "../../lib/realtimeSync";
 import { UserAuth } from "../../contex/AuthContext";
@@ -89,6 +90,7 @@ const StatusBadge = ({ loan }) => {
 const Member_Loans = () => {
   const { signOut } = UserAuth();
   const navigate = useNavigate();
+  const { openSettings } = useMemberSettings();
   const [loans, setLoans] = useState([]);
   const [payments, setPayments] = useState([]);
   const [loadingLoans, setLoadingLoans] = useState(true);
@@ -300,7 +302,7 @@ const Member_Loans = () => {
             <LoanNotificationBell role="member" accentClass="bg-member-green" />
             <button
               type="button"
-              onClick={() => { navigate('/members-profile'); navigate('/members-profile/settings'); }}
+              onClick={openSettings}
               className="p-2 rounded-md text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
               aria-label="Settings"
             >

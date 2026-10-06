@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState, useRef } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
+import { useMemberSettings } from "../../contex/MemberSettingsContext";
 import { useRealtimeVersion, useRealtimeRefetch } from "../../hooks/useRealtimeRefetch";
 import { RT } from "../../lib/realtimeSync";
 import { getLoanTypeCardStyle } from "../../utils/loanTypeColors";
@@ -92,6 +93,7 @@ const STATEMENT_TABS = [
 const Member_StatementOfAccount = () => {
   const { signOut } = UserAuth();
   const navigate = useNavigate();
+  const { openSettings } = useMemberSettings();
   const { addNotification } = useNotification();
 
   const [loans, setLoans] = useState([]);
@@ -694,7 +696,7 @@ const Member_StatementOfAccount = () => {
             <LoanNotificationBell role="member" accentClass="bg-member-green" />
             <button
               type="button"
-              onClick={() => { navigate('/members-profile'); navigate('/members-profile/settings'); }}
+              onClick={openSettings}
               className="p-2 rounded-md text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
               aria-label="Settings"
             >
