@@ -121,6 +121,7 @@ const applyRenewalOverrides = async (result) => {
 
   const next = { ...perType };
   for (const o of overrides) {
+    if (o.override_kind === "bonus_window") continue;
     const bucket = next[o.loan_type];
     if (!bucket || bucket.can_renew || bucket.active_loan_id !== o.loan_id) continue;
     const until = formatOverrideDate(o.expires_at);

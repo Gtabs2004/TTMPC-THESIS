@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useMemo, useState, useRef } from "react";
+import React, { useEffect, useMemo, useState, useRef } from "react";
 import { Link } from 'react-router-dom';
 import { useRealtimeVersion } from "../../hooks/useRealtimeRefetch";
 import { RT } from "../../lib/realtimeSync";
@@ -128,9 +128,8 @@ const MemberDashboard = () => {
   const menuItems = [
     { name: "Dashboard", label: "Dashboard", icon: LayoutDashboard },
     { name: "Apply for Loan", label: "Apply", icon: Scroll },
-    { name: "Member Loans", label: "Loans", icon: Activity },
+    { name: "My Loans", label: "Loans", icon: Activity },
     { name: "Statement of Account", label: "Statement", icon: Receipt },
-    { name: "Loan Lifecycle", label: "Lifecycle", icon: History },
     { name: "Member Profile", label: "Profile", icon: Users },
   ];
 
@@ -796,9 +795,8 @@ const MemberDashboard = () => {
             const routeMap = {
               "Dashboard": "/member-dashboard",
               "Apply for Loan": "/member-apply-loans",
-              "Member Loans": "/member-loans",
+              "My Loans": "/member-loans",
               "Statement of Account": "/member-statement-of-account",
-              "Loan Lifecycle": "/member-lifecycle",
               "Member Profile": "/members-profile", 
               
             };

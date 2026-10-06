@@ -35,10 +35,11 @@ async function request(path, { method = "GET", body } = {}) {
 export const fetchMyOverrideRequests = async () =>
   (await request("/api/member/renewal-override-requests")).data || [];
 
-export const createOverrideRequest = async (loanType, reason) =>
+// overrideKind: "six_month" (early renewal) or "bonus_window" (Bonus outside May/November).
+export const createOverrideRequest = async (loanType, reason, overrideKind = "six_month") =>
   (await request("/api/member/renewal-override-requests", {
     method: "POST",
-    body: { loan_type: loanType, reason },
+    body: { loan_type: loanType, reason, override_kind: overrideKind },
   })).data;
 
 export const cancelOverrideRequest = async (requestId) =>

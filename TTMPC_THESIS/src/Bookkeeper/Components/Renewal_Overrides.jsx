@@ -73,6 +73,18 @@ const StatusChip = ({ row }) => {
   );
 };
 
+const isWindowRequest = (row) => row?.override_kind === "bonus_window";
+
+const KindChip = ({ row }) => (
+  <span
+    className={`inline-flex whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+      isWindowRequest(row) ? "bg-purple-100 text-purple-700" : "bg-slate-100 text-slate-700"
+    }`}
+  >
+    {isWindowRequest(row) ? "Bonus window" : "6-month rule"}
+  </span>
+);
+
 const Detail = ({ label, children }) => (
   <div>
     <dt className="text-[10px] font-bold uppercase tracking-wider text-gray-500">{label}</dt>
@@ -149,10 +161,13 @@ const RenewalOverrides = () => {
     setFormError("");
     try {
       await reviewOverrideRequest(selected.id, action, note.trim());
+      const who = selected.member_name || "the member";
       addNotification(
         action === "approved"
-          ? `Early renewal approved for ${selected.member_name || "the member"}.`
-          : `Request from ${selected.member_name || "the member"} declined.`,
+          ? isWindowRequest(selected)
+            ? `Bonus window opened for ${who}.`
+            : `Early renewal approved for ${who}.`
+          : `Request from ${who} declined.`,
         "success",
       );
       setSelected(null);
@@ -174,9 +189,9 @@ const RenewalOverrides = () => {
 
         <main className="animate-page-in p-8">
           <div className="mb-6">
-            <h1 className="font-bold text-2xl text-gray-800">6-Month Rule Override Requests</h1>
+            <h1 className="font-bold text-2xl text-gray-800">Loan Override Requests</h1>
             <p className="text-sm text-gray-500 mt-1">
-              Members asking to renew a loan before completing 6 monthly payments. Approving unlocks Renewal for that loan for a limited time.
+              Members asking to renew a loan before completing 6 monthly payments, or to apply for a Bonus loan outside May/November. Approving unlocks it for that member for a limited time.
             </p>
           </div>
 
@@ -200,6 +215,7 @@ const RenewalOverrides = () => {
               <thead>
                 <tr className="bg-primary-deep text-[10px] uppercase tracking-wider text-white font-extrabold text-left">
                   <th className="p-5 font-bold">Member</th>
+                  <th className="p-5 font-bold">Override</th>
                   <th className="p-5 font-bold">Loan</th>
                   <th className="p-5 font-bold text-right">Payments</th>
                   <th className="p-5 font-bold">Reason</th>
@@ -210,12 +226,12 @@ const RenewalOverrides = () => {
               </thead>
               <tbody>
                 {loading && (
-                  <TableStateRow colSpan={7} variant="loading" label="Loading requests..." />
+                  <TableStateRow colSpan={8} variant="loading" label="Loading requests..." />
                 )}
 
                 {!loading && rows.length === 0 && !loadError && (
                   <TableStateRow
-                    colSpan={7}
+                    colSpan={8}
                     variant="empty"
                     icon={FileText}
                     label={
@@ -230,14 +246,15 @@ const RenewalOverrides = () => {
                       <p className="font-semibold text-gray-800">{row.member_name || "—"}</p>
                       <p className="text-xs text-gray-500">{row.membership_id || "—"}</p>
                     </td>
+                    <td className="p-5"><KindChip row={row} /></td>
                     <td className="p-5">
                       <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold capitalize ${getLoanTypeChipClass(row.loan_type)}`}>
                         {row.loan_type}
                       </span>
-                      <p className="mt-1 font-mono text-xs text-gray-500">{row.loan_id}</p>
+                      <p className="mt-1 font-mono text-xs text-gray-500">{row.loan_id || "New application"}</p>
                     </td>
                     <td className="p-5 text-right tabular-nums text-gray-700 whitespace-nowrap">
-                      {row.payments_made} / {row.required_payments}
+                      {isWindowRequest(row) ? "—" : `${row.payments_made} / ${row.required_payments}`}
                     </td>
                     <td className="p-5 max-w-xs">
                       <p className="line-clamp-2 text-gray-700">{row.reason}</p>
@@ -292,10 +309,14 @@ const RenewalOverrides = () => {
             <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3">
               <Detail label="Member">{selected.member_name || "—"}</Detail>
               <Detail label="Membership ID">{selected.membership_id || "—"}</Detail>
+              <Detail label="Override"><KindChip row={selected} /></Detail>
               <Detail label="Loan">
-                <span className="capitalize">{selected.loan_type}</span> · <span className="font-mono text-xs">{selected.loan_id}</span>
+                <span className="capitalize">{selected.loan_type}</span>
+                {selected.loan_id && <> · <span className="font-mono text-xs">{selected.loan_id}</span></>}
               </Detail>
-              <Detail label="Payments made">{selected.payments_made} of {selected.required_payments}</Detail>
+              {!isWindowRequest(selected) && (
+                <Detail label="Payments made">{selected.payments_made} of {selected.required_payments}</Detail>
+              )}
               <Detail label="Requested">{formatDateTime(selected.created_at)}</Detail>
             </dl>
 
@@ -341,7 +362,9 @@ const RenewalOverrides = () => {
                   className="mt-1.5 w-full resize-y rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
                 />
                 <p className="mt-1 text-xs text-gray-500">
-                  Approving unlocks Renewal for this loan for 30 days, or until it is used.
+                  {isWindowRequest(selected)
+                    ? "Approving lets this member submit one Bonus loan application outside May/November within 30 days."
+                    : "Approving unlocks Renewal for this loan for 30 days, or until it is used."}
                 </p>
               </div>
             )}

@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, NavLink, useSearchParams } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
 import { useNotification } from "../../contex/NotificationContext";
@@ -25,7 +25,6 @@ import {
   Contact2,
   ShieldCheck,
   Lock,
-  History,
   Receipt,
   MapPin,
   HeartHandshake,
@@ -298,9 +297,8 @@ const Members_Profile = () => {
   const menuItems = [
       { name: "Dashboard", label: "Dashboard", icon: LayoutDashboard },
       { name: "Apply for Loan", label: "Apply", icon: Scroll },
-      { name: "Member Loans", label: "Loans", icon: Activity },
+      { name: "My Loans", label: "Loans", icon: Activity },
       { name: "Statement of Account", label: "Statement", icon: Receipt },
-      { name: "Loan Lifecycle", label: "Lifecycle", icon: History },
       { name: "Member Profile", label: "Profile", icon: Users },
     ];
 
@@ -917,9 +915,8 @@ const Members_Profile = () => {
             const routeMap = {
                           "Dashboard": "/member-dashboard",
                           "Apply for Loan": "/member-apply-loans",
-                          "Member Loans": "/member-loans",
+                          "My Loans": "/member-loans",
                           "Statement of Account": "/member-statement-of-account",
-                          "Loan Lifecycle": "/member-lifecycle",
                           "Member Profile": "/members-profile", 
                          
                         };

@@ -2630,6 +2630,7 @@ async def get_treasurer_rescheduled_loans():
             .select(
                 "control_number,member_id,loan_amount,principal_amount,term,loan_status,application_date," \
                 "application_type,rescheduled_at,reschedule_note," \
+                f"{LOAN_FEE_SNAPSHOT_COLUMNS}," \
                 "member:member_id(first_name,last_name)," \
                 "loan_type:loan_type_id(name,code)"
             )
@@ -4277,10 +4278,24 @@ def _outstanding_balances(loan_rows: list[dict]) -> dict[str, Decimal]:
     return result
 
 
+LOAN_FEE_SNAPSHOT_COLUMNS = "service_fee,cbu_deduction,insurance_fee,notarial_fee,net_proceeds"
+_FEE_KEYS = ("service_fee", "cbu_deduction", "insurance_fee", "notarial_fee")
+
+
+def _stored_fee_breakdown(loan_row: dict) -> dict | None:
+    """Fees frozen on the loan at application time (trg_snapshot_loan_fees), or
+    None for older loans that predate it — those fall back to the live policy."""
+    if any(loan_row.get(k) is None for k in _FEE_KEYS):
+        return None
+    fees = {k: money(Decimal(str(loan_row.get(k)))) for k in _FEE_KEYS}
+    fees["total_deductions"] = money(sum(fees.values(), Decimal("0")))
+    return fees
+
+
 def _compute_net_cash_out(loan_row: dict, renewal_payoff: Decimal = Decimal("0")) -> dict:
     principal = Decimal(str(loan_row.get("principal_amount") or loan_row.get("loan_amount") or 0))
     type_code = _resolve_loan_type_code_for_breakdown(loan_row.get("loan_type") or {})
-    fees = (
+    fees = _stored_fee_breakdown(loan_row) or (
         _fee_breakdown_for_principal(type_code, principal)
         if principal > 0
         else {"service_fee": Decimal("0"), "cbu_deduction": Decimal("0"), "insurance_fee": Decimal("0"),
@@ -4333,7 +4348,7 @@ def _compute_vault_available() -> dict:
             supabase.table("loans")
             .select(
                 "control_number,member_id,loan_amount,principal_amount,loan_status,application_type,"
-                "application_date,loan_type:loan_type_id(name,code)"
+                f"application_date,{LOAN_FEE_SNAPSHOT_COLUMNS},loan_type:loan_type_id(name,code)"
             )
             .execute()
         )
@@ -4375,7 +4390,7 @@ async def preview_cashier_disbursement(loan_id: str):
             supabase.table("loans")
             .select(
                 "control_number,member_id,loan_amount,principal_amount,application_type,application_date,"
-                "loan_type:loan_type_id(name,code)"
+                f"{LOAN_FEE_SNAPSHOT_COLUMNS},loan_type:loan_type_id(name,code)"
             )
             .eq("control_number", clean_loan_id)
             .limit(1)
@@ -4433,6 +4448,7 @@ async def disburse_cashier_loan(loan_id: str, payload: CashierDisbursementReques
             .select(
                 "control_number,loan_amount,principal_amount,interest_rate,term,loan_status,total_interest,monthly_amortization,member_id," \
                 "application_type,application_date," \
+                f"{LOAN_FEE_SNAPSHOT_COLUMNS}," \
                 "member:member_id(first_name,last_name)," \
                 "loan_type:loan_type_id(name,code)"
             )
@@ -5065,6 +5081,32 @@ BONUS_WINDOW_REASON = (
 def _bonus_window_open(now: datetime | None = None) -> bool:
     return (now or datetime.now()).month in BONUS_APPLICATION_MONTHS
 
+
+def _has_bonus_window_override(member_id: str) -> bool:
+    """Approved, unexpired, unused Bookkeeper override of the May/November window."""
+    if not supabase or not member_id:
+        return False
+    try:
+        resp = (
+            supabase.table("loan_renewal_override_requests")
+            .select("id")
+            .eq("member_id", member_id)
+            .eq("loan_type", "bonus")
+            .eq("override_kind", "bonus_window")
+            .eq("status", "approved")
+            .gt("expires_at", datetime.utcnow().isoformat() + "Z")
+            .limit(1)
+            .execute()
+        )
+    except Exception as err:
+        logger.warning("bonus window override lookup failed: %s", err)
+        return False
+    return bool(resp.data)
+
+
+def _bonus_open_for(member_id: str) -> bool:
+    return _bonus_window_open() or _has_bonus_window_override(member_id)
+
 def _clean_bucket(loan_type: str, simulated: bool = False) -> dict:
     return {
         "loan_type": loan_type,
@@ -5141,15 +5183,25 @@ def _compute_bucket_for_type(member_id: str, loan_type: str) -> dict:
         .execute()
     )
     loan_rows = loans_response.data or []
-    return _bucket_from_loans(loan_rows, loan_type)
+    bonus_open = _bonus_open_for(member_id) if loan_type == "bonus" else True
+    return _bucket_from_loans(loan_rows, loan_type, bonus_open=bonus_open)
 
 
-def _bucket_from_loans(loan_rows: list[dict], loan_type: str, payments_by_loan: dict[str, int] | None = None) -> dict:
+def _bucket_from_loans(
+    loan_rows: list[dict],
+    loan_type: str,
+    payments_by_loan: dict[str, int] | None = None,
+    bonus_open: bool | None = None,
+) -> dict:
     """Compute a bucket for one loan type from a pre-fetched loan list.
 
     If payments_by_loan is provided, skips the per-loan payment count query.
+    bonus_open: whether the Bonus window is open for this member (month or an
+    approved window override); defaults to the plain month check.
     """
-    if loan_type == "bonus" and not _bonus_window_open():
+    if bonus_open is None:
+        bonus_open = _bonus_window_open()
+    if loan_type == "bonus" and not bonus_open:
         return {
             "loan_type": "bonus",
             "can_apply_new": False,
@@ -5234,8 +5286,9 @@ def _compute_all_buckets(member_id: str) -> dict[str, dict]:
         except Exception:
             payments_by_loan = {}
 
+    bonus_open = _bonus_open_for(member_id)
     return {
-        lt: _bucket_from_loans(loan_rows, lt, payments_by_loan)
+        lt: _bucket_from_loans(loan_rows, lt, payments_by_loan, bonus_open=bonus_open)
         for lt in ELIGIBILITY_LOAN_TYPES
     }
 
@@ -5357,9 +5410,15 @@ RENEWAL_OVERRIDE_REASON_MAX = 1000
 RENEWAL_OVERRIDE_STATUSES = {"pending", "approved", "rejected", "cancelled", "used"}
 # Columns a member may see on their own requests (no reviewer/requester ids).
 RENEWAL_OVERRIDE_MEMBER_COLUMNS = (
-    "id,loan_type,loan_id,payments_made,required_payments,reason,status,"
+    "id,override_kind,loan_type,loan_id,payments_made,required_payments,reason,status,"
     "review_note,reviewed_at,expires_at,used_at,created_at"
 )
+# six_month: waive the 6-payment renewal rule for one active loan.
+# bonus_window: let one Bonus application through outside May/November
+# (spent by the enforce_bonus_loan_window trigger; bonus_window_override.sql).
+OVERRIDE_KIND_SIX_MONTH = "six_month"
+OVERRIDE_KIND_BONUS_WINDOW = "bonus_window"
+BONUS_WINDOW_OVERRIDE_HINT = " You can ask the Bookkeeper for a Bonus window override."
 
 
 class _RenewalOverrideLoanTypeModel(BaseModel):
@@ -5377,6 +5436,7 @@ class _RenewalOverrideLoanTypeModel(BaseModel):
 # validator's ValueError lands in that payload as a non-serialisable object.
 class RenewalOverrideCreate(_RenewalOverrideLoanTypeModel):
     reason: str = Field(..., max_length=RENEWAL_OVERRIDE_REASON_MAX)
+    override_kind: Literal["six_month", "bonus_window"] = "six_month"
 
 
 class RenewalOverrideConsume(_RenewalOverrideLoanTypeModel):
@@ -5451,6 +5511,7 @@ def _override_audit(
             "after": after,
             "context": {
                 "kind": "renewal_override",
+                "override_kind": row.get("override_kind") or OVERRIDE_KIND_SIX_MONTH,
                 "override_request_id": row.get("id"),
                 "member_id": row.get("member_id"),
                 "membership_id": row.get("membership_id"),
@@ -5471,7 +5532,7 @@ def _override_notify(
     severity: str,
     title: str,
     message: str,
-    loan_id: str,
+    loan_id: str | None,
     redirect_url: str,
     recipient_member_id: str | None = None,
     actor_user_id: str | None = None,
@@ -5498,6 +5559,66 @@ def _require_bookkeeper(current_user: dict) -> None:
     role = _resolve_staff_role(current_user["id"], current_user.get("email") or "")
     if role != "bookkeeper":
         raise HTTPException(status_code=403, detail="Only the Bookkeeper can review renewal override requests.")
+
+
+def _create_bonus_window_override(account: dict, member_row: dict, reason: str, current_user: dict) -> dict:
+    """Member asks the Bookkeeper to accept one Bonus application outside May/November."""
+    member_id = account["member_id"]
+    if _bonus_window_open():
+        raise HTTPException(
+            status_code=400,
+            detail="The Bonus window is open this month. You can apply for a Bonus loan directly.",
+        )
+    if _has_bonus_window_override(member_id):
+        raise HTTPException(
+            status_code=409,
+            detail="You already have an approved Bonus window override. You can apply for a Bonus loan now.",
+        )
+
+    member_name = resolve_member_full_name(member_row) if member_row else ""
+    record = {
+        "member_id": member_id,
+        "membership_id": account.get("membership_id") or member_row.get("membership_id"),
+        "member_name": member_name,
+        "requested_by_user_id": current_user["id"],
+        "requested_by_email": current_user.get("email") or None,
+        "override_kind": OVERRIDE_KIND_BONUS_WINDOW,
+        "loan_type": "bonus",
+        "loan_id": None,
+        "payments_made": 0,
+        "reason": reason,
+        "status": "pending",
+    }
+    try:
+        inserted = supabase.table(RENEWAL_OVERRIDE_TABLE).insert(record).execute()
+    except Exception as exc:
+        message = str(exc).lower()
+        if "uq_renewal_override_one_pending" in message or "duplicate key" in message:
+            raise HTTPException(
+                status_code=409,
+                detail="You already have a pending Bonus window request. Please wait for the Bookkeeper's decision.",
+            )
+        raise HTTPException(status_code=500, detail=f"Could not save the request: {exc}")
+
+    row = (inserted.data or [None])[0]
+    if not row:
+        raise HTTPException(status_code=500, detail="Could not save the request.")
+
+    _override_audit("create", row, current_user, after={"status": "pending", "override_kind": OVERRIDE_KIND_BONUS_WINDOW})
+    _override_notify(
+        recipient_role="bookkeeper",
+        notification_type="renewal_override_request",
+        severity="warning",
+        title="Bonus window override requested",
+        message=(
+            f"{member_name or 'A member'} is asking to apply for a Bonus loan outside the "
+            f"May/November window. Please review the request."
+        ),
+        loan_id=None,
+        redirect_url="/bookkeeper-renewal-overrides",
+        actor_user_id=current_user["id"],
+    )
+    return {"success": True, "data": {k: row.get(k) for k in RENEWAL_OVERRIDE_MEMBER_COLUMNS.split(",")}}
 
 
 @app.post("/api/member/renewal-override-requests")
@@ -5527,9 +5648,13 @@ def create_renewal_override_request(
             detail=f"Member account is {raw_status or 'deactivated'} and is not eligible to apply for loans.",
         )
 
-    if body.loan_type == "bonus" and not _bonus_window_open():
-        # The override waives the 6-month rule only, never the release window.
-        raise HTTPException(status_code=400, detail=BONUS_WINDOW_REASON)
+    if body.override_kind == OVERRIDE_KIND_BONUS_WINDOW:
+        return _create_bonus_window_override(account, member_row, reason, current_user)
+
+    # The 6-month override does not open the Bonus window by itself; a member
+    # outside May/November needs an approved window override as well.
+    if body.loan_type == "bonus" and not _bonus_open_for(member_id):
+        raise HTTPException(status_code=400, detail=BONUS_WINDOW_REASON + BONUS_WINDOW_OVERRIDE_HINT)
 
     try:
         active_loan_id, bucket = _override_active_loan(member_id, body.loan_type)
@@ -5652,7 +5777,7 @@ def get_active_renewal_overrides(current_user: dict = _Depends(_get_current_user
     try:
         resp = (
             supabase.table(RENEWAL_OVERRIDE_TABLE)
-            .select("id,loan_type,loan_id,expires_at,reviewed_at")
+            .select("id,override_kind,loan_type,loan_id,expires_at,reviewed_at")
             .eq("member_id", member_id)
             .eq("status", "approved")
             .gt("expires_at", _override_iso(_override_now()))
@@ -5661,15 +5786,17 @@ def get_active_renewal_overrides(current_user: dict = _Depends(_get_current_user
         rows = resp.data or []
         if not rows:
             return {"success": True, "data": []}
-        # An override is tied to one specific loan; once that loan is no longer
-        # the active one (renewed, paid off) it stops applying.
-        buckets = _compute_all_buckets(member_id)
+        six_month_rows = [r for r in rows if r.get("override_kind") != OVERRIDE_KIND_BONUS_WINDOW]
+        # A 6-month override is tied to one specific loan; once that loan is no
+        # longer the active one (renewed, paid off) it stops applying.
+        buckets = _compute_all_buckets(member_id) if six_month_rows else {}
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Could not load active overrides: {exc}")
 
     active = [
         r for r in rows
-        if (buckets.get(r["loan_type"]) or {}).get("active_loan_id") == r["loan_id"]
+        if r.get("override_kind") == OVERRIDE_KIND_BONUS_WINDOW
+        or (buckets.get(r["loan_type"]) or {}).get("active_loan_id") == r["loan_id"]
     ]
     return {"success": True, "data": active}
 
@@ -5692,6 +5819,7 @@ def consume_renewal_override(
             .select("*")
             .eq("member_id", member_id)
             .eq("loan_type", body.loan_type)
+            .eq("override_kind", OVERRIDE_KIND_SIX_MONTH)
             .eq("status", "approved")
             .gt("expires_at", _override_iso(_override_now()))
             .order("reviewed_at", desc=True)
@@ -5810,9 +5938,15 @@ def review_renewal_override_request(
         "review_note": note,
     }
 
-    if body.action == "approved":
-        if req["loan_type"] == "bonus" and not _bonus_window_open():
-            raise HTTPException(status_code=409, detail=BONUS_WINDOW_REASON)
+    is_window = req.get("override_kind") == OVERRIDE_KIND_BONUS_WINDOW
+    if body.action == "approved" and is_window:
+        patch["expires_at"] = _override_iso(now + timedelta(days=RENEWAL_OVERRIDE_VALIDITY_DAYS))
+    elif body.action == "approved":
+        if req["loan_type"] == "bonus" and not _bonus_open_for(req["member_id"]):
+            raise HTTPException(
+                status_code=409,
+                detail=BONUS_WINDOW_REASON + " The member needs an approved Bonus window override first.",
+            )
         try:
             active_loan_id, _bucket = _override_active_loan(req["member_id"], req["loan_type"])
         except Exception as exc:
@@ -5848,19 +5982,31 @@ def review_renewal_override_request(
         after={"status": body.action, "expires_at": row.get("expires_at")},
     )
     loan_label = f"{req['loan_type']} loan {req['loan_id']}"
-    _override_notify(
-        recipient_role="member",
-        recipient_member_id=str(req["member_id"]),
-        notification_type="member_renewal_override_approved" if approved else "member_renewal_override_rejected",
-        severity="success" if approved else "danger",
-        title="Early renewal approved" if approved else "Early renewal request declined",
-        message=(
+    if is_window:
+        title = "Bonus window override approved" if approved else "Bonus window request declined"
+        message = (
+            f"The Bookkeeper approved your request. You can submit one Bonus loan application "
+            f"in the next {RENEWAL_OVERRIDE_VALIDITY_DAYS} days."
+            if approved else
+            "The Bookkeeper declined your request to apply for a Bonus loan outside May/November."
+            + (f" Reason: {note}" if note else "")
+        )
+    else:
+        title = "Early renewal approved" if approved else "Early renewal request declined"
+        message = (
             f"The Bookkeeper approved your request to renew your {loan_label} early. "
             f"You can apply for Renewal for the next {RENEWAL_OVERRIDE_VALIDITY_DAYS} days."
             if approved else
             f"The Bookkeeper declined your request to renew your {loan_label} early."
             + (f" Reason: {note}" if note else "")
-        ),
+        )
+    _override_notify(
+        recipient_role="member",
+        recipient_member_id=str(req["member_id"]),
+        notification_type="member_renewal_override_approved" if approved else "member_renewal_override_rejected",
+        severity="success" if approved else "danger",
+        title=title,
+        message=message,
         loan_id=req["loan_id"],
         redirect_url="/member-apply-loans",
         actor_user_id=current_user["id"],
@@ -7655,8 +7801,9 @@ async def get_member_lifecycle(member_id: str):
         loans_response = (
             supabase.table("loans")
             .select(
-                "control_number,loan_amount,principal_amount,interest_rate,monthly_amortization,total_interest,term,loan_status,application_status,application_date,disbursal_date," \
-                "loan_type:loan_type_id(name)"
+                "control_number,loan_amount,principal_amount,interest_rate,monthly_amortization,total_interest,term,loan_status,application_status,application_type,application_date,disbursal_date," \
+                f"{LOAN_FEE_SNAPSHOT_COLUMNS}," \
+                "loan_type:loan_type_id(name,code,interest_rate)"
             )
             .eq("member_id", clean_member_id)
             .order("application_date", desc=True)
@@ -7692,6 +7839,31 @@ async def get_member_lifecycle(member_id: str):
             )
             payment_rows = payments_response.data or []
 
+            # Payments imported from the coop's pre-app records count as
+            # validated, exactly as the Cashier's balance does.
+            try:
+                legacy_response = (
+                    supabase.table("loan_payments_legacy")
+                    .select("id,loan_id,amount_paid,payment_date,payment_code,or_cdv_no")
+                    .in_("loan_id", loan_ids)
+                    .execute()
+                )
+                for legacy in legacy_response.data or []:
+                    payment_rows.append({
+                        "id": legacy.get("id"),
+                        "payment_reference": legacy.get("payment_code") or legacy.get("or_cdv_no"),
+                        "transaction_reference": legacy.get("or_cdv_no") or legacy.get("payment_code"),
+                        "loan_id": legacy.get("loan_id"),
+                        "schedule_id": None,
+                        "amount_paid": legacy.get("amount_paid"),
+                        "penalties": 0,
+                        "payment_date": legacy.get("payment_date"),
+                        "confirmation_status": "validated",
+                    })
+            except Exception as legacy_err:
+                logger.warning("member lifecycle legacy payment lookup failed: %s", legacy_err)
+            payment_rows.sort(key=lambda p: str(p.get("payment_date") or ""), reverse=True)
+
         mapped_loans = []
         for row in loan_rows:
             loan_id = str(row.get("control_number") or "").strip()
@@ -7717,7 +7889,24 @@ async def get_member_lifecycle(member_id: str):
                 for sched in ordered_schedules
             ]
 
-            next_due_schedule = next(
+            # Same figures the Cashier uses: _loan_total_payable for principal +
+            # interest, validated live + legacy payments for the amount paid.
+            principal_value = Decimal(str(row.get("principal_amount") or row.get("loan_amount") or 0))
+            total_payable_value = _loan_total_payable(row)
+            total_interest_value = total_payable_value - principal_value
+
+            confirmed_paid_value = Decimal("0")
+            for pay in payment_rows:
+                if str(pay.get("loan_id") or "") != loan_id:
+                    continue
+                if is_validated_payment_status(pay.get("confirmation_status")):
+                    confirmed_paid_value += Decimal(str(pay.get("amount_paid") or 0))
+            remaining_balance_value = max(total_payable_value - confirmed_paid_value, Decimal("0"))
+
+            is_fully_paid = str(row.get("loan_status") or "").strip().lower() == "fully paid" or (
+                remaining_balance_value <= 0 and confirmed_paid_value > 0
+            )
+            next_due_schedule = None if is_fully_paid else next(
                 (
                     sched
                     for sched in mapped_schedules
@@ -7726,31 +7915,25 @@ async def get_member_lifecycle(member_id: str):
                 None,
             )
 
-            principal_value = Decimal(str(row.get("principal_amount") or row.get("loan_amount") or 0))
-            total_interest_value = Decimal(str(row.get("total_interest") or 0))
-            if total_interest_value <= 0:
-                schedule_interest_sum = sum(
-                    (Decimal(str(s.get("expected_interest") or 0)) for s in mapped_schedules),
-                    Decimal("0"),
+            # Fees as the Cashier deducts them: saved on the loan at application,
+            # else the current fee policy (older loans), via the same functions.
+            stored_fees = _stored_fee_breakdown(row)
+            fees = stored_fees or (
+                _fee_breakdown_for_principal(
+                    _resolve_loan_type_code_for_breakdown(row.get("loan_type") or {}), principal_value
                 )
-                if schedule_interest_sum > 0:
-                    total_interest_value = schedule_interest_sum
-                else:
-                    monthly_amort = Decimal(str(row.get("monthly_amortization") or 0))
-                    term_val = int(row.get("term") or 0)
-                    if monthly_amort > 0 and term_val > 0:
-                        total_interest_value = max(monthly_amort * term_val - principal_value, Decimal("0"))
-            total_payable_value = principal_value + total_interest_value
+                if principal_value > 0 else None
+            )
+            fee_payload = None
+            if fees:
+                fee_payload = {k: decimal_to_float(fees[k]) for k in (*_FEE_KEYS, "total_deductions")}
+                fee_payload["net_proceeds"] = decimal_to_float(money(principal_value - fees["total_deductions"]))
+                fee_payload["saved_at_application"] = stored_fees is not None
 
-            # Sum of confirmed payments for this loan (status normalization mirrors backend payment trigger).
-            confirmed_paid_value = Decimal("0")
-            for pay in payment_rows:
-                if str(pay.get("loan_id") or "") != loan_id:
-                    continue
-                status_norm = str(pay.get("confirmation_status") or "").strip().lower()
-                if status_norm in {"validated", "confirmed", "bookkeeper_confirmed", "approved"}:
-                    confirmed_paid_value += Decimal(str(pay.get("amount_paid") or 0))
-            remaining_balance_value = max(total_payable_value - confirmed_paid_value, Decimal("0"))
+            loan_type_row = row.get("loan_type") or {}
+            interest_rate_percent = sanitize_monthly_rate_percent(
+                row.get("interest_rate"), loan_type_row.get("interest_rate")
+            )
 
             mapped_loans.append(
                 {
@@ -7762,11 +7945,14 @@ async def get_member_lifecycle(member_id: str):
                     "amount_paid": decimal_to_float(confirmed_paid_value),
                     "remaining_balance": decimal_to_float(remaining_balance_value),
                     "monthly_amortization": decimal_to_float(row.get("monthly_amortization") or 0),
+                    "interest_rate": interest_rate_percent or None,
                     "term": int(row.get("term") or 0),
                     "loan_status": row.get("loan_status") or "N/A",
                     "application_status": row.get("application_status") or "N/A",
+                    "application_type": row.get("application_type"),
                     "application_date": row.get("application_date"),
                     "disbursal_date": row.get("disbursal_date"),
+                    "fees": fee_payload,
                     "schedules": mapped_schedules,
                     "next_due_schedule": next_due_schedule,
                 }

@@ -10,6 +10,7 @@ import { useLoanEligibility } from '../hooks/useLoanEligibility';
 import { useNotification } from '../contex/NotificationContext';
 import { FileImage, Loader2, Upload, ShieldCheck, Trash2, Plus, CheckCircle2, ImagePlus } from 'lucide-react';
 import MobileFormStepper from '../components/MobileFormStepper';
+import LoanDeductionsCard from '../components/LoanDeductionsCard';
 import { formatWithCommas, stripCommas } from '../utils/numberFormat';
 
 // Function to generate control number: CL-YYYYMMDD-XXXX
@@ -913,18 +914,22 @@ function Consolidated_Loan() {
     }
   }, [formData.loan_amount_numeric]);
 
+  const [feeBreakdown, setFeeBreakdown] = useState(null);
+
   useEffect(() => {
     const principal = Number(formData.loan_amount_numeric || 0);
     const term = Number(formData.loan_term_months || 0);
 
     if (!principal || !term) {
       setFormData((prev) => ({ ...prev, monthly_amortization: '' }));
+      setFeeBreakdown(null);
       return;
     }
 
     const timer = setTimeout(async () => {
       try {
         const data = await computeLoan(buildConsolidatedPayload(formData));
+        setFeeBreakdown(data?.deductions ? { ...data.deductions, net_proceeds: data.net_proceeds } : null);
         setFormData((prev) => ({
           ...prev,
           monthly_amortization: data?.monthly_amortization ? String(data.monthly_amortization) : prev.monthly_amortization,
@@ -1812,6 +1817,13 @@ function Consolidated_Loan() {
                     <span className="font-semibold text-gray-900">{formatCurrency(formData.monthly_amortization)}</span>
                   </div>
                 </div>
+                {feeBreakdown && (
+                  <LoanDeductionsCard
+                    loan={feeBreakdown}
+                    isRenewal={String(formData.application_type || '').toLowerCase() === 'renewal'}
+                    className="mt-4"
+                  />
+                )}
               </div>
               <div className="flex flex-wrap items-center justify-end gap-3 px-6 py-4 border-t">
                 <button

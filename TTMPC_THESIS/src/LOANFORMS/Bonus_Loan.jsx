@@ -8,6 +8,7 @@ import { useLoanEligibility } from '../hooks/useLoanEligibility';
 import { useNotification } from '../contex/NotificationContext';
 import { formatWithCommas, stripCommas } from '../utils/numberFormat';
 import MobileFormStepper from '../components/MobileFormStepper';
+import LoanDeductionsCard from '../components/LoanDeductionsCard';
 
 const numberToWords = (num) => {
   if (num === '' || num === undefined || num === null) return '';
@@ -268,12 +269,15 @@ function Bonus_Loan() {
     }
   }, [formData.loan_amount_numeric, formData.bonus_amount_numeric]);
 
+  const [feeBreakdown, setFeeBreakdown] = useState(null);
+
   useEffect(() => {
     const principal = Number(formData.loan_amount_numeric || 0);
     const term = Number(formData.loan_term_months || 0);
 
     if (!principal || !term) {
       setFormData((prev) => ({ ...prev, monthly_amortization: '' }));
+      setFeeBreakdown(null);
       return;
     }
 
@@ -281,6 +285,7 @@ function Bonus_Loan() {
       try {
         // Bonus form in this flow is for members; use regular category.
         const data = await computeLoan(buildBonusPayload(formData, true));
+        setFeeBreakdown(data?.deductions ? { ...data.deductions, net_proceeds: data.net_proceeds } : null);
         setFormData((prev) => ({
           ...prev,
           monthly_amortization: data?.monthly_amortization ? String(data.monthly_amortization) : prev.monthly_amortization,
@@ -299,7 +304,10 @@ function Bonus_Loan() {
   // same rule as the source of truth (main.py). Month is 1-indexed.
   const BONUS_APPLICATION_MONTHS = [5, 11];
   const currentMonth = new Date().getMonth() + 1;
-  const bonusWindowOpen = BONUS_APPLICATION_MONTHS.includes(currentMonth);
+  // An approved Bookkeeper override opens the window for this member; the DB
+  // trigger accepts the insert and marks the override used.
+  const bonusWindowOpen =
+    BONUS_APPLICATION_MONTHS.includes(currentMonth) || Boolean(eligibility?.bonus_window_override);
   const bonusWindowMessage =
     'Bonus loan applications are accepted only during Mid-year (May) and Year-end (November).';
 
@@ -587,6 +595,14 @@ function Bonus_Loan() {
                 <strong>(TTMPC)</strong> in accordance with the terms and conditions as stipulated in the Promissory Note of which I certify to have read and understood clearly. I bind myself to pay out my monthly salary and/or other benefits the required monthly amortization here on or surrender my ATM to TTMPC.
               </span>
             </div>
+
+            {feeBreakdown && (
+              <LoanDeductionsCard
+                loan={feeBreakdown}
+                isRenewal={String(formData.application_type || '').toLowerCase() === 'renewal'}
+                className="mt-6 max-w-md"
+              />
+            )}
 
           </div>
         </div>
