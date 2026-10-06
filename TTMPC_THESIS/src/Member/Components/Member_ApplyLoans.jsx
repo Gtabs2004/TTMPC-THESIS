@@ -479,7 +479,7 @@ const Member_ApplyLoans = () => {
                               onClick={() => setOverrideModalType(item.key)}
                               className="rounded-md border border-[#2C7A3F] px-2.5 py-1 text-[11px] font-bold text-[#2C7A3F] hover:bg-[#EAF6DF] dark:border-green-500 dark:text-green-400 dark:hover:bg-green-900/30"
                             >
-                              {isDeclined ? "Request again" : "Request early renewal"}
+                              {isDeclined ? "Request again" : "Request Early Renewal"}
                             </button>
                           </>
                         )}
