@@ -319,6 +319,7 @@ const Dashboard = () => {
         <StaffTopbar portal="Bookkeeper" notifications={<LoanNotificationBell role="bookkeeper" />} />
 
         <main className="animate-page-in p-8">
+          <h1 className="text-2xl font-bold text-gray-900 mb-6">Dashboard</h1>
           {loadError ? (
             <div className="mb-6 rounded-lg border border-red-200 bg-red-50 text-red-700 px-4 py-3 text-sm">
               {loadError}

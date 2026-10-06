@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
-import { useTheme } from "../../contex/ThemeContext";
 import { supabase } from "../../supabaseClient";
 import { resolveMemberIdentity } from "../../utils/memberIdentity";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
@@ -18,8 +17,7 @@ import {
   AlertCircle,
   Gift,
   Calculator,
-  Moon,
-  Sun,
+  Settings,
   Scroll
 } from "lucide-react";
 import LoanCalculatorModal from "./LoanCalculatorModal";
@@ -117,7 +115,6 @@ const Member_ApplyLoans = () => {
   const [memberLabel, setMemberLabel] = useState("Member");
   const [avatarUrl, setAvatarUrl] = useState("");
   const [isCalculatorOpen, setIsCalculatorOpen] = useState(false);
-  const { isDark, toggleTheme } = useTheme();
   const [memberId, setMemberId] = useState(null);
   const { data: eligibility, status: eligibilityStatus } = useLoanEligibility(memberId);
   const eligibilityReady = eligibilityStatus === "ready";
@@ -326,11 +323,12 @@ const Member_ApplyLoans = () => {
             
             <LoanNotificationBell role="member" accentClass="bg-member-green" />
             <button
-              onClick={toggleTheme}
+              type="button"
+              onClick={() => { navigate('/members-profile'); navigate('/members-profile/settings'); }}
               className="p-2 rounded-md text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-              aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
+              aria-label="Settings"
             >
-              {isDark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+              <Settings className="w-5 h-5" />
             </button>
           </div>
         </header>

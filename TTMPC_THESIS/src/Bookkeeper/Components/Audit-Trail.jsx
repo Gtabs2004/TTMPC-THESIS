@@ -99,6 +99,7 @@ const AuditTrail = () => {
 
         {/* Scrollable Dashboard Content */}
         <main className="animate-page-in p-8">
+          <h1 className="text-2xl font-bold text-gray-900 mb-6">Audit Trail</h1>
 
           {/* KPI Cards */}
           <StatCardRow cols={4}>
