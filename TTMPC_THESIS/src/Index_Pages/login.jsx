@@ -1,9 +1,10 @@
-﻿import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { UserAuth } from '../contex/AuthContext';
-import { Mail, Lock, User } from 'lucide-react';
+import { Mail, Lock, User, ChevronDown } from 'lucide-react';
 import PasswordInput from '../components/PasswordInput';
-import LoginLoadingOverlay from '../components/LoginLoadingOverlay';
+import AuthLayout, { AuthError, AuthSubmitButton } from '../components/AuthLayout';
+import { authInputClass, authLabelClass, friendlyAuthError } from '../components/authForm';
 
 function Login() {
   const [email, setEmail] = useState('');
@@ -49,141 +50,104 @@ function Login() {
         return;
       }
     } else {
-      setError(result.error || 'Login failed. Please try again.');
+      setError(friendlyAuthError(result.error));
     }
 
     setLoading(false);
   };
 
+  const describedBy = error ? 'auth-error' : undefined;
+
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
-      <LoginLoadingOverlay show={loading} />
-
-      {/* Header & Logo */}
-      <div className="sm:mx-auto sm:w-full sm:max-w-md flex flex-col items-center">
-        <img
-          src="/img/ttmpc logo.png"
-          alt="TTMPC Logo"
-          className="mx-auto h-24 w-auto drop-shadow-sm mb-6"
-        />
-        <h2 className="text-center text-3xl font-extrabold text-gray-900 tracking-tight">
-          Welcome Back
-        </h2>
-        <p className="mt-2 text-center text-sm text-gray-500">
-          Please log in to your account to continue
-        </p>
-      </div>
-
-      {/* Form Container */}
-      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="bg-white py-10 px-6 shadow-lg sm:rounded-2xl sm:px-10 border border-gray-100">
-          <form onSubmit={handleSubmit} className="space-y-6">
-            
-            {/* ROLE FIELD */}
-            <div>
-              <label htmlFor="role" className="block text-sm font-semibold text-gray-700">
-                Select Your Role
-              </label>
-              <div className="mt-2 relative rounded-md shadow-sm">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <User className="h-5 w-5 text-gray-400" />
-                </div>
-                <select
-                  id="role"
-                  name="role"
-                  required
-                  value={role}
-                  onChange={(e) => setRole(e.target.value)}
-                  className="block w-full pl-10 pr-3 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#66B538] focus:border-[#66B538] sm:text-sm transition-colors bg-gray-50 focus:bg-white text-gray-900 placeholder-gray-400 appearance-none"
-                >
-                  <option value="">-- Choose a role --</option>
-                  <option value="bod">BOD</option>
-                  <option value="secretary">Secretary</option>
-                  <option value="bookkeeper">Bookkeeper</option>
-                  <option value="treasurer">Treasurer</option>
-                  <option value="manager">Manager</option>
-                  <option value="cashier">Cashier</option>
-            
-                </select>
-                <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-                  <svg className="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-                  </svg>
-                </div>
-              </div>
+    <AuthLayout title="Welcome back!" subtitle="Sign in to access your TTMPC staff account.">
+      <form onSubmit={handleSubmit} className="space-y-5">
+        {/* ROLE FIELD */}
+        <div>
+          <label htmlFor="role" className={authLabelClass}>
+            Select Your Role
+          </label>
+          <div className="relative mt-1.5">
+            <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+              <User className="h-5 w-5 text-gray-500" aria-hidden="true" />
             </div>
-            
-            {/* EMAIL FIELD */}
-            <div>
-              <label htmlFor="email" className="block text-sm font-semibold text-gray-700">
-                Email Address
-              </label>
-              <div className="mt-2 relative rounded-md shadow-sm">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Mail className="h-5 w-5 text-gray-400" />
-                </div>
-                <input
-                  id="email"
-                  name="email"
-                  type="email"
-                  placeholder="you@example.com"
-                  autoComplete="email"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="block w-full pl-10 pr-3 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#66B538] focus:border-[#66B538] sm:text-sm transition-colors bg-gray-50 focus:bg-white text-gray-900 placeholder-gray-400"
-                />
-              </div>
+            <select
+              id="role"
+              name="role"
+              required
+              disabled={loading}
+              value={role}
+              onChange={(e) => setRole(e.target.value)}
+              className={`${authInputClass} appearance-none pr-10 ${role ? '' : 'text-gray-500'}`}
+            >
+              <option value="">Choose a role</option>
+              <option value="bod">BOD</option>
+              <option value="secretary">Secretary</option>
+              <option value="bookkeeper">Bookkeeper</option>
+              <option value="treasurer">Treasurer</option>
+              <option value="manager">Manager</option>
+              <option value="cashier">Cashier</option>
+            </select>
+            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
+              <ChevronDown className="h-5 w-5 text-gray-500" aria-hidden="true" />
             </div>
-
-            {/* PASSWORD FIELD */}
-            <div>
-              <div className="flex items-center justify-between">
-                <label htmlFor="password" className="block text-sm font-semibold text-gray-700">
-                  Password
-                </label>
-              </div>
-              <PasswordInput
-                id="password"
-                name="password"
-                placeholder="••••••••"
-                autoComplete="current-password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                leftIcon={Lock}
-                wrapperClassName="mt-2"
-                className="block w-full pl-10 pr-10 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#66B538] focus:border-[#66B538] sm:text-sm transition-colors bg-gray-50 focus:bg-white text-gray-900 placeholder-gray-400"
-              />
-            </div>
-
-            {/* ERROR MESSAGE */}
-            {error && (
-              <div className="rounded-lg bg-red-50 p-4 border border-red-200 flex items-start">
-                <div className="ml-3">
-                  <h3 className="text-sm font-medium text-red-800">{error}</h3>
-                </div>
-              </div>
-            )}
-
-            {/* BUTTON */}
-            <div>
-              <button
-                type="submit"
-                disabled={loading}
-                className={`w-full flex justify-center py-2.5 px-4 border border-transparent rounded-lg shadow-sm text-sm font-bold text-white bg-[#66B538] hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#66B538] transition-all duration-200 ${
-                  loading ? 'opacity-70 cursor-not-allowed' : 'hover:-translate-y-0.5 hover:shadow-md'
-                }`}
-              >
-                {loading ? 'Logging in...' : 'Log in'}
-              </button>
-            </div>
-          </form>
-
+          </div>
         </div>
-      </div>
-      
-    </div>
+
+        {/* EMAIL FIELD */}
+        <div>
+          <label htmlFor="email" className={authLabelClass}>
+            Email Address
+          </label>
+          <div className="relative mt-1.5">
+            <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+              <Mail className="h-5 w-5 text-gray-500" aria-hidden="true" />
+            </div>
+            <input
+              id="email"
+              name="email"
+              type="email"
+              placeholder="you@example.com"
+              autoComplete="email"
+              required
+              disabled={loading}
+              aria-invalid={error ? true : undefined}
+              aria-describedby={describedBy}
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className={authInputClass}
+            />
+          </div>
+        </div>
+
+        {/* PASSWORD FIELD */}
+        <div>
+          <label htmlFor="password" className={authLabelClass}>
+            Password
+          </label>
+          <PasswordInput
+            id="password"
+            name="password"
+            placeholder="Enter your password"
+            autoComplete="current-password"
+            required
+            disabled={loading}
+            aria-invalid={error ? true : undefined}
+            aria-describedby={describedBy}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            leftIcon={Lock}
+            wrapperClassName="mt-1.5 shadow-none"
+            toggleTabIndex={0}
+            toggleClassName="text-gray-500 hover:text-gray-700 focus:outline-none focus-visible:text-[#3A7D1C]"
+            className={`${authInputClass} pr-10`}
+          />
+        </div>
+
+        <AuthError message={error} />
+
+        <AuthSubmitButton loading={loading}>Sign In</AuthSubmitButton>
+      </form>
+    </AuthLayout>
   );
 }
 
