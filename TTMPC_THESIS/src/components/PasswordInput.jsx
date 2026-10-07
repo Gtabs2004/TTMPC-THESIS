@@ -16,6 +16,9 @@ const PasswordInput = ({
   wrapperClassName = '',
   toggleClassName = 'text-gray-400 hover:text-gray-600',
   leftIcon: LeftIcon,
+  toggleTabIndex = -1,
+  'aria-invalid': ariaInvalid,
+  'aria-describedby': ariaDescribedBy,
 }) => {
   const [visible, setVisible] = useState(false);
 
@@ -38,11 +41,13 @@ const PasswordInput = ({
         required={required}
         minLength={minLength}
         disabled={disabled}
+        aria-invalid={ariaInvalid}
+        aria-describedby={ariaDescribedBy}
         className={className}
       />
       <button
         type="button"
-        tabIndex={-1}
+        tabIndex={toggleTabIndex}
         onClick={() => setVisible((prev) => !prev)}
         disabled={disabled}
         aria-label={visible ? 'Hide password' : 'Show password'}
