@@ -1,6 +1,6 @@
 ﻿import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Search } from 'lucide-react';
 import { useConfirm } from '../../contex/ConfirmContext';
 import { formatWithCommas, stripCommas } from '../../utils/numberFormat';
 
@@ -323,7 +323,7 @@ function Add_Savings() {
               onClick={() => setPickerOpen(true)}
               className={`${inputStyles} flex items-center gap-2 text-left cursor-pointer hover:border-green-600`}
             >
-              <span className="text-gray-400">&#128269;</span>
+              <Search className="h-4 w-4 shrink-0 text-gray-500" aria-hidden="true" />
               {selectedMemberLabel ? (
                 <span className="flex-1 min-w-0 truncate">
                   <span className="font-semibold text-gray-800">{selectedMemberLabel}</span>
@@ -569,7 +569,7 @@ function Add_Savings() {
 
             <div className="px-5 py-3 border-b border-gray-100">
               <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">&#128269;</span>
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500" aria-hidden="true" />
                 <input
                   type="text"
                   autoFocus
