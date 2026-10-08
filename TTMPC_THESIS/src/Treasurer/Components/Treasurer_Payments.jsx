@@ -306,7 +306,7 @@ const Treasurer_Payments = () => {
                 <thead>
                   <tr className="bg-primary-deep text-[10px] uppercase tracking-wider text-white font-extrabold">
                     <th className="p-5 font-bold">Date</th>
-                    <th className="p-5 font-bold">Reference</th>
+                    <th className="p-5 font-bold text-left">Reference</th>
                     <th className="p-5 font-bold">Description</th>
                     <th className="p-5 font-bold">Type</th>
                     <th className="p-5 font-bold">Member</th>
