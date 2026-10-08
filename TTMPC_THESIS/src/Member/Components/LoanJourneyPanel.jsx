@@ -374,6 +374,18 @@ export default function LoanJourneyPanel({ loan, payments }) {
   const lastIdx = LIFECYCLE_STAGES.length - 1;
   const currentIdx = isFullyPaid ? lastIdx : stageIndex;
   const diminishing = isDiminishingLoan(loan.loan_type);
+  // A rejected or cancelled loan stops at its last known step, so that step's
+  // normal description ("being reviewed") would be misleading.
+  const statusText = statusKey(loan);
+  const describeStage = (stage, idx) => {
+    if (idx === stageIndex && statusText === "rejected") {
+      return "This application was not approved. Please contact the cooperative office for details.";
+    }
+    if (idx === stageIndex && statusText === "cancelled") {
+      return "This application was cancelled.";
+    }
+    return stage.description;
+  };
   const stageState = (idx) => ({
     isComplete: isFullyPaid ? true : idx < stageIndex,
     isActive: isFullyPaid ? idx === lastIdx : idx === stageIndex,
@@ -473,8 +485,8 @@ export default function LoanJourneyPanel({ loan, payments }) {
               />
             ))}
           </div>
-          <p className="mt-2 text-xs text-gray-500 dark:text-mdark-text-secondary">
-            {isFullyPaid ? "All payments received and validated." : LIFECYCLE_STAGES[stageIndex]?.description}
+          <p className="mt-2 text-xs text-gray-600 dark:text-mdark-text-secondary">
+            {isFullyPaid ? "All payments received and validated." : describeStage(LIFECYCLE_STAGES[stageIndex], stageIndex)}
           </p>
           <button
             type="button"
@@ -485,21 +497,53 @@ export default function LoanJourneyPanel({ loan, payments }) {
             {showAllSteps ? "Hide steps" : "Show all steps"}
           </button>
           {showAllSteps ? (
-            <ol className="mt-3 space-y-2.5">
+            <ol className="mt-4">
               {LIFECYCLE_STAGES.map((stage, idx) => {
                 const s = stageState(idx);
+                const isLast = idx === lastIdx;
+                const connectorDone = isFullyPaid || idx < currentIdx;
                 return (
-                  <li key={stage.id} className="flex items-center gap-3">
-                    <div className={`shrink-0 w-7 h-7 rounded-full flex items-center justify-center ${stageCircleClass(s.isFinalTrophy, s.isComplete, s.isActive)}`}>
+                  <li
+                    key={stage.id}
+                    aria-current={s.isActive ? "step" : undefined}
+                    className="relative flex gap-3 pb-3 last:pb-0"
+                  >
+                    {!isLast ? (
+                      <span
+                        aria-hidden="true"
+                        className={`absolute left-[13px] top-7 bottom-0 w-0.5 ${
+                          connectorDone ? "bg-member-green dark:bg-mdark-accent" : "bg-gray-200 dark:bg-mdark-border"
+                        }`}
+                      />
+                    ) : null}
+                    <div className={`relative shrink-0 w-7 h-7 rounded-full flex items-center justify-center ${stageCircleClass(s.isFinalTrophy, s.isComplete, s.isActive)}`}>
                       <StageIconFor stage={stage} {...s} size="w-3.5 h-3.5" />
                     </div>
-                    <p className={`text-sm font-semibold ${
-                      s.isFinalTrophy || s.isActive
-                        ? "text-member-green dark:text-mdark-accent"
-                        : s.isComplete ? "text-gray-800 dark:text-mdark-text" : "text-gray-400"
-                    }`}>
-                      {stage.label}
-                    </p>
+                    <div
+                      className={`min-w-0 flex-1 rounded-lg px-3 py-1.5 -mt-0.5 ${
+                        s.isActive
+                          ? "bg-member-green/5 border border-member-green/20 dark:bg-mdark-accent/10 dark:border-mdark-accent/30"
+                          : ""
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <p className={`text-sm font-bold ${
+                          s.isFinalTrophy || s.isActive
+                            ? "text-member-green dark:text-mdark-accent"
+                            : s.isComplete ? "text-gray-800 dark:text-mdark-text" : "text-gray-500 dark:text-mdark-text-secondary"
+                        }`}>
+                          {stage.label}
+                        </p>
+                        {s.isActive && !s.isFinalTrophy ? (
+                          <span className="rounded-full bg-member-green px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-white dark:bg-mdark-accent dark:text-mdark-bg">
+                            Current
+                          </span>
+                        ) : null}
+                      </div>
+                      <p className="mt-0.5 text-xs leading-snug text-gray-600 dark:text-mdark-text-secondary">
+                        {describeStage(stage, idx)}
+                      </p>
+                    </div>
                   </li>
                 );
               })}
@@ -533,9 +577,9 @@ export default function LoanJourneyPanel({ loan, payments }) {
               );
             })}
           </div>
-          <p className="mt-5 text-sm text-gray-600 dark:text-mdark-text-secondary font-medium">
+          <p className="mt-5 rounded-xl border border-member-green/20 bg-member-green/5 px-4 py-3 text-sm font-medium text-gray-700 dark:border-mdark-accent/30 dark:bg-mdark-accent/10 dark:text-mdark-text-secondary">
             <span className="font-bold text-member-green dark:text-mdark-accent">{isFullyPaid ? "Status:" : "Current step:"}</span>{" "}
-            {isFullyPaid ? "All payments received and validated. This loan is fully closed." : LIFECYCLE_STAGES[stageIndex]?.description}
+            {isFullyPaid ? "All payments received and validated. This loan is fully closed." : describeStage(LIFECYCLE_STAGES[stageIndex], stageIndex)}
           </p>
         </div>
       </div>
