@@ -2642,7 +2642,7 @@ const LoanApprovalDetails = () => {
               Record the physical board resolution that authorized approval for <span className="font-bold text-gray-900">{loanDetails.memberName}</span>.
             </p>
             <div className="rounded-md bg-blue-50 border border-blue-200 px-3 py-2 text-xs text-blue-800 mb-4">
-              Resolution number, date, and the signed BOD form are all required for the audit trail.
+              Resolution number, date, and the signed BOD form are all required for the audit log.
             </div>
             <div className="mb-3">
               <label className="block text-sm font-semibold text-gray-700 mb-2">Board Resolution No. <span className="text-red-500">*</span></label>

@@ -55,6 +55,31 @@ const PAYMENT_TYPE_META = {
   },
 };
 
+// Membership-application status colors, matching the hues the Secretary and BOD
+// membership pages already use for these same stages (Pending green, Training
+// blue, For Revision amber, Reschedule orange; Rejected uses the shared rose).
+const APPLICATION_STATUS_BADGE = {
+  pending: "bg-green-100 text-green-800",
+  training: "bg-blue-100 text-blue-800",
+  "for revision": "bg-amber-100 text-amber-800",
+  reschedule: "bg-orange-100 text-orange-800",
+  approved: "bg-emerald-100 text-emerald-800",
+  "official member": "bg-emerald-100 text-emerald-800",
+  rejected: "bg-rose-100 text-rose-800",
+};
+
+const applicationStatusClass = (rawStatus) => {
+  const s = String(rawStatus || "pending")
+    .trim()
+    .toLowerCase()
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ");
+  if (s.includes("reschedule")) return APPLICATION_STATUS_BADGE.reschedule;
+  if (s.includes("training")) return APPLICATION_STATUS_BADGE.training;
+  if (s === "revision") return APPLICATION_STATUS_BADGE["for revision"];
+  return APPLICATION_STATUS_BADGE[s] || "bg-gray-100 text-gray-700";
+};
+
 const Cashier_MembershipPayments = () => {
     const navigate = useNavigate();
   const { addNotification } = useNotification();
@@ -400,7 +425,7 @@ const Cashier_MembershipPayments = () => {
                         <div className="text-[11px] text-gray-500">{row.contact_number || "—"}</div>
                       </td>
                       <td className="p-5 text-sm">
-                        <span className="inline-flex items-center rounded-full bg-blue-50 text-blue-700 px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wider">
+                        <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wider ${applicationStatusClass(row.application_status)}`}>
                           {row.application_status || "Pending"}
                         </span>
                       </td>
