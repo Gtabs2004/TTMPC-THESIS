@@ -33,6 +33,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, field_validator, model_validator
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
 from slowapi.util import get_remote_address
 from starlette.concurrency import run_in_threadpool
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -144,8 +145,25 @@ if not resend_api_key:
 _SUPABASE_CLIENT_OPTIONS = SyncClientOptions(postgrest_client_timeout=20)
 supabase: Client | None = create_client(url, key, options=_SUPABASE_CLIENT_OPTIONS) if url and key else None
 
-# 3. Rate limiter (100 req/min per IP by default)
-limiter = Limiter(key_func=get_remote_address, default_limits=["100/minute"])
+# 3. Rate limiter, applied to every route by SlowAPIMiddleware (added below,
+# before CORS, so a 429 still carries the CORS headers the browser needs).
+# The default is generous on purpose: a whole office can share one public IP,
+# and the dashboards poll and refetch in the background. Override with the
+# RATE_LIMIT_DEFAULT env var (e.g. "120/minute") without a code change.
+_RATE_LIMIT_DEFAULT = os.environ.get("RATE_LIMIT_DEFAULT", "300/minute")
+
+
+def _client_ip(request) -> str:
+    """Caller IP for rate limiting. Behind Railway/Vercel every request arrives
+    from the platform proxy, so the socket address is the same for everyone and
+    would put the whole coop in one bucket; the real client is the first entry
+    of X-Forwarded-For."""
+    forwarded = request.headers.get("x-forwarded-for", "")
+    first = forwarded.split(",")[0].strip()
+    return first or get_remote_address(request)
+
+
+limiter = Limiter(key_func=_client_ip, default_limits=[_RATE_LIMIT_DEFAULT])
 
 # 4. Max request body size: 1 MB (prevents oversized payload abuse)
 _MAX_BODY_BYTES = 1 * 1024 * 1024  # 1 MB
@@ -250,6 +268,7 @@ app = FastAPI(lifespan=_lifespan)
 
 
 @app.get("/favicon.ico", include_in_schema=False)
+@limiter.exempt
 async def _favicon_noop():
     """Silence the /favicon.ico 404 noise. Browsers auto-request /favicon.ico
     on any URL opened directly; FastAPI serves no UI, so 204 No Content is the
@@ -258,6 +277,7 @@ async def _favicon_noop():
 
 
 @app.get("/health", include_in_schema=False)
+@limiter.exempt
 async def _health_check():
     return {"status": "ok"}
 
@@ -273,6 +293,10 @@ _cors_origins = list({
     "https://ttmpc-thesis-xi.vercel.app",
     FRONTEND_BASE_URL,
 })
+
+# Added before CORS so CORS wraps it: preflight (OPTIONS) requests are answered
+# by CORS and never counted, and rate-limit 429s still get CORS headers.
+app.add_middleware(SlowAPIMiddleware)
 
 app.add_middleware(
     CORSMiddleware,
