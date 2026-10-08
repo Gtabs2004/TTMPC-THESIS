@@ -274,7 +274,7 @@ const Disbursements = () => {
                   : "bg-white border-gray-200 text-gray-700 hover:bg-gray-50"
                 }`}
               >
-                {showTimeline ? "Hide" : "Show"} Audit Trail
+                {showTimeline ? "Hide" : "Show"} Audit Log
               </button>
             </TableToolbar>
 
@@ -374,7 +374,7 @@ const Disbursements = () => {
             <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 mb-8 mt-2 animate-in fade-in slide-in-from-top-4 duration-300">
               <div className="flex items-center justify-between mb-6 pb-4 border-b border-gray-100">
                 <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-                  <History className="w-5 h-5 text-gray-400" /> System Audit Trail
+                  <History className="w-5 h-5 text-gray-400" /> System Audit Log
                 </h3>
                 {activeLoan ? (
                   <span className="text-xs font-bold bg-gray-100 text-gray-700 px-3 py-1 rounded-full border border-gray-200">Target: Loan #{activeLoan.id}</span>

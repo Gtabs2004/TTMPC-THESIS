@@ -36,6 +36,6 @@ export const bookkeeperNav = [
   { name: "Interest on Share Capital", icon: Calculator, path: "/bookkeeper-isc" },
   { name: "Member Classification", icon: Activity,   path: "/migs" },
   { name: "Reports",      icon: BarChart3,  path: "/reports" },
-  { name: "Audit Trail",  icon: History,    path: "/audit-trail" },
+  { name: "Audit Log",    icon: History,    path: "/audit-trail" },
   { name: "Grocery",      icon: Coins,      path: "/grocery" },
 ];

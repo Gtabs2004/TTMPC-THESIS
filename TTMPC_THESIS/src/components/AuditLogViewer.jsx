@@ -531,7 +531,7 @@ const AuditLogViewer = ({ showActorRoleFilter = true, onError }) => {
           "View All" opens the full filterable, multi-column view (item 6). */}
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm flex flex-col">
         <TableToolbar
-          title="Audit Trail"
+          title="Audit Log"
           subtitle={`Showing ${rows.length} of ${total} log entries`}
         >
           <button
@@ -606,7 +606,7 @@ const AuditLogViewer = ({ showActorRoleFilter = true, onError }) => {
           >
             <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between shrink-0">
               <div>
-                <h3 className="text-lg font-bold text-gray-900">Complete Audit Trail</h3>
+                <h3 className="text-lg font-bold text-gray-900">Complete Audit Log</h3>
                 <p className="text-xs text-gray-500 mt-0.5">
                   Showing {rows.length} of {total} log entries
                 </p>
