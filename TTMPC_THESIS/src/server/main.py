@@ -17,12 +17,13 @@ import json
 import io
 import calendar
 import logging
+import re
 import time
 from functools import lru_cache
-from uuid import uuid4
+from uuid import UUID, uuid4
 from html import escape as _html_escape
 from contextlib import asynccontextmanager
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from typing import Annotated, Any, Literal, Union
 from fastapi import BackgroundTasks, Body, FastAPI, HTTPException, Request, Response
@@ -4298,13 +4299,38 @@ def create_cashier_cbu_deposit(
             "cbu_deposit_id": cbu_deposit_id,
         }
 
+        # Who recorded it, so the receipt can name them and they can open the
+        # pop-up (receipts_04_cbu.sql adds the column).
+        if current_user and current_user.get("id"):
+            insert_payload["recorded_by"] = str(current_user["id"])
+
         # No silent fallback insert. A failure here means something real is
         # wrong with the payload/schema — surfacing it beats a stripped-down
         # retry that can drop fields (e.g. deposit_account) and make a broken
-        # write look like a successful deposit.
-        insert_response = supabase.table("capital_build_up").insert(insert_payload).execute()
+        # write look like a successful deposit. The one exception is
+        # recorded_by, before receipts_04_cbu.sql is applied.
+        try:
+            insert_response = supabase.table("capital_build_up").insert(insert_payload).execute()
+        except Exception as insert_err:
+            if "recorded_by" not in insert_payload or "recorded_by" not in str(insert_err):
+                raise
+            insert_payload.pop("recorded_by")
+            insert_response = supabase.table("capital_build_up").insert(insert_payload).execute()
         inserted_row = (insert_response.data or [None])[0]
         _correct_audit_actor("cbu", (inserted_row or {}).get("cbu_deposit_id") or cbu_deposit_id, current_user)
+
+        # The receipt the trigger issued in the same insert (none for an
+        # unrecognised "Paid by" value, or before receipts_04_cbu.sql).
+        cbu_receipt_no = None
+        if inserted_row and inserted_row.get("id"):
+            try:
+                cbu_receipt_no = ((
+                    supabase.table("receipts").select("receipt_no")
+                    .eq("source_type", "cbu").eq("source_id", str(inserted_row["id"]))
+                    .limit(1).execute()
+                ).data or [{}])[0].get("receipt_no")
+            except Exception as receipt_err:
+                logger.warning("CBU receipt lookup failed for %s: %s", inserted_row.get("id"), receipt_err)
 
         return {
             "success": True,
@@ -4320,6 +4346,7 @@ def create_cashier_cbu_deposit(
                 "ending_shares": decimal_to_float(ending_balance / CBU_SHARE_VALUE),
                 "transaction_date": (inserted_row or {}).get("transaction_date") or insert_payload["transaction_date"],
                 "deposit_account": insert_payload["deposit_account"],
+                "receipt_no": cbu_receipt_no,
             },
         }
     except HTTPException as err:
@@ -4690,7 +4717,8 @@ async def disburse_cashier_loan(loan_id: str, payload: CashierDisbursementReques
             renewal_payoff = _outstanding_balances([predecessor]).get(
                 str(predecessor.get("control_number")), Decimal("0")
             )
-        net_cash_out = _compute_net_cash_out(loan_row, renewal_payoff)["net_cash_out"]
+        release_breakdown = _compute_net_cash_out(loan_row, renewal_payoff)
+        net_cash_out = release_breakdown["net_cash_out"]
 
         vault_debited = False
         vault_new_balance = None
@@ -4880,11 +4908,42 @@ async def disburse_cashier_loan(loan_id: str, payload: CashierDisbursementReques
             "cashier_name": cashier_display,
             "loan_status": (updated_loan or {}).get("loan_status") or "released",
         }
-        confirmation_saved = False
+        # What the member actually received, frozen here so the release receipt
+        # shows it (loans has no fee snapshot for these releases —
+        # RECEIPT_SYSTEM_PLAN.md §12.1, checks 08-10). Needs receipts_01_schema.sql.
+        _release_deductions = release_breakdown["deductions"]
+        release_columns = {
+            "principal_amount": decimal_to_float(release_breakdown["principal"]),
+            "service_fee": decimal_to_float(_release_deductions["service_fee"]),
+            "cbu_deduction": decimal_to_float(_release_deductions["cbu_deduction"]),
+            "insurance_fee": decimal_to_float(_release_deductions["insurance_fee"]),
+            "notarial_fee": decimal_to_float(_release_deductions["notarial_fee"]),
+            "renewal_payoff": decimal_to_float(release_breakdown["renewal_payoff"]),
+            "net_proceeds": decimal_to_float(release_breakdown["net_cash_out"]),
+            "term_months": term_months,
+            "monthly_amortization": loan_row.get("monthly_amortization"),
+        }
         try:
-            _confirmation_insert = (
-                supabase.table("disbursement_confirmations").insert(confirmation_record).execute()
-            )
+            release_columns["released_by_auth_id"] = str(UUID(str(payload.cashier_id)))
+        except (TypeError, ValueError):
+            pass
+        confirmation_saved = False
+        _confirmation_row = None
+        try:
+            try:
+                _confirmation_insert = (
+                    supabase.table("disbursement_confirmations")
+                    .insert({**confirmation_record, **release_columns})
+                    .execute()
+                )
+            except Exception as breakdown_err:
+                # Before receipts_01_schema.sql is applied the breakdown columns
+                # don't exist yet; save the confirmation without them.
+                if not any(col in str(breakdown_err) for col in release_columns):
+                    raise
+                _confirmation_insert = (
+                    supabase.table("disbursement_confirmations").insert(confirmation_record).execute()
+                )
             _confirmation_row = (_confirmation_insert.data or [None])[0]
             confirmation_saved = bool(_confirmation_row)
             if _confirmation_row and _confirmation_row.get("id"):
@@ -4962,10 +5021,29 @@ async def disburse_cashier_loan(loan_id: str, payload: CashierDisbursementReques
         ):
             logger.warning("Incomplete disbursement records for loan %s: %s", clean_loan_id, release_records)
 
+        # The receipt was issued by a trigger in the same insert; hand its number
+        # to the cashier's pop-up. None when it couldn't be found (the pop-up then
+        # falls back to the old confirmation panel).
+        release_receipt_no = None
+        if confirmation_saved and _confirmation_row and _confirmation_row.get("id"):
+            try:
+                _receipt_rows = (
+                    supabase.table("receipts")
+                    .select("receipt_no")
+                    .eq("source_type", "loan_release")
+                    .eq("source_id", str(_confirmation_row["id"]))
+                    .limit(1)
+                    .execute()
+                ).data or []
+                release_receipt_no = (_receipt_rows[0] if _receipt_rows else {}).get("receipt_no")
+            except Exception as receipt_err:
+                logger.warning("Could not read the release receipt for loan %s: %s", clean_loan_id, receipt_err)
+
         return {
             "success": True,
             "message": "Loan disbursed successfully. Only the next due schedule is created.",
             "data": {
+                "receipt_no": release_receipt_no,
                 "records": release_records,
                 "loan": updated_loan,
                 "schedule_created": not has_existing_schedule,
@@ -11858,10 +11936,15 @@ async def approve_bookkeeper_payment(
             "applied_to_current": decimal_to_float(allocation["current"]),
             "applied_to_credit": decimal_to_float(allocation["credit"]),
         }
-        if payload.validated_by:
-            payment_update_payload["validated_by"] = payload.validated_by
-            payment_update_payload["reviewed_by"] = payload.validated_by
-            payment_update_payload["confirmed_by"] = payload.validated_by
+        # The validator comes from the login token, not the request body: the
+        # Bookkeeper page never sent validated_by, so receipts had no name to
+        # show (RECEIPT_SYSTEM_PLAN.md §12.1, check 04).
+        validator_id = (current_user or {}).get("id") or payload.validated_by
+        validator_fields = (
+            {"validated_by": validator_id, "reviewed_by": validator_id, "confirmed_by": validator_id}
+            if validator_id else {}
+        )
+        payment_update_payload.update(validator_fields)
         if payload.notes:
             payment_update_payload["validation_notes"] = payload.notes
 
@@ -11870,7 +11953,7 @@ async def approve_bookkeeper_payment(
         _payment_update_attempts = [
             payment_update_payload,
             {k: v for k, v in payment_update_payload.items() if not k.startswith("applied_to_")},
-            {"confirmation_status": "confirmed"},
+            {"confirmation_status": "confirmed", **validator_fields},
         ]
         for _attempt in _payment_update_attempts:
             try:
@@ -18421,4 +18504,389 @@ async def backfill_cbu_initial_capital(dry_run: bool = False):
         "seeded": seeded,
         "skipped": skipped,
         "details": details,
+    }
+
+
+# ============================================================================
+# Receipts (RECEIPT_SYSTEM_PLAN.md §2, §6.3)
+# ============================================================================
+# Receipts are issued by database triggers (receipts_02_triggers.sql) and read
+# only here: the `receipts` table has RLS on with no client policies. Who may
+# open a receipt:
+#   * its owner (the member) — any login, staff included, sees their own
+#   * BOD, Bookkeeper, Manager, Treasurer — every receipt, read-only
+#   * Cashier — only a receipt they issued themselves, within a short window
+#     after issuing (the pop-up after a release); no lookup list
+# Anyone else gets 404, so a receipt's existence isn't revealed.
+
+_RECEIPT_STAFF_ROLES = {"bod", "bookkeeper", "manager", "treasurer"}
+_RECEIPT_CASHIER_WINDOW = timedelta(minutes=15)
+_RECEIPT_SOURCE_TYPES = {
+    "loan_payment", "loan_release", "savings", "cbu",
+    "membership_payment", "cbu_payout", "isc", "grocery",
+}
+_RECEIPT_COLUMNS = "receipt_no,source_type,source_id,member_id,amount,issued_at,issued_by,snapshot,snapshot_hash"
+
+
+def _receipt_caller(current_user: dict) -> dict:
+    """{id, role, member_id} for the verified caller. member_id is member.id
+    (member_account.user_id), the key receipts.member_id uses."""
+    auth_id = str(current_user["id"])
+    email = current_user.get("email") or ""
+
+    def lookup() -> list:
+        rows = (
+            supabase.table("member_account")
+            .select("role,user_id,membership_id")
+            .eq("auth_user_id", auth_id)
+            .limit(1)
+            .execute()
+        ).data or []
+        if not rows and email:
+            rows = (
+                supabase.table("member_account")
+                .select("role,user_id,membership_id")
+                .eq("email", email)
+                .limit(1)
+                .execute()
+            ).data or []
+        return rows
+
+    # Same stale-pooled-connection retry as _resolve_staff_role.
+    try:
+        rows = lookup()
+    except Exception:
+        try:
+            rows = lookup()
+        except Exception as exc:
+            raise HTTPException(
+                status_code=503,
+                detail=f"Could not verify your account right now, please try again. ({exc})",
+            )
+    row = rows[0] if rows else {}
+    return {
+        "id": auth_id,
+        "role": str(row.get("role") or "").strip().lower(),
+        "member_id": str(row.get("user_id") or "") or None,
+        "membership_id": str(row.get("membership_id") or "").strip() or None,
+    }
+
+
+def _receipt_issued_at(row: dict) -> datetime | None:
+    raw = row.get("issued_at")
+    if not raw:
+        return None
+    try:
+        parsed = datetime.fromisoformat(str(raw).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+
+
+def _authorize_receipt(caller: dict, row: dict) -> bool:
+    if caller["member_id"] and str(row.get("member_id") or "") == caller["member_id"]:
+        return True
+    if caller["role"] in _RECEIPT_STAFF_ROLES:
+        return True
+    if caller["role"] == "cashier" and str(row.get("issued_by") or "") == caller["id"]:
+        issued_at = _receipt_issued_at(row)
+        return bool(issued_at and datetime.now(timezone.utc) - issued_at <= _RECEIPT_CASHIER_WINDOW)
+    return False
+
+
+def _receipt_payload(row: dict) -> dict:
+    return {k: row.get(k) for k in (
+        "receipt_no", "source_type", "source_id", "amount", "issued_at", "snapshot", "snapshot_hash",
+    )}
+
+
+def _receipt_fetch_one(column: str, value: str, extra: tuple[str, str] | None = None) -> dict | None:
+    def run():
+        q = supabase.table("receipts").select(_RECEIPT_COLUMNS).eq(column, value)
+        if extra:
+            q = q.eq(extra[0], extra[1])
+        return (q.limit(1).execute()).data or []
+
+    try:
+        rows = run()
+    except Exception:
+        try:
+            rows = run()
+        except Exception as exc:
+            raise HTTPException(status_code=500, detail=f"Could not read the receipt: {exc}")
+    return rows[0] if rows else None
+
+
+@app.get("/api/receipts/by-source/{source_type}/{source_id}")
+def get_receipt_by_source(source_type: str, source_id: str, current_user: dict = _Depends(_get_current_user)):
+    """The receipt for one transaction (audit log link, cashier pop-up)."""
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase not configured")
+    clean_type = str(source_type or "").strip().lower()
+    if clean_type not in _RECEIPT_SOURCE_TYPES:
+        raise HTTPException(status_code=404, detail="Receipt not found.")
+
+    caller = _receipt_caller(current_user)
+    row = _receipt_fetch_one("source_type", clean_type, ("source_id", str(source_id or "").strip()))
+    if not row or not _authorize_receipt(caller, row):
+        raise HTTPException(status_code=404, detail="Receipt not found.")
+    return {"ok": True, "receipt": _receipt_payload(row)}
+
+
+@app.get("/api/receipts/{receipt_no}")
+def get_receipt(receipt_no: str, current_user: dict = _Depends(_get_current_user)):
+    """One receipt by number. 404 when it doesn't exist or isn't the caller's to see."""
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase not configured")
+
+    caller = _receipt_caller(current_user)
+    row = _receipt_fetch_one("receipt_no", str(receipt_no or "").strip().upper())
+    if not row or not _authorize_receipt(caller, row):
+        raise HTTPException(status_code=404, detail="Receipt not found.")
+    return {"ok": True, "receipt": _receipt_payload(row)}
+
+
+@app.get("/api/receipts")
+def list_receipts(
+    current_user: dict = _Depends(_get_current_user),
+    search: str | None = None,
+    source_type: str | None = None,
+    member: str | None = None,
+    date_from: str | None = None,
+    date_to: str | None = None,
+    page: int = 1,
+    page_size: int = 10,
+):
+    """Staff receipt lookup (BOD, Bookkeeper, Manager, Treasurer). Members read
+    their own through /api/member/transactions instead."""
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase not configured")
+
+    caller = _receipt_caller(current_user)
+    if caller["role"] not in _RECEIPT_STAFF_ROLES:
+        raise HTTPException(status_code=403, detail="You do not have access to the receipt lookup.")
+
+    page = max(1, int(page or 1))
+    page_size = min(50, max(1, int(page_size or 10)))
+    start = (page - 1) * page_size
+
+    def clean(text: str | None) -> str:
+        # Commas and parentheses would break PostgREST's or() syntax.
+        return re.sub(r"[,()]", " ", str(text or "")).strip()
+
+    def run():
+        q = supabase.table("receipts").select(_RECEIPT_COLUMNS, count="exact")
+        if source_type and source_type.strip().lower() in _RECEIPT_SOURCE_TYPES:
+            q = q.eq("source_type", source_type.strip().lower())
+        if clean(search):
+            q = q.ilike("receipt_no", f"%{clean(search)}%")
+        if clean(member):
+            m = clean(member)
+            q = q.or_(f"snapshot->member->>name.ilike.%{m}%,snapshot->member->>membership_id.ilike.%{m}%")
+        if date_from:
+            q = q.gte("issued_at", date_from)
+        if date_to:
+            q = q.lte("issued_at", f"{date_to}T23:59:59+08:00")
+        return q.order("issued_at", desc=True).range(start, start + page_size - 1).execute()
+
+    try:
+        resp = run()
+    except Exception:
+        try:
+            resp = run()
+        except Exception as exc:
+            raise HTTPException(status_code=500, detail=f"Could not read receipts: {exc}")
+
+    return {
+        "ok": True,
+        "rows": [_receipt_payload(r) for r in (resp.data or [])],
+        "total": getattr(resp, "count", None) or 0,
+        "page": page,
+        "page_size": page_size,
+    }
+
+
+# Member transaction feed (RECEIPT_SYSTEM_PLAN.md §3, §6.3) -------------------
+# The member's own transactions done through the system, with their status and
+# receipt number. Feeds the dashboard's Recent Transaction (page_size=6) and the
+# Transactions tab in Statement of Account. Identity comes from the token only;
+# these tables are readable by any login (Step 0), so the member's rows are
+# picked here, not in the browser.
+
+_MANILA_TZ = timezone(timedelta(hours=8))
+_PAYMENT_DONE = {"validated", "confirmed", "bookkeeper_confirmed", "approved"}
+_CBU_PAID_BY = {"cash", "check", "gcash", "bank transfer"}  # the Cashier form's "Paid by" options
+
+
+def _feed_when(value) -> tuple[str, str]:
+    """(iso timestamp, YYYY-MM-DD in Philippine time) for sorting and date filters."""
+    if not value:
+        return "", ""
+    try:
+        parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except ValueError:
+        return str(value), str(value)[:10]
+    if not parsed.tzinfo:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc).isoformat(), parsed.astimezone(_MANILA_TZ).date().isoformat()
+
+
+def _feed_status(raw: str, done: set[str], pending: set[str]) -> str:
+    s = str(raw or "").strip().lower()
+    if s in done:
+        return "completed"
+    if s in pending:
+        return "pending"
+    if "reject" in s or "cancel" in s:
+        return "rejected"
+    return "pending"
+
+
+@app.get("/api/member/transactions")
+def member_transactions(
+    current_user: dict = _Depends(_get_current_user),
+    search: str | None = None,
+    type: str | None = None,
+    status: str | None = None,
+    date_from: str | None = None,
+    date_to: str | None = None,
+    page: int = 1,
+    page_size: int = 10,
+):
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase not configured")
+
+    caller = _receipt_caller(current_user)
+    member_id = caller["member_id"]
+    membership_id = caller["membership_id"]
+    page = max(1, int(page or 1))
+    page_size = min(50, max(1, int(page_size or 10)))
+    if not member_id:
+        return {"ok": True, "rows": [], "total": 0, "page": page, "page_size": page_size}
+
+    def fetch(build):
+        try:
+            return build().execute().data or []
+        except Exception:
+            try:
+                return build().execute().data or []
+            except Exception as exc:
+                raise HTTPException(status_code=500, detail=f"Could not load your transactions: {exc}")
+
+    loans = fetch(lambda: supabase.table("loans").select("control_number,loan_type:loan_type_id(name)").eq("member_id", member_id))
+    loan_ids = [str(l["control_number"]) for l in loans if l.get("control_number")]
+    loan_type_by_id = {str(l["control_number"]): ((l.get("loan_type") or {}).get("name") or "") for l in loans}
+
+    payments = fetch(lambda: supabase.table("loan_payments").select(
+        "id,loan_id,amount_paid,penalties,payment_date,confirmation_status,payment_reference,transaction_reference"
+    ).in_("loan_id", loan_ids)) if loan_ids else []
+    releases = fetch(lambda: supabase.table("disbursement_confirmations").select(
+        "id,loan_id,loan_type,loan_amount,net_proceeds,disbursed_at,reference_number"
+    ).in_("loan_id", loan_ids)) if loan_ids else []
+    savings = fetch(lambda: supabase.table("savings_transaction_queue").select(
+        "transaction_id,transaction_type,amount,transaction_status,requested_at"
+    ).eq("membership_number_id", membership_id)) if membership_id else []
+    cbu_rows = fetch(lambda: supabase.table("capital_build_up").select(
+        "id,cbu_deposit_id,transaction_date,capital_added,deposit_account,source_loan_id,source_payment_id,source_isc_id,source_backfill_id"
+    ).eq("member_id", member_id).gt("capital_added", 0))
+    receipts = fetch(lambda: supabase.table("receipts").select("receipt_no,source_type,source_id").eq("member_id", member_id))
+    receipt_by_source = {(r["source_type"], str(r["source_id"])): r["receipt_no"] for r in receipts}
+
+    rows: list[dict] = []
+    for p in payments:
+        when, day = _feed_when(p.get("payment_date"))
+        state = _feed_status(p.get("confirmation_status"), _PAYMENT_DONE, {"pending_bookkeeper"})
+        rows.append({
+            "source_type": "loan_payment",
+            "source_id": str(p["id"]),
+            "category": "loan",
+            "description": f"Loan Payment · {p.get('loan_id')}",
+            "amount": decimal_to_float(money(Decimal(str(p.get("amount_paid") or 0)) + Decimal(str(p.get("penalties") or 0)))),
+            "direction": "debit",
+            "status": state,
+            "reference": p.get("payment_reference") or p.get("transaction_reference") or "",
+            "when": when,
+            "day": day,
+        })
+    for d in releases:
+        when, day = _feed_when(d.get("disbursed_at"))
+        loan_type = loan_type_by_id.get(str(d.get("loan_id"))) or d.get("loan_type") or ""
+        rows.append({
+            "source_type": "loan_release",
+            "source_id": str(d["id"]),
+            "category": "loan",
+            "description": f"Loan Released · {loan_type}" if loan_type else "Loan Released",
+            "amount": decimal_to_float(Decimal(str(d.get("net_proceeds") if d.get("net_proceeds") is not None else (d.get("loan_amount") or 0)))),
+            "direction": "credit",
+            "status": "completed",
+            "reference": d.get("reference_number") or "",
+            "when": when,
+            "day": day,
+        })
+    for q in savings:
+        when, day = _feed_when(q.get("requested_at"))
+        is_withdraw = str(q.get("transaction_type") or "").strip().lower().startswith("withdraw")
+        rows.append({
+            "source_type": "savings",
+            "source_id": str(q.get("transaction_id") or ""),
+            "category": "savings",
+            "description": "Savings Withdrawal" if is_withdraw else "Savings Deposit",
+            "amount": decimal_to_float(Decimal(str(q.get("amount") or 0))),
+            "direction": "debit" if is_withdraw else "credit",
+            "status": _feed_status(q.get("transaction_status"), {"validated", "posted", "completed"}, {"pending_verification", "pending"}),
+            "reference": str(q.get("transaction_id") or ""),
+            "when": when,
+            "day": day,
+        })
+
+    for c in cbu_rows:
+        # Cashier deposits only — same rule as receipt_is_cbu_deposit() in
+        # receipts_04_cbu.sql. System rows (loan CBU retention, paid-up
+        # capital, ISC, imports) belong to their parent transaction.
+        if (
+            str(c.get("deposit_account") or "").strip().lower() not in _CBU_PAID_BY
+            or any(c.get(k) for k in ("source_loan_id", "source_payment_id", "source_isc_id", "source_backfill_id"))
+        ):
+            continue
+        when, day = _feed_when(c.get("transaction_date"))
+        rows.append({
+            "source_type": "cbu",
+            "source_id": str(c["id"]),
+            "category": "cbu",
+            "description": "Capital Build-Up Deposit",
+            "amount": decimal_to_float(Decimal(str(c.get("capital_added") or 0))),
+            "direction": "credit",
+            "status": "completed",
+            "reference": c.get("cbu_deposit_id") or "",
+            "when": when,
+            "day": day,
+        })
+
+    for r in rows:
+        r["id"] = f"{r['source_type']}:{r['source_id']}"
+        r["receipt_no"] = receipt_by_source.get((r["source_type"], r["source_id"])) if r["status"] == "completed" else None
+
+    # Filters
+    if type and type.strip().lower() not in ("", "all"):
+        rows = [r for r in rows if r["category"] == type.strip().lower()]
+    if status and status.strip().lower() not in ("", "all"):
+        rows = [r for r in rows if r["status"] == status.strip().lower()]
+    if date_from:
+        rows = [r for r in rows if r["day"] and r["day"] >= date_from[:10]]
+    if date_to:
+        rows = [r for r in rows if r["day"] and r["day"] <= date_to[:10]]
+    if search and search.strip():
+        needle = search.strip().lower()
+        rows = [r for r in rows if needle in " ".join(
+            str(r.get(k) or "") for k in ("receipt_no", "reference", "description")
+        ).lower()]
+
+    rows.sort(key=lambda r: (r["when"], r["id"]), reverse=True)
+    start = (page - 1) * page_size
+    return {
+        "ok": True,
+        "rows": rows[start:start + page_size],
+        "total": len(rows),
+        "page": page,
+        "page_size": page_size,
     }

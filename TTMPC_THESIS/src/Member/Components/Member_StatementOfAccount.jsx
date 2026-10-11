@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState, useRef } from "react";
-import { useNavigate, NavLink } from "react-router-dom";
+import { useNavigate, NavLink, useSearchParams } from "react-router-dom";
 import { useMemberSettings } from "../../contex/MemberSettingsContext";
 import { useRealtimeVersion, useRealtimeRefetch } from "../../hooks/useRealtimeRefetch";
 import { RT } from "../../lib/realtimeSync";
@@ -32,6 +32,7 @@ import { resolveMemberIdentity } from "../../utils/memberIdentity";
 import { sortCbuRowsAscending } from "../../utils/cbuOrdering";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
 import TableStateRow from "../../components/TableStateRow";
+import MemberTransactionsTab from "./MemberTransactionsTab";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import {
@@ -108,6 +109,7 @@ const humanizeSource = (value) => {
 const STATEMENT_TABS = [
   { key: "loan", label: "Loan" },
   { key: "savings", label: "Savings" },
+  { key: "transactions", label: "Transactions" },
   { key: "cbu", label: "Capital Build-Up" },
 ];
 
@@ -131,7 +133,21 @@ const Member_StatementOfAccount = () => {
   const [avatarUrl, setAvatarUrl] = useState("");
   const [memberId, setMemberId] = useState(null);
 
-  const [activeTab, setActiveTab] = useState("loan");
+  // ?tab=transactions opens the Transactions tab; &receipt= / &open= come from
+  // the dashboard's Recent Transaction and open that row straight away.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [activeTab, setActiveTab] = useState(() =>
+    STATEMENT_TABS.some((t) => t.key === searchParams.get("tab")) ? searchParams.get("tab") : "loan"
+  );
+  const [initialReceiptNo] = useState(() => searchParams.get("receipt") || "");
+  const [initialOpenId] = useState(() => searchParams.get("open") || "");
+  // Read once, then drop them from the URL so a refresh doesn't reopen the receipt.
+  useEffect(() => {
+    if (searchParams.get("receipt") || searchParams.get("open")) {
+      setSearchParams({ tab: "transactions" }, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const [savingsLoaded, setSavingsLoaded] = useState(false);
   const [loadingSavings, setLoadingSavings] = useState(false);
@@ -729,7 +745,7 @@ const Member_StatementOfAccount = () => {
         <main className="scrollbar-hidden animate-page-in p-4 sm:p-6 lg:p-8 overflow-y-auto pb-28 lg:pb-0 animate-fade-in-up">
           <h1 className="hidden lg:block font-extrabold text-[#1a4a2f] dark:text-mdark-accent text-2xl mb-2">Statement of Account</h1>
           <p className="text-sm text-gray-500 dark:text-mdark-text-secondary font-medium mb-6">
-            Review your loan, savings, and capital build-up statements.
+            Review your loan, savings, transactions, and capital build-up statements.
           </p>
 
           {/* Statement Tabs */}
@@ -1122,6 +1138,13 @@ const Member_StatementOfAccount = () => {
                 </div>
               </div>
             </>
+          )}
+
+          {activeTab === "transactions" && (
+            <MemberTransactionsTab
+              initialReceiptNo={initialReceiptNo}
+              initialOpenId={initialOpenId}
+            />
           )}
 
           {activeTab === "cbu" && (

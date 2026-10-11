@@ -13,6 +13,8 @@ import { TableToolbar } from "../../components/TableToolbar";
 import TableStateRow from "../../components/TableStateRow";
 import Pagination from "../../components/Pagination";
 import { apiErrorMessage } from "../../utils/apiError";
+import { authHeaders } from "../../utils/authHeaders";
+import ReceiptModal from "../../components/Receipt/ReceiptModal";
 import {
   LayoutDashboard,
   Search,
@@ -68,6 +70,9 @@ const Cashier_Disbursement = () => {
   const [errorMessage, setErrorMessage] = useState("");
   const [disbursingLoanId, setDisbursingLoanId] = useState("");
   const [confirmation, setConfirmation] = useState(null);
+  // Receipt shown once after a release (RECEIPT_SYSTEM_PLAN.md §5). The old
+  // confirmation panel is only the fallback when no receipt number comes back.
+  const [releaseReceiptNo, setReleaseReceiptNo] = useState("");
 
   const [searchTerm, setSearchTerm] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
@@ -178,6 +183,7 @@ const Cashier_Disbursement = () => {
         headers: {
           "Content-Type": "application/json",
           Accept: "application/json",
+          ...(await authHeaders()),
         },
         body: JSON.stringify({
           cashier_id: cashierUser.id || null,
@@ -216,7 +222,9 @@ const Cashier_Disbursement = () => {
           releaseWarning = `Loan released, but ${missing.join(", ")} could not be verified. Please check the loan and notify the administrator.`;
         }
       }
-      if (result?.data?.confirmation) {
+      if (result?.data?.receipt_no) {
+        setReleaseReceiptNo(result.data.receipt_no);
+      } else if (result?.data?.confirmation) {
         // Attach the deduction breakdown that the cashier already saw and
         // approved so the post-release receipt shows the same numbers.
         setConfirmation({
@@ -532,6 +540,14 @@ const Cashier_Disbursement = () => {
           </div>
         </main>
       </div>
+
+      <ReceiptModal
+        open={!!releaseReceiptNo}
+        receiptNo={releaseReceiptNo}
+        title="Loan released"
+        notice="Print or download now. After you close this, the receipt stays available to the member in their portal."
+        onClose={() => setReleaseReceiptNo("")}
+      />
 
       {confirmation && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm px-4">

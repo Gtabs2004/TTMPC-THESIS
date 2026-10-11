@@ -9,6 +9,7 @@ import { useConfirm } from "../../contex/ConfirmContext";
 import { useNotification } from "../../contex/NotificationContext";
 import { formatWithCommas, stripCommas } from "../../utils/numberFormat";
 import { authHeaders } from "../../utils/authHeaders";
+import ReceiptModal from "../../components/Receipt/ReceiptModal";
 import StaffTopbar from "../../components/StaffTopbar";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
 import {
@@ -55,6 +56,8 @@ const Cashier_CBU_Deposit = () => {
   const [paymentMode, setPaymentMode] = useState("Cash");
   const [transactionDate, setTransactionDate] = useState(new Date().toISOString().slice(0, 10));
   const [submitting, setSubmitting] = useState(false);
+  // Receipt shown once after the deposit (RECEIPT_SYSTEM_PLAN.md §5).
+  const [depositReceiptNo, setDepositReceiptNo] = useState("");
 
 
 
@@ -162,6 +165,7 @@ const Cashier_CBU_Deposit = () => {
         "success"
       );
       setDepositAmount("");
+      if (payload?.data?.receipt_no) setDepositReceiptNo(payload.data.receipt_no);
       // Refetch member so current_balance reflects the new ending_share_capital.
       // Awaited before submitting flips off, so the loader stays up through
       // the whole "balance not updated yet" window, not just the POST itself.
@@ -353,6 +357,13 @@ const Cashier_CBU_Deposit = () => {
           </div>
         </main>
       </div>
+      <ReceiptModal
+        open={!!depositReceiptNo}
+        receiptNo={depositReceiptNo}
+        title="CBU deposit recorded"
+        notice="Print or download now. After you close this, the receipt stays available to the member in their portal."
+        onClose={() => setDepositReceiptNo("")}
+      />
     </div>
   );
 };

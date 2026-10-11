@@ -10,6 +10,7 @@ import { resolveMemberContextFromSessionUser } from "../../utils/sessionIdentity
 import { useMigsLabel, getMigsBadgeClasses } from "../../hooks/useMigsLabel";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
 import TableStateRow from "../../components/TableStateRow";
+import { authHeaders } from "../../utils/authHeaders";
 import LoanCalculatorModal from "./LoanCalculatorModal";
 import MemberDashboardLoading from "./MemberDashboardLoading";
 import AccountSetupGate from "./AccountSetupGate";
@@ -33,8 +34,11 @@ import {
   Calculator,
   FileText,
   Settings,
-  Scroll
+  Scroll,
+  ChevronRight
 } from 'lucide-react';
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 
 const styles = `
   @keyframes fadeInUp {
@@ -129,7 +133,10 @@ const MemberDashboard = () => {
   const { data: migsLabel, status: migsLabelStatus } = useMigsLabel(migsMemberKey);
   const [isCalculatorOpen, setIsCalculatorOpen] = useState(false);
   const [memberLoans, setMemberLoans] = useState(_initialDashboardSnapshot?.normalizedLoans ?? []);
-  const [recentTransactions, setRecentTransactions] = useState(_initialDashboardSnapshot?.latestTransactions ?? []);
+  // Recent Transaction reads the same feed as Statement of Account → Transactions,
+  // so each row can open its receipt (RECEIPT_SYSTEM_PLAN.md §3.1).
+  const [recentTransactions, setRecentTransactions] = useState([]);
+  const [recentLoading, setRecentLoading] = useState(true);
   const [totalSavings, setTotalSavings] = useState(_initialDashboardSnapshot?.savingsAccountTotal ?? 0);
   const [nextDueDate, setNextDueDate] = useState(_initialDashboardSnapshot?.derivedNextDueDate ?? null);
   const [loadingProfile, setLoadingProfile] = useState(!_initialDashboardSnapshot);
@@ -206,6 +213,49 @@ const MemberDashboard = () => {
   };
 
   const rtVersion = useRealtimeVersion([...RT.LOANS, ...RT.SAVINGS, ...RT.CBU, "member"]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/member/transactions?page=1&page_size=6`, {
+          headers: { Accept: 'application/json', ...(await authHeaders()) },
+        });
+        const payload = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(payload?.detail || 'Unable to load recent transactions.');
+        if (cancelled) return;
+        setRecentTransactions((payload.rows || []).map((row) => {
+          const credit = row.direction === 'credit';
+          return {
+            id: row.id,
+            date: formatDate(row.day),
+            desc: row.description,
+            category: String(row.category || '').toUpperCase(),
+            type: row.category,
+            amount: `${credit ? '+' : '-'}${formatCurrency(row.amount).replace('₱ ', '₱')}`,
+            highlight: credit,
+            status: row.status,
+            receiptNo: row.receipt_no,
+          };
+        }));
+      } catch (err) {
+        // Keep whatever is on screen; the rest of the dashboard still works.
+        console.warn('[Member_Dashboard] Recent transactions:', err?.message);
+      } finally {
+        if (!cancelled) setRecentLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [rtVersion]);
+
+  // A row opens Statement of Account → Transactions with that row's receipt
+  // (or its status note) already open.
+  const openTransaction = (tx) => {
+    const params = new URLSearchParams({ tab: 'transactions' });
+    if (tx.status === 'completed' && tx.receiptNo) params.set('receipt', tx.receiptNo);
+    else params.set('open', tx.id);
+    navigate(`/member-statement-of-account?${params}`);
+  };
   const rtSeen = useRef(rtVersion);
   useEffect(() => {
     const silent = rtSeen.current !== rtVersion;
@@ -220,7 +270,6 @@ const MemberDashboard = () => {
       setMemberLoans(snap.normalizedLoans);
       setTotalSavings(snap.savingsAccountTotal);
       setNextDueDate(snap.derivedNextDueDate);
-      setRecentTransactions(snap.latestTransactions);
       setAvatarUrl(snap.resolvedAvatarUrl);
     };
 
@@ -308,54 +357,6 @@ const MemberDashboard = () => {
       });
       const derivedNextDueDate = nextSchedule?.due_date || null;
 
-      const transactionRows = [];
-      if (shareCapital > 0) {
-        transactionRows.push({
-          id: 'share-capital',
-          timestamp: cbuRow?.transaction_date || memberRow?.created_at || new Date().toISOString(),
-          date: formatDate(cbuRow?.transaction_date || memberRow?.created_at),
-          desc: 'Share Capital Contribution',
-          category: 'EQUITY',
-          type: 'equity',
-          amount: `+${formatCurrency(shareCapital).replace('₱ ', '₱')}`,
-          highlight: true,
-        });
-      }
-
-      (bundle.pending_savings || []).forEach((row) => {
-        const isWithdraw = String(row?.transaction_type || '').toLowerCase() === 'withdraw';
-        const amount = Number(row?.amount || 0);
-        transactionRows.push({
-          id: row?.transaction_id || `savings-${Math.random()}`,
-          timestamp: row?.requested_at,
-          date: formatDate(row?.requested_at),
-          desc: isWithdraw ? 'Savings Withdrawal' : 'Savings Deposit',
-          category: 'SAVINGS',
-          type: 'savings',
-          amount: `${isWithdraw ? '-' : '+'}${formatCurrency(Math.abs(amount)).replace('₱ ', '₱')}`,
-          highlight: !isWithdraw,
-        });
-      });
-
-      (bundle.recent_payments || []).forEach((row) => {
-        const paid = Number(row?.amount_paid || 0);
-        const penalties = Number(row?.penalties || 0);
-        const totalPaid = paid + penalties;
-        transactionRows.push({
-          id: row?.id || `loan-${Math.random()}`,
-          timestamp: row?.payment_date,
-          date: formatDate(row?.payment_date),
-          desc: `Loan Repayment (${row?.loan_id || 'Loan'})`,
-          category: 'LOAN',
-          type: 'loan',
-          amount: `-${formatCurrency(totalPaid).replace('₱ ', '₱')}`,
-          highlight: false,
-        });
-      });
-
-      const latestTransactions = transactionRows
-        .sort((a, b) => new Date(b.timestamp || 0).getTime() - new Date(a.timestamp || 0).getTime())
-        .slice(0, 6);
 
       const resolvedAvatarUrl = await resolveAvatarDisplayUrl(bundle.avatar_url, sessionUser.id);
 
@@ -373,7 +374,6 @@ const MemberDashboard = () => {
         normalizedLoans,
         savingsAccountTotal,
         derivedNextDueDate,
-        latestTransactions,
         resolvedAvatarUrl,
         _sessionUserId: sessionUser.id,
       };
@@ -479,22 +479,14 @@ const MemberDashboard = () => {
           .map((loan) => String(loan.control_number || '').trim())
           .filter(Boolean);
 
-        // BATCH 2 — queries that need loanIds and/or are recent-activity only.
-        // Fan out the schedule, savings queue, payment, and avatar fetches together.
+        // BATCH 2 — queries that need loanIds. Fan out the schedule and avatar
+        // fetches together. (Recent Transaction has its own feed now.)
         const [
           schedulesResult,
-          savingsQueueResult,
-          paymentsResult,
           resolvedAvatarUrl,
         ] = await Promise.all([
           loanIds.length
             ? supabase.from('loan_schedules').select('loan_id, due_date, schedule_status, expected_amount').in('loan_id', loanIds).order('due_date', { ascending: true })
-            : Promise.resolve({ data: [], error: null }),
-          membershipId
-            ? supabase.from('savings_transaction_queue').select('transaction_id, transaction_type, amount, requested_at, transaction_status').eq('membership_number_id', membershipId).order('requested_at', { ascending: false }).limit(6)
-            : Promise.resolve({ data: [], error: null }),
-          loanIds.length
-            ? supabase.from('loan_payments').select('id, payment_date, amount_paid, penalties, loan_id').in('loan_id', loanIds).order('payment_date', { ascending: false }).limit(6)
             : Promise.resolve({ data: [], error: null }),
           resolveAvatarDisplayUrl(profileRow?.avatar_url, sessionUser.id),
         ]);
@@ -505,54 +497,6 @@ const MemberDashboard = () => {
         });
         const derivedNextDueDate = nextSchedule?.due_date || null;
 
-        const transactionRows = [];
-        if (shareCapital > 0) {
-          transactionRows.push({
-            id: 'share-capital',
-            timestamp: cbuRow?.transaction_date || memberRow?.created_at || new Date().toISOString(),
-            date: formatDate(cbuRow?.transaction_date || memberRow?.created_at),
-            desc: 'Share Capital Contribution',
-            category: 'EQUITY',
-            type: 'equity',
-            amount: `+${formatCurrency(shareCapital).replace('₱ ', '₱')}`,
-            highlight: true,
-          });
-        }
-
-        (savingsQueueResult?.data || []).forEach((row) => {
-          const isWithdraw = String(row?.transaction_type || '').toLowerCase() === 'withdraw';
-          const amount = Number(row?.amount || 0);
-          transactionRows.push({
-            id: row?.transaction_id || `savings-${Math.random()}`,
-            timestamp: row?.requested_at,
-            date: formatDate(row?.requested_at),
-            desc: isWithdraw ? 'Savings Withdrawal' : 'Savings Deposit',
-            category: 'SAVINGS',
-            type: 'savings',
-            amount: `${isWithdraw ? '-' : '+'}${formatCurrency(Math.abs(amount)).replace('₱ ', '₱')}`,
-            highlight: !isWithdraw,
-          });
-        });
-
-        (paymentsResult?.data || []).forEach((row) => {
-          const paid = Number(row?.amount_paid || 0);
-          const penalties = Number(row?.penalties || 0);
-          const totalPaid = paid + penalties;
-          transactionRows.push({
-            id: row?.id || `loan-${Math.random()}`,
-            timestamp: row?.payment_date,
-            date: formatDate(row?.payment_date),
-            desc: `Loan Repayment (${row?.loan_id || 'Loan'})`,
-            category: 'LOAN',
-            type: 'loan',
-            amount: `-${formatCurrency(totalPaid).replace('₱ ', '₱')}`,
-            highlight: false,
-          });
-        });
-
-        const latestTransactions = transactionRows
-          .sort((a, b) => new Date(b.timestamp || 0).getTime() - new Date(a.timestamp || 0).getTime())
-          .slice(0, 6);
 
         return {
           profile: {
@@ -569,7 +513,6 @@ const MemberDashboard = () => {
           normalizedLoans,
           savingsAccountTotal,
           derivedNextDueDate,
-          latestTransactions,
           resolvedAvatarUrl,
           _sessionUserId: sessionUser.id,
         };
@@ -634,54 +577,6 @@ const MemberDashboard = () => {
             });
             const derivedNextDueDate = nextSchedule?.due_date || null;
 
-            const transactionRows = [];
-            if (shareCapital > 0) {
-              transactionRows.push({
-                id: 'share-capital',
-                timestamp: cbuRow?.transaction_date || memberRow?.created_at || new Date().toISOString(),
-                date: formatDate(cbuRow?.transaction_date || memberRow?.created_at),
-                desc: 'Share Capital Contribution',
-                category: 'EQUITY',
-                type: 'equity',
-                amount: `+${formatCurrency(shareCapital).replace('₱ ', '₱')}`,
-                highlight: true,
-              });
-            }
-
-            (cachedBundle.pending_savings || []).forEach((row) => {
-              const isWithdraw = String(row?.transaction_type || '').toLowerCase() === 'withdraw';
-              const amount = Number(row?.amount || 0);
-              transactionRows.push({
-                id: row?.transaction_id || `savings-${Math.random()}`,
-                timestamp: row?.requested_at,
-                date: formatDate(row?.requested_at),
-                desc: isWithdraw ? 'Savings Withdrawal' : 'Savings Deposit',
-                category: 'SAVINGS',
-                type: 'savings',
-                amount: `${isWithdraw ? '-' : '+'}${formatCurrency(Math.abs(amount)).replace('₱ ', '₱')}`,
-                highlight: !isWithdraw,
-              });
-            });
-
-            (cachedBundle.recent_payments || []).forEach((row) => {
-              const paid = Number(row?.amount_paid || 0);
-              const penalties = Number(row?.penalties || 0);
-              const totalPaid = paid + penalties;
-              transactionRows.push({
-                id: row?.id || `loan-${Math.random()}`,
-                timestamp: row?.payment_date,
-                date: formatDate(row?.payment_date),
-                desc: `Loan Repayment (${row?.loan_id || 'Loan'})`,
-                category: 'LOAN',
-                type: 'loan',
-                amount: `-${formatCurrency(totalPaid).replace('₱ ', '₱')}`,
-                highlight: false,
-              });
-            });
-
-            const latestTransactions = transactionRows
-              .sort((a, b) => new Date(b.timestamp || 0).getTime() - new Date(a.timestamp || 0).getTime())
-              .slice(0, 6);
 
             const resolvedAvatarUrl = await resolveAvatarDisplayUrl(cachedBundle.avatar_url, authData?.user?.id);
 
@@ -699,7 +594,6 @@ const MemberDashboard = () => {
               normalizedLoans,
               savingsAccountTotal,
               derivedNextDueDate,
-              latestTransactions,
               resolvedAvatarUrl,
               _sessionUserId: authData?.user?.id,
             };
@@ -728,7 +622,6 @@ const MemberDashboard = () => {
         if (silent) return;
         if (isMounted) {
           setProfileError(err.message || 'Unable to load member dashboard data.');
-          setRecentTransactions([]);
           setAvatarUrl('');
         }
       } finally {
@@ -1089,6 +982,12 @@ const MemberDashboard = () => {
                 <h3 className="text-lg font-bold text-gray-900 dark:text-mdark-text flex items-center">
                   <History className="w-5 h-5 mr-2 text-member-green dark:text-mdark-accent" /> Recent Transaction
                 </h3>
+                <Link
+                  to="/member-statement-of-account?tab=transactions"
+                  className="inline-flex min-h-11 items-center gap-1 text-sm font-bold text-member-green hover:underline dark:text-mdark-accent"
+                >
+                  View all <ChevronRight className="h-4 w-4" aria-hidden="true" />
+                </Link>
               </div>
               
               <div className="bg-white dark:bg-mdark-card rounded-2xl shadow-sm border border-gray-100 dark:border-mdark-border overflow-hidden">
@@ -1104,9 +1003,24 @@ const MemberDashboard = () => {
                   </thead>
                   <tbody>
                     {recentTransactions.length ? recentTransactions.map((tx) => (
-                      <tr key={tx.id} className="border-b border-gray-100 dark:border-mdark-border hover:bg-gray-50/50 dark:hover:bg-mdark-elevated/50 transition-colors">
+                      <tr
+                        key={tx.id}
+                        tabIndex={0}
+                        role="button"
+                        aria-label={`${tx.desc}, ${tx.amount}. Open in Transactions`}
+                        onClick={() => openTransaction(tx)}
+                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openTransaction(tx); } }}
+                        className="cursor-pointer border-b border-gray-100 dark:border-mdark-border hover:bg-gray-50/50 focus-visible:bg-gray-50 dark:hover:bg-mdark-elevated/50 transition-colors"
+                      >
                         <td className="p-5 text-xs text-gray-500 dark:text-mdark-text-secondary font-medium">{tx.date}</td>
-                        <td className="p-5 text-sm font-bold text-gray-800 dark:text-mdark-text">{tx.desc}</td>
+                        <td className="p-5 text-sm font-bold text-gray-800 dark:text-mdark-text">
+                          {tx.desc}
+                          {tx.status && tx.status !== 'completed' ? (
+                            <span className={`ml-2 rounded-full px-2 py-0.5 text-[10px] font-bold ${tx.status === 'pending' ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-800'}`}>
+                              {tx.status === 'pending' ? 'Pending' : 'Rejected'}
+                            </span>
+                          ) : null}
+                        </td>
                         <td className="p-5">
                           <span className={`badge-animated px-2 py-1 rounded text-[9px] font-extrabold tracking-wider ${getCategoryStyle(tx.type)}`}>
                             {tx.category}
@@ -1116,7 +1030,9 @@ const MemberDashboard = () => {
                           {tx.amount}
                         </td>
                       </tr>
-                    )) : (
+                    )) : recentLoading ? (
+                      <TableStateRow colSpan={4} label="Loading transactions…" />
+                    ) : (
                       <TableStateRow colSpan={4} variant="empty" icon={Receipt} label="No transactions yet." />
                     )}
                   </tbody>
@@ -1125,7 +1041,12 @@ const MemberDashboard = () => {
 
                 <div className="divide-y divide-gray-100 dark:divide-mdark-border md:hidden">
                   {recentTransactions.length ? recentTransactions.map((tx) => (
-                    <div key={tx.id} className="px-4 py-3.5 hover:bg-gray-50/50 dark:hover:bg-mdark-elevated/50 transition-colors">
+                    <button
+                      key={tx.id}
+                      type="button"
+                      onClick={() => openTransaction(tx)}
+                      className="block w-full text-left px-4 py-3.5 hover:bg-gray-50/50 dark:hover:bg-mdark-elevated/50 transition-colors"
+                    >
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
                           <p className="truncate text-sm font-bold text-gray-800 dark:text-mdark-text">{tx.desc}</p>
@@ -1133,6 +1054,11 @@ const MemberDashboard = () => {
                             <span className={`badge-animated inline-flex px-2 py-0.5 rounded text-[9px] font-extrabold tracking-wider ${getCategoryStyle(tx.type)}`}>
                               {tx.category}
                             </span>
+                            {tx.status && tx.status !== 'completed' ? (
+                              <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${tx.status === 'pending' ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-800'}`}>
+                                {tx.status === 'pending' ? 'Pending' : 'Rejected'}
+                              </span>
+                            ) : null}
                             <span className="text-xs text-gray-500 dark:text-mdark-text-secondary">{tx.date}</span>
                           </div>
                         </div>
@@ -1140,8 +1066,10 @@ const MemberDashboard = () => {
                           {tx.amount}
                         </span>
                       </div>
-                    </div>
-                  )) : (
+                    </button>
+                  )) : recentLoading ? (
+                    <div className="py-8"><TableStateRow bare label="Loading transactions…" /></div>
+                  ) : (
                     <TableStateRow bare variant="empty" icon={Receipt} label="No transactions yet." />
                   )}
                 </div>
