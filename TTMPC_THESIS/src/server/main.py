@@ -17839,6 +17839,7 @@ def read_audit_log(
 
     rows = resp.data or []
     _attach_audit_actor_names(rows)
+    _attach_receipt_availability(rows)
 
     return {
         "ok": True,
@@ -17886,6 +17887,33 @@ def _attach_audit_actor_names(rows: list[dict]) -> None:
         r["actor_name"] = name_by_membership.get(account.get("membership_id"))
         if not r.get("actor_email"):
             r["actor_email"] = account.get("email")
+
+
+def _attach_receipt_availability(rows: list[dict]) -> None:
+    """Add `has_receipt` to each receipt-eligible audit row, so the "View
+    receipt" link only shows when one actually exists (e.g. a `cbu` row for
+    an ISC reversal or loan-CBU-retention never gets a receipt issued, per
+    receipt_is_cbu_deposit() in receipts_04_cbu.sql).
+
+    One lookup per eligible row via the same resolver the receipt endpoint
+    uses (_receipt_for_audit_entity), so this can't drift from what
+    GET /api/receipts/by-audit actually returns. The audit log page is small
+    (10 rows on screen; export maxes at 5000, but no export path renders
+    receipt links), so this stays a bounded N calls, not an unbounded scan.
+    """
+    for r in rows:
+        entity_type = r.get("entity_type")
+        if entity_type not in _AUDIT_RECEIPT_TYPES:
+            continue
+        entity_id = str(r.get("entity_id") or "").strip()
+        if not entity_id:
+            r["has_receipt"] = False
+            continue
+        try:
+            r["has_receipt"] = _receipt_for_audit_entity(entity_type, entity_id) is not None
+        except Exception as exc:
+            logger.warning("receipt availability check failed for %s %s: %s", entity_type, entity_id, exc)
+            r["has_receipt"] = False
 
 
 @app.get("/api/audit-log/kpis")

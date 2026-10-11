@@ -303,7 +303,8 @@ const AuditLogViewer = ({ showActorRoleFilter = true, onError }) => {
   const [showViewAll, setShowViewAll] = useState(false);
   const [viewerRole, setViewerRole] = useState("");
   const [receiptAudit, setReceiptAudit] = useState(null);
-  const canViewReceipt = (r) => RECEIPT_VIEWER_ROLES.has(viewerRole) && RECEIPT_ENTITY_TYPES.has(r.entity_type);
+  const canViewReceipt = (r) =>
+    RECEIPT_VIEWER_ROLES.has(viewerRole) && RECEIPT_ENTITY_TYPES.has(r.entity_type) && r.has_receipt === true;
 
   // KPI cards — the API picks which four fit the caller's role, so this is
   // just [{ key, label, value }] in display order.
