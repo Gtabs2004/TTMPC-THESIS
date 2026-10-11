@@ -360,3 +360,13 @@ export function buildBonusPayload(formData, isRegularMember) {
     first_due_date: formData.payment_start_date || null,
   };
 }
+
+// Keeps a typed/pasted "term in months" a whole number from 1 up to `max`. A
+// number input's max attribute only flags a too-big value, it doesn't stop it
+// being typed, so the forms run the value through this instead. Empty stays empty.
+export const clampTermMonths = (raw, max) => {
+  if (raw === '' || raw === null || raw === undefined) return '';
+  const whole = Math.floor(Number(raw));
+  if (!Number.isFinite(whole) || whole < 1) return '';
+  return String(Math.min(whole, max));
+};
