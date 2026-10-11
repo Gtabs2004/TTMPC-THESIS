@@ -540,16 +540,26 @@ class LoanComputeBaseRequest(BaseModel):
     first_due_date: date | None = None
 
 
-_CONSOLIDATED_VALID_TERMS = {12, 24, 36, 48, 60}
+# Members choose their own term, so any whole number of months is accepted up
+# to the longest term the product offers: 60 months, or 72 months for the
+# ₱500,000-and-up Consolidated loan.
+_CONSOLIDATED_MAX_TERM = 60
+_CONSOLIDATED_LARGE_LOAN_MIN = Decimal("500000")
+_CONSOLIDATED_LARGE_LOAN_MAX_TERM = 72
 
 class ConsolidatedLoanComputeRequest(LoanComputeBaseRequest):
     loan_type: Literal["consolidated"]
 
     @model_validator(mode="after")
     def validate_consolidated_rules(self):
-        if self.term_months not in _CONSOLIDATED_VALID_TERMS:
+        max_term = (
+            _CONSOLIDATED_LARGE_LOAN_MAX_TERM
+            if self.principal >= _CONSOLIDATED_LARGE_LOAN_MIN
+            else _CONSOLIDATED_MAX_TERM
+        )
+        if not 1 <= self.term_months <= max_term:
             raise ValueError(
-                f"Consolidated loan term must be one of {sorted(_CONSOLIDATED_VALID_TERMS)} months. "
+                f"Consolidated loan term must be between 1 and {max_term} months. "
                 f"Received: {self.term_months}."
             )
         return self
@@ -4619,7 +4629,7 @@ async def preview_cashier_disbursement(loan_id: str):
 
     The Review & Disburse dialog used to call /api/loans/compute for this. That
     endpoint validates a loan *application* (Bonus needs a member_category,
-    Consolidated only allows 12-60 month terms, Emergency only 6/12), so the
+    Consolidated caps terms at 60 months, or 72 from ₱500,000, Emergency only 6/12), so the
     preview failed for Bonus loans and for 72-month Consolidated loans and the
     cashier could not release them. Fees depend only on the loan type and
     principal, so they are computed here straight from the stored loan.

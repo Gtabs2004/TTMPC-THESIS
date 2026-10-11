@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { fetchLoanPrefill, submitUnifiedLoan } from './loanSubmission';
-import { buildConsolidatedPayload, computeLoan } from './loanComputeApi';
+import { buildConsolidatedPayload, clampTermMonths, computeLoan } from './loanComputeApi';
 import { formatTinNumber, TIN_FORMATTED_MAX_LENGTH } from './tinFormat';
 import { supabase } from '../supabaseClient';
 import { resolveAccountFromSessionUser } from '../utils/sessionIdentity';
@@ -1211,7 +1211,7 @@ function Consolidated_Up() {
                   type="number"
                   name="loan_term_months"
                   value={formData.loan_term_months}
-                  onChange={handleChange}
+                  onChange={(e) => handleChange({ target: { name: e.target.name, value: clampTermMonths(e.target.value, 72) } })}
                   min={1}
                   max={72}
                   step={1}

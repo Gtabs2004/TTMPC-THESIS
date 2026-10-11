@@ -39,7 +39,7 @@ PERSONAL DATA SHEET (PDS) [DONE 2026-09-02]
 
 LOANS / LOAN TYPES [DONE 2026-09-02]
 - What if loan_types is missing the configured rate? -> DONE (pre-existing): compute endpoint returns 400 "interest rate for X is not configured in loan_types" if monthly_rate <= 0.
-- What if loan term is invalid (<=0 or outside permitted range)? -> DONE: ConsolidatedLoanComputeRequest validator enforces {12,24,36,48,60}; EmergencyLoanComputeRequest enforces {6,12}; base model enforces gt=0. Returns 422 with rule details.
+- What if loan term is invalid (<=0 or outside permitted range)? -> DONE: ConsolidatedLoanComputeRequest validator accepts any whole term of 1-60 months, or 1-72 months when the principal is 500,000 or more (members choose their own term); EmergencyLoanComputeRequest enforces {6,12}; base model enforces gt=0. Returns 422 with rule details.
 - What if emergency loan amount exceeds cap? -> DONE (pre-existing): EmergencyLoanComputeRequest Pydantic validator raises 422 "cannot exceed 20,000" with cap value.
 - What if loan_status transitions out of sequence? -> NOTED: transitions go direct Supabase from frontend; no FastAPI transition guard added (RLS + frontend workflow is the control layer for this cooperative scale).
 - What if disbursement attempted but no schedules exist? -> NOTED: handled at Supabase/frontend layer; no schedules = disbursement button stays hidden in Treasurer portal.
