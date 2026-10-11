@@ -327,11 +327,11 @@ export default function LoanCalculatorModal({ open, onClose }) {
   const amountNum = Number(loanAmount || 0);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 sm:px-4 sm:py-6 overflow-y-auto">
-      <div className="w-full sm:max-w-xl bg-white dark:bg-mdark-elevated sm:rounded-2xl shadow-2xl border border-gray-200 dark:border-mdark-border sm:my-auto flex flex-col max-h-screen sm:max-h-[90vh]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-2.5 py-3 sm:px-4 sm:py-6 overflow-y-auto">
+      <div className="w-full max-w-[360px] sm:max-w-xl bg-white dark:bg-mdark-elevated rounded-2xl shadow-2xl border border-gray-200 dark:border-mdark-border my-auto flex flex-col max-h-[75vh] sm:max-h-[90vh]">
 
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 dark:border-mdark-border bg-gradient-to-r from-[#F3F9F1] to-white dark:from-mdark-accent/10 dark:to-mdark-card rounded-t-2xl shrink-0">
+        <div className="flex items-center justify-between px-4 py-3 sm:px-5 sm:py-4 border-b border-gray-100 dark:border-mdark-border bg-gradient-to-r from-[#F3F9F1] to-white dark:from-mdark-accent/10 dark:to-mdark-card rounded-t-2xl shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl bg-member-green dark:bg-mdark-accent flex items-center justify-center shadow-sm">
               <Calculator className="w-4 h-4 text-white" />
@@ -352,7 +352,7 @@ export default function LoanCalculatorModal({ open, onClose }) {
         </div>
 
         {/* Scrollable body */}
-        <div className="overflow-y-auto flex-1 p-5 space-y-5">
+        <div className="overflow-y-auto flex-1 p-3.5 sm:p-5 space-y-4 sm:space-y-5">
 
           {/* Loan Type */}
           <div>
@@ -901,7 +901,7 @@ export default function LoanCalculatorModal({ open, onClose }) {
         </div>
 
         {/* Footer */}
-        <div className="px-5 py-3.5 border-t border-gray-100 dark:border-mdark-border flex items-center justify-between bg-gray-50 dark:bg-mdark-elevated rounded-b-2xl shrink-0">
+        <div className="px-4 py-2.5 sm:px-5 sm:py-3.5 border-t border-gray-100 dark:border-mdark-border flex items-center justify-between bg-gray-50 dark:bg-mdark-elevated rounded-b-2xl shrink-0">
           <p className="text-[10px] text-gray-400 dark:text-mdark-text-muted font-medium uppercase tracking-wider">
             Read-only · Figures are indicative
           </p>

@@ -8,7 +8,7 @@ import { resolveAccountFromSessionUser } from '../utils/sessionIdentity';
 import { useMigsLabel } from '../hooks/useMigsLabel';
 import { useActiveRenewalOverride } from '../hooks/useActiveRenewalOverride';
 import { useNotification } from '../contex/NotificationContext';
-import { Loader2, ShieldCheck, Trash2, Plus, CheckCircle2, ImagePlus } from 'lucide-react';
+import { Download, Loader2, ShieldCheck, Trash2, Plus, CheckCircle2, ImagePlus } from 'lucide-react';
 import MobileFormStepper from '../components/MobileFormStepper';
 import LoanDeductionsCard from '../components/LoanDeductionsCard';
 import { formatWithCommas, stripCommas } from '../utils/numberFormat';
@@ -621,7 +621,7 @@ function Consolidated_Up() {
     return payload;
   };
 
-  const handlePrintPdf = async () => {
+  const handlePrintPdf = async ({ download = false } = {}) => {
     setPrinting(true);
     try {
       const response = await fetch(`${API_BASE_URL}/api/loans/consolidated/print-pdf`, {
@@ -657,7 +657,9 @@ function Consolidated_Up() {
       }
 
       const objectUrl = URL.createObjectURL(blob);
-      const previewWindow = window.open(objectUrl, PDF_PREVIEW_WINDOW_NAME);
+      // On mobile "Download PDF" skips the preview tab and saves the file; the
+      // popup-blocked fallback below does the actual download.
+      const previewWindow = download ? null : window.open(objectUrl, PDF_PREVIEW_WINDOW_NAME);
 
       if (!previewWindow) {
         const link = document.createElement('a');
@@ -998,6 +1000,16 @@ function Consolidated_Up() {
       <form ref={formRef} noValidate={window.matchMedia('(max-width: 767px)').matches} onSubmit={handleFormSubmit} className="px-3 sm:px-4">
         <section className="grid gap-6 px-3 sm:gap-8 sm:px-4">
           <h1 className="mt-8 text-center text-xl font-bold text-primary sm:mt-12 sm:text-2xl">CONSOLIDATED LOAN APPLICATION (Over ₱500,000)</h1>
+          {/* Mobile-only: download the form as a PDF (includes what is entered so far). */}
+          <button
+            type="button"
+            onClick={() => handlePrintPdf({ download: true })}
+            disabled={printing || loading}
+            className="md:hidden -mt-2 mx-auto flex w-full max-w-6xl items-center justify-center gap-2 rounded border border-primary bg-white px-4 py-2.5 text-sm font-bold text-primary-deep transition-colors hover:bg-[#E9F7DE] disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <Download size={16} aria-hidden="true" />
+            {printing ? 'Preparing PDF...' : 'Download PDF'}
+          </button>
           <div className="max-w-6xl mx-auto w-full">
             <div className="bg-[#EEF6F1] rounded-xl p-4 border-2 border-primary flex flex-col items-start justify-between gap-4 sm:p-6 md:flex-row md:items-center md:gap-6">
               <div className="flex flex-wrap gap-4 sm:gap-8">
@@ -1597,6 +1609,15 @@ function Consolidated_Up() {
             );
           })}
 
+          <button
+            type="button"
+            onClick={() => handlePrintPdf({ download: true })}
+            disabled={printing || loading}
+            className="mt-5 flex w-full items-center justify-center gap-2 rounded border border-primary bg-white px-5 py-2.5 text-sm font-bold text-primary-deep transition-colors hover:bg-[#E9F7DE] disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <Download size={16} aria-hidden="true" />
+            {printing ? 'Preparing PDF...' : 'Download PDF'}
+          </button>
           <button type="submit" disabled={loading || printing || exceedsCeiling || renewalBlocked || eligibilityFailed || stressIndexExceeded || !isPolicyCompliant} className="mt-5 w-full rounded bg-primary-deep px-6 py-2.5 text-sm font-bold text-white transition-colors hover:bg-member-green disabled:cursor-not-allowed disabled:opacity-50">
             Continue to confirmation
           </button>

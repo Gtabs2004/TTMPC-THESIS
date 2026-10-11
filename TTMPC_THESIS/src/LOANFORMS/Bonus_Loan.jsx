@@ -1,4 +1,5 @@
 ﻿import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Download } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
 import { useNavigate } from 'react-router-dom';
 import { createUniqueControlNumber, fetchLoanPrefill, submitUnifiedLoan } from './loanSubmission';
@@ -86,6 +87,11 @@ function Bonus_Loan() {
   const canApplyNew = eligibility ? Boolean(eligibility.can_apply_new) : true;
   const canRenew = eligibility ? Boolean(eligibility.can_renew) : true;
   const eligibilityReady = eligibilityStatus === 'ready';
+  // The PDF's New/Renewal tick comes from the form, which starts on "New" and
+  // only flips to Renewal once eligibility has loaded. Hold Print/Download until
+  // then so the default can't be stamped by mistake. "error" also releases it so
+  // a failed lookup never leaves the buttons stuck.
+  const pdfNotReady = !isNonMemberBonus && !(eligibilityStatus === 'ready' || eligibilityStatus === 'error');
   const [printing, setPrinting] = useState(false);
   const [formData, setFormData] = useState({
     application_type: 'New',
@@ -151,7 +157,7 @@ function Bonus_Loan() {
 
   const isMarriedCivilStatus = String(formData.civil_status || '').trim().toLowerCase() === 'married';
 
-  const handlePrintPdf = async () => {
+  const handlePrintPdf = async ({ download = false } = {}) => {
     setPrinting(true);
 
     try {
@@ -171,10 +177,21 @@ function Bonus_Loan() {
 
       const blob = await response.blob();
       const objectUrl = URL.createObjectURL(blob);
-      const previewWindow = window.open(objectUrl, PDF_PREVIEW_WINDOW_NAME);
 
-      if (previewWindow) {
-        previewWindow.focus();
+      if (download) {
+        // Mobile "Download PDF": save the file instead of opening a preview tab.
+        const link = document.createElement('a');
+        link.href = objectUrl;
+        link.download = 'BONUS_LOAN_FILLED.pdf';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      } else {
+        const previewWindow = window.open(objectUrl, PDF_PREVIEW_WINDOW_NAME);
+
+        if (previewWindow) {
+          previewWindow.focus();
+        }
       }
 
       setTimeout(() => URL.revokeObjectURL(objectUrl), 30000);
@@ -445,6 +462,16 @@ function Bonus_Loan() {
       <form ref={formRef} noValidate={window.matchMedia('(max-width: 767px)').matches} onSubmit={handleSubmit} className="px-3 sm:px-4">
         <section className="grid gap-6 px-3 sm:gap-8 sm:px-4">
           <h1 className="mt-8 text-center text-xl font-bold text-primary sm:mt-12">BONUS LOAN APPLICATION</h1>
+          {/* Mobile-only: download the form as a PDF (includes what is entered so far). */}
+          <button
+            type="button"
+            onClick={() => handlePrintPdf({ download: true })}
+            disabled={printing || loading || pdfNotReady}
+            className="md:hidden -mt-2 mx-auto flex w-full max-w-6xl items-center justify-center gap-2 rounded border border-primary bg-white px-4 py-2.5 text-sm font-bold text-primary-deep transition-colors hover:bg-[#E9F7DE] disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <Download size={16} aria-hidden="true" />
+            {printing ? 'Preparing PDF...' : 'Download PDF'}
+          </button>
           <div className="max-w-6xl mx-auto w-full">
             <div className="bg-[#EEF6F1] rounded-xl p-4 border-2 border-primary flex flex-col items-start justify-between gap-4 sm:p-6 md:flex-row md:items-center md:gap-6">
               <div className="flex flex-wrap gap-4 sm:gap-8">
@@ -518,14 +545,14 @@ function Bonus_Loan() {
           </div>
           <div className="p-4 sm:p-6 lg:p-8 text-sm text-gray-800">
             
-            <div className="leading-[3.5rem]">
+            <div className="leading-relaxed sm:leading-[3.5rem]">
               I hereby apply for a loan in the amount of
               <input 
                 type="text" 
                 name="loan_amount_words" 
                 value={formData.loan_amount_words} 
                 onChange={handleChange} 
-                className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-primary outline-none bg-white text-sm transition-all mx-2 w-full sm:w-[22rem] inline-block align-middle" 
+                className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-primary outline-none bg-white text-sm transition-all mx-0 my-2 w-full sm:mx-2 sm:my-0 sm:w-[22rem] inline-block align-middle" 
               />
               <div className="inline-flex items-center relative mr-2 align-middle">
                 <span className="absolute left-3 text-gray-400 text-xs font-medium">Php</span>
@@ -543,7 +570,7 @@ function Bonus_Loan() {
                 name="loan_purpose" 
                 value={formData.loan_purpose} 
                 onChange={handleChange} 
-                className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-primary outline-none bg-white text-sm transition-all mx-2 w-full sm:w-64 inline-block align-middle" 
+                className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-primary outline-none bg-white text-sm transition-all mx-0 my-2 w-full sm:mx-2 sm:my-0 sm:w-64 inline-block align-middle" 
               >
                 <option value="">Select Purpose</option>
                 <option value="Emergency Needs">Emergency Needs</option>
@@ -562,7 +589,7 @@ function Bonus_Loan() {
                   value={formData.loan_purpose_other} 
                   onChange={handleChange} 
                   placeholder="Please specify..."
-                  className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-primary outline-none bg-white text-sm transition-all mx-2 w-full sm:w-56 inline-block align-middle" 
+                  className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-primary outline-none bg-white text-sm transition-all mx-0 my-2 w-full sm:mx-2 sm:my-0 sm:w-56 inline-block align-middle" 
                 />
               )}
               
@@ -573,7 +600,7 @@ function Bonus_Loan() {
                 name="loan_term_months" 
                 value={formData.loan_term_months} 
                 onChange={handleChange} 
-                className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-primary outline-none bg-white text-sm transition-all mx-2 w-full sm:w-72 inline-block align-middle text-gray-600 truncate"
+                className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-primary outline-none bg-white text-sm transition-all mx-0 my-2 w-full sm:mx-2 sm:my-0 sm:w-72 inline-block align-middle text-gray-600 truncate"
               >
                 <option value="">Select Bonus Cycle</option>
                 <option value="5">May Midyear Bonus (5 months)</option>
@@ -585,7 +612,7 @@ function Bonus_Loan() {
                 name="monthly_amortization"
                 value={formatWithCommas(formData.monthly_amortization)}
                 readOnly
-                className="border border-gray-300 rounded-md px-3 py-1.5 outline-none bg-gray-50 text-sm transition-all mx-2 w-full sm:w-48 inline-block align-middle cursor-not-allowed"
+                className="border border-gray-300 rounded-md px-3 py-1.5 outline-none bg-gray-50 text-sm transition-all mx-0 my-2 w-full sm:mx-2 sm:my-0 sm:w-48 inline-block align-middle cursor-not-allowed"
               />
               , which I promise to pay the amount to <strong>Tubungan Teachers' Multi Purpose Cooperative</strong>
               
@@ -711,7 +738,7 @@ function Bonus_Loan() {
 
           </div>
           <div className="hidden md:flex p-3 sm:p-6 lg:p-8 pt-0 flex-col-reverse gap-3 justify-end sm:flex-row">
-            <button type="button" onClick={handlePrintPdf} disabled={printing || loading} className="w-full bg-white border border-primary text-primary-deep px-5 py-2 rounded hover:bg-[#EEF6F1] transition-colors text-sm font-semibold disabled:opacity-50 sm:w-auto">
+            <button type="button" onClick={handlePrintPdf} disabled={printing || loading || pdfNotReady} className="w-full bg-white border border-primary text-primary-deep px-5 py-2 rounded hover:bg-[#EEF6F1] transition-colors text-sm font-semibold disabled:opacity-50 sm:w-auto">
               {printing ? 'Printing...' : 'Print PDF'}
             </button>
             <button
@@ -800,6 +827,15 @@ function Bonus_Loan() {
             );
           })}
 
+          <button
+            type="button"
+            onClick={() => handlePrintPdf({ download: true })}
+            disabled={printing || loading || pdfNotReady}
+            className="mt-5 flex w-full items-center justify-center gap-2 rounded border border-primary bg-white px-5 py-2.5 text-sm font-bold text-primary-deep transition-colors hover:bg-[#E9F7DE] disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <Download size={16} aria-hidden="true" />
+            {printing ? 'Preparing PDF...' : 'Download PDF'}
+          </button>
           <button type="submit" disabled={loading || printing || !bonusWindowOpen} className="mt-5 w-full rounded bg-primary-deep px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-member-green disabled:cursor-not-allowed disabled:opacity-50">
             {loading ? 'Processing...' : 'Submit Application'}
           </button>

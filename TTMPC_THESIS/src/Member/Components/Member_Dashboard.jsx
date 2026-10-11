@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState, useRef } from "react";
+﻿import React, { useEffect, useMemo, useState, useRef } from "react";
 import { Link } from 'react-router-dom';
 import { useRealtimeVersion } from "../../hooks/useRealtimeRefetch";
 import { RT } from "../../lib/realtimeSync";
@@ -807,9 +807,7 @@ const MemberDashboard = () => {
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
                   <div className="flex items-center justify-center sm:justify-start gap-3">
                     <h2 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-mdark-text">{profile?.fullName || 'Loading...'}</h2>
-                    <span className={`${profile?.isActive ? 'bg-member-green dark:bg-mdark-accent' : 'bg-gray-500 dark:bg-mdark-text-muted'} text-white px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wider uppercase`}>
-                      {profile?.isActive ? 'Active' : 'Inactive'}
-                    </span>
+                    
                   </div>
                 </div>
                 

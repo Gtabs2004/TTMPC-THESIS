@@ -1,4 +1,5 @@
 ﻿import React, { useEffect, useRef, useState } from 'react';
+import { Download } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { fetchLoanPrefill, submitUnifiedLoan } from './loanSubmission';
 import { buildEmergencyPayload, computeLoan } from './loanComputeApi';
@@ -82,6 +83,7 @@ function Emergency_Loan() {
   const mobileSteps = [
     { id: 'borrower', label: "Borrower's Information" },
     { id: 'agreement', label: 'Loan Agreement' },
+    { id: 'deed', label: 'Deed of Assignment' },
     { id: 'review', label: 'Review & Submit' },
   ];
   const [formData, setFormData] = useState({
@@ -128,6 +130,11 @@ function Emergency_Loan() {
   const canApplyNew = eligibility ? Boolean(eligibility.can_apply_new) : true;
   const canRenew = eligibility ? Boolean(eligibility.can_renew) : true;
   const eligibilityReady = eligibilityStatus === 'ready';
+  // The PDF's New/Renewal tick comes from the form, which starts on "New" and
+  // only flips to Renewal once eligibility has loaded. Hold Print/Download until
+  // then so the default can't be stamped by mistake. "error" also releases it so
+  // a failed lookup never leaves the buttons stuck.
+  const pdfNotReady = !(eligibilityStatus === 'ready' || eligibilityStatus === 'error');
   const [amortizationSchedule, setAmortizationSchedule] = useState([]);
   const [breakdownDetails, setBreakdownDetails] = useState(null);
   const [renewalError, setRenewalError] = useState('');
@@ -480,7 +487,7 @@ function Emergency_Loan() {
 
   const isMarriedCivilStatus = String(formData.civil_status || '').trim().toLowerCase() === 'married';
 
-  const handlePrintPdf = async () => {
+  const handlePrintPdf = async ({ download = false } = {}) => {
     setPrinting(true);
 
     try {
@@ -500,10 +507,21 @@ function Emergency_Loan() {
 
       const blob = await response.blob();
       const objectUrl = URL.createObjectURL(blob);
-      const previewWindow = window.open(objectUrl, PDF_PREVIEW_WINDOW_NAME);
 
-      if (previewWindow) {
-        previewWindow.focus();
+      if (download) {
+        // Mobile "Download PDF": save the file instead of opening a preview tab.
+        const link = document.createElement('a');
+        link.href = objectUrl;
+        link.download = 'EMERGENCY_LOAN_FILLED.pdf';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      } else {
+        const previewWindow = window.open(objectUrl, PDF_PREVIEW_WINDOW_NAME);
+
+        if (previewWindow) {
+          previewWindow.focus();
+        }
       }
 
       setTimeout(() => URL.revokeObjectURL(objectUrl), 30000);
@@ -732,6 +750,16 @@ function Emergency_Loan() {
       <form ref={formRef} noValidate={window.matchMedia('(max-width: 767px)').matches} onSubmit={handleSubmit} className="px-3 sm:px-4">
         <section className="grid gap-6 px-3 sm:gap-8 sm:px-4">
           <h1 className="mt-8 text-center text-xl font-bold text-primary sm:mt-12 sm:text-2xl">EMERGENCY LOAN APPLICATION</h1>
+          {/* Mobile-only: download the form as a PDF (includes what is entered so far). */}
+          <button
+            type="button"
+            onClick={() => handlePrintPdf({ download: true })}
+            disabled={printing || loading || pdfNotReady}
+            className="md:hidden -mt-2 mx-auto flex w-full max-w-6xl items-center justify-center gap-2 rounded border border-primary bg-white px-4 py-2.5 text-sm font-bold text-primary-deep transition-colors hover:bg-[#E9F7DE] disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <Download size={16} aria-hidden="true" />
+            {printing ? 'Preparing PDF...' : 'Download PDF'}
+          </button>
           <div className="max-w-6xl mx-auto w-full">
             <div className="bg-[#EEF6F1] rounded-xl p-4 border-2 border-primary flex flex-col items-start justify-between gap-4 sm:p-6 md:flex-row md:items-center md:gap-6">
               <div className="flex flex-wrap gap-4 sm:gap-8">
@@ -802,14 +830,14 @@ function Emergency_Loan() {
           </div>
           <div className="p-4 sm:p-6 lg:p-8 text-sm text-gray-800">
             
-            <div className="leading-[3.5rem]">
+            <div className="leading-relaxed sm:leading-[3.5rem]">
               I hereby apply for a loan in the amount of
               <input 
                 type="text" 
                 name="loan_amount_words" 
                 value={formData.loan_amount_words} 
                 readOnly 
-                className="border border-gray-300 rounded-md px-3 py-1.5 outline-none bg-gray-100 text-sm transition-all mx-2 w-full sm:w-[22rem] inline-block align-middle" 
+                className="border border-gray-300 rounded-md px-3 py-1.5 outline-none bg-gray-100 text-sm transition-all mx-0 my-2 w-full sm:mx-2 sm:my-0 sm:w-[22rem] inline-block align-middle" 
               />
               <div className="inline-flex items-center relative mr-2 align-middle">
                 <span className="absolute left-3 text-gray-400 text-xs font-medium">Php</span>
@@ -832,7 +860,7 @@ function Emergency_Loan() {
                 name="loan_purpose" 
                 value={formData.loan_purpose} 
                 onChange={handleChange} 
-                className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-primary outline-none bg-white text-sm transition-all mx-2 w-full sm:w-64 inline-block align-middle" 
+                className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-primary outline-none bg-white text-sm transition-all mx-0 my-2 w-full sm:mx-2 sm:my-0 sm:w-64 inline-block align-middle" 
               >
                 <option value="">Select Purpose</option>
                 <option value="Emergency Needs">Emergency Needs</option>
@@ -851,7 +879,7 @@ function Emergency_Loan() {
                   value={formData.loan_purpose_other} 
                   onChange={handleChange} 
                   placeholder="Please specify..."
-                  className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-primary outline-none bg-white text-sm transition-all mx-2 w-full sm:w-56 inline-block align-middle" 
+                  className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-primary outline-none bg-white text-sm transition-all mx-0 my-2 w-full sm:mx-2 sm:my-0 sm:w-56 inline-block align-middle" 
                 />
               )}
               
@@ -862,7 +890,7 @@ function Emergency_Loan() {
                 name="loan_term_months" 
                 value={formData.loan_term_months} 
                 onChange={handleChange} 
-                className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-primary outline-none bg-white text-sm transition-all mx-2 w-full sm:w-32 inline-block align-middle text-gray-600"
+                className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-primary outline-none bg-white text-sm transition-all mx-0 my-2 w-full sm:mx-2 sm:my-0 sm:w-32 inline-block align-middle text-gray-600"
               >
                 <option value="">Select Term</option>
                 {TERM_OPTIONS.map(term => <option key={term} value={term}>{term} months</option>)}
@@ -885,7 +913,7 @@ function Emergency_Loan() {
             <div className="bg-green-50 px-6 py-4 border-b border-green-200">
               <h2 className="text-lg font-bold text-green-800">Loan Breakdown & Amortization Schedule</h2>
             </div>
-            <div className="p-6 text-sm text-gray-700">
+            <div className="p-3 sm:p-6 text-sm text-gray-700">
               {(() => {
                 const loanAmount = parseFloat(formData.loan_amount_numeric) || 0;
                 // Fees come from the compute service, which reads BOD-configured
@@ -919,28 +947,28 @@ function Emergency_Loan() {
                       </div>
                     </div>
 
-                    <h3 className="text-md font-bold text-gray-800 mb-3 text-center">{formData.loan_term_months}-Month Amortization Schedule</h3>
-                    <div className="overflow-x-auto rounded-lg border border-gray-200">
-                      <table className="min-w-full text-xs">
+                    <h3 className="text-sm sm:text-md font-bold text-gray-800 mb-2 sm:mb-3 text-center">{formData.loan_term_months}-Month Amortization Schedule</h3>
+                    <div className="overflow-x-auto rounded-lg border border-gray-200 [-webkit-overflow-scrolling:touch]">
+                      <table className="min-w-[38rem] w-full text-[10px] sm:min-w-full sm:text-xs">
                         <thead>
-                          <tr className="bg-primary-deep text-[10px] uppercase tracking-wider text-white font-extrabold">
-                            <th className="p-5 font-bold">Month</th>
-                            <th className="p-5 font-bold text-right">Starting Balance</th>
-                            <th className="p-5 font-bold text-right">Principal</th>
-                            <th className="p-5 font-bold text-right">Interest</th>
-                            <th className="p-5 font-bold text-right">Total Payment</th>
-                            <th className="p-5 font-bold text-right">Remaining Balance</th>
+                          <tr className="bg-primary-deep text-[9px] uppercase tracking-wide text-white font-extrabold sm:text-[10px] sm:tracking-wider">
+                            <th className="px-2 py-3 font-bold text-left sm:px-3 sm:py-4">Month</th>
+                            <th className="px-2 py-3 font-bold text-right sm:px-3 sm:py-4">Starting Balance</th>
+                            <th className="px-2 py-3 font-bold text-right sm:px-3 sm:py-4">Principal</th>
+                            <th className="px-2 py-3 font-bold text-right sm:px-3 sm:py-4">Interest</th>
+                            <th className="px-2 py-3 font-bold text-right sm:px-3 sm:py-4">Total Payment</th>
+                            <th className="px-2 py-3 font-bold text-right sm:px-3 sm:py-4">Remaining Balance</th>
                           </tr>
                         </thead>
                         <tbody>
                           {amortizationSchedule.map((row) => (
                             <tr key={row.month} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
-                              <td className="p-5 whitespace-nowrap font-medium text-gray-900">{row.month}</td>
-                              <td className="p-5 whitespace-nowrap text-right text-gray-600">{formatCurrency(row.startingBalance)}</td>
-                              <td className="p-5 whitespace-nowrap text-right text-gray-600">{formatCurrency(row.principalPaid)}</td>
-                              <td className="p-5 whitespace-nowrap text-right text-red-600">{formatCurrency(row.interestPaid)}</td>
-                              <td className="p-5 whitespace-nowrap text-right font-bold text-gray-900">{formatCurrency(row.totalPayment)}</td>
-                              <td className="p-5 whitespace-nowrap text-right font-semibold text-blue-600">{formatCurrency(row.remainingBalance)}</td>
+                              <td className="px-2 py-3 whitespace-nowrap font-medium text-gray-900 sm:px-3 sm:py-4">{row.month}</td>
+                              <td className="px-2 py-3 whitespace-nowrap text-right text-gray-600 sm:px-3 sm:py-4">{formatCurrency(row.startingBalance)}</td>
+                              <td className="px-2 py-3 whitespace-nowrap text-right text-gray-600 sm:px-3 sm:py-4">{formatCurrency(row.principalPaid)}</td>
+                              <td className="px-2 py-3 whitespace-nowrap text-right text-red-600 sm:px-3 sm:py-4">{formatCurrency(row.interestPaid)}</td>
+                              <td className="px-2 py-3 whitespace-nowrap text-right font-bold text-gray-900 sm:px-3 sm:py-4">{formatCurrency(row.totalPayment)}</td>
+                              <td className="px-2 py-3 whitespace-nowrap text-right font-semibold text-blue-600 sm:px-3 sm:py-4">{formatCurrency(row.remainingBalance)}</td>
                             </tr>
                           ))}
                         </tbody>
@@ -953,68 +981,64 @@ function Emergency_Loan() {
           </div>
         )}
 
-         <div data-mobile-step="1" className={`${mobileStep === 1 ? 'block' : 'hidden'} mobile-step-transition md:block mt-8 bg-white rounded-lg shadow-md overflow-hidden max-w-6xl mx-auto w-full mb-8`}>
+         <div data-mobile-step="2" className={`${mobileStep === 2 ? 'block' : 'hidden'} mobile-step-transition md:block mt-8 bg-white rounded-lg shadow-md overflow-hidden max-w-6xl mx-auto w-full mb-8`}>
           <div className={sectionHeader}>
             <span className="bg-white text-primary-deep rounded-full w-6 h-6 flex items-center justify-center text-sm">3</span>
             DEED OF ASSIGNMENT
           </div>
           <div className="p-4 sm:p-6 lg:p-8 text-sm text-gray-800">
-            
-            <p className="font-bold mb-6 text-gray-900 uppercase tracking-wide">
+            <p className="font-bold mb-4 text-gray-900 uppercase tracking-wide">
               KNOW ALL MEN OF THESE PRESENTS:
             </p>
-            
-            <div className="leading-[3.5rem]">
-              I,
-              <input 
-                type="text" 
-                name="borrower_name" 
-                value={`${formData.first_name} ${formData.middle_name} ${formData.surname}`.trim()} 
-                readOnly 
-                className="border border-gray-300 rounded-md px-3 py-1.5 outline-none bg-gray-50 text-sm transition-all mx-2 w-full sm:w-[22rem] inline-block align-middle" 
-              />
-              of legal age, and an employee of
-              <input 
-                type="text" 
-                name="employer_name" 
-                value={formData.employer_name} 
-                readOnly 
-                className="border border-gray-300 rounded-md px-3 py-1.5 outline-none bg-gray-100 text-sm text-gray-700 transition-all mx-2 w-full sm:w-96 inline-block align-middle" 
-              />
-              Tubungan, Iloilo.
-              
-              <br className="hidden xl:block" />
-              <div className="h-4"></div> {/* Spacer for vertical rhythm */}
-              
-              <span className="leading-loose block mt-2 text-justify">
-                For and in consideration of my loan with <strong>Tubungan Teachers' Multi Purpose Cooperative (TTMPC)</strong> in the amount of
-                
-                <input 
-                  type="text" 
-                  name="loan_amount_words" 
-                  value={formData.loan_amount_words} 
-                  onChange={handleChange} 
-                  className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-primary outline-none bg-white text-sm transition-all mx-2 w-full sm:w-64 inline-block align-middle" 
-                />
-                
-                <div className="inline-flex items-center relative mr-2 align-middle">
-                  <span className="absolute left-3 text-gray-400 text-xs font-medium">Php</span>
-                  <input 
-                    type="text" 
-                    name="loan_amount_numeric" 
-                    value={formData.loan_amount_numeric ? Number(formData.loan_amount_numeric).toLocaleString('en-PH', { style: 'decimal', minimumFractionDigits: 0, maximumFractionDigits: 0 }) : ''} 
-                    readOnly 
-                    className="border border-gray-300 rounded-md pl-10 pr-3 py-1.5 outline-none bg-gray-100 text-sm transition-all w-full sm:w-40" 
-                  />
-                </div>
-                
-                with interest thereon at the rate of 2% per month, do hereby by these present, ASSIGN, TRANSFER and CONVEY into TTMPC, its successors and assign my salary/benefits corresponding to the amount of my loan inclusive of interest and surcharges.
-              </span>
-            </div>
 
+            <div className="space-y-4 leading-relaxed text-gray-800">
+              <p className="flex flex-wrap items-center gap-2">
+                <span>I,</span>
+                <input
+                  type="text"
+                  name="borrower_name"
+                  value={`${formData.first_name} ${formData.middle_name} ${formData.surname}`.trim()}
+                  readOnly
+                  className="border border-gray-300 rounded-md px-3 py-1.5 outline-none bg-gray-50 text-sm transition-all w-full sm:w-[22rem]"
+                />
+                <span>of legal age, and an employee of</span>
+                <input
+                  type="text"
+                  name="employer_name"
+                  value={formData.employer_name}
+                  readOnly
+                  className="border border-gray-300 rounded-md px-3 py-1.5 outline-none bg-gray-100 text-sm text-gray-700 transition-all w-full sm:w-[18rem]"
+                />
+                <span>Tubungan, Iloilo.</span>
+              </p>
+
+              <p className="text-justify">
+                For and in consideration of my loan with <strong>Tubungan Teachers' Multi Purpose Cooperative (TTMPC)</strong> in the amount of
+                <span className="mt-2 flex flex-wrap items-center gap-2 sm:inline-flex sm:mx-2">
+                  <input
+                    type="text"
+                    name="loan_amount_words"
+                    value={formData.loan_amount_words}
+                    onChange={handleChange}
+                    className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-primary outline-none bg-white text-sm transition-all w-full sm:w-52"
+                  />
+                  <span className="inline-flex items-center relative">
+                    <span className="absolute left-3 text-gray-400 text-xs font-medium">Php</span>
+                    <input
+                      type="text"
+                      name="loan_amount_numeric"
+                      value={formData.loan_amount_numeric ? Number(formData.loan_amount_numeric).toLocaleString('en-PH', { style: 'decimal', minimumFractionDigits: 0, maximumFractionDigits: 0 }) : ''}
+                      readOnly
+                      className="border border-gray-300 rounded-md pl-10 pr-3 py-1.5 outline-none bg-gray-100 text-sm transition-all w-full sm:w-32"
+                    />
+                  </span>
+                </span>
+                <span className="inline-block mt-2 sm:mt-0"> with interest thereon at the rate of 2% per month, do hereby by these present, ASSIGN, TRANSFER and CONVEY into TTMPC, its successors and assign my salary/benefits corresponding to the amount of my loan inclusive of interest and surcharges.</span>
+              </p>
+            </div>
           </div>
            <div className="hidden md:flex p-3 sm:p-6 lg:p-8 pt-0 flex-col-reverse gap-3 justify-end sm:flex-row">
-            <button type="button" onClick={handlePrintPdf} disabled={printing || loading} className="w-full bg-white border border-primary text-primary-deep px-5 py-2 rounded hover:bg-[#EEF6F1] transition-colors text-sm font-semibold disabled:opacity-50 sm:w-auto">
+            <button type="button" onClick={handlePrintPdf} disabled={printing || loading || pdfNotReady} className="w-full bg-white border border-primary text-primary-deep px-5 py-2 rounded hover:bg-[#EEF6F1] transition-colors text-sm font-semibold disabled:opacity-50 sm:w-auto">
               {printing ? 'Printing...' : 'Print PDF'}
             </button>
             <button type="submit" disabled={loading || printing} className="w-full bg-primary-deep text-white px-5 py-2 rounded hover:bg-member-green transition-colors text-sm font-semibold disabled:opacity-50 sm:w-auto">
@@ -1035,7 +1059,7 @@ function Emergency_Loan() {
           </div>
         )}
 
-        <div data-mobile-step="2" className={`${mobileStep === 2 ? 'block' : 'hidden'} mobile-step-transition md:hidden mt-8 rounded-lg border border-gray-200 bg-white p-4 shadow-sm`}>
+        <div data-mobile-step="3" className={`${mobileStep === 3 ? 'block' : 'hidden'} mobile-step-transition md:hidden mt-8 rounded-lg border border-gray-200 bg-white p-4 shadow-sm`}>
           <h2 className="text-base font-bold text-gray-900">Review your application</h2>
           <p className="mt-1 text-xs text-gray-500">Check each section below before submitting your emergency loan application. Tap Edit to go back and make changes.</p>
 
@@ -1090,6 +1114,15 @@ function Emergency_Loan() {
             );
           })}
 
+          <button
+            type="button"
+            onClick={() => handlePrintPdf({ download: true })}
+            disabled={printing || loading || pdfNotReady}
+            className="mt-5 flex w-full items-center justify-center gap-2 rounded border border-primary bg-white px-5 py-2.5 text-sm font-bold text-primary-deep transition-colors hover:bg-[#E9F7DE] disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <Download size={16} aria-hidden="true" />
+            {printing ? 'Preparing PDF...' : 'Download PDF'}
+          </button>
           <button type="submit" disabled={loading || printing} className="mt-5 w-full rounded bg-primary-deep px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-member-green disabled:opacity-50">
             Continue to confirmation
           </button>
