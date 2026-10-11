@@ -19,7 +19,11 @@ const TYPE_OPTIONS = [
   { value: "loan", label: "Loan" },
   { value: "savings", label: "Savings" },
   { value: "cbu", label: "Capital Build-Up" },
+  { value: "membership", label: "Membership" },
+  { value: "grocery", label: "Grocery" },
 ];
+
+const CATEGORY_LABEL = { cbu: "CBU", membership: "MEMBERSHIP", grocery: "GROCERY" };
 const STATUS_OPTIONS = [
   { value: "all", label: "All statuses" },
   { value: "completed", label: "Completed" },
@@ -252,7 +256,7 @@ export default function MemberTransactionsTab({ initialReceiptNo = "", initialOp
                         </td>
                         <td className="p-5">
                           <span className="rounded bg-gray-100 px-2 py-1 text-[9px] font-extrabold tracking-wider text-gray-700 dark:bg-mdark-elevated dark:text-mdark-text-secondary">
-                            {row.category === "cbu" ? "CBU" : row.category.toUpperCase()}
+                            {CATEGORY_LABEL[row.category] || row.category.toUpperCase()}
                           </span>
                         </td>
                         <td className="p-5"><StatusChip status={row.status} /></td>

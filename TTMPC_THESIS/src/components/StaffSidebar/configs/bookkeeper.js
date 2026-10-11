@@ -12,6 +12,7 @@ import {
   History,
   Coins,
   Unlock,
+  ReceiptText,
 } from "lucide-react";
 
 // Bookkeeper portal navigation. Same list on every Bookkeeper page.
@@ -37,5 +38,6 @@ export const bookkeeperNav = [
   { name: "Member Classification", icon: Activity,   path: "/migs" },
   { name: "Reports",      icon: BarChart3,  path: "/reports" },
   { name: "Audit Log",    icon: History,    path: "/audit-trail" },
+  { name: "Receipts", icon: ReceiptText, path: "/bookkeeper-receipts" },
   { name: "Grocery",      icon: Coins,      path: "/grocery" },
 ];

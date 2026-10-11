@@ -6,6 +6,7 @@ import StaffSidebar from "../../components/StaffSidebar";
 import { cashierNav } from "../../components/StaffSidebar/configs/cashier";
 import StaffTopbar from "../../components/StaffTopbar";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
+import ReceiptModal from "../../components/Receipt/ReceiptModal";
 import { StatCard, StatCardRow } from "../../components/StatCard";
 import { TableToolbar } from "../../components/TableToolbar";
 import TableStateRow from "../../components/TableStateRow";
@@ -310,7 +311,16 @@ const Cashier_CBU_Exit_Payout = () => {
         />
       ) : null}
 
-      {receipt ? (
+      <ReceiptModal
+        open={!!receipt?.receipt_no}
+        receiptNo={receipt?.receipt_no || ""}
+        title={receipt?.closed ? "Payout recorded · membership closed" : "Payout recorded"}
+        notice="Print or download now. After you close this, the receipt stays available to the member in their portal."
+        onClose={() => setReceipt(null)}
+      />
+
+      {/* Fallback when no receipt number came back (receipts SQL not applied). */}
+      {receipt && !receipt.receipt_no ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div className="w-full max-w-sm overflow-hidden rounded-xl bg-white shadow-xl">
             <div className="px-6 py-5">

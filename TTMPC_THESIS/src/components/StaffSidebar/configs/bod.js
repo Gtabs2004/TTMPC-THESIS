@@ -7,6 +7,7 @@ import {
   FileText,
   UserRoundCheck,
   UserCog,
+  ReceiptText,
 } from "lucide-react";
 
 // BOD portal navigation. Same list on every standalone BOD page.
@@ -21,4 +22,5 @@ export const bodNav = [
   { name: "Account Management", icon: UserCog,        path: "/bod-account-management" },
   { name: "Loan Policies",     icon: FileText,        path: "/bod-loan-policies" },
   { name: "Audit Log",         icon: History,         path: "/bod-audit-log" },
+  { name: "Receipts", icon: ReceiptText, path: "/bod-receipts" },
 ];

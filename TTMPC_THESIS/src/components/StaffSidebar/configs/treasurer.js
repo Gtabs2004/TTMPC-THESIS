@@ -5,7 +5,8 @@ import {
   Users,
   PiggyBank,
   History,
-  FileText
+  FileText,
+  ReceiptText,
 } from "lucide-react";
 
 // Treasurer portal navigation. Each item carries its own explicit path — no
@@ -19,6 +20,7 @@ export const treasurerNav = [
   { name: "Savings Account ", icon: PiggyBank,    path: "/treasurer-savings-accounts" },
   { name: "Ledger Transactions",   icon: Users,           path: "/treasurer-payments" },
   { name: "Audit Log",     icon: History,         path: "/treasurer-audit-log" },
+  { name: "Receipts", icon: ReceiptText, path: "/treasurer-receipts" },
 ];
 
 

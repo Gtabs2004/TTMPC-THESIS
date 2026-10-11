@@ -7,6 +7,7 @@ import {
   PiggyBank,
   BarChart3,
   History,
+  ReceiptText,
 } from "lucide-react";
 
 // Manager portal navigation. Same list on every Manager page.
@@ -19,4 +20,5 @@ export const managerNav = [
   { name: "Savings Accounts ", icon: PiggyBank,     path: "/manager-savings-accounts" },
   { name: "Manager Reports",        icon: BarChart3,       path: "/manager-reports" },
   { name: "Audit Log",      icon: History,         path: "/manager-audit-log" },
+  { name: "Receipts", icon: ReceiptText, path: "/manager-receipts" },
 ];

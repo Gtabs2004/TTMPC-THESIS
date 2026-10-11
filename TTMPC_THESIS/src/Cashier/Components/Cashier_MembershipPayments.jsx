@@ -13,6 +13,8 @@ import { TableToolbar } from "../../components/TableToolbar";
 import Pagination from "../../components/Pagination";
 import ConfirmDialog from "../../components/ConfirmDialog";
 import TableStateRow from "../../components/TableStateRow";
+import ReceiptModal from "../../components/Receipt/ReceiptModal";
+import { authHeaders } from "../../utils/authHeaders";
 import { supabase } from "../../supabaseClient";
 import { formatWithCommas, stripCommas } from "../../utils/numberFormat";
 import {
@@ -85,6 +87,8 @@ const Cashier_MembershipPayments = () => {
   const { addNotification } = useNotification();
   const confirm = useConfirm();
   const [activeTab, setActiveTab] = useState("applicants"); // applicants | transactions
+  // Receipt shown once after a payment (RECEIPT_SYSTEM_PLAN.md §5).
+  const [paymentReceiptNo, setPaymentReceiptNo] = useState("");
   const [applicants, setApplicants] = useState([]);
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -272,7 +276,7 @@ const Cashier_MembershipPayments = () => {
       };
       const res = await fetch(`${API_BASE_URL}/api/cashier/membership-payments`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        headers: { "Content-Type": "application/json", Accept: "application/json", ...(await authHeaders()) },
         body: JSON.stringify(body),
       });
       const payload = await res.json().catch(() => ({}));
@@ -286,6 +290,7 @@ const Cashier_MembershipPayments = () => {
       );
       setShowModal(false);
       setSelectedApplicant(null);
+      if (payload?.data?.receipt_no) setPaymentReceiptNo(payload.data.receipt_no);
       await fetchAll();
     } catch (err) {
       setSubmitError(err?.message || "Unable to record payment.");
@@ -664,6 +669,14 @@ const Cashier_MembershipPayments = () => {
           </div>
         </ConfirmDialog>
       )}
+
+      <ReceiptModal
+        open={!!paymentReceiptNo}
+        receiptNo={paymentReceiptNo}
+        title="Payment recorded"
+        notice="Print or download now. After you close this, the receipt stays available to the member in their portal once they are a member."
+        onClose={() => setPaymentReceiptNo("")}
+      />
     </div>
   );
 };
