@@ -42,6 +42,7 @@ import BOD_Audit_Log from "./BOD/Components/Audit_Log";
 import Manager_Audit_Log from "./Manager/Components/Audit_Log";
 import Treasurer_Audit_Log from "./Treasurer/Components/Audit_Log";
 import Cashier_Audit_Log from "./Cashier/Components/Audit_Log";
+import StaffReceiptsPage from "./components/Receipt/StaffReceiptsPage";
 import M_Dashboard from "./Manager/Components/M-Dashboard";
 import Loan_Approval from "./Manager/Components/loan-approval";
 import Manager_Reports from "./Manager/Components/Manager_Reports";
@@ -226,6 +227,10 @@ export const router = createBrowserRouter([
     {path: "/manager-audit-log", element: managerGuarded(<Manager_Audit_Log/>)},
     {path: "/treasurer-audit-log", element: treasurerGuarded(<Treasurer_Audit_Log/>)},
     {path: "/cashier-audit-log", element: cashierGuarded(<Cashier_Audit_Log/>)},
+    {path: "/bookkeeper-receipts", element: bookkeeperGuarded(<StaffReceiptsPage role="bookkeeper"/>)},
+    {path: "/bod-receipts", element: bodGuarded(<StaffReceiptsPage role="bod"/>)},
+    {path: "/manager-receipts", element: managerGuarded(<StaffReceiptsPage role="manager"/>)},
+    {path: "/treasurer-receipts", element: treasurerGuarded(<StaffReceiptsPage role="treasurer"/>)},
     {path: "/bod-manage-loans", element: bodGuarded(<BOD_Manage_Loans/>)},
     {path: "/bod-loan-policies", element: bodGuarded(<BOD_Loan_Policies/>)},
     {path: "/bod-account-management", element: bodGuarded(<Account_Management/>)},

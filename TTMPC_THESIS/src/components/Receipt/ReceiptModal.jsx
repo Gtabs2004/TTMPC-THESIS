@@ -6,12 +6,15 @@ import { downloadReceiptPdf, printReceiptPdf } from "./receiptPdf";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 
-// Reads a receipt; never writes anything. Pass either `receiptNo` or
-// `source` ({ type, id }). 404 covers "doesn't exist" and "not yours to see".
-async function fetchReceipt({ receiptNo, source }) {
+// Reads a receipt; never writes anything. Pass `receiptNo`, `source`
+// ({ type, id }) or `audit` ({ type, id } of an audit_log row). 404 covers
+// "doesn't exist" and "not yours to see".
+async function fetchReceipt({ receiptNo, source, audit }) {
   const path = receiptNo
     ? `/api/receipts/${encodeURIComponent(receiptNo)}`
-    : `/api/receipts/by-source/${encodeURIComponent(source.type)}/${encodeURIComponent(source.id)}`;
+    : audit
+      ? `/api/receipts/by-audit/${encodeURIComponent(audit.type)}/${encodeURIComponent(audit.id)}`
+      : `/api/receipts/by-source/${encodeURIComponent(source.type)}/${encodeURIComponent(source.id)}`;
   const res = await fetch(`${API_BASE_URL}${path}`, { headers: { Accept: "application/json", ...(await authHeaders()) } });
   const payload = await res.json().catch(() => ({}));
   if (res.status === 404) {
@@ -25,14 +28,14 @@ async function fetchReceipt({ receiptNo, source }) {
 
 // Receipt viewer: a centred modal on PC, a full-screen sheet on a phone.
 // `notice` is an optional line above the receipt (the cashier pop-up uses it).
-export default function ReceiptModal({ open, receiptNo, source, notice, title = "Receipt", onClose }) {
+export default function ReceiptModal({ open, receiptNo, source, audit, notice, title = "Receipt", onClose }) {
   const [receipt, setReceipt] = useState(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(""); // "download" | "print"
   const [attempt, setAttempt] = useState(0);
 
-  const sourceKey = source ? `${source.type}/${source.id}` : "";
+  const sourceKey = source ? `source:${source.type}/${source.id}` : audit ? `audit:${audit.type}/${audit.id}` : "";
 
   useEffect(() => {
     if (!open || (!receiptNo && !sourceKey)) return undefined;
@@ -40,7 +43,7 @@ export default function ReceiptModal({ open, receiptNo, source, notice, title = 
     setLoading(true);
     setError("");
     setReceipt(null);
-    fetchReceipt({ receiptNo, source })
+    fetchReceipt({ receiptNo, source, audit })
       .then((r) => { if (!cancelled) setReceipt(r); })
       .catch((e) => { if (!cancelled) setError(e.message); })
       .finally(() => { if (!cancelled) setLoading(false); });

@@ -1,4 +1,5 @@
 ﻿  import React, { useEffect, useMemo, useState } from "react";
+import { authHeaders } from "../../utils/authHeaders";
 import { useNavigate, NavLink } from "react-router-dom";
 import { useRealtimeRefetch } from "../../hooks/useRealtimeRefetch";
 import { RT } from "../../lib/realtimeSync";
@@ -132,6 +133,7 @@ const BookkeeperSavingsTransactions = () => {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          ...(await authHeaders()),
         },
         body: JSON.stringify({ notes: "Confirmed by Bookkeeper" }),
       });
@@ -305,23 +307,8 @@ const BookkeeperSavingsTransactions = () => {
                               </TableActionButton>
                             </div>
                           ) : (
-                            // TODO: PRINT-RECEIPT-OVERLAY Â· withdrawal slip after bookkeeper validates
-                            <button
-                              onClick={() =>
-                                addNotification(
-                                  `Print withdrawal slip for ${row.transaction_id} — coming soon.`,
-                                  "info"
-                                )
-                              }
-                              className="px-2 py-1 rounded border border-dashed border-blue-400 bg-blue-50 hover:bg-blue-100 text-blue-700 text-[11px] font-semibold inline-flex items-center gap-1"
-                              title="PRINT-RECEIPT-OVERLAY Â· Coming soon"
-                            >
-                              <Printer size={12} />
-                              Print
-                              <span className="ml-0.5 text-[8px] uppercase tracking-wider bg-blue-200 text-blue-800 px-1 rounded-full">
-                                Soon
-                              </span>
-                            </button>
+                            // The receipt is issued on confirm; find it under Receipts.
+                            <span className="text-xs text-gray-400">—</span>
                           )}
                         </td>
                       </tr>

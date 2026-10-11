@@ -169,10 +169,154 @@ function cbuView(snapshot, symbol) {
   };
 }
 
+function savingsView(snapshot, symbol) {
+  const b = snapshot.breakdown || {};
+  const ref = snapshot.reference || {};
+  const account = snapshot.account || {};
+  const withdrawal = b.direction === "withdrawal";
+  const referenceRows = [
+    row("Receipt no.", text(snapshot.receipt_no), { mono: true }),
+    row("Transaction ID", text(ref.transaction_id), { mono: true }),
+  ];
+  if (withdrawal && ref.requested_at) referenceRows.push(row("Requested on", formatDateTime(ref.requested_at)));
+  referenceRows.push(
+    row(withdrawal ? "Released on" : "Deposited on", formatDateTime(ref.posted_at)),
+    row(text(ref.handled_role || (withdrawal ? "Validated by" : "Received by")), text(ref.handled_by)),
+  );
+  return {
+    title: text(snapshot.title || (withdrawal ? "Savings Withdrawal" : "Savings Deposit")),
+    subtitle: text(account.account_name || "Savings account"),
+    groups: [
+      memberGroup(snapshot, "Savings account", account.account_number),
+      {
+        heading: withdrawal ? "Withdrawal" : "Deposit",
+        rows: [
+          row(withdrawal ? "Amount withdrawn" : "Amount deposited", formatMoney(b.amount, symbol)),
+          row("Balance after", formatMoney(b.balance_after, symbol), { strong: true }),
+        ],
+      },
+      { heading: "Reference", rows: referenceRows },
+    ],
+  };
+}
+
+function membershipPaymentView(snapshot, symbol) {
+  const b = snapshot.breakdown || {};
+  const ref = snapshot.reference || {};
+  const referenceRows = [
+    row("Receipt no.", text(snapshot.receipt_no), { mono: true }),
+    row("Payment ID", text(ref.payment_id), { mono: true }),
+  ];
+  if (ref.reference_number) referenceRows.push(row("Payment reference", text(ref.reference_number), { mono: true }));
+  referenceRows.push(row("Paid on", formatDateTime(ref.paid_at)), row("Received by", text(ref.received_by)));
+  return {
+    title: text(snapshot.title || "Membership Fee"),
+    subtitle: `Membership · Paid by ${text(b.payment_method)}`,
+    groups: [
+      memberGroup(snapshot),
+      {
+        heading: "Payment",
+        rows: [
+          row("Payment type", text(b.payment_type)),
+          row("Payment method", text(b.payment_method)),
+          row("Amount paid", formatMoney(b.amount, symbol), { strong: true }),
+        ],
+      },
+      { heading: "Reference", rows: referenceRows },
+    ],
+  };
+}
+
+function cbuPayoutView(snapshot, symbol) {
+  const b = snapshot.breakdown || {};
+  const ref = snapshot.reference || {};
+  return {
+    title: "CBU Exit Payout",
+    subtitle: "Share capital paid out in cash",
+    groups: [
+      memberGroup(snapshot),
+      {
+        heading: "Payout",
+        rows: [
+          row("CBU before payout", formatMoney(b.cbu_before, symbol)),
+          row("Amount paid out", formatMoney(b.amount_paid, symbol)),
+          row("Still owed to member", formatMoney(b.still_owed_after, symbol), { strong: true }),
+        ],
+      },
+      {
+        heading: "Reference",
+        rows: [
+          row("Receipt no.", text(snapshot.receipt_no), { mono: true }),
+          row("Payout reference", text(ref.payout_reference), { mono: true }),
+          row("Payout date", formatDate(ref.payout_date)),
+          row("Paid by", text(ref.paid_by)),
+        ],
+      },
+    ],
+  };
+}
+
+function iscView(snapshot, symbol) {
+  const b = snapshot.breakdown || {};
+  const ref = snapshot.reference || {};
+  const capitalised = b.settlement === "capitalised";
+  const rate = Number(b.rate);
+  const rows = [
+    row("Basis period", `${formatDate(b.period_start)} – ${formatDate(b.period_end)}`),
+    row("Average share capital", formatMoney(b.average_share_capital, symbol)),
+    row("Rate", Number.isFinite(rate) ? `${rate.toLocaleString("en-US", { maximumFractionDigits: 4 })}%` : "—"),
+    row("Interest", formatMoney(b.interest_amount, symbol), { strong: !capitalised }),
+    row("Settlement", capitalised ? "Added to share capital" : "Paid in cash"),
+  ];
+  if (capitalised) rows.push(row("Share capital after", formatMoney(b.share_capital_after, symbol), { strong: true }));
+  return {
+    title: "Interest on Share Capital",
+    subtitle: capitalised ? "Added to your share capital" : "Paid in cash",
+    groups: [
+      memberGroup(snapshot),
+      { heading: "Interest on share capital", rows },
+      {
+        heading: "Reference",
+        rows: [
+          row("Receipt no.", text(snapshot.receipt_no), { mono: true }),
+          row("Settled on", formatDateTime(ref.settled_at)),
+          row("Settled by", text(ref.settled_by)),
+        ],
+      },
+    ],
+  };
+}
+
+function groceryView(snapshot, symbol) {
+  const b = snapshot.breakdown || {};
+  const ref = snapshot.reference || {};
+  return {
+    title: "Grocery Purchase",
+    subtitle: "Cooperative store · Paid",
+    groups: [
+      memberGroup(snapshot),
+      { heading: "Purchase", rows: [row("Amount", formatMoney(b.amount, symbol), { strong: true }), row("Status", text(b.status))] },
+      {
+        heading: "Reference",
+        rows: [
+          row("Receipt no.", text(snapshot.receipt_no), { mono: true }),
+          row("Grocery ID", text(ref.grocery_id), { mono: true }),
+          row("Purchased on", formatDateTime(ref.purchased_at)),
+        ],
+      },
+    ],
+  };
+}
+
 const BUILDERS = {
   loan_payment: loanPaymentView,
   loan_release: loanReleaseView,
   cbu: cbuView,
+  savings: savingsView,
+  membership_payment: membershipPaymentView,
+  cbu_payout: cbuPayoutView,
+  isc: iscView,
+  grocery: groceryView,
 };
 
 // Fallback for a receipt type this build doesn't know yet: still shows the

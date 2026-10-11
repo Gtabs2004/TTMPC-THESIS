@@ -22,6 +22,7 @@ import {
   UserX,
 } from "lucide-react";
 import Pagination from "./Pagination";
+import ReceiptModal from "./Receipt/ReceiptModal";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 
@@ -48,6 +49,12 @@ function buildAuditQuery(filters, extra = {}) {
 }
 
 const PAGE_SIZE = 5;
+
+// Audit entries that stand for a transaction with a receipt, and the roles
+// allowed to open receipts from here (RECEIPT_SYSTEM_PLAN.md §2, §8). The
+// backend checks again; anything without a receipt answers "not available".
+const RECEIPT_ENTITY_TYPES = new Set(["payment", "disbursement", "cbu", "savings", "withdrawal", "membership_payment", "grocery"]);
+const RECEIPT_VIEWER_ROLES = new Set(["bod", "bookkeeper", "manager", "treasurer"]);
 
 // Icons for the role-specific KPI cards returned by /api/audit-log/kpis.
 const KPI_ICON = {
@@ -83,6 +90,7 @@ const MODULE_BY_ENTITY = {
   withdrawal:         { label: "Withdrawals",        className: "bg-rose-50 text-rose-600"     },
   membership_payment: { label: "Membership Fees",    className: "bg-amber-50 text-amber-600"   },
   grocery:            { label: "Grocery",            className: "bg-lime-50 text-lime-600"     },
+  receipt:            { label: "Receipts",           className: "bg-gray-100 text-gray-700"    },
 };
 
 // Which actions should be flagged red in the Status column.
@@ -134,6 +142,8 @@ export const describeAuditContext = (row) => {
       return ctx.account_number || row.entity_id;
     case "membership_payment":
       return ctx.membership_id || row.entity_id;
+    case "receipt":
+      return [row.entity_id, ctx.member_name].filter(Boolean).join(" • ");
     default:
       return row.entity_id;
   }
@@ -154,6 +164,7 @@ const ACTIVITY_NOUN = {
   withdrawal:         "savings withdrawal",
   membership_payment: "membership fee payment",
   grocery:            "grocery transaction",
+  receipt:            "receipt",
 };
 
 const ACTIVITY_VERB = {
@@ -170,6 +181,7 @@ const ACTIVITY_VERB = {
   revise:      "Returned for revision",
   record:      "Recorded",
   post:        "Posted",
+  view:        "Viewed",
 };
 
 const titleCase = (s) =>
@@ -289,6 +301,9 @@ const AuditLogViewer = ({ showActorRoleFilter = true, onError }) => {
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(1);
   const [showViewAll, setShowViewAll] = useState(false);
+  const [viewerRole, setViewerRole] = useState("");
+  const [receiptAudit, setReceiptAudit] = useState(null);
+  const canViewReceipt = (r) => RECEIPT_VIEWER_ROLES.has(viewerRole) && RECEIPT_ENTITY_TYPES.has(r.entity_type);
 
   // KPI cards — the API picks which four fit the caller's role, so this is
   // just [{ key, label, value }] in display order.
@@ -317,6 +332,7 @@ const AuditLogViewer = ({ showActorRoleFilter = true, onError }) => {
       if (!res.ok) throw new Error(body.detail || "Failed to load audit log.");
       setRows(body.rows || []);
       setTotal(body.total || 0);
+      setViewerRole(String(body.role || "").toLowerCase());
     } catch (err) {
       if (silent) return;
       const msg = err?.message || "Failed to load audit log.";
@@ -501,7 +517,18 @@ const AuditLogViewer = ({ showActorRoleFilter = true, onError }) => {
           </span>
         </td>
         <td className="p-4 text-gray-600">{describeAuditActivity(r)}</td>
-        <td className="p-4 text-gray-500 font-medium tracking-wide">{describeAuditContext(r)}</td>
+        <td className="p-4 text-gray-500 font-medium tracking-wide">
+          {describeAuditContext(r)}
+          {canViewReceipt(r) ? (
+            <button
+              type="button"
+              onClick={() => setReceiptAudit({ type: r.entity_type, id: r.entity_id })}
+              className="ml-2 inline-flex items-center gap-1 text-xs font-semibold text-primary-deep hover:underline"
+            >
+              <Receipt className="h-3.5 w-3.5" aria-hidden="true" /> View receipt
+            </button>
+          ) : null}
+        </td>
         <td className="p-4">
           <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold tracking-wide ${
             flagged ? "bg-red-50 text-red-600" : "bg-green-50 text-green-600"
@@ -570,6 +597,15 @@ const AuditLogViewer = ({ showActorRoleFilter = true, onError }) => {
                     <td className="p-5 whitespace-normal min-w-[16rem]">
                       <p className="text-gray-700">{describeAuditActivity(r)}</p>
                       <p className="text-xs text-gray-400 mt-0.5">{describeAuditContext(r)}</p>
+                      {canViewReceipt(r) ? (
+                        <button
+                          type="button"
+                          onClick={() => setReceiptAudit({ type: r.entity_type, id: r.entity_id })}
+                          className="mt-1 inline-flex min-h-8 items-center gap-1 text-xs font-semibold text-primary-deep hover:underline"
+                        >
+                          <Receipt className="h-3.5 w-3.5" aria-hidden="true" /> View receipt
+                        </button>
+                      ) : null}
                     </td>
                     <td className="p-5">
                       <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold tracking-wide ${
@@ -654,6 +690,7 @@ const AuditLogViewer = ({ showActorRoleFilter = true, onError }) => {
           </div>
         </div>
       )}
+      <ReceiptModal open={!!receiptAudit} audit={receiptAudit} onClose={() => setReceiptAudit(null)} />
     </>
   );
 };

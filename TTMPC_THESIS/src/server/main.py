@@ -904,6 +904,35 @@ def resolve_savings_account_number(legacy_savings_id: str | None) -> str | None:
     return str(row["account_number"]) if row and row.get("account_number") else None
 
 
+def _receipt_no_for(source_type: str, source_id) -> str | None:
+    """The receipt a database trigger issued for one transaction, or None
+    (receipts SQL not applied yet, or the transaction gets no receipt)."""
+    if not supabase or not source_id:
+        return None
+    try:
+        rows = (
+            supabase.table("receipts").select("receipt_no")
+            .eq("source_type", source_type).eq("source_id", str(source_id))
+            .limit(1).execute()
+        ).data or []
+        return rows[0].get("receipt_no") if rows else None
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("receipt lookup failed for %s/%s: %s", source_type, source_id, exc)
+        return None
+
+
+def _insert_with_optional(table: str, row: dict, optional: dict):
+    """Insert `row` plus `optional` columns; if the optional columns don't exist
+    yet (receipts SQL not applied), insert without them."""
+    payload = {**row, **{k: v for k, v in optional.items() if v}}
+    try:
+        return supabase.table(table).insert(payload).execute()
+    except Exception as exc:
+        if not any(k in str(exc) for k in optional):
+            raise
+        return supabase.table(table).insert(row).execute()
+
+
 def mirror_savings_ledger_entry(
     *,
     account_number: str | None,
@@ -912,6 +941,7 @@ def mirror_savings_ledger_entry(
     transaction_id: str,
     posted_by: str | None,
     remarks: str | None,
+    recorded_by: str | None = None,
 ) -> None:
     """Best-effort write to public.savings_ledger.
 
@@ -923,7 +953,7 @@ def mirror_savings_ledger_entry(
     if not account_number or not supabase or amount <= 0:
         return
     try:
-        supabase.table("savings_ledger").insert({
+        _insert_with_optional("savings_ledger", {
             "account_number": account_number,
             "entry_type": entry_type,
             "amount": decimal_to_float(amount),
@@ -931,7 +961,7 @@ def mirror_savings_ledger_entry(
             "source": "savings_queue_mirror",
             "remarks": remarks,
             "posted_by": posted_by or "system",
-        }).execute()
+        }, {"recorded_by": recorded_by})
     except Exception as exc:  # noqa: BLE001
         print(f"[savings_ledger mirror] skipped ({entry_type} {amount} on {account_number}): {exc}")
 
@@ -9585,7 +9615,7 @@ async def post_savings_account_deposit(
 
         # Canonical write: ledger credit. Trigger updates savings_accounts.balance.
         try:
-            _ledger_insert = supabase.table("savings_ledger").insert({
+            _ledger_insert = _insert_with_optional("savings_ledger", {
                 "account_number": account_number,
                 "entry_type": "credit",
                 "amount": decimal_to_float(amount),
@@ -9593,7 +9623,7 @@ async def post_savings_account_deposit(
                 "source": "cashier_deposit",
                 "remarks": "Cashier deposit",
                 "posted_by": "cashier",
-            }).execute()
+            }, {"recorded_by": (current_user or {}).get("id")})
             _ledger_row = (_ledger_insert.data or [None])[0]
             if _ledger_row and _ledger_row.get("id"):
                 _correct_audit_actor("savings", str(_ledger_row["id"]), current_user)
@@ -9647,6 +9677,7 @@ async def post_savings_account_deposit(
                 "account_number": account_number,
                 "amount_deposited": decimal_to_float(amount),
                 "new_balance": float(new_balance),
+                "receipt_no": _receipt_no_for("savings", transaction_id),
             },
         }
     except HTTPException as err:
@@ -11189,7 +11220,11 @@ async def get_bookkeeper_savings_transactions():
 
 
 @app.post("/api/bookkeeper/savings-transactions/{transaction_id}/confirm")
-async def confirm_bookkeeper_savings_transaction(transaction_id: str, payload: BookkeeperPaymentDecisionRequest):
+async def confirm_bookkeeper_savings_transaction(
+    transaction_id: str,
+    payload: BookkeeperPaymentDecisionRequest,
+    current_user: dict | None = _Depends(_get_current_user_optional),
+):
     if not supabase:
         raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
 
@@ -11285,10 +11320,13 @@ async def confirm_bookkeeper_savings_transaction(transaction_id: str, payload: B
             )
 
         verified_at_value = datetime.utcnow().isoformat()
+        # The validator comes from the login token (the page never sent
+        # validated_by), so the withdrawal receipt can name the Bookkeeper.
+        validator_id = (current_user or {}).get("id") or payload.validated_by
         queue_update_payload = {
             "transaction_status": "validated",
             "verified_at": verified_at_value,
-            "verified_by": payload.validated_by,
+            "verified_by": validator_id,
             "notes": payload.notes,
             "posted_at": verified_at_value,
         }
@@ -11332,6 +11370,7 @@ async def confirm_bookkeeper_savings_transaction(transaction_id: str, payload: B
                 transaction_id=clean_transaction_id,
                 posted_by=payload.validated_by or "bookkeeper",
                 remarks=payload.notes or "Bookkeeper-confirmed withdrawal",
+                recorded_by=(current_user or {}).get("id"),
             )
 
         return {
@@ -14592,7 +14631,11 @@ async def create_membership_payment(payload: MembershipPaymentCreateRequest):
             "membership_payment", payment_id,
             {"id": payload.processed_by, "email": payload.processed_by_name},
         )
-    return {"success": True, "message": "Membership fee recorded successfully.", "data": saved}
+    return {
+        "success": True,
+        "message": "Membership fee recorded successfully.",
+        "data": {**saved, "receipt_no": _receipt_no_for("membership_payment", payment_id)},
+    }
 
 
 @app.get("/api/cashier/membership-payments")
@@ -17003,6 +17046,7 @@ def cashier_record_cbu_payout(payload: CbuPayoutRequest, current_user: dict = _D
             "closed": closed,
             "payout_date": (payout or {}).get("payout_date") or date.today().isoformat(),
             "recorded_by": current_user.get("email"),
+            "receipt_no": _receipt_no_for("cbu_payout", (payout or {}).get("id")),
         },
     }
 
@@ -18525,7 +18569,7 @@ _RECEIPT_SOURCE_TYPES = {
     "loan_payment", "loan_release", "savings", "cbu",
     "membership_payment", "cbu_payout", "isc", "grocery",
 }
-_RECEIPT_COLUMNS = "receipt_no,source_type,source_id,member_id,amount,issued_at,issued_by,snapshot,snapshot_hash"
+_RECEIPT_COLUMNS = "receipt_no,source_type,source_id,member_id,application_id,amount,issued_at,issued_by,snapshot,snapshot_hash"
 
 
 def _receipt_caller(current_user: dict) -> dict:
@@ -18594,10 +18638,66 @@ def _authorize_receipt(caller: dict, row: dict) -> bool:
     return False
 
 
+def _log_receipt_view(caller: dict, current_user: dict, row: dict) -> None:
+    """Audit a staff member opening someone else's receipt (plan §9). A member
+    viewing their own, or staff viewing one they issued, isn't logged. Best-effort: needs receipts_06_audit.sql,
+    and a failure never blocks the read."""
+    if caller["member_id"] and str(row.get("member_id") or "") == caller["member_id"]:
+        return
+    # The cashier's pop-up right after recording a transaction is their own
+    # receipt, not a lookup of someone else's.
+    if str(row.get("issued_by") or "") == caller["id"]:
+        return
+    try:
+        snapshot = row.get("snapshot") or {}
+        supabase.table("audit_log").insert({
+            "actor_user_id": caller["id"],
+            "actor_role": caller["role"] or None,
+            "actor_email": current_user.get("email"),
+            "entity_type": "receipt",
+            "entity_id": row.get("receipt_no"),
+            "action": "view",
+            "after": None,
+            "context": {
+                "receipt_no": row.get("receipt_no"),
+                "source_type": row.get("source_type"),
+                "member_name": (snapshot.get("member") or {}).get("name"),
+                "membership_id": (snapshot.get("member") or {}).get("membership_id"),
+                "amount": row.get("amount"),
+            },
+        }).execute()
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("receipt view audit failed for %s: %s", row.get("receipt_no"), exc)
+
+
 def _receipt_payload(row: dict) -> dict:
     return {k: row.get(k) for k in (
         "receipt_no", "source_type", "source_id", "amount", "issued_at", "snapshot", "snapshot_hash",
     )}
+
+
+def _receipt_resolve_owner(row: dict | None) -> dict | None:
+    """A membership-fee receipt issued while the payer was still an applicant
+    has no member_id. Once the application becomes a member, resolve it so the
+    new member can see their own fee receipts."""
+    if not row or row.get("member_id") or not row.get("application_id"):
+        return row
+    try:
+        apps = (
+            supabase.table("member_applications").select("membership_id")
+            .eq("application_id", row["application_id"]).limit(1).execute()
+        ).data or []
+        membership_id = (apps[0] if apps else {}).get("membership_id")
+        if membership_id:
+            members = (
+                supabase.table("member").select("id")
+                .eq("membership_id", membership_id).limit(1).execute()
+            ).data or []
+            if members:
+                return {**row, "member_id": members[0]["id"]}
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("receipt owner lookup failed for %s: %s", row.get("receipt_no"), exc)
+    return row
 
 
 def _receipt_fetch_one(column: str, value: str, extra: tuple[str, str] | None = None) -> dict | None:
@@ -18614,7 +18714,7 @@ def _receipt_fetch_one(column: str, value: str, extra: tuple[str, str] | None = 
             rows = run()
         except Exception as exc:
             raise HTTPException(status_code=500, detail=f"Could not read the receipt: {exc}")
-    return rows[0] if rows else None
+    return _receipt_resolve_owner(rows[0]) if rows else None
 
 
 @app.get("/api/receipts/by-source/{source_type}/{source_id}")
@@ -18630,6 +18730,73 @@ def get_receipt_by_source(source_type: str, source_id: str, current_user: dict =
     row = _receipt_fetch_one("source_type", clean_type, ("source_id", str(source_id or "").strip()))
     if not row or not _authorize_receipt(caller, row):
         raise HTTPException(status_code=404, detail="Receipt not found.")
+    _log_receipt_view(caller, current_user, row)
+    return {"ok": True, "receipt": _receipt_payload(row)}
+
+
+# audit_log entity_type -> how its entity_id maps to a receipt source.
+_AUDIT_RECEIPT_TYPES = {"payment", "disbursement", "cbu", "savings", "withdrawal", "membership_payment", "grocery"}
+
+
+def _receipt_for_audit_entity(entity_type: str, entity_id: str) -> dict | None:
+    """The receipt behind one audit_log row. Most audit rows store the same key
+    the receipt uses; CBU stores cbu_deposit_id and savings may store the
+    ledger row id, so those two are translated first."""
+    if entity_type == "payment":
+        return _receipt_fetch_one("source_type", "loan_payment", ("source_id", entity_id))
+    if entity_type == "disbursement":
+        return _receipt_fetch_one("source_type", "loan_release", ("source_id", entity_id))
+    if entity_type == "membership_payment":
+        return _receipt_fetch_one("source_type", "membership_payment", ("source_id", entity_id))
+    if entity_type == "grocery":
+        return _receipt_fetch_one("source_type", "grocery", ("source_id", entity_id))
+    if entity_type == "cbu":
+        rows = (
+            supabase.table("capital_build_up").select("id")
+            .or_(f"cbu_deposit_id.eq.{entity_id}" + (f",id.eq.{entity_id}" if _looks_like_uuid(entity_id) else ""))
+            .limit(1).execute()
+        ).data or []
+        return _receipt_fetch_one("source_type", "cbu", ("source_id", str(rows[0]["id"]))) if rows else None
+    if entity_type in ("savings", "withdrawal"):
+        row = _receipt_fetch_one("source_type", "savings", ("source_id", entity_id))
+        if row or not _looks_like_uuid(entity_id):
+            return row
+        ledger = (
+            supabase.table("savings_ledger").select("reference").eq("id", entity_id).limit(1).execute()
+        ).data or []
+        reference = (ledger[0] if ledger else {}).get("reference")
+        return _receipt_fetch_one("source_type", "savings", ("source_id", reference)) if reference else None
+    return None
+
+
+def _looks_like_uuid(value: str) -> bool:
+    try:
+        UUID(str(value))
+        return True
+    except (TypeError, ValueError):
+        return False
+
+
+@app.get("/api/receipts/by-audit/{entity_type}/{entity_id}")
+def get_receipt_by_audit(entity_type: str, entity_id: str, current_user: dict = _Depends(_get_current_user)):
+    """The receipt for an audit log entry ("View receipt" in the audit log)."""
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase not configured")
+    clean_type = str(entity_type or "").strip().lower()
+    clean_id = re.sub(r"[,()]", "", str(entity_id or "").strip())
+    if clean_type not in _AUDIT_RECEIPT_TYPES or not clean_id:
+        raise HTTPException(status_code=404, detail="Receipt not found.")
+
+    caller = _receipt_caller(current_user)
+    try:
+        row = _receipt_for_audit_entity(clean_type, clean_id)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Could not read the receipt: {exc}")
+    if not row or not _authorize_receipt(caller, row):
+        raise HTTPException(status_code=404, detail="Receipt not found.")
+    _log_receipt_view(caller, current_user, row)
     return {"ok": True, "receipt": _receipt_payload(row)}
 
 
@@ -18643,6 +18810,7 @@ def get_receipt(receipt_no: str, current_user: dict = _Depends(_get_current_user
     row = _receipt_fetch_one("receipt_no", str(receipt_no or "").strip().upper())
     if not row or not _authorize_receipt(caller, row):
         raise HTTPException(status_code=404, detail="Receipt not found.")
+    _log_receipt_view(caller, current_user, row)
     return {"ok": True, "receipt": _receipt_payload(row)}
 
 
@@ -18786,10 +18954,36 @@ def member_transactions(
     savings = fetch(lambda: supabase.table("savings_transaction_queue").select(
         "transaction_id,transaction_type,amount,transaction_status,requested_at"
     ).eq("membership_number_id", membership_id)) if membership_id else []
+    savings_accounts = fetch(lambda: supabase.table("savings_accounts").select("account_number").eq("member_id", member_id))
+    account_numbers = [a["account_number"] for a in savings_accounts if a.get("account_number")]
+    openings = fetch(lambda: supabase.table("savings_ledger").select(
+        "reference,amount,posted_at"
+    ).in_("account_number", account_numbers).like("reference", "OPEN-%")) if account_numbers else []
+    applications = fetch(
+        lambda: supabase.table("member_applications").select("application_id").eq("membership_id", membership_id)
+    ) if membership_id else []
+    application_ids = [a["application_id"] for a in applications if a.get("application_id")]
+    fees = fetch(lambda: supabase.table("membership_payments").select(
+        "payment_id,payment_type,amount,payment_status,payment_date,created_at,reference_number"
+    ).in_("application_id", application_ids)) if application_ids else []
+    payouts = fetch(lambda: supabase.table("cbu_payouts").select(
+        "id,amount,payout_date,created_at,reference"
+    ).eq("member_id", member_id).eq("kind", "payout"))
+    isc_lines = fetch(lambda: supabase.table("isc_transactions").select(
+        "id,interest_amount,settlement,settled_at"
+    ).eq("member_id", member_id).in_("settlement", ["capitalised", "cash"]))
+    groceries = fetch(lambda: supabase.table("GROCERY_TRANSACTIONS").select(
+        "GroceryID,TransactionDate,GroceryAmount,Status,event_id"
+    ).eq("membership_number_id", member_id))
     cbu_rows = fetch(lambda: supabase.table("capital_build_up").select(
         "id,cbu_deposit_id,transaction_date,capital_added,deposit_account,source_loan_id,source_payment_id,source_isc_id,source_backfill_id"
     ).eq("member_id", member_id).gt("capital_added", 0))
     receipts = fetch(lambda: supabase.table("receipts").select("receipt_no,source_type,source_id").eq("member_id", member_id))
+    if application_ids:
+        # Membership-fee receipts issued before the payer became a member.
+        receipts += fetch(
+            lambda: supabase.table("receipts").select("receipt_no,source_type,source_id").in_("application_id", application_ids)
+        )
     receipt_by_source = {(r["source_type"], str(r["source_id"])): r["receipt_no"] for r in receipts}
 
     rows: list[dict] = []
@@ -18860,6 +19054,62 @@ def member_transactions(
             "reference": c.get("cbu_deposit_id") or "",
             "when": when,
             "day": day,
+        })
+
+    for o in openings:
+        when, day = _feed_when(o.get("posted_at"))
+        rows.append({
+            "source_type": "savings", "source_id": str(o["reference"]), "category": "savings",
+            "description": "Savings Opening Deposit",
+            "amount": decimal_to_float(Decimal(str(o.get("amount") or 0))),
+            "direction": "credit", "status": "completed", "reference": str(o["reference"]),
+            "when": when, "day": day,
+        })
+    for f in fees:
+        if not str(f.get("payment_id") or "").startswith(("TTMPCMF-", "TTMPCPC-")):
+            continue
+        when, day = _feed_when(f.get("payment_date") or f.get("created_at"))
+        paid_up = str(f.get("payment_type") or "").upper() == "INITIAL_PAID_UP_CAPITAL"
+        rows.append({
+            "source_type": "membership_payment", "source_id": str(f["payment_id"]), "category": "membership",
+            "description": "Initial Paid-Up Capital" if paid_up else "Membership Fee",
+            "amount": decimal_to_float(Decimal(str(f.get("amount") or 0))),
+            "direction": "debit",
+            "status": _feed_status(f.get("payment_status"), {"paid"}, {"pending", "unpaid"}),
+            "reference": f.get("reference_number") or f.get("payment_id") or "",
+            "when": when, "day": day,
+        })
+    for po in payouts:
+        when, day = _feed_when(po.get("created_at") or po.get("payout_date"))
+        rows.append({
+            "source_type": "cbu_payout", "source_id": str(po["id"]), "category": "cbu",
+            "description": "CBU Exit Payout",
+            "amount": decimal_to_float(Decimal(str(po.get("amount") or 0))),
+            "direction": "credit", "status": "completed", "reference": po.get("reference") or "",
+            "when": when, "day": day,
+        })
+    for t in isc_lines:
+        if Decimal(str(t.get("interest_amount") or 0)) <= 0:
+            continue
+        when, day = _feed_when(t.get("settled_at"))
+        cash = t.get("settlement") == "cash"
+        rows.append({
+            "source_type": "isc", "source_id": str(t["id"]), "category": "cbu",
+            "description": "Interest on Share Capital · " + ("Cash" if cash else "Added to share capital"),
+            "amount": decimal_to_float(Decimal(str(t.get("interest_amount") or 0))),
+            "direction": "credit", "status": "completed", "reference": "",
+            "when": when, "day": day,
+        })
+    for g in groceries:
+        if g.get("Status") != "Completed" or not g.get("event_id"):
+            continue
+        when, day = _feed_when(g.get("TransactionDate"))
+        rows.append({
+            "source_type": "grocery", "source_id": str(g["GroceryID"]), "category": "grocery",
+            "description": "Grocery Purchase",
+            "amount": decimal_to_float(Decimal(str(g.get("GroceryAmount") or 0))),
+            "direction": "debit", "status": "completed", "reference": str(g["GroceryID"]),
+            "when": when, "day": day,
         })
 
     for r in rows:

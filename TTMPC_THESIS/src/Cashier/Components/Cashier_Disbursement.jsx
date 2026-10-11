@@ -5,7 +5,6 @@ import StaffSidebar from "../../components/StaffSidebar";
 import { cashierNav } from "../../components/StaffSidebar/configs/cashier";
 import { NavLink, useNavigate } from "react-router-dom";
 import { UserAuth } from "../../contex/AuthContext";
-import { useNotification } from "../../contex/NotificationContext";
 import { useConfirm } from "../../contex/ConfirmContext";
 import StaffTopbar from "../../components/StaffTopbar";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
@@ -62,7 +61,6 @@ const PAGE_SIZE = 5;
 const Cashier_Disbursement = () => {
   const { session } = UserAuth();
   const navigate = useNavigate();
-  const { addNotification } = useNotification();
   const confirm = useConfirm();
   const [readyLoans, setReadyLoans] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -662,25 +660,7 @@ const Cashier_Disbursement = () => {
               </div>
             </div>
 
-            <div className="p-5 border-t border-gray-200 bg-gray-50 flex justify-between items-center">
-              {/* TODO: PRINT-RECEIPT-OVERLAY · loan disbursement voucher */}
-              <button
-                type="button"
-                onClick={() =>
-                  addNotification(
-                    "Print voucher is coming soon. It will render the variable fields (member, amount, date, reference) onto the cooperative's pre-printed disbursement voucher bond paper.",
-                    "info"
-                  )
-                }
-                className="rounded-lg border-2 border-dashed border-blue-400 bg-blue-50 hover:bg-blue-100 text-blue-700 text-sm font-semibold px-4 py-2 transition inline-flex items-center gap-2"
-                title="PRINT-RECEIPT-OVERLAY · Coming soon"
-              >
-                <Printer size={16} />
-                Print Voucher
-                <span className="ml-1 text-[10px] uppercase tracking-wider bg-blue-200 text-blue-800 px-1.5 py-0.5 rounded-full">
-                  Soon
-                </span>
-              </button>
+            <div className="p-5 border-t border-gray-200 bg-gray-50 flex justify-end items-center">
               <button
                 type="button"
                 onClick={() => setConfirmation(null)}

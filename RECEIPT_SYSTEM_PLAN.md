@@ -1,6 +1,6 @@
 # Transaction Receipts — Plan
 
-Status: **Design approved 2026-10-11. Steps 0–5 and 6a (CBU deposits) done (§12.1–§12.2g). Paused 2026-10-11 at the user's request. Next when resumed: Step 6b — savings first, then membership fees, CBU payouts, ISC, grocery; then Step 7.**
+Status: **COMPLETE 2026-10-11.** All steps (0–7) built and tested. Only the ISC receipt trigger is unexercised, because no ISC posting has been settled yet.
 
 ---
 
@@ -259,9 +259,10 @@ Inspired by GoTyme (grouped cards, large centered amount), Maya (fields that cha
 2. `src/server/receipts_02_triggers.sql`: `receipt_issue()` + snapshot builders and triggers for loan payments and loan releases. **(written, Step 1)** Later steps add the other source tables.
 3. `src/server/receipts_03_backfill.sql`: `receipts_backfill()` for loan payments and releases. **(written, Step 1)**
 4. `src/server/receipts_04_cbu.sql`: CBU deposit receipts. **(written, Step 6a)**
-5. `src/server/receipts_05_audit.sql`: widen `audit_log` constraints. (Step 7)
+5. `src/server/receipts_05_more_types.sql`: savings, membership fees, CBU exit payouts, ISC, grocery. **(written, Step 6b)**
+6. `src/server/receipts_06_audit.sql`: allow `receipt` / `view` in `audit_log`. **(written, Step 7)**
 
-Checks (read-only) live in `src/server/receipt_checks/`: `00_step0_checks.sql`, `01_step1_verify.sql`.
+Checks (read-only) live in `src/server/receipt_checks/`: `00_step0_checks.sql`, `01_step1_verify.sql`, `02_step6_cbu_checks.sql`, `03_step6_cbu_verify.sql`, `04_step6b_verify.sql`.
 
 ---
 
@@ -482,6 +483,52 @@ Why CBU deposits had no receipt: Step 1 only added triggers for loan payments an
 4. As the Cashier: record a CBU deposit → the receipt pops up.
 5. `src/server/receipt_checks/03_step6_cbu_verify.sql` → paste the result.
 
+### 12.2h Step 6b — Savings, membership fees, CBU exit payouts, ISC, grocery
+
+**Status: DONE 2026-10-11.** Catch-up: savings 9, membership fees 19, CBU exit payouts 1, grocery 7, ISC 0 (no posting settled yet — the ISC trigger is untested until the first March GA settlement). Verify (`04_step6b_verify.sql`): receipts cbu 13, cbu_payout 1, grocery 7, loan_payment 14, loan_release 10, membership_payment 19, savings 10 (one new live deposit); 0 missing / 0 pending-with-receipt / 0 duplicates / 0 hash mismatches / no errors. 9 membership-fee receipts have no `member_id` in the table (paid as applicants) — expected: receipts never change, so the owner is resolved at read time (`_receipt_resolve_owner`) once the applicant is a member.
+
+**Which rows get a receipt** (from reading the code, not a data check):
+
+| Type | Receipt issued when | Source key | Cashier pop-up |
+|---|---|---|---|
+| Savings | A `savings_ledger` entry is posted whose `reference` is a validated queue transaction (deposit right away; withdrawal when the Bookkeeper confirms), a `cashier_deposit`, or an account-opening deposit (`OPEN-<id>`) | queue `transaction_id` (opening: `OPEN-<id>`) | Deposit |
+| Membership fee / paid-up capital | `membership_payments` paid, with a system payment ID (`TTMPCMF-…` / `TTMPCPC-…`) | `payment_id` | Yes |
+| CBU exit payout | `cbu_payouts` row of kind `payout` (loan offsets aren't cash → none) | `cbu_payouts.id` | Yes (replaces the old print-only window) |
+| ISC | `isc_transactions.settlement` becomes `capitalised` or `cash` | line `id` | — (Bookkeeper settles) |
+| Grocery | `GROCERY_TRANSACTIONS` `Completed` **and** has a POS `event_id` (webhook) | `GroceryID` | — |
+
+**As built:**
+- `src/server/receipts_05_more_types.sql`: triggers and snapshot builders for all five; `savings_ledger.recorded_by`; `receipt_issue_for_application()` (keeps the applicant on membership-fee receipts); catch-up `receipts_backfill_more()`.
+- **Membership fees before membership:** the receipt keeps `application_id`. When the applicant becomes a member, the backend resolves them (`_receipt_resolve_owner`), so the new member sees their own fee receipts; the cashier sees it in the pop-up.
+- **ISC "cash":** the receipt says "Paid in cash" — it follows the March GA settlement checklist (`isc_settle_posting`), which is the system's record that the cash was paid.
+- `main.py`:
+  - savings deposit (`POST /api/savings/accounts/{n}/deposit`) saves `recorded_by` and returns `receipt_no`; `mirror_savings_ledger_entry()` takes `recorded_by`;
+  - Bookkeeper savings confirm takes the login token (validator from the token, like loan payments);
+  - membership payment and CBU payout endpoints return `receipt_no`;
+  - `_receipt_no_for()` / `_insert_with_optional()` helpers (insert still works before the SQL is applied);
+  - member feed adds savings opening deposits, membership fees, CBU exit payouts, ISC and grocery.
+- Frontend: receipt layouts for all five (`receiptView.js`); pop-ups in `Savings_Details.jsx` (deposit), `Cashier_MembershipPayments.jsx`, `Cashier_CBU_Exit_Payout.jsx`; Bookkeeper `Savings-Transactions.jsx` sends the login; member Transactions tab gets Membership and Grocery filters.
+
+### 12.2i Step 7 — Staff receipt lookup, audit log link, view audit
+
+**Status: DONE 2026-10-11.** Live test: BOD sidebar shows Receipts; opening receipts logged "Viewed receipt of ₱… · TTMPC-TR-… • member" in the audit log; `audit_log` CHECK lists include `receipt` / `view`. Follow-up fix: a view by the receipt's own issuer (the cashier's pop-up) is no longer logged.
+
+- **Receipts page** for BOD, Bookkeeper, Manager and Treasurer (`components/Receipt/StaffReceiptsPage.jsx` + `ReceiptLookup.jsx`): search by receipt no., member name or ID, type, issued date range; pages of 10; click a row → receipt. Routes `/bod-receipts`, `/bookkeeper-receipts`, `/manager-receipts`, `/treasurer-receipts`; "Receipts" sidebar item right after "Audit Log" in each portal. Cashier and Secretary don't get it.
+- **Audit log "View receipt"** (`AuditLogViewer.jsx`): on payment, disbursement, CBU, savings, withdrawal, membership-fee and grocery entries, for BOD/Bookkeeper/Manager/Treasurer. New endpoint `GET /api/receipts/by-audit/{entity_type}/{entity_id}` translates the audit row's ID (CBU audit rows store `cbu_deposit_id`; savings rows may store the ledger row ID). Entries without a receipt say "This receipt isn't available."
+- **Audit of staff viewing a member's receipt** (§9): every single-receipt endpoint writes an `audit_log` row (`entity_type = 'receipt'`, `action = 'view'`) when the viewer isn't the owner. Needs `receipts_06_audit.sql`, which widens the audit CHECK lists by reading the live constraint (keeps every existing value). Shows in the audit log as "Viewed receipt …".
+- Checked: `main.py` compiles; production build passes; no new ESLint problems; receipt layouts exercised on sample snapshots for all five new types.
+
+### 12.2j To apply and test (Steps 6b + 7)
+
+1. `src/server/receipts_05_more_types.sql`
+2. `src/server/receipts_06_audit.sql`
+3. `SELECT * FROM public.receipts_backfill_more();` → paste the result. **Done 2026-10-11: savings 9, membership fees 19, CBU exit payouts 1, ISC 0 (nothing settled yet), grocery 7 — all issued, 0 failed.**
+4. Restart the backend, refresh the app.
+5. Cashier: savings deposit → pop-up; membership fee → pop-up; (if there's an exiting member) CBU payout → pop-up.
+6. Bookkeeper: confirm a pending savings withdrawal → the member's Transactions tab shows its receipt.
+7. Bookkeeper/BOD/Manager/Treasurer: sidebar **Receipts** → search, open a receipt; **Audit Log** → "View receipt" on a transaction entry; the view then appears in the audit log as "Viewed receipt".
+8. `src/server/receipt_checks/04_step6b_verify.sql` → paste the result.
+
 ### 12.3 After Step 1
 
 | Order | Work | Result you can see |
@@ -538,4 +585,6 @@ The repo has no automated tests today.
 - 2026-10-11 — Receipt design approved (mockup: https://claude.ai/artifact/VDsoS9QzYKSWqiTXMCzxS1).
 - 2026-10-11 — The user runs all SQL in the Supabase SQL Editor; Claude only writes it.
 - 2026-10-11 — This file is updated after every finished step.
+- 2026-10-11 — All "Print Receipt · Soon" placeholders removed now that real receipts work: Savings_Details.jsx (top button + per-row Receipt column), Bookkeeper Savings-Transactions.jsx (confirmed rows show "—"; receipt is under Receipts), Cashier_Disbursement.jsx fallback panel ("Print Voucher · Soon").
+- 2026-10-11 — "Finish the remaining": Steps 6b and 7 built together. Grocery receipts only for POS-webhook purchases (`event_id` present); savings opening deposits included.
 - 2026-10-11 — The download button is labelled **"Download Receipt"** (not "Download PDF") everywhere; it still saves the A5 PDF `Receipt-<receipt no>.pdf`.

@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useRealtimeRefetch } from "../../hooks/useRealtimeRefetch";
 import { RT } from "../../lib/realtimeSync";
+import ReceiptModal from "../../components/Receipt/ReceiptModal";
 import { StatCard, StatCardRow } from "../../components/StatCard";
 import StaffSidebar from "../../components/StaffSidebar";
 import { cashierNav } from "../../components/StaffSidebar/configs/cashier";
@@ -157,6 +158,9 @@ const Savings_Details = () => {
   const [depositError, setDepositError] = useState(null);
   const [withdrawError, setWithdrawError] = useState(null);
   const [feedbackMessage, setFeedbackMessage] = useState("");
+  // Receipt shown once after a deposit (RECEIPT_SYSTEM_PLAN.md §5). Withdrawals
+  // get theirs when the Bookkeeper confirms them.
+  const [depositReceiptNo, setDepositReceiptNo] = useState("");
   const [ledgerPage, setLedgerPage] = useState(1);
 
   const account = data?.account;
@@ -196,19 +200,6 @@ const Savings_Details = () => {
     addNotification("Account refreshed.", "success");
   };
 
-  // TODO: PRINT-RECEIPT-OVERLAY
-  // Placeholder for overlay printing onto the cooperative's pre-printed bond-paper
-  // receipts. Plan: backend endpoint generates a PDF with ONLY the variable fields
-  // (member name, amount, date, signatures) positioned at exact mm coordinates that
-  // match the empty fields on the printed form. See: receipt template handoff.
-  const handlePrintReceipt = (entry) => {
-    addNotification(
-      entry
-        ? `Print receipt for ${entry.reference || entry.id} — coming soon.`
-        : "Print receipt — coming soon. Awaiting bond-paper template from cooperative.",
-      "info"
-    );
-  };
 
   const openDepositModal = () => {
     setDepositAmount("");
@@ -239,7 +230,8 @@ const Savings_Details = () => {
 
     setDepositBusy(true);
     try {
-      await submitTransaction("deposit", numeric);
+      const depositResult = await submitTransaction("deposit", numeric);
+      if (depositResult?.data?.receipt_no) setDepositReceiptNo(depositResult.data.receipt_no);
       setFeedbackMessage(`Deposit of ${formatCurrency(numeric)} posted successfully.`);
       addNotification(`Deposit of ${formatCurrency(numeric)} posted.`, "success");
       setShowDepositModal(false);
@@ -426,19 +418,6 @@ const Savings_Details = () => {
                     <ArrowUpCircle size={16} />
                     Request Withdrawal
                   </button>
-
-                  {/* TODO: PRINT-RECEIPT-OVERLAY — labeled stub, find via grep "PRINT-RECEIPT" */}
-                  <button
-                    onClick={() => handlePrintReceipt(null)}
-                    className="flex items-center gap-2 rounded-lg border-2 border-dashed border-blue-400 bg-blue-50 hover:bg-blue-100 text-blue-700 font-semibold px-5 py-2.5 text-sm transition-colors"
-                    title="PRINT-RECEIPT-OVERLAY · Coming soon"
-                  >
-                    <Printer size={16} />
-                    Print Receipt
-                    <span className="ml-1 text-[10px] uppercase tracking-wider bg-blue-200 text-blue-800 px-1.5 py-0.5 rounded-full">
-                      Soon
-                    </span>
-                  </button>
                 </div>
               </div>
 
@@ -459,13 +438,12 @@ const Savings_Details = () => {
                         <th className="p-5 font-bold text-right">Running Balance</th>
                         <th className="p-5 font-bold">Reference</th>
                         <th className="p-5 font-bold">Remarks</th>
-                        <th className="p-5 font-bold text-center">Receipt</th>
                       </tr>
                     </thead>
                     <tbody>
                       {ledger.length === 0 ? (
                         <TableStateRow
-                          colSpan={7}
+                          colSpan={6}
                           variant="empty"
                           icon={Banknote}
                           label="No transactions yet on this account"
@@ -511,16 +489,6 @@ const Savings_Details = () => {
                               </td>
                               <td className="p-5 text-xs text-gray-600">
                                 {entry.remarks || entry.source || "—"}
-                              </td>
-                              {/* TODO: PRINT-RECEIPT-OVERLAY · per-entry reprint */}
-                              <td className="p-5 text-center">
-                                <button
-                                  onClick={() => handlePrintReceipt(entry)}
-                                  className="inline-flex items-center justify-center w-8 h-8 rounded-full border border-dashed border-blue-300 text-blue-600 hover:bg-blue-50 transition-colors"
-                                  title="PRINT-RECEIPT-OVERLAY · Coming soon"
-                                >
-                                  <Printer size={14} />
-                                </button>
                               </td>
                             </tr>
                           );
@@ -653,6 +621,14 @@ const Savings_Details = () => {
           </div>
         </div>
       )}
+
+      <ReceiptModal
+        open={!!depositReceiptNo}
+        receiptNo={depositReceiptNo}
+        title="Savings deposit posted"
+        notice="Print or download now. After you close this, the receipt stays available to the member in their portal."
+        onClose={() => setDepositReceiptNo("")}
+      />
     </div>
   );
 };
