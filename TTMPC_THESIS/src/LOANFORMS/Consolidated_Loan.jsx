@@ -8,7 +8,7 @@ import { resolveAccountFromSessionUser } from '../utils/sessionIdentity';
 import { useMigsLabel } from '../hooks/useMigsLabel';
 import { useLoanEligibility } from '../hooks/useLoanEligibility';
 import { useNotification } from '../contex/NotificationContext';
-import { FileImage, Loader2, Upload, ShieldCheck, Trash2, Plus, CheckCircle2, ImagePlus } from 'lucide-react';
+import { Download, FileImage, Loader2, Upload, ShieldCheck, Trash2, Plus, CheckCircle2, ImagePlus } from 'lucide-react';
 import MobileFormStepper from '../components/MobileFormStepper';
 import LoanDeductionsCard from '../components/LoanDeductionsCard';
 import { formatWithCommas, stripCommas } from '../utils/numberFormat';
@@ -285,6 +285,11 @@ function Consolidated_Loan() {
   const canApplyNew = eligibility ? Boolean(eligibility.can_apply_new) : true;
   const canRenew = eligibility ? Boolean(eligibility.can_renew) : true;
   const eligibilityReady = eligibilityStatus === 'ready';
+  // The PDF's New/Renewal tick comes from the form, which starts on "New" and
+  // only flips to Renewal once eligibility has loaded. Hold Print/Download until
+  // then so the default can't be stamped by mistake. "error" also releases it so
+  // a failed lookup never leaves the buttons stuck.
+  const pdfNotReady = !(eligibilityStatus === 'ready' || eligibilityStatus === 'error');
   const [renewalError, setRenewalError] = useState('');
   const [sixMonthOverride, setSixMonthOverride] = useState(false);
 
@@ -694,7 +699,7 @@ function Consolidated_Loan() {
     return payload;
   };
 
-  const handlePrintPdf = async () => {
+  const handlePrintPdf = async ({ download = false } = {}) => {
     setPrinting(true);
 
     try {
@@ -734,7 +739,9 @@ function Consolidated_Loan() {
       }
 
       const objectUrl = URL.createObjectURL(blob);
-      const previewWindow = window.open(objectUrl, PDF_PREVIEW_WINDOW_NAME);
+      // On mobile "Download PDF" skips the preview tab and saves the file; the
+      // popup-blocked fallback below does the actual download.
+      const previewWindow = download ? null : window.open(objectUrl, PDF_PREVIEW_WINDOW_NAME);
 
       if (!previewWindow) {
         // Popup was blocked — fall back to direct download so the action isn't lost.
@@ -1129,6 +1136,16 @@ function Consolidated_Loan() {
       <form ref={formRef} noValidate={window.matchMedia('(max-width: 767px)').matches} onSubmit={handleFormSubmit} className="px-3 sm:px-4">
         <section className="grid gap-6 px-3 sm:gap-8 sm:px-4">
           <h1 className="mt-8 text-center text-xl font-bold text-primary sm:mt-12 sm:text-2xl">CONSOLIDATED LOAN APPLICATION</h1>
+          {/* Mobile-only: download the form as a PDF (includes what is entered so far). */}
+          <button
+            type="button"
+            onClick={() => handlePrintPdf({ download: true })}
+            disabled={printing || loading || pdfNotReady}
+            className="md:hidden -mt-2 mx-auto flex w-full max-w-6xl items-center justify-center gap-2 rounded border border-primary bg-white px-4 py-2.5 text-sm font-bold text-primary-deep transition-colors hover:bg-[#E9F7DE] disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <Download size={16} aria-hidden="true" />
+            {printing ? 'Preparing PDF...' : 'Download PDF'}
+          </button>
           <div className="max-w-6xl mx-auto w-full">
             <div className="bg-[#EEF6F1] rounded-xl p-4 border-2 border-primary flex flex-col items-start justify-between gap-4 sm:p-6 md:flex-row md:items-center md:gap-6">
               <div className="flex flex-wrap gap-4 sm:gap-8">
@@ -1278,7 +1295,7 @@ function Consolidated_Loan() {
               </div>
             )}
             
-            <div className="leading-[3.5rem]">
+            <div className="leading-relaxed sm:leading-[3.5rem]">
               I hereby apply for a loan in the amount of
               <input
                 type="text"
@@ -1288,7 +1305,7 @@ function Consolidated_Loan() {
                 tabIndex={-1}
                 aria-readonly
                 title="Auto-generated from the selected loan amount."
-                className="border border-gray-200 rounded-md px-3 py-1.5 outline-none bg-gray-100 text-gray-600 text-sm mx-2 w-full sm:w-[22rem] inline-block align-middle cursor-not-allowed select-text"
+                className="border border-gray-200 rounded-md px-3 py-1.5 outline-none bg-gray-100 text-gray-600 text-sm mx-0 my-2 w-full sm:mx-2 sm:my-0 sm:w-[22rem] inline-block align-middle cursor-not-allowed select-text"
               />
               <div className="inline-flex items-center relative mr-2 align-middle leading-none">
                 <select
@@ -1319,7 +1336,7 @@ function Consolidated_Loan() {
                 name="loan_purpose" 
                 value={formData.loan_purpose} 
                 onChange={handleChange} 
-                className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-primary outline-none bg-white text-sm transition-all mx-2 w-full sm:w-64 inline-block align-middle" 
+                className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-primary outline-none bg-white text-sm transition-all mx-0 my-2 w-full sm:mx-2 sm:my-0 sm:w-64 inline-block align-middle" 
               >
                 <option value="">Select Purpose</option>
                 <option value="Emergency Needs">Emergency Needs</option>
@@ -1338,7 +1355,7 @@ function Consolidated_Loan() {
                   value={formData.loan_purpose_other} 
                   onChange={handleChange} 
                   placeholder="Please specify..."
-                  className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-primary outline-none bg-white text-sm transition-all mx-2 w-full sm:w-56 inline-block align-middle" 
+                  className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-primary outline-none bg-white text-sm transition-all mx-0 my-2 w-full sm:mx-2 sm:my-0 sm:w-56 inline-block align-middle" 
                 />
               )}
               <br className="hidden md:block" />
@@ -1373,7 +1390,7 @@ function Consolidated_Loan() {
                 tabIndex={-1}
                 aria-readonly
                 title="System-computed from principal, term and interest rate."
-                className={`border rounded-md px-3 py-1.5 outline-none text-sm transition-all mx-2 w-48 inline-block align-middle cursor-not-allowed select-text ${
+                className={`border rounded-md px-3 py-1.5 outline-none text-sm transition-all mx-0 my-2 w-full sm:mx-2 sm:my-0 sm:w-48 inline-block align-middle cursor-not-allowed select-text ${
                   hasComputedAmortization
                     ? 'border-primary bg-[#E9F7DE] text-[#2E7D32] font-semibold'
                     : 'border-gray-200 bg-gray-100 text-gray-600'
@@ -1751,6 +1768,15 @@ function Consolidated_Loan() {
           })}
 
           <button
+            type="button"
+            onClick={() => handlePrintPdf({ download: true })}
+            disabled={printing || loading || pdfNotReady}
+            className="mt-5 flex w-full items-center justify-center gap-2 rounded border border-primary bg-white px-5 py-2.5 text-sm font-bold text-primary-deep transition-colors hover:bg-[#E9F7DE] disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <Download size={16} aria-hidden="true" />
+            {printing ? 'Preparing PDF...' : 'Download PDF'}
+          </button>
+          <button
             type="submit"
             disabled={loading || printing || exceedsCeiling || renewalBlocked || eligibilityFailed || stressIndexExceeded}
             className="mt-5 w-full rounded bg-primary-deep px-6 py-2.5 text-sm font-bold text-white transition-colors hover:bg-member-green disabled:cursor-not-allowed disabled:opacity-50"
@@ -1766,7 +1792,7 @@ function Consolidated_Loan() {
           <button 
             type="button" 
             onClick={handlePrintPdf}
-            disabled={printing || loading}
+            disabled={printing || loading || pdfNotReady}
             className="w-full border border-primary text-primary-deep px-6 py-2 rounded hover:bg-[#E9F7DE] transition-colors font-bold disabled:opacity-50 cursor-pointer sm:w-auto"
           >
             {printing ? "Preparing PDF..." : "Print PDF"}
