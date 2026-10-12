@@ -1,7 +1,7 @@
 ﻿import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { UserAuth } from '../contex/AuthContext';
-import { UserCheck, UserPlus, UserRound, LogOut } from 'lucide-react'; // Added LogOut
+import { UserCheck, UserPlus, LogOut } from 'lucide-react'; // Added LogOut
 
 const Loan_Kiosk = () => {
   const { session, signOut } = UserAuth();
@@ -54,18 +54,11 @@ const Loan_Kiosk = () => {
             bgClass="bg-[#F0FDF4]" 
           />
           <ApplicantCard 
-            to="/non_member" 
-            Icon={UserPlus} 
-            label="Non-Member" 
+            to="/membership_form"
+            Icon={UserPlus}
+            label="Become a Member"
             iconColor="#DC2626" 
             bgClass="bg-red-50" 
-          />
-          <ApplicantCard 
-            to="/Koica_Forms" 
-            Icon={UserRound} 
-            label="ABFF" 
-            iconColor="#2563EB" 
-            bgClass="bg-blue-50" 
           />
         </div>
       </main>

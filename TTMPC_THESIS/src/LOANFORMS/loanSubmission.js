@@ -217,16 +217,6 @@ async function getCurrentUser() {
   return user;
 }
 
-async function getCurrentUserIfAny() {
-  const {
-    data: { user },
-    error,
-  } = await supabase.auth.getUser();
-
-  if (error) return null;
-  return user || null;
-}
-
 async function getMemberIdForUser(userId) {
   const { data, error } = await supabase
     .from('member')
@@ -668,8 +658,10 @@ export async function submitUnifiedLoan({
   const normalizedApplicationType = normalizeApplicationType(applicationType ?? applicationStatus);
 
   if (targetTable !== 'loans') {
-    const maybeUser = await getCurrentUserIfAny();
-    const submittedEmail = String(optionalFields?.user_email || optionalFields?.email || maybeUser?.email || '').trim().toLowerCase() || null;
+    // A Cashier keys this in for a walk-in, so the signed-in session is the
+    // Cashier's, never the applicant's: use only the email typed into the
+    // form. Who submitted is stamped server-side (trg_koica_loans_stamp_submitter).
+    const submittedEmail = String(optionalFields?.user_email || optionalFields?.email || '').trim().toLowerCase() || null;
 
     const normalizedFullName = String(applicantProfile?.full_name || '').trim() || null;
     const credentialsPayload = applicantProfile?.credentials ?? null;

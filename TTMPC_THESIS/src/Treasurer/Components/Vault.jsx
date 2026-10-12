@@ -459,39 +459,39 @@ const Vault = () => {
 };
 
 // ---------------------------------------------------------------------------
-// Modal — record the current vault balance.
-// The vault's only job is to answer "how much cash is in the vault right now?"
-// Treasurer types the *new* balance; we compute the delta from the previous
-// running total and insert it as an 'adjustment' entry so the running SUM
-// still equals the value they entered. The ledger keeps the full history of
-// balance snapshots for audit.
+// Modal — add to (or subtract from) the vault balance.
+// Treasurer types an amount of cash moving in or out; we insert it directly
+// as an 'adjustment' entry and the running SUM (vault_balance_v) reflects it.
+// Choose "Subtract" to record cash taken out instead of added.
 // ---------------------------------------------------------------------------
 const UpdateBalanceModal = ({ onClose, onSaved, session, currentBalance }) => {
-  const [newBalance, setNewBalance] = useState("");
+  const [amountInput, setAmountInput] = useState("");
+  const [direction, setDirection] = useState("add"); // "add" | "subtract"
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
 
-  const targetNum = Number(newBalance);
-  const delta = Number.isFinite(targetNum) ? targetNum - Number(currentBalance || 0) : 0;
+  const amountNum = Number(amountInput);
+  const signedAmount = Number.isFinite(amountNum) ? (direction === "add" ? amountNum : -amountNum) : 0;
+  const resultingBalance = Number(currentBalance || 0) + signedAmount;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setErr("");
-    if (!Number.isFinite(targetNum) || targetNum < 0) {
-      setErr("Enter a valid balance (0 or greater).");
+    if (!Number.isFinite(amountNum) || amountNum <= 0) {
+      setErr("Enter a valid amount greater than 0.");
       return;
     }
-    if (delta === 0) {
-      setErr("New balance matches the current balance — nothing to record.");
+    if (direction === "subtract" && resultingBalance < 0) {
+      setErr("That would take the vault balance below zero.");
       return;
     }
     setSaving(true);
     try {
       const { error } = await supabase.from("vault_entries").insert({
-        amount: delta,
+        amount: signedAmount,
         change_type: "adjustment",
-        note: note.trim() || `Balance snapshot: ${PHP(targetNum)}`,
+        note: note.trim() || `${direction === "add" ? "Added" : "Subtracted"} ${PHP(amountNum)}`,
         entered_by: session?.user?.id || null,
       });
       if (error) throw error;
@@ -514,31 +514,61 @@ const UpdateBalanceModal = ({ onClose, onSaved, session, currentBalance }) => {
         </div>
         <form onSubmit={handleSubmit} className="p-5 flex flex-col gap-4">
           <p className="text-sm text-gray-600">
-            Enter the amount of cash currently in the vault. The system will
-            record the change from the previous balance for audit history.
+            Enter an amount of cash moving in or out of the vault. It will be
+            added to (or subtracted from) the current balance.
           </p>
 
           <div className="rounded-lg bg-gray-50 border border-gray-200 px-4 py-3 flex items-center justify-between">
-            <span className="text-xs font-semibold uppercase tracking-wider text-gray-500">Previous Balance</span>
+            <span className="text-xs font-semibold uppercase tracking-wider text-gray-500">Current Balance</span>
             <span className="text-sm font-bold text-gray-700 tabular-nums">{PHP(currentBalance)}</span>
           </div>
 
           <div>
             <label className="block text-xs font-bold uppercase tracking-wider text-gray-600 mb-2">
-              Current Vault Balance (PHP)
+              Direction
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setDirection("add")}
+                className={`h-10 rounded-lg border text-sm font-semibold transition-colors ${
+                  direction === "add"
+                    ? "border-emerald-500 bg-emerald-50 text-emerald-700"
+                    : "border-gray-300 bg-white text-gray-600 hover:bg-gray-50"
+                }`}
+              >
+                + Add
+              </button>
+              <button
+                type="button"
+                onClick={() => setDirection("subtract")}
+                className={`h-10 rounded-lg border text-sm font-semibold transition-colors ${
+                  direction === "subtract"
+                    ? "border-red-500 bg-red-50 text-red-700"
+                    : "border-gray-300 bg-white text-gray-600 hover:bg-gray-50"
+                }`}
+              >
+                − Subtract
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold uppercase tracking-wider text-gray-600 mb-2">
+              Amount (PHP)
             </label>
             <input
               type="text"
               inputMode="decimal"
-              value={formatWithCommas(newBalance)}
-              onChange={(e) => setNewBalance(stripCommas(e.target.value))}
+              value={formatWithCommas(amountInput)}
+              onChange={(e) => setAmountInput(stripCommas(e.target.value))}
               placeholder="0.00"
               className="w-full h-11 rounded-lg border border-gray-300 px-3 text-lg font-bold text-gray-900 tabular-nums focus:outline-none focus:ring-2 focus:ring-green-500"
               autoFocus
             />
-            {newBalance !== "" && Number.isFinite(targetNum) && delta !== 0 && (
-              <p className={`mt-2 text-xs font-semibold ${delta > 0 ? "text-emerald-700" : "text-red-700"}`}>
-                {delta > 0 ? "▲" : "▼"} {PHP(Math.abs(delta))} vs. previous balance
+            {amountInput !== "" && Number.isFinite(amountNum) && amountNum > 0 && (
+              <p className={`mt-2 text-xs font-semibold ${direction === "add" ? "text-emerald-700" : "text-red-700"}`}>
+                New balance: {PHP(resultingBalance)}
               </p>
             )}
           </div>
