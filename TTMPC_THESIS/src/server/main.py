@@ -1789,6 +1789,34 @@ async def compute_loan(payload: LoanComputeRequest):
 # payments, and disbursing approved loans.
 # ============================================================================
 
+# Bonus loan policy: 2%/month for members, 3%/month for non-members. Stored
+# loans.interest_rate on imported Bonus loans holds the whole-term total.
+BONUS_MONTHLY_RATE_MEMBER = 2.0
+BONUS_MONTHLY_RATE_NONMEMBER = 3.0
+
+
+def _nonmember_payments_by_loan(loan_ids: list[str]) -> dict[str, list[dict]]:
+    """loan_id -> payment rows from nonmember_loan_payments (oldest first).
+    Empty if the table isn't migrated yet (nonmember_bonus_payments_schema.sql)."""
+    out: dict[str, list[dict]] = {}
+    ids = [i for i in dict.fromkeys(loan_ids) if i]
+    for i in range(0, len(ids), 300):
+        try:
+            rows = (
+                supabase.table("nonmember_loan_payments")
+                .select("id,loan_id,amount_paid,payment_date,or_no,source")
+                .in_("loan_id", ids[i:i + 300])
+                .order("payment_date")
+                .execute()
+            ).data or []
+        except Exception as e:
+            logger.warning("nonmember_loan_payments lookup failed: %s", e)
+            return {}
+        for r in rows:
+            out.setdefault(str(r.get("loan_id")), []).append(r)
+    return out
+
+
 def _ledger_says_fully_paid(loan_row: dict | None) -> bool:
     # Imported historical loans carry principal-only installments (interest was
     # settled at release or via renewal offset), so replaying them against the
@@ -1803,31 +1831,38 @@ async def get_cashier_loans_for_payments():
         raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
 
     try:
-        try:
-            loans_response = (
-                supabase.table("loans")
-                .select(
-                    "control_number,member_id,loan_amount,principal_amount,interest_rate,term,loan_status,application_date,disbursal_date,monthly_amortization,total_interest," \
-                    "member:member_id(first_name,last_name,is_bona_fide),loan_type:loan_type_id(name,interest_rate)"
-                )
-                .order("application_date", desc=True)
-                .execute()
-            )
-        except Exception:
-            loans_response = (
-                supabase.table("loans")
-                .select(
-                    "control_number,member_id,loan_amount,principal_amount,interest_rate,term,loan_status,application_date,disbursal_date,total_interest," \
-                    "member:member_id(first_name,last_name,is_bona_fide),loan_type:loan_type_id(name,interest_rate)"
-                )
-                .order("application_date", desc=True)
-                .execute()
-            )
+        _cols_full = (
+            "control_number,member_id,loan_amount,principal_amount,interest_rate,term,loan_status,application_date,disbursal_date,monthly_amortization,total_interest,"
+            "member:member_id(first_name,last_name,is_bona_fide),loan_type:loan_type_id(name,interest_rate)"
+        )
+        _cols_min = _cols_full.replace("monthly_amortization,", "")
 
-        loans_rows = loans_response.data or []
+        # Paginated: PostgREST caps each response at 1000 rows, which silently
+        # dropped every collectible loan older than the newest 1000.
+        def _fetch_all_loans(cols: str) -> list[dict]:
+            out: list[dict] = []
+            offset = 0
+            while True:
+                batch = (
+                    supabase.table("loans").select(cols)
+                    .order("application_date", desc=True)
+                    .range(offset, offset + 999)
+                    .execute()
+                ).data or []
+                out.extend(batch)
+                if len(batch) < 1000:
+                    return out
+                offset += 1000
+
+        try:
+            loans_rows = _fetch_all_loans(_cols_full)
+        except Exception:
+            loans_rows = _fetch_all_loans(_cols_min)
+
         loans_rows = [
             row for row in loans_rows
             if str(row.get("loan_status") or "").strip().lower() not in {"rejected", "cancelled"}
+            and not _ledger_says_fully_paid(row)
         ]
 
         # Prior-version count per loan. Computed BEFORE the active-loan filter
@@ -2288,6 +2323,45 @@ async def get_cashier_loans_for_payments():
                 }
             )
 
+        # Open non-member Bonus loans (koica_loans); payments go to
+        # nonmember_loan_payments via /api/cashier/nonmember-loan-payments.
+        try:
+            koica_open = (
+                supabase.table("koica_loans")
+                .select("control_number,full_name,loan_amount,term,loan_status,application_date,disbursal_date")
+                .eq("loan_status", "released")
+                .execute()
+            ).data or []
+        except Exception as e:
+            logger.warning("koica_loans lookup failed for cashier list: %s", e)
+            koica_open = []
+        nm_pays = _nonmember_payments_by_loan([str(k.get("control_number")) for k in koica_open])
+        for k in koica_open:
+            amount = decimal_to_float(Decimal(str(k.get("loan_amount") or 0)))
+            paid = sum(float(p.get("amount_paid") or 0) for p in nm_pays.get(str(k.get("control_number")), []))
+            remaining = round(max(amount - paid, 0.0), 2)
+            mapped_loans.append({
+                "loan_id": k.get("control_number"),
+                "member_id": "",
+                "member_name": k.get("full_name") or "Unknown Applicant",
+                "loan_type": "non-member bonus",
+                "is_migs_member": False,
+                "is_nonmember": True,
+                "loan_amount": amount,
+                "interest_rate": BONUS_MONTHLY_RATE_NONMEMBER,
+                "term_months": int(k.get("term") or 0),
+                "amortization": 0.0,
+                "disbursal_date": k.get("disbursal_date") or k.get("application_date"),
+                "due_date": None,
+                "missed_count": 0,
+                "accrued_penalty": 0.0,
+                "remaining_balance": remaining,
+                "total_payable": amount,
+                "total_interest": 0.0,
+                "loan_status": "Partially Paid" if paid > 0 else "Unpaid",
+                "last_payment_date": (nm_pays.get(str(k.get("control_number"))) or [{}])[-1].get("payment_date"),
+            })
+
         return {
             "success": True,
             "data": {
@@ -2380,9 +2454,8 @@ DISBURSEMENT_PRIORITY_RULES = (
     (2, "Consolidated (MIGS)",         lambda t, m: t == "Consolidated" and m == "MIGS"),
     (3, "Consolidated (Non-MIGS)",     lambda t, m: t == "Consolidated" and m == "Non-MIGS"),
     (4, "Bonus (MIGS)",                lambda t, m: t == "Bonus" and m == "MIGS"),
-    (5, "ABFF Loan",                   lambda t, m: t == "ABFF"),
-    (6, "Bonus (Non-MIGS)",            lambda t, m: t == "Bonus" and m == "Non-MIGS"),
-    (7, "Bonus (Non-Members)",         lambda t, m: t == "Bonus" and m == "Non-Member"),
+    (5, "Bonus (Non-MIGS)",            lambda t, m: t == "Bonus" and m == "Non-MIGS"),
+    (6, "Non-member Bonus Loan",       lambda t, m: t == "Bonus" and m == "Non-Member"),
 )
 
 
@@ -2794,7 +2867,7 @@ async def get_treasurer_rescheduled_loans():
             "loan_id": r.get("control_number"),
             "source": "koica_loans",
             "member_name": r.get("full_name") or "Unknown Applicant",
-            "loan_type": "Nonmember Bonus Loan" if r.get("loan_type_code") == "NONMEMBER_BONUS" else "ABFF Loan",
+            "loan_type": "Non-member Bonus Loan",
             "loan_amount": decimal_to_float(gross),
             "net_cash_out": decimal_to_float(gross),
             "is_renewal": False,
@@ -2924,7 +2997,7 @@ async def get_treasurer_decision_queue(limit: int = 5):
 
     for r in koica_awaiting:
         loan_type = _normalize_disbursement_loan_type(
-            "Nonmember Bonus Loan" if r.get("loan_type_code") == "NONMEMBER_BONUS" else "ABFF Loan"
+            "Non-member Bonus Loan"
         )
         rank, rank_label = _compute_disbursement_rank(loan_type, "Non-Member")
         gross = Decimal(str(r.get("loan_amount") or 0))
@@ -5115,6 +5188,82 @@ async def disburse_cashier_loan(loan_id: str, payload: CashierDisbursementReques
         raise HTTPException(status_code=500, detail=f"Failed to disburse loan: {err}")
 
 
+class NonmemberLoanPaymentRequest(BaseModel):
+    loan_id: str = Field(..., min_length=1)
+    payment_amount: Decimal = Field(..., gt=0)
+    or_no: str | None = None
+
+
+@app.post("/api/cashier/nonmember-loan-payments")
+async def create_nonmember_loan_payment(
+    payload: NonmemberLoanPaymentRequest,
+    current_user: dict = _Depends(_get_current_user),
+):
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+    loan_id = payload.loan_id.strip()
+    loan = (
+        supabase.table("koica_loans")
+        .select("control_number,loan_amount,loan_status,full_name")
+        .eq("control_number", loan_id)
+        .limit(1)
+        .execute()
+    ).data
+    if not loan:
+        raise HTTPException(status_code=404, detail="Non-member loan not found.")
+    loan = loan[0]
+    if str(loan.get("loan_status") or "").strip().lower() != "released":
+        raise HTTPException(status_code=409, detail="This loan is not open for payment.")
+
+    loan_amount = money(Decimal(str(loan.get("loan_amount") or 0)))
+    paid_rows = _nonmember_payments_by_loan([loan_id]).get(loan_id, [])
+    already_paid = sum(Decimal(str(r.get("amount_paid") or 0)) for r in paid_rows)
+    outstanding = money(max(loan_amount - already_paid, Decimal("0")))
+    amount = money(payload.payment_amount)
+    if amount > outstanding:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Payment of {amount} exceeds the remaining balance of {outstanding}.",
+        )
+
+    try:
+        inserted = (
+            supabase.table("nonmember_loan_payments")
+            .insert({
+                "loan_id": loan_id,
+                "amount_paid": str(amount),
+                "or_no": (payload.or_no or "").strip() or None,
+                "recorded_by": current_user.get("id"),
+                "recorded_by_name": current_user.get("email"),
+                "source": "cashier",
+            })
+            .execute()
+        ).data or []
+    except Exception as err:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Could not record the payment (is nonmember_bonus_payments_schema.sql applied?): {err}",
+        )
+
+    remaining = money(outstanding - amount)
+    if remaining <= 0:
+        supabase.table("koica_loans").update(
+            {"loan_status": "fully paid", "application_status": "fully paid"}
+        ).eq("control_number", loan_id).execute()
+    _MANAGE_LOANS_CACHE["expires_at"] = 0.0
+
+    return {
+        "success": True,
+        "data": {
+            "payment_id": (inserted[0] if inserted else {}).get("id"),
+            "loan_id": loan_id,
+            "amount_paid": decimal_to_float(amount),
+            "remaining_balance": decimal_to_float(remaining),
+            "loan_closed": remaining <= 0,
+        },
+    }
+
+
 @app.post("/api/cashier/loan-payments")
 async def create_cashier_loan_payment(
     payload: CashierLoanPaymentCreateRequest,
@@ -6934,7 +7083,7 @@ async def get_bookkeeper_manage_loans():
 
             member = row.get("member") or {}
             member_name = f"{member.get('first_name') or ''} {member.get('last_name') or ''}".strip() or "Unknown Member"
-            member_type = "Member" if bool(member.get("is_bona_fide")) else "Non-Member"
+            member_type = "Member"
             membership_id = str(member.get("membership_id") or "").strip()
 
             loan_type = row.get("loan_type") or {}
@@ -7054,7 +7203,7 @@ async def get_bookkeeper_manage_loans():
                     "loan_type": loan_type_name,
                     "loan_type_code": loan_type_code,
                     "loan_amount": decimal_to_float(principal_amount),
-                    "interest_rate": sanitize_monthly_rate_percent(
+                    "interest_rate": BONUS_MONTHLY_RATE_MEMBER if loan_type_code == "BONUS" else sanitize_monthly_rate_percent(
                         row.get("interest_rate"),
                         (row.get("loan_type") or {}).get("interest_rate"),
                     ),
@@ -7083,6 +7232,76 @@ async def get_bookkeeper_manage_loans():
                         str(s.get("schedule_id") or "").startswith("LEGACY_")
                         for s in schedules_by_loan.get(loan_id, [])
                     ),
+                }
+            )
+
+        # Non-member Bonus loans live in koica_loans and have no payment table;
+        # their repayment evidence is on raw_payload.repayment. "KOICA" is the
+        # filter value the loan-list pages already use for this type.
+        try:
+            koica_rows = (
+                supabase.table("koica_loans")
+                .select("control_number,full_name,loan_amount,interest_rate,term,loan_status,application_status,application_date,application_type,raw_payload")
+                .order("application_date", desc=True)
+                .execute()
+            ).data or []
+        except Exception as e:
+            logger.warning("koica_loans lookup failed for manage-loans: %s", e)
+            koica_rows = []
+        k_table_pays = _nonmember_payments_by_loan([str(k.get("control_number")) for k in koica_rows])
+        for k in koica_rows:
+            k_status = str(k.get("loan_status") or "").strip().lower()
+            if k_status not in visible_statuses:
+                continue
+            k_amount = Decimal(str(k.get("loan_amount") or 0))
+            k_src = k_table_pays.get(str(k.get("control_number"))) or [
+                {"amount_paid": r.get("amount"), "payment_date": r.get("date"), "or_no": r.get("or_no")}
+                for r in ((k.get("raw_payload") or {}).get("repayment") or [])
+            ]
+            k_history = []
+            k_running = k_amount
+            for i, r in enumerate(k_src, 1):
+                amt = Decimal(str(r.get("amount_paid") or 0))
+                k_running = max(k_running - amt, Decimal("0"))
+                k_history.append({
+                    "payment_id": r.get("id") or r.get("or_no") or f"{k.get('control_number')}-{i}",
+                    "date_paid": r.get("payment_date"),
+                    "reference_no": r.get("or_no") or "",
+                    "amount_paid": decimal_to_float(amt),
+                    "penalties": 0.0,
+                    "remaining_after": decimal_to_float(k_running),
+                    "confirmation_status": "validated",
+                })
+            k_paid = k_status == "fully paid" or k_running <= 0
+            if k_paid:
+                fully_paid_count += 1
+            else:
+                active_count += 1
+            mapped_rows.append(
+                {
+                    "loan_id": k.get("control_number"),
+                    "membership_id": None,
+                    "member_name": k.get("full_name") or "Unknown Applicant",
+                    "member_type": "Non-Member",
+                    "loan_type": "Non-member Bonus Loan",
+                    "loan_type_code": "KOICA",
+                    "loan_amount": decimal_to_float(k_amount),
+                    "interest_rate": BONUS_MONTHLY_RATE_NONMEMBER,
+                    "term_months": int(k.get("term") or 0),
+                    "amortization": 0.0,
+                    "remaining_balance": 0.0 if k_paid else decimal_to_float(k_running),
+                    "total_payable": decimal_to_float(k_amount),
+                    "total_interest": 0.0,
+                    "due_date": None,
+                    "status": "Fully Paid" if k_paid else ("Partially Paid" if k_history else "Unpaid"),
+                    "source_loan_status": k.get("loan_status"),
+                    "source_application_status": k.get("application_status"),
+                    "application_date": k.get("application_date"),
+                    "application_type": str(k.get("application_type") or "new").strip().lower(),
+                    "payment_history": k_history,
+                    "prior_versions": 0,
+                    "is_legacy": True,
+                    "is_nonmember": True,
                 }
             )
 
@@ -7777,6 +7996,11 @@ async def get_bookkeeper_loan_ledger(loan_id: str):
 
     row = (loan_resp.data or [None])[0]
     if not row:
+        # Non-member Bonus loans (koica_loans) are built by manage-loans.
+        listing = await get_bookkeeper_manage_loans()
+        for r in ((listing or {}).get("data") or {}).get("rows") or []:
+            if r.get("is_nonmember") and r.get("loan_id") == clean_loan_id:
+                return {"success": True, "data": r}
         raise HTTPException(status_code=404, detail="Loan ledger not found.")
 
     # Fetch live payments for this loan.
@@ -7833,7 +8057,7 @@ async def get_bookkeeper_loan_ledger(loan_id: str):
     # Map using same logic as manage-loans.
     member = row.get("member") or {}
     member_name = f"{member.get('first_name') or ''} {member.get('last_name') or ''}".strip() or "Unknown Member"
-    member_type = "Member" if bool(member.get("is_bona_fide")) else "Non-Member"
+    member_type = "Member"
     membership_id = str(member.get("membership_id") or "").strip()
 
     loan_type = row.get("loan_type") or {}
@@ -7926,7 +8150,7 @@ async def get_bookkeeper_loan_ledger(loan_id: str):
         "loan_type": loan_type_name,
         "loan_type_code": loan_type_code,
         "loan_amount": decimal_to_float(principal_amount),
-        "interest_rate": sanitize_monthly_rate_percent(
+        "interest_rate": BONUS_MONTHLY_RATE_MEMBER if loan_type_code == "BONUS" else sanitize_monthly_rate_percent(
             row.get("interest_rate"),
             (row.get("loan_type") or {}).get("interest_rate"),
         ),

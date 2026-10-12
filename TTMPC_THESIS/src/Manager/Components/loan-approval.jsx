@@ -144,7 +144,7 @@ const Loan_Approval = () => {
       : (`${firstName} ${lastName}`.trim() || "Unknown Member");
     
     const loanTypeName = isKoica
-      ? (loan.loan_type_code === "NONMEMBER_BONUS" ? "Nonmember Bonus Loan" : "ABFF Loan")
+      ? "Non-member Bonus Loan"
       : (loan.loan_types?.name || "N/A");
     
     // Assuming 'is_bona_fide' determines if they are a Member In Good Standing (MIGS)

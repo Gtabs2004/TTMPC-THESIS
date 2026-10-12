@@ -184,7 +184,7 @@ const BookkeeperLoanApproval = () => {
 
       const loanStatus = String(loan.loan_status || "").trim().toLowerCase();
     const loanTypeName = isKoica
-      ? (loan.loan_type_code === "NONMEMBER_BONUS" ? "Nonmember Bonus Loan" : "ABFF Loan")
+      ? "Non-member Bonus Loan"
       : (loan.loan_types?.name || "N/A");
     const migsStatus = isKoica ? "N/A" : (loan.member?.is_bona_fide ? "MIGS" : "NON-MIGS");
 

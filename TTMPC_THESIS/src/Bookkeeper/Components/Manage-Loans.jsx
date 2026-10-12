@@ -361,7 +361,7 @@ const ManageLoans = () => {
                 <option value="CONSOLIDATED">Consolidated</option>
                 <option value="EMERGENCY">Emergency</option>
                 <option value="BONUS">Bonus</option>
-                <option value="KOICA">KOICA</option>
+                <option value="KOICA">Non-member Bonus</option>
                 <option value="ABF">ABF</option>
               </select>
 
@@ -373,7 +373,6 @@ const ManageLoans = () => {
                 <option value="all">All Member Types</option>
                 <option value="Member">Member</option>
                 <option value="Non-Member">Non-Member</option>
-                <option value="KOICA">KOICA</option>
               </select>
 
               <div className="relative w-full sm:w-64">

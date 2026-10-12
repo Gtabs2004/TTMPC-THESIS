@@ -26,7 +26,6 @@ import {
   AlertCircle,
   CheckCircle2,
   Clock,
-  Filter,
   UserPlus,
   ArrowUpRight,
   Send, 
@@ -35,6 +34,13 @@ import {
   ShoppingCart,
   History,
 } from 'lucide-react';
+
+const LOAN_TYPE_TABS = [
+  { value: "consolidated", label: "Consolidated" },
+  { value: "emergency", label: "Emergency" },
+  { value: "bonus", label: "Bonus" },
+  { value: "non-member bonus", label: "Non-member Bonus" },
+];
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 const PAGE_SIZE = 5;
@@ -275,6 +281,7 @@ const normalizeLoanType = (value) => {
   const text = String(value || "").trim().toLowerCase();
   if (text.includes("consolidated")) return "consolidated";
   if (text.includes("emergency")) return "emergency";
+  if (text.includes("non-member") || text.includes("nonmember")) return "non-member bonus";
   if (text.includes("bonus")) return "bonus";
   return "consolidated";
 };
@@ -304,12 +311,10 @@ const Cashier_Payments = () => {
   
   // Filtering and sorting
   const [searchTerm, setSearchTerm] = useState("");
-  const [typeFilter, setTypeFilter] = useState("all");
-  const [yearFilter, setYearFilter] = useState("all");
+  const [typeFilter, setTypeFilter] = useState("consolidated");
   // Default LIFO: newest disbursed loan first. Panelists expect the most recent
   // activity at the top; sorting by due_date buried fresh loans below overdue ones.
   const [sortConfig, setSortConfig] = useState({ key: "disbursal_date", direction: "desc" });
-  const [showFilters, setShowFilters] = useState(false);
   const [page, setPage] = useState(1);
   const scrollContainerRef = useRef(null);
 
@@ -330,15 +335,9 @@ const Cashier_Payments = () => {
         memberName.includes(q) || loanId.includes(q) || memberId.includes(q);
 
       const loanType = String(loan.loan_type ?? "").toLowerCase();
-      const matchesType =
-        typeFilter === "all" || loanType === typeFilter.toLowerCase();
+      const matchesType = loanType === typeFilter;
 
-      const disbursalYear = loan.disbursal_date
-        ? String(new Date(loan.disbursal_date).getFullYear())
-        : "";
-      const matchesYear = yearFilter === "all" || disbursalYear === yearFilter;
-
-      return matchesSearch && matchesType && matchesYear;
+      return matchesSearch && matchesType;
     });
 
     // Sort the filtered results
@@ -369,36 +368,15 @@ const Cashier_Payments = () => {
     }
 
     return filtered;
-  }, [loans, searchTerm, typeFilter, yearFilter, sortConfig]);
+  }, [loans, searchTerm, typeFilter, sortConfig]);
 
-  // Derive available years + loan types from the loaded loans so the filter
-  // dropdowns only offer values that will actually match something.
-  // The three member loan types are always offered, even when no loan of that
-  // type is currently collectible -- otherwise a filter silently disappears
-  // (Bonus loans repay in a single shot, so they are often absent from the
-  // active set). Any other type present in the data is appended after them.
-  const availableTypes = useMemo(() => {
-    const baseTypes = ["consolidated", "bonus", "emergency"];
-    const seen = new Set(baseTypes);
-    const extras = [];
+  const typeCounts = useMemo(() => {
+    const counts = {};
     for (const l of loans) {
       const t = String(l.loan_type ?? "").trim().toLowerCase();
-      if (t && !seen.has(t)) {
-        seen.add(t);
-        extras.push(t);
-      }
+      counts[t] = (counts[t] || 0) + 1;
     }
-    return [...baseTypes, ...extras.sort()];
-  }, [loans]);
-
-  const availableYears = useMemo(() => {
-    const set = new Set();
-    for (const l of loans) {
-      if (l.disbursal_date) {
-        set.add(String(new Date(l.disbursal_date).getFullYear()));
-      }
-    }
-    return Array.from(set).sort((a, b) => Number(b) - Number(a));
+    return counts;
   }, [loans]);
 
   const handleSort = (key) => {
@@ -414,7 +392,7 @@ const Cashier_Payments = () => {
     return filteredAndSortedLoans.slice(start, start + PAGE_SIZE);
   }, [filteredAndSortedLoans, page]);
 
-  useEffect(() => setPage(1), [searchTerm, typeFilter, yearFilter, sortConfig]);
+  useEffect(() => setPage(1), [searchTerm, typeFilter, sortConfig]);
 
 
   useEffect(() => {
@@ -528,15 +506,19 @@ const Cashier_Payments = () => {
   }
   useRealtimeRefetch(RT.LOANS, () => fetchLoans({ silent: true }));
 
-  async function processPayment(paymentPayload) {
-    const response = await fetch(`${API_BASE_URL}/api/cashier/loan-payments`, {
+  async function processPayment(paymentPayload, isNonmember = false) {
+    const endpoint = isNonmember ? "nonmember-loan-payments" : "loan-payments";
+    const body = isNonmember
+      ? { loan_id: paymentPayload.loan_id, payment_amount: paymentPayload.payment_amount, or_no: paymentPayload.payment_reference }
+      : paymentPayload;
+    const response = await fetch(`${API_BASE_URL}/api/cashier/${endpoint}`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "Accept": "application/json",
         ...(await authHeaders()),
       },
-      body: JSON.stringify(paymentPayload),
+      body: JSON.stringify(body),
     });
 
     const result = await response.json().catch(() => ({}));
@@ -714,7 +696,7 @@ const Cashier_Payments = () => {
 
     setIsSubmittingPayment(true);
     try {
-      const insertedRecord = await processPayment(paymentPayload);
+      const insertedRecord = await processPayment(paymentPayload, Boolean(selectedLoan.is_nonmember));
       // This attempt landed; the next payment must not reuse its reference.
       submissionReferenceRef.current = null;
       setPaymentRecords((previous) => [insertedRecord, ...previous]);
@@ -799,7 +781,12 @@ const Cashier_Payments = () => {
 
           {/* Main Loans Table (search & filter toolbar shares this card) */}
           <div className="mb-8 rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
-            <TableToolbar subtitle={`Showing ${paginatedLoans.length} of ${filteredAndSortedLoans.length} loans`}>
+            <TableToolbar
+              subtitle={`Showing ${paginatedLoans.length} of ${filteredAndSortedLoans.length} loans`}
+              tabs={LOAN_TYPE_TABS.map((t) => ({ ...t, count: typeCounts[t.value] || 0 }))}
+              activeTab={typeFilter}
+              onTabChange={setTypeFilter}
+            >
               <div className="relative w-full sm:w-64">
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
                 <input
@@ -810,97 +797,7 @@ const Cashier_Payments = () => {
                   className="w-full h-8 rounded-lg border border-gray-200 bg-white pl-8 pr-3 text-[11px] font-semibold focus:outline-none focus:ring-2 focus:ring-[#2C7A3F]/40"
                 />
               </div>
-              <button
-                onClick={() => setShowFilters(!showFilters)}
-                className="flex items-center gap-1.5 h-8 px-2.5 rounded-lg border border-gray-200 bg-white text-[11px] font-semibold text-gray-700 hover:bg-gray-50 transition"
-              >
-                <Filter size={13} />
-                Filters
-              </button>
             </TableToolbar>
-
-            {/* Filters Dropdown */}
-            {showFilters && (
-              <div className="border-b border-gray-100 bg-gray-50 p-4">
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Loan Category
-                    </label>
-                    <div className="flex flex-wrap gap-2">
-                      <button
-                        onClick={() => setTypeFilter("all")}
-                        className={`rounded-full px-4 py-1.5 text-sm font-medium transition ${
-                          typeFilter === "all"
-                            ? "bg-green-600 text-white"
-                            : "bg-white border border-gray-300 text-gray-700 hover:border-green-500"
-                        }`}
-                      >
-                        All Types
-                      </button>
-                      {availableTypes.map((type) => (
-                        <button
-                          key={type}
-                          onClick={() => setTypeFilter(type)}
-                          className={`rounded-full px-4 py-1.5 text-sm font-medium transition ${
-                            typeFilter === type
-                              ? "bg-green-600 text-white"
-                              : "bg-white border border-gray-300 text-gray-700 hover:border-green-500"
-                          }`}
-                        >
-                          {toTitleCase(type)}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Disbursal Year
-                    </label>
-                    <div className="flex flex-wrap gap-2">
-                      <button
-                        onClick={() => setYearFilter("all")}
-                        className={`rounded-full px-4 py-1.5 text-sm font-medium transition ${
-                          yearFilter === "all"
-                            ? "bg-green-600 text-white"
-                            : "bg-white border border-gray-300 text-gray-700 hover:border-green-500"
-                        }`}
-                      >
-                        All Years
-                      </button>
-                      {availableYears.map((year) => (
-                        <button
-                          key={year}
-                          onClick={() => setYearFilter(year)}
-                          className={`rounded-full px-4 py-1.5 text-sm font-medium transition ${
-                            yearFilter === year
-                              ? "bg-green-600 text-white"
-                              : "bg-white border border-gray-300 text-gray-700 hover:border-green-500"
-                          }`}
-                        >
-                          {year}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {(typeFilter !== "all" || yearFilter !== "all") && (
-                    <div className="pt-2 border-t border-gray-200">
-                      <button
-                        onClick={() => {
-                          setTypeFilter("all");
-                          setYearFilter("all");
-                        }}
-                        className="text-sm text-red-600 hover:text-red-700 font-medium"
-                      >
-                        Clear all filters
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
 
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
