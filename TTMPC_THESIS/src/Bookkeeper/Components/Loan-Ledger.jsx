@@ -472,7 +472,7 @@ const LoanLedger = () => {
                       type="button"
                       disabled={reviewLoading}
                       onClick={() => handleReview("rejected")}
-                      className="px-3 py-1.5 rounded-lg border border-red-300 bg-white text-xs font-semibold text-red-700 hover:bg-red-50 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+                      className="action-button action-button-compact action-button-danger"
                     >
                       {reviewLoading ? "..." : "Reject"}
                     </button>
@@ -480,7 +480,7 @@ const LoanLedger = () => {
                       type="button"
                       disabled={reviewLoading}
                       onClick={() => handleReview("approved")}
-                      className="px-3 py-1.5 rounded-lg bg-green-600 text-white text-xs font-semibold hover:bg-green-700 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+                      className="action-button action-button-compact action-button-primary"
                     >
                       {reviewLoading ? "Saving..." : "Approve"}
                     </button>

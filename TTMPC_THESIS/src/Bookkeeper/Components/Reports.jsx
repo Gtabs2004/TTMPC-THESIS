@@ -420,7 +420,7 @@ const Reports = () => {
               <button
                 onClick={fetchReports}
                 disabled={loading}
-                className="flex items-center gap-2 border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 px-3 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+                className="action-button action-button-standard action-button-secondary"
               >
                 <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
                 Refresh
@@ -428,7 +428,7 @@ const Reports = () => {
               <button
                 onClick={() => reportData && generateExecutivePDF(reportData, generatedAt)}
                 disabled={loading || !reportData}
-                className="flex items-center gap-2 bg-[#166534] hover:bg-green-800 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+                className="action-button action-button-standard action-button-primary"
               >
                 <Download size={16} />
                 Download Executive PDF

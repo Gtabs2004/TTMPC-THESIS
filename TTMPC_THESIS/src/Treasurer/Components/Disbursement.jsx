@@ -217,7 +217,7 @@ const Disbursements = () => {
               <button
                 onClick={fetchReleasedLoans}
                 disabled={isLoading}
-                className="flex items-center gap-2 px-5 py-2 rounded-lg bg-primary-deep text-white text-sm font-semibold hover:bg-member-green disabled:bg-gray-300 transition-colors shadow-sm"
+                className="action-button action-button-standard action-button-primary"
               >
                 <RefreshCw className={`w-4 h-4 ${isLoading ? "animate-spin" : ""}`} />
                 Refresh Data

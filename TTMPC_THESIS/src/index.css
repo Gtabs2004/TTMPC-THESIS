@@ -259,6 +259,36 @@ body {
   @apply scale-95;
 }
 
+/* Shared action-button recipes. Keep button geometry and interaction states
+ * consistent while callers choose only the semantic tone and size. */
+.action-button {
+  @apply inline-flex items-center justify-center gap-2 rounded-lg font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-50;
+}
+
+.action-button-standard {
+  @apply h-9 px-4 text-sm;
+}
+
+.action-button-compact {
+  @apply h-8 px-3 text-xs;
+}
+
+.action-button-primary {
+  @apply bg-green-600 text-white hover:bg-green-700 active:bg-green-800;
+}
+
+.action-button-danger {
+  @apply bg-red-600 text-white hover:bg-red-700 active:bg-red-800;
+}
+
+.action-button-secondary {
+  @apply border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 active:bg-gray-100;
+}
+
+.action-button-warning {
+  @apply border border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100 active:bg-amber-200;
+}
+
 /* Status Badge — canonical shell. Outlined/ringed pattern is the default;
  * callers still supply tone classes (e.g., bg-yellow-100 text-yellow-700) but
  * even a bare `.status-badge` reads as a badge because of the inset ring.

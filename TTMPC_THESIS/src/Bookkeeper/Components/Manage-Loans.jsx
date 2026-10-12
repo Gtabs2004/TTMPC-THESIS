@@ -302,7 +302,7 @@ const ManageLoans = () => {
               type="button"
               onClick={fetchApprovedLoans}
               disabled={loading}
-              className="inline-flex items-center gap-2 px-5 py-2.5 bg-green-600 text-white rounded-lg text-sm font-semibold hover:bg-green-700 active:bg-green-800 disabled:opacity-70 disabled:cursor-not-allowed transition-colors"
+              className="action-button action-button-standard action-button-primary"
             >
               <RefreshCw size={16} className={loading ? "animate-spin" : ""} /> Refresh
             </button>

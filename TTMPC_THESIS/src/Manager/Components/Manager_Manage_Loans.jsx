@@ -4,6 +4,7 @@ import { RT } from "../../lib/realtimeSync";
 import { getLoanTypeChipClass as getLoanTypeStyle } from "../../utils/loanTypeColors";
 import { StatCard, StatCardRow } from "../../components/StatCard";
 import { TableToolbar } from "../../components/TableToolbar";
+import TableActionButton from "../../components/TableActionButton";
 import TableStateRow from "../../components/TableStateRow";
 import StaffSidebar from "../../components/StaffSidebar";
 import { managerNav } from "../../components/StaffSidebar/configs/manager";
@@ -268,7 +269,7 @@ const Manager_Manage_Loans = () => {
               type="button"
               onClick={fetchLoans}
               disabled={loading}
-              className="inline-flex items-center gap-2 px-5 py-2.5 bg-green-600 text-white rounded-lg text-sm font-semibold hover:bg-green-700 active:bg-green-800 disabled:opacity-70 disabled:cursor-not-allowed transition-colors"
+              className="action-button action-button-standard action-button-primary"
             >
               <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
               Refresh
@@ -419,17 +420,17 @@ const Manager_Manage_Loans = () => {
                             }
                           </td>
                           <td className="p-5 text-center align-top">
-                            <button
-                              type="button"
+                            <TableActionButton
                               onClick={() =>
                                 navigate(`/manager-loan-ledger/${parent.loan_id}`, {
                                   state: { loan: parent, readOnly: true, renewals },
                                 })
                               }
-                              className="inline-flex items-center gap-1 rounded-lg bg-gray-100 px-2 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-200 border border-gray-200 transition-colors"
+                              icon={Eye}
+                              variant="neutral"
                             >
-                              <Eye size={12} /> View
-                            </button>
+                              View
+                            </TableActionButton>
                           </td>
                         </tr>
                       </React.Fragment>

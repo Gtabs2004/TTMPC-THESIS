@@ -1,9 +1,9 @@
 import React from "react";
 
 const VARIANT_CLASSES = {
-  primary: "bg-green-600 hover:bg-green-700 text-white",
-  danger: "bg-red-600 hover:bg-red-700 text-white",
-  neutral: "bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 hover:text-gray-900",
+  primary: "action-button-primary",
+  danger: "action-button-danger",
+  neutral: "action-button-secondary",
 };
 
 /**
@@ -40,9 +40,9 @@ export default function TableActionButton({
       disabled={disabled}
       title={title || (iconOnly ? label : undefined)}
       aria-label={ariaLabel || (iconOnly ? label : undefined)}
-      className={`inline-flex items-center justify-center gap-1 ${
-        iconOnly ? "p-1.5" : "px-2.5 py-1"
-      } rounded text-[11px] font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${VARIANT_CLASSES[variant]} ${className}`}
+      className={`action-button action-button-compact ${
+        iconOnly ? "w-8 px-0" : ""
+      } ${VARIANT_CLASSES[variant] || VARIANT_CLASSES.primary} ${className}`}
       {...props}
     >
       {Icon ? <Icon size={12} /> : null}
