@@ -2380,9 +2380,8 @@ DISBURSEMENT_PRIORITY_RULES = (
     (2, "Consolidated (MIGS)",         lambda t, m: t == "Consolidated" and m == "MIGS"),
     (3, "Consolidated (Non-MIGS)",     lambda t, m: t == "Consolidated" and m == "Non-MIGS"),
     (4, "Bonus (MIGS)",                lambda t, m: t == "Bonus" and m == "MIGS"),
-    (5, "ABFF Loan",                   lambda t, m: t == "ABFF"),
-    (6, "Bonus (Non-MIGS)",            lambda t, m: t == "Bonus" and m == "Non-MIGS"),
-    (7, "Bonus (Non-Members)",         lambda t, m: t == "Bonus" and m == "Non-Member"),
+    (5, "Bonus (Non-MIGS)",            lambda t, m: t == "Bonus" and m == "Non-MIGS"),
+    (6, "Non-member Bonus Loan",       lambda t, m: t == "Bonus" and m == "Non-Member"),
 )
 
 
@@ -2794,7 +2793,7 @@ async def get_treasurer_rescheduled_loans():
             "loan_id": r.get("control_number"),
             "source": "koica_loans",
             "member_name": r.get("full_name") or "Unknown Applicant",
-            "loan_type": "Nonmember Bonus Loan" if r.get("loan_type_code") == "NONMEMBER_BONUS" else "ABFF Loan",
+            "loan_type": "Non-member Bonus Loan",
             "loan_amount": decimal_to_float(gross),
             "net_cash_out": decimal_to_float(gross),
             "is_renewal": False,
@@ -2924,7 +2923,7 @@ async def get_treasurer_decision_queue(limit: int = 5):
 
     for r in koica_awaiting:
         loan_type = _normalize_disbursement_loan_type(
-            "Nonmember Bonus Loan" if r.get("loan_type_code") == "NONMEMBER_BONUS" else "ABFF Loan"
+            "Non-member Bonus Loan"
         )
         rank, rank_label = _compute_disbursement_rank(loan_type, "Non-Member")
         gross = Decimal(str(r.get("loan_amount") or 0))

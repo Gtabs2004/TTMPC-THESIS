@@ -480,7 +480,7 @@ const LoanApprovalDetails = () => {
         const principalAmount = Number(data.principal_amount ?? data.loan_amount ?? 0);
         const termMonths = Number(data.term || 0);
         const resolvedLoanType = isKoicaSource
-          ? (data.loan_type_code === 'NONMEMBER_BONUS' ? 'Nonmember Bonus Loan' : 'ABFF Loan')
+          ? 'Non-member Bonus Loan'
           : (data.loan_type?.name || 'N/A');
         // Always re-resolve from loan_types so stale per-loan snapshots from the
         // pre-rate-fix era cannot poison the display. Fall back to the snapshot

@@ -239,7 +239,7 @@ const Treasurer_Approval = () => {
       : (`${firstName} ${lastName}`.trim() || "Unknown Member");
 
     const loanTypeName = isKoica
-      ? (loan.loan_type_code === "NONMEMBER_BONUS" ? "Nonmember Bonus Loan" : "ABFF Loan")
+      ? "Non-member Bonus Loan"
       : (loan.loan_types?.name || "N/A");
     const migsStatus = isKoica ? "N/A" : (loan.member?.is_bona_fide ? "MIGS" : "NON-MIGS");
 
@@ -477,7 +477,7 @@ const Treasurer_Approval = () => {
                               {PHP(row.net_cash_out)}
                               {row.is_estimated && (
                                 <span
-                                  title="KOICA/non-member loans aren't disbursed through the Cashier flow, so fees can't be computed — this is the gross loan amount."
+                                  title="Non-member Bonus loans aren't disbursed through the Cashier flow, so fees can't be computed — this is the gross loan amount."
                                   className="ml-1.5 inline-flex items-center rounded-full bg-gray-100 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-gray-500"
                                 >
                                   Est.

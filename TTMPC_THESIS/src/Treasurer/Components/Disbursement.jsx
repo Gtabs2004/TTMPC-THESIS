@@ -43,9 +43,8 @@ const PRIORITY_RULES = [
   { rank: 2, label: "Consolidated (MIGS)", note: "MIGS members", match: (r) => r.type === "Consolidated" && r.migs === "MIGS" },
   { rank: 3, label: "Consolidated (Non-MIGS)", note: "Non-MIGS members", match: (r) => r.type === "Consolidated" && r.migs === "Non-MIGS" },
   { rank: 4, label: "Bonus (MIGS)", note: "MIGS members", match: (r) => r.type === "Bonus" && r.migs === "MIGS" },
-  { rank: 5, label: "ABFF Loan", note: "KOICA Members", match: (r) => r.type === "ABFF" },
-  { rank: 6, label: "Bonus (Non-MIGS)", note: "Non-MIGS members", match: (r) => r.type === "Bonus" && r.migs === "Non-MIGS" },
-  { rank: 7, label: "Bonus (Non-Members)", note: "Non-members", match: (r) => r.type === "Bonus" && r.migs === "Non-Member" },
+  { rank: 5, label: "Bonus (Non-MIGS)", note: "Non-MIGS members", match: (r) => r.type === "Bonus" && r.migs === "Non-MIGS" },
+  { rank: 6, label: "Non-member Bonus Loan", note: "Non-members", match: (r) => r.type === "Bonus" && r.migs === "Non-Member" },
 ];
 
 const rankTone = {
@@ -264,7 +263,6 @@ const Disbursements = () => {
                 <option>Emergency</option>
                 <option>Consolidated</option>
                 <option>Bonus</option>
-                <option>ABFF</option>
               </select>
               <button
                 onClick={() => setShowTimeline((v) => !v)}

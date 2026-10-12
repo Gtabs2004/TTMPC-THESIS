@@ -409,7 +409,7 @@ const Treasurer_ApprovalDetails = () => {
         const principalAmount = Number(data.principal_amount ?? data.loan_amount ?? 0);
         const termMonths = Number(data.term || 0);
         const resolvedLoanType = isKoicaSource
-          ? (data.loan_type_code === 'NONMEMBER_BONUS' ? 'Nonmember Bonus Loan' : 'ABFF Loan')
+          ? 'Non-member Bonus Loan'
           : (data.loan_type?.name || 'N/A');
         // Prefer the live loan_types rate (same as Manager view): older loan
         // snapshots stored 83 instead of 0.83 for Consolidated.
