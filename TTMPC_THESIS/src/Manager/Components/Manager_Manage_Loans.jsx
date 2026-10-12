@@ -313,7 +313,6 @@ const Manager_Manage_Loans = () => {
                 <option value="all">All Member Types</option>
                 <option value="Member">Member</option>
                 <option value="Non-Member">Non-Member</option>
-                <option value="KOICA">Non-member Bonus</option>
               </select>
 
               <div className="relative w-full sm:w-64">
