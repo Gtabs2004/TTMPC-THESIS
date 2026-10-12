@@ -26,7 +26,6 @@ import LoanLedger from "./Bookkeeper/Components/Loan-Ledger";
 import Loan_Kiosk from "./Index_Pages/loan_kiosk";
 import Verification from "./Index_Pages/verification";
 import Member_Services from "./Index_Pages/member_services";
-import Non_Member from "./Index_Pages/non_member";
 import Manage_Loans from "./Bookkeeper/Components/Manage-Loans";
 import BookkeeperCreditRisk from "./Bookkeeper/Components/CreditRisk";
 import ManagerCreditRisk from "./Manager/Components/CreditRisk";
@@ -72,7 +71,6 @@ const bodGuarded        = (el) => <RequireRole allow="bod">{el}</RequireRole>;
 const secretaryGuarded  = (el) => <RequireRole allow="secretary">{el}</RequireRole>;
 import Member_Savings from "./Member/Components/Member_Savings";
 import Member_StatementOfAccount from "./Member/Components/Member_StatementOfAccount";
-import Koica_Forms from "./LOANFORMS/Koica_Forms";
 import Loan_Services from "./Index_Pages/loan_services";
 import Savings_Services from "./Index_Pages/savings_services";
 import RegularSavings_Services from "./Index_Pages/regularsavings_services";
@@ -153,7 +151,6 @@ export const router = createBrowserRouter([
     {path: "/loan_kiosk", element: <Loan_Kiosk/>},
     {path: "/verification", element: <Verification/>},
     {path: "/Member_Services", element: <Member_Services/>},
-    {path: "/Non_Member", element: <Non_Member/>},
     {path: "/manage-loans", element: bookkeeperGuarded(<Manage_Loans/>)},
     {path: "/bookkeeper-credit-risk", element: bookkeeperGuarded(<BookkeeperCreditRisk/>)},
     {path: "/manager-credit-risk", element: managerGuarded(<ManagerCreditRisk/>)},
@@ -198,7 +195,6 @@ export const router = createBrowserRouter([
         {path: "/member-statement-of-account", element: <Member_StatementOfAccount/>},
       ],
     },
-    {path: "/Koica_Forms", element:<Koica_Forms/>},
     {path: "/loan_services", element:<Loan_Services/>},
     {path: "/savings_services", element:<Savings_Services/>},
     {path: "/regularsavings_services", element:<RegularSavings_Services/>},
@@ -214,6 +210,7 @@ export const router = createBrowserRouter([
     {path: "/treasurer-savings-accounts", element: treasurerGuarded(<Treasurer_Savings_Accounts/>)},
     {path: "/treasurer-savings-accounts/:id", element: treasurerGuarded(<Treasurer_Savings_Details/>)},
     {path: "/Cashier_Dashboard", element: cashierGuarded(<Cashier_Dashboard/>)},
+    {path: "/Cashier_NonMember_Bonus", element: cashierGuarded(<Bonus_Loan staffIntake/>)},
     {path: "/Cashier_Savings", element: cashierGuarded(<Cashier_Savings/>)},
     {path: "/add_savings", element: cashierGuarded(<Add_Savings/>)},
     {path: "/Savings_Details/:id", element: cashierGuarded(<Savings_Details/>)},

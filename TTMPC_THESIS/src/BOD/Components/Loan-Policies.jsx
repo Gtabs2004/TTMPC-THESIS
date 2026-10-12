@@ -232,11 +232,16 @@ const Loan_Policies = () => {
 
       // Update interest rate in loan_types if the type row exists.
       if (draft.loan_type_id) {
-        const { error: typeErr } = await supabase
+        const { data: typeRows, error: typeErr } = await supabase
           .from("loan_types")
           .update({ interest_rate: Number(draft.interest_rate) })
-          .eq("id", draft.loan_type_id);
+          .eq("id", draft.loan_type_id)
+          .select("id");
         if (typeErr) throw new Error(`Failed to save interest rate: ${typeErr.message}`);
+        // RLS blocks an update by matching 0 rows, not by erroring.
+        if (!typeRows?.length) {
+          throw new Error("Fees saved, but the interest rate was not: your account isn't allowed to update loan_types.");
+        }
       }
 
       setSuccess("Policy updated. New values take effect on the next loan computation.");

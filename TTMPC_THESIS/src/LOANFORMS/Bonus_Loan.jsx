@@ -1,6 +1,5 @@
-﻿import React, { useEffect, useMemo, useRef, useState } from 'react';
+﻿import React, { useEffect, useRef, useState } from 'react';
 import { Download } from 'lucide-react';
-import { useLocation } from 'react-router-dom';
 import { useNavigate } from 'react-router-dom';
 import { createUniqueControlNumber, fetchLoanPrefill, submitUnifiedLoan } from './loanSubmission';
 import { buildBonusPayload, computeLoan } from './loanComputeApi';
@@ -10,6 +9,9 @@ import { useNotification } from '../contex/NotificationContext';
 import { formatWithCommas, stripCommas } from '../utils/numberFormat';
 import MobileFormStepper from '../components/MobileFormStepper';
 import LoanDeductionsCard from '../components/LoanDeductionsCard';
+
+const peso = (value) =>
+  `₱${Number(value || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 const numberToWords = (num) => {
   if (num === '' || num === undefined || num === null) return '';
@@ -55,14 +57,13 @@ const numberToWords = (num) => {
   return words.trim().replace(/\s+/g, ' ');
 };
 
-function Bonus_Loan() {
-  const location = useLocation();
+// staffIntake: a Cashier keys in a walk-in non-member's application at the
+// front desk. The applicant's details are typed in, never taken from the
+// signed-in (Cashier) session, and the row goes to koica_loans.
+function Bonus_Loan({ staffIntake = false }) {
   const navigate = useNavigate();
   const { addNotification } = useNotification();
-  const isNonMemberBonus = useMemo(() => {
-    const params = new URLSearchParams(location.search);
-    return params.get('loanType')?.toUpperCase() === 'NONMEMBER_BONUS';
-  }, [location.search]);
+  const isNonMemberBonus = staffIntake;
 
   const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000';
   const PDF_PREVIEW_WINDOW_NAME = isNonMemberBonus ? 'nonmember-bonus-loan-preview' : 'bonus-loan-preview';
@@ -70,8 +71,22 @@ function Bonus_Loan() {
   const resolvedLoanTypeCode = isNonMemberBonus ? 'NONMEMBER_BONUS' : 'BONUS';
 
   const inputStyles = 'border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-primary outline-none w-full bg-white text-sm';
+  const lockedInputStyles = 'border border-gray-200 rounded-md px-3 py-2 outline-none w-full bg-gray-100 text-gray-600 text-sm cursor-not-allowed select-text';
   const labelStyles = 'block text-xs font-bold text-gray-700 mb-1';
   const sectionHeader = 'bg-primary-deep text-white px-4 py-2 rounded-t-lg flex items-center gap-2 font-bold uppercase tracking-wide';
+
+  const [lockedFields, setLockedFields] = useState(() => new Set());
+  const isLockedField = (name) => lockedFields.has(name);
+  const lockedInputProps = (name) => {
+    if (!isLockedField(name)) return null;
+    return {
+      readOnly: true,
+      tabIndex: -1,
+      'aria-readonly': true,
+      title: 'Auto-filled from your member profile and cannot be edited here.',
+    };
+  };
+  const inputClassFor = (name) => (isLockedField(name) ? lockedInputStyles : inputStyles);
 
   const [loading, setLoading] = useState(false);
   const [borrowerMemberId, setBorrowerMemberId] = useState(null);
@@ -216,6 +231,34 @@ function Bonus_Loan() {
           return;
         }
 
+        const newlyLocked = new Set();
+        const recordLocked = (name, sourceValue) => {
+          const stringified = sourceValue === null || sourceValue === undefined
+            ? ''
+            : String(sourceValue).trim();
+          if (stringified !== '') newlyLocked.add(name);
+        };
+
+        recordLocked('surname', profile.surname ?? profile.last_name);
+        recordLocked('first_name', profile.first_name);
+        recordLocked('middle_name', profile.middle_name ?? profile.middle_initial);
+        recordLocked('contact_no', profile.contact_number ?? profile.contact_no);
+        recordLocked('residence_address', profile.permanent_address ?? profile.residence_address);
+        recordLocked('date_of_birth', profile.date_of_birth);
+        recordLocked('age', profile.age);
+        recordLocked('civil_status', profile.civil_status);
+        recordLocked('gender', profile.gender);
+        recordLocked('tin_no', profile.tin_number ?? profile.tin_no);
+        recordLocked('gsis_sss_no', profile.gsis_sss_no);
+        recordLocked('employer_name', profile.employer_name ?? profile.occupation);
+        recordLocked('office_address', profile.office_address);
+        recordLocked('spouse_name', profile.spouse_name);
+        recordLocked('spouse_occupation', profile.spouse_occupation);
+        recordLocked('latest_net_pay', profile.latest_net_pay ?? profile.annual_income);
+        recordLocked('share_capital', profile.share_capital);
+
+        setLockedFields(newlyLocked);
+
         setFormData((prev) => {
           const tinValue = profile.tin_number ?? profile.tin_no ?? prev.tin_no;
           const tinFormatted = formatTinNumber(tinValue);
@@ -287,6 +330,7 @@ function Bonus_Loan() {
   }, [formData.loan_amount_numeric, formData.bonus_amount_numeric]);
 
   const [feeBreakdown, setFeeBreakdown] = useState(null);
+  const [computation, setComputation] = useState(null);
 
   useEffect(() => {
     const principal = Number(formData.loan_amount_numeric || 0);
@@ -295,14 +339,24 @@ function Bonus_Loan() {
     if (!principal || !term) {
       setFormData((prev) => ({ ...prev, monthly_amortization: '' }));
       setFeeBreakdown(null);
+      setComputation(null);
       return;
     }
 
     const timer = setTimeout(async () => {
       try {
-        // Bonus form in this flow is for members; use regular category.
-        const data = await computeLoan(buildBonusPayload(formData, true));
+        const data = await computeLoan(buildBonusPayload(formData, !isNonMemberBonus));
         setFeeBreakdown(data?.deductions ? { ...data.deductions, net_proceeds: data.net_proceeds } : null);
+        const firstRow = data?.monthly_breakdown?.[0];
+        setComputation(firstRow ? {
+          principal,
+          term,
+          monthlyPrincipal: Number(firstRow.principal_component || 0),
+          monthlyInterest: Number(firstRow.interest_component || 0),
+          monthlyAmortization: Number(data.monthly_amortization || 0),
+          totalInterest: Number(data.total_interest || 0),
+          ratePercent: (Number(firstRow.interest_component || 0) / principal) * 100,
+        } : null);
         setFormData((prev) => ({
           ...prev,
           monthly_amortization: data?.monthly_amortization ? String(data.monthly_amortization) : prev.monthly_amortization,
@@ -446,22 +500,22 @@ function Bonus_Loan() {
           <img src="/img/ttmpc logo.png" alt="Logo" className="h-12 w-auto" />
           <div className="min-w-0 flex flex-col">
             <h1 className="break-words text-xs font-bold text-primary-deep sm:text-sm">Tubungan Teacher's Multi-Purpose Cooperative</h1>
-            <p className="text-[#A0D284] text-xs">Loan Application Kiosk</p>
+            <p className="text-[#A0D284] text-xs">{staffIntake ? 'Cashier — Non-Member Bonus Loan Intake' : 'Loan Application'}</p>
           </div>
           </div>
           <button
             type="button"
-            onClick={() => navigate('/member-apply-loans')}
+            onClick={() => navigate(staffIntake ? '/Cashier_Dashboard' : '/member-apply-loans')}
             className="w-full rounded-lg bg-white px-4 py-2 text-xs font-bold text-member-green shadow-sm border border-[#D5EDB9] hover:bg-[#F4FBF0] sm:w-auto"
           >
-            Back to Member Portal
+            {staffIntake ? 'Back to Cashier Portal' : 'Back to Member Portal'}
           </button>
         </div>
       </header>
 
       <form ref={formRef} noValidate={window.matchMedia('(max-width: 767px)').matches} onSubmit={handleSubmit} className="px-3 sm:px-4">
         <section className="grid gap-6 px-3 sm:gap-8 sm:px-4">
-          <h1 className="mt-8 text-center text-xl font-bold text-primary sm:mt-12">BONUS LOAN APPLICATION</h1>
+          <h1 className="mt-8 text-center text-xl font-bold text-primary sm:mt-12">{staffIntake ? 'NON-MEMBER BONUS LOAN APPLICATION' : 'BONUS LOAN APPLICATION'}</h1>
           {/* Mobile-only: download the form as a PDF (includes what is entered so far). */}
           <button
             type="button"
@@ -510,28 +564,28 @@ function Bonus_Loan() {
         <div data-mobile-step="0" className={`${mobileStep === 0 ? 'block' : 'hidden'} mobile-step-transition md:block mt-10 bg-white rounded-lg shadow-md overflow-hidden max-w-6xl mx-auto w-full`}>
           <div className={sectionHeader}><span className="bg-white text-primary-deep rounded-full w-6 h-6 flex items-center justify-center text-sm">1</span> BORROWER'S INFORMATION</div>
           <div className="p-4 sm:p-6 lg:p-8 grid grid-cols-1 md:grid-cols-3 gap-y-8 gap-x-6 md:gap-6">
-            <div><label className={labelStyles}>Surname *</label><input name="surname" value={formData.surname} onChange={handleChange} className={inputStyles} required /></div>
-            <div><label className={labelStyles}>First Name *</label><input name="first_name" value={formData.first_name} onChange={handleChange} className={inputStyles} required /></div>
-            <div><label className={labelStyles}>Middle Name</label><input name="middle_name" value={formData.middle_name} onChange={handleChange} className={inputStyles} /></div>
-            <div><label className={labelStyles}>Contact No. *</label><input name="contact_no" value={formData.contact_no} onChange={handleChange} className={inputStyles} required /></div>
+            <div><label className={labelStyles}>Surname *</label><input name="surname" value={formData.surname} onChange={handleChange} className={inputClassFor('surname')} required {...lockedInputProps('surname')} /></div>
+            <div><label className={labelStyles}>First Name *</label><input name="first_name" value={formData.first_name} onChange={handleChange} className={inputClassFor('first_name')} required {...lockedInputProps('first_name')} /></div>
+            <div><label className={labelStyles}>Middle Name</label><input name="middle_name" value={formData.middle_name} onChange={handleChange} className={inputClassFor('middle_name')} {...lockedInputProps('middle_name')} /></div>
+            <div><label className={labelStyles}>Contact No. *</label><input name="contact_no" value={formData.contact_no} onChange={handleChange} className={inputClassFor('contact_no')} required {...lockedInputProps('contact_no')} /></div>
             {isNonMemberBonus ? (
               <div><label className={labelStyles}>Email Address</label><input type="email" name="user_email" value={formData.user_email} onChange={handleChange} className={inputStyles} /></div>
             ) : null}
-            <div><label className={labelStyles}>Latest Net Pay *</label><input type="text" inputMode="decimal" name="latest_net_pay" value={formatWithCommas(formData.latest_net_pay)} onChange={(e) => handleChange({ target: { name: e.target.name, value: stripCommas(e.target.value) } })} className={inputStyles} required /></div>
-            <div><label className={labelStyles}>Share Capital *</label><input type="text" inputMode="decimal" name="share_capital" value={formatWithCommas(formData.share_capital)} onChange={(e) => handleChange({ target: { name: e.target.name, value: stripCommas(e.target.value) } })} className={inputStyles} required /></div>
-            <div className="md:col-span-3"><label className={labelStyles}>Residence Address *</label><input name="residence_address" value={formData.residence_address} onChange={handleChange} className={inputStyles} required /></div>
-            <div><label className={labelStyles}>Date of Birth *</label><input type="date" name="date_of_birth" value={formData.date_of_birth} onChange={handleChange} className={inputStyles} required /></div>
-            <div><label className={labelStyles}>Age *</label><input type="number" name="age" value={formData.age} onChange={handleChange} className={inputStyles} required /></div>
-            <div><label className={labelStyles}>Civil Status *</label><input name="civil_status" value={formData.civil_status} onChange={handleChange} className={inputStyles} required /></div>
-            <div><label className={labelStyles}>Gender *</label><input name="gender" value={formData.gender} onChange={handleChange} className={inputStyles} required /></div>
-            <div><label className={labelStyles}>TIN No. *</label><input name="tin_no" value={formData.tin_no} onChange={handleChange} inputMode="numeric" maxLength={TIN_FORMATTED_MAX_LENGTH} placeholder="123-456-789-000" className={inputStyles} required /></div>
-            <div><label className={labelStyles}>GSIS/SSS No. *</label><input name="gsis_sss_no" value={formData.gsis_sss_no} onChange={handleChange} className={inputStyles} required /></div>
-            <div><label className={labelStyles}>Employer Name *</label><input name="employer_name" value={formData.employer_name} onChange={handleChange} className={inputStyles} required /></div>
-            <div><label className={labelStyles}>Office Address *</label><input name="office_address" value={formData.office_address} onChange={handleChange} className={inputStyles} required /></div>
+            <div><label className={labelStyles}>Latest Net Pay *</label><input type="text" inputMode="decimal" name="latest_net_pay" value={formatWithCommas(formData.latest_net_pay)} onChange={(e) => handleChange({ target: { name: e.target.name, value: stripCommas(e.target.value) } })} className={inputClassFor('latest_net_pay')} required {...lockedInputProps('latest_net_pay')} /></div>
+            <div><label className={labelStyles}>Share Capital *</label><input type="text" inputMode="decimal" name="share_capital" value={formatWithCommas(formData.share_capital)} onChange={(e) => handleChange({ target: { name: e.target.name, value: stripCommas(e.target.value) } })} className={inputClassFor('share_capital')} required {...lockedInputProps('share_capital')} /></div>
+            <div className="md:col-span-3"><label className={labelStyles}>Residence Address *</label><input name="residence_address" value={formData.residence_address} onChange={handleChange} className={inputClassFor('residence_address')} required {...lockedInputProps('residence_address')} /></div>
+            <div><label className={labelStyles}>Date of Birth *</label><input type="date" name="date_of_birth" value={formData.date_of_birth} onChange={handleChange} className={inputClassFor('date_of_birth')} required {...lockedInputProps('date_of_birth')} /></div>
+            <div><label className={labelStyles}>Age *</label><input type="number" name="age" value={formData.age} onChange={handleChange} className={inputClassFor('age')} required {...lockedInputProps('age')} /></div>
+            <div><label className={labelStyles}>Civil Status *</label><input name="civil_status" value={formData.civil_status} onChange={handleChange} className={inputClassFor('civil_status')} required {...lockedInputProps('civil_status')} /></div>
+            <div><label className={labelStyles}>Gender *</label><input name="gender" value={formData.gender} onChange={handleChange} className={inputClassFor('gender')} required {...lockedInputProps('gender')} /></div>
+            <div><label className={labelStyles}>TIN No. *</label><input name="tin_no" value={formData.tin_no} onChange={handleChange} inputMode="numeric" maxLength={TIN_FORMATTED_MAX_LENGTH} placeholder="123-456-789-000" className={inputClassFor('tin_no')} required {...lockedInputProps('tin_no')} /></div>
+            <div><label className={labelStyles}>GSIS/SSS No. *</label><input name="gsis_sss_no" value={formData.gsis_sss_no} onChange={handleChange} className={inputClassFor('gsis_sss_no')} required {...lockedInputProps('gsis_sss_no')} /></div>
+            <div><label className={labelStyles}>Employer Name *</label><input name="employer_name" value={formData.employer_name} onChange={handleChange} className={inputClassFor('employer_name')} required {...lockedInputProps('employer_name')} /></div>
+            <div><label className={labelStyles}>Office Address *</label><input name="office_address" value={formData.office_address} onChange={handleChange} className={inputClassFor('office_address')} required {...lockedInputProps('office_address')} /></div>
             {isMarriedCivilStatus ? (
               <>
-                <div><label className={labelStyles}>Spouse Name *</label><input name="spouse_name" value={formData.spouse_name} onChange={handleChange} className={inputStyles} required /></div>
-                <div><label className={labelStyles}>Spouse Occupation *</label><input name="spouse_occupation" value={formData.spouse_occupation} onChange={handleChange} className={inputStyles} required /></div>
+                <div><label className={labelStyles}>Spouse Name *</label><input name="spouse_name" value={formData.spouse_name} onChange={handleChange} className={inputClassFor('spouse_name')} required {...lockedInputProps('spouse_name')} /></div>
+                <div><label className={labelStyles}>Spouse Occupation *</label><input name="spouse_occupation" value={formData.spouse_occupation} onChange={handleChange} className={inputClassFor('spouse_occupation')} required {...lockedInputProps('spouse_occupation')} /></div>
               </>
             ) : null}
           </div>
@@ -623,12 +677,48 @@ function Bonus_Loan() {
               </span>
             </div>
 
-            {feeBreakdown && (
-              <LoanDeductionsCard
-                loan={feeBreakdown}
-                isRenewal={String(formData.application_type || '').toLowerCase() === 'renewal'}
-                className="mt-6 max-w-md"
-              />
+            {(computation || feeBreakdown) && (
+              <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2">
+                {computation && (
+                  <div className="rounded-xl border border-green-200 bg-[#F4FBF0] p-4">
+                    <p className="mb-3 text-[10px] font-bold uppercase tracking-wider text-primary-deep">
+                      Loan Computation
+                    </p>
+                    <div className="space-y-1.5 text-sm">
+                      {[
+                        ['Loan Amount', peso(computation.principal)],
+                        ['Term', `${computation.term} months`],
+                        ['Interest Rate', `${computation.ratePercent.toFixed(2).replace(/\.?0+$/, '')}% per month`],
+                        ['Monthly Principal', peso(computation.monthlyPrincipal)],
+                        ['Monthly Interest', peso(computation.monthlyInterest)],
+                      ].map(([label, value]) => (
+                        <div key={label} className="flex justify-between">
+                          <span className="text-gray-600">{label}</span>
+                          <span className="font-semibold text-gray-800">{value}</span>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="mt-2 flex justify-between border-t border-green-200 pt-2 text-sm">
+                      <span className="font-semibold text-gray-700">Monthly Amortization</span>
+                      <span className="font-bold text-gray-900">{peso(computation.monthlyAmortization)}</span>
+                    </div>
+                    <div className="mt-1.5 flex justify-between text-sm">
+                      <span className="text-gray-600">Total Interest</span>
+                      <span className="font-semibold text-gray-800">{peso(computation.totalInterest)}</span>
+                    </div>
+                    <div className="mt-2 flex justify-between">
+                      <span className="font-bold text-gray-900">Total Amount to Repay</span>
+                      <span className="font-black text-member-green">{peso(computation.principal + computation.totalInterest)}</span>
+                    </div>
+                  </div>
+                )}
+                {feeBreakdown && (
+                  <LoanDeductionsCard
+                    loan={feeBreakdown}
+                    isRenewal={String(formData.application_type || '').toLowerCase() === 'renewal'}
+                  />
+                )}
+              </div>
             )}
 
           </div>
