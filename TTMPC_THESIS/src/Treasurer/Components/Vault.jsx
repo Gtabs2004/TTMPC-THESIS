@@ -73,6 +73,7 @@ const Vault = () => {
   const [forecast, setForecast] = useState({ consolidated: null, emergency: null, targetPeriod: null });
   const [forecastLoading, setForecastLoading] = useState(false);
   const [forecastError, setForecastError] = useState("");
+  const [forecastUpdatedAt, setForecastUpdatedAt] = useState(null);
 
   // -------------------------------------------------------------------------
   // Data fetching — direct Supabase (RLS enforced by is_vault_reader).
@@ -139,6 +140,7 @@ const Vault = () => {
       const map = { targetPeriod: targetKey };
       for (const [k, v] of results) map[k] = v;
       setForecast(map);
+      setForecastUpdatedAt(new Date());
     } catch (err) {
       setForecastError(err?.message || "Failed to load forecast.");
     } finally {
@@ -147,6 +149,13 @@ const Vault = () => {
   }, []);
 
   useEffect(() => { fetchForecast(); }, [fetchForecast]);
+
+  // "Refresh forecast" re-pulls the forecast AND the vault balance it is
+  // compared against, so the verdict reflects what is in the vault right now.
+  const handleRefreshForecast = useCallback(
+    () => Promise.all([fetchForecast(), fetchData({ silent: true })]),
+    [fetchForecast, fetchData],
+  );
 
   const filteredEntries = useMemo(() => {
     if (typeFilter === "all") return entries;
@@ -225,7 +234,7 @@ const Vault = () => {
               <button
                 type="button"
                 onClick={() => setShowModal(true)}
-                className="inline-flex items-center gap-2 px-4 py-1 rounded-lg bg-[#1D6021] text-white text-xs font-semibold hover:bg-green-700"
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[#1D6021] text-white text-xs font-semibold hover:bg-green-700"
               >
                 <Plus size={16} /> Update Balance
               </button>
@@ -266,13 +275,23 @@ const Vault = () => {
                   Planning uses the upper 80% confidence bound so you don't run short if demand runs high.
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={fetchForecast}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-300 bg-white text-xs font-semibold text-gray-700 hover:bg-gray-50"
-              >
-                <RefreshCw size={12} /> Refresh forecast
-              </button>
+              <div className="flex flex-col items-end gap-1">
+                <button
+                  type="button"
+                  onClick={handleRefreshForecast}
+                  disabled={forecastLoading}
+                  aria-busy={forecastLoading}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-300 bg-white text-xs font-semibold text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <RefreshCw size={12} className={forecastLoading ? "animate-spin" : ""} aria-hidden="true" />
+                  {forecastLoading ? "Refreshing…" : "Refresh forecast"}
+                </button>
+                {forecastUpdatedAt && (
+                  <span className="text-[11px] text-gray-500" aria-live="polite">
+                    Updated {forecastUpdatedAt.toLocaleTimeString("en-PH", { hour: "numeric", minute: "2-digit", second: "2-digit" })}
+                  </span>
+                )}
+              </div>
             </div>
 
             {forecastError && (

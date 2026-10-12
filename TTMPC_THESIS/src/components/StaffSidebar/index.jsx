@@ -6,6 +6,7 @@ import { UserAuth } from "../../contex/AuthContext";
 import { usePortalRole } from "../../utils/usePortalRole";
 import { PortalSidebarIdentity } from "../PortalIdentity";
 import { useStaffLayout } from "../../contex/StaffLayoutContext";
+import { useBookkeeperPendingCounts } from "../../hooks/useBookkeeperPendingCounts";
 
 const navLinkClass = ({ isActive }) =>
   `flex items-center gap-3 p-2 rounded-md transition-colors ${
@@ -15,7 +16,7 @@ const navLinkClass = ({ isActive }) =>
   }`;
 
 const subNavLinkClass = ({ isActive }) =>
-  `block pl-11 pr-4 py-2 rounded-md transition-colors text-[13px] ${
+  `flex items-center justify-between gap-2 pl-11 pr-4 py-2 rounded-md transition-colors text-[13px] ${
     isActive
       ? "text-green-700 font-semibold"
       : "text-gray-500 hover:text-green-700 hover:bg-green-50"
@@ -24,11 +25,24 @@ const subNavLinkClass = ({ isActive }) =>
 // Flyout/tooltip subitem link — same active styling as subNavLinkClass, just
 // without the indent (the flyout isn't nested under anything visually).
 const flyoutSubNavLinkClass = ({ isActive }) =>
-  `block px-3 py-2 rounded-md transition-colors text-[13px] whitespace-nowrap ${
+  `flex items-center justify-between gap-3 px-3 py-2 rounded-md transition-colors text-[13px] whitespace-nowrap ${
     isActive
       ? "text-green-700 font-semibold bg-green-50"
       : "text-gray-600 hover:text-green-700 hover:bg-green-50"
   }`;
+
+// Small "N waiting" pill for entries that carry a pending-work count.
+function CountBadge({ count, className = "" }) {
+  if (!count || count < 1) return null;
+  return (
+    <span
+      aria-label={`${count} pending`}
+      className={`inline-flex h-5 min-w-[1.25rem] shrink-0 items-center justify-center rounded-full bg-amber-100 px-1.5 text-[11px] font-bold leading-none text-amber-800 ${className}`}
+    >
+      {count > 99 ? "99+" : count}
+    </span>
+  );
+}
 
 /**
  * Single-source-of-truth sidebar for all staff portals (BOD, Bookkeeper,
@@ -64,6 +78,11 @@ export default function StaffSidebar({ portal, items, sections }) {
   const navigate = useNavigate();
   const location = useLocation();
   const portalRole = usePortalRole();
+  // Pending-work counts (Bookkeeper only for now). Entries opt in with a
+  // `badgeKey`; a group shows the sum of its sub-items.
+  const pendingCounts = useBookkeeperPendingCounts(portal === "Bookkeeper");
+  const countFor = (entry) => (entry.badgeKey ? Number(pendingCounts[entry.badgeKey]) || 0 : 0);
+  const groupCount = (item) => (item.subItems || []).reduce((sum, sub) => sum + countFor(sub), 0);
   const { sidebarOpen, setSidebarOpen, collapsed, setCollapsed, toggleCollapsed } =
     useStaffLayout();
 
@@ -73,10 +92,15 @@ export default function StaffSidebar({ portal, items, sections }) {
   // as the menu "closing itself" on click, even though the navigation
   // succeeded. Seed from the current route instead, so the group containing
   // the active page starts open.
+  // A sub-page counts as its list page too (e.g. /bookkeeper-loan-approval/123
+  // belongs to the "Loan Approval" link), so the group opens on detail pages.
+  const isSubItemActive = (s) =>
+    location.pathname === s.path || location.pathname.startsWith(`${s.path}/`);
+
   const findActiveDropdown = () => {
     const pools = sections ? sections.flatMap((g) => g.items) : items;
     const match = (pools || []).find(
-      (i) => i.isDropdown && i.subItems?.some((s) => s.path === location.pathname)
+      (i) => i.isDropdown && i.subItems?.some(isSubItemActive)
     );
     return match?.name || null;
   };
@@ -171,6 +195,8 @@ export default function StaffSidebar({ portal, items, sections }) {
 
     if (item.isDropdown) {
       const isOpen = !!openDropdowns[item.name];
+      const hasActiveChild = item.subItems?.some(isSubItemActive);
+      const pending = groupCount(item);
       return (
         <div key={item.name} className="flex flex-col">
           <button
@@ -180,15 +206,24 @@ export default function StaffSidebar({ portal, items, sections }) {
             onMouseLeave={hideFlyout}
             onFocus={(e) => showFlyout(e, item.name, item.subItems)}
             onBlur={hideFlyout}
-            className={`flex items-center justify-between p-2 rounded-md text-gray-700 hover:bg-green-50 hover:text-green-700 transition-colors w-full ${
-              collapsed ? "lg:justify-center" : ""
-            }`}
+            className={`flex items-center justify-between p-2 rounded-md hover:bg-green-50 hover:text-green-700 transition-colors w-full ${
+              hasActiveChild ? "text-green-700 font-semibold" : "text-gray-700"
+            } ${collapsed ? "lg:justify-center" : ""}`}
           >
             <div className={`flex items-center gap-3 ${collapsed ? "lg:gap-0" : ""}`}>
-              <Icon size={20} className="shrink-0" />
+              <span className="relative shrink-0">
+                <Icon size={20} />
+                {pending > 0 && collapsed && (
+                  <span
+                    aria-label={`${pending} pending`}
+                    className="absolute -right-1 -top-1 hidden h-2.5 w-2.5 rounded-full bg-amber-500 ring-2 ring-white lg:block"
+                  />
+                )}
+              </span>
               {renderLabel(item.name)}
             </div>
-            <span className={collapsed ? "lg:hidden" : ""}>
+            <span className={`flex items-center gap-2 ${collapsed ? "lg:hidden" : ""}`}>
+              {!isOpen && <CountBadge count={pending} />}
               {isOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
             </span>
           </button>
@@ -202,7 +237,8 @@ export default function StaffSidebar({ portal, items, sections }) {
                   className={subNavLinkClass}
                   onClick={() => setSidebarOpen(false)}
                 >
-                  {subItem.name}
+                  <span>{subItem.name}</span>
+                  <CountBadge count={countFor(subItem)} />
                 </NavLink>
               ))}
             </div>
@@ -404,7 +440,8 @@ export default function StaffSidebar({ portal, items, sections }) {
                       hideFlyout();
                     }}
                   >
-                    {subItem.name}
+                    <span>{subItem.name}</span>
+                    <CountBadge count={countFor(subItem)} />
                   </NavLink>
                 ))}
               </div>

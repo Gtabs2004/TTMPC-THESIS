@@ -6178,6 +6178,60 @@ def consume_renewal_override(
     return {"success": True, "consumed": True}
 
 
+@app.get("/api/bookkeeper/pending-counts")
+def get_bookkeeper_pending_counts(current_user: dict = _Depends(_get_current_user)):
+    """How many items are waiting on the Bookkeeper, for the sidebar badges.
+
+    Each count mirrors the queue its page shows, so a badge never disagrees with
+    the list behind it:
+      - loan_approval:      loans + KOICA loans still 'pending' or 'draft'
+                            (the Loan Approval page's Pending tab)
+      - loan_payments:      loan_payments awaiting Bookkeeper confirmation
+      - savings_withdrawals: savings queue rows awaiting verification
+      - override_requests:  renewal/bonus-window override requests still pending
+    Head-only count queries: no rows are transferred.
+    """
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+
+    role = _resolve_staff_role(current_user["id"], current_user.get("email") or "")
+    if role != "bookkeeper":
+        raise HTTPException(status_code=403, detail="Only the Bookkeeper can view these counts.")
+
+    def head_count(table: str, apply_filter) -> int:
+        query = supabase.table(table).select("*", count="exact", head=True)
+        return int(getattr(apply_filter(query).execute(), "count", None) or 0)
+
+    # ilike with no wildcard is a case-insensitive equality check, matching how
+    # the pages lower-case these statuses before comparing.
+    def pending_or_draft(q):
+        return q.or_("loan_status.ilike.pending,loan_status.ilike.draft")
+
+    try:
+        loan_approval = head_count("loans", pending_or_draft) + head_count("koica_loans", pending_or_draft)
+        loan_payments = head_count(
+            "loan_payments",
+            lambda q: q.or_("confirmation_status.ilike.pending_bookkeeper,confirmation_status.is.null"),
+        )
+        savings_withdrawals = head_count(
+            "savings_transaction_queue",
+            lambda q: q.ilike("transaction_status", "pending_verification"),
+        )
+        override_requests = head_count(RENEWAL_OVERRIDE_TABLE, lambda q: q.eq("status", "pending"))
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Could not load pending counts: {exc}")
+
+    return {
+        "success": True,
+        "data": {
+            "loan_approval": loan_approval,
+            "loan_payments": loan_payments,
+            "savings_withdrawals": savings_withdrawals,
+            "override_requests": override_requests,
+        },
+    }
+
+
 @app.get("/api/bookkeeper/renewal-override-requests")
 def list_renewal_override_requests(
     status: str = "pending",
