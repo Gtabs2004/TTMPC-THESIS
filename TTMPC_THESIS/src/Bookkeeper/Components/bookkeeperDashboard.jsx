@@ -47,10 +47,8 @@ import {
   ResponsiveContainer,
   Tooltip,
   Legend,
-  ReferenceLine,
-  Cell,
 } from "recharts";
-import { SERIES_PRIMARY, SEMANTIC_COLORS, REPAYMENT_HEALTH_COLORS } from "../../lib/chartColors";
+import { SERIES_PRIMARY, SEMANTIC_COLORS } from "../../lib/chartColors";
 import { formatRelativeTime } from "../../utils/relativeTime";
 import { TableToolbar } from "../../components/TableToolbar";
 import { loanStatusBadge, paymentStatusBadge, STATUS_BADGE_CLASSES } from "../../utils/transactionStatus";
@@ -217,10 +215,11 @@ const Dashboard = () => {
     return ((latest - prior) / prior) * 100;
   }, [yearlyBarData]);
 
-  // Repayment behavior — monthly buckets for a user-picked year. TTMPC's 3-
-  // month rule = delinquent when >90 days past due. Bucketing itself now
-  // happens server-side (_compute_payment_charts); this just picks the
-  // selected year's 12 months out of repayment_behavior_by_year.
+  // Collection performance — Expected vs. Collected per due month, for a
+  // user-picked year. Bucketing happens server-side (_compute_payment_charts)
+  // straight from loan_schedules (expected_amount, schedule_status), so a
+  // month with one installment doesn't render the same visual weight as a
+  // month with hundreds — amounts, not percentages of tiny samples.
   const behaviorByYear = useMemo(() => summary?.repayment_behavior_by_year || {}, [summary]);
 
   const availableYears = useMemo(() => {
@@ -234,18 +233,32 @@ const Dashboard = () => {
     const monthLabels = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
     const buckets = behaviorByYear[chartYear] || [];
     return monthLabels.map((label, idx) => {
-      const b = buckets[idx] || { on_time: 0, late: 0 };
-      const total = (b.on_time || 0) + (b.late || 0);
+      const b = buckets[idx] || { expected: 0, collected: 0, outstanding: 0, overdue_count: 0 };
       return {
         name: label,
-        onTimePct: total > 0 ? Math.round((b.on_time / total) * 100) : 0,
-        latePct: total > 0 ? Math.round((b.late / total) * 100) : 0,
-        onTimeCount: b.on_time || 0,
-        lateCount: b.late || 0,
-        total,
+        expected: Math.round(b.expected || 0),
+        collected: Math.round(b.collected || 0),
+        outstanding: Math.round(b.outstanding || 0),
+        overdueCount: b.overdue_count || 0,
       };
     });
   }, [behaviorByYear, chartYear]);
+
+  const yearTotals = useMemo(() => {
+    return monthlyBehaviorData.reduce(
+      (acc, m) => ({
+        expected: acc.expected + m.expected,
+        collected: acc.collected + m.collected,
+        outstanding: acc.outstanding + m.outstanding,
+        overdueCount: acc.overdueCount + m.overdueCount,
+      }),
+      { expected: 0, collected: 0, outstanding: 0, overdueCount: 0 }
+    );
+  }, [monthlyBehaviorData]);
+
+  const collectionRatePct = yearTotals.expected > 0
+    ? Math.round((yearTotals.collected / yearTotals.expected) * 100)
+    : null;
 
   // Recent Activity (item 4) — every transaction type the Bookkeeper deals
   // with, not just loan payments. Deliberately its own compact list design
@@ -389,14 +402,12 @@ const Dashboard = () => {
               </div>
             </div>
 
-            {/* Repayment Behavior — monthly delinquency bars for a selected year */}
+            {/* Collection Performance — expected vs. collected per month */}
             <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
               <div className="flex justify-between items-start mb-4 gap-3 flex-wrap">
                 <div>
-                  <h3 className="text-gray-800 font-bold text-lg">Repayment Behavior</h3>
-                  <p className="text-gray-400 text-xs">
-                    Monthly delinquency rate · higher = more delinquent
-                  </p>
+                  <h3 className="text-gray-800 font-bold text-lg">Collection Performance</h3>
+                  <p className="text-gray-400 text-xs">What was due vs. what came in, by month</p>
                 </div>
                 <div className="flex items-center gap-2">
                   <label htmlFor="chart-year" className="text-xs text-gray-500">Year</label>
@@ -413,70 +424,71 @@ const Dashboard = () => {
                   </select>
                 </div>
               </div>
+
+              {loading ? <Skeleton className="h-16 w-full mb-4" /> : (
+                <div className="grid grid-cols-3 gap-3 mb-4">
+                  <div>
+                    <p className="text-xs text-gray-500">Collected / Expected</p>
+                    <p className="text-lg font-bold text-gray-800">
+                      {collectionRatePct === null ? "—" : `${collectionRatePct}%`}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500">Outstanding</p>
+                    <p className="text-lg font-bold text-amber-600">{formatPeso(yearTotals.outstanding)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500">Unpaid installments</p>
+                    <p className="text-lg font-bold text-gray-800">{yearTotals.overdueCount.toLocaleString()}</p>
+                  </div>
+                </div>
+              )}
+
               <div className="flex flex-wrap gap-4 text-xs font-medium mb-3">
-                <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full" style={{ backgroundColor: REPAYMENT_HEALTH_COLORS.healthy }}></span><span className="text-gray-500">Healthy (&lt;2% late)</span></div>
-                <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full" style={{ backgroundColor: REPAYMENT_HEALTH_COLORS.watch }}></span><span className="text-gray-500">Watch (2-5%)</span></div>
-                <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full" style={{ backgroundColor: REPAYMENT_HEALTH_COLORS.poor }}></span><span className="text-gray-500">Poor (&gt;5%)</span></div>
-                <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full" style={{ backgroundColor: REPAYMENT_HEALTH_COLORS.noData }}></span><span className="text-gray-500">No data</span></div>
+                <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full" style={{ backgroundColor: SERIES_PRIMARY }}></span><span className="text-gray-500">Expected</span></div>
+                <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full" style={{ backgroundColor: SEMANTIC_COLORS.warning }}></span><span className="text-gray-500">Collected</span></div>
               </div>
-              <div className="h-56">
+              <div className="h-48">
                 {loading ? <SkeletonChart /> : <ResponsiveContainer debounce={200} width="100%" height="100%" minWidth={1} minHeight={1}>
-                  <BarChart data={monthlyBehaviorData} margin={{ top: 10, right: 20, left: -5, bottom: 5 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                  <BarChart data={monthlyBehaviorData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
                     <XAxis
                       dataKey="name"
-                      name="Month"
                       tick={{ fill: "#9ca3af", fontSize: 11 }}
-                      axisLine={false}
-                      tickLine={false}
-                      padding={{ left: 20, right: 20 }}
-                    />
-                    <YAxis
-                      dataKey="latePct"
-                      name="% Delinquent"
-                      domain={[0, (dataMax) => Math.max(15, Math.ceil((dataMax + 2) / 5) * 5)]}
-                      tick={{ fill: "#9ca3af", fontSize: 11 }}
-                      tickFormatter={(v) => `${v}%`}
                       axisLine={false}
                       tickLine={false}
                     />
-                    <ReferenceLine y={2} stroke={SEMANTIC_COLORS.warning} strokeDasharray="4 4" label={{ value: "2%", fill: "#b45309", fontSize: 10, position: "insideRight" }} />
-                    <ReferenceLine y={5} stroke={SEMANTIC_COLORS.danger} strokeDasharray="4 4" label={{ value: "5%", fill: "#b91c1c", fontSize: 10, position: "insideRight" }} />
+                    <YAxis
+                      tick={{ fill: "#9ca3af", fontSize: 11 }}
+                      tickFormatter={(val) => `${PESO}${Math.round(val / 1000)}k`}
+                      axisLine={false}
+                      tickLine={false}
+                    />
                     <Tooltip
                       cursor={{ fill: "#f8fafc" }}
                       content={({ active, payload }) => {
                         if (!active || !payload?.length) return null;
                         const r = payload[0].payload;
-                        if (r.total === 0) {
+                        if (r.expected === 0 && r.collected === 0) {
                           return (
                             <div className="bg-white rounded-md border border-gray-200 shadow-sm px-3 py-2 text-xs">
                               <div className="font-semibold text-gray-800">{r.name} {chartYear}</div>
-                              <div className="text-gray-500">No paired payments this month</div>
+                              <div className="text-gray-500">No installments due this month</div>
                             </div>
                           );
                         }
                         return (
                           <div className="bg-white rounded-md border border-gray-200 shadow-sm px-3 py-2 text-xs">
                             <div className="font-semibold text-gray-800 mb-1">{r.name} {chartYear}</div>
-                            <div className="text-red-600">Delinquent: {r.latePct}% ({r.lateCount.toLocaleString()})</div>
-                            <div className="text-green-600">On-time: {r.onTimePct}% ({r.onTimeCount.toLocaleString()})</div>
-                            <div className="text-gray-500 mt-1 pt-1 border-t border-gray-100">
-                              {r.total.toLocaleString()} paired payments
-                            </div>
+                            <div className="text-gray-700">Expected: {formatPeso(r.expected)}</div>
+                            <div className="text-amber-600">Collected: {formatPeso(r.collected)}</div>
+                            <div className="text-red-600">Outstanding: {formatPeso(r.outstanding)}</div>
                           </div>
                         );
                       }}
                     />
-                    <Bar dataKey="latePct" name="% Delinquent" radius={[4, 4, 0, 0]} barSize={28}>
-                      {monthlyBehaviorData.map((entry, idx) => {
-                        const color =
-                          entry.total === 0 ? REPAYMENT_HEALTH_COLORS.noData
-                          : entry.latePct > 5 ? REPAYMENT_HEALTH_COLORS.poor
-                          : entry.latePct >= 2 ? REPAYMENT_HEALTH_COLORS.watch
-                          : REPAYMENT_HEALTH_COLORS.healthy;
-                        return <Cell key={idx} fill={color} fillOpacity={0.8} />;
-                      })}
-                    </Bar>
+                    <Bar dataKey="expected" name="Expected" fill={SERIES_PRIMARY} radius={[4, 4, 0, 0]} barSize={14} fillOpacity={0.35} />
+                    <Bar dataKey="collected" name="Collected" fill={SEMANTIC_COLORS.warning} radius={[4, 4, 0, 0]} barSize={14} />
                   </BarChart>
                 </ResponsiveContainer>}
               </div>
