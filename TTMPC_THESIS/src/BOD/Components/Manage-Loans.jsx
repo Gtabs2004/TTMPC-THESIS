@@ -56,6 +56,12 @@ const resolveLoanStage = (loan) => {
   // substring "disbursed" and would otherwise be misread as already
   // Disbursed — this order is what makes this branch reachable at all.
   if (sourceStatus.includes("ready for disbursement") || sourceStatus.includes("to be disbursed")) return "Pending";
+  // "fully paid" must be checked before "released"/"disbursed": the DB's own
+  // loan_status is the source of truth for historical/backfilled loans whose
+  // recomputed payment-replay status (loan.status, checked above) doesn't
+  // reconcile to zero balance — without this check those loans silently fell
+  // through every branch into the "Pending" default below.
+  if (sourceStatus.includes("fully paid")) return "Paid";
   if (sourceStatus.includes("released") || sourceStatus.includes("disbursed")) return "Disbursed";
   if (sourceStatus.includes("partially paid")) return "Disbursed";
   if (sourceStatus.includes("approved")) return "Approved";
@@ -290,13 +296,14 @@ const BOD_Manage_Loans = () => {
   }, [activeFilter, searchTerm, yearFilter, monthFilter, loans.length]);
 
   const summaryTotals = useMemo(() => {
-    const totals = { approved: 0, disbursed: 0, paid: 0, pending: 0, total: 0 };
+    const totals = { approved: 0, disbursed: 0, paid: 0, pending: 0, total: 0, count: 0 };
     filteredLoans.forEach((loan) => {
       const stage = resolveLoanStage(loan);
       const amount = Number(loan.loan_amount || 0);
       const remainingBalance = Number(loan.remaining_balance || 0);
       const paidAmount = Math.max(amount - remainingBalance, 0);
       totals.total += amount;
+      totals.count += 1;
       if (paidAmount > 0) totals.paid += paidAmount;
       if (stage === "Disbursed" || stage === "Paid") totals.disbursed += amount;
       else if (stage === "Approved") totals.approved += amount;
@@ -373,7 +380,7 @@ const BOD_Manage_Loans = () => {
             <StatCardRow cols={4}>
               <StatCard
                 label="Total Loans"
-                value={formatCurrency(summaryTotals.total)}
+                value={summaryTotals.count.toLocaleString("en-US")}
                 icon={CreditCard}
                 iconColor="text-gray-700"
                 subtext="All recorded loans"

@@ -86,6 +86,7 @@ const ManageLoans = () => {
       .reduce((sum, payment) => sum + Number(payment.amount_paid || 0), 0);
 
     return {
+      totalLoanApplications: loans.length,
       totalActiveLoans,
       uniqueActiveMembers,
       totalOutstanding,
@@ -311,10 +312,10 @@ const ManageLoans = () => {
           <StatCardRow cols={4}>
             <StatCard
               label="Total Loan Records"
-              value={dashboardStats.totalActiveLoans}
+              value={dashboardStats.totalLoanApplications}
               icon={FileText}
               iconColor="text-blue-500"
-              subtext="All records with an outstanding balance"
+              subtext="All loan applications"
             />
             <StatCard
               label="Active Member Loans"

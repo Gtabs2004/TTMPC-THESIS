@@ -523,17 +523,30 @@ const LoanDemandForecastCard = ({ className = "" }) => {
                 const TrendIcon = st.trend === "up" ? TrendingUp : st.trend === "down" ? TrendingDown : Minus;
                 const trendColor =
                   st.trend === "up" ? "text-emerald-600" : st.trend === "down" ? "text-red-500" : "text-gray-400";
+                // Bonus is forecast via seasonal-naive (repeats last year's
+                // same month), not a trend-fitted model, so a first-vs-last
+                // "growth %" has no real meaning for it. Show the forecast
+                // total instead of a trend tile for Bonus.
+                const firstTile =
+                  t.value === "bonus"
+                    ? {
+                        label: "Forecast total",
+                        value: st.projectedTotal != null ? PHP_COMPACT(st.projectedTotal) : "—",
+                        title: st.projectedTotal != null ? PHP(st.projectedTotal) : undefined,
+                        sub: "over period",
+                      }
+                    : {
+                        label: "Trend direction",
+                        value: (
+                          <span className={`inline-flex items-center gap-1 ${trendColor}`}>
+                            <TrendIcon className="w-4 h-4" />
+                            {st.growthPct != null ? `${st.growthPct >= 0 ? "+" : ""}${st.growthPct.toFixed(0)}%` : "Flat"}
+                          </span>
+                        ),
+                        sub: "projected growth",
+                      };
                 const tiles = [
-                  {
-                    label: "Trend direction",
-                    value: (
-                      <span className={`inline-flex items-center gap-1 ${trendColor}`}>
-                        <TrendIcon className="w-4 h-4" />
-                        {st.growthPct != null ? `${st.growthPct >= 0 ? "+" : ""}${st.growthPct.toFixed(0)}%` : "Flat"}
-                      </span>
-                    ),
-                    sub: "projected growth",
-                  },
+                  firstTile,
                   {
                     label: st.endOfPeriodLabel ? `End-of-period target (${st.endOfPeriodLabel})` : "End-of-period target",
                     value: st.endOfPeriod != null ? PHP_COMPACT(st.endOfPeriod) : "—",

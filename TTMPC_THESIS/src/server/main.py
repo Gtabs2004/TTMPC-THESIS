@@ -1789,6 +1789,14 @@ async def compute_loan(payload: LoanComputeRequest):
 # payments, and disbursing approved loans.
 # ============================================================================
 
+def _ledger_says_fully_paid(loan_row: dict | None) -> bool:
+    # Imported historical loans carry principal-only installments (interest was
+    # settled at release or via renewal offset), so replaying them against the
+    # add-on total_payable never reaches zero. The coop ledger's own
+    # loan_status is authoritative for these.
+    return str((loan_row or {}).get("loan_status") or "").strip().lower() == "fully paid"
+
+
 @app.get("/api/cashier/loan-payments/loans")
 async def get_cashier_loans_for_payments():
     if not supabase:
@@ -2121,6 +2129,8 @@ async def get_cashier_loans_for_payments():
                     total_interest_amount = max(monthly_amort_val * term_months_val - principal_amount, Decimal("0"))
             total_payable_amount = principal_amount + total_interest_amount
             remaining_balance = max(total_payable_amount - confirmed_paid, Decimal("0"))
+            if _ledger_says_fully_paid(loan):
+                remaining_balance = Decimal("0")
 
             schedules = schedules_by_loan.get(control_number, [])
             next_schedule = None
@@ -6683,22 +6693,33 @@ async def get_bookkeeper_manage_loans():
         return cached["payload"]
 
     try:
-        # Bound + narrow, same fix applied to /api/secretary/membership-records:
-        # an unbounded select with nested foreign-table joins (member, loan_type)
+        # Narrow + paginated, same fix applied to /api/secretary/membership-records
+        # for the narrowing (an unbounded select with nested foreign-table joins
         # over the full `loans` table can push supabase-py past the HTTP2 stream
-        # limit, surfacing as a client `ConnectionTerminated` with no server-side
-        # traceback. .limit() keeps the payload (and join fan-out) bounded.
-        loans_response = (
-            supabase.table("loans")
-            .select(
-                "control_number,member_id,loan_amount,principal_amount,interest_rate,term,loan_status,application_status,monthly_amortization,total_interest,application_date,application_type," \
-                "member:member_id(membership_id,first_name,last_name,is_bona_fide),loan_type:loan_type_id(code,name,interest_rate)"
-            )
-            .order("application_date", desc=True)
-            .limit(5000)
-            .execute()
-        )
-        loan_rows = loans_response.data or []
+        # limit) plus pagination like the loan_schedules/loan_payments_legacy
+        # loops below: PostgREST enforces its own db-max-rows cap (commonly 1000)
+        # regardless of any .limit() requested here, so a single request can
+        # silently truncate the result below the real loan count.
+        loan_rows: list[dict] = []
+        page = 1000
+        offset = 0
+        while True:
+            batch = (
+                supabase.table("loans")
+                .select(
+                    "control_number,member_id,loan_amount,principal_amount,interest_rate,term,loan_status,application_status,monthly_amortization,total_interest,application_date,application_type," \
+                    "member:member_id(membership_id,first_name,last_name,is_bona_fide),loan_type:loan_type_id(code,name,interest_rate)"
+                )
+                .order("application_date", desc=True)
+                .range(offset, offset + page - 1)
+                .execute()
+            ).data or []
+            if not batch:
+                break
+            loan_rows.extend(batch)
+            if len(batch) < page:
+                break
+            offset += page
 
         # Prior-version count per loan. Same pattern as
         # /api/cashier/loan-payments/loans — chain = (member_id, loan_type_name)
@@ -6749,14 +6770,27 @@ async def get_bookkeeper_manage_loans():
                 },
             }
 
-        payments_response = (
-            supabase.table("loan_payments")
-            .select("id,loan_id,amount_paid,penalties,payment_date,confirmation_status,payment_reference,transaction_reference")
-            .in_("loan_id", loan_ids)
-            .order("payment_date")
-            .execute()
-        )
-        payment_rows = payments_response.data or []
+        # Chunk .in_() id lists: with 1,446 loans the full id list produces a
+        # query string long enough (~27KB) that Cloudflare/PostgREST reject it
+        # with a plain-text 400 "Bad Request" (not JSON, so postgrest-py's own
+        # error parsing throws "JSON could not be generated"). 300 ids/chunk
+        # keeps each request comfortably under that limit.
+        _ID_CHUNK = 300
+
+        def _id_chunks(ids: list[str]):
+            for i in range(0, len(ids), _ID_CHUNK):
+                yield ids[i : i + _ID_CHUNK]
+
+        payment_rows: list[dict] = []
+        for chunk in _id_chunks(loan_ids):
+            batch = (
+                supabase.table("loan_payments")
+                .select("id,loan_id,amount_paid,penalties,payment_date,confirmation_status,payment_reference,transaction_reference")
+                .in_("loan_id", chunk)
+                .order("payment_date")
+                .execute()
+            ).data or []
+            payment_rows.extend(batch)
 
         # Also pull legacy payments (historical, pre-migration). These live in
         # loan_payments_legacy and are keyed by the same control_number, but have
@@ -6765,23 +6799,24 @@ async def get_bookkeeper_manage_loans():
         # done (legacy table can have 6k+ rows across all loans).
         legacy_payment_rows: list[dict] = []
         try:
-            page = 1000
-            offset = 0
-            while True:
-                batch = (
-                    supabase.table("loan_payments_legacy")
-                    .select("id,loan_id,amount_paid,payment_date,payment_code,or_cdv_no,is_overpayment")
-                    .in_("loan_id", loan_ids)
-                    .order("payment_date")
-                    .range(offset, offset + page - 1)
-                    .execute()
-                ).data or []
-                if not batch:
-                    break
-                legacy_payment_rows.extend(batch)
-                if len(batch) < page:
-                    break
-                offset += page
+            for chunk in _id_chunks(loan_ids):
+                page = 1000
+                offset = 0
+                while True:
+                    batch = (
+                        supabase.table("loan_payments_legacy")
+                        .select("id,loan_id,amount_paid,payment_date,payment_code,or_cdv_no,is_overpayment")
+                        .in_("loan_id", chunk)
+                        .order("payment_date")
+                        .range(offset, offset + page - 1)
+                        .execute()
+                    ).data or []
+                    if not batch:
+                        break
+                    legacy_payment_rows.extend(batch)
+                    if len(batch) < page:
+                        break
+                    offset += page
         except Exception:
             legacy_payment_rows = []
 
@@ -6805,23 +6840,24 @@ async def get_bookkeeper_manage_loans():
         # leaving the Repayment Behavior chart empty for those loans.
         schedule_rows: list[dict] = []
         try:
-            page = 1000
-            offset = 0
-            while True:
-                batch = (
-                    supabase.table("loan_schedules")
-                    .select("loan_id,schedule_id,due_date,schedule_status,expected_amount,installment_no")
-                    .in_("loan_id", loan_ids)
-                    .order("due_date")
-                    .range(offset, offset + page - 1)
-                    .execute()
-                ).data or []
-                if not batch:
-                    break
-                schedule_rows.extend(batch)
-                if len(batch) < page:
-                    break
-                offset += page
+            for chunk in _id_chunks(loan_ids):
+                page = 1000
+                offset = 0
+                while True:
+                    batch = (
+                        supabase.table("loan_schedules")
+                        .select("loan_id,schedule_id,due_date,schedule_status,expected_amount,installment_no")
+                        .in_("loan_id", chunk)
+                        .order("due_date")
+                        .range(offset, offset + page - 1)
+                        .execute()
+                    ).data or []
+                    if not batch:
+                        break
+                    schedule_rows.extend(batch)
+                    if len(batch) < page:
+                        break
+                    offset += page
         except Exception:
             schedule_rows = []
 
@@ -6912,6 +6948,8 @@ async def get_bookkeeper_manage_loans():
                 )
 
             remaining_balance = max(total_payable_amount - total_validated, Decimal("0"))
+            if _ledger_says_fully_paid(row):
+                remaining_balance = Decimal("0")
             if remaining_balance <= 0:
                 repayment_status = "Fully Paid"
             elif total_validated > 0:
@@ -7790,6 +7828,8 @@ async def get_bookkeeper_loan_ledger(loan_id: str):
         })
 
     remaining_balance = max(total_payable_amount - total_validated, Decimal("0"))
+    if _ledger_says_fully_paid(row):
+        remaining_balance = Decimal("0")
     if remaining_balance <= 0:
         repayment_status = "Fully Paid"
     elif total_validated > 0:
