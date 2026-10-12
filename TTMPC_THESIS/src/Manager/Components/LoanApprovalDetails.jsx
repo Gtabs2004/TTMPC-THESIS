@@ -682,7 +682,29 @@ const LoanApprovalDetails = () => {
           if (!silent) setRiskError('');
           return;
         }
-        if (data) setRiskAssessment(data);
+        if (!data) return;
+
+        // The table row only holds the raw score (probability, features,
+        // model version). The band, action, history rate and the points-to-check
+        // list are derived from it by /api/risk/predict, which is also what
+        // Re-run shows. Ask for that same view without forcing a re-score, so
+        // the details are already on screen before anyone clicks Re-run.
+        try {
+          const response = await fetch(`${API_BASE_URL}/api/risk/predict`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              loan_control_number: id,
+              source: isKoicaSource ? 'koica_loans' : 'loans',
+              force_refresh: false,
+            }),
+          });
+          const enriched = response.ok ? await response.json() : null;
+          if (!isMounted) return;
+          setRiskAssessment(enriched || data);
+        } catch (_fetchErr) {
+          if (isMounted) setRiskAssessment(data);
+        }
       } catch (_err) {
         if (silent) return;
         // silent — empty assessment state means "not yet scored"
@@ -691,7 +713,7 @@ const LoanApprovalDetails = () => {
     return () => {
       isMounted = false;
     };
-  }, [id, rtVersionRisk]);
+  }, [id, rtVersionRisk, isKoicaSource]);
 
   // Reprint the borrower's original application form. Same backend templates
   // the member portal uses; personal data is re-read from the PDS because

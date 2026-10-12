@@ -13906,7 +13906,27 @@ async def predict_loan_risk(payload: RiskPredictRequest):
             .execute()
         )
         if cached.data:
-            return {"cached": True, **cached.data[0]}
+            cached_row = cached.data[0]
+            try:
+                cached_result = risk_score(cached_row.get("features_used") or {})
+            except (ModelNotAvailableError, KeyError, TypeError, ValueError):
+                cached_result = None
+            if cached_result:
+                return {
+                    "cached": True,
+                    **cached_row,
+                    "risk_label": cached_result["risk_label"],
+                    "band": cached_result["band"],
+                    "action": cached_result["action"],
+                    "band_share": cached_result["band_share"],
+                    "band_bad_rate_per_100": cached_result["band_bad_rate_per_100"],
+                    "flagged": cached_result["flagged"],
+                    "operating_point": cached_result["operating_point"],
+                    "never_rejects": cached_result["never_rejects"],
+                    "thresholds": cached_result["thresholds"],
+                    "drivers": cached_result["drivers"],
+                }
+            return {"cached": True, **cached_row}
 
     loan = _fetch_loan_for_scoring(payload.loan_control_number, payload.source)
     member_id = loan.get("member_id")
