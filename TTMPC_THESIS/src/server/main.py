@@ -14976,10 +14976,23 @@ class MembershipPaymentCreateRequest(BaseModel):
     notes: str | None = None
 
 
-def _next_membership_payment_sequence() -> int:
+def _next_membership_payment_sequence(prefix: str) -> int:
+    """Return the next suffix for one payment-ID namespace.
+
+    The old implementation used the total row count, which could reuse an ID
+    after deletions and collided across the fee and paid-up-capital prefixes.
+    """
     try:
-        resp = supabase.table("membership_payments").select("id").execute()
-        return len(resp.data or []) + 1
+        resp = supabase.table("membership_payments").select("payment_id").execute()
+        highest = 0
+        for row in resp.data or []:
+            payment_id = str(row.get("payment_id") or "")
+            if not payment_id.startswith(prefix):
+                continue
+            suffix = payment_id[len(prefix):]
+            if suffix.isdigit():
+                highest = max(highest, int(suffix))
+        return highest + 1
     except Exception:
         return 1
 
@@ -15288,12 +15301,9 @@ async def create_membership_payment(payload: MembershipPaymentCreateRequest):
             detail=f"Initial Paid-Up Capital must be at least ₱{INITIAL_PAID_UP_CAPITAL_REQUIRED:,.2f}.",
         )
 
-    # Build payment_id (TTMPCMF-### or TTMPCPC-### sequence)
+    # Build payment_id (TTMPCMF-### or TTMPCPC-### sequence).
     prefix = "TTMPCPC-" if payload.payment_type == "INITIAL_PAID_UP_CAPITAL" else "TTMPCMF-"
-    payment_id = build_sequence_id(prefix, _next_membership_payment_sequence())
-
     insert_row = {
-        "payment_id": payment_id,
         "application_id": payload.application_id,
         "membership_number_id": application.get("membership_id"),
         "payment_type": payload.payment_type,
@@ -15306,14 +15316,34 @@ async def create_membership_payment(payload: MembershipPaymentCreateRequest):
         "notes": (payload.notes or "").strip() or None,
     }
 
-    try:
-        insert_resp = (
-            supabase.table("membership_payments")
-            .insert(insert_row)
-            .execute()
+    # Two cashiers can calculate the same next number concurrently. Retry only
+    # a payment_id uniqueness collision; other insert errors must be reported.
+    insert_resp = None
+    payment_id = ""
+    for _attempt in range(8):
+        payment_id = build_sequence_id(prefix, _next_membership_payment_sequence(prefix))
+        candidate = {**insert_row, "payment_id": payment_id}
+        try:
+            insert_resp = (
+                supabase.table("membership_payments")
+                .insert(candidate)
+                .execute()
+            )
+            insert_row = candidate
+            break
+        except Exception as err:
+            message = str(err)
+            is_payment_id_collision = (
+                "membership_payments_payment_id_key" in message
+                or ("duplicate key" in message and "payment_id" in message)
+            )
+            if not is_payment_id_collision:
+                raise HTTPException(status_code=500, detail=f"Failed to record payment: {err}")
+    else:
+        raise HTTPException(
+            status_code=409,
+            detail="Could not allocate a unique membership payment ID. Please retry.",
         )
-    except Exception as err:
-        raise HTTPException(status_code=500, detail=f"Failed to record payment: {err}")
 
     saved = (insert_resp.data or [insert_row])[0]
     if payload.processed_by:

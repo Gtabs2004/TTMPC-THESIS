@@ -385,8 +385,10 @@ const Secretary_Attendance = () => {
       const upsertTry = await supabase.from(tableName).upsert(payload, { onConflict: "application_id,training_stage" });
       if (!upsertTry.error) return { ok: true };
 
-      const insertTry = await supabase.from(tableName).insert(payload);
-      if (!insertTry.error) return { ok: true };
+      return {
+        ok: false,
+        warning: upsertTry.error.message || "Unable to save the attendance log.",
+      };
     }
 
     return {
@@ -557,10 +559,7 @@ const Secretary_Attendance = () => {
         .from("attendance_logs")
         .upsert(payload, { onConflict: "application_id,training_stage" });
 
-      if (upsertTry.error) {
-        const insertTry = await supabase.from("attendance_logs").insert(payload);
-        if (insertTry.error) throw new Error(insertTry.error.message);
-      }
+      if (upsertTry.error) throw new Error(upsertTry.error.message);
 
       await sendRescheduleEmail(rescheduleMember, recordedAt, rescheduleNote);
       addNotification("Training rescheduled and member notified.", "success");
@@ -1248,6 +1247,4 @@ const Secretary_Attendance = () => {
 };
 
 export default Secretary_Attendance;
-
-
 

@@ -70,3 +70,25 @@ BEGIN
     ADD CONSTRAINT attendance_logs_status_v2_check
     CHECK (status IS NULL OR status IN ('Present', 'Absent', 'Rescheduled'));
 END $$;
+
+-- 4. The original schema allowed only one attendance row per application.
+--    Rescheduling requires one Training row and one Rescheduled Training row,
+--    so remove the obsolete application-only uniqueness before creating the
+--    stage-aware unique index used by the frontend upsert.
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'attendance_logs_application_uidx'
+      AND conrelid = 'public.attendance_logs'::regclass
+  ) THEN
+    ALTER TABLE public.attendance_logs
+      DROP CONSTRAINT attendance_logs_application_uidx;
+  END IF;
+END $$;
+
+DROP INDEX IF EXISTS public.attendance_logs_application_uidx;
+
+CREATE UNIQUE INDEX IF NOT EXISTS attendance_logs_app_stage_uidx
+ON public.attendance_logs (application_id, training_stage);
