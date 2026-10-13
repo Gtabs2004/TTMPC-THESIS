@@ -40,8 +40,8 @@ from pathlib import Path
 from typing import Literal
 
 
-_CONFIG_PATH = Path(__file__).resolve().parent / "migration" / "Final_Modeling" / "demand_model_config.json"
-_DATA_PATH = Path(__file__).resolve().parent / "migration" / "Final_Modeling" / "df_modeling_export.csv"
+_CONFIG_PATH = Path(__file__).resolve().parent.parent / "Final_Modeling" / "demand_model_config.json"
+_DATA_PATH = Path(__file__).resolve().parent.parent / "Final_Modeling" / "df_modeling_export.csv"
 
 SUPPORTED_LOAN_TYPES = ("consolidated", "emergency", "bonus")
 
@@ -78,7 +78,7 @@ def _load_config() -> dict:
         if not _CONFIG_PATH.exists():
             raise DemandModelNotAvailableError(
                 f"Demand model config not found at {_CONFIG_PATH}. "
-                "Place demand_model_config.json in src/server/migration/Final_Modeling/."
+                "Place demand_model_config.json in src/Final_Modeling/."
             )
         with open(_CONFIG_PATH, encoding="utf-8") as f:
             _cache["config"] = json.load(f)
@@ -94,7 +94,7 @@ def _read_csv_rows() -> list[dict]:
         if not _DATA_PATH.exists():
             raise DemandModelNotAvailableError(
                 f"Demand model data CSV not found at {_DATA_PATH}. "
-                "Place df_modeling_export.csv in src/server/migration/Final_Modeling/."
+                "Place df_modeling_export.csv in src/Final_Modeling/."
             )
         with open(_DATA_PATH, encoding="utf-8", newline="") as f:
             _cache["rows"] = list(csv.DictReader(f))
