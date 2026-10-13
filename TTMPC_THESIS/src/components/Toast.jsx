@@ -1,70 +1,44 @@
 import React, { useEffect, useState } from 'react';
-import { X, CheckCircle, AlertCircle, Info, AlertTriangle } from 'lucide-react';
+import { X } from 'lucide-react';
+
+// Neutral card; the only colour is a small status dot.
+const DOT_COLORS = {
+  success: 'bg-[#66B538]',
+  error: 'bg-red-500',
+  warning: 'bg-amber-500',
+  info: 'bg-sky-500',
+};
 
 const Toast = ({ message, type = 'info', duration = 4000, onClose = () => {} }) => {
   const [isVisible, setIsVisible] = useState(true);
+  const [paused, setPaused] = useState(false);
 
   useEffect(() => {
+    if (paused) return undefined;
     const timer = setTimeout(() => {
       setIsVisible(false);
       setTimeout(onClose, 300); // Match animation duration
     }, duration);
 
     return () => clearTimeout(timer);
-  }, [duration, onClose]);
-
-  const getStyles = () => {
-    switch (type) {
-      case 'success':
-        return {
-          bg: 'bg-green-50',
-          border: 'border-green-200',
-          text: 'text-green-800',
-          icon: 'text-green-600',
-          Icon: CheckCircle,
-        };
-      case 'error':
-        return {
-          bg: 'bg-red-50',
-          border: 'border-red-200',
-          text: 'text-red-800',
-          icon: 'text-red-600',
-          Icon: AlertCircle,
-        };
-      case 'warning':
-        return {
-          bg: 'bg-amber-50',
-          border: 'border-amber-200',
-          text: 'text-amber-800',
-          icon: 'text-amber-600',
-          Icon: AlertTriangle,
-        };
-      case 'info':
-      default:
-        return {
-          bg: 'bg-blue-50',
-          border: 'border-blue-200',
-          text: 'text-blue-800',
-          icon: 'text-blue-600',
-          Icon: Info,
-        };
-    }
-  };
-
-  const styles = getStyles();
-  const Icon = styles.Icon;
+  }, [duration, onClose, paused]);
 
   return (
     <div
-      className={`toast-notification ${isVisible ? 'toast-enter' : 'toast-exit'} ${styles.bg} ${styles.border} border rounded-lg p-4 mb-3 shadow-lg flex items-start gap-3`}
+      role={type === 'error' ? 'alert' : 'status'}
+      onMouseEnter={() => setPaused(true)}
+      onMouseLeave={() => setPaused(false)}
+      className={`toast-notification ${isVisible ? 'toast-enter' : 'toast-exit'} mb-2 flex w-[min(92vw,22rem)] items-center gap-3 rounded-lg border border-gray-200 bg-white px-4 py-3 shadow-sm dark:border-mdark-border dark:bg-mdark-elevated`}
     >
-      <Icon className={`w-5 h-5 mt-0.5 flex-shrink-0 ${styles.icon}`} />
-      <p className={`text-sm font-medium flex-1 ${styles.text}`}>{message}</p>
+      <span aria-hidden="true" className={`h-2 w-2 shrink-0 rounded-full ${DOT_COLORS[type] || DOT_COLORS.info}`} />
+      <p className="min-w-0 flex-1 break-words text-sm text-gray-800 dark:text-mdark-text">{message}</p>
       <button
+        type="button"
+        aria-label="Dismiss notification"
         onClick={() => { setIsVisible(false); setTimeout(onClose, 300); }}
-        className={`flex-shrink-0 ${styles.text} hover:opacity-70 transition-opacity`}
+        className="shrink-0 text-gray-400 transition-colors hover:text-gray-700 dark:text-mdark-text-muted dark:hover:text-mdark-text"
       >
-        <X className="w-5 h-5" />
+        <X className="h-4 w-4" />
       </button>
     </div>
   );

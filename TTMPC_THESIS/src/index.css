@@ -183,6 +183,7 @@ body {
   animation: slideOut 0.3s ease-in;
 }
 
+
 /* Confirm Dialog */
 @keyframes dialogBackdropIn {
   from {
