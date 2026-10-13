@@ -82,6 +82,23 @@ function computeBonusSchedule(principal, months, monthlyRate) {
   return rows;
 }
 
+// Bonus loans are repaid in one shot at the May (mid-year) or November
+// (year-end) bonus release. Month-count from today to the next such month,
+// counted strictly forward — in May itself the next May is 12 months away.
+const BONUS_CYCLES = [
+  { code: "MAY", label: "Mid-year (May)", month: 5 },
+  { code: "NOV", label: "Year-end (Nov)", month: 11 },
+];
+
+function monthsUntilMonth(targetMonth, now = new Date()) {
+  const diff = (targetMonth - (now.getMonth() + 1) + 12) % 12;
+  return diff === 0 ? 12 : diff;
+}
+
+function nearestBonusCycleMonths(now = new Date()) {
+  return Math.min(...BONUS_CYCLES.map((c) => monthsUntilMonth(c.month, now)));
+}
+
 const CONSOLIDATED_AMOUNT_QUICK_PICKS = [50000, 100000, 150000, 200000, 300000];
 const EMERGENCY_AMOUNT_QUICK_PICKS = [5000, 10000, 15000, 20000];
 const BONUS_AMOUNT_QUICK_PICKS = [5000, 10000, 20000, 30000, 50000];
@@ -139,7 +156,7 @@ export default function LoanCalculatorModal({ open, onClose }) {
       setTerm(12);
     } else if (newType === "BONUS") {
       setLoanAmount(10000);
-      setTerm(3);
+      setTerm(nearestBonusCycleMonths());
     } else {
       setLoanAmount(100000);
       setTerm(24);
@@ -264,6 +281,16 @@ export default function LoanCalculatorModal({ open, onClose }) {
   // migsLabel is null while loading, so using a default multiplier before it
   // arrives could wrongly cap a MIGS member at 3×.
   const migsMultiplier = Number(migsLabel?.loan_multiplier) || 3;
+
+  // Bonus rate is driven by the member's MIGS classification (same label the
+  // real Bonus form uses). null = classification not resolved (not signed in),
+  // in which case the manual toggle stays available as a what-if fallback.
+  const isMigsMember = migsLabel
+    ? String(migsLabel.label || "").toLowerCase().startsWith("migs")
+    : null;
+  const bonusRate = isMigsMember === null
+    ? bonusMonthlyRate
+    : isMigsMember ? BONUS_RATE_MIGS : BONUS_RATE_NON_MIGS;
   const eligibleCapacity = shareCapital > 0 ? shareCapital * migsMultiplier : 0;
   // hasEligibilityData = prefill resolved AND migs label resolved
   const hasEligibilityData = memberId != null && migsLabel != null && shareCapital > 0;
@@ -302,12 +329,12 @@ export default function LoanCalculatorModal({ open, onClose }) {
 
     if (loanType === "BONUS") {
       if (!t || t < 1) return null;
-      const schedule = computeBonusSchedule(principal, t, bonusMonthlyRate);
+      const schedule = computeBonusSchedule(principal, t, bonusRate);
       const totalInterest = schedule[schedule.length - 1]?.cumulativeInterest ?? 0;
       const lumpSumDue = principal + totalInterest;
       const serviceFee = BONUS_SERVICE_FEE;
       const netRelease = principal - serviceFee;
-      return { type: "BONUS", principal, term: t, rate: bonusMonthlyRate, schedule, totalInterest, lumpSumDue, serviceFee, netRelease };
+      return { type: "BONUS", principal, term: t, rate: bonusRate, schedule, totalInterest, lumpSumDue, serviceFee, netRelease };
     }
 
     // Consolidated — add-on interest
@@ -320,7 +347,7 @@ export default function LoanCalculatorModal({ open, onClose }) {
     const netProceeds = renewalActive ? principal - remainingBalance : principal;
 
     return { type: "CONSOLIDATED", principal, term: t, monthly, totalInterest, totalRepayment, renewalActive, remainingBalance, netProceeds };
-  }, [loanType, loanAmount, term, bonusMonthlyRate, renewalEnabled, activeLoan]);
+  }, [loanType, loanAmount, term, bonusRate, renewalEnabled, activeLoan]);
 
   if (!open) return null;
 
@@ -482,21 +509,25 @@ export default function LoanCalculatorModal({ open, onClose }) {
               </div>
             ) : loanType === "BONUS" ? (
               <>
-                <div className="grid grid-cols-5 gap-1.5">
-                  {[1, 2, 3, 4, 5].map((t) => (
-                    <button
-                      key={t}
-                      type="button"
-                      onClick={() => setTerm(t)}
-                      className={`text-xs font-bold py-2 rounded-xl border transition-colors ${
-                        Number(term) === t
-                          ? "bg-member-green text-white border-member-green dark:bg-mdark-accent dark:border-mdark-accent shadow-sm"
-                          : "bg-white dark:bg-mdark-elevated text-gray-600 dark:text-mdark-text-secondary border-gray-200 dark:border-mdark-border hover:border-[#66B538] dark:hover:border-green-500 hover:text-member-green dark:hover:text-mdark-accent"
-                      }`}
-                    >
-                      {t} mo
-                    </button>
-                  ))}
+                <div className="grid grid-cols-2 gap-2">
+                  {BONUS_CYCLES.map((c) => {
+                    const t = monthsUntilMonth(c.month);
+                    return (
+                      <button
+                        key={c.code}
+                        type="button"
+                        onClick={() => setTerm(t)}
+                        className={`text-xs font-bold py-2 px-2 rounded-xl border transition-colors text-center leading-tight ${
+                          Number(term) === t
+                            ? "bg-member-green text-white border-member-green dark:bg-mdark-accent dark:border-mdark-accent shadow-sm"
+                            : "bg-white dark:bg-mdark-elevated text-gray-600 dark:text-mdark-text-secondary border-gray-200 dark:border-mdark-border hover:border-[#66B538] dark:hover:border-green-500 hover:text-member-green dark:hover:text-mdark-accent"
+                        }`}
+                      >
+                        {c.label}
+                        <span className="block text-[10px] font-semibold opacity-80">{t} {t === 1 ? "month" : "months"} left</span>
+                      </button>
+                    );
+                  })}
                 </div>
                 <div className="mt-2 flex items-center gap-2">
                   <span className="text-[11px] text-gray-400 dark:text-mdark-text-muted shrink-0">Custom:</span>
@@ -523,6 +554,21 @@ export default function LoanCalculatorModal({ open, onClose }) {
                 {/* Rate toggle */}
                 <div className="mt-3">
                   <p className="text-[10px] font-bold text-gray-500 dark:text-mdark-text-secondary uppercase tracking-wider mb-1.5">Interest Rate</p>
+                  {isMigsMember !== null ? (
+                    <div className="flex items-center justify-between rounded-xl border border-[#D8EBD3] dark:border-mdark-accent/30 bg-[#F3F9F1] dark:bg-mdark-accent/15 px-3 py-2.5">
+                      <div>
+                        <p className="text-xs font-bold text-gray-800 dark:text-mdark-text">
+                          {isMigsMember ? "MIGS Member" : "Non-MIGS Member"}
+                        </p>
+                        <p className="text-[11px] text-gray-500 dark:text-mdark-text-secondary">
+                          Detected automatically from your classification{migsLabel?.label === "Unscored" ? " (not yet scored — treated as Non-MIGS)" : ""}.
+                        </p>
+                      </div>
+                      <span className="text-sm font-extrabold text-member-green dark:text-mdark-accent">
+                        {bonusRate * 100}%/mo
+                      </span>
+                    </div>
+                  ) : (
                   <div className="grid grid-cols-2 gap-2">
                     {[
                       { label: "2%/mo — MIGS Member", rate: BONUS_RATE_MIGS },
@@ -542,6 +588,7 @@ export default function LoanCalculatorModal({ open, onClose }) {
                       </button>
                     ))}
                   </div>
+                  )}
                 </div>
               </>
             ) : (
