@@ -7831,12 +7831,12 @@ def _fetch_all_paginated(table_name: str, columns: str, order_col: str) -> list[
 
 
 def _compute_payment_charts() -> tuple[list[dict], dict[str, list[dict]]]:
-    """Yearly Collections totals + Repayment Behavior (days_offset) buckets,
-    for every year the cooperative has data — same population the dashboard's
-    yearlyBarData/monthlyBehaviorData use today, but built from three narrow
-    selects (payment amount/date, schedule due dates) instead of the full
-    manage-loans response with its member/loan_type joins and payment_history
-    assembly.
+    """Yearly Collections totals + Collection Performance (expected/collected/
+    outstanding) buckets, for every year the cooperative has data — same
+    population the dashboard's yearlyBarData/monthlyBehaviorData use today,
+    but built from three narrow selects (payment amount/date, schedule due
+    date/amount/status) instead of the full manage-loans response with its
+    member/loan_type joins and payment_history assembly.
     """
     live_payments = _fetch_all_paginated(
         "loan_payments", "loan_id,amount_paid,payment_date", "payment_date"
@@ -7845,17 +7845,8 @@ def _compute_payment_charts() -> tuple[list[dict], dict[str, list[dict]]]:
         "loan_payments_legacy", "loan_id,amount_paid,payment_date", "payment_date"
     )
     schedules = _fetch_all_paginated(
-        "loan_schedules", "loan_id,due_date", "due_date"
+        "loan_schedules", "loan_id,due_date,expected_amount,schedule_status", "due_date"
     )
-
-    due_dates_by_loan: dict[str, list[date]] = {}
-    for row in schedules:
-        loan_id = str(row.get("loan_id") or "")
-        d = parse_date_value(row.get("due_date"))
-        if loan_id and d:
-            due_dates_by_loan.setdefault(loan_id, []).append(d)
-    for loan_id in due_dates_by_loan:
-        due_dates_by_loan[loan_id].sort()
 
     # --- Yearly Collections ---------------------------------------------
     totals_by_year: dict[str, Decimal] = {}
@@ -7873,35 +7864,48 @@ def _compute_payment_charts() -> tuple[list[dict], dict[str, list[dict]]]:
         for year, total in sorted(totals_by_year.items(), key=lambda kv: int(kv[0]))
     ]
 
-    # --- Repayment Behavior (days_offset, bucketed by year + month) -----
-    # Same pairing rule as manage-loans: nearest reconstructed due date,
-    # signed offset in days. >90 days late = delinquent (cooperative's rule).
-    DELINQUENT_DAY_THRESHOLD = 90
+    # --- Collection Performance (expected vs. collected, by due month) --
+    # What a bookkeeper actually needs: how much was DUE in a given month
+    # (sum of loan_schedules.expected_amount for rows due that month) versus
+    # how much of that is actually COLLECTED (schedule_status = 'paid') and
+    # how much is still OUTSTANDING (unpaid/partially_paid/overdue rows whose
+    # due date has already passed — not a future installment that simply
+    # hasn't come due yet). This reuses the schedule rows' own status, the
+    # same field the penalty engine and Cashier already treat as ground
+    # truth, instead of re-deriving "late" by guessing which payment paired
+    # with which due date. Months after today are never included, so an
+    # incomplete or future period can't render as a real performance figure.
+    today_for_charts = date.today()
     behavior_by_year: dict[str, list[dict]] = {}
 
     def _bucket_for(year: str) -> list[dict]:
         if year not in behavior_by_year:
             behavior_by_year[year] = [
-                {"month": m, "on_time": 0, "late": 0} for m in range(1, 13)
+                {"month": m, "expected": 0.0, "collected": 0.0, "outstanding": 0.0, "overdue_count": 0}
+                for m in range(1, 13)
             ]
         return behavior_by_year[year]
 
-    for row in live_payments + legacy_payments:
-        loan_id = str(row.get("loan_id") or "")
-        paid_on = parse_date_value(row.get("payment_date"))
-        if not paid_on:
+    for row in schedules:
+        due_on = parse_date_value(row.get("due_date"))
+        if not due_on or due_on > today_for_charts:
             continue
-        due_dates = due_dates_by_loan.get(loan_id)
-        if not due_dates:
-            continue
-        nearest = min(due_dates, key=lambda d: abs((paid_on - d).days))
-        days_offset = (paid_on - nearest).days
-        year = str(paid_on.year)
-        bucket = _bucket_for(year)[paid_on.month - 1]
-        if days_offset > DELINQUENT_DAY_THRESHOLD:
-            bucket["late"] += 1
+        amount = float(row.get("expected_amount") or 0)
+        status = str(row.get("schedule_status") or "").strip().lower()
+        bucket = _bucket_for(str(due_on.year))[due_on.month - 1]
+        bucket["expected"] += amount
+        if status == "paid":
+            bucket["collected"] += amount
         else:
-            bucket["on_time"] += 1
+            bucket["outstanding"] += amount
+            if status in ("overdue", "unpaid", "partially_paid", "pending"):
+                bucket["overdue_count"] += 1
+
+    for year, months in behavior_by_year.items():
+        for m in months:
+            m["expected"] = round(m["expected"], 2)
+            m["collected"] = round(m["collected"], 2)
+            m["outstanding"] = round(m["outstanding"], 2)
 
     return yearly_collections, behavior_by_year
 
