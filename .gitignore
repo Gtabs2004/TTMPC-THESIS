@@ -15,9 +15,14 @@ TTMPC_THESIS/src/server/**/__pycache__/
 
 # Exclude migration scripts and generated data dump from GitHub
 TTMPC_THESIS/src/server/migration/*
-# ...except the demand-forecast inputs demand_model.py needs at runtime
-!TTMPC_THESIS/src/server/migration/Final_Modeling/
 TTMPC_THESIS/src/server/schema_dump.json
+
+# Real member data exports used by the demand forecast — scrubbed from git
+# history 2026-10-14 (repo was briefly public). Runs from the local copy only
+# now; never re-commit these. See project_git_history_scrub memory.
+TTMPC_THESIS/src/Final_Modeling/
+TTMPC_THESIS/src/server/Final_Modeling/
+TTMPC_THESIS/src/server/Loan_Demand_Data/
 
 # Credential exports — account lists downloaded from the SQL editor contain
 # live working passwords (member_account.password). Never commit them.
