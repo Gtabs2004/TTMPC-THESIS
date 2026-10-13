@@ -30,6 +30,7 @@ import {
   X,
   Download,
 } from "lucide-react";
+import { supabase } from "../../supabaseClient";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import logo from "../../assets/img/ttmpc logo.png";
@@ -59,7 +60,7 @@ const getStatusStyle = (status) => {
   const key = String(status || "").toLowerCase();
   if (key.includes("validated") || key.includes("fully")) return "bg-green-100 text-green-700";
   if (key.includes("partial")) return "bg-amber-100 text-amber-700";
-  if (key.includes("rejected")) return "bg-red-100 text-red-700";
+  if (key.includes("rejected") || key.includes("missed")) return "bg-red-100 text-red-700";
   if (key.includes("upcoming")) return "bg-blue-100 text-blue-700";
   return "bg-gray-100 text-gray-700";
 };
@@ -73,6 +74,7 @@ const toPaymentRow = (entry, index) => {
   return {
     // index keeps keys unique even if two payments share a reference and date
     key: `${entry.reference_no || entry.payment_id || "entry"}-${entry.date_paid || ""}-${index}`,
+    sortDate: String(entry.date_paid || ""),
     date: formatDate(entry.date_paid),
     reference: entry.reference_no || entry.payment_id || "—",
     paid,
@@ -93,9 +95,29 @@ const NO_RENEWALS = [];
 const PAYMENT_COLUMNS = ["15%", "23%", "17%", "13%", "20%", "12%"];
 const RENEWAL_COLUMNS = ["21%", "16%", "9%", "16%", "16%", "11%", "11%"];
 
+// A month whose due date passed with no payment. It has no payment of its
+// own, so it is shown on its due date with the amount that month asked for.
+const toMissedRow = (m) => {
+  const left = Number(m.amount_left || 0);
+  return {
+    key: `missed-${m.installment_no}`,
+    missed: true,
+    sortDate: String(m.due_date || ""),
+    date: formatDate(m.due_date),
+    reference: `Installment #${m.installment_no} — no payment`,
+    paid: 0,
+    paidText: "—",
+    penalty: 0,
+    penaltyText: "—",
+    remainingText: left > 0 ? `${formatCurrency(left)} unpaid` : "Covered by later payment",
+    status: left > 0 ? "missed" : "missed · settled",
+    statusStyle: left > 0 ? "bg-red-100 text-red-700" : "bg-gray-100 text-gray-600",
+  };
+};
+
 const PaymentRow = memo(function PaymentRow({ row }) {
   return (
-    <tr className="border-b border-gray-100 transition-colors hover:bg-gray-50/60">
+    <tr className={`border-b border-gray-100 transition-colors ${row.missed ? "bg-red-50/40" : "hover:bg-gray-50/60"}`}>
       <td className="px-4 py-3 whitespace-nowrap text-gray-700">{row.date}</td>
       <td className="px-4 py-3 truncate font-mono text-xs text-gray-700" title={row.reference}>{row.reference}</td>
       <td className="px-4 py-3 text-right tabular-nums whitespace-nowrap font-medium text-gray-800">{row.paidText}</td>
@@ -387,6 +409,53 @@ const LoanLedger = () => {
     [selectedLoan.payment_history],
   );
 
+  // Missed months: overdue installments still owed (member_loan_schedule_position)
+  // plus months closed as missed that a later payment already covered.
+  const [missedMonths, setMissedMonths] = useState([]);
+  useEffect(() => {
+    if (!loanId) return undefined;
+    let alive = true;
+    (async () => {
+      try {
+        const [{ data: owed }, { data: closed }] = await Promise.all([
+          supabase
+            .from("member_loan_schedule_position")
+            .select("installment_no, due_date, amount_due, status")
+            .eq("control_number", loanId)
+            .eq("status", "Overdue"),
+          supabase
+            .from("loan_schedules")
+            .select("id, installment_no, due_date, schedule_status")
+            .eq("loan_id", loanId)
+            .in("schedule_status", ["partially_paid", "Paid", "paid"]),
+        ]);
+        const paidScheduleIds = new Set(
+          (selectedLoan.payment_history || []).map((e) => String(e.schedule_id || "")).filter(Boolean)
+        );
+        const byNo = new Map();
+        (owed || []).forEach((r) => byNo.set(r.installment_no, { ...r, amount_left: r.amount_due }));
+        const today = new Date().toISOString().slice(0, 10);
+        (closed || []).forEach((s) => {
+          const noPayment = !paidScheduleIds.has(String(s.id));
+          const isMissed = String(s.schedule_status).toLowerCase() === "partially_paid" || noPayment;
+          if (isMissed && noPayment && String(s.due_date) < today && !byNo.has(s.installment_no)) {
+            byNo.set(s.installment_no, { installment_no: s.installment_no, due_date: s.due_date, amount_left: 0 });
+          }
+        });
+        if (alive) setMissedMonths([...byNo.values()]);
+      } catch {
+        if (alive) setMissedMonths([]);
+      }
+    })();
+    return () => { alive = false; };
+  }, [loanId, selectedLoan.payment_history]);
+
+  // Payments and missed months on one timeline, by date.
+  const ledgerRows = useMemo(
+    () => [...paymentRows, ...missedMonths.map(toMissedRow)].sort((a, b) => a.sortDate.localeCompare(b.sortDate)),
+    [paymentRows, missedMonths],
+  );
+
   const paymentTotals = useMemo(
     () => paymentRows.reduce(
       (acc, row) => ({ paid: acc.paid + row.paid, penalty: acc.penalty + row.penalty }),
@@ -585,7 +654,7 @@ const LoanLedger = () => {
                   />
                 ) : null}
 
-                {paymentRows.map((row) => (
+                {ledgerRows.map((row) => (
                   <PaymentRow key={row.key} row={row} />
                 ))}
               </tbody>

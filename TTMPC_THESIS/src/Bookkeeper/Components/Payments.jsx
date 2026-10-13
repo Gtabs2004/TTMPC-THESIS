@@ -344,7 +344,9 @@ const BookkeeperPayments = () => {
   const handleApproveClick = async (payment) => {
     const ok = await confirm({
       title: "Approve Payment",
-      message: `Approve payment ${payment.payment_id} of ${formatCurrency(payment.payment_amount)}? This will update the member's loan ledger.`,
+      message: Number(payment.penalties || 0) > 0
+        ? `Approve payment ${payment.payment_id} of ${formatCurrency(Number(payment.payment_amount || 0) + Number(payment.penalties || 0))} (${formatCurrency(payment.penalties)} penalty + ${formatCurrency(payment.payment_amount)} to the loan)? This will update the member's loan ledger.`
+        : `Approve payment ${payment.payment_id} of ${formatCurrency(payment.payment_amount)}? This will update the member's loan ledger.`,
       confirmLabel: "Confirm Approval",
       tone: "default",
     });
@@ -571,8 +573,14 @@ const BookkeeperPayments = () => {
                           </div>
                         </td>
                         <td className="p-5 text-xs text-gray-800 font-semibold">
-                          <div>{formatCurrency(item.payment_amount)}</div>
-                          <div className="text-[10px] text-gray-500 mt-1">Penalty: {formatCurrency(item.penalties)}</div>
+                          {/* Cash collected = loan portion (amount_paid) + penalty, which is
+                              recorded separately in loan_payments.penalties. */}
+                          <div>{formatCurrency(Number(item.payment_amount || 0) + Number(item.penalties || 0))}</div>
+                          {Number(item.penalties || 0) > 0 && (
+                            <div className="text-[10px] text-gray-500 mt-1">
+                              Loan {formatCurrency(item.payment_amount)} · Penalty {formatCurrency(item.penalties)}
+                            </div>
+                          )}
                         </td>
                         <td className="p-5 text-xs text-gray-700 font-medium">{new Date(item.date_paid).toLocaleDateString()}</td>
                         <td className="p-5 text-xs text-gray-700 font-medium">{item.entered_by}</td>

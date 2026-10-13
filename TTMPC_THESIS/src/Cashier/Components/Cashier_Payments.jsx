@@ -13,6 +13,7 @@ import Pagination from "../../components/Pagination";
 // Adjust path to AuthContext if needed
 import LoanNotificationBell from "../../components/LoanNotificationBell";
 import { authHeaders } from "../../utils/authHeaders";
+import { supabase } from "../../supabaseClient";
 import { apiErrorMessage } from "../../utils/apiError";
 import { formatWithCommas, stripCommas } from "../../utils/numberFormat";
 import { 
@@ -173,7 +174,7 @@ const DELAY_STATUS_META = {
 };
 
 // Penalty policy (updated):
-//   • 3-month grace period after the schedule due date — no penalty.
+//   • First penalty on the 3rd consecutive missed due date (due + 2 months).
 //   • Charged on the *missed installment amount* (not the whole remaining balance).
 //   • Rate comes from loan_schedules.penalty (1% for bonus, 2% for others).
 //
@@ -192,9 +193,10 @@ const calculatePenalty = (dueDate, installmentAmount, penaltyRatePercent = null,
   const amount = Number(installmentAmount) || 0;
   if (amount <= 0) return 0;
 
-  // 3-month grace period.
+  // First charge on the 3rd consecutive missed due date (matches backend
+  // PENALTY_GRACE_MONTHS).
   const penaltyStartDate = new Date(due);
-  penaltyStartDate.setMonth(penaltyStartDate.getMonth() + 3);
+  penaltyStartDate.setMonth(penaltyStartDate.getMonth() + 2);
   if (today < penaltyStartDate) return 0;
 
   const monthsOverdue = Math.max(
@@ -296,6 +298,10 @@ const Cashier_Payments = () => {
   // proceeds to the payment modal. Same selectedLoan is reused so the Pay
   // action in the ledger flows straight into the existing payment flow.
   const [isLedgerModalOpen, setIsLedgerModalOpen] = useState(false);
+  // Installments still owed on the ledger's loan (overdue first), from the
+  // same member_loan_schedule_position view the member SOA reads.
+  const [ledgerSchedule, setLedgerSchedule] = useState([]);
+  const [ledgerScheduleLoading, setLedgerScheduleLoading] = useState(false);
   const [isSubmittingPayment, setIsSubmittingPayment] = useState(false);
   // Holds the reference for the in-flight submission so a retry reuses it and
   // is deduped server-side. Cleared once the payment lands or the modal closes.
@@ -492,6 +498,7 @@ const Cashier_Payments = () => {
 
       setLoans(enrichedLoans);
       setPaymentRecords(rawPaymentRecords);
+      return enrichedLoans;
     } catch (error) {
       if (silent) return;
       console.error("Failed to fetch cashier loan data:", error);
@@ -554,10 +561,20 @@ const Cashier_Payments = () => {
   // from loan_schedules.expected_amount, which on legacy rows holds the
   // running total (principal + total interest) instead of the per-period
   // amount and would collect several times the real due.
-  const scheduledPaymentAmount = useMemo(
-    () => getDefaultPaymentAmount(selectedLoan),
-    [selectedLoan]
+  // Missed months never become carried_arrears (only short payments do), so
+  // a member two months behind would otherwise be prefilled one installment.
+  // When the schedule shows overdue installments, what is due is all of them.
+  const overdueInstallments = useMemo(
+    () => ledgerSchedule.filter((s) => s.status === "Overdue" && Number(s.amount_due) > 0),
+    [ledgerSchedule]
   );
+  const scheduledPaymentAmount = useMemo(() => {
+    const periodDue = getDefaultPaymentAmount(selectedLoan);
+    if (overdueInstallments.length < 2) return periodDue;
+    const overdueTotal = overdueInstallments.reduce((sum, s) => sum + Number(s.amount_due || 0), 0);
+    const remaining = Number(selectedLoan?.remaining_balance) || 0;
+    return roundCurrency(Math.min(Math.max(overdueTotal, periodDue), remaining));
+  }, [selectedLoan, overdueInstallments]);
 
   const outstandingBalance = Number(selectedLoan?.remaining_balance) || 0;
 
@@ -569,6 +586,20 @@ const Cashier_Payments = () => {
   // getDefaultPaymentAmount), so this is that same figure -- adding the
   // carry-forward again here would double-count it.
   const totalAmountDueThisPeriod = scheduledPaymentAmount;
+
+  // Everything the member should hand over now: the installment(s) due plus
+  // any penalty. This is what the amount field starts at.
+  const fullAmountDue = roundCurrency(scheduledPaymentAmount + selectedLoanPenalty);
+
+  // Wording for the hint under the amount field.
+  // After a roll-forward the missed months sit in carried_arrears on the
+  // current installment, so name both parts instead of calling it all overdue.
+  const dueLabel = (priorOutstanding > 0 && overdueInstallments.length > 0
+    ? `${overdueInstallments.length} missed installment${overdueInstallments.length === 1 ? "" : "s"} + current installment`
+    : overdueInstallments.length >= 2
+    ? `overdue amount (${overdueInstallments.length} installments)`
+    : priorOutstanding > 0 ? "amount due this period" : "scheduled amortization")
+    + (selectedLoanPenalty > 0 ? " + penalty" : "");
 
   // The amount the cashier actually entered. Everything downstream (penalty
   // total, balance preview, confirmation text, receipt, API payload) reads
@@ -583,24 +614,31 @@ const Cashier_Payments = () => {
     if (paymentAmountInput === "" || paymentAmountInput === ".") return "Enter the amount received.";
     if (!(Number(paymentAmountInput) > 0)) return "Amount must be greater than zero.";
     if ((paymentAmountInput.split(".")[1] || "").length > 2) return "Use at most 2 decimal places.";
-    if (currentPaymentAmount > roundCurrency(outstandingBalance)) {
-      return `Amount cannot exceed the outstanding balance of ${formatCurrency(outstandingBalance)}.`;
+    const maxCollectible = roundCurrency(outstandingBalance + selectedLoanPenalty);
+    if (currentPaymentAmount > maxCollectible) {
+      return `Amount cannot exceed the outstanding balance plus penalty of ${formatCurrency(maxCollectible)}.`;
     }
     return "";
-  }, [selectedLoan, paymentAmountInput, currentPaymentAmount, outstandingBalance]);
+  }, [selectedLoan, paymentAmountInput, currentPaymentAmount, outstandingBalance, selectedLoanPenalty]);
 
-  // What the cashier collects = this period's amortization + any penalty that
-  // has actually accrued under the 3-month grace rule.
-  const currentTotalDue = useMemo(
-    () => roundCurrency(currentPaymentAmount + selectedLoanPenalty),
-    [currentPaymentAmount, selectedLoanPenalty]
+  // The amount entered is the cash the member hands over. Penalty is settled
+  // out of it first; only the rest reduces the loan. Total to collect is
+  // therefore exactly what was entered -- the penalty is inside it, not added.
+  const penaltyFromPayment = useMemo(
+    () => roundCurrency(Math.min(selectedLoanPenalty, currentPaymentAmount)),
+    [selectedLoanPenalty, currentPaymentAmount]
   );
+  const loanPortion = useMemo(
+    () => roundCurrency(currentPaymentAmount - penaltyFromPayment),
+    [currentPaymentAmount, penaltyFromPayment]
+  );
+  const currentTotalDue = currentPaymentAmount;
 
   const updatedBalancePreview = useMemo(() => {
     if (!selectedLoan) return 0;
     const remaining = Number(selectedLoan.remaining_balance) || 0;
-    return Math.max(roundCurrency(remaining - currentPaymentAmount), 0);
-  }, [selectedLoan, currentPaymentAmount]);
+    return Math.max(roundCurrency(remaining - loanPortion), 0);
+  }, [selectedLoan, loanPortion]);
 
   const openPaymentModal = (loan) => {
     setSelectedLoan(loan);
@@ -618,9 +656,26 @@ const Cashier_Payments = () => {
 
   // Row click / Pay button entry point: show the loan ledger first so the
   // Cashier reviews context before entering a payment amount.
-  const openLedgerModal = (loan) => {
+  const openLedgerModal = async (loan) => {
     setSelectedLoan(loan);
     setIsLedgerModalOpen(true);
+    // Carry any missed months forward first, so the due date and amount the
+    // cashier sees are the CURRENT installment's. If anything rolled, reload
+    // and swap in the refreshed loan.
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/cashier/loans/${encodeURIComponent(loan.loan_id)}/roll-forward`,
+        { method: "POST", headers: { Accept: "application/json", ...(await authHeaders()) } }
+      );
+      const result = await response.json().catch(() => ({}));
+      if (response.ok && Number(result?.rolled) > 0) {
+        const refreshed = await fetchLoans({ silent: true });
+        const updated = (refreshed || []).find((l) => String(l.loan_id) === String(loan.loan_id));
+        if (updated) setSelectedLoan(updated);
+      }
+    } catch (error) {
+      console.error("Roll-forward check failed:", error);
+    }
   };
 
   const closeLedgerModal = () => {
@@ -628,13 +683,40 @@ const Cashier_Payments = () => {
     setSelectedLoan(null);
   };
 
+  // Keyed on the selected loan, not the ledger modal, so the schedule is still
+  // loaded when the cashier moves on to the payment modal.
+  const ledgerLoanId = selectedLoan?.loan_id || null;
+  useEffect(() => {
+    if (!ledgerLoanId) {
+      setLedgerSchedule([]);
+      return;
+    }
+    let isMounted = true;
+    setLedgerScheduleLoading(true);
+    supabase
+      .from("member_loan_schedule_position")
+      .select("installment_no, due_date, amount_due, status, days_past_due, unpaid_penalty")
+      .eq("control_number", ledgerLoanId)
+      .order("installment_no", { ascending: true })
+      .then(({ data, error }) => {
+        // Missing view (v3 SQL not applied) just hides the section.
+        if (isMounted) setLedgerSchedule(error ? [] : data || []);
+      })
+      .finally(() => {
+        if (isMounted) setLedgerScheduleLoading(false);
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, [ledgerLoanId]);
+
   // Ledger → Payment transition. Keeps the same selectedLoan and pre-fills
   // the amortization amount so we preserve the previous one-click UX for
   // Cashiers who don't need to change the amount.
   const proceedFromLedgerToPayment = () => {
     if (!selectedLoan) return;
     setIsLedgerModalOpen(false);
-    setPaymentAmountInput(String(getDefaultPaymentAmount(selectedLoan)));
+    setPaymentAmountInput(String(fullAmountDue));
     setFormError("");
     setIsPaymentModalOpen(true);
   };
@@ -648,8 +730,8 @@ const Cashier_Payments = () => {
       setFormError(paymentAmountError);
       return;
     }
-    const principalPaid = currentPaymentAmount;
-    const penaltyCollected = roundCurrency(selectedLoanPenalty);
+    const principalPaid = loanPortion;
+    const penaltyCollected = penaltyFromPayment;
     const totalCollected = currentTotalDue;
 
     if (!Number.isFinite(totalCollected) || totalCollected <= 0) {
@@ -665,7 +747,7 @@ const Cashier_Payments = () => {
     const ok = await confirm({
       title: "Log Payment",
       message: penaltyCollected > 0
-        ? `Log ${formatCurrency(totalCollected)} for this loan (${formatCurrency(principalPaid)} payment + ${formatCurrency(penaltyCollected)} penalty)?${scheduleNote} This will be sent to the Bookkeeper for review; the loan balance stays unchanged until they confirm it.`
+        ? `Log ${formatCurrency(totalCollected)} for this loan (${formatCurrency(penaltyCollected)} penalty + ${formatCurrency(principalPaid)} to the loan)?${scheduleNote} This will be sent to the Bookkeeper for review; the loan balance stays unchanged until they confirm it.`
         : `Log a payment of ${formatCurrency(totalCollected)} for this loan?${scheduleNote} This will be sent to the Bookkeeper for review; the loan balance stays unchanged until they confirm it.`,
       confirmLabel: "Log Payment",
       tone: "default",
@@ -998,6 +1080,65 @@ const Cashier_Payments = () => {
                     </div>
                   </div>
 
+                  {/* Unpaid Installments — overdue ones plus the next due, so the
+                      Cashier sees what the member owes before taking payment. */}
+                  {(() => {
+                    if (ledgerScheduleLoading || ledgerSchedule.length === 0) return null;
+                    const overdue = ledgerSchedule.filter((s) => s.status === "Overdue");
+                    const next = ledgerSchedule.find((s) => s.status !== "Overdue");
+                    const shown = next ? [...overdue, next] : overdue;
+                    const notYetDue = ledgerSchedule.length - shown.length;
+                    const penalty = Number(ledgerSchedule[0].unpaid_penalty || 0);
+                    const overdueTotal = overdue.reduce((sum, s) => sum + Number(s.amount_due || 0), 0);
+                    return (
+                      <div className="mb-5">
+                        <div className="flex flex-wrap items-baseline justify-between gap-2 mb-3">
+                          <h3 className="text-sm font-semibold text-gray-700">Unpaid Installments</h3>
+                          {overdue.length > 0 ? (
+                            <span className="text-xs font-semibold text-red-600">
+                              Overdue: {formatCurrency(overdueTotal)}
+                              {penalty > 0 ? ` + penalty ${formatCurrency(penalty)}` : ""}
+                            </span>
+                          ) : null}
+                        </div>
+                        <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
+                          <table className="w-full text-sm">
+                            <thead>
+                              <tr className="bg-gray-50 text-[10px] uppercase tracking-wider text-gray-500 font-extrabold">
+                                <th className="px-5 py-3 text-left">#</th>
+                                <th className="px-5 py-3 text-left">Due Date</th>
+                                <th className="px-5 py-3 text-right">Amount Due</th>
+                                <th className="px-5 py-3 text-left">Status</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {shown.map((s) => {
+                                const isOverdue = s.status === "Overdue";
+                                return (
+                                  <tr key={s.installment_no} className={`border-t border-gray-100 ${isOverdue ? "bg-red-50/50" : ""}`}>
+                                    <td className="px-5 py-3 text-gray-700">{s.installment_no}</td>
+                                    <td className="px-5 py-3 text-gray-700 tabular-nums">{new Date(s.due_date).toLocaleDateString()}</td>
+                                    <td className="px-5 py-3 text-right font-medium text-gray-900 tabular-nums">{formatCurrency(s.amount_due)}</td>
+                                    <td className="px-5 py-3">
+                                      <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${isOverdue ? "bg-red-100 text-red-700" : "bg-amber-100 text-amber-700"}`}>
+                                        {isOverdue ? `Overdue · ${s.days_past_due}d` : "Due Next"}
+                                      </span>
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                          {notYetDue > 0 ? (
+                            <p className="border-t border-gray-100 px-5 py-2.5 text-xs text-gray-500">
+                              + {notYetDue} more installment{notYetDue === 1 ? "" : "s"} not yet due
+                            </p>
+                          ) : null}
+                        </div>
+                      </div>
+                    );
+                  })()}
+
                   {/* Payment History */}
                   <div>
                     <h3 className="text-sm font-semibold text-gray-700 mb-3">Payment History</h3>
@@ -1184,7 +1325,7 @@ const Cashier_Payments = () => {
                         selectedLoan.last_payment_date
                           ? `Last payment ${formatLongDate(selectedLoan.last_payment_date)}`
                           : "No payment recorded yet",
-                        isPenalty ? "Grace period lapsed" : "Within 3-month grace period",
+                        isPenalty ? "3 months unpaid — penalty applies" : "Penalty starts on the 3rd missed month",
                       ].filter(Boolean);
                       return (
                         <div className={`mb-5 flex items-start gap-3 rounded-lg border px-4 py-3 ${tone.wrap}`}>
@@ -1301,30 +1442,30 @@ const Cashier_Payments = () => {
                         <div id="payment-amount-hint" className="mt-1.5 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-xs">
                           {paymentAmountError ? (
                             <span role="alert" className="font-medium text-red-600">{paymentAmountError}</span>
-                          ) : currentPaymentAmount < scheduledPaymentAmount ? (
+                          ) : currentPaymentAmount < fullAmountDue ? (
                             <span className="font-medium text-amber-700">
-                              Partial payment. {priorOutstanding > 0 ? "Amount due this period" : "Scheduled amortization"} is {formatCurrency(scheduledPaymentAmount)}.
+                              Partial payment. {dueLabel.charAt(0).toUpperCase() + dueLabel.slice(1)} is {formatCurrency(fullAmountDue)}.
                             </span>
-                          ) : currentPaymentAmount > scheduledPaymentAmount ? (
+                          ) : currentPaymentAmount > fullAmountDue ? (
                             <span className="font-medium text-blue-700">
-                              Above the {priorOutstanding > 0 ? "amount due this period" : "scheduled amortization"} of {formatCurrency(scheduledPaymentAmount)}.
+                              Above the {dueLabel} of {formatCurrency(fullAmountDue)}.
                             </span>
                           ) : (
                             <span className="text-gray-500">
-                              Matches the {priorOutstanding > 0 ? "amount due this period" : "scheduled amortization"}.
+                              Matches the {dueLabel}.
                             </span>
                           )}
                           {currentPaymentAmount !== scheduledPaymentAmount && (
                             <button
                               type="button"
                               onClick={() => {
-                                setPaymentAmountInput(String(scheduledPaymentAmount));
+                                setPaymentAmountInput(String(fullAmountDue));
                                 setFormError("");
                               }}
                               disabled={isSubmittingPayment}
                               className="font-semibold text-green-700 underline-offset-2 hover:underline disabled:opacity-50"
                             >
-                              {priorOutstanding > 0 ? "Use full amount due" : "Use scheduled amount"}
+                              {overdueInstallments.length >= 2 || (priorOutstanding > 0 && overdueInstallments.length > 0) ? "Use full amount due" : priorOutstanding > 0 ? "Use full amount due" : "Use scheduled amount"}
                             </button>
                           )}
                         </div>
@@ -1356,14 +1497,22 @@ const Cashier_Payments = () => {
                       <div className="flex items-baseline justify-between gap-3">
                         <span className={selectedLoanPenalty > 0 ? "font-medium text-amber-700" : "text-gray-500"}>
                           Penalty
-                          {selectedLoanPenalty > 0 ? null : (
-                            <span className="ml-1.5 text-xs text-gray-400">(within grace period)</span>
+                          {selectedLoanPenalty > 0 ? (
+                            <span className="ml-1.5 text-xs font-normal text-amber-600">(paid first, out of this amount)</span>
+                          ) : (
+                            <span className="ml-1.5 text-xs text-gray-400">(none due)</span>
                           )}
                         </span>
                         <span className={`tabular-nums ${selectedLoanPenalty > 0 ? "font-medium text-amber-700" : "text-gray-400"}`}>
-                          {formatCurrency(selectedLoanPenalty)}
+                          {formatCurrency(penaltyFromPayment)}
                         </span>
                       </div>
+                      {selectedLoanPenalty > 0 && (
+                        <div className="flex items-baseline justify-between gap-3">
+                          <span className="text-gray-700">Applied to the loan</span>
+                          <span className="font-medium text-gray-900 tabular-nums">{formatCurrency(loanPortion)}</span>
+                        </div>
+                      )}
                       {(priorOutstanding > 0 || priorCredit > 0) && (
                         <div className="flex items-baseline justify-between gap-3 border-t border-gray-200 pt-2">
                           <span className="font-semibold text-gray-900">Total amount due this period</span>

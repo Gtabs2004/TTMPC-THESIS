@@ -14,7 +14,9 @@ TTMPC_THESIS/src/server/__pycache__/
 TTMPC_THESIS/src/server/**/__pycache__/
 
 # Exclude migration scripts and generated data dump from GitHub
-TTMPC_THESIS/src/server/migration/
+TTMPC_THESIS/src/server/migration/*
+# ...except the demand-forecast inputs demand_model.py needs at runtime
+!TTMPC_THESIS/src/server/migration/Final_Modeling/
 TTMPC_THESIS/src/server/schema_dump.json
 
 # Credential exports — account lists downloaded from the SQL editor contain

@@ -52,7 +52,8 @@ import {
   Settings,
   Scroll,
   Wallet,
-  PiggyBank
+  PiggyBank,
+  AlertTriangle
 } from "lucide-react";
 
 const styles = `
@@ -63,6 +64,26 @@ const styles = `
 `;
 
 const ALLOWED_TYPES = ["consolidated", "emergency", "bonus"];
+
+const StatusBadge = ({ row }) => {
+  const tone =
+    row.status === "Paid"
+      ? "bg-green-50 text-green-700 dark:bg-mdark-accent/15 dark:text-mdark-accent"
+      : row.status === "Partial"
+        ? "bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-300"
+      : row.status === "Overdue"
+        ? "bg-red-50 text-red-600 dark:bg-red-500/10 dark:text-red-400"
+        : row.status === "Due Next"
+          ? "bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400"
+          : "bg-gray-100 text-gray-600 dark:bg-mdark-elevated dark:text-mdark-text-secondary";
+  const label = row.status === "Overdue" ? `Overdue · ${row.daysPastDue}d`
+    : row.status === "Partial" ? "Partial payment" : row.status;
+  return (
+    <span className={`inline-block rounded px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wider ${tone}`}>
+      {label}
+    </span>
+  );
+};
 
 const formatCurrency = (value) =>
   `₱${Number(value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -127,6 +148,8 @@ const Member_StatementOfAccount = () => {
   const [rows, setRows] = useState([]);
   const [loadingRows, setLoadingRows] = useState(false);
   const [rowsError, setRowsError] = useState("");
+  // Installments still owed (overdue + upcoming) from member_loan_schedule_position.
+  const [positionRows, setPositionRows] = useState([]);
 
   const [memberLabel, setMemberLabel] = useState("Member");
   const [accountNumber, setAccountNumber] = useState("");
@@ -273,6 +296,7 @@ const Member_StatementOfAccount = () => {
     rtSeenRows.current = rtVersionRows;
     if (!selectedLoan || !memberId) {
       setRows([]);
+      setPositionRows([]);
       return;
     }
     let isMounted = true;
@@ -284,7 +308,7 @@ const Member_StatementOfAccount = () => {
         const { data, error } = await supabase
           .from("member_statement_of_account")
           .select(
-            "payment_id, control_number, payment_date, reference_id, principal_paid, interest_paid, deficiency, penalty, total_amount_paid, outstanding_balance"
+            "payment_id, control_number, payment_date, due_date, installment_no, payment_status, reference_id, principal_paid, interest_paid, deficiency, penalty, total_amount_paid, outstanding_balance"
           )
           .eq("member_id", memberId)
           .eq("control_number", selectedLoan.control_number)
@@ -292,6 +316,17 @@ const Member_StatementOfAccount = () => {
 
         if (error) throw error;
         if (isMounted) setRows(data || []);
+
+        // Loan position is optional: a fully paid loan has no rows, and a
+        // database without the v3 migration has no view. Neither should
+        // hide the payment history above.
+        const { data: posData, error: posError } = await supabase
+          .from("member_loan_schedule_position")
+          .select("installment_no, due_date, is_projected, principal_due, interest_due, amount_due, status, days_past_due, remaining_balance, unpaid_penalty")
+          .eq("member_id", memberId)
+          .eq("control_number", selectedLoan.control_number)
+          .order("installment_no", { ascending: true });
+        if (isMounted) setPositionRows(posError ? [] : posData || []);
       } catch (err) {
         if (silent) return;
         if (isMounted) setRowsError(err.message || "Unable to load payment history.");
@@ -404,6 +439,91 @@ const Member_StatementOfAccount = () => {
     );
   }, [rows]);
 
+  // What the member owes right now. Every position row repeats the loan-level
+  // remaining_balance / unpaid_penalty, so the first row carries them.
+  const position = useMemo(() => {
+    if (positionRows.length === 0) return null;
+    const overdue = positionRows.filter((r) => r.status === "Overdue");
+    const overdueAmount = overdue.reduce((s, r) => s + Number(r.amount_due || 0), 0);
+    const penalty = Number(positionRows[0].unpaid_penalty || 0);
+    return {
+      remaining: Number(positionRows[0].remaining_balance || 0),
+      overdueCount: overdue.length,
+      overdueAmount,
+      maxDaysPastDue: overdue.reduce((m, r) => Math.max(m, Number(r.days_past_due || 0)), 0),
+      penalty,
+      dueNow: overdueAmount + penalty,
+      next: positionRows.find((r) => r.status !== "Overdue") || null,
+    };
+  }, [positionRows]);
+
+  // One statement: what was paid (validated payments, oldest first), then
+  // every installment still owed (overdue, then upcoming).
+  const statementRows = useMemo(() => {
+    const paidRows = [...rows]
+      .sort((a, b) => String(a.payment_date).localeCompare(String(b.payment_date)))
+      .map((r) => ({
+        key: `p-${r.payment_id}`,
+        // A payment on an installment that closed short (or a month later
+        // rolled forward as missed) settled older arrears, not that month.
+        status: String(r.payment_status || "").toLowerCase() === "partially_paid" ? "Partial" : "Paid",
+        installment: r.installment_no,
+        dueDate: r.due_date,
+        paidOn: r.payment_date,
+        reference: r.reference_id,
+        principal: r.principal_paid,
+        interest: r.interest_paid,
+        penalty: r.penalty,
+        amount: r.total_amount_paid,
+        balance: r.outstanding_balance,
+      }));
+    // The first installment that isn't overdue is the one to pay this month.
+    const nextNo = positionRows.find((r) => r.status !== "Overdue")?.installment_no;
+    const owedRows = positionRows.map((r) => ({
+      key: `s-${r.installment_no}`,
+      status: r.status === "Overdue" ? "Overdue" : r.installment_no === nextNo ? "Due Next" : "Not Yet Due",
+      daysPastDue: r.days_past_due,
+      installment: r.installment_no,
+      dueDate: r.due_date,
+      paidOn: null,
+      reference: null,
+      principal: r.principal_due,
+      interest: r.interest_due,
+      penalty: null,
+      amount: r.amount_due,
+      balance: null,
+    }));
+    // One timeline in installment order: a payment and the months it left
+    // unpaid read top to bottom. Rows without an installment (legacy) by date.
+    const order = (r) => (r.installment ?? Number.MAX_SAFE_INTEGER);
+    return [...paidRows, ...owedRows].sort((a, b) =>
+      order(a) - order(b) || String(a.paidOn || "").localeCompare(String(b.paidOn || ""))
+    );
+  }, [rows, positionRows]);
+
+  const statementCounts = useMemo(() => ({
+    paid: rows.length,
+    overdue: positionRows.filter((r) => r.status === "Overdue").length,
+    upcoming: positionRows.filter((r) => r.status !== "Overdue").length,
+  }), [rows, positionRows]);
+
+  const owedTotals = useMemo(() => positionRows.reduce(
+    (acc, r) => ({
+      principal: acc.principal + Number(r.principal_due || 0),
+      interest: acc.interest + Number(r.interest_due || 0),
+      amount: acc.amount + Number(r.amount_due || 0),
+    }),
+    { principal: 0, interest: 0, amount: 0 }
+  ), [positionRows]);
+
+  // Balance after the most recent payment; before any payment, the full position.
+  const latestBalance = useMemo(() => {
+    const sorted = [...rows].sort((a, b) => String(a.payment_date).localeCompare(String(b.payment_date)));
+    const last = sorted[sorted.length - 1];
+    if (last) return Number(last.outstanding_balance || 0);
+    return position ? position.remaining : 0;
+  }, [rows, position]);
+
   const savingsTotals = useMemo(() => {
     return savingsRows.reduce(
       (acc, r) => {
@@ -457,37 +577,49 @@ const Member_StatementOfAccount = () => {
     autoTable(doc, {
       startY: 145,
       head: [[
-        "Payment Date",
+        "#",
+        "Due Date",
+        "Paid On",
         "Reference ID",
-        "Principal Paid",
-        "Interest Paid",
-        "Deficiency",
+        "Principal",
+        "Interest",
         "Penalty",
-        "Total Amount Paid",
-        "Outstanding Balance",
+        "Amount",
+        "Status",
+        "Balance After",
       ]],
-      body: rows.map((r) => [
-        formatDate(r.payment_date),
-        r.reference_id || "-",
-        formatCurrencyPdf(r.principal_paid),
-        formatCurrencyPdf(r.interest_paid),
-        formatCurrencyPdf(r.deficiency),
-        formatCurrencyPdf(r.penalty),
-        formatCurrencyPdf(r.total_amount_paid),
-        formatCurrencyPdf(r.outstanding_balance),
-      ]),
-      styles: { fontSize: 9, cellPadding: 6, overflow: "linebreak", valign: "middle" },
+      body: statementRows.map((r) => {
+        const paid = r.status === "Paid" || r.status === "Partial";
+        return [
+          r.installment ?? "-",
+          r.dueDate ? formatDate(r.dueDate) : "-",
+          r.paidOn ? formatDate(r.paidOn) : "-",
+          r.reference || "-",
+          formatCurrencyPdf(r.principal),
+          formatCurrencyPdf(r.interest),
+          paid ? formatCurrencyPdf(r.penalty) : "-",
+          formatCurrencyPdf(r.amount),
+          r.status === "Overdue" ? `Overdue (${r.daysPastDue}d)` : r.status,
+          paid ? formatCurrencyPdf(r.balance) : "-",
+        ];
+      }),
+      styles: { fontSize: 8.5, cellPadding: 5, overflow: "linebreak", valign: "middle" },
       headStyles: { fillColor: [29, 96, 33], textColor: 255, fontStyle: "bold" },
       alternateRowStyles: { fillColor: [250, 249, 251] },
       columnStyles: {
-        0: { cellWidth: 80 },
-        1: { cellWidth: 110 },
-        2: { halign: "right" },
-        3: { halign: "right" },
+        0: { cellWidth: 28 },
+        3: { cellWidth: 110 },
         4: { halign: "right" },
         5: { halign: "right" },
         6: { halign: "right" },
         7: { halign: "right" },
+        9: { halign: "right" },
+      },
+      didParseCell: (data) => {
+        // Overdue installments in red, so they stand out in print too.
+        if (data.section === "body" && statementRows[data.row.index]?.status === "Overdue") {
+          data.cell.styles.textColor = [200, 30, 30];
+        }
       },
       margin: { left: 40, right: 40 },
     });
@@ -500,14 +632,25 @@ const Member_StatementOfAccount = () => {
     const totalsFontSize = 11;
     const lineSpacing = 16;                  // gap between stacked figures
 
-    const ruleY = doc.lastAutoTable.finalY + totalsGap;
-    const totalsY = ruleY + 18;              // first text line, below the rule
+    const totalsLines = [
+      `Total Paid: ${formatCurrencyPdf(totals.paid)} (principal ${formatCurrencyPdf(totals.principal)}, interest ${formatCurrencyPdf(totals.interest)}, penalty ${formatCurrencyPdf(totals.penalty)})`,
+      `Remaining Balance: ${formatCurrencyPdf(position ? position.remaining : latestBalance)}`,
+    ];
+    if (position) {
+      totalsLines.push(
+        `Overdue Amount: ${formatCurrencyPdf(position.overdueAmount)} (${position.overdueCount} installment${position.overdueCount === 1 ? "" : "s"})`,
+        `Penalty Assessed: ${formatCurrencyPdf(position.penalty)}`,
+        `Amount Due Now: ${formatCurrencyPdf(position.dueNow)}`,
+      );
+    }
 
-    // Latest outstanding balance comes from the most recent payment row
-    const sortedRows = [...rows].sort((a, b) =>
-      String(a.payment_date).localeCompare(String(b.payment_date))
-    );
-    const latestBalance = Number(sortedRows[sortedRows.length - 1]?.outstanding_balance || 0);
+    // Start the totals on a new page if they would run off this one.
+    let ruleY = doc.lastAutoTable.finalY + totalsGap;
+    if (ruleY + 18 + totalsLines.length * lineSpacing > doc.internal.pageSize.getHeight() - 30) {
+      doc.addPage();
+      ruleY = 50;
+    }
+    const totalsY = ruleY + 18;              // first text line, below the rule
 
     // Horizontal rule above the totals
     doc.setDrawColor(180, 180, 180);
@@ -521,15 +664,6 @@ const Member_StatementOfAccount = () => {
     // Left label
     doc.text("TOTALS", totalsLabelX, totalsY);
 
-    // Right-stacked figures (top -> bottom)
-    const totalsLines = [
-      `Total Principal: ${formatCurrencyPdf(totals.principal)}`,
-      `Total Interest: ${formatCurrencyPdf(totals.interest)}`,
-      `Total Penalty: ${formatCurrencyPdf(totals.penalty)}`,
-      `Total Deficiency: ${formatCurrencyPdf(totals.deficiency)}`,
-      `Total Amount Paid: ${formatCurrencyPdf(totals.paid)}`,
-      `Outstanding Balance: ${formatCurrencyPdf(latestBalance)}`,
-    ];
     totalsLines.forEach((line, i) => {
       doc.text(
         line,
@@ -854,7 +988,7 @@ const Member_StatementOfAccount = () => {
                 <button
                   type="button"
                   onClick={handleDownloadPdf}
-                  disabled={loadingRows || rows.length === 0}
+                  disabled={loadingRows || statementRows.length === 0}
                   className="inline-flex items-center gap-2 rounded-lg bg-member-green hover:bg-[#154718] dark:bg-mdark-accent dark:hover:bg-mdark-accent/90 px-4 py-2.5 text-xs font-bold text-white disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
                 >
                   <Download className="w-4 h-4" /> Download as PDF
@@ -882,11 +1016,53 @@ const Member_StatementOfAccount = () => {
                 </div>
               </div>
 
+              {position ? (
+                <div className="bg-white dark:bg-mdark-card rounded-2xl shadow-sm border border-gray-100 dark:border-mdark-border overflow-hidden mb-8">
+                  <div className="p-6 border-b border-gray-100 dark:border-mdark-border">
+                    <h3 className="text-lg font-bold text-gray-900 dark:text-mdark-text">Loan Position</h3>
+                    {position.overdueCount > 0 ? (
+                      <p className="mt-1 inline-flex items-center gap-1.5 text-xs font-bold text-red-600 dark:text-red-400">
+                        <AlertTriangle className="w-4 h-4" />
+                        {position.overdueCount} {position.overdueCount === 1 ? "installment" : "installments"} overdue
+                        {" "}· oldest {position.maxDaysPastDue} days past due
+                      </p>
+                    ) : (
+                      <p className="mt-1 text-xs font-medium text-gray-500 dark:text-mdark-text-secondary">No overdue installments.</p>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-px bg-gray-100 dark:bg-mdark-border">
+                    {[
+                      { label: "Remaining Balance", value: position.remaining, note: "Principal + interest still owed" },
+                      { label: "Overdue Amount", value: position.overdueAmount, note: `${position.overdueCount} unpaid past due`, alert: position.overdueAmount > 0 },
+                      { label: "Penalty Assessed", value: position.penalty, note: "Unpaid penalty posted", alert: position.penalty > 0 },
+                      { label: "Amount Due Now", value: position.dueNow, note: "Overdue + penalty", alert: position.dueNow > 0 },
+                    ].map((t) => (
+                      <div key={t.label} className="bg-white dark:bg-mdark-card p-4">
+                        <p className="text-[10px] font-bold text-gray-500 dark:text-mdark-text-secondary uppercase tracking-wider">{t.label}</p>
+                        <p className={`text-base sm:text-lg font-black tabular-nums ${t.alert ? "text-red-600 dark:text-red-400" : "text-gray-900 dark:text-mdark-text"}`}>
+                          {formatCurrency(t.value)}
+                        </p>
+                        <p className="text-[11px] text-gray-400 dark:text-mdark-text-muted">{t.note}</p>
+                      </div>
+                    ))}
+                  </div>
+
+                  {position.next ? (
+                    <p className="px-6 py-3 text-xs text-gray-600 dark:text-mdark-text-secondary border-t border-gray-100 dark:border-mdark-border">
+                      Next installment: <span className="font-bold text-gray-900 dark:text-mdark-text">#{position.next.installment_no}</span>
+                      {" "}due <span className="font-bold text-gray-900 dark:text-mdark-text">{formatDate(position.next.due_date)}</span>
+                      {" "}· <span className="font-bold text-gray-900 dark:text-mdark-text">{formatCurrency(position.next.amount_due)}</span>
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
+
               <div className="bg-white dark:bg-mdark-card rounded-2xl shadow-sm border border-gray-100 dark:border-mdark-border overflow-hidden mb-8 flex flex-col">
-                <div className="p-6 flex items-center justify-between border-b border-gray-100 dark:border-mdark-border">
-                  <h3 className="text-lg font-bold text-gray-900 dark:text-mdark-text">Payment History</h3>
+                <div className="p-6 flex flex-wrap items-center justify-between gap-2 border-b border-gray-100 dark:border-mdark-border">
+                  <h3 className="text-lg font-bold text-gray-900 dark:text-mdark-text">Statement</h3>
                   <span className="bg-gray-100 dark:bg-mdark-elevated text-gray-500 dark:text-mdark-text-secondary px-3 py-1 rounded text-[9px] font-extrabold tracking-widest uppercase">
-                    {rows.length} {rows.length === 1 ? "Entry" : "Entries"}
+                    {statementCounts.paid} paid · {statementCounts.overdue} overdue · {statementCounts.upcoming} remaining
                   </span>
                 </div>
 
@@ -894,57 +1070,68 @@ const Member_StatementOfAccount = () => {
                   <table className="w-full min-w-[1100px] text-left border-collapse">
                     <thead>
                       <tr className="bg-primary-deep dark:bg-mdark-nav text-[10px] uppercase tracking-wider text-white dark:text-mdark-text font-extrabold">
-                        <th className="p-5 font-bold">Payment Date</th>
-                        <th className="p-5 font-bold">Reference ID</th>
-                        <th className="p-5 font-bold text-right">Principal Paid</th>
-                        <th className="p-5 font-bold text-right">Interest Paid</th>
-                        <th className="p-5 font-bold text-right">Deficiency</th>
-                        <th className="p-5 font-bold text-right">Penalty</th>
-                        <th className="p-5 font-bold text-right">Total Amount Paid</th>
-                        <th className="p-5 font-bold text-right">Outstanding Balance</th>
+                        <th className="p-4 font-bold">#</th>
+                        <th className="p-4 font-bold">Due Date</th>
+                        <th className="p-4 font-bold">Paid On</th>
+                        <th className="p-4 font-bold">Reference ID</th>
+                        <th className="p-4 font-bold text-right">Principal</th>
+                        <th className="p-4 font-bold text-right">Interest</th>
+                        <th className="p-4 font-bold text-right">Penalty</th>
+                        <th className="p-4 font-bold text-right">Amount</th>
+                        <th className="p-4 font-bold">Status</th>
+                        <th className="p-4 font-bold text-right">Balance After</th>
                       </tr>
                     </thead>
                     <tbody>
                       {loadingRows ? (
-                        <TableStateRow colSpan={8} variant="loading" label="Loading payment history…" />
+                        <TableStateRow colSpan={10} variant="loading" label="Loading statement…" />
                       ) : rowsError ? (
                         <tr>
-                          <td colSpan="8" className="p-5 text-sm text-red-600 dark:text-red-400">{rowsError}</td>
+                          <td colSpan="10" className="p-5 text-sm text-red-600 dark:text-red-400">{rowsError}</td>
                         </tr>
-                      ) : rows.length === 0 ? (
-                        <TableStateRow colSpan={8} variant="empty" icon={Receipt} label="No validated payments found for this loan." />
+                      ) : statementRows.length === 0 ? (
+                        <TableStateRow colSpan={10} variant="empty" icon={Receipt} label="No payments or installments found for this loan." />
                       ) : (
-                        rows.map((r) => (
-                          <tr key={r.payment_id} className="border-b border-gray-100 dark:border-mdark-border hover:bg-gray-50/50 dark:hover:bg-mdark-elevated/50 transition-colors">
-                            <td className="p-5 text-sm font-medium text-gray-700 dark:text-mdark-text">{formatDate(r.payment_date)}</td>
-                            <td className="p-5 text-xs font-mono text-gray-600 dark:text-mdark-text-secondary break-all">{r.reference_id || "—"}</td>
-                            <td className="p-5 text-sm font-bold text-gray-700 dark:text-mdark-text text-right">{formatCurrency(r.principal_paid)}</td>
-                            <td className="p-5 text-sm font-bold text-gray-700 dark:text-mdark-text text-right">{formatCurrency(r.interest_paid)}</td>
-                            <td className="p-5 text-sm font-medium text-gray-600 dark:text-mdark-text-secondary text-right">{formatCurrency(r.deficiency)}</td>
-                            <td className="p-5 text-sm font-medium text-red-400 text-right">{formatCurrency(r.penalty)}</td>
-                            <td className="p-5 text-sm font-black text-member-green dark:text-mdark-accent text-right">{formatCurrency(r.total_amount_paid)}</td>
-                            <td className="p-5 text-sm font-bold text-gray-900 dark:text-mdark-text text-right">{formatCurrency(r.outstanding_balance)}</td>
-                          </tr>
-                        ))
+                        statementRows.map((r) => {
+                          const paid = r.status === "Paid" || r.status === "Partial";
+                          return (
+                            <tr key={r.key} className={`border-b border-gray-100 dark:border-mdark-border transition-colors ${r.status === "Overdue" ? "bg-red-50/40 dark:bg-red-500/5" : "hover:bg-gray-50/50 dark:hover:bg-mdark-elevated/50"}`}>
+                              <td className="p-4 text-sm font-medium text-gray-700 dark:text-mdark-text">{r.installment ?? "—"}</td>
+                              <td className="p-4 text-sm text-gray-700 dark:text-mdark-text">{r.dueDate ? formatDate(r.dueDate) : "—"}</td>
+                              <td className="p-4 text-sm text-gray-700 dark:text-mdark-text">{r.paidOn ? formatDate(r.paidOn) : "—"}</td>
+                              <td className="p-4 text-xs font-mono text-gray-600 dark:text-mdark-text-secondary break-all">{r.reference || "—"}</td>
+                              <td className="p-4 text-sm text-right tabular-nums text-gray-700 dark:text-mdark-text">{formatCurrency(r.principal)}</td>
+                              <td className="p-4 text-sm text-right tabular-nums text-gray-700 dark:text-mdark-text">{formatCurrency(r.interest)}</td>
+                              <td className={`p-4 text-sm text-right tabular-nums ${paid ? "text-red-400" : "text-gray-400 dark:text-mdark-text-muted"}`}>{paid ? formatCurrency(r.penalty) : "—"}</td>
+                              <td className={`p-4 text-sm text-right tabular-nums font-black ${paid ? "text-member-green dark:text-mdark-accent" : "text-gray-900 dark:text-mdark-text"}`}>{formatCurrency(r.amount)}</td>
+                              <td className="p-4"><StatusBadge row={r} /></td>
+                              <td className="p-4 text-sm text-right tabular-nums font-bold text-gray-900 dark:text-mdark-text">{paid ? formatCurrency(r.balance) : "—"}</td>
+                            </tr>
+                          );
+                        })
                       )}
                     </tbody>
-                    {!loadingRows && !rowsError && rows.length > 0 ? (
+                    {!loadingRows && !rowsError && statementRows.length > 0 ? (
                       <tfoot>
                         <tr className="bg-[#EAF1EB] text-member-green dark:bg-mdark-accent/15 dark:text-mdark-accent">
-                          <td className="p-5 text-xs font-extrabold uppercase tracking-wider" colSpan="2">Totals</td>
-                          <td className="p-5 text-sm font-black text-right">{formatCurrency(totals.principal)}</td>
-                          <td className="p-5 text-sm font-black text-right">{formatCurrency(totals.interest)}</td>
-                          <td className="p-5 text-sm font-black text-right">{formatCurrency(totals.deficiency)}</td>
-                          <td className="p-5 text-sm font-black text-right">{formatCurrency(totals.penalty)}</td>
-                          <td className="p-5 text-sm font-black text-right">{formatCurrency(totals.paid)}</td>
-                          <td className="p-5 text-sm font-black text-right">
-                            {formatCurrency(
-                              [...rows].sort((a, b) =>
-                                String(a.payment_date).localeCompare(String(b.payment_date))
-                              )[rows.length - 1]?.outstanding_balance || 0
-                            )}
-                          </td>
+                          <td className="p-4 text-xs font-extrabold uppercase tracking-wider" colSpan="4">Total Paid</td>
+                          <td className="p-4 text-sm font-black text-right">{formatCurrency(totals.principal)}</td>
+                          <td className="p-4 text-sm font-black text-right">{formatCurrency(totals.interest)}</td>
+                          <td className="p-4 text-sm font-black text-right">{formatCurrency(totals.penalty)}</td>
+                          <td className="p-4 text-sm font-black text-right">{formatCurrency(totals.paid)}</td>
+                          <td className="p-4" />
+                          <td className="p-4 text-sm font-black text-right">{formatCurrency(latestBalance)}</td>
                         </tr>
+                        {statementCounts.overdue + statementCounts.upcoming > 0 ? (
+                          <tr className="bg-gray-50 text-gray-900 dark:bg-mdark-elevated dark:text-mdark-text">
+                            <td className="p-4 text-xs font-extrabold uppercase tracking-wider" colSpan="4">Still Owed</td>
+                            <td className="p-4 text-sm font-black text-right">{formatCurrency(owedTotals.principal)}</td>
+                            <td className="p-4 text-sm font-black text-right">{formatCurrency(owedTotals.interest)}</td>
+                            <td className="p-4 text-sm font-black text-right">{formatCurrency(position?.penalty || 0)}</td>
+                            <td className="p-4 text-sm font-black text-right">{formatCurrency(owedTotals.amount)}</td>
+                            <td className="p-4" colSpan="2" />
+                          </tr>
+                        ) : null}
                       </tfoot>
                     ) : null}
                   </table>
@@ -952,61 +1139,52 @@ const Member_StatementOfAccount = () => {
 
                 <div className="divide-y divide-gray-100 dark:divide-mdark-border md:hidden">
                   {loadingRows ? (
-                    <TableStateRow bare variant="loading" label="Loading payment history…" />
+                    <TableStateRow bare variant="loading" label="Loading statement…" />
                   ) : rowsError ? (
                     <p className="p-6 text-sm text-red-600 dark:text-red-400 text-center">{rowsError}</p>
-                  ) : rows.length === 0 ? (
-                    <TableStateRow bare variant="empty" icon={Receipt} label="No validated payments found for this loan." />
+                  ) : statementRows.length === 0 ? (
+                    <TableStateRow bare variant="empty" icon={Receipt} label="No payments or installments found for this loan." />
                   ) : (
-                    rows.map((r) => (
-                      <div key={r.payment_id} className="px-4 py-3.5 hover:bg-gray-50/50 dark:hover:bg-mdark-elevated/50 transition-colors">
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0">
-                            <p className="text-sm font-bold text-gray-700 dark:text-mdark-text">{formatDate(r.payment_date)}</p>
-                            <p className="truncate text-[10px] font-mono text-gray-500 dark:text-mdark-text-secondary">{r.reference_id || "—"}</p>
+                    statementRows.map((r) => {
+                      const paid = r.status === "Paid" || r.status === "Partial";
+                      return (
+                        <div key={r.key} className={`px-4 py-3.5 ${r.status === "Overdue" ? "bg-red-50/40 dark:bg-red-500/5" : ""}`}>
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <p className="text-sm font-bold text-gray-700 dark:text-mdark-text">
+                                {r.installment ? `#${r.installment} · ` : ""}{r.dueDate ? `Due ${formatDate(r.dueDate)}` : formatDate(r.paidOn)}
+                              </p>
+                              <p className="truncate text-[10px] font-mono text-gray-500 dark:text-mdark-text-secondary">
+                                {paid ? `Paid ${formatDate(r.paidOn)} · ${r.reference || "—"}` : "Not yet paid"}
+                              </p>
+                            </div>
+                            <div className="shrink-0 text-right">
+                              <p className={`text-sm font-black ${paid ? "text-member-green dark:text-mdark-accent" : "text-gray-900 dark:text-mdark-text"}`}>{formatCurrency(r.amount)}</p>
+                              <StatusBadge row={r} />
+                            </div>
                           </div>
-                          <span className="shrink-0 text-sm font-black text-member-green dark:text-mdark-accent">{formatCurrency(r.total_amount_paid)}</span>
+                          <div className="mt-2.5 grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
+                            <span className="text-gray-500 dark:text-mdark-text-secondary">Principal: <span className="font-bold text-gray-700 dark:text-mdark-text">{formatCurrency(r.principal)}</span></span>
+                            <span className="text-gray-500 dark:text-mdark-text-secondary">Interest: <span className="font-bold text-gray-700 dark:text-mdark-text">{formatCurrency(r.interest)}</span></span>
+                            {paid ? (
+                              <>
+                                <span className="text-gray-500 dark:text-mdark-text-secondary">Penalty: <span className="font-medium text-red-400">{formatCurrency(r.penalty)}</span></span>
+                                <span className="text-gray-500 dark:text-mdark-text-secondary">Balance: <span className="font-bold text-gray-900 dark:text-mdark-text">{formatCurrency(r.balance)}</span></span>
+                              </>
+                            ) : null}
+                          </div>
                         </div>
-                        <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 text-xs">
-                          <div>
-                            <p className="text-gray-400 dark:text-mdark-text-muted font-medium">Principal Paid</p>
-                            <p className="font-bold text-gray-700 dark:text-mdark-text">{formatCurrency(r.principal_paid)}</p>
-                          </div>
-                          <div>
-                            <p className="text-gray-400 dark:text-mdark-text-muted font-medium">Interest Paid</p>
-                            <p className="font-bold text-gray-700 dark:text-mdark-text">{formatCurrency(r.interest_paid)}</p>
-                          </div>
-                          <div>
-                            <p className="text-gray-400 dark:text-mdark-text-muted font-medium">Deficiency</p>
-                            <p className="font-medium text-gray-600 dark:text-mdark-text-secondary">{formatCurrency(r.deficiency)}</p>
-                          </div>
-                          <div>
-                            <p className="text-gray-400 dark:text-mdark-text-muted font-medium">Penalty</p>
-                            <p className="font-medium text-red-400">{formatCurrency(r.penalty)}</p>
-                          </div>
-                        </div>
-                        <p className="mt-2.5 text-[11px] text-gray-500 dark:text-mdark-text-secondary">
-                          Outstanding Balance: <span className="font-bold text-gray-900 dark:text-mdark-text">{formatCurrency(r.outstanding_balance)}</span>
-                        </p>
-                      </div>
-                    ))
+                      );
+                    })
                   )}
-                  {!loadingRows && !rowsError && rows.length > 0 ? (
+                  {!loadingRows && !rowsError && statementRows.length > 0 ? (
                     <div className="px-4 py-3.5 bg-[#EAF1EB] dark:bg-mdark-accent/15 text-member-green dark:text-mdark-accent">
                       <p className="text-[10px] font-extrabold uppercase tracking-wider mb-2">Totals</p>
                       <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-xs font-black">
-                        <span>Principal: {formatCurrency(totals.principal)}</span>
-                        <span>Interest: {formatCurrency(totals.interest)}</span>
-                        <span>Deficiency: {formatCurrency(totals.deficiency)}</span>
-                        <span>Penalty: {formatCurrency(totals.penalty)}</span>
                         <span>Total Paid: {formatCurrency(totals.paid)}</span>
-                        <span>
-                          Outstanding: {formatCurrency(
-                            [...rows].sort((a, b) =>
-                              String(a.payment_date).localeCompare(String(b.payment_date))
-                            )[rows.length - 1]?.outstanding_balance || 0
-                          )}
-                        </span>
+                        <span>Penalty Paid: {formatCurrency(totals.penalty)}</span>
+                        <span>Still Owed: {formatCurrency(owedTotals.amount)}</span>
+                        <span>Balance: {formatCurrency(latestBalance)}</span>
                       </div>
                     </div>
                   ) : null}

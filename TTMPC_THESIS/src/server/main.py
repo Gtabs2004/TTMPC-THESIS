@@ -1044,14 +1044,53 @@ def count_consecutive_zero_payment_periods(
     return streak
 
 
-# Canonical penalty accrual. The 3-month grace past the earliest unpaid due
-# date must lapse before anything accrues. A loan can have only one schedule
-# row at a time, so requiring three separate unpaid rows would prevent a
-# genuinely overdue installment from ever accruing a penalty.
+# Canonical penalty accrual (cooperative rule, confirmed 2026-10-13): the first
+# penalty applies once THREE consecutive due dates have passed unpaid -- i.e. on
+# the 3rd missed due date, which is the earliest unpaid due + 2 months -- and
+# one more charge is added each month the loan stays behind. Each charge is the
+# penalty rate (2%, 1% for bonus) of ONE installment, not of the whole balance.
+# A loan can have only one schedule row at a time, so the missed due dates are
+# counted from the earliest unpaid due rather than from separate rows.
 # Legacy loans (any loan_payments_legacy row) are exempt entirely -- historical
 # delinquency on migrated loans is not chargeable retroactively.
 PENALTY_ZERO_PAYMENT_PERIODS = 3
-PENALTY_GRACE_MONTHS = 3
+PENALTY_GRACE_MONTHS = PENALTY_ZERO_PAYMENT_PERIODS - 1
+
+
+def penalty_clock_start(earliest_unpaid_due: date | None, payment_dates: list[date] | None) -> date | None:
+    """First missed due date of the CURRENT no-payment streak.
+
+    Any validated payment resets the 3-month count (user rule, 2026-10-13):
+    the clock starts at the first monthly due date after the last payment,
+    counted on from the earliest unpaid due date. With no payment after that
+    date, it is the earliest unpaid due date itself.
+    """
+    if not earliest_unpaid_due:
+        return None
+    last_payment = max(payment_dates) if payment_dates else None
+    if not last_payment or last_payment < earliest_unpaid_due:
+        return earliest_unpaid_due
+    step = 0
+    candidate = earliest_unpaid_due
+    while candidate <= last_payment and step < 600:
+        step += 1
+        candidate = add_months(earliest_unpaid_due, step)
+    return candidate
+
+
+def penalty_installment_base(loan_row: dict | None, remaining_balance: Decimal) -> Decimal:
+    """The one-installment amount a penalty charge is computed on.
+
+    monthly_amortization, falling back to total payable / term for rows that
+    never stored it; never more than what is still owed.
+    """
+    row = loan_row or {}
+    installment = Decimal(str(row.get("monthly_amortization") or 0))
+    if installment <= 0:
+        term = int(row.get("term") or row.get("term_months") or 0)
+        if term > 0:
+            installment = money(_loan_total_payable(row) / Decimal(term))
+    return max(min(installment, max(remaining_balance, Decimal("0"))), Decimal("0"))
 
 
 def compute_loan_penalty(
@@ -1063,13 +1102,15 @@ def compute_loan_penalty(
     payment_dates: list[date],
     is_legacy: bool,
     as_of: date | None = None,
+    installment_amount: Decimal = Decimal("0"),
 ) -> Decimal:
     if is_legacy or not earliest_unpaid_due:
         return Decimal("0")
 
     today = as_of or datetime.utcnow().date()
 
-    grace_end = add_months(earliest_unpaid_due, PENALTY_GRACE_MONTHS)
+    clock_start = penalty_clock_start(earliest_unpaid_due, payment_dates)
+    grace_end = add_months(clock_start, PENALTY_GRACE_MONTHS)
     if today <= grace_end:
         return Decimal("0")
 
@@ -1081,7 +1122,8 @@ def compute_loan_penalty(
 
     # 1% for bonus loans (incl. NONMEMBER_BONUS), 2% for everything else.
     rate = Decimal("0.01") if "bonus" in str(loan_type_code).strip().lower() else Decimal("0.02")
-    return max(remaining_balance, Decimal("0")) * rate * Decimal(months_overdue)
+    base = min(max(installment_amount, Decimal("0")), max(remaining_balance, Decimal("0")))
+    return money(base * rate * Decimal(months_overdue))
 
 
 def _server_side_penalty_for_loan(*, loan_id: str, loan_row: dict, schedules: list[dict]) -> Decimal:
@@ -1144,6 +1186,7 @@ def _server_side_penalty_for_loan(*, loan_id: str, loan_row: dict, schedules: li
             payment_dates=payment_dates,
             is_legacy=False,
             as_of=today,
+            installment_amount=penalty_installment_base(loan_row, remaining_balance),
         )
     except Exception:
         return Decimal("0")
@@ -1240,6 +1283,7 @@ def accrue_loan_penalties(
     payment_dates: list[date],
     is_legacy: bool,
     as_of: date | None = None,
+    installment_amount: Decimal = Decimal("0"),
 ) -> Decimal:
     """Write one penalty row per overdue period, then return the unpaid total.
 
@@ -1248,7 +1292,8 @@ def accrue_loan_penalties(
     (spec 10). The unique key on (loan_id, period_due_date) makes repeated calls
     idempotent, so refreshing a screen cannot create duplicates (spec 11).
 
-    Penalty starts after the 3-month grace past the earliest unpaid due date.
+    Penalty starts on the 3rd consecutive missed due date (earliest unpaid due
+    + PENALTY_GRACE_MONTHS); each charge is rate x one installment.
     """
     today = as_of or datetime.utcnow().date()
 
@@ -1267,14 +1312,19 @@ def accrue_loan_penalties(
     if not earliest_unpaid_due:
         return _unpaid_penalty_total(loan_id)
 
-    grace_end = add_months(earliest_unpaid_due, PENALTY_GRACE_MONTHS)
+    # A payment restarts the count of months without payment.
+    grace_end = add_months(penalty_clock_start(earliest_unpaid_due, payment_dates), PENALTY_GRACE_MONTHS)
     if today <= grace_end:
         return _unpaid_penalty_total(loan_id)
 
     rate = Decimal("0.01") if "bonus" in str(loan_type_code).strip().lower() else Decimal("0.02")
 
-    # One charge for the first overdue month as soon as grace lapses, then one
-    # additional charge per completed month after that.
+    base = min(max(installment_amount, Decimal("0")), remaining_balance)
+    if base <= 0:
+        return _unpaid_penalty_total(loan_id)
+
+    # One charge for the 3rd missed month as soon as its due date passes, then
+    # one additional charge per completed month after that.
     period = grace_end
     charges: list[dict] = []
     while True:
@@ -1283,8 +1333,8 @@ def accrue_loan_penalties(
         charges.append({
             "loan_id": loan_id,
             "period_due_date": period.isoformat(),
-            "amount": decimal_to_float(money(remaining_balance * rate)),
-            "basis_balance": decimal_to_float(money(remaining_balance)),
+            "amount": decimal_to_float(money(base * rate)),
+            "basis_balance": decimal_to_float(money(base)),
             "rate_percent": decimal_to_float(rate * Decimal("100")),
         })
         period = add_months(period, 1)
@@ -1494,6 +1544,183 @@ def build_single_schedule_row(
         "applied_credit": decimal_to_float(row_credit),
         "schedule_status": "Unpaid",
     }
+
+
+# ---------------------------------------------------------------------------
+# Roll-forward of missed installments (cooperative rule, confirmed 2026-10-13).
+#
+# A loan keeps ONE open schedule row. When its due date passes with nothing
+# paid, the month is MISSED: the row is closed as 'partially_paid' (zero paid)
+# and its full bill is carried into the next installment as carried_arrears.
+# This repeats until the open row is the installment that is not yet past due,
+# so a payment always lands on the CURRENT installment, with every missed
+# amount accumulated on it. Once a payment clears the carried arrears,
+# close_settled_missed_installments() flips the missed rows to Paid -- that is
+# also what stops the penalty clock (penalty counts from the earliest row that
+# is not Paid).
+#
+# Runs when the cashier opens a loan, when a payment is submitted and when the
+# Bookkeeper approves one -- never on a timer. Legacy loans (any
+# loan_payments_legacy row) are skipped: their reconstructed due dates are
+# years old and must not generate rows.
+# ---------------------------------------------------------------------------
+OPEN_SCHEDULE_STATUSES = {"unpaid", "pending", "overdue"}
+_ROLL_FORWARD_MAX_STEPS = 120
+
+
+def roll_forward_missed_installments(loan_id: str, as_of: date | None = None) -> int:
+    """Close past-due unpaid installments and carry them forward. Returns how
+    many installments were rolled. Never raises: a failure leaves the loan as
+    it was, which is the pre-roll-forward behaviour."""
+    if not supabase or not loan_id:
+        return 0
+    today = as_of or datetime.utcnow().date()
+    rolled = 0
+    try:
+        legacy = (
+            supabase.table("loan_payments_legacy").select("id").eq("loan_id", loan_id).limit(1).execute()
+        ).data or []
+        if legacy:
+            return 0
+
+        loan_row = (
+            supabase.table("loans")
+            .select(
+                "control_number,loan_amount,principal_amount,interest_rate,term,loan_status,"
+                "loan_type:loan_type_id(name)"
+            )
+            .eq("control_number", loan_id)
+            .limit(1)
+            .execute()
+        ).data
+        loan_row = (loan_row or [None])[0]
+        if not loan_row:
+            return 0
+        if str(loan_row.get("loan_status") or "").strip().lower() in {"fully paid", "completed", "closed"}:
+            return 0
+
+        principal = Decimal(str(loan_row.get("principal_amount") or loan_row.get("loan_amount") or 0))
+        term_months = int(loan_row.get("term") or 0)
+        if principal <= 0 or term_months <= 0:
+            return 0
+        loan_type_name = (loan_row.get("loan_type") or {}).get("name")
+        normalized_loan_type = normalize_cashier_loan_type(loan_type_name)
+        stored_rate = loan_row.get("interest_rate")
+        monthly_rate_decimal = resolve_monthly_rate_decimal(
+            normalized_loan_type,
+            Decimal(str(stored_rate)) if stored_rate is not None else None,
+            loan_type_code=resolve_loan_type_code(normalized_loan_type),
+            loan_type_name=loan_type_name,
+        )
+        if monthly_rate_decimal <= 0:
+            return 0
+
+        for _ in range(_ROLL_FORWARD_MAX_STEPS):
+            open_rows = (
+                supabase.table("loan_schedules")
+                .select(
+                    "id,installment_no,due_date,schedule_status,expected_amount,"
+                    "remaining_principal,carried_arrears,applied_credit"
+                )
+                .eq("loan_id", loan_id)
+                .in_("schedule_status", ["Unpaid", "unpaid", "Pending", "pending", "Overdue", "overdue"])
+                .order("installment_no")
+                .limit(1)
+                .execute()
+            ).data or []
+            if not open_rows:
+                break
+            row = open_rows[0]
+            due = parse_date_value(row.get("due_date"))
+            installment_no = int(row.get("installment_no") or 0)
+            # Not past due yet (it is the current installment), or it is the
+            # last one -- nothing to carry into, it simply stays overdue.
+            if not due or due >= today or installment_no <= 0 or installment_no >= term_months:
+                break
+
+            # Only a month with NOTHING validated against it is a missed month.
+            # A short payment is closed by the approval step, not here.
+            paid_rows = (
+                supabase.table("loan_payments")
+                .select("amount_paid")
+                .eq("schedule_id", row.get("id"))
+                .in_("confirmation_status", ["validated", "confirmed", "bookkeeper_confirmed", "approved"])
+                .execute()
+            ).data or []
+            if any(Decimal(str(p.get("amount_paid") or 0)) > 0 for p in paid_rows):
+                break
+
+            row_bill = (
+                Decimal(str(row.get("expected_amount") or 0))
+                + Decimal(str(row.get("carried_arrears") or 0))
+                - Decimal(str(row.get("applied_credit") or 0))
+            )
+            carry_arrears = money(max(row_bill, Decimal("0")))
+            carry_credit = money(max(-row_bill, Decimal("0")))
+
+            try:
+                count_resp = (
+                    supabase.table("loan_schedules").select("id", count="exact").limit(1).execute()
+                )
+                next_sequence_number = int(count_resp.count or 0) + 1
+            except Exception:
+                next_sequence_number = 0
+
+            next_row = build_single_schedule_row(
+                loan_type=normalized_loan_type,
+                principal=principal,
+                term_months=term_months,
+                monthly_rate_decimal=monthly_rate_decimal,
+                due_date=add_months(due, 1),
+                loan_id=loan_id,
+                installment_no=installment_no + 1,
+                remaining_principal_before=Decimal(str(row.get("remaining_principal") or 0)),
+                start_sequence_number=next_sequence_number,
+                carried_arrears=carry_arrears,
+                applied_credit=carry_credit,
+            )
+
+            # Close first: only one open row per loan is allowed (unique index).
+            supabase.table("loan_schedules").update(
+                {"schedule_status": "partially_paid"}
+            ).eq("id", row.get("id")).execute()
+
+            inserted = False
+            for _attempt in range(3):
+                try:
+                    supabase.table("loan_schedules").insert(next_row).execute()
+                    inserted = True
+                    break
+                except Exception as insert_err:
+                    text = str(insert_err).lower()
+                    if "duplicate" in text or "unique" in text:
+                        next_row["schedule_id"] = f"TTMPCLP_SI_{uuid4().hex[:12].upper()}"
+                        continue
+                    break
+            if not inserted:
+                # Put the loan back exactly as it was rather than leave it with
+                # no open installment.
+                supabase.table("loan_schedules").update(
+                    {"schedule_status": "Unpaid"}
+                ).eq("id", row.get("id")).execute()
+                logging.warning("Roll-forward stopped for loan %s at installment %s.", loan_id, installment_no)
+                break
+            rolled += 1
+    except Exception:
+        logging.exception("Roll-forward failed for loan %s; left unchanged from that point.", loan_id)
+    return rolled
+
+
+def close_settled_missed_installments(loan_id: str) -> None:
+    """Once the carried arrears are paid off, the missed months they came from
+    are settled: mark them Paid so the penalty clock (earliest row not Paid)
+    stops."""
+    try:
+        supabase.table("loan_schedules").update({"schedule_status": "Paid"}).eq(
+            "loan_id", loan_id
+        ).eq("schedule_status", "partially_paid").execute()
+    except Exception:
+        logging.exception("Could not close settled missed installments for loan %s.", loan_id)
 
 
 def sanitize_monthly_rate_percent(
@@ -2209,11 +2436,26 @@ async def get_cashier_loans_for_payments():
                 if d and d < datetime.utcnow().date():
                     if earliest_missed_due is None or d < earliest_missed_due:
                         earliest_missed_due = d
-            reference_due_for_flags = earliest_missed_due or due_date_value
+            # Delay/penalty flags count months WITHOUT any payment: a payment
+            # restarts the clock at the next due date after it.
+            reference_due_for_flags = (
+                penalty_clock_start(earliest_missed_due, payment_dates_by_loan.get(control_number, []))
+                or due_date_value
+            )
+            # Missed months are counted the same way: only those since the last
+            # payment, so paying resets the "Past Due (n)" count too.
+            if earliest_missed_due and reference_due_for_flags:
+                missed_count = sum(
+                    1 for sched in schedules
+                    if str(sched.get("schedule_status") or "").strip().lower() not in {"paid", "completed", "closed"}
+                    and (lambda d: d is not None and reference_due_for_flags <= d < today_for_missed)(
+                        parse_date_value(sched.get("due_date"))
+                    )
+                )
             # "No-payment warning" — 1 month past due date, no money charged.
             no_payment_warn_deadline = add_months(reference_due_for_flags, 1) if reference_due_for_flags else None
-            # "Penalty starts" — 3-month grace per updated policy.
-            penalty_start_deadline = add_months(reference_due_for_flags, 3) if reference_due_for_flags else None
+            # "Penalty starts" -- on the 3rd consecutive missed due date.
+            penalty_start_deadline = add_months(reference_due_for_flags, PENALTY_GRACE_MONTHS) if reference_due_for_flags else None
             today_date = datetime.utcnow().date()
             is_delayed = bool(no_payment_warn_deadline and today_date > no_payment_warn_deadline)
             is_overdue_for_penalty = bool(penalty_start_deadline and today_date > penalty_start_deadline)
@@ -2245,6 +2487,7 @@ async def get_cashier_loans_for_payments():
                     payment_dates=payment_dates_by_loan.get(control_number, []),
                     is_legacy=is_legacy_loan,
                     as_of=today_date,
+                    installment_amount=penalty_installment_base(loan, remaining_balance),
                 )
 
             is_migs = bool(member.get("is_bona_fide"))
@@ -5264,6 +5507,19 @@ async def create_nonmember_loan_payment(
     }
 
 
+@app.post("/api/cashier/loans/{loan_id}/roll-forward")
+async def roll_forward_cashier_loan(
+    loan_id: str,
+    current_user: dict | None = _Depends(_get_current_user_optional),
+):
+    """Carry missed installments forward before the cashier sees the loan, so
+    the due date and amount shown are the CURRENT installment's."""
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+    rolled = roll_forward_missed_installments(str(loan_id).strip())
+    return {"loan_id": loan_id, "rolled": rolled}
+
+
 @app.post("/api/cashier/loan-payments")
 async def create_cashier_loan_payment(
     payload: CashierLoanPaymentCreateRequest,
@@ -5307,6 +5563,10 @@ async def create_cashier_loan_payment(
         loan_status_lc = str(loan_row_for_status.get("loan_status") or "").strip().lower()
         if loan_status_lc in ("fully paid", "completed", "closed"):
             raise HTTPException(status_code=409, detail="This loan is already fully paid.")
+
+        # Missed months are carried forward first, so the payment lands on the
+        # CURRENT installment with every missed amount accumulated on it.
+        roll_forward_missed_installments(loan_id)
 
         # The cashier now types the amount received, so it is checked here rather
         # than trusted: it can't exceed what is still owed. Balance = total
@@ -5366,6 +5626,16 @@ async def create_cashier_loan_payment(
             )
             if selected_schedule is None:
                 raise HTTPException(status_code=400, detail="Provided schedule_id does not belong to this loan.")
+            # The screen may have been opened before a roll-forward closed that
+            # row; a payment always goes to the installment that is open now.
+            if str(selected_schedule.get("schedule_status") or "").strip().lower() not in OPEN_SCHEDULE_STATUSES:
+                selected_schedule = next(
+                    (
+                        row for row in schedules
+                        if str(row.get("schedule_status") or "").strip().lower() in OPEN_SCHEDULE_STATUSES
+                    ),
+                    selected_schedule,
+                )
         else:
             for sched in schedules:
                 sched_status = str(sched.get("schedule_status") or "").strip().lower()
@@ -5400,7 +5670,12 @@ async def create_cashier_loan_payment(
             "schedule_id": selected_schedule.get("id"),
             "amount_paid": decimal_to_float(money(Decimal(str(payload.payment_amount)))),
             "payment_date": datetime.utcnow().isoformat(),
-            "penalties": decimal_to_float(money(server_penalty)),
+            # Penalty cash collected on top of the loan amount. The client's
+            # figure is only trusted downward: it can never exceed what the
+            # server says is owed.
+            "penalties": decimal_to_float(money(min(
+                max(Decimal(str(payload.penalties or 0)), Decimal("0")), server_penalty
+            ))),
             "deficiency": decimal_to_float(money(Decimal(str(deficiency_value)))),
             "confirmation_status": "pending_bookkeeper",
             "entered_by_role": "cashier",
@@ -6754,24 +7029,23 @@ async def get_member_debt_capacity(member_key: str):
 
         today = datetime.utcnow().date()
 
-        def _accrued_penalty(loan_id: str, loan_type_code: str, remaining_principal: Decimal) -> Decimal:
-            # Legacy loans (any row in loan_payments_legacy) — skip penalty accrual.
-            # Historical delinquency on migrated loans is not chargeable retroactively.
+        def _accrued_penalty(loan_id: str, loan_type_code: str, remaining: Decimal, loan_row: dict) -> Decimal:
+            # Same rule as compute_loan_penalty(): first charge on the 3rd missed
+            # due date, rate x one installment per month. Legacy loans (any row in
+            # loan_payments_legacy) are exempt -- historical delinquency on
+            # migrated loans is not chargeable retroactively.
             if loan_id in legacy_loan_ids:
                 return Decimal("0")
-            earliest = earliest_unpaid_due.get(loan_id)
-            if not earliest:
-                return Decimal("0")
-            grace_end = add_months(earliest, 3)
-            if today <= grace_end:
-                return Decimal("0")
-            months_overdue = (today.year - grace_end.year) * 12 + (today.month - grace_end.month)
-            if today.day < grace_end.day:
-                months_overdue -= 1
-            if months_overdue <= 0:
-                return Decimal("0")
-            rate = Decimal("0.01") if loan_type_code == "bonus" else Decimal("0.02")
-            return max(remaining_principal, Decimal("0")) * rate * Decimal(months_overdue)
+            return compute_loan_penalty(
+                loan_type_code=loan_type_code,
+                remaining_balance=remaining,
+                earliest_unpaid_due=earliest_unpaid_due.get(loan_id),
+                schedules=[],
+                payment_dates=[],
+                is_legacy=False,
+                as_of=today,
+                installment_amount=penalty_installment_base(loan_row, remaining),
+            )
 
         def _remaining_for(loans: list[dict], type_code: str) -> Decimal:
             total = Decimal("0")
@@ -6787,7 +7061,7 @@ async def get_member_debt_capacity(member_key: str):
                 loan_id = str(r.get("control_number") or "")
                 paid = paid_by_loan.get(loan_id, Decimal("0"))
                 remaining = max(total_payable - paid, Decimal("0"))
-                penalty = _accrued_penalty(loan_id, type_code, remaining)
+                penalty = _accrued_penalty(loan_id, type_code, remaining, r)
                 total += remaining + penalty
             return total
 
@@ -6806,7 +7080,7 @@ async def get_member_debt_capacity(member_key: str):
             loan_id = str(r.get("control_number") or "")
             paid = paid_by_loan.get(loan_id, Decimal("0"))
             remaining = max(total_payable - paid, Decimal("0"))
-            penalty = _accrued_penalty(loan_id, type_code, remaining)
+            penalty = _accrued_penalty(loan_id, type_code, remaining, r)
             is_legacy = loan_id in legacy_loan_ids
             return {
                 "control_number": r.get("control_number"),
@@ -8011,7 +8285,7 @@ async def get_bookkeeper_loan_ledger(loan_id: str):
     try:
         pay_resp = (
             supabase.table("loan_payments")
-            .select("id,loan_id,amount_paid,penalties,payment_date,confirmation_status,payment_reference,transaction_reference")
+            .select("id,loan_id,schedule_id,amount_paid,penalties,payment_date,confirmation_status,payment_reference,transaction_reference")
             .eq("loan_id", clean_loan_id)
             .order("payment_date")
             .execute()
@@ -8107,6 +8381,7 @@ async def get_bookkeeper_loan_ledger(loan_id: str):
             "remaining_after": decimal_to_float(running_remaining),
             "confirmation_status": payment.get("confirmation_status") or "pending_bookkeeper",
             "days_offset": days_offset,
+            "schedule_id": payment.get("schedule_id"),
         })
 
     remaining_balance = max(total_payable_amount - total_validated, Decimal("0"))
@@ -8119,12 +8394,21 @@ async def get_bookkeeper_loan_ledger(loan_id: str):
     else:
         repayment_status = "Unpaid"
 
-    active_due = None
-    for schedule in schedule_rows:
-        status = str(schedule.get("schedule_status") or "").strip().lower()
-        if status not in {"paid", "validated", "cancelled"}:
-            active_due = schedule
-            break
+    # The installment open now. Missed months closed by the roll-forward are
+    # 'partially_paid' and must not be reported as the due date.
+    active_due = next(
+        (
+            s for s in schedule_rows
+            if str(s.get("schedule_status") or "").strip().lower() in OPEN_SCHEDULE_STATUSES
+        ),
+        None,
+    )
+    if not active_due:
+        for schedule in schedule_rows:
+            status = str(schedule.get("schedule_status") or "").strip().lower()
+            if status not in {"paid", "validated", "cancelled"}:
+                active_due = schedule
+                break
     if not active_due and schedule_rows:
         active_due = schedule_rows[-1]
 
@@ -12167,6 +12451,31 @@ async def approve_bookkeeper_payment(
             raise HTTPException(status_code=400, detail="Loan interest rate is not configured in loan_types.")
 
         schedule_internal_id = str(payment_row.get("schedule_id") or "").strip()
+
+        # Carry missed months forward before applying the payment, then make
+        # sure the payment sits on the installment that is open now -- the
+        # cashier may have logged it against a row that has since rolled.
+        roll_forward_missed_installments(loan_id)
+        try:
+            _row_status = (
+                supabase.table("loan_schedules").select("schedule_status").eq("id", schedule_internal_id)
+                .limit(1).execute()
+            ).data or []
+            _row_status = str((_row_status[0] if _row_status else {}).get("schedule_status") or "").strip().lower()
+            if _row_status not in OPEN_SCHEDULE_STATUSES:
+                _open = (
+                    supabase.table("loan_schedules").select("id").eq("loan_id", loan_id)
+                    .in_("schedule_status", ["Unpaid", "unpaid", "Pending", "pending", "Overdue", "overdue"])
+                    .order("installment_no").limit(1).execute()
+                ).data or []
+                if _open:
+                    schedule_internal_id = str(_open[0].get("id"))
+                    supabase.table("loan_payments").update({"schedule_id": schedule_internal_id}).eq(
+                        "id", payment_row.get("id")
+                    ).execute()
+        except Exception:
+            logging.exception("Could not re-point payment %s to the open installment.", payment_row.get("id"))
+
         current_schedule_response = (
             supabase.table("loan_schedules")
             .select(
@@ -12242,16 +12551,29 @@ async def approve_bookkeeper_payment(
             or paid_toward_installment + Decimal("0.50") >= installment_due
         )
 
-        # Split this payment: penalty -> arrears -> current -> credit.
-        outstanding_penalty = _unpaid_penalty_total(loan_id)
+        # The penalty is collected ON TOP of amount_paid (loan_payments.penalties):
+        # the cashier screen splits the cash handed over into penalty first,
+        # then the loan. amount_paid is therefore the loan portion only, which
+        # is what every balance (this endpoint, the ledger trigger, the SOA)
+        # subtracts. Settle penalties from `penalties`, never from amount_paid.
+        penalty_collected = money(min(
+            max(Decimal(str(payment_row.get("penalties") or 0)), Decimal("0")),
+            _unpaid_penalty_total(loan_id),
+        ))
         base_installment = max(installment_due - schedule_arrears + schedule_credit, Decimal("0"))
         allocation = allocate_payment(
             payment_amount=payment_amount,
-            penalty_due=outstanding_penalty,
+            penalty_due=Decimal("0"),
             arrears_due=schedule_arrears,
             current_due=base_installment,
         )
-        settle_penalties_with_payment(loan_id, allocation["penalty"], payment_row.get("id"))
+        allocation["penalty"] = penalty_collected
+        settle_penalties_with_payment(loan_id, penalty_collected, payment_row.get("id"))
+
+        # Carried arrears fully paid -> the missed months behind them are
+        # settled, which also stops the penalty clock.
+        if schedule_arrears > 0 and allocation["arrears"] + Decimal("0.50") >= schedule_arrears:
+            close_settled_missed_installments(loan_id)
 
         # What rolls into the next installment. A shortfall becomes arrears that
         # ADD to next month's bill; an overpayment becomes credit that REDUCES
