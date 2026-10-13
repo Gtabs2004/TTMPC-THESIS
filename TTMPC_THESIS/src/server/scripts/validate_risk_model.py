@@ -125,9 +125,9 @@ def validate_handoff_contract() -> None:
 
     # §3 traffic light: action, share of applications, historical bad rate.
     expected_bands = {
-        "GREEN": ("Process normally", 0.40, 8),
-        "AMBER": ("Verify income and payslip", 0.40, 18),
-        "RED": ("Refer to Manager / BOD before approval", 0.20, 25),
+        "GREEN": ("Standard review", 0.40, 8),
+        "AMBER": ("Verify income and payslip", 0.40, 15),
+        "RED": ("Review most closely before approval", 0.20, 30),
     }
     mismatches = []
     for name, (action, share, bad_rate) in expected_bands.items():

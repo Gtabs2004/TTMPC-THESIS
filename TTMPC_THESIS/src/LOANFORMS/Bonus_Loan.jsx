@@ -254,7 +254,7 @@ function Bonus_Loan({ staffIntake = false }) {
         recordLocked('office_address', profile.office_address);
         recordLocked('spouse_name', profile.spouse_name);
         recordLocked('spouse_occupation', profile.spouse_occupation);
-        recordLocked('latest_net_pay', profile.latest_net_pay ?? profile.annual_income);
+        recordLocked('latest_net_pay', profile.latest_net_pay);
         recordLocked('share_capital', profile.share_capital);
 
         setLockedFields(newlyLocked);
@@ -285,7 +285,7 @@ function Bonus_Loan({ staffIntake = false }) {
           office_address: profile.office_address ?? prev.office_address,
           spouse_name: profile.spouse_name ?? prev.spouse_name,
           spouse_occupation: profile.spouse_occupation ?? prev.spouse_occupation,
-          latest_net_pay: (profile.latest_net_pay ?? profile.annual_income)?.toString() ?? prev.latest_net_pay,
+          latest_net_pay: (profile.latest_net_pay)?.toString() ?? prev.latest_net_pay,
           share_capital: profile.share_capital?.toString() ?? prev.share_capital,
           };
         });

@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import StaffTopbar from "../../components/StaffTopbar";
 import NotificationBell from "../../components/NotificationBell";
+import DepositInterestPanel from "./DepositInterestPanel";
 
 // Loan-type labels for the tab strip. Order is intentional: CONSOLIDATED first
 // because it carries every fee, BONUS types last because they carry only a
@@ -29,6 +30,14 @@ const LOAN_TYPE_TABS = [
   { code: "BONUS", label: "Bonus" },
   { code: "NONMEMBER_BONUS", label: "Non-member Bonus" },
 ];
+
+// Deposit products: interest the coop pays members. Edited by
+// DepositInterestPanel against deposit_interest_policies, not loan_fee_policies.
+const DEPOSIT_TABS = [
+  { code: "SAVINGS", label: "Regular Savings" },
+  { code: "TIME_DEPOSIT", label: "Time Deposit" },
+];
+const isDepositCode = (code) => DEPOSIT_TABS.some((t) => t.code === code);
 
 // Which fields each loan type actually uses, per BOD's 2026-09-18 direction:
 //   - Consolidated & Emergency: bracket-style service fee (Mode hidden,
@@ -350,13 +359,16 @@ const Loan_Policies = () => {
         <main className="animate-page-in p-8 overflow-auto">
           <div className="mb-6 flex items-start justify-between gap-4 flex-wrap">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">Loan Fee & Interest Policies</h1>
+              <h1 className="text-3xl font-bold text-gray-900">Interest Policies</h1>
               <p className="text-sm text-gray-500 mt-1">
-                {editing
+                {isDepositCode(activeCode)
+                  ? "Interest the cooperative pays on deposits. Rates are not final yet, so every value is editable."
+                  : editing
                   ? "Edit the deduction parameters and monthly interest rate for each loan type. Changes apply to all future loan computations and the CBU credit trigger."
                   : "View-only. Click Change Policy to edit the deduction parameters or interest rate for this loan type."}
               </p>
             </div>
+            {!isDepositCode(activeCode) && (
             <div className="flex items-center gap-2">
               <button
                 type="button"
@@ -389,29 +401,30 @@ const Loan_Policies = () => {
                 </button>
               )}
             </div>
+            )}
           </div>
 
-          {!editing && (
+          {!editing && !isDepositCode(activeCode) && (
             <div className="mb-4 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-500 flex items-center gap-2">
               <Lock size={14} className="shrink-0" />
               <span>View-only mode. Click <strong>Change Policy</strong> above to make changes.</span>
             </div>
           )}
 
-          {error && (
+          {error && !isDepositCode(activeCode) && (
             <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 flex items-start gap-2">
               <AlertCircle size={16} className="mt-0.5 shrink-0" />
               <span>{error}</span>
             </div>
           )}
-          {success && (
+          {success && !isDepositCode(activeCode) && (
             <div className="mb-4 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700 flex items-start gap-2">
               <CheckCircle2 size={16} className="mt-0.5 shrink-0" />
               <span>{success}</span>
             </div>
           )}
 
-          {/* Loan type tabs */}
+          {/* Loan type tabs, then deposit product tabs */}
           <div className="mb-6 flex flex-wrap gap-2">
             {LOAN_TYPE_TABS.map((tab) => {
               const hasRow = !!feePolicies[tab.code];
@@ -434,9 +447,26 @@ const Loan_Policies = () => {
                 </button>
               );
             })}
+            <span className="mx-1 self-stretch w-px bg-gray-300" aria-hidden="true" />
+            {DEPOSIT_TABS.map((tab) => (
+              <button
+                key={tab.code}
+                type="button"
+                onClick={() => setActiveCode(tab.code)}
+                className={`px-4 py-2 rounded-lg text-sm font-semibold transition border ${
+                  activeCode === tab.code
+                    ? "bg-green-600 text-white border-green-600"
+                    : "bg-white text-gray-700 border-gray-300 hover:border-green-500"
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
           </div>
 
-          {draft && (
+          {isDepositCode(activeCode) ? (
+            <DepositInterestPanel product={activeCode} />
+          ) : draft && (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               {/* Editor — wrapped in a native <fieldset disabled> so view-only
                   mode can't be bypassed by any input this panel contains,

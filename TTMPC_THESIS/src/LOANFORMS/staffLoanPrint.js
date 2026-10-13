@@ -279,7 +279,12 @@ export async function buildStaffPrintPayload(loan, coMakers = null) {
     middle_name: firstValue(profile.middle_name, profile.middle_initial, koicaBorrower.middle_name),
 
     contact_no: firstValue(profile.contact_number, profile.contact_no, koicaBorrower.contact_no),
-    latest_net_pay: firstValue(optional.latest_net_pay, profile.latest_net_pay, profile.salary, profile.annual_income),
+    latest_net_pay: firstValue(
+      optional.latest_net_pay,
+      profile.latest_net_pay,
+      profile.salary,
+      Number(profile.annual_income) > 0 ? (Number(profile.annual_income) / 12).toFixed(2) : null,
+    ),
     share_capital: firstValue(optional.share_capital, profile.share_capital),
     residence_address: firstValue(profile.permanent_address, profile.residence_address, koicaBorrower.address),
 

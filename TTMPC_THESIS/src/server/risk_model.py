@@ -313,7 +313,7 @@ def operating_points() -> dict:
 # The action text, the expected share of applications and the historical bad
 # rate are the cooperative's own published figures. They are the numbers the
 # system should show a reviewer (and a thesis panel), not paraphrases: "about
-# 18 in 100 loans in this band ran into trouble" is defensible in a way that
+# 15 in 100 loans in this band ran into trouble" is defensible in a way that
 # invented prose is not.
 #
 # `share` and `bad_rate_per_100` describe the TRAINING population, so they are
@@ -321,9 +321,10 @@ def operating_points() -> dict:
 # currently on screen.
 # ---------------------------------------------------------------------------
 BAND_META = {
+    # Rates are the seven-split cross-validation means (8 / 15 / 30).
     "GREEN": {
         "label": "Low Risk",
-        "action": "Process normally",
+        "action": "Standard review",
         "share": 0.40,
         "bad_rate_per_100": 8,
     },
@@ -331,13 +332,13 @@ BAND_META = {
         "label": "Medium Risk",
         "action": "Verify income and payslip",
         "share": 0.40,
-        "bad_rate_per_100": 18,
+        "bad_rate_per_100": 15,
     },
     "RED": {
         "label": "High Risk",
-        "action": "Refer to Manager / BOD before approval",
+        "action": "Review most closely before approval",
         "share": 0.20,
-        "bad_rate_per_100": 25,
+        "bad_rate_per_100": 30,
     },
 }
 

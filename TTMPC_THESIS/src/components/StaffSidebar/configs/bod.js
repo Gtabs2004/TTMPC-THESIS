@@ -20,7 +20,7 @@ export const bodNav = [
   { name: "Loan Approvals",    icon: ShieldCheck,     path: "/bod-loan-approvals" },
   { name: "Loan Ledger",       icon: CreditCard,      path: "/bod-manage-loans" },
   { name: "Account Management", icon: UserCog,        path: "/bod-account-management" },
-  { name: "Loan Policies",     icon: FileText,        path: "/bod-loan-policies" },
+  { name: "Interest Policies", icon: FileText,        path: "/bod-loan-policies" },
   { name: "Audit Log",         icon: History,         path: "/bod-audit-log" },
   { name: "Receipts", icon: ReceiptText, path: "/bod-receipts" },
 ];

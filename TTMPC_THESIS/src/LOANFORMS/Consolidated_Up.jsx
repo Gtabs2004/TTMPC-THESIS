@@ -4,6 +4,7 @@ import { fetchLoanPrefill, submitUnifiedLoan } from './loanSubmission';
 import { buildConsolidatedPayload, clampTermMonths, computeLoan } from './loanComputeApi';
 import { formatTinNumber, TIN_FORMATTED_MAX_LENGTH } from './tinFormat';
 import { supabase } from '../supabaseClient';
+import { classifyStress, recommendLoan, RECOMMENDED_STRESS_PCT, STRESS_INDEX_CEILING } from '../utils/stressIndex';
 import { resolveAccountFromSessionUser } from '../utils/sessionIdentity';
 import { useMigsLabel } from '../hooks/useMigsLabel';
 import { useActiveRenewalOverride } from '../hooks/useActiveRenewalOverride';
@@ -393,46 +394,7 @@ function Consolidated_Up() {
     return (principal / term) + (principal * MONTHLY_INTEREST_FACTOR);
   };
 
-  const STRESS_INDEX_CEILING = 40;
-
-  const RISK_COLORS = {
-    safe: 'text-[#2E7D32] bg-[#E9F7DE]',
-    low_risk: 'text-yellow-700 bg-yellow-100',
-    moderate_risk: 'text-orange-600 bg-orange-100',
-    high_risk: 'text-red-600 bg-red-100',
-  };
-
-  const clampStressForDisplay = (rawStressPct) => {
-    const safeNumber = Number.isFinite(rawStressPct) ? rawStressPct : 0;
-    if (safeNumber <= 0) return 0;
-    return Math.min(safeNumber, STRESS_INDEX_CEILING);
-  };
-
-  const classifyRisk = (rawStressPct) => {
-    const safeNumber = Number.isFinite(rawStressPct) ? rawStressPct : 0;
-    let code = 'safe';
-    if (safeNumber > 40) code = 'high_risk';
-    else if (safeNumber >= 36) code = 'moderate_risk';
-    else if (safeNumber > 20 && safeNumber <= 35) code = 'low_risk';
-    else if (safeNumber >= 20) code = 'low_risk';
-
-    const dbRow = riskCategories[code];
-    const fallbackLabels = {
-      safe: 'Safe',
-      low_risk: 'Low Risk',
-      moderate_risk: 'Moderate Risk',
-      high_risk: 'High Risk',
-    };
-    return {
-      code,
-      id: dbRow?.stress_index_category_id || null,
-      label: (dbRow?.label || fallbackLabels[code]).toUpperCase(),
-      color: RISK_COLORS[code],
-      overCap: safeNumber > STRESS_INDEX_CEILING,
-      rawStressPct: safeNumber,
-      cappedStressPct: clampStressForDisplay(safeNumber),
-    };
-  };
+  const classifyRisk = (rawStressPct) => classifyStress(rawStressPct, riskCategories);
 
   const evaluateLoan = () => {
     const principal = Number(formData.loan_amount_numeric || 0);
@@ -469,13 +431,11 @@ function Consolidated_Up() {
       ? Math.max(((shareCapital * multiplier) + existingBalance + RENEWAL_DEDUCTIONS) / 2, 0)
       : Math.max(shareCapital * multiplier, 0);
 
-    const STEP = 5000;
-    const prescribedLoanAmount = Math.max(Math.floor(loanCapacity / STEP) * STEP, 0);
+    const AFFORDABILITY_CAP_PCT = 40;
 
     let suggestedTerm = null;
     let suggestedAmortization = 0;
     let suggestedStress = 0;
-    const AFFORDABILITY_CAP_PCT = 40;
     for (const t of TERM_OPTIONS) {
       const ma = computeMonthlyAmortization(principal, t);
       const stress = (ma / netPay) * 100;
@@ -511,7 +471,7 @@ function Consolidated_Up() {
       existingBalance,
       isRenewal,
       loanCapacity,
-      prescribedLoanAmount,
+      amountFitsSomeTerm: suggestedStress <= AFFORDABILITY_CAP_PCT,
       takeHomePay: netPay,
       takeHomeThreshold,
       eligibilityPass,
@@ -557,6 +517,26 @@ function Consolidated_Up() {
   })();
 
   const isAmountAllowed = (amount) => Number(amount) <= dropdownLoanCapacity;
+
+  const loanRecommendation = recommendLoan({
+    netPay: Number(formData.latest_net_pay || 0),
+    capacity: dropdownLoanCapacity,
+    minAmount: Number(CONSOLIDATED_LOAN_AMOUNT_OPTIONS[0]),
+    maxAmount: Number(CONSOLIDATED_LOAN_AMOUNT_OPTIONS[CONSOLIDATED_LOAN_AMOUNT_OPTIONS.length - 1]),
+    step: 10000,
+    terms: TERM_OPTIONS,
+    interestFactor: MONTHLY_INTEREST_FACTOR,
+  });
+
+  const applyRecommendation = () => {
+    const rec = loanRecommendation?.recommended;
+    if (!rec) return;
+    setFormData((prev) => ({
+      ...prev,
+      loan_amount_numeric: String(rec.amount),
+      loan_term_months: String(rec.term),
+    }));
+  };
 
   useEffect(() => {
     const current = Number(formData.loan_amount_numeric || 0);
@@ -751,7 +731,7 @@ function Consolidated_Up() {
         recordLocked('office_address', profile.office_address);
         recordLocked('spouse_name', profile.spouse_name);
         recordLocked('spouse_occupation', profile.spouse_occupation);
-        recordLocked('latest_net_pay', profile.latest_net_pay ?? profile.annual_income);
+        recordLocked('latest_net_pay', profile.latest_net_pay);
         recordLocked('share_capital', profile.share_capital);
         recordLocked('member_class', profile.member_class ?? profile.class);
 
@@ -784,7 +764,7 @@ function Consolidated_Up() {
           office_address: profile.office_address ?? prev.office_address,
           spouse_name: profile.spouse_name ?? prev.spouse_name,
           spouse_occupation: profile.spouse_occupation ?? prev.spouse_occupation,
-          latest_net_pay: (profile.latest_net_pay ?? profile.annual_income)?.toString() ?? prev.latest_net_pay,
+          latest_net_pay: (profile.latest_net_pay)?.toString() ?? prev.latest_net_pay,
           share_capital: profile.share_capital?.toString() ?? prev.share_capital,
           member_class: profile.member_class ?? profile.class ?? prev.member_class,
           };
@@ -1118,25 +1098,53 @@ function Consolidated_Up() {
             LOAN AGREEMENT
           </div>
           <div className="p-4 sm:p-6 lg:p-8 text-sm text-gray-800">
-            {calcResult && !calcResult.error && (
-              <div className="mb-5 grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
-                <div className="rounded-lg border border-[#D8EBD3] bg-[#F3F9F1] px-4 py-3">
-                  <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Prescribed Term</p>
-                  <p className="text-sm font-semibold text-gray-800">
-                    {calcResult.suggestedTerm ? `${calcResult.suggestedTerm} months` : '—'}
-                  </p>
+            {loanRecommendation && (
+              <div className="mb-5 rounded-lg border border-[#D8EBD3] bg-[#F3F9F1] px-4 py-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div>
+                    <p className="text-[10px] font-bold text-gray-700 uppercase tracking-wider">Recommended for you</p>
+                    {loanRecommendation.recommended ? (
+                      <>
+                        <p className="text-sm font-semibold text-gray-900">
+                          {formatCurrency(loanRecommendation.recommended.amount)} over {loanRecommendation.recommended.term} months
+                        </p>
+                        <p className="text-xs text-gray-700">
+                          {formatCurrency(loanRecommendation.recommended.monthly)}/month, about {loanRecommendation.recommended.stressPct.toFixed(0)}% of your net pay
+                        </p>
+                        <button
+                          type="button"
+                          onClick={applyRecommendation}
+                          className="mt-2 rounded-md bg-primary-deep px-3 py-1 text-xs font-semibold text-white hover:opacity-90"
+                        >
+                          Use this
+                        </button>
+                      </>
+                    ) : (
+                      <p className="text-xs text-gray-700">No amount in this form keeps your payment within {RECOMMENDED_STRESS_PCT}% of your net pay.</p>
+                    )}
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-bold text-gray-700 uppercase tracking-wider">Maximum you can apply for</p>
+                    {loanRecommendation.maximum ? (
+                      <>
+                        <p className="text-sm font-semibold text-gray-900">{formatCurrency(loanRecommendation.maximum.amount)}</p>
+                        <p className="text-xs text-gray-700">at {loanRecommendation.maximum.term} months{loanRecommendation.maximum.term < TERM_OPTIONS[TERM_OPTIONS.length - 1] ? ' or longer' : ''}</p>
+                      </>
+                    ) : (
+                      <p className="text-xs text-gray-700">No amount in this form fits within {STRESS_INDEX_CEILING}% of your net pay.</p>
+                    )}
+                  </div>
                 </div>
-                <div className="rounded-lg border border-[#D8EBD3] bg-[#F3F9F1] px-4 py-3">
-                  <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Prescribed Loan Amount</p>
-                  <p className="text-sm font-semibold text-gray-800">
-                    {formatCurrency(calcResult.prescribedLoanAmount)}
-                  </p>
-                </div>
+                <p className="mt-2 text-[11px] text-gray-700">
+                  The recommendation keeps your payment at or below {RECOMMENDED_STRESS_PCT}% of your net pay. You may still choose any amount up to the maximum.
+                </p>
               </div>
             )}
-            {stressIndexExceeded && (
+            {stressIndexExceeded && calcResult && !calcResult.error && (
               <div className="mb-5 rounded-md border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700 font-semibold">
-                Monthly amortization exceeds allowable amount. You may follow prescribed Term and Loan Amount. 
+                {calcResult.amountFitsSomeTerm
+                  ? `Monthly amortization exceeds 40% of your net pay. Choose a term of ${calcResult.suggestedTerm} months or longer.`
+                  : `Monthly amortization exceeds 40% of your net pay at every term. Lower the amount to ${formatCurrency(loanRecommendation?.maximum?.amount)} or less.`}
               </div>
             )}
             

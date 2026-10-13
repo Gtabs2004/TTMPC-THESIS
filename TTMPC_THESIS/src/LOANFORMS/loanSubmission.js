@@ -387,7 +387,9 @@ export async function fetchLoanPrefill() {
       spouse_occupation: r.spouse_occupation ?? null,
       salary: r.salary ?? null,
       annual_income: r.annual_income ?? null,
-      latest_net_pay: r.latest_net_pay ?? r.salary ?? r.annual_income ?? null,
+      // Net pay is monthly; annual_income is salary x 12, so convert it back.
+      latest_net_pay: r.latest_net_pay ?? r.salary
+        ?? (Number(r.annual_income) > 0 ? Number((Number(r.annual_income) / 12).toFixed(2)) : null),
       share_capital: r.share_capital ?? null,
       share_capital_fallback: r.share_capital_fallback ?? null,
       membership_id: r.membership_id ?? r.membership_number_id ?? m.membership_id ?? null,

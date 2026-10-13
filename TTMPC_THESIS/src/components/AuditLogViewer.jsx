@@ -230,6 +230,9 @@ export const describeAuditActivity = (row) => {
 
   if (row.entity_type === "policy" && row.action === "update") {
     const changed = Object.keys(after).filter((k) => before[k] !== after[k]);
+    if (changed.length && ctx.kind === "deposit_interest") {
+      return `Updated ${titleCase(ctx.product_code || "")} interest policy: ${changed.map((k) => `${titleCase(k)} ${titleCase(before[k] ?? "—")} → ${titleCase(after[k])}`).join(", ")}`;
+    }
     if (changed.length) {
       const scope = ctx.loan_type_code ? `${titleCase(ctx.loan_type_code)} ` : "";
       return `Updated ${scope}loan policy: ${changed.map((k) => `${titleCase(k)} ${titleCase(before[k] ?? "—")} → ${titleCase(after[k])}`).join(", ")}`;

@@ -140,11 +140,12 @@ def band(score, THRESHOLDS):
 
 | Band | Share of applications | Historical bad rate | Action |
 |---|---|---|---|
-| GREEN | ~40% | ~8 in 100 | Process normally |
-| AMBER | ~40% | ~18 in 100 | Verify income and payslip |
-| RED | ~20% | ~25 in 100 | Refer to Manager / BOD before approval |
+| GREEN | ~40% | ~8 in 100 | Standard review |
+| AMBER | ~40% | ~15 in 100 | Verify income and payslip |
+| RED | ~20% | ~30 in 100 | Review most closely before approval |
 
-A RED loan runs into trouble about three times as often as a GREEN one. Read the exact
+Rates are the seven-split cross-validation means. AMBER (~15) is about the overall rate (15.1), so do not describe it as worse than average.
+A RED loan runs into trouble nearly four times as often as a GREEN one. Read the exact
 band thresholds from `THRESHOLDS['green_amber']` and `THRESHOLDS['amber_red']`.
 
 ---

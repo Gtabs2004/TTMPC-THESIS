@@ -1962,7 +1962,7 @@ const LoanApprovalDetails = () => {
             const BAND_UI = {
               RED: {
                 fallbackLabel: 'High Risk',
-                fallbackAction: 'Refer to Manager / BOD before approval',
+                fallbackAction: 'Review most closely before approval',
                 panel: 'border-red-200 bg-red-50',
                 accent: 'bg-red-500',
                 text: 'text-red-700',
@@ -1980,7 +1980,7 @@ const LoanApprovalDetails = () => {
               },
               GREEN: {
                 fallbackLabel: 'Low Risk',
-                fallbackAction: 'Process normally',
+                fallbackAction: 'Standard review',
                 panel: 'border-green-200 bg-green-50',
                 accent: 'bg-member-green',
                 text: 'text-green-800',
