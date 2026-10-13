@@ -40,8 +40,25 @@ from pathlib import Path
 from typing import Literal
 
 
-_CONFIG_PATH = Path(__file__).resolve().parent.parent / "Final_Modeling" / "demand_model_config.json"
-_DATA_PATH = Path(__file__).resolve().parent.parent / "Final_Modeling" / "df_modeling_export.csv"
+# Deployed (Railway) only ships src/server/, so server/Final_Modeling comes
+# first; the others are local-dev fallbacks.
+_SERVER_DIR = Path(__file__).resolve().parent
+_MODELING_DIRS = (
+    _SERVER_DIR / "Final_Modeling",
+    _SERVER_DIR.parent / "Final_Modeling",
+    _SERVER_DIR / "migration" / "Final_Modeling",
+)
+
+
+def _find(name: str) -> Path:
+    for d in _MODELING_DIRS:
+        if (d / name).exists():
+            return d / name
+    return _MODELING_DIRS[0] / name
+
+
+_CONFIG_PATH = _find("demand_model_config.json")
+_DATA_PATH = _find("df_modeling_export.csv")
 
 SUPPORTED_LOAN_TYPES = ("consolidated", "emergency", "bonus")
 
@@ -78,7 +95,7 @@ def _load_config() -> dict:
         if not _CONFIG_PATH.exists():
             raise DemandModelNotAvailableError(
                 f"Demand model config not found at {_CONFIG_PATH}. "
-                "Place demand_model_config.json in src/Final_Modeling/."
+                "Place demand_model_config.json in src/server/Final_Modeling/."
             )
         with open(_CONFIG_PATH, encoding="utf-8") as f:
             _cache["config"] = json.load(f)
@@ -94,7 +111,7 @@ def _read_csv_rows() -> list[dict]:
         if not _DATA_PATH.exists():
             raise DemandModelNotAvailableError(
                 f"Demand model data CSV not found at {_DATA_PATH}. "
-                "Place df_modeling_export.csv in src/Final_Modeling/."
+                "Place df_modeling_export.csv in src/server/Final_Modeling/."
             )
         with open(_DATA_PATH, encoding="utf-8", newline="") as f:
             _cache["rows"] = list(csv.DictReader(f))

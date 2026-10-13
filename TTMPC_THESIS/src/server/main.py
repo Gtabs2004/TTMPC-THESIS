@@ -265,6 +265,17 @@ async def _lifespan(app: FastAPI):
     yield
 
 
+def _pdf_template_path(filename: str) -> str:
+    # Railway deploys only src/server/, so server/PDF comes first; ../PDF is
+    # the local-dev fallback.
+    server_dir = os.path.dirname(os.path.abspath(__file__))
+    for pdf_dir in (os.path.join(server_dir, "PDF"), os.path.join(server_dir, "..", "PDF")):
+        candidate = os.path.abspath(os.path.join(pdf_dir, filename))
+        if os.path.exists(candidate):
+            return candidate
+    return os.path.join(server_dir, "PDF", filename)
+
+
 app = FastAPI(lifespan=_lifespan)
 
 
@@ -13847,9 +13858,7 @@ async def print_membership_form_pdf(payload: MembershipFormPdfRequest):
                 detail="pypdf is not installed in the backend runtime environment.",
             )
 
-        template_path = os.path.abspath(
-            os.path.join(os.path.dirname(__file__), "..", "PDF", "MEMBERSHIP_FORM.pdf")
-        )
+        template_path = _pdf_template_path("MEMBERSHIP_FORM.pdf")
         if not os.path.exists(template_path):
             raise HTTPException(status_code=404, detail="MEMBERSHIP_FORM.pdf not found.")
 
@@ -14509,7 +14518,7 @@ def build_loan_pdf_response(
         except ValueError:
             amount_number = 0.0
 
-        template_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "PDF", template_filename))
+        template_path = _pdf_template_path(template_filename)
 
         if not os.path.exists(template_path):
             raise HTTPException(status_code=404, detail=f"{template_filename} not found.")
@@ -15827,7 +15836,12 @@ def get_loan_demand_actuals(
     if lt not in ("consolidated", "emergency", "bonus"):
         raise HTTPException(status_code=400, detail="Invalid loan_type. Use 'consolidated', 'emergency' or 'bonus'.")
 
-    data_dir = _REPO_ROOT / "src" / "analytics" / "Loan Demand Forecasting" / "Data"
+    # Railway only deploys src/server/, so the deployed copy under
+    # Loan_Demand_Data is the one that must exist there; the analytics
+    # folder (outside src/server/) is the local-dev fallback.
+    _server_data_dir = _Path(__file__).resolve().parent / "Loan_Demand_Data"
+    _analytics_data_dir = _REPO_ROOT / "src" / "analytics" / "Loan Demand Forecasting" / "Data"
+    data_dir = _server_data_dir if (_server_data_dir / "df_modeling_export (1).csv").exists() else _analytics_data_dir
     rows = _read_csv_resilient(data_dir / "df_modeling_export (1).csv")
     if lt == "bonus":
         rows = rows + [
