@@ -30,6 +30,83 @@ ALTER TABLE public.koica_loans
   ADD COLUMN IF NOT EXISTS rescheduled_at timestamptz,
   ADD COLUMN IF NOT EXISTS reschedule_note text;
 
+-- The reschedule action stores this status on both loan tables. Replace any
+-- older loan_status checks so existing databases can accept the new lifecycle
+-- value without weakening the rest of the status validation.
+DO $$
+DECLARE
+  rec record;
+BEGIN
+  FOR rec IN
+    SELECT conname
+    FROM pg_constraint
+    WHERE conrelid = 'public.loans'::regclass
+      AND contype = 'c'
+      AND pg_get_constraintdef(oid) ILIKE '%loan_status%'
+  LOOP
+    EXECUTE format('ALTER TABLE public.loans DROP CONSTRAINT %I', rec.conname);
+  END LOOP;
+END $$;
+
+ALTER TABLE public.loans
+  ADD CONSTRAINT loans_loan_status_chk
+  CHECK (
+    lower(coalesce(loan_status, '')) IN (
+      'draft',
+      'pending',
+      'recommended for approval',
+      'recommended for bod approval',
+      'bod rejected',
+      'approved',
+      'revision_requested',
+      'rejected',
+      'cancelled',
+      'released',
+      'ready for disbursement',
+      'to be disbursed',
+      'pending rescheduling',
+      'partially paid',
+      'fully paid'
+    )
+  );
+
+DO $$
+DECLARE
+  rec record;
+BEGIN
+  FOR rec IN
+    SELECT conname
+    FROM pg_constraint
+    WHERE conrelid = 'public.koica_loans'::regclass
+      AND contype = 'c'
+      AND pg_get_constraintdef(oid) ILIKE '%loan_status%'
+  LOOP
+    EXECUTE format('ALTER TABLE public.koica_loans DROP CONSTRAINT %I', rec.conname);
+  END LOOP;
+END $$;
+
+ALTER TABLE public.koica_loans
+  ADD CONSTRAINT koica_loans_loan_status_chk
+  CHECK (
+    lower(coalesce(loan_status, '')) IN (
+      'draft',
+      'pending',
+      'recommended for approval',
+      'recommended for bod approval',
+      'bod rejected',
+      'approved',
+      'revision_requested',
+      'rejected',
+      'cancelled',
+      'released',
+      'ready for disbursement',
+      'to be disbursed',
+      'pending rescheduling',
+      'partially paid',
+      'fully paid'
+    )
+  );
+
 COMMENT ON COLUMN public.loans.rescheduled_at IS
   'Set when the Treasurer marks a loan pending rescheduling for insufficient vault funds. Cleared is not required — history is kept.';
 COMMENT ON COLUMN public.loans.reschedule_note IS

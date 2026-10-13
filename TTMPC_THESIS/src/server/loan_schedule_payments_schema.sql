@@ -41,6 +41,7 @@ ALTER TABLE public.loans
       'released',
       'ready for disbursement',
       'to be disbursed',
+      'pending rescheduling',
       'partially paid',
       'fully paid'
     )

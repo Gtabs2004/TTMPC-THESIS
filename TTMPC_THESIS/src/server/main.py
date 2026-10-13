@@ -6615,6 +6615,7 @@ def get_bookkeeper_pending_counts(current_user: dict = _Depends(_get_current_use
       - override_requests:  renewal/bonus-window override requests still pending
     Head-only count queries: no rows are transferred.
     """
+    global supabase
     if not supabase:
         raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
 
@@ -6629,7 +6630,14 @@ def get_bookkeeper_pending_counts(current_user: dict = _Depends(_get_current_use
     # ilike with no wildcard is a case-insensitive equality check, matching how
     # the pages lower-case these statuses before comparing.
     def pending_or_draft(q):
-        return q.or_("loan_status.ilike.pending,loan_status.ilike.draft")
+        return q.or_(
+            "loan_status.ilike.pending,"
+            "loan_status.ilike.draft,"
+            "loan_status.ilike.revision_requested,"
+            "application_status.ilike.pending,"
+            "application_status.ilike.draft,"
+            "application_status.ilike.revision_requested"
+        )
 
     try:
         loan_approval = head_count("loans", pending_or_draft) + head_count("koica_loans", pending_or_draft)
@@ -6643,7 +6651,23 @@ def get_bookkeeper_pending_counts(current_user: dict = _Depends(_get_current_use
         )
         override_requests = head_count(RENEWAL_OVERRIDE_TABLE, lambda q: q.eq("status", "pending"))
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"Could not load pending counts: {exc}")
+        if "server disconnected" in str(exc).lower() and url and key:
+            supabase = create_client(url, key, options=_SUPABASE_CLIENT_OPTIONS)
+            try:
+                loan_approval = head_count("loans", pending_or_draft) + head_count("koica_loans", pending_or_draft)
+                loan_payments = head_count(
+                    "loan_payments",
+                    lambda q: q.or_("confirmation_status.ilike.pending_bookkeeper,confirmation_status.is.null"),
+                )
+                savings_withdrawals = head_count(
+                    "savings_transaction_queue",
+                    lambda q: q.ilike("transaction_status", "pending_verification"),
+                )
+                override_requests = head_count(RENEWAL_OVERRIDE_TABLE, lambda q: q.eq("status", "pending"))
+            except Exception as retry_exc:
+                raise HTTPException(status_code=500, detail=f"Could not load pending counts: {retry_exc}") from retry_exc
+        else:
+            raise HTTPException(status_code=500, detail=f"Could not load pending counts: {exc}") from exc
 
     return {
         "success": True,
@@ -6654,6 +6678,56 @@ def get_bookkeeper_pending_counts(current_user: dict = _Depends(_get_current_use
             "override_requests": override_requests,
         },
     }
+
+
+@app.get("/api/bookkeeper/loan-approval-queue")
+def get_bookkeeper_loan_approval_queue(current_user: dict = _Depends(_get_current_user)):
+    """Return the Bookkeeper queue through the authenticated server client."""
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+
+    role = _resolve_staff_role(current_user["id"], current_user.get("email") or "")
+    if role != "bookkeeper":
+        raise HTTPException(status_code=403, detail="Only the Bookkeeper can view the loan approval queue.")
+
+    queue_statuses = {"pending", "draft", "revision_requested"}
+
+    try:
+        loans_rows = (
+            supabase.table("loans")
+            .select(
+                "control_number,loan_amount,term,loan_status,application_status,application_date,"
+                "member:member_id(first_name,last_name,is_bona_fide),"
+                "loan_types:loan_type_id(name)"
+            )
+            .order("application_date")
+            .execute()
+        ).data or []
+        koica_rows = (
+            supabase.table("koica_loans")
+            .select(
+                "control_number,loan_amount,term,loan_status,application_status,"
+                "application_date,full_name,loan_type_code"
+            )
+            .order("application_date")
+            .execute()
+        ).data or []
+
+        def is_queue_row(row: dict) -> bool:
+            return bool({
+                str(row.get("loan_status") or "").strip().lower(),
+                str(row.get("application_status") or "").strip().lower(),
+            } & queue_statuses)
+
+        rows = [{**row, "source": "loans"} for row in loans_rows if is_queue_row(row)]
+        rows.extend({**row, "source": "koica"} for row in koica_rows if is_queue_row(row))
+        rows.sort(key=lambda row: (
+            str(row.get("application_date") or ""),
+            str(row.get("control_number") or ""),
+        ))
+        return {"success": True, "data": rows}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Could not load Bookkeeper loan approval queue: {exc}")
 
 
 @app.get("/api/bookkeeper/renewal-override-requests")
@@ -7603,6 +7677,7 @@ async def get_bookkeeper_manage_loans():
 # client-side today — this is a performance change, not a behavior change.
 _DASHBOARD_SUMMARY_CACHE: dict = {"payload": None, "expires_at": 0.0}
 _DASHBOARD_SUMMARY_CACHE_TTL_SECONDS = 90.0
+_DASHBOARD_SUMMARY_RETRYING = False
 
 # Same "visible" loan_status set as /api/bookkeeper/manage-loans — the
 # dashboard's Total Loans stat must count the identical population. Keep this
@@ -7619,6 +7694,7 @@ _DASHBOARD_VISIBLE_LOAN_STATUSES = {
 
 @app.get("/api/bookkeeper/dashboard-summary")
 async def get_bookkeeper_dashboard_summary():
+    global supabase, _DASHBOARD_SUMMARY_RETRYING
     if not supabase:
         raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
 
@@ -7736,6 +7812,22 @@ async def get_bookkeeper_dashboard_summary():
         _DASHBOARD_SUMMARY_CACHE["expires_at"] = _time.monotonic() + _DASHBOARD_SUMMARY_CACHE_TTL_SECONDS
         return payload
     except Exception as err:
+        # supabase-py's pooled HTTP client can retain a closed connection after
+        # the local backend has been idle. Recreate the client once so the
+        # dashboard does not turn a transient "Server disconnected" into a
+        # persistent 500 for the staff portal.
+        if (
+            not _DASHBOARD_SUMMARY_RETRYING
+            and "server disconnected" in str(err).lower()
+            and url
+            and key
+        ):
+            _DASHBOARD_SUMMARY_RETRYING = True
+            try:
+                supabase = create_client(url, key, options=_SUPABASE_CLIENT_OPTIONS)
+                return await get_bookkeeper_dashboard_summary()
+            finally:
+                _DASHBOARD_SUMMARY_RETRYING = False
         raise HTTPException(status_code=500, detail=f"Failed to load dashboard summary: {err}")
 
 
@@ -18446,7 +18538,7 @@ def _resolve_staff_role(auth_user_id: str, email: str) -> str:
         resp = (
             supabase.table("member_account")
             .select("role")
-            .eq("auth_user_id", auth_user_id)
+            .or_(f"auth_user_id.eq.{auth_user_id},user_id.eq.{auth_user_id}")
             .limit(1)
             .execute()
         )
@@ -18455,7 +18547,7 @@ def _resolve_staff_role(auth_user_id: str, email: str) -> str:
             resp = (
                 supabase.table("member_account")
                 .select("role")
-                .eq("email", email)
+                .ilike("email", email)
                 .limit(1)
                 .execute()
             )

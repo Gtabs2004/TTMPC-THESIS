@@ -45,6 +45,7 @@ ALTER TABLE public.loans
       'released',
       'ready for disbursement',
       'to be disbursed',
+      'pending rescheduling',
       'partially paid',
       'fully paid'
     )
@@ -81,6 +82,7 @@ ALTER TABLE public.koica_loans
       'released',
       'ready for disbursement',
       'to be disbursed',
+      'pending rescheduling',
       'partially paid',
       'fully paid'
     )

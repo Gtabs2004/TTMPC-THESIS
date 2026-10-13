@@ -76,6 +76,28 @@ const BookkeeperLoanApproval = () => {
       if (!silent) setFetchError(null);
       if (!silent) setLoading(true);
 
+      const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData?.session?.access_token;
+
+      if (accessToken) {
+        const queueResponse = await fetch(`${apiBaseUrl}/api/bookkeeper/loan-approval-queue`, {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+
+        if (queueResponse.ok) {
+          const queueResult = await queueResponse.json();
+          setLoans(queueResult?.data || []);
+          if (!silent) addNotification("Loan applications loaded successfully", "success");
+          return;
+        }
+
+        if (queueResponse.status === 401 || queueResponse.status === 403) {
+          const errorResult = await queueResponse.json().catch(() => ({}));
+          throw new Error(errorResult.detail || "Unable to authorize the Bookkeeper loan queue.");
+        }
+      }
+
       const { data: loansData, error: loansError } = await supabase
         .from("loans")
         .select(
@@ -84,6 +106,7 @@ const BookkeeperLoanApproval = () => {
           loan_amount,
           term,
           loan_status,
+          application_status,
           application_date,
           member:member_id (
             first_name,
@@ -106,6 +129,7 @@ const BookkeeperLoanApproval = () => {
           loan_amount,
           term,
           loan_status,
+          application_status,
           application_date,
           full_name,
           loan_type_code
@@ -126,8 +150,11 @@ const BookkeeperLoanApproval = () => {
 
       const combinedQueue = [...mappedLoans, ...mappedKoica]
         .filter((loan) => {
-          const status = String(loan.loan_status || "").trim().toLowerCase();
-          return status === "pending" || status === "draft" || status === "revision_requested";
+          const statuses = new Set([
+            String(loan.loan_status || "").trim().toLowerCase(),
+            String(loan.application_status || "").trim().toLowerCase(),
+          ]);
+          return ["pending", "draft", "revision_requested"].some((status) => statuses.has(status));
         })
         // FIFO: earliest submitted application appears first.
         .sort((a, b) => {
@@ -182,7 +209,13 @@ const BookkeeperLoanApproval = () => {
       ? (loan.full_name || "Unknown Applicant")
       : (`${firstName} ${lastName}`.trim() || "Unknown Member");
 
-      const loanStatus = String(loan.loan_status || "").trim().toLowerCase();
+    const statuses = [
+      String(loan.loan_status || "").trim().toLowerCase(),
+      String(loan.application_status || "").trim().toLowerCase(),
+    ];
+    const loanStatus = statuses.find((status) =>
+      ["pending", "draft", "revision_requested"].includes(status)
+    ) || statuses.find(Boolean) || "";
     const loanTypeName = isKoica
       ? "Non-member Bonus Loan"
       : (loan.loan_types?.name || "N/A");
