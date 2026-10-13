@@ -261,46 +261,6 @@ penalty_totals AS (
     WHERE is_paid = false
     GROUP BY loan_id
 ),
--- Missed months (roll-forward, 2026-10-13): closed as 'partially_paid' with
--- their amount carried into the open row. Shown as their own Overdue rows;
--- money paid toward the carried arrears settles the oldest first.
-missed AS (
-    SELECT
-        s.loan_id, s.installment_no, s.due_date,
-        COALESCE(s.expected_principal, s.principal_component, 0) AS principal_due,
-        COALESCE(s.expected_interest,  s.interest_component,  0) AS interest_due,
-        GREATEST(COALESCE(s.expected_amount, 0) - COALESCE(s.applied_credit, 0), 0)
-                                                                 AS own_unpaid,
-        COALESCE(mp.paid_on_row, 0)                              AS paid_on_row
-    FROM public.loan_schedules s
-    JOIN open_row o ON o.loan_id = s.loan_id AND s.installment_no < o.installment_no
-    LEFT JOIN open_paid mp ON mp.schedule_id = s.id
-    WHERE lower(coalesce(s.schedule_status, '')) = 'partially_paid'
-),
-missed_left AS (
-    SELECT
-        m.*,
-        GREATEST(LEAST(
-            m.own_unpaid,
-            COALESCE(SUM(m.own_unpaid) OVER (
-                PARTITION BY m.loan_id ORDER BY m.installment_no
-                ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING), 0)
-            + m.own_unpaid
-            -- Everything paid toward missed months settles the OLDEST first:
-            -- payments booked on the missed rows themselves, plus the part of
-            -- the open row's payments that went to its carried arrears.
-            - SUM(m.paid_on_row) OVER (PARTITION BY m.loan_id)
-            - LEAST(o.carried_arrears, COALESCE(op.paid_on_row, 0))
-        ), 0)                                                    AS amount_left
-    FROM missed m
-    JOIN open_row o ON o.loan_id = m.loan_id
-    LEFT JOIN open_paid op ON op.schedule_id = o.id
-),
-missed_totals AS (
-    SELECT loan_id, SUM(amount_left) AS missed_left_total
-    FROM missed_left
-    GROUP BY loan_id
-),
 projected AS (
     SELECT
         lb.member_id,
@@ -322,20 +282,18 @@ projected AS (
             WHEN NOT lb.is_diminishing THEN o.exp_interest
             ELSE ROUND((dim.balance_before - dim.principal_i) * lb.monthly_rate, 2)
         END                                                       AS interest_base,
-        -- Carry-forwards and partial payments only touch the open row. The
-        -- part of the carried arrears still shown on missed rows is taken
-        -- out here so nothing is counted twice.
+        -- Carry-forwards and partial payments only touch the open row. Months
+        -- closed by the roll-forward (or a short payment) are NOT listed: their
+        -- unpaid amount is already in carried_arrears on this row, i.e. in the
+        -- current bill (cooperative rule, 2026-10-13).
         CASE WHEN g.i = o.installment_no
              THEN o.carried_arrears - o.applied_credit - COALESCE(op.paid_on_row, 0)
-                  - COALESCE(mt.missed_left_total, 0)
-             ELSE 0 END                                           AS open_adjustment,
-        COALESCE(mt.missed_left_total, 0)                         AS missed_left_total
+             ELSE 0 END                                           AS open_adjustment
     FROM loan_base lb
     JOIN open_row o ON o.loan_id = lb.control_number
     LEFT JOIN paid pd ON pd.loan_id = lb.control_number
     LEFT JOIN penalty_totals pt ON pt.loan_id = lb.control_number
     LEFT JOIN open_paid op ON op.schedule_id = o.id
-    LEFT JOIN missed_totals mt ON mt.loan_id = lb.control_number
     CROSS JOIN LATERAL generate_series(o.installment_no, GREATEST(lb.term, o.installment_no)) AS g(i)
     CROSS JOIN LATERAL (
         -- Diminishing projection: equal principal in centavos, interest on the
@@ -375,7 +333,7 @@ SELECT
     -- Last installment absorbs rounding so the schedule sums to remaining_balance.
     (CASE
         WHEN a.installment_no >= a.term
-            THEN GREATEST(a.remaining_balance - COALESCE(a.sum_before, 0) - a.missed_left_total, 0)
+            THEN GREATEST(a.remaining_balance - COALESCE(a.sum_before, 0), 0)
         ELSE a.raw_amount
      END)::numeric(14,2)                                         AS amount_due,
     CASE WHEN a.due_date < current_date THEN 'Overdue' ELSE 'Upcoming' END AS status,
@@ -383,29 +341,7 @@ SELECT
     a.remaining_balance::numeric(14,2)                           AS remaining_balance,
     a.unpaid_penalty::numeric(14,2)                              AS unpaid_penalty
 FROM amounts a
-
-UNION ALL
-
-SELECT
-    lb.member_id,
-    ml.loan_id,
-    ml.installment_no,
-    ml.due_date,
-    false,
-    ml.principal_due::numeric(14,2),
-    ml.interest_due::numeric(14,2),
-    ml.amount_left::numeric(14,2),
-    CASE WHEN ml.due_date < current_date THEN 'Overdue' ELSE 'Upcoming' END,
-    GREATEST(current_date - ml.due_date, 0),
-    GREATEST(lb.principal + lb.total_interest - COALESCE(pd.paid_total, 0), 0)::numeric(14,2),
-    COALESCE(pt.unpaid_penalty, 0)::numeric(14,2)
-FROM missed_left ml
-JOIN loan_base lb ON lb.control_number = ml.loan_id
-LEFT JOIN paid pd ON pd.loan_id = ml.loan_id
-LEFT JOIN penalty_totals pt ON pt.loan_id = ml.loan_id
-WHERE ml.amount_left > 0
-
-ORDER BY 1, 2, 3;
+ORDER BY a.member_id, a.control_number, a.installment_no;
 
 ALTER VIEW public.member_loan_schedule_position SET (security_invoker = on);
 GRANT SELECT ON public.member_loan_schedule_position TO authenticated;

@@ -95,8 +95,8 @@ const NO_RENEWALS = [];
 const PAYMENT_COLUMNS = ["15%", "23%", "17%", "13%", "20%", "12%"];
 const RENEWAL_COLUMNS = ["21%", "16%", "9%", "16%", "16%", "11%", "11%"];
 
-// A month whose due date passed with no payment. It has no payment of its
-// own, so it is shown on its due date with the amount that month asked for.
+// A month whose due date passed with no payment. Still open -> "missed" with
+// what it owes; closed by the roll-forward -> its amount is in the next bill.
 const toMissedRow = (m) => {
   const left = Number(m.amount_left || 0);
   return {
@@ -109,8 +109,8 @@ const toMissedRow = (m) => {
     paidText: "—",
     penalty: 0,
     penaltyText: "—",
-    remainingText: left > 0 ? `${formatCurrency(left)} unpaid` : "Covered by later payment",
-    status: left > 0 ? "missed" : "missed · settled",
+    remainingText: left > 0 ? `${formatCurrency(left)} unpaid` : "Carried to next bill",
+    status: left > 0 ? "missed" : "closed · carried forward",
     statusStyle: left > 0 ? "bg-red-100 text-red-700" : "bg-gray-100 text-gray-600",
   };
 };

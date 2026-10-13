@@ -71,13 +71,16 @@ const StatusBadge = ({ row }) => {
       ? "bg-green-50 text-green-700 dark:bg-mdark-accent/15 dark:text-mdark-accent"
       : row.status === "Partial"
         ? "bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-300"
+        : row.status === "Carried"
+          ? "bg-gray-100 text-gray-600 dark:bg-mdark-elevated dark:text-mdark-text-secondary"
       : row.status === "Overdue"
         ? "bg-red-50 text-red-600 dark:bg-red-500/10 dark:text-red-400"
         : row.status === "Due Next"
           ? "bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400"
           : "bg-gray-100 text-gray-600 dark:bg-mdark-elevated dark:text-mdark-text-secondary";
   const label = row.status === "Overdue" ? `Overdue · ${row.daysPastDue}d`
-    : row.status === "Partial" ? "Partial payment" : row.status;
+    : row.status === "Partial" ? "Partial payment"
+    : row.status === "Carried" ? "Not paid · carried forward" : row.status;
   return (
     <span className={`inline-block rounded px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wider ${tone}`}>
       {label}
@@ -150,6 +153,9 @@ const Member_StatementOfAccount = () => {
   const [rowsError, setRowsError] = useState("");
   // Installments still owed (overdue + upcoming) from member_loan_schedule_position.
   const [positionRows, setPositionRows] = useState([]);
+  // Months closed without a payment (roll-forward): their amount was carried
+  // into the next bill. Shown as history so the statement has no gaps.
+  const [carriedRows, setCarriedRows] = useState([]);
 
   const [memberLabel, setMemberLabel] = useState("Member");
   const [accountNumber, setAccountNumber] = useState("");
@@ -297,6 +303,7 @@ const Member_StatementOfAccount = () => {
     if (!selectedLoan || !memberId) {
       setRows([]);
       setPositionRows([]);
+      setCarriedRows([]);
       return;
     }
     let isMounted = true;
@@ -327,6 +334,14 @@ const Member_StatementOfAccount = () => {
           .eq("control_number", selectedLoan.control_number)
           .order("installment_no", { ascending: true });
         if (isMounted) setPositionRows(posError ? [] : posData || []);
+
+        const { data: carriedData, error: carriedError } = await supabase
+          .from("loan_schedules")
+          .select("id, installment_no, due_date, expected_amount, expected_principal, expected_interest")
+          .eq("loan_id", selectedLoan.control_number)
+          .eq("schedule_status", "partially_paid")
+          .order("installment_no", { ascending: true });
+        if (isMounted) setCarriedRows(carriedError ? [] : carriedData || []);
       } catch (err) {
         if (silent) return;
         if (isMounted) setRowsError(err.message || "Unable to load payment history.");
@@ -496,10 +511,28 @@ const Member_StatementOfAccount = () => {
     // One timeline in installment order: a payment and the months it left
     // unpaid read top to bottom. Rows without an installment (legacy) by date.
     const order = (r) => (r.installment ?? Number.MAX_SAFE_INTEGER);
-    return [...paidRows, ...owedRows].sort((a, b) =>
+    // Closed months that had no payment of their own (a payment booked on a
+    // short-paid month is already a "Partial payment" row above).
+    const paidNos = new Set(paidRows.map((r) => r.installment));
+    const carried = carriedRows
+      .filter((s) => !paidNos.has(s.installment_no))
+      .map((s) => ({
+        key: `c-${s.installment_no}`,
+        status: "Carried",
+        installment: s.installment_no,
+        dueDate: s.due_date,
+        paidOn: null,
+        reference: null,
+        principal: s.expected_principal,
+        interest: s.expected_interest,
+        penalty: null,
+        amount: s.expected_amount,
+        balance: null,
+      }));
+    return [...paidRows, ...carried, ...owedRows].sort((a, b) =>
       order(a) - order(b) || String(a.paidOn || "").localeCompare(String(b.paidOn || ""))
     );
-  }, [rows, positionRows]);
+  }, [rows, positionRows, carriedRows]);
 
   const statementCounts = useMemo(() => ({
     paid: rows.length,

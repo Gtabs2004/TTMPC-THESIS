@@ -19,7 +19,7 @@ UNION ALL SELECT 'loan_payments', count(*) FROM public.loan_payments WHERE loan_
 UNION ALL SELECT 'loan_payment_ledger', count(*) FROM public.loan_payment_ledger WHERE loan_id LIKE 'TESTSOA-%'
 UNION ALL SELECT 'loan_penalties', count(*) FROM public.loan_penalties WHERE loan_id LIKE 'TESTSOA-%'
 UNION ALL SELECT 'loan_restructure_requests', count(*) FROM public.loan_restructure_requests WHERE loan_id LIKE 'TESTSOA-%'
-UNION ALL SELECT 'receipts (loan_payment)', count(*) FROM public.receipts r
+UNION ALL SELECT 'receipts (loan_payment, kept)', count(*) FROM public.receipts r
   WHERE r.source_type = 'loan_payment'
     AND r.source_id IN (SELECT id::text FROM public.loan_payments WHERE loan_id LIKE 'TESTSOA-%');
 
@@ -36,9 +36,9 @@ WHERE lower(ma.email) IN ('lynxridao@gmail.com','erdenjhed.teope@wvsu.edu.ph','s
 -- R1  Delete, children first (loan_payments -> loan_schedules is ON DELETE RESTRICT).
 BEGIN;
 
-DELETE FROM public.receipts r
-WHERE r.source_type = 'loan_payment'
-  AND r.source_id IN (SELECT id::text FROM public.loan_payments WHERE loan_id LIKE 'TESTSOA-%');
+-- Receipts are NOT deleted: receipts_block_changes() makes them immutable
+-- (official receipt numbering must have no gaps). A receipt has no foreign key
+-- to its payment, so it stays as the record that the test payment was issued.
 
 DELETE FROM public.loan_penalties            WHERE loan_id LIKE 'TESTSOA-%';
 DELETE FROM public.loan_restructure_requests WHERE loan_id LIKE 'TESTSOA-%';

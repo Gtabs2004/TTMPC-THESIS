@@ -12660,6 +12660,22 @@ async def approve_bookkeeper_payment(
             except Exception:
                 continue
 
+        # The DB ledger trigger marks the payment's installment 'Paid' as soon
+        # as the payment is validated, judging only that installment's own
+        # amount. When the period was actually short (arrears included), put
+        # back the 'partially_paid' status decided above -- otherwise a short
+        # month reads as fully paid.
+        if not installment_covered and carry_arrears_forward > 0:
+            try:
+                (
+                    supabase.table("loan_schedules")
+                    .update({"schedule_status": "partially_paid"})
+                    .eq("id", schedule_internal_id)
+                    .execute()
+                )
+            except Exception:
+                logging.exception("Could not restore partially_paid on schedule %s.", schedule_internal_id)
+
         created_next_schedule = None
         current_installment_no = int(current_schedule.get("installment_no") or 1)
         # The next installment opens when this period settled -- whether it was
