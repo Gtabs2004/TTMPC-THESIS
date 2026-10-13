@@ -28,3 +28,6 @@ TTMPC_THESIS/src/server/schema_dump.json
 
 # Cached Supabase JWT signing keys (regenerated on demand)
 .jwks_cache.json
+
+# Auto-generated PWA service worker build output (regenerates on every dev run)
+TTMPC_THESIS/dev-dist/
