@@ -15813,7 +15813,12 @@ def get_loan_demand_actuals(
     if lt not in ("consolidated", "emergency", "bonus"):
         raise HTTPException(status_code=400, detail="Invalid loan_type. Use 'consolidated', 'emergency' or 'bonus'.")
 
-    data_dir = _REPO_ROOT / "src" / "analytics" / "Loan Demand Forecasting" / "Data"
+    # Railway only deploys src/server/, so the deployed copy under
+    # Loan_Demand_Data is the one that must exist there; the analytics
+    # folder (outside src/server/) is the local-dev fallback.
+    _server_data_dir = _Path(__file__).resolve().parent / "Loan_Demand_Data"
+    _analytics_data_dir = _REPO_ROOT / "src" / "analytics" / "Loan Demand Forecasting" / "Data"
+    data_dir = _server_data_dir if (_server_data_dir / "df_modeling_export (1).csv").exists() else _analytics_data_dir
     rows = _read_csv_resilient(data_dir / "df_modeling_export (1).csv")
     if lt == "bonus":
         rows = rows + [
