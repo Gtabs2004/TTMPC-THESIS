@@ -8,7 +8,6 @@ import { supabase } from "../../supabaseClient";
 import { resolveMemberIdentity } from "../../utils/memberIdentity";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
 import TableStateRow from "../../components/TableStateRow";
-import LoanCalculatorModal from "./LoanCalculatorModal";
 import LoanJourneyPanel from "./LoanJourneyPanel";
 import {
   formatCurrency,
@@ -26,7 +25,6 @@ import {
   Banknote,
   CalendarClock,
   FileText,
-  Calculator,
   ArrowRight,
   Receipt,
   Settings,
@@ -95,7 +93,6 @@ const Member_Loans = () => {
   const [payments, setPayments] = useState([]);
   const [loadingLoans, setLoadingLoans] = useState(true);
   const [loanError, setLoanError] = useState('');
-  const [isCalculatorOpen, setIsCalculatorOpen] = useState(false);
   const [loansPage, setLoansPage] = useState(1);
   const [selectedLoanId, setSelectedLoanId] = useState('');
   const detailRef = useRef(null);
@@ -319,13 +316,6 @@ const Member_Loans = () => {
                 What you owe, where each loan is, and the payments you've made.
               </p>
             </div>
-            <button
-              type="button"
-              onClick={() => setIsCalculatorOpen(true)}
-              className="inline-flex w-full items-center justify-center gap-1.5 rounded-full border border-member-green px-4 py-2 text-xs font-bold text-member-green hover:bg-[#EAF1EB] dark:border-mdark-accent dark:text-mdark-accent dark:hover:bg-mdark-accent/15 sm:w-auto"
-            >
-              <Calculator className="w-4 h-4" /> Loan Calculator
-            </button>
           </div>
 
           {/* Summary cards — released loans only */}
@@ -582,8 +572,6 @@ const Member_Loans = () => {
 
         </main>
       </div>
-
-      <LoanCalculatorModal open={isCalculatorOpen} onClose={() => setIsCalculatorOpen(false)} />
     </div>
   );
 };
