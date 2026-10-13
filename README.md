@@ -21,16 +21,16 @@ with Parallel Risk Prediction, Debt Capacity Framework, and Loan Demand Forecast
 
 ## 💻 About the System
 
-This project is a **web-based Integrated Management and Finance System** developed for the **Tubungan Teachers’ Multi-Purpose Cooperative (TTMPC)**.
+This project is a **web-based Integrated Management and Finance System** developed for the **Tubungan Teachers' Multi-Purpose Cooperative (TTMPC)**.
 
 It is designed as a **Decision Support System (DSS)** that transforms fragmented and manual cooperative operations into a **centralized, intelligent, and predictive platform**.
 
 Unlike traditional systems, this solution integrates:
 
-- Member Profiling  
-- Loan & Savings Management  
-- Risk Prediction Models  
-- Time-Series Forecasting  
+- Member Profiling & Classification
+- Loan, Savings & Capital Build-Up Management
+- Risk Prediction Models
+- Time-Series Forecasting
 
 to enable **data-driven decision-making and proactive financial management**.
 
@@ -46,23 +46,23 @@ to enable **data-driven decision-making and proactive financial management**.
     </tr>
     <tr>
       <td>Parallel Risk Prediction</td>
-      <td>Uses Logistic Regression to estimate probability of default</td>
+      <td>Gradient Boosting model (HistGradientBoostingClassifier) trained on loan terms, demographics, prior loan behavior, and account signals to estimate probability of default — run both on-demand during loan review and automatically across the active loan portfolio</td>
     </tr>
     <tr>
       <td>Payment Capability Assessment</td>
-      <td>Evaluates member’s ability to repay loans based on net take-home pay and overall financial capacity</td>
+      <td>Evaluates a member's ability to repay a loan based on net take-home pay, monthly obligations, and overall financial capacity</td>
     </tr>
     <tr>
-      <td>MIGS Scoring Engine</td>
-      <td>Automated multi-criteria evaluation (0–100 scoring system)</td>
+      <td>Member Classification Engine (MIGS)</td>
+      <td>Automated multi-criteria evaluation under the Member In Good Standing (MIGS) framework — a 0–100 point scoring matrix that sets each member's loan multiplier and voting eligibility</td>
     </tr>
     <tr>
       <td>Loan Demand Forecasting</td>
-      <td>Time-Series Analysis for forecasting seasonal borrowing patterns</td>
+      <td>Seasonal ARIMA (SARIMAX) time-series models per loan type, producing 12-month forecasts with confidence intervals for liquidity planning</td>
     </tr>
     <tr>
-      <td>Repayment Stress Index</td>
-      <td>Visual tool for monitoring financial burden of members</td>
+      <td>Debt Capacity Framework</td>
+      <td>Rule-based engine evaluating a member's safe borrowing ceiling against their share capital and repayment history</td>
     </tr>
   </table>
 </p>
@@ -78,19 +78,35 @@ to enable **data-driven decision-making and proactive financial management**.
       <th>Details</th>
     </tr>
     <tr>
-      <td>Member Profiling System</td>
-      <td>Centralized database of member records and classifications</td>
+      <td>Member Profiling & Classification</td>
+      <td>Centralized database of member records with MIGS-based classification</td>
+    </tr>
+    <tr>
+      <td>Membership Lifecycle Management</td>
+      <td>Application intake, PMES training attendance, General Assembly attendance, and Board approval workflow</td>
     </tr>
     <tr>
       <td>Loan Management Module</td>
-      <td>Handles Consolidated, Bonus, and Emergency Loans</td>
+      <td>Handles Consolidated, Bonus, Emergency, and KOICA (ABFF) Loans, from application through disbursement</td>
+    </tr>
+    <tr>
+      <td>Multi-Tier Loan Approval</td>
+      <td>Routes loans through Bookkeeper recommendation, Manager approval, and Board of Directors review for high-value loans</td>
     </tr>
     <tr>
       <td>Multi-Loan Tracking</td>
       <td>Supports concurrent loans with aggregate debt monitoring</td>
     </tr>
     <tr>
-      <td>Automated MIGS Evaluation</td>
+      <td>Savings & Capital Build-Up (CBU)</td>
+      <td>Deposit, withdrawal, and share capital tracking, with automatic CBU synchronization from loan disbursements and membership payments</td>
+    </tr>
+    <tr>
+      <td>Interest on Share Capital (ISC) Distribution</td>
+      <td>Annual dividend computation and posting, with capitalization or cash payout per member</td>
+    </tr>
+    <tr>
+      <td>Automated Member Classification (MIGS)</td>
       <td>Eliminates manual scoring and reduces human error</td>
     </tr>
     <tr>
@@ -137,10 +153,10 @@ to enable **data-driven decision-making and proactive financial management**.
 
 ## ⚙️ Analytical Models Used
 
-- 📊 **Logistic Regression** → Default & delinquency prediction  
-- 📈 **Time-Series Analysis** → Loan demand forecasting  
-- ⚖️ **Multi-Criteria Decision Analysis (MCDA)** → MIGS scoring  
-- 📉 **Rule-Based Engine** → Debt capacity enforcement  
+- 📊 **Gradient Boosting (HistGradientBoostingClassifier)** → Default & delinquency prediction
+- 📈 **Seasonal ARIMA (SARIMAX)** → Loan demand forecasting
+- ⚖️ **Multi-Criteria Decision Analysis (MCDA)** → Member Classification (MIGS)
+- 📉 **Rule-Based Engine** → Debt capacity enforcement
 
 ---
 
@@ -158,15 +174,6 @@ to enable **data-driven decision-making and proactive financial management**.
 
 ---
 
-### 🔭 Intended / Roadmap (Planned)
-
-- AI-enhanced risk prediction and deeper analytics dashboards.
-- Expanded forecasting and KPI visualizations for leadership.
-- External financial system integrations and broader data feeds.
-- Fully responsive UI coverage across all role portals.
-
----
-
 ## 👥 Users
 
 <p align="center">
@@ -177,27 +184,27 @@ to enable **data-driven decision-making and proactive financial management**.
     </tr>
     <tr>
       <td>Board of Directors (BOD)</td>
-      <td>Approves membership applications and final member confirmation</td>
+      <td>Approves membership applications, decides high-value loans, sets loan fee policy, and reviews portfolio and risk analytics</td>
     </tr>
     <tr>
       <td>Secretary</td>
-      <td>Records training attendance and applicant compliance</td>
+      <td>Records PMES training attendance, General Assembly attendance, and maintains membership records</td>
     </tr>
     <tr>
       <td>Bookkeeper</td>
-      <td>Evaluates loan applications and manages financial records</td>
+      <td>Evaluates and recommends loan applications, performs Member Classification (MIGS), validates loan payments, and posts ISC distributions</td>
     </tr>
     <tr>
       <td>Manager</td>
-      <td>Reviews and approves recommended loan applications</td>
+      <td>Reviews and approves recommended loan applications and loan restructure requests</td>
     </tr>
     <tr>
       <td>Treasurer</td>
-      <td>Handles disbursement scheduling and financial report generation</td>
+      <td>Approves loan disbursement, manages the vault/cash ledger, and tracks payroll release schedules</td>
     </tr>
     <tr>
       <td>Cashier</td>
-      <td>Records loan disbursement, payments, and withdrawal transactions</td>
+      <td>Records membership payments, savings and CBU deposits, loan disbursement, loan payments, and withdrawal transactions</td>
     </tr>
     <tr>
       <td>Cooperative Members</td>
@@ -212,16 +219,20 @@ to enable **data-driven decision-making and proactive financial management**.
 
 ---
 
-## 📊 Project Status
+## 🚧 Development Status
 
-**Thesis – Currently in Active Development (50% Completion)**
+**Academic thesis project currently under active development.**
 
-Future Enhancements:
+REGANT is being developed and refined as part of the team's undergraduate thesis. Features, workflows, analytical outputs, and interface behavior are subject to implementation testing and validation.
 
-- AI-enhanced risk prediction  
-- Advanced analytics dashboards  
-- Fully responsive web design compatible across desktop, tablet, and mobile devices
-- External financial system integration  
+### Potential Future Enhancements
+
+- Further refinement and validation of analytical models.
+- Expanded dashboard visualizations and decision-support reports.
+- Additional integrations based on the cooperative's operational requirements.
+- Continued improvement of responsive layouts and usability across supported devices.
+
+*Future enhancements are distinct from features already implemented in the system.*
 
 ---
 
@@ -251,7 +262,7 @@ Future Enhancements:
     </td>
     <td align="center" width="250" style="padding: 20px;">
       <img src="https://github.com/user-attachments/assets/0fb19a81-15ba-41d2-9fb7-9065da058ea9" width="120" style="border-radius: 50%; margin-bottom: 10px;"><br>
-      <b>Erden Jhed Teope</b><br> 
+      <b>Erden Jhed Teope</b><br>
       <span style="color: #555;">Analytics & Documentation</span>
     </td>
   </tr>
