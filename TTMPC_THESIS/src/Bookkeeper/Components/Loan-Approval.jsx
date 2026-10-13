@@ -92,10 +92,12 @@ const BookkeeperLoanApproval = () => {
           return;
         }
 
-        if (queueResponse.status === 401 || queueResponse.status === 403) {
-          const errorResult = await queueResponse.json().catch(() => ({}));
-          throw new Error(errorResult.detail || "Unable to authorize the Bookkeeper loan queue.");
-        }
+        // Don't fall through to the RLS-limited direct query on a server error:
+        // it can return an empty list with no sign anything went wrong.
+        const errorResult = await queueResponse.json().catch(() => ({}));
+        throw new Error(
+          errorResult.detail || `Loan approval queue failed (HTTP ${queueResponse.status}).`
+        );
       }
 
       const { data: loansData, error: loansError } = await supabase
@@ -118,6 +120,9 @@ const BookkeeperLoanApproval = () => {
           )
         `
         )
+        .or(
+          "loan_status.in.(pending,draft,revision_requested),application_status.in.(pending,draft,revision_requested)"
+        )
         .order("application_date", { ascending: true });
 
       if (loansError) throw loansError;
@@ -134,6 +139,9 @@ const BookkeeperLoanApproval = () => {
           full_name,
           loan_type_code
         `)
+        .or(
+          "loan_status.in.(pending,draft,revision_requested),application_status.in.(pending,draft,revision_requested)"
+        )
         .order("application_date", { ascending: true });
 
       if (koicaError) throw koicaError;

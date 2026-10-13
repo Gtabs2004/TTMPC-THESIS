@@ -6683,6 +6683,7 @@ def get_bookkeeper_pending_counts(current_user: dict = _Depends(_get_current_use
 @app.get("/api/bookkeeper/loan-approval-queue")
 def get_bookkeeper_loan_approval_queue(current_user: dict = _Depends(_get_current_user)):
     """Return the Bookkeeper queue through the authenticated server client."""
+    global supabase
     if not supabase:
         raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
 
@@ -6691,27 +6692,49 @@ def get_bookkeeper_loan_approval_queue(current_user: dict = _Depends(_get_curren
         raise HTTPException(status_code=403, detail="Only the Bookkeeper can view the loan approval queue.")
 
     queue_statuses = {"pending", "draft", "revision_requested"}
+    # Filter in the query: the tables hold >1000 rows, which is PostgREST's
+    # default row cap, so an unfiltered oldest-first read drops the newest
+    # (i.e. the pending) loans. ilike with no wildcard = case-insensitive equals.
+    queue_filter = ",".join(
+        f"{col}.ilike.{st}" for col in ("loan_status", "application_status") for st in sorted(queue_statuses)
+    )
 
-    try:
-        loans_rows = (
+    def fetch_rows() -> tuple[list, list]:
+        loans = (
             supabase.table("loans")
             .select(
                 "control_number,loan_amount,term,loan_status,application_status,application_date,"
                 "member:member_id(first_name,last_name,is_bona_fide),"
                 "loan_types:loan_type_id(name)"
             )
+            .or_(queue_filter)
             .order("application_date")
             .execute()
         ).data or []
-        koica_rows = (
+        koica = (
             supabase.table("koica_loans")
             .select(
                 "control_number,loan_amount,term,loan_status,application_status,"
                 "application_date,full_name,loan_type_code"
             )
+            .or_(queue_filter)
             .order("application_date")
             .execute()
         ).data or []
+        return loans, koica
+
+    try:
+        try:
+            loans_rows, koica_rows = fetch_rows()
+        except Exception as exc:
+            # A stale pooled connection surfaces as "server disconnected" or,
+            # on Windows, WinError 10035. A fresh client usually succeeds.
+            msg = str(exc).lower()
+            transient = "server disconnected" in msg or "10035" in msg or "non-blocking socket" in msg
+            if not (transient and url and key):
+                raise
+            supabase = create_client(url, key, options=_SUPABASE_CLIENT_OPTIONS)
+            loans_rows, koica_rows = fetch_rows()
 
         def is_queue_row(row: dict) -> bool:
             return bool({
