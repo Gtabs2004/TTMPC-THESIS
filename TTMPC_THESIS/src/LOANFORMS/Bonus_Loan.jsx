@@ -13,6 +13,35 @@ import LoanDeductionsCard from '../components/LoanDeductionsCard';
 const peso = (value) =>
   `₱${Number(value || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
+// Mirrors main.py's next_bonus_month_end / months_between_rounded_up
+// (BONUS_LOAN_PLAN.md Step 2/6): the loan always targets the nearest
+// upcoming bonus (Q13), term = whole months to it, partial month rounds up (Q5).
+const monthEnd = (year, month) => new Date(year, month + 1, 0);
+
+const nextBonusMonthEnd = (fromDate) => {
+  const from = fromDate instanceof Date ? fromDate : new Date(fromDate);
+  for (const yearOffset of [0, 1]) {
+    for (const month of [4, 10]) { // May = index 4, November = index 10
+      const candidate = monthEnd(from.getFullYear() + yearOffset, month);
+      if (candidate >= from) return candidate;
+    }
+  }
+  return monthEnd(from.getFullYear() + 1, 4);
+};
+
+const monthsBetweenRoundedUp = (start, end) => {
+  let months = (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth());
+  if (end.getDate() < start.getDate()) months -= 1;
+  months = Math.max(0, months);
+  const addMonths = (date, n) => {
+    const d = new Date(date.getFullYear(), date.getMonth() + n, 1);
+    d.setDate(Math.min(date.getDate(), new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate()));
+    return d;
+  };
+  if (end > addMonths(start, months)) months += 1;
+  return Math.max(1, months);
+};
+
 const numberToWords = (num) => {
   if (num === '' || num === undefined || num === null) return '';
   
@@ -59,7 +88,7 @@ const numberToWords = (num) => {
 
 // staffIntake: a Cashier keys in a walk-in non-member's application at the
 // front desk. The applicant's details are typed in, never taken from the
-// signed-in (Cashier) session, and the row goes to koica_loans.
+// signed-in (Cashier) session, and the row goes to non_member_loans.
 function Bonus_Loan({ staffIntake = false }) {
   const navigate = useNavigate();
   const { addNotification } = useNotification();
@@ -100,7 +129,6 @@ function Bonus_Loan({ staffIntake = false }) {
   ];
   const { data: eligibility, status: eligibilityStatus } = useLoanEligibility(borrowerMemberId, { loanType: 'bonus' });
   const canApplyNew = eligibility ? Boolean(eligibility.can_apply_new) : true;
-  const canRenew = eligibility ? Boolean(eligibility.can_renew) : true;
   const eligibilityReady = eligibilityStatus === 'ready';
   // The PDF's New/Renewal tick comes from the form, which starts on "New" and
   // only flips to Renewal once eligibility has loaded. Hold Print/Download until
@@ -144,6 +172,27 @@ function Bonus_Loan({ staffIntake = false }) {
     bonus_amount_words: '',
     bonus_amount_numeric: '',
   });
+
+  // Term is no longer picked by the applicant — it's derived from today's
+  // date vs. the nearest upcoming bonus (Q13: always nearest upcoming;
+  // Q5: partial first month counts as a full month). Computed once per
+  // mount since "today" doesn't change mid-session.
+  const targetBonus = React.useMemo(() => {
+    const today = new Date();
+    const dueDate = nextBonusMonthEnd(today);
+    const term = monthsBetweenRoundedUp(today, dueDate);
+    const cycle = dueDate.getMonth() === 4 ? 'Mid-Year (May)' : 'Year-End (November)';
+    return { dueDate, term, cycle };
+  }, []);
+
+  useEffect(() => {
+    setFormData((prev) => ({
+      ...prev,
+      loan_term_months: String(targetBonus.term),
+      payment_start_date: targetBonus.dueDate.toISOString().split('T')[0],
+    }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -351,11 +400,9 @@ function Bonus_Loan({ staffIntake = false }) {
         setComputation(firstRow ? {
           principal,
           term,
-          monthlyPrincipal: Number(firstRow.principal_component || 0),
-          monthlyInterest: Number(firstRow.interest_component || 0),
-          monthlyAmortization: Number(data.monthly_amortization || 0),
+          totalPayable: Number(data.monthly_amortization || 0),
           totalInterest: Number(data.total_interest || 0),
-          ratePercent: (Number(firstRow.interest_component || 0) / principal) * 100,
+          ratePercent: term > 0 ? ((Number(firstRow.interest_component || 0) / term) / principal) * 100 : 0,
         } : null);
         setFormData((prev) => ({
           ...prev,
@@ -371,16 +418,20 @@ function Bonus_Loan({ staffIntake = false }) {
   }, [formData.loan_amount_numeric, formData.loan_term_months, formData.payment_start_date]);
 
   // Bonus loans may only be availed during the Mid-year (May) and
-  // Year-end (November) bonus release windows. The server enforces the
+  // Year-end (November) bonus release windows. Open Dec-Apr (targets the
+  // Mid-Year May bonus) and Jun-Oct (targets the Year-End November bonus);
+  // closed in May and November themselves (Q6). The server enforces the
   // same rule as the source of truth (main.py). Month is 1-indexed.
-  const BONUS_APPLICATION_MONTHS = [5, 11];
+  const BONUS_APPLICATION_MONTHS = [12, 1, 2, 3, 4, 6, 7, 8, 9, 10];
   const currentMonth = new Date().getMonth() + 1;
   // An approved Bookkeeper override opens the window for this member; the DB
   // trigger accepts the insert and marks the override used.
   const bonusWindowOpen =
     BONUS_APPLICATION_MONTHS.includes(currentMonth) || Boolean(eligibility?.bonus_window_override);
   const bonusWindowMessage =
-    'Bonus loan applications are accepted only during Mid-year (May) and Year-end (November).';
+    'Bonus loan applications are accepted Dec-Apr (Mid-Year bonus) and Jun-Oct (Year-End bonus), not in May or November.';
+  // Q1/Q11: block a new Bonus application while a prior one is still unpaid.
+  const canSubmitBonus = isNonMemberBonus || canApplyNew;
 
   const validateMobileStep = (step) => {
     const fields = formRef.current?.querySelectorAll(`[data-mobile-step="${step}"] input, [data-mobile-step="${step}"] select, [data-mobile-step="${step}"] textarea`) || [];
@@ -436,12 +487,28 @@ function Bonus_Loan({ staffIntake = false }) {
       return;
     }
 
+    // Q1/Q11: a prior Bonus loan must be fully paid before another is
+    // submitted — there's no mid-cycle renewal, only payoff then a new
+    // application. Checked here (not just the disabled submit button) so a
+    // stale page can't slip a blocked submission through.
+    if (!isNonMemberBonus && !canApplyNew) {
+      addNotification(
+        eligibility?.reason || 'You have an active Bonus loan that must be fully paid before applying again.',
+        'error'
+      );
+      return;
+    }
+
     setLoading(true);
 
     try {
       await submitUnifiedLoan({
         loanTypeCode: resolvedLoanTypeCode,
-        targetTable: isNonMemberBonus ? 'koica_loans' : 'loans',
+        // Step 8: non-member Bonus now inserts into `loans` too (member_id
+        // = NULL), not the old non_member_loans table — so it inherits
+        // disbursement/payment/penalty from Steps 1-7.
+        targetTable: 'loans',
+        isNonMemberApplicant: isNonMemberBonus,
         controlNumber: formData.control_no,
         applicationStatus: 'pending',
         applicationType: formData.application_type,
@@ -528,21 +595,16 @@ function Bonus_Loan({ staffIntake = false }) {
           </button>
           <div className="max-w-6xl mx-auto w-full">
             <div className="bg-[#EEF6F1] rounded-xl p-4 border-2 border-primary flex flex-col items-start justify-between gap-4 sm:p-6 md:flex-row md:items-center md:gap-6">
-              <div className="flex flex-wrap gap-4 sm:gap-8">
-                <label
-                  className={`flex items-center space-x-2 ${canApplyNew ? 'cursor-pointer' : 'cursor-not-allowed opacity-50 grayscale'}`}
-                  title={canApplyNew ? '' : (eligibility?.reason || 'Active loan on record — new applications are disabled.')}
-                >
-                  <input type="radio" name="application_type" value="New" checked={formData.application_type === 'New'} onChange={handleChange} disabled={!canApplyNew} className="h-4 w-4 accent-primary disabled:cursor-not-allowed" />
-                  <span className="font-semibold text-gray-700">New</span>
-                </label>
-                <label
-                  className={`flex items-center space-x-2 ${canRenew ? 'cursor-pointer' : 'cursor-not-allowed opacity-50 grayscale'}`}
-                  title={canRenew ? '' : (eligibility?.reason || 'Renewal requires 6 recorded monthly payments.')}
-                >
-                  <input type="radio" name="application_type" value="Renewal" checked={formData.application_type === 'Renewal'} onChange={handleChange} disabled={!canRenew} className="h-4 w-4 accent-primary disabled:cursor-not-allowed" />
-                  <span className="font-semibold text-gray-700">Renewal</span>
-                </label>
+              <div className="flex flex-wrap items-center gap-4 sm:gap-8">
+                {/* Bonus has no New/Renewal choice (Q1/Q11): a prior Bonus
+                    loan must be fully paid off before another is submitted —
+                    there is no mid-cycle renewal row, only a full payoff then
+                    a brand-new application. */}
+                {!isNonMemberBonus && !canApplyNew && (
+                  <p className="text-sm font-semibold text-red-700 max-w-md">
+                    {eligibility?.reason || 'You have an active Bonus loan that must be fully paid before applying again.'}
+                  </p>
+                )}
                 {eligibility?.simulation_active && (
                   <span className="inline-flex items-center px-2 py-0.5 text-[10px] font-bold rounded bg-amber-100 text-amber-800 border border-amber-300">SIMULATION MODE</span>
                 )}
@@ -649,18 +711,15 @@ function Bonus_Loan({ staffIntake = false }) {
               
               <br className="hidden md:block" />
               
-              for a term of
-              <select 
-                name="loan_term_months" 
-                value={formData.loan_term_months} 
-                onChange={handleChange} 
-                className="border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-primary outline-none bg-white text-sm transition-all mx-0 my-2 w-full sm:mx-2 sm:my-0 sm:w-72 inline-block align-middle text-gray-600 truncate"
-              >
-                <option value="">Select Bonus Cycle</option>
-                <option value="5">May Midyear Bonus (5 months)</option>
-                <option value="11">Yearend Bonus November (11 months)</option>
-              </select>
-              months with a monthly amortization of
+              payable in full on the
+              <input
+                type="text"
+                name="target_bonus_display"
+                value={`${targetBonus.cycle} Bonus — ${targetBonus.dueDate.toLocaleDateString('en-PH', { month: 'long', day: 'numeric', year: 'numeric' })} (${targetBonus.term} month${targetBonus.term === 1 ? '' : 's'} from today)`}
+                readOnly
+                className="border border-gray-300 rounded-md px-3 py-1.5 outline-none bg-gray-50 text-sm transition-all mx-0 my-2 w-full sm:mx-2 sm:my-0 sm:w-96 inline-block align-middle cursor-not-allowed text-gray-600"
+              />
+              , with a total amount due (principal plus interest) of
               <input
                 type="text"
                 name="monthly_amortization"
@@ -669,11 +728,11 @@ function Bonus_Loan({ staffIntake = false }) {
                 className="border border-gray-300 rounded-md px-3 py-1.5 outline-none bg-gray-50 text-sm transition-all mx-0 my-2 w-full sm:mx-2 sm:my-0 sm:w-48 inline-block align-middle cursor-not-allowed"
               />
               , which I promise to pay the amount to <strong>Tubungan Teachers' Multi Purpose Cooperative</strong>
-              
+
               <br />
-              
+
               <span className="block mt-2 leading-normal">
-                <strong>(TTMPC)</strong> in accordance with the terms and conditions as stipulated in the Promissory Note of which I certify to have read and understood clearly. I bind myself to pay out my monthly salary and/or other benefits the required monthly amortization here on or surrender my ATM to TTMPC.
+                <strong>(TTMPC)</strong> in accordance with the terms and conditions as stipulated in the Promissory Note of which I certify to have read and understood clearly. Nothing is paid until the bonus arrives; I bind myself to pay the amount above in full out of my bonus or surrender my ATM to TTMPC.
               </span>
             </div>
 
@@ -687,10 +746,8 @@ function Bonus_Loan({ staffIntake = false }) {
                     <div className="space-y-1.5 text-sm">
                       {[
                         ['Loan Amount', peso(computation.principal)],
-                        ['Term', `${computation.term} months`],
+                        ['Months to Bonus', `${computation.term} month${computation.term === 1 ? '' : 's'}`],
                         ['Interest Rate', `${computation.ratePercent.toFixed(2).replace(/\.?0+$/, '')}% per month`],
-                        ['Monthly Principal', peso(computation.monthlyPrincipal)],
-                        ['Monthly Interest', peso(computation.monthlyInterest)],
                       ].map(([label, value]) => (
                         <div key={label} className="flex justify-between">
                           <span className="text-gray-600">{label}</span>
@@ -698,16 +755,12 @@ function Bonus_Loan({ staffIntake = false }) {
                         </div>
                       ))}
                     </div>
-                    <div className="mt-2 flex justify-between border-t border-green-200 pt-2 text-sm">
-                      <span className="font-semibold text-gray-700">Monthly Amortization</span>
-                      <span className="font-bold text-gray-900">{peso(computation.monthlyAmortization)}</span>
-                    </div>
                     <div className="mt-1.5 flex justify-between text-sm">
-                      <span className="text-gray-600">Total Interest</span>
+                      <span className="text-gray-600">Total Interest (accrued, not paid monthly)</span>
                       <span className="font-semibold text-gray-800">{peso(computation.totalInterest)}</span>
                     </div>
-                    <div className="mt-2 flex justify-between">
-                      <span className="font-bold text-gray-900">Total Amount to Repay</span>
+                    <div className="mt-2 flex justify-between border-t border-green-200 pt-2">
+                      <span className="font-bold text-gray-900">Total Payable at the Bonus ({targetBonus.cycle})</span>
                       <span className="font-black text-member-green">{peso(computation.principal + computation.totalInterest)}</span>
                     </div>
                   </div>
@@ -833,8 +886,8 @@ function Bonus_Loan({ staffIntake = false }) {
             </button>
             <button
               type="submit"
-              disabled={loading || printing || !bonusWindowOpen}
-              title={bonusWindowOpen ? '' : bonusWindowMessage}
+              disabled={loading || printing || !bonusWindowOpen || !canSubmitBonus}
+              title={!bonusWindowOpen ? bonusWindowMessage : (!canSubmitBonus ? (eligibility?.reason || 'An active Bonus loan must be fully paid before applying again.') : '')}
               className="w-full bg-primary-deep text-white px-5 py-2 rounded hover:bg-member-green transition-colors text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed sm:w-auto"
             >
               {loading ? 'Processing...' : 'Submit Application'}
@@ -926,7 +979,7 @@ function Bonus_Loan({ staffIntake = false }) {
             <Download size={16} aria-hidden="true" />
             {printing ? 'Preparing PDF...' : 'Download PDF'}
           </button>
-          <button type="submit" disabled={loading || printing || !bonusWindowOpen} className="mt-5 w-full rounded bg-primary-deep px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-member-green disabled:cursor-not-allowed disabled:opacity-50">
+          <button type="submit" disabled={loading || printing || !bonusWindowOpen || !canSubmitBonus} className="mt-5 w-full rounded bg-primary-deep px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-member-green disabled:cursor-not-allowed disabled:opacity-50">
             {loading ? 'Processing...' : 'Submit Application'}
           </button>
         </div>

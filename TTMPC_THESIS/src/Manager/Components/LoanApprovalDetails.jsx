@@ -103,7 +103,7 @@ const LoanApprovalDetails = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const sourceParam = new URLSearchParams(location.search).get('source');
-  const isKoicaSource = sourceParam === 'koica';
+  const isNonMemberSource = sourceParam === 'non_member';
   const isBookkeeperFlow = location.pathname.startsWith('/bookkeeper-loan-approval');
   const isBodFlow = location.pathname.startsWith('/bod-loan-approval');
   const backRoute = isBookkeeperFlow
@@ -125,6 +125,9 @@ const LoanApprovalDetails = () => {
   const [collateralRows, setCollateralRows] = useState([]);
   const [collateralSavingId, setCollateralSavingId] = useState(null);
   const [collateralDocumentUrls, setCollateralDocumentUrls] = useState({});
+  const [verifiedBonusAmount, setVerifiedBonusAmount] = useState('');
+  const [verifiedBonusAmountSaved, setVerifiedBonusAmountSaved] = useState(null);
+  const [savingVerifiedBonusAmount, setSavingVerifiedBonusAmount] = useState(false);
 
   const COLLATERAL_TYPE_LABEL = {
     co_maker: 'Co-Maker Guarantee',
@@ -233,6 +236,35 @@ const LoanApprovalDetails = () => {
     if (error) {
       addNotification('Failed to save appraisal: ' + error.message, 'error');
     }
+  };
+
+  // Q8: the Bookkeeper checks the borrower's payslip in person (no file is
+  // stored) and types in the verified bonus amount. This caps the loan
+  // amount in place of the MIGS CBU x3/5 cap other loan types use.
+  const saveVerifiedBonusAmount = async () => {
+    if (!loanDetails?.id) return;
+    const parsed = verifiedBonusAmount === '' ? null : parseFloat(verifiedBonusAmount);
+    if (parsed === null || Number.isNaN(parsed) || parsed <= 0) {
+      addNotification('Enter the verified bonus amount before saving.', 'error');
+      return;
+    }
+    setSavingVerifiedBonusAmount(true);
+    const { data: { user } = {} } = (await supabase.auth.getUser()) || {};
+    const { error } = await supabase
+      .from('loans')
+      .update({
+        verified_bonus_amount: parsed,
+        bonus_verified_by: user?.id || null,
+        bonus_verified_at: new Date().toISOString(),
+      })
+      .eq('control_number', loanDetails.id);
+    setSavingVerifiedBonusAmount(false);
+    if (error) {
+      addNotification('Failed to save verified bonus amount: ' + error.message, 'error');
+      return;
+    }
+    setVerifiedBonusAmountSaved(parsed);
+    addNotification('Verified bonus amount saved.', 'success');
   };
 
   const formatCurrency = (value) => {
@@ -402,9 +434,9 @@ const LoanApprovalDetails = () => {
         let data = null;
         let tableName = 'loans';
 
-        if (isKoicaSource) {
-          const { data: koicaRows, error: koicaError } = await supabase
-            .from('koica_loans')
+        if (isNonMemberSource) {
+          const { data: nonMemberRows, error: nonMemberError } = await supabase
+            .from('non_member_loans')
             .select(`
               control_number,
               full_name,
@@ -423,9 +455,9 @@ const LoanApprovalDetails = () => {
             `)
             .eq('control_number', id)
             .limit(1);
-          if (koicaError) throw koicaError;
-          data = koicaRows?.[0] || null;
-          tableName = 'koica_loans';
+          if (nonMemberError) throw nonMemberError;
+          data = nonMemberRows?.[0] || null;
+          tableName = 'non_member_loans';
         } else {
           const { data: loanRows, error: loanError } = await supabase
             .from('loans')
@@ -449,6 +481,7 @@ const LoanApprovalDetails = () => {
               bookkeeper_internal_remarks,
               bookkeeper_reviewed_at,
               manager_review_requested_at,
+              verified_bonus_amount,
               application_date,
               raw_payload,
               loan_purpose,
@@ -474,12 +507,12 @@ const LoanApprovalDetails = () => {
 
         const firstName = data.member?.first_name || '';
         const lastName = data.member?.last_name || '';
-        const memberName = isKoicaSource
+        const memberName = isNonMemberSource
           ? (data.full_name || 'Unknown Applicant')
           : (`${firstName} ${lastName}`.trim() || 'Unknown Member');
         const principalAmount = Number(data.principal_amount ?? data.loan_amount ?? 0);
         const termMonths = Number(data.term || 0);
-        const resolvedLoanType = isKoicaSource
+        const resolvedLoanType = isNonMemberSource
           ? 'Non-member Bonus Loan'
           : (data.loan_type?.name || 'N/A');
         // Always re-resolve from loan_types so stale per-loan snapshots from the
@@ -594,7 +627,7 @@ const LoanApprovalDetails = () => {
             recommendedAmountRaw: Number(data.loan_amount || 0),
             term: `${data.term || 0} Months`,
             // Legacy fallback only; the live MIGS label from useMigsLabel is preferred in the UI.
-            migsStatus: isKoicaSource ? 'N/A' : (data.member?.is_bona_fide ? 'MIGS' : 'NON-MIGS'),
+            migsStatus: isNonMemberSource ? 'N/A' : (data.member?.is_bona_fide ? 'MIGS' : 'NON-MIGS'),
             memberEmail: (
               data.user_email
               || data.raw_payload?.optionalFields?.user_email
@@ -623,7 +656,7 @@ const LoanApprovalDetails = () => {
             monthlyAmortization: formatCurrency(monthlyAmortization),
             emergencySchedule: emergencyScheduleRows,
           },
-          deductions: isKoicaSource ? null : {
+          deductions: isNonMemberSource ? null : {
             service_fee: data.service_fee,
             cbu_deduction: data.cbu_deduction,
             insurance_fee: data.insurance_fee,
@@ -643,6 +676,9 @@ const LoanApprovalDetails = () => {
           setBorrowerMemberId(mapped.borrowerMemberId || null);
           setCoMakerDetails(normalizedCoMakers);
           setSupportingDocs(normalizeSupportingDocuments(mapped.rawPayload || {}));
+          const savedVerifiedAmount = data.verified_bonus_amount;
+          setVerifiedBonusAmountSaved(savedVerifiedAmount === null || savedVerifiedAmount === undefined ? null : Number(savedVerifiedAmount));
+          setVerifiedBonusAmount(savedVerifiedAmount === null || savedVerifiedAmount === undefined ? '' : String(savedVerifiedAmount));
         }
       } catch (err) {
         if (silent) return;
@@ -695,7 +731,7 @@ const LoanApprovalDetails = () => {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               loan_control_number: id,
-              source: isKoicaSource ? 'koica_loans' : 'loans',
+              source: isNonMemberSource ? 'non_member_loans' : 'loans',
               force_refresh: false,
             }),
           });
@@ -713,7 +749,7 @@ const LoanApprovalDetails = () => {
     return () => {
       isMounted = false;
     };
-  }, [id, rtVersionRisk, isKoicaSource]);
+  }, [id, rtVersionRisk, isNonMemberSource]);
 
   // Reprint the borrower's original application form. Same backend templates
   // the member portal uses; personal data is re-read from the PDS because
@@ -736,7 +772,7 @@ const LoanApprovalDetails = () => {
     setRiskLoading(true);
     setRiskError('');
     try {
-      const source = isKoicaSource ? 'koica_loans' : 'loans';
+      const source = isNonMemberSource ? 'non_member_loans' : 'loans';
       const { data: { user } = {} } = (await supabase.auth.getUser()) || {};
       const response = await fetch(`${API_BASE_URL}/api/risk/predict`, {
         method: 'POST',
@@ -1254,6 +1290,26 @@ const LoanApprovalDetails = () => {
       if (hasUnappraisedCollateral) {
         setActionError('Please appraise all declared collateral items before sending to Manager.');
         return;
+      }
+
+      // Q8/Step 5: Bonus loans are capped by the Bookkeeper-verified bonus
+      // amount, not the MIGS CBU x3/5 cap — require it to be saved before
+      // recommending. Checked against the DB-saved value (verifiedBonusAmountSaved),
+      // not just whatever's typed in the input, so a stray unsaved edit can't
+      // slip through.
+      const isBonusLoan = String(loanDetails.summary?.loanType || '').toLowerCase().includes('bonus');
+      if (isBonusLoan && !isNonMemberSource) {
+        if (verifiedBonusAmountSaved === null || verifiedBonusAmountSaved === undefined) {
+          setActionError('Please verify and save the bonus amount (from the borrower\'s payslip) before sending to Manager.');
+          return;
+        }
+        const requestedAmount = Number(loanDetails.summary?.recommendedAmountRaw || 0);
+        if (requestedAmount > verifiedBonusAmountSaved) {
+          setActionError(
+            `Loan amount (${formatCurrency(requestedAmount)}) exceeds the verified bonus amount (${formatCurrency(verifiedBonusAmountSaved)}).`
+          );
+          return;
+        }
       }
     }
 
@@ -2522,6 +2578,51 @@ const LoanApprovalDetails = () => {
               </div>
             )}
           </div>
+
+          {/* Bonus bonus-amount verification — Q8: caps the loan at the
+              Bookkeeper-verified bonus amount, not the MIGS CBU x3/5 cap.
+              No file is stored; the Bookkeeper checks the payslip in person. */}
+          {String(loanDetails.summary?.loanType || '').toLowerCase().includes('bonus') && !isNonMemberSource && (
+            <div className="border-t border-gray-200 pt-4 mt-4">
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-3">Bonus Amount Verification</p>
+              <div className="border border-gray-200 rounded-md p-3 bg-white">
+                <p className="text-xs text-gray-500 mb-2">
+                  Check the borrower's payslip and enter the bonus amount you verified. This caps the loan amount.
+                </p>
+                {isBookkeeperFlow ? (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      value={formatWithCommas(verifiedBonusAmount)}
+                      onChange={(e) => setVerifiedBonusAmount(stripCommas(e.target.value))}
+                      className="border border-gray-300 rounded px-2 py-1 text-sm w-48"
+                      placeholder="Verified bonus amount"
+                    />
+                    <button
+                      type="button"
+                      onClick={saveVerifiedBonusAmount}
+                      disabled={savingVerifiedBonusAmount}
+                      className="px-3 py-1 text-[10px] font-bold rounded bg-member-green text-white hover:bg-[#154718] disabled:opacity-60"
+                    >
+                      {savingVerifiedBonusAmount ? '…' : 'Save'}
+                    </button>
+                    {verifiedBonusAmountSaved !== null && verifiedBonusAmountSaved !== undefined && (
+                      <span className="text-xs text-member-green font-semibold">
+                        Saved: {formatCurrency(verifiedBonusAmountSaved)}
+                      </span>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-sm font-semibold text-gray-800">
+                    {verifiedBonusAmountSaved === null || verifiedBonusAmountSaved === undefined
+                      ? <span className="text-gray-400 italic">Not yet verified</span>
+                      : formatCurrency(verifiedBonusAmountSaved)}
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </div>
       </div>

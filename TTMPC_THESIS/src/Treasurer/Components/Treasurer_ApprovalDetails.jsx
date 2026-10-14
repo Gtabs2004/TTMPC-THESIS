@@ -103,7 +103,7 @@ const Treasurer_ApprovalDetails = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const sourceParam = new URLSearchParams(location.search).get('source');
-  const isKoicaSource = sourceParam === 'koica';
+  const isNonMemberSource = sourceParam === 'non_member';
   const isBookkeeperFlow = location.pathname.startsWith('/bookkeeper-loan-approval');
   const backRoute = isBookkeeperFlow ? '/bookkeeper-loan-approval' : '/treasurer-approval';
   const { addNotification } = useNotification();
@@ -164,8 +164,8 @@ const Treasurer_ApprovalDetails = () => {
     })();
 
     (async () => {
-      if (isKoicaSource) {
-        // KOICA loans never reach the Cashier's disbursement endpoints, so
+      if (isNonMemberSource) {
+        // Non-member loans never reach the Cashier's disbursement endpoints, so
         // there's no fee/renewal computation available for them — the gross
         // loan amount is the best estimate, same as the Rescheduled tab.
         if (!cancelled) setRequiredFunds({ net_cash_out: loanDetails.loanAmount, is_estimated: true });
@@ -187,7 +187,7 @@ const Treasurer_ApprovalDetails = () => {
     })();
 
     return () => { cancelled = true; };
-  }, [isBookkeeperFlow, isKoicaSource, loanDetails?.id, loanDetails?.loanAmount, rtVersion]);
+  }, [isBookkeeperFlow, isNonMemberSource, loanDetails?.id, loanDetails?.loanAmount, rtVersion]);
   const [borrowerMemberId, setBorrowerMemberId] = useState(null);
   const { data: migsLabel, status: migsStatusFetch } = useMigsLabel(borrowerMemberId);
   const [supportingDocs, setSupportingDocs] = useState([]);
@@ -291,9 +291,9 @@ const Treasurer_ApprovalDetails = () => {
         let data = null;
         let tableName = 'loans';
 
-        if (isKoicaSource) {
-          const { data: koicaData, error: koicaError } = await supabase
-            .from('koica_loans')
+        if (isNonMemberSource) {
+          const { data: nonMemberData, error: nonMemberError } = await supabase
+            .from('non_member_loans')
             .select(`
               control_number,
               full_name,
@@ -311,9 +311,9 @@ const Treasurer_ApprovalDetails = () => {
             `)
             .eq('control_number', id)
             .maybeSingle();
-          if (koicaError) throw koicaError;
-          data = koicaData;
-          tableName = 'koica_loans';
+          if (nonMemberError) throw nonMemberError;
+          data = nonMemberData;
+          tableName = 'non_member_loans';
         } else {
           const { data: loanData, error: loanError } = await supabase
             .from('loans')
@@ -360,7 +360,7 @@ const Treasurer_ApprovalDetails = () => {
         if (!data) throw new Error('Loan record not found.');
 
         let resolvedMember = data.member;
-        if (!isKoicaSource && (!resolvedMember?.first_name && !resolvedMember?.last_name) && data.member_id) {
+        if (!isNonMemberSource && (!resolvedMember?.first_name && !resolvedMember?.last_name) && data.member_id) {
           const fallbackMember = await fetchMemberById(data.member_id);
           if (fallbackMember) {
             resolvedMember = fallbackMember;
@@ -369,7 +369,7 @@ const Treasurer_ApprovalDetails = () => {
 
         const firstName = resolvedMember?.first_name || '';
         const lastName = resolvedMember?.last_name || '';
-        const memberName = isKoicaSource
+        const memberName = isNonMemberSource
           ? (data.full_name || 'Unknown Applicant')
           : (`${firstName} ${lastName}`.trim() || 'Unknown Member');
 
@@ -383,7 +383,7 @@ const Treasurer_ApprovalDetails = () => {
         let resolvedEmployerPosition = normalizeText(data.source_of_income)
           || normalizeText(data.raw_payload?.optionalFields?.source_of_income);
 
-        if (!resolvedEmployerPosition && !isKoicaSource) {
+        if (!resolvedEmployerPosition && !isNonMemberSource) {
           const membershipNumberId = String(resolvedMember?.membership_id || '').trim();
           if (membershipNumberId) {
             const { data: pdsRow, error: pdsError } = await supabase
@@ -408,7 +408,7 @@ const Treasurer_ApprovalDetails = () => {
 
         const principalAmount = Number(data.principal_amount ?? data.loan_amount ?? 0);
         const termMonths = Number(data.term || 0);
-        const resolvedLoanType = isKoicaSource
+        const resolvedLoanType = isNonMemberSource
           ? 'Non-member Bonus Loan'
           : (data.loan_type?.name || 'N/A');
         // Prefer the live loan_types rate (same as Manager view): older loan
@@ -519,7 +519,7 @@ const Treasurer_ApprovalDetails = () => {
             recommendedAmount: formatCurrency(data.loan_amount),
             term: `${data.term || 0} Months`,
             // Legacy fallback only; live label via useMigsLabel preferred.
-            migsStatus: isKoicaSource ? 'N/A' : (resolvedMember?.is_bona_fide ? 'MIGS' : 'NON-MIGS'),
+            migsStatus: isNonMemberSource ? 'N/A' : (resolvedMember?.is_bona_fide ? 'MIGS' : 'NON-MIGS'),
             loanPurpose: data.loan_purpose || data.raw_payload?.optionalFields?.loan_purpose || 'N/A',
             employerPosition: resolvedEmployerPosition,
             bookkeeperInternalRemarks: data.bookkeeper_internal_remarks || 'No internal remarks submitted.',
@@ -539,7 +539,7 @@ const Treasurer_ApprovalDetails = () => {
             monthlyAmortization: formatCurrency(monthlyAmortization),
             emergencySchedule: emergencyScheduleRows,
           },
-          deductions: isKoicaSource ? null : {
+          deductions: isNonMemberSource ? null : {
             service_fee: data.service_fee,
             cbu_deduction: data.cbu_deduction,
             insurance_fee: data.insurance_fee,

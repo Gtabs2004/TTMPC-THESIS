@@ -238,8 +238,8 @@ export async function buildStaffPrintPayload(loan, coMakers = null) {
   const raw = loan?.rawPayload || {};
   const optional = raw.optionalFields || {};
 
-  const isKoica = loan?.sourceTable === 'koica_loans';
-  const profile = isKoica
+  const isNonMember = loan?.sourceTable === 'non_member_loans';
+  const profile = isNonMember
     ? {}
     : await fetchBorrowerProfile({
         memberId: loan?.borrowerMemberId,
@@ -247,8 +247,8 @@ export async function buildStaffPrintPayload(loan, coMakers = null) {
         email: loan?.summary?.memberEmail,
       });
 
-  // KOICA applications carry the borrower's details in raw_payload directly.
-  const koicaBorrower = isKoica ? { ...raw, ...optional } : {};
+  // Non-member applications carry the borrower's details in raw_payload directly.
+  const nonMemberBorrower = isNonMember ? { ...raw, ...optional } : {};
 
   const amount = firstValue(
     loan?.summary?.recommendedAmountRaw,
@@ -266,7 +266,7 @@ export async function buildStaffPrintPayload(loan, coMakers = null) {
 
   const tin = firstValue(
     profile.tin_number, profile.tin_no,
-    koicaBorrower.tin_no, koicaBorrower.tin_number
+    nonMemberBorrower.tin_no, nonMemberBorrower.tin_number
   );
 
   const values = {
@@ -274,11 +274,11 @@ export async function buildStaffPrintPayload(loan, coMakers = null) {
     control_no: loan?.id,
     date_applied: toDateInput(firstValue(raw.application_date, optional.application_date, loan?.applicationDate)),
 
-    surname: firstValue(profile.surname, profile.last_name, koicaBorrower.borrower_surname, koicaBorrower.surname),
-    first_name: firstValue(profile.first_name, koicaBorrower.borrower_first_name, koicaBorrower.first_name),
-    middle_name: firstValue(profile.middle_name, profile.middle_initial, koicaBorrower.middle_name),
+    surname: firstValue(profile.surname, profile.last_name, nonMemberBorrower.borrower_surname, nonMemberBorrower.surname),
+    first_name: firstValue(profile.first_name, nonMemberBorrower.borrower_first_name, nonMemberBorrower.first_name),
+    middle_name: firstValue(profile.middle_name, profile.middle_initial, nonMemberBorrower.middle_name),
 
-    contact_no: firstValue(profile.contact_number, profile.contact_no, koicaBorrower.contact_no),
+    contact_no: firstValue(profile.contact_number, profile.contact_no, nonMemberBorrower.contact_no),
     latest_net_pay: firstValue(
       optional.latest_net_pay,
       profile.latest_net_pay,
@@ -286,20 +286,20 @@ export async function buildStaffPrintPayload(loan, coMakers = null) {
       Number(profile.annual_income) > 0 ? (Number(profile.annual_income) / 12).toFixed(2) : null,
     ),
     share_capital: firstValue(optional.share_capital, profile.share_capital),
-    residence_address: firstValue(profile.permanent_address, profile.residence_address, koicaBorrower.address),
+    residence_address: firstValue(profile.permanent_address, profile.residence_address, nonMemberBorrower.address),
 
-    date_of_birth: toDateInput(firstValue(profile.date_of_birth, koicaBorrower.date_of_birth)),
-    age: firstValue(profile.age, koicaBorrower.age),
-    civil_status: firstValue(profile.civil_status, koicaBorrower.civil_status),
-    gender: firstValue(profile.gender, koicaBorrower.gender),
+    date_of_birth: toDateInput(firstValue(profile.date_of_birth, nonMemberBorrower.date_of_birth)),
+    age: firstValue(profile.age, nonMemberBorrower.age),
+    civil_status: firstValue(profile.civil_status, nonMemberBorrower.civil_status),
+    gender: firstValue(profile.gender, nonMemberBorrower.gender),
 
     tin_no: tin,
-    gsis_sss_no: firstValue(profile.gsis_number, profile.gsis_sss_no, koicaBorrower.gsis_sss_no),
-    employer_name: firstValue(profile.employer_name, koicaBorrower.employer_name),
-    office_address: firstValue(profile.office_address, koicaBorrower.office_address),
+    gsis_sss_no: firstValue(profile.gsis_number, profile.gsis_sss_no, nonMemberBorrower.gsis_sss_no),
+    employer_name: firstValue(profile.employer_name, nonMemberBorrower.employer_name),
+    office_address: firstValue(profile.office_address, nonMemberBorrower.office_address),
 
-    spouse_name: firstValue(profile.spouse_name, koicaBorrower.spouse_name),
-    spouse_occupation: firstValue(profile.spouse_occupation, koicaBorrower.spouse_occupation),
+    spouse_name: firstValue(profile.spouse_name, nonMemberBorrower.spouse_name),
+    spouse_occupation: firstValue(profile.spouse_occupation, nonMemberBorrower.spouse_occupation),
 
     loan_amount_words: amountWords,
     loan_amount_numeric: amount,

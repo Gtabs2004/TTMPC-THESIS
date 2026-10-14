@@ -12,10 +12,9 @@ own recorded backtest MAE/RMSE/WAPE — see SESSION notes):
     Forecasting month M's value = the average of the 12 actual months
     immediately before M. A forecast beyond the known series chains on
     its own prior forecasts the same way a trailing average always does.
-  - Bonus: seasonal naive — forecasting month M = the actual value from
-    month M one year earlier (fallback to the trailing-12 average if that
-    month isn't in the known series yet, e.g. forecasting more than one
-    year past the data).
+  - Bonus: seasonal naive — forecasting May or November = the actual value
+    from the same month one year earlier. Only May and November are returned
+    because those are the two Bonus Loan demand cycles.
   - Confidence bands are NOT a statistical interval around the forecast;
     they are the point forecast plus/minus the model's own *empirical*
     backtest error distribution (`error_quantiles`): p10/p90 for the
@@ -264,9 +263,12 @@ def fitted(loan_type: str, alpha: float = 0.20) -> list[dict]:
     method = _METHOD_BY_TYPE[loan_type.strip().lower()]
     series = _monthly_series(loan_type)
     months = sorted(series.keys())
+    is_bonus = loan_type.strip().lower() == "bonus"
 
     out = []
     for ym in months:
+        if is_bonus and ym[5:7] not in {"05", "11"}:
+            continue
         if method == "ma12":
             window = _month_range(_add_months(ym, -12), _add_months(ym, -1))
             if any(m not in series for m in window):
@@ -306,6 +308,7 @@ def forecast(loan_type: str, periods: int = 12, alpha: float = 0.20) -> list[dic
 
     entry = _config_entry(loan_type)
     method = _METHOD_BY_TYPE[loan_type.strip().lower()]
+    is_bonus = loan_type.strip().lower() == "bonus"
     series = _monthly_series(loan_type)
     if not series:
         return []
@@ -322,6 +325,9 @@ def forecast(loan_type: str, periods: int = 12, alpha: float = 0.20) -> list[dic
         else:
             point = _seasonal_naive(series, cursor, extended)
         extended[cursor] = point
+
+        if is_bonus and cursor[5:7] not in {"05", "11"}:
+            continue
 
         lower, upper = _band(entry, alpha, point)
         lower95, upper95 = _band(entry, SECONDARY_ALPHA, point)

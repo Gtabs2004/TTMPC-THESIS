@@ -112,7 +112,7 @@ const viewLabel = (view, periods) =>
  * gets a dashed line to compare against the solid actual. Out-of-sample
  * values win where both exist.
  */
-const buildSeries = (actualsByYear, forecast, periods) => {
+const buildSeries = (actualsByYear, forecast, periods, loanType) => {
   const fcByPeriod = new Map(
     [...(forecast?.fitted || []), ...(forecast?.forecast || [])].map((r) => [monthKey(r.period), r])
   );
@@ -120,7 +120,12 @@ const buildSeries = (actualsByYear, forecast, periods) => {
   Object.values(actualsByYear || {}).forEach((a) =>
     (a?.months || []).forEach((r) => actualsByPeriod.set(monthKey(r.period), r))
   );
-  return periods.map((p) => {
+  // Bonus Loan demand is seasonal around the May mid-year and November
+  // year-end bonuses; do not present the non-target months as demand.
+  const displayPeriods = loanType === "bonus"
+    ? periods.filter((p) => ["05", "11"].includes(p.key.slice(5, 7)))
+    : periods;
+  return displayPeriods.map((p) => {
     const actualRow = actualsByPeriod.get(p.key);
     const fcRow = fcByPeriod.get(p.key);
     const hasActual = actualRow && actualRow.loan_count > 0;
@@ -254,7 +259,7 @@ const LoanDemandForecastCard = ({ className = "" }) => {
   const seriesByType = useMemo(() => {
     const out = {};
     for (const t of LOAN_TYPES) {
-      out[t.value] = buildSeries(actuals[t.value], forecasts[t.value], periods).map((r) => ({
+      out[t.value] = buildSeries(actuals[t.value], forecasts[t.value], periods, t.value).map((r) => ({
         ...r,
         band80: r.lower !== null && r.upper !== null ? [r.lower, r.upper] : null,
         band95: r.lower95 !== null && r.upper95 !== null ? [r.lower95, r.upper95] : null,

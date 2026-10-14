@@ -95,8 +95,8 @@ const Treasurer_Approval = () => {
 
       if (loansError) throw loansError;
 
-      const { data: koicaData, error: koicaError } = await supabase
-        .from("koica_loans")
+      const { data: nonMemberData, error: nonMemberError } = await supabase
+        .from("non_member_loans")
         .select(`
           control_number,
           loan_amount,
@@ -109,7 +109,7 @@ const Treasurer_Approval = () => {
         `)
         .order("application_date", { ascending: false });
 
-      if (koicaError) throw koicaError;
+      if (nonMemberError) throw nonMemberError;
 
       const needsMemberFallback = (loansData || []).filter(
         (row) => row.member_id && !row.member?.first_name && !row.member?.last_name
@@ -143,9 +143,9 @@ const Treasurer_Approval = () => {
         }
       }
 
-      const mappedKoica = (koicaData || []).map((row) => ({
+      const mappedNonMember = (nonMemberData || []).map((row) => ({
         ...row,
-        source: "koica",
+        source: "non_member",
       }));
 
       const mappedLoans = (loansData || []).map((row) => ({
@@ -153,7 +153,7 @@ const Treasurer_Approval = () => {
         source: "loans",
       }));
 
-      const combinedQueue = [...mappedLoans, ...mappedKoica]
+      const combinedQueue = [...mappedLoans, ...mappedNonMember]
         .filter((loan) => String(loan.loan_status || "").trim().toLowerCase() === "to be disbursed")
         .sort((a, b) => new Date(b.application_date || 0) - new Date(a.application_date || 0));
 
@@ -231,17 +231,17 @@ const Treasurer_Approval = () => {
   };
 
   const displayLoans = loans.map((loan) => {
-    const isKoica = loan.source === "koica";
+    const isNonMember = loan.source === "non_member";
     const firstName = loan.member?.first_name || "";
     const lastName = loan.member?.last_name || "";
-    const memberName = isKoica
+    const memberName = isNonMember
       ? (loan.full_name || "Unknown Applicant")
       : (`${firstName} ${lastName}`.trim() || "Unknown Member");
 
-    const loanTypeName = isKoica
+    const loanTypeName = isNonMember
       ? "Non-member Bonus Loan"
       : (loan.loan_types?.name || "N/A");
-    const migsStatus = isKoica ? "N/A" : (loan.member?.is_bona_fide ? "MIGS" : "NON-MIGS");
+    const migsStatus = isNonMember ? "N/A" : (loan.member?.is_bona_fide ? "MIGS" : "NON-MIGS");
 
     return {
       id: loan.control_number,
@@ -505,7 +505,7 @@ const Treasurer_Approval = () => {
                             </td>
                             <td className="p-5 text-sm text-right pr-8">
                               <TableActionButton
-                                onClick={() => navigate(`/treasurer-approval/${row.loan_id}?source=${row.source === "koica_loans" ? "koica" : "loans"}`)}
+                                onClick={() => navigate(`/treasurer-approval/${row.loan_id}?source=${row.source === "non_member_loans" ? "non_member" : "loans"}`)}
                               >
                                 Review
                               </TableActionButton>

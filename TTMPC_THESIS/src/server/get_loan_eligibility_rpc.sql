@@ -9,7 +9,10 @@
 -- Each bucket:
 --   { loan_type, can_apply_new, can_renew, reason, active_loan_id, payments_made }
 --
--- Bonus window: locked outside May (5) and November (11), matching FastAPI logic.
+-- Bonus window (Q6, BONUS_LOAN_PLAN.md): open Dec-Apr (targets the Mid-Year
+-- May bonus) and Jun-Oct (targets the Year-End November bonus); closed in
+-- May and November themselves, since those are repayment months, not
+-- application months.
 -- Renewal threshold: 6 payments, matching RENEWAL_MIN_PAYMENTS = 6.
 
 CREATE OR REPLACE FUNCTION public.get_loan_eligibility(p_member_id uuid)
@@ -20,7 +23,7 @@ SECURITY DEFINER
 AS $$
 DECLARE
   v_current_month  int  := EXTRACT(MONTH FROM now())::int;
-  v_bonus_open     bool := v_current_month IN (5, 11);
+  v_bonus_open     bool := v_current_month IN (12, 1, 2, 3, 4, 6, 7, 8, 9, 10);
   v_renewal_min    int  := 6;
 
   -- active loan per type (most recent by disbursal_date / application_date)
@@ -35,35 +38,37 @@ DECLARE
   v_bucket_emrg    jsonb;
   v_bucket_bonus   jsonb;
 BEGIN
-  -- Single query: latest active loan per type for this member.
+  -- Latest active loan per type for this member.
   -- "active" = loan_status IN ('released','paid','partially paid')
   -- We join loan_types to classify by code/name just like FastAPI does.
-  SELECT
-    MAX(CASE
-      WHEN (LOWER(lt.code) LIKE '%consolidated%' OR LOWER(lt.name) LIKE '%consolidated%')
-           AND LOWER(l.loan_status) IN ('released','paid','partially paid')
-      THEN l.control_number END)
-      KEEP (DENSE_RANK LAST ORDER BY
-        COALESCE(l.disbursal_date, l.application_date) NULLS FIRST),
-
-    MAX(CASE
-      WHEN (LOWER(lt.code) LIKE '%emergency%' OR LOWER(lt.name) LIKE '%emergency%')
-           AND LOWER(l.loan_status) IN ('released','paid','partially paid')
-      THEN l.control_number END)
-      KEEP (DENSE_RANK LAST ORDER BY
-        COALESCE(l.disbursal_date, l.application_date) NULLS FIRST),
-
-    MAX(CASE
-      WHEN (LOWER(lt.code) LIKE '%bonus%' OR LOWER(lt.name) LIKE '%bonus%')
-           AND LOWER(l.loan_status) IN ('released','paid','partially paid')
-      THEN l.control_number END)
-      KEEP (DENSE_RANK LAST ORDER BY
-        COALESCE(l.disbursal_date, l.application_date) NULLS FIRST)
-
-  INTO v_cons_id, v_emrg_id, v_bonus_id
+  -- Postgres has no KEEP (DENSE_RANK LAST ...) (that's Oracle); ORDER BY ...
+  -- DESC LIMIT 1 is the equivalent here, run once per type.
+  SELECT l.control_number INTO v_cons_id
   FROM public.loans l
   JOIN public.loan_types lt ON lt.id = l.loan_type_id
-  WHERE l.member_id = p_member_id;
+  WHERE l.member_id = p_member_id
+    AND (LOWER(lt.code) LIKE '%consolidated%' OR LOWER(lt.name) LIKE '%consolidated%')
+    AND LOWER(l.loan_status) IN ('released','paid','partially paid')
+  ORDER BY COALESCE(l.disbursal_date, l.application_date) DESC NULLS LAST
+  LIMIT 1;
+
+  SELECT l.control_number INTO v_emrg_id
+  FROM public.loans l
+  JOIN public.loan_types lt ON lt.id = l.loan_type_id
+  WHERE l.member_id = p_member_id
+    AND (LOWER(lt.code) LIKE '%emergency%' OR LOWER(lt.name) LIKE '%emergency%')
+    AND LOWER(l.loan_status) IN ('released','paid','partially paid')
+  ORDER BY COALESCE(l.disbursal_date, l.application_date) DESC NULLS LAST
+  LIMIT 1;
+
+  SELECT l.control_number INTO v_bonus_id
+  FROM public.loans l
+  JOIN public.loan_types lt ON lt.id = l.loan_type_id
+  WHERE l.member_id = p_member_id
+    AND (LOWER(lt.code) LIKE '%bonus%' OR LOWER(lt.name) LIKE '%bonus%')
+    AND LOWER(l.loan_status) IN ('released','paid','partially paid')
+  ORDER BY COALESCE(l.disbursal_date, l.application_date) DESC NULLS LAST
+  LIMIT 1;
 
   -- Payment counts for each active loan (one query handles all three)
   IF v_cons_id IS NOT NULL OR v_emrg_id IS NOT NULL OR v_bonus_id IS NOT NULL THEN
@@ -132,7 +137,7 @@ BEGIN
       'loan_type',      'bonus',
       'can_apply_new',  false,
       'can_renew',      false,
-      'reason',         'Bonus loan applications are accepted only during Mid-year (May) and Year-end (November).',
+      'reason',         'Bonus loan applications are accepted Dec-Apr (Mid-Year bonus) and Jun-Oct (Year-End bonus), not in May or November.',
       'active_loan_id', null,
       'payments_made',  0
     );

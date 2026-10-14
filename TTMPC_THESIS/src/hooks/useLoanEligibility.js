@@ -5,7 +5,9 @@ import { fetchActiveOverrides } from "../utils/renewalOverrides";
 const VALID_SIM_STATES = new Set(["clean", "active_recent", "active_renewable"]);
 const VALID_LOAN_TYPES = new Set(["consolidated", "bonus", "emergency"]);
 const RENEWAL_MIN_PAYMENTS = 6;
-const BONUS_APPLICATION_MONTHS = new Set([5, 11]);
+// Unused in this file today (the actual window check lives in the
+// get_loan_eligibility RPC); kept in sync anyway. Dec-Apr + Jun-Oct, Q6.
+const BONUS_APPLICATION_MONTHS = new Set([12, 1, 2, 3, 4, 6, 7, 8, 9, 10]);
 
 const readSimulationState = (allowSimulation) => {
   if (typeof window === "undefined") return null;

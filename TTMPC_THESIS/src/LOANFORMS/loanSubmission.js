@@ -650,6 +650,7 @@ export async function submitUnifiedLoan({
   disbursalDate = null,
   requireMemberProfile = true,
   targetTable = 'loans',
+  isNonMemberApplicant = false,
   applicantProfile = {},
   optionalFields = {},
   coMakers = [],
@@ -659,49 +660,22 @@ export async function submitUnifiedLoan({
   const normalizedApplicationStatus = normalizeApplicationStatus(applicationStatus);
   const normalizedApplicationType = normalizeApplicationType(applicationType ?? applicationStatus);
 
-  if (targetTable !== 'loans') {
-    // A Cashier keys this in for a walk-in, so the signed-in session is the
-    // Cashier's, never the applicant's: use only the email typed into the
-    // form. Who submitted is stamped server-side (trg_koica_loans_stamp_submitter).
-    const submittedEmail = String(optionalFields?.user_email || optionalFields?.email || '').trim().toLowerCase() || null;
-
-    const normalizedFullName = String(applicantProfile?.full_name || '').trim() || null;
-    const credentialsPayload = applicantProfile?.credentials ?? null;
-
-    const customPayload = {
-      control_number: controlNumber,
-      full_name: normalizedFullName,
-      credentials: credentialsPayload,
-      user_email: submittedEmail,
-      loan_type_code: String(loanTypeCode || '').trim().toUpperCase() || null,
-      loan_amount: toFloat(loanAmount),
-      principal_amount: toFloat(principalAmount ?? loanAmount),
-      interest_rate: resolvedInterestRate,
-      term: toInt(term),
-      loan_status: normalizedLoanStatus,
-      application_status: normalizedApplicationStatus,
-      application_type: normalizedApplicationType,
-      application_date: normalizeDateToIso(applicationDate) ?? new Date().toISOString(),
-      disbursal_date: normalizeDateToIso(disbursalDate),
-      raw_payload: {
-        optionalFields,
-        coMakers,
-      },
-    };
-
-    const { error: customInsertError } = await supabase.from(targetTable).insert([customPayload]);
-    if (customInsertError) throw customInsertError;
-
-    return {
-      controlNumber,
-      insertedCoMakers: 0,
-    };
-  }
+  // BONUS_LOAN_PLAN.md Step 8 (D13-B): non-member Bonus applications insert
+  // into `loans` (targetTable is always 'loans' for them now) with
+  // member_id = NULL + applicant_full_name/credentials, instead of a
+  // separate table — so they inherit disbursement, payment, penalty and
+  // verification from Steps 1-7 for free. (non_member_loans itself is
+  // retired for new writes; existing rows stay as history.) Any other
+  // caller that still passes a non-'loans' targetTable (none currently do)
+  // keeps the old behavior of being treated as non-member too.
+  if (targetTable !== 'loans') isNonMemberApplicant = true;
 
   const user = await getCurrentUser();
-  const memberId = requireMemberProfile
-    ? await getMemberIdForUser(user.id)
-    : await getOptionalMemberIdForUser(user.id);
+  const memberId = isNonMemberApplicant
+    ? null
+    : requireMemberProfile
+      ? await getMemberIdForUser(user.id)
+      : await getOptionalMemberIdForUser(user.id);
 
   const coMakerRows = [];
 
@@ -725,6 +699,13 @@ export async function submitUnifiedLoan({
 
   const loanTypeId = await getLoanTypeId(loanTypeCode);
 
+  // Non-member: the signed-in session is the Cashier's, never the
+  // applicant's, so user_email is whatever the Cashier typed into the form
+  // for the applicant, not the Cashier's own login email.
+  const applicantEmail = isNonMemberApplicant
+    ? (String(optionalFields?.user_email || optionalFields?.email || '').trim().toLowerCase() || null)
+    : user.email;
+
   const payload = {
     control_number: controlNumber,
     member_id: memberId,
@@ -739,7 +720,13 @@ export async function submitUnifiedLoan({
     application_type: normalizedApplicationType,
     application_date: normalizeDateToIso(applicationDate) ?? new Date().toISOString(),
     disbursal_date: normalizeDateToIso(disbursalDate),
-    user_email: user.email,
+    user_email: applicantEmail,
+    ...(isNonMemberApplicant
+      ? {
+          applicant_full_name: String(applicantProfile?.full_name || '').trim() || null,
+          applicant_credentials: applicantProfile?.credentials ?? null,
+        }
+      : {}),
   };
 
   // MIGS cap guard: source of truth = /api/migs/label snapshot. Blocks any

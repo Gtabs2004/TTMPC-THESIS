@@ -69,7 +69,7 @@ def _safe(value: Any) -> str:
 
 
 def _fetch_loan_with_member(supabase, loan_id: str) -> dict[str, Any] | None:
-    """Look up loan + member info from Supabase. Tries `loans` then `koica_loans`.
+    """Look up loan + member info from Supabase. Tries `loans` then `non_member_loans`.
     Returns a normalized dict with: control_number, member_name, member_email,
     loan_amount, loan_type, last_emailed_status, source_table.
     Returns None if not found.
@@ -101,10 +101,10 @@ def _fetch_loan_with_member(supabase, loan_id: str) -> dict[str, Any] | None:
     except Exception as err:
         logger.warning("notification: failed to read loans for %s: %s", clean_id, err)
 
-    # Fallback: koica_loans (no member join).
+    # Fallback: non_member_loans (no member join).
     try:
         resp = (
-            supabase.table("koica_loans")
+            supabase.table("non_member_loans")
             .select("control_number, loan_amount, principal_amount, loan_status, last_emailed_status, raw_payload, full_name")
             .eq("control_number", clean_id)
             .limit(1)
@@ -112,9 +112,9 @@ def _fetch_loan_with_member(supabase, loan_id: str) -> dict[str, Any] | None:
         )
         row = (resp.data or [None])[0]
         if row:
-            return _normalize_loan_row(supabase, row, source_table="koica_loans")
+            return _normalize_loan_row(supabase, row, source_table="non_member_loans")
     except Exception as err:
-        logger.warning("notification: failed to read koica_loans for %s: %s", clean_id, err)
+        logger.warning("notification: failed to read non_member_loans for %s: %s", clean_id, err)
 
     return None
 

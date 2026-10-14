@@ -50,12 +50,14 @@ const selectorOptions = [
   },
 ];
 
-// Bonus loans may only be availed during Mid-year (May) and Year-end
-// (November) bonus release windows. The FastAPI backend enforces the same
+// Bonus loan applications are open Dec-Apr (targets the Mid-Year May bonus)
+// and Jun-Oct (targets the Year-End November bonus); closed in May and
+// November themselves, since those are repayment months, not application
+// months (Q6, BONUS_LOAN_PLAN.md). The FastAPI backend enforces the same
 // rule as the source of truth.
-const BONUS_APPLICATION_MONTHS = [5, 11];
+const BONUS_APPLICATION_MONTHS = [12, 1, 2, 3, 4, 6, 7, 8, 9, 10];
 const BONUS_WINDOW_MESSAGE =
-  'Bonus loan applications are accepted only during Mid-year (May) and Year-end (November).';
+  'Bonus loan applications are accepted Dec-Apr (Mid-Year bonus) and Jun-Oct (Year-End bonus), not in May or November.';
 
 const styles = `
   @keyframes fadeInUp {

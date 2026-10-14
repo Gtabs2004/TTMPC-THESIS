@@ -71,8 +71,8 @@ const Loan_Approval = () => {
 
       if (loansError) throw loansError;
 
-      const { data: koicaData, error: koicaError } = await supabase
-        .from("koica_loans")
+      const { data: nonMemberData, error: nonMemberError } = await supabase
+        .from("non_member_loans")
         .select(`
           control_number,
           loan_amount,
@@ -84,11 +84,11 @@ const Loan_Approval = () => {
         `)
         .order("application_date", { ascending: false });
 
-      if (koicaError) throw koicaError;
+      if (nonMemberError) throw nonMemberError;
 
-      const mappedKoica = (koicaData || []).map((row) => ({
+      const mappedNonMember = (nonMemberData || []).map((row) => ({
         ...row,
-        source: "koica",
+        source: "non_member",
       }));
 
       const mappedLoans = (loansData || []).map((row) => ({
@@ -96,7 +96,7 @@ const Loan_Approval = () => {
         source: "loans",
       }));
 
-      const managerQueue = [...mappedLoans, ...mappedKoica]
+      const managerQueue = [...mappedLoans, ...mappedNonMember]
         .filter((loan) => String(loan.loan_status || "").trim().toLowerCase() === "recommended for approval")
         .sort((a, b) => new Date(b.application_date || 0) - new Date(a.application_date || 0));
 
@@ -135,20 +135,20 @@ const Loan_Approval = () => {
 
   // Map the relational database rows to the exact format your UI expects
   const displayLoans = loans.map((loan) => {
-    const isKoica = loan.source === "koica";
+    const isNonMember = loan.source === "non_member";
     // Safely extract the joined data (fallback to 'Unknown' if a link is missing)
     const firstName = loan.member?.first_name || "";
     const lastName = loan.member?.last_name || "";
-    const memberName = isKoica
+    const memberName = isNonMember
       ? (loan.full_name || "Unknown Applicant")
       : (`${firstName} ${lastName}`.trim() || "Unknown Member");
-    
-    const loanTypeName = isKoica
+
+    const loanTypeName = isNonMember
       ? "Non-member Bonus Loan"
       : (loan.loan_types?.name || "N/A");
-    
+
     // Assuming 'is_bona_fide' determines if they are a Member In Good Standing (MIGS)
-    const migsStatus = isKoica ? "N/A" : (loan.member?.is_bona_fide ? "MIGS" : "NON-MIGS");
+    const migsStatus = isNonMember ? "N/A" : (loan.member?.is_bona_fide ? "MIGS" : "NON-MIGS");
 
     return {
       id: loan.control_number,

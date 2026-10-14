@@ -25,7 +25,7 @@ export const REALTIME_EVENT = "mutation";
 export const RT = {
   LOANS: [
     "loans",
-    "koica_loans",
+    "non_member_loans",
     "loan_schedules",
     "loan_schedule_payments",
     "loan_payments",

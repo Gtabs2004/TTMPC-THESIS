@@ -704,6 +704,34 @@ def add_months(base_date: date, months_to_add: int) -> date:
     return date(new_year, new_month, new_day)
 
 
+def _month_end(year: int, month: int) -> date:
+    return date(year, month, calendar.monthrange(year, month)[1])
+
+
+def next_bonus_month_end(from_date: date) -> date:
+    """The next Bonus due date (end of May or end of November) on/after
+    from_date. Bonus always targets the nearest upcoming bonus (Q13/D6)."""
+    for year in (from_date.year, from_date.year + 1):
+        for month in (5, 11):
+            candidate = _month_end(year, month)
+            if candidate >= from_date:
+                return candidate
+    # Unreachable: the loop above always finds a candidate within 12 months.
+    return _month_end(from_date.year + 1, 5)
+
+
+def months_between_rounded_up(start: date, end: date) -> int:
+    """Whole calendar months from start to end, rounding any partial month
+    up (Q5: a partial first month is charged as a full month). Always >= 1."""
+    whole_months = (end.year - start.year) * 12 + (end.month - start.month)
+    if end.day < start.day:
+        whole_months -= 1
+    whole_months = max(0, whole_months)
+    if end > add_months(start, whole_months):
+        whole_months += 1
+    return max(1, whole_months)
+
+
 def decimal_to_float(value) -> float:
     return float(value) if value is not None else 0.0
 
@@ -1114,16 +1142,28 @@ def compute_loan_penalty(
     is_legacy: bool,
     as_of: date | None = None,
     installment_amount: Decimal = Decimal("0"),
+    original_principal: Decimal = Decimal("0"),
 ) -> Decimal:
     if is_legacy or not earliest_unpaid_due:
         return Decimal("0")
 
     today = as_of or datetime.utcnow().date()
+    is_bonus = "bonus" in str(loan_type_code).strip().lower()
 
-    clock_start = penalty_clock_start(earliest_unpaid_due, payment_dates)
-    grace_end = add_months(clock_start, PENALTY_GRACE_MONTHS)
-    if today <= grace_end:
-        return Decimal("0")
+    if is_bonus:
+        # Q2: missed = the day after the due date, no grace period (unlike
+        # every other loan type's 3-month grace). Q3: base = original
+        # principal only, fixed regardless of partial payments.
+        grace_end = earliest_unpaid_due
+        if today <= grace_end:
+            return Decimal("0")
+        base = max(original_principal, Decimal("0"))
+    else:
+        clock_start = penalty_clock_start(earliest_unpaid_due, payment_dates)
+        grace_end = add_months(clock_start, PENALTY_GRACE_MONTHS)
+        if today <= grace_end:
+            return Decimal("0")
+        base = min(max(installment_amount, Decimal("0")), max(remaining_balance, Decimal("0")))
 
     months_overdue = max(
         1,
@@ -1132,8 +1172,7 @@ def compute_loan_penalty(
     )
 
     # 1% for bonus loans (incl. NONMEMBER_BONUS), 2% for everything else.
-    rate = Decimal("0.01") if "bonus" in str(loan_type_code).strip().lower() else Decimal("0.02")
-    base = min(max(installment_amount, Decimal("0")), max(remaining_balance, Decimal("0")))
+    rate = Decimal("0.01") if is_bonus else Decimal("0.02")
     return money(base * rate * Decimal(months_overdue))
 
 
@@ -1189,6 +1228,7 @@ def _server_side_penalty_for_loan(*, loan_id: str, loan_row: dict, schedules: li
                 earliest_unpaid_due = due
 
         loan_type_name = (loan_row.get("loan_type") or {}).get("name")
+        original_principal = Decimal(str(loan_row.get("principal_amount") or loan_row.get("loan_amount") or 0))
         return accrue_loan_penalties(
             loan_id=loan_id,
             loan_type_code=resolve_loan_type_code(normalize_cashier_loan_type(loan_type_name)),
@@ -1198,6 +1238,7 @@ def _server_side_penalty_for_loan(*, loan_id: str, loan_row: dict, schedules: li
             is_legacy=False,
             as_of=today,
             installment_amount=penalty_installment_base(loan_row, remaining_balance),
+            original_principal=original_principal,
         )
     except Exception:
         return Decimal("0")
@@ -1295,6 +1336,7 @@ def accrue_loan_penalties(
     is_legacy: bool,
     as_of: date | None = None,
     installment_amount: Decimal = Decimal("0"),
+    original_principal: Decimal = Decimal("0"),
 ) -> Decimal:
     """Write one penalty row per overdue period, then return the unpaid total.
 
@@ -1304,9 +1346,12 @@ def accrue_loan_penalties(
     idempotent, so refreshing a screen cannot create duplicates (spec 11).
 
     Penalty starts on the 3rd consecutive missed due date (earliest unpaid due
-    + PENALTY_GRACE_MONTHS); each charge is rate x one installment.
+    + PENALTY_GRACE_MONTHS); each charge is rate x one installment. Bonus loans
+    (Q2/Q3) use no grace period and a fixed original-principal base instead —
+    see the is_bonus branch below.
     """
     today = as_of or datetime.utcnow().date()
+    is_bonus = "bonus" in str(loan_type_code).strip().lower()
 
     if is_legacy or remaining_balance <= 0:
         return _unpaid_penalty_total(loan_id)
@@ -1323,14 +1368,17 @@ def accrue_loan_penalties(
     if not earliest_unpaid_due:
         return _unpaid_penalty_total(loan_id)
 
-    # A payment restarts the count of months without payment.
-    grace_end = add_months(penalty_clock_start(earliest_unpaid_due, payment_dates), PENALTY_GRACE_MONTHS)
+    if is_bonus:
+        grace_end = earliest_unpaid_due
+    else:
+        # A payment restarts the count of months without payment.
+        grace_end = add_months(penalty_clock_start(earliest_unpaid_due, payment_dates), PENALTY_GRACE_MONTHS)
     if today <= grace_end:
         return _unpaid_penalty_total(loan_id)
 
-    rate = Decimal("0.01") if "bonus" in str(loan_type_code).strip().lower() else Decimal("0.02")
+    rate = Decimal("0.01") if is_bonus else Decimal("0.02")
 
-    base = min(max(installment_amount, Decimal("0")), remaining_balance)
+    base = max(original_principal, Decimal("0")) if is_bonus else min(max(installment_amount, Decimal("0")), remaining_balance)
     if base <= 0:
         return _unpaid_penalty_total(loan_id)
 
@@ -1522,6 +1570,15 @@ def build_single_schedule_row(
         interest_component = Decimal(interest_cents) / Decimal("100")
         expected_amount = Decimal(principal_cents + interest_cents) / Decimal("100")
         remaining_after = Decimal(ending_balance_cents) / Decimal("100")
+    elif loan_type == "bonus":
+        # Single lump-sum payoff at the bonus month: nothing is collected
+        # monthly. term_months here is "months from release to the bonus
+        # due date" (Q5/Q9), not a count of installments — there is only
+        # ever installment #1 (Step 3: no next row is created after payoff).
+        principal_component = max(remaining_principal_before, Decimal("0"))
+        interest_component = money(principal * monthly_rate_decimal * Decimal(term_months))
+        expected_amount = money(principal_component + interest_component)
+        remaining_after = Decimal("0")
     else:
         principal_component = money(principal / Decimal(term_months))
         interest_component = money(principal * monthly_rate_decimal)
@@ -1969,15 +2026,21 @@ async def compute_loan(payload: LoanComputeRequest):
         monthly_amortization = first_total_payment
 
     elif payload.loan_type == "bonus":
+        # Bonus is not amortized: nothing is collected monthly. The whole
+        # principal plus interest accrued for the months actually elapsed
+        # (term_months = months from release to the target bonus month-end,
+        # partial first month counts as a full month) is due in a single
+        # installment at the bonus month. See BONUS_LOAN_PLAN.md Step 2.
         member_category = str(payload.member_category).strip().lower()
         loan_type_code = resolve_loan_type_code("bonus", member_category)
         monthly_rate = resolve_monthly_rate_decimal("bonus", None, loan_type_code=loan_type_code)
         if monthly_rate <= 0:
             raise HTTPException(status_code=400, detail=f"Interest rate for {loan_type_code} is not configured in loan_types.")
 
-        principal_component = money(principal / Decimal(term))
-        interest_component = money(principal * monthly_rate)
-        monthly_amortization = money(principal_component + interest_component)
+        principal_component = principal
+        interest_component = money(principal * monthly_rate * Decimal(term))
+        expected_amount = money(principal_component + interest_component)
+        monthly_amortization = expected_amount
 
         fee_policy = resolve_fee_policy(loan_type_code)
         service_fee = compute_service_fee(fee_policy, principal)
@@ -1985,16 +2048,15 @@ async def compute_loan(payload: LoanComputeRequest):
         insurance_fee = money((principal * fee_policy["insurance_per_thousand"]) / Decimal("1000"))
         notarial_fee = money(fee_policy["notarial_fee"])
 
-        for installment_no in range(1, term + 1):
-            monthly_breakdown.append(
-                MonthlyBreakdownRow(
-                    installment_no=installment_no,
-                    due_date=add_months(first_due_date, installment_no - 1),
-                    expected_amount=monthly_amortization,
-                    principal_component=principal_component,
-                    interest_component=interest_component,
-                )
+        monthly_breakdown.append(
+            MonthlyBreakdownRow(
+                installment_no=1,
+                due_date=add_months(first_due_date, term - 1),
+                expected_amount=expected_amount,
+                principal_component=principal_component,
+                interest_component=interest_component,
             )
+        )
 
     total_interest = money(sum((row.interest_component for row in monthly_breakdown), Decimal("0")))
     total_deductions = money(service_fee + cbu_deduction + insurance_fee + notarial_fee)
@@ -2399,7 +2461,10 @@ async def get_cashier_loans_for_payments():
                 term_months_val = int(loan.get("term") or 0)
                 monthly_amort_val = Decimal(str(loan.get("monthly_amortization") or 0))
                 if term_months_val > 0 and monthly_amort_val > 0:
-                    total_interest_amount = max(monthly_amort_val * term_months_val - principal_amount, Decimal("0"))
+                    if normalized_loan_type == "bonus":
+                        total_interest_amount = max(monthly_amort_val - principal_amount, Decimal("0"))
+                    else:
+                        total_interest_amount = max(monthly_amort_val * term_months_val - principal_amount, Decimal("0"))
             total_payable_amount = principal_amount + total_interest_amount
             remaining_balance = max(total_payable_amount - confirmed_paid, Decimal("0"))
             if _ledger_says_fully_paid(loan):
@@ -2499,6 +2564,7 @@ async def get_cashier_loans_for_payments():
                     is_legacy=is_legacy_loan,
                     as_of=today_date,
                     installment_amount=penalty_installment_base(loan, remaining_balance),
+                    original_principal=principal_amount,
                 )
 
             is_migs = bool(member.get("is_bona_fide"))
@@ -2577,20 +2643,20 @@ async def get_cashier_loans_for_payments():
                 }
             )
 
-        # Open non-member Bonus loans (koica_loans); payments go to
+        # Open non-member Bonus loans (non_member_loans); payments go to
         # nonmember_loan_payments via /api/cashier/nonmember-loan-payments.
         try:
-            koica_open = (
-                supabase.table("koica_loans")
+            non_member_open = (
+                supabase.table("non_member_loans")
                 .select("control_number,full_name,loan_amount,term,loan_status,application_date,disbursal_date")
                 .eq("loan_status", "released")
                 .execute()
             ).data or []
         except Exception as e:
-            logger.warning("koica_loans lookup failed for cashier list: %s", e)
-            koica_open = []
-        nm_pays = _nonmember_payments_by_loan([str(k.get("control_number")) for k in koica_open])
-        for k in koica_open:
+            logger.warning("non_member_loans lookup failed for cashier list: %s", e)
+            non_member_open = []
+        nm_pays = _nonmember_payments_by_loan([str(k.get("control_number")) for k in non_member_open])
+        for k in non_member_open:
             amount = decimal_to_float(Decimal(str(k.get("loan_amount") or 0)))
             paid = sum(float(p.get("amount_paid") or 0) for p in nm_pays.get(str(k.get("control_number")), []))
             remaining = round(max(amount - paid, 0.0), 2)
@@ -3051,26 +3117,26 @@ async def get_treasurer_rescheduled_loans():
         if str(r.get("loan_status") or "").strip().lower() == "ready for disbursement"
     ]
 
-    # koica_loans mirrors the Treasurer's main queue (Treasurer_Approval.jsx
+    # non_member_loans mirrors the Treasurer's main queue (Treasurer_Approval.jsx
     # combines both tables), but the Cashier's disbursement endpoints never
-    # touch koica_loans, so its rows have no real fee/renewal computation
+    # touch non_member_loans, so its rows have no real fee/renewal computation
     # available — shown at gross loan_amount, flagged `is_estimated`.
     try:
-        koica_resp = (
-            supabase.table("koica_loans")
+        non_member_resp = (
+            supabase.table("non_member_loans")
             .select(
                 "control_number,loan_amount,term,loan_status,application_date,full_name,loan_type_code," \
                 "rescheduled_at,reschedule_note"
             )
             .execute()
         )
-        koica_rows = [
-            r for r in (koica_resp.data or [])
+        non_member_rows = [
+            r for r in (non_member_resp.data or [])
             if str(r.get("loan_status") or "").strip().lower() == "pending rescheduling"
         ]
     except Exception as e:
-        logger.warning("koica_loans lookup failed for rescheduled tab: %s", e)
-        koica_rows = []
+        logger.warning("non_member_loans lookup failed for rescheduled tab: %s", e)
+        non_member_rows = []
 
     try:
         balance_resp = supabase.table("vault_balance_v").select("current_balance").limit(1).execute()
@@ -3114,12 +3180,12 @@ async def get_treasurer_rescheduled_loans():
             "shortfall": decimal_to_float(shortfall),
         })
 
-    for r in koica_rows:
+    for r in non_member_rows:
         gross = Decimal(str(r.get("loan_amount") or 0))
         shortfall = money(max(gross - available, Decimal("0")))
         rows.append({
             "loan_id": r.get("control_number"),
-            "source": "koica_loans",
+            "source": "non_member_loans",
             "member_name": r.get("full_name") or "Unknown Applicant",
             "loan_type": "Non-member Bonus Loan",
             "loan_amount": decimal_to_float(gross),
@@ -3159,8 +3225,8 @@ async def get_treasurer_decision_queue(limit: int = 5):
     Read-only. No new math: net cash out comes from _net_cash_out_for_rows(),
     the vault figures from _compute_vault_available(), the order from
     _compute_disbursement_rank() (rank asc, then longest-waiting first).
-    KOICA rows have no fee/renewal computation (the Cashier flow never touches
-    koica_loans), so they're shown at gross and flagged `is_estimated` — their
+    Non-member rows have no fee/renewal computation (the Cashier flow never touches
+    non_member_loans), so they're shown at gross and flagged `is_estimated` — their
     funding status is "review", never "fundable".
     """
     if not supabase:
@@ -3191,17 +3257,17 @@ async def get_treasurer_decision_queue(limit: int = 5):
     ]
 
     try:
-        koica_resp = (
-            supabase.table("koica_loans")
+        non_member_resp = (
+            supabase.table("non_member_loans")
             .select("control_number,loan_amount,loan_status,application_date,full_name,loan_type_code")
             .execute()
         )
-        koica_all = koica_resp.data or []
+        non_member_all = non_member_resp.data or []
     except Exception as e:
-        logger.warning("koica_loans lookup failed for decision queue: %s", e)
-        koica_all = []
-    koica_awaiting = [r for r in koica_all if str(r.get("loan_status") or "").strip().lower() == "to be disbursed"]
-    koica_rescheduled = [r for r in koica_all if str(r.get("loan_status") or "").strip().lower() == "pending rescheduling"]
+        logger.warning("non_member_loans lookup failed for decision queue: %s", e)
+        non_member_all = []
+    non_member_awaiting = [r for r in non_member_all if str(r.get("loan_status") or "").strip().lower() == "to be disbursed"]
+    non_member_rescheduled = [r for r in non_member_all if str(r.get("loan_status") or "").strip().lower() == "pending rescheduling"]
 
     figures = _compute_vault_available()
     available = figures["available"]
@@ -3249,7 +3315,7 @@ async def get_treasurer_decision_queue(limit: int = 5):
             "shortfall": decimal_to_float(shortfall),
         })
 
-    for r in koica_awaiting:
+    for r in non_member_awaiting:
         loan_type = _normalize_disbursement_loan_type(
             "Non-member Bonus Loan"
         )
@@ -3258,7 +3324,7 @@ async def get_treasurer_decision_queue(limit: int = 5):
         status, shortfall = _funding(gross, True)
         queue.append({
             "loan_id": r.get("control_number"),
-            "source": "koica",
+            "source": "non_member",
             "member_name": r.get("full_name") or "Unknown Applicant",
             "migs": "Non-Member",
             "loan_type": loan_type,
@@ -3286,7 +3352,7 @@ async def get_treasurer_decision_queue(limit: int = 5):
     rescheduled_net = _net_cash_out_for_rows(rescheduled_loans)
     rescheduled_now_fundable = sum(1 for v in rescheduled_net.values() if v <= available)
     rescheduled_now_fundable += sum(
-        1 for r in koica_rescheduled if Decimal(str(r.get("loan_amount") or 0)) <= available
+        1 for r in non_member_rescheduled if Decimal(str(r.get("loan_amount") or 0)) <= available
     )
 
     limit_clean = max(1, min(int(limit), 50))
@@ -3305,9 +3371,9 @@ async def get_treasurer_decision_queue(limit: int = 5):
                 "fundable_count": counts["fundable"],
                 "review_count": counts["review"],
                 "insufficient_count": counts["insufficient"],
-                # Loans that individually fit in `available` (KOICA judged at gross).
+                # Loans that individually fit in `available` (non-member rows judged at gross).
                 "fits_count": sum(1 for r in queue if r["shortfall"] <= 0),
-                "rescheduled_count": len(rescheduled_loans) + len(koica_rescheduled),
+                "rescheduled_count": len(rescheduled_loans) + len(non_member_rescheduled),
                 "rescheduled_now_fundable": rescheduled_now_fundable,
             },
         },
@@ -5040,7 +5106,7 @@ async def disburse_cashier_loan(loan_id: str, payload: CashierDisbursementReques
             supabase.table("loans")
             .select(
                 "control_number,loan_amount,principal_amount,interest_rate,term,loan_status,total_interest,monthly_amortization,member_id," \
-                "application_type,application_date," \
+                "application_type,application_date,verified_bonus_amount," \
                 f"{LOAN_FEE_SNAPSHOT_COLUMNS}," \
                 "member:member_id(first_name,last_name)," \
                 "loan_type:loan_type_id(name,code)"
@@ -5057,19 +5123,50 @@ async def disburse_cashier_loan(loan_id: str, payload: CashierDisbursementReques
         if current_status != "ready for disbursement":
             raise HTTPException(status_code=400, detail="Loan is not in ready for disbursement status.")
 
+        if normalize_cashier_loan_type((loan_row.get("loan_type") or {}).get("name")) == "bonus":
+            # Q8: the cap for Bonus is the Bookkeeper-verified bonus amount,
+            # not the MIGS CBU x3/5 cap other loan types use. The frontend
+            # already requires this before the Bookkeeper can recommend
+            # (BONUS_LOAN_PLAN.md Step 5); this is the server-side backstop
+            # where money actually leaves the vault.
+            verified_amount = loan_row.get("verified_bonus_amount")
+            if verified_amount is None:
+                raise HTTPException(
+                    status_code=400,
+                    detail="This Bonus loan has not had its bonus amount verified by the Bookkeeper yet.",
+                )
+            requested_amount = Decimal(str(loan_row.get("principal_amount") or loan_row.get("loan_amount") or 0))
+            if requested_amount > Decimal(str(verified_amount)):
+                raise HTTPException(
+                    status_code=400,
+                    detail=(
+                        f"Loan amount ({requested_amount}) exceeds the Bookkeeper-verified "
+                        f"bonus amount ({verified_amount})."
+                    ),
+                )
+
         disbursed_at = payload.disbursed_at or datetime.utcnow()
         first_due_date = add_months(disbursed_at.date(), 1)
 
-        term_months = int(loan_row.get("term") or 0)
-        if term_months <= 0:
-            raise HTTPException(status_code=400, detail="Loan term is missing or invalid.")
+        loan_type_name = (loan_row.get("loan_type") or {}).get("name")
+        normalized_loan_type = normalize_cashier_loan_type(loan_type_name)
+
+        if normalized_loan_type == "bonus":
+            # The due date is the actual bonus month-end (nearest upcoming
+            # May/Nov from the release date, Q13/D6), not +1 month like
+            # other loan types, and the term is recomputed from the real
+            # release date rather than whatever was stored at application
+            # time (Q4/Q5: partial first month counts as a full month).
+            first_due_date = next_bonus_month_end(disbursed_at.date())
+            term_months = months_between_rounded_up(disbursed_at.date(), first_due_date)
+        else:
+            term_months = int(loan_row.get("term") or 0)
+            if term_months <= 0:
+                raise HTTPException(status_code=400, detail="Loan term is missing or invalid.")
 
         principal_amount = Decimal(str(loan_row.get("principal_amount") or loan_row.get("loan_amount") or 0))
         if principal_amount <= 0:
             raise HTTPException(status_code=400, detail="Loan principal is missing or invalid.")
-
-        loan_type_name = (loan_row.get("loan_type") or {}).get("name")
-        normalized_loan_type = normalize_cashier_loan_type(loan_type_name)
         interest_rate_percent = Decimal(str(loan_row.get("interest_rate") or 0)) if loan_row.get("interest_rate") is not None else None
         monthly_rate_decimal = resolve_monthly_rate_decimal(
             normalized_loan_type,
@@ -5214,6 +5311,12 @@ async def disburse_cashier_loan(loan_id: str, payload: CashierDisbursementReques
             "application_status": "released",
             "disbursal_date": disbursed_at.isoformat(),
         }
+        if normalized_loan_type == "bonus":
+            # The term stored at application time (old 5/11 picker) is
+            # superseded by the real release-to-bonus-month count computed
+            # above, so the payment-approval endpoint's "is this the last
+            # installment" check (term_months, main.py ~12613) stays correct.
+            update_payload["term"] = term_months
 
         (
             supabase.table("loans")
@@ -5457,7 +5560,7 @@ async def create_nonmember_loan_payment(
         raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
     loan_id = payload.loan_id.strip()
     loan = (
-        supabase.table("koica_loans")
+        supabase.table("non_member_loans")
         .select("control_number,loan_amount,loan_status,full_name")
         .eq("control_number", loan_id)
         .limit(1)
@@ -5501,7 +5604,7 @@ async def create_nonmember_loan_payment(
 
     remaining = money(outstanding - amount)
     if remaining <= 0:
-        supabase.table("koica_loans").update(
+        supabase.table("non_member_loans").update(
             {"loan_status": "fully paid", "application_status": "fully paid"}
         ).eq("control_number", loan_id).execute()
     _MANAGE_LOANS_CACHE["expires_at"] = 0.0
@@ -5786,6 +5889,11 @@ def _loan_total_payable(loan_row: dict) -> Decimal:
 
     total_interest is missing on some legacy rows; fall back to
     monthly_amortization * term - principal, as the payment approval does.
+    Bonus is a single lump-sum payoff (BONUS_LOAN_PLAN.md Step 2):
+    monthly_amortization there already holds principal + full interest, so
+    it must not be multiplied by term again. Detected from a joined
+    loan_type.name when the caller's select included one; a caller whose
+    select omits that join falls back to the non-Bonus formula.
     """
     principal = Decimal(str(loan_row.get("principal_amount") or loan_row.get("loan_amount") or 0))
     total_interest = Decimal(str(loan_row.get("total_interest") or 0))
@@ -5793,7 +5901,11 @@ def _loan_total_payable(loan_row: dict) -> Decimal:
         monthly = Decimal(str(loan_row.get("monthly_amortization") or 0))
         term = int(loan_row.get("term") or 0)
         if monthly > 0 and term > 0:
-            total_interest = max(monthly * term - principal, Decimal("0"))
+            loan_type_name = (loan_row.get("loan_type") or {}).get("name") or loan_row.get("loan_type_code") or ""
+            if "bonus" in str(loan_type_name).strip().lower():
+                total_interest = max(monthly - principal, Decimal("0"))
+            else:
+                total_interest = max(monthly * term - principal, Decimal("0"))
     return principal + total_interest
 
 
@@ -5821,13 +5933,15 @@ ACTIVE_LOAN_STATUSES = {"released", "paid", "partially paid"}
 RENEWAL_MIN_PAYMENTS = 6
 ELIGIBILITY_LOAN_TYPES = ("consolidated", "bonus", "emergency")
 
-# Bonus loans may only be availed during Mid-year (May) and Year-end
-# (November) release windows. Server time is the source of truth so a
+# Bonus loan applications are open Dec-Apr (targets the Mid-Year May bonus)
+# and Jun-Oct (targets the Year-End November bonus) — Q6, BONUS_LOAN_PLAN.md.
+# Closed in May and November themselves, since those are repayment months,
+# not application months. Server time is the source of truth so a
 # client-side clock cannot bypass the rule.
-BONUS_APPLICATION_MONTHS = {5, 11}
+BONUS_APPLICATION_MONTHS = {12, 1, 2, 3, 4, 6, 7, 8, 9, 10}
 BONUS_WINDOW_REASON = (
-    "Bonus loan applications are accepted only during Mid-year (May) "
-    "and Year-end (November)."
+    "Bonus loan applications are accepted Dec-Apr (Mid-Year bonus) and "
+    "Jun-Oct (Year-End bonus), not in May or November."
 )
 
 def _bonus_window_open(now: datetime | None = None) -> bool:
@@ -6619,7 +6733,7 @@ def get_bookkeeper_pending_counts(current_user: dict = _Depends(_get_current_use
 
     Each count mirrors the queue its page shows, so a badge never disagrees with
     the list behind it:
-      - loan_approval:      loans + KOICA loans still 'pending' or 'draft'
+      - loan_approval:      loans + non-member loans still 'pending' or 'draft'
                             (the Loan Approval page's Pending tab)
       - loan_payments:      loan_payments awaiting Bookkeeper confirmation
       - savings_withdrawals: savings queue rows awaiting verification
@@ -6651,7 +6765,7 @@ def get_bookkeeper_pending_counts(current_user: dict = _Depends(_get_current_use
         )
 
     try:
-        loan_approval = head_count("loans", pending_or_draft) + head_count("koica_loans", pending_or_draft)
+        loan_approval = head_count("loans", pending_or_draft) + head_count("non_member_loans", pending_or_draft)
         loan_payments = head_count(
             "loan_payments",
             lambda q: q.or_("confirmation_status.ilike.pending_bookkeeper,confirmation_status.is.null"),
@@ -6665,7 +6779,7 @@ def get_bookkeeper_pending_counts(current_user: dict = _Depends(_get_current_use
         if "server disconnected" in str(exc).lower() and url and key:
             supabase = create_client(url, key, options=_SUPABASE_CLIENT_OPTIONS)
             try:
-                loan_approval = head_count("loans", pending_or_draft) + head_count("koica_loans", pending_or_draft)
+                loan_approval = head_count("loans", pending_or_draft) + head_count("non_member_loans", pending_or_draft)
                 loan_payments = head_count(
                     "loan_payments",
                     lambda q: q.or_("confirmation_status.ilike.pending_bookkeeper,confirmation_status.is.null"),
@@ -6722,8 +6836,8 @@ def get_bookkeeper_loan_approval_queue(current_user: dict = _Depends(_get_curren
             .order("application_date")
             .execute()
         ).data or []
-        koica = (
-            supabase.table("koica_loans")
+        non_member = (
+            supabase.table("non_member_loans")
             .select(
                 "control_number,loan_amount,term,loan_status,application_status,"
                 "application_date,full_name,loan_type_code"
@@ -6732,11 +6846,11 @@ def get_bookkeeper_loan_approval_queue(current_user: dict = _Depends(_get_curren
             .order("application_date")
             .execute()
         ).data or []
-        return loans, koica
+        return loans, non_member
 
     try:
         try:
-            loans_rows, koica_rows = fetch_rows()
+            loans_rows, non_member_rows = fetch_rows()
         except Exception as exc:
             # A stale pooled connection surfaces as "server disconnected" or,
             # on Windows, WinError 10035. A fresh client usually succeeds.
@@ -6745,7 +6859,7 @@ def get_bookkeeper_loan_approval_queue(current_user: dict = _Depends(_get_curren
             if not (transient and url and key):
                 raise
             supabase = create_client(url, key, options=_SUPABASE_CLIENT_OPTIONS)
-            loans_rows, koica_rows = fetch_rows()
+            loans_rows, non_member_rows = fetch_rows()
 
         def is_queue_row(row: dict) -> bool:
             return bool({
@@ -6754,7 +6868,7 @@ def get_bookkeeper_loan_approval_queue(current_user: dict = _Depends(_get_curren
             } & queue_statuses)
 
         rows = [{**row, "source": "loans"} for row in loans_rows if is_queue_row(row)]
-        rows.extend({**row, "source": "koica"} for row in koica_rows if is_queue_row(row))
+        rows.extend({**row, "source": "non_member"} for row in non_member_rows if is_queue_row(row))
         rows.sort(key=lambda row: (
             str(row.get("application_date") or ""),
             str(row.get("control_number") or ""),
@@ -7137,7 +7251,7 @@ async def get_member_debt_capacity(member_key: str):
 
         today = datetime.utcnow().date()
 
-        def _accrued_penalty(loan_id: str, loan_type_code: str, remaining: Decimal, loan_row: dict) -> Decimal:
+        def _accrued_penalty(loan_id: str, loan_type_code: str, remaining: Decimal, loan_row: dict, principal: Decimal) -> Decimal:
             # Same rule as compute_loan_penalty(): first charge on the 3rd missed
             # due date, rate x one installment per month. Legacy loans (any row in
             # loan_payments_legacy) are exempt -- historical delinquency on
@@ -7153,6 +7267,7 @@ async def get_member_debt_capacity(member_key: str):
                 is_legacy=False,
                 as_of=today,
                 installment_amount=penalty_installment_base(loan_row, remaining),
+                original_principal=principal,
             )
 
         def _remaining_for(loans: list[dict], type_code: str) -> Decimal:
@@ -7164,12 +7279,18 @@ async def get_member_debt_capacity(member_key: str):
                     term = int(r.get("term") or 0)
                     amort = Decimal(str(r.get("monthly_amortization") or 0))
                     if term > 0 and amort > 0:
-                        interest = max(amort * term - principal, Decimal("0"))
+                        if "bonus" in str(type_code).strip().lower():
+                            # monthly_amortization already holds the full
+                            # lump-sum payoff for Bonus — don't multiply by
+                            # term again (see Step 2/4 of BONUS_LOAN_PLAN.md).
+                            interest = max(amort - principal, Decimal("0"))
+                        else:
+                            interest = max(amort * term - principal, Decimal("0"))
                 total_payable = principal + interest
                 loan_id = str(r.get("control_number") or "")
                 paid = paid_by_loan.get(loan_id, Decimal("0"))
                 remaining = max(total_payable - paid, Decimal("0"))
-                penalty = _accrued_penalty(loan_id, type_code, remaining, r)
+                penalty = _accrued_penalty(loan_id, type_code, remaining, r, principal)
                 total += remaining + penalty
             return total
 
@@ -7183,12 +7304,15 @@ async def get_member_debt_capacity(member_key: str):
                 term = int(r.get("term") or 0)
                 amort = Decimal(str(r.get("monthly_amortization") or 0))
                 if term > 0 and amort > 0:
-                    interest = max(amort * term - principal, Decimal("0"))
+                    if "bonus" in str(type_code).strip().lower():
+                        interest = max(amort - principal, Decimal("0"))
+                    else:
+                        interest = max(amort * term - principal, Decimal("0"))
             total_payable = principal + interest
             loan_id = str(r.get("control_number") or "")
             paid = paid_by_loan.get(loan_id, Decimal("0"))
             remaining = max(total_payable - paid, Decimal("0"))
-            penalty = _accrued_penalty(loan_id, type_code, remaining, r)
+            penalty = _accrued_penalty(loan_id, type_code, remaining, r, principal)
             is_legacy = loan_id in legacy_loan_ids
             return {
                 "control_number": r.get("control_number"),
@@ -7478,7 +7602,10 @@ async def get_bookkeeper_manage_loans():
                 term_months_val = int(row.get("term") or 0)
                 monthly_amort_val = Decimal(str(row.get("monthly_amortization") or 0))
                 if term_months_val > 0 and monthly_amort_val > 0:
-                    total_interest_amount = max(monthly_amort_val * term_months_val - principal_amount, Decimal("0"))
+                    if "bonus" in loan_type_code.lower():
+                        total_interest_amount = max(monthly_amort_val - principal_amount, Decimal("0"))
+                    else:
+                        total_interest_amount = max(monthly_amort_val * term_months_val - principal_amount, Decimal("0"))
             total_payable_amount = principal_amount + total_interest_amount
 
             loan_payments = sorted(
@@ -7617,21 +7744,20 @@ async def get_bookkeeper_manage_loans():
                 }
             )
 
-        # Non-member Bonus loans live in koica_loans and have no payment table;
-        # their repayment evidence is on raw_payload.repayment. "KOICA" is the
-        # filter value the loan-list pages already use for this type.
+        # Non-member Bonus loans live in non_member_loans and have no payment table;
+        # their repayment evidence is on raw_payload.repayment.
         try:
-            koica_rows = (
-                supabase.table("koica_loans")
+            non_member_rows = (
+                supabase.table("non_member_loans")
                 .select("control_number,full_name,loan_amount,interest_rate,term,loan_status,application_status,application_date,application_type,raw_payload")
                 .order("application_date", desc=True)
                 .execute()
             ).data or []
         except Exception as e:
-            logger.warning("koica_loans lookup failed for manage-loans: %s", e)
-            koica_rows = []
-        k_table_pays = _nonmember_payments_by_loan([str(k.get("control_number")) for k in koica_rows])
-        for k in koica_rows:
+            logger.warning("non_member_loans lookup failed for manage-loans: %s", e)
+            non_member_rows = []
+        k_table_pays = _nonmember_payments_by_loan([str(k.get("control_number")) for k in non_member_rows])
+        for k in non_member_rows:
             k_status = str(k.get("loan_status") or "").strip().lower()
             if k_status not in visible_statuses:
                 continue
@@ -7666,7 +7792,7 @@ async def get_bookkeeper_manage_loans():
                     "member_name": k.get("full_name") or "Unknown Applicant",
                     "member_type": "Non-Member",
                     "loan_type": "Non-member Bonus Loan",
-                    "loan_type_code": "KOICA",
+                    "loan_type_code": "NONMEMBER_BONUS",
                     "loan_amount": decimal_to_float(k_amount),
                     "interest_rate": BONUS_MONTHLY_RATE_NONMEMBER,
                     "term_months": int(k.get("term") or 0),
@@ -8400,7 +8526,7 @@ async def get_bookkeeper_loan_ledger(loan_id: str):
 
     row = (loan_resp.data or [None])[0]
     if not row:
-        # Non-member Bonus loans (koica_loans) are built by manage-loans.
+        # Non-member Bonus loans (non_member_loans) are built by manage-loans.
         listing = await get_bookkeeper_manage_loans()
         for r in ((listing or {}).get("data") or {}).get("rows") or []:
             if r.get("is_nonmember") and r.get("loan_id") == clean_loan_id:
@@ -8474,7 +8600,10 @@ async def get_bookkeeper_loan_ledger(loan_id: str):
         term_months_val = int(row.get("term") or 0)
         monthly_amort_val = Decimal(str(row.get("monthly_amortization") or 0))
         if term_months_val > 0 and monthly_amort_val > 0:
-            total_interest_amount = max(monthly_amort_val * term_months_val - principal_amount, Decimal("0"))
+            if "bonus" in loan_type_code.lower():
+                total_interest_amount = max(monthly_amort_val - principal_amount, Decimal("0"))
+            else:
+                total_interest_amount = max(monthly_amort_val * term_months_val - principal_amount, Decimal("0"))
     total_payable_amount = principal_amount + total_interest_amount
 
     _due_dates = []
@@ -10729,7 +10858,7 @@ async def list_migs_members(year: int | None = None):
             while True:
                 _batch = (
                     supabase.table("loans")
-                    .select("control_number,member_id,principal_amount,application_date,loan_status,total_interest,monthly_amortization,term")
+                    .select("control_number,member_id,principal_amount,application_date,loan_status,total_interest,monthly_amortization,term,loan_type:loan_type_id(name)")
                     .in_("member_id", member_ids)
                     .range(_offset, _offset + _page - 1)
                     .execute()
@@ -10808,6 +10937,13 @@ async def list_migs_members(year: int | None = None):
                         _app_month = int(app_date_str[5:7])
                     except Exception:
                         _app_year = None
+                _row_is_bonus = "bonus" in str((row.get("loan_type") or {}).get("name") or "").strip().lower()
+                # TODO(BONUS_LOAN_PLAN.md Step 4): for Bonus, term_months now
+                # means "months from release to the bonus date" (not an
+                # installment count from application_date), so this maturity-
+                # window math is unreviewed for Bonus and may mis-time when a
+                # Bonus loan drops out of MIGS "Loan Availed". Needs a
+                # dedicated look, not folded into this pass.
                 if _app_year and _app_month and term_months > 0:
                     # Loan is active in target_year if app_year <= target_year
                     # AND the maturity month is >= January of target_year.
@@ -10823,7 +10959,13 @@ async def list_migs_members(year: int | None = None):
                 if total_interest <= 0 and term_months > 0:
                     monthly = float(row.get("monthly_amortization") or 0)
                     if monthly > 0:
-                        total_interest = max(monthly * term_months - principal, 0.0)
+                        if _row_is_bonus:
+                            # monthly_amortization already holds the full
+                            # lump-sum payoff for Bonus (Step 2) — don't
+                            # multiply by term again.
+                            total_interest = max(monthly - principal, 0.0)
+                        else:
+                            total_interest = max(monthly * term_months - principal, 0.0)
                 total_payable = principal + total_interest
                 paid = paid_by_loan.get(str(row.get("control_number") or ""), 0.0)
                 loan_balance_by_member[mid] = loan_balance_by_member.get(mid, 0.0) + max(total_payable - paid, 0.0)
@@ -11337,7 +11479,7 @@ async def get_migs_member_detail(member_key: str, year: int | None = None):
         try:
             loans_response = (
                 supabase.table("loans")
-                .select("control_number,principal_amount,application_date,loan_status,total_interest,monthly_amortization,term")
+                .select("control_number,principal_amount,application_date,loan_status,total_interest,monthly_amortization,term,loan_type:loan_type_id(name)")
                 .eq("member_id", mid)
                 .execute()
             )
@@ -11371,10 +11513,15 @@ async def get_migs_member_detail(member_key: str, year: int | None = None):
                 principal = float(row.get("principal_amount") or 0)
                 term_months = int(row.get("term") or 0)
                 app_date_str = str(row.get("application_date") or "")
+                _row_is_bonus = "bonus" in str((row.get("loan_type") or {}).get("name") or "").strip().lower()
 
                 # Active-window check: loan opened in app_year with term_months
                 # is "still running" during target_year if maturity month >=
                 # January of target_year. Excludes fully-paid loans.
+                # TODO(BONUS_LOAN_PLAN.md Step 4): for Bonus, term_months now
+                # means "months from release to the bonus date" (not an
+                # installment count from application_date) — this maturity-
+                # window math is unreviewed for Bonus; needs a dedicated look.
                 _app_year = None
                 _app_month = None
                 if len(app_date_str) >= 7:
@@ -11395,7 +11542,10 @@ async def get_migs_member_detail(member_key: str, year: int | None = None):
                 if total_interest <= 0 and term_months > 0:
                     monthly = float(row.get("monthly_amortization") or 0)
                     if monthly > 0:
-                        total_interest = max(monthly * term_months - principal, 0.0)
+                        if _row_is_bonus:
+                            total_interest = max(monthly - principal, 0.0)
+                        else:
+                            total_interest = max(monthly * term_months - principal, 0.0)
                 total_payable = principal + total_interest
                 paid = _paid_by_loan.get(str(row.get("control_number") or ""), 0.0)
                 loan_balance += max(total_payable - paid, 0.0)
@@ -12633,7 +12783,13 @@ async def approve_bookkeeper_payment(
         if total_interest_amount <= 0:
             monthly_amort_val = Decimal(str(loan_row.get("monthly_amortization") or 0))
             if monthly_amort_val > 0 and term_months > 0:
-                total_interest_amount = max(monthly_amort_val * term_months - principal_amount, Decimal("0"))
+                if normalized_loan_type == "bonus":
+                    # monthly_amortization already holds the full lump-sum
+                    # payoff (principal + interest), not a per-installment
+                    # figure — do not multiply it by term_months again.
+                    total_interest_amount = max(monthly_amort_val - principal_amount, Decimal("0"))
+                else:
+                    total_interest_amount = max(monthly_amort_val * term_months - principal_amount, Decimal("0"))
         total_payable_amount = principal_amount + total_interest_amount
         remaining_loan_balance = max(total_payable_amount - total_validated_after, Decimal("0"))
 
@@ -12807,7 +12963,17 @@ async def approve_bookkeeper_payment(
         # The next installment opens when this period settled -- whether it was
         # fully covered, or closed short with the shortfall carried forward.
         period_settled = installment_covered or carry_arrears_forward > 0
-        if period_settled and remaining_loan_balance > 0 and current_installment_no < term_months:
+        # Bonus is a single lump-sum payoff (BONUS_LOAN_PLAN.md Step 2/3):
+        # term_months there means "months elapsed to the bonus date", not an
+        # installment count, and there is only ever installment #1 — paying
+        # it off closes the loan instead of opening a second installment.
+        is_single_installment_loan = normalized_loan_type == "bonus"
+        if (
+            period_settled
+            and remaining_loan_balance > 0
+            and not is_single_installment_loan
+            and current_installment_no < term_months
+        ):
             next_installment_no = current_installment_no + 1
 
             next_due_date = parse_date_value(current_schedule.get("due_date"))
@@ -13429,11 +13595,11 @@ def _resolve_loan_member_meta(loan_id: str) -> dict[str, Any]:
             out["loan_type"] = (lt.get("name") or "").strip() if isinstance(lt, dict) else ""
     except Exception:
         pass
-    # Fallback to koica_loans for non-member applicants.
+    # Fallback to non_member_loans for non-member applicants.
     if not out["member_name"]:
         try:
             resp = (
-                supabase.table("koica_loans")
+                supabase.table("non_member_loans")
                 .select("control_number, full_name")
                 .eq("control_number", loan_id)
                 .limit(1)
@@ -14633,14 +14799,14 @@ async def print_emergency_loan_pdf(payload: EmergencyLoanPdfRequest):
 
 class RiskPredictRequest(BaseModel):
     loan_control_number: str
-    source: Literal["loans", "koica_loans"] = "loans"
+    source: Literal["loans", "non_member_loans"] = "loans"
     scored_by: str | None = None  # auth.uid() of the manager, optional
     force_refresh: bool = False
 
 
 def _fetch_loan_for_scoring(control_number: str, source: str) -> dict:
     """Load the loan row with the columns the feature assembly needs."""
-    table = "koica_loans" if source == "koica_loans" else "loans"
+    table = "non_member_loans" if source == "non_member_loans" else "loans"
     select_cols = (
         "control_number,member_id,loan_amount,principal_amount,term,"
         "interest_rate,monthly_amortization,application_date,disbursal_date,"
@@ -14715,10 +14881,10 @@ async def predict_loan_risk(payload: RiskPredictRequest):
     loan = _fetch_loan_for_scoring(payload.loan_control_number, payload.source)
     member_id = loan.get("member_id")
 
-    # KOICA applications are non-member loans: they carry no cooperative
-    # history or classification snapshot, so the feature assembly is skipped
-    # and the loan is scored on its application-level features alone.
-    if payload.source == "koica_loans":
+    # Non-member loans carry no cooperative history or classification
+    # snapshot, so the feature assembly is skipped and the loan is scored on
+    # its application-level features alone.
+    if payload.source == "non_member_loans":
         raw = loan.get("raw_payload") or {}
         features = {
             "LoanAmount": loan.get("loan_amount"),

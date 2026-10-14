@@ -205,6 +205,25 @@ const buildMonthlyBreakdown = (loanType, principal, termMonths, monthlyRate, fir
     return breakdown;
   }
 
+  if (loanType === 'bonus') {
+    // Single lump-sum payoff, not an amortized schedule: nothing is
+    // collected monthly. Interest = principal * rate * elapsed months (Q9),
+    // due in one installment at the bonus month (BONUS_LOAN_PLAN.md Step 2).
+    // termMonths here means "months elapsed to the bonus date", mirroring
+    // main.py's /api/loans/compute Bonus branch exactly.
+    const interestComponent = money(principal * monthlyRate * termMonths);
+    const expectedAmount = money(principal + interestComponent);
+    breakdown.push({
+      installment_no: 1,
+      due_date: addMonths(dueDate, termMonths - 1).toISOString().split('T')[0],
+      expected_amount: expectedAmount,
+      principal_component: principal,
+      interest_component: interestComponent,
+      schedule_status: 'Pending',
+    });
+    return breakdown;
+  }
+
   const monthlyInterest = money(principal * monthlyRate);
   const monthlyAmortization = money(monthlyPrincipal + monthlyInterest);
 

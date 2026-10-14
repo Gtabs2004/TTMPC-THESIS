@@ -301,7 +301,7 @@ const Manager_Manage_Loans = () => {
                 <option value="CONSOLIDATED">Consolidated</option>
                 <option value="EMERGENCY">Emergency</option>
                 <option value="BONUS">Bonus</option>
-                <option value="KOICA">Non-member Bonus</option>
+                <option value="NONMEMBER_BONUS">Non-member Bonus</option>
                 <option value="ABF">ABF</option>
               </select>
 
