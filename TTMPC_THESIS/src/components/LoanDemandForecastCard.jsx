@@ -1,7 +1,9 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
   CartesianGrid,
+  Bar,
   ComposedChart,
+  ErrorBar,
   Line,
   ReferenceLine,
   ResponsiveContainer,
@@ -140,6 +142,9 @@ const buildSeries = (actualsByYear, forecast, periods, loanType) => {
       upper: fcRow?.upper ?? null,
       lower95: fcRow?.lower95 ?? null,
       upper95: fcRow?.upper95 ?? null,
+      forecastError: fcRow
+        ? [Math.max(0, fcRow.predicted - fcRow.lower), Math.max(0, fcRow.upper - fcRow.predicted)]
+        : null,
     };
   });
 };
@@ -414,8 +419,11 @@ const LoanDemandForecastCard = ({ className = "" }) => {
         <p className="font-bold text-gray-800">{row.fullLabel}</p>
         {hasActual && (
           <p className="flex items-center gap-1.5 text-gray-700">
-            <span className="inline-block w-4 h-0.5 shrink-0" style={{ background: loanType.color }} />
-            <span className="font-semibold">Actual:</span> {PHP(actual)}
+            <span
+              className="inline-block w-3 h-3 shrink-0 rounded-sm"
+              style={{ background: loanType.value === "bonus" ? "#94a3b8" : loanType.color }}
+            />
+            <span className="font-semibold">Actual demand:</span> {PHP(actual)}
           </p>
         )}
         {row.liveCount > 0 && (
@@ -426,10 +434,10 @@ const LoanDemandForecastCard = ({ className = "" }) => {
         {hasForecast && (
           <p className="flex items-center gap-1.5 text-gray-700">
             <span
-              className="inline-block w-4 h-0.5 shrink-0"
-              style={{ background: `repeating-linear-gradient(to right, ${loanType.color} 0 3px, transparent 3px 6px)` }}
+              className="inline-block w-3 h-3 shrink-0 rounded-sm"
+              style={{ background: loanType.color, opacity: loanType.value === "bonus" ? 0.58 : 1 }}
             />
-            <span className="font-semibold">Forecast:</span> {PHP(predicted)}
+            <span className="font-semibold">{loanType.value === "bonus" ? "Expected demand:" : "Forecast:"}</span> {PHP(predicted)}
           </p>
         )}
         {row.band80 && (
@@ -497,24 +505,44 @@ const LoanDemandForecastCard = ({ className = "" }) => {
       ) : (
         <div className="grid grid-cols-1 gap-5 mb-6">
           {LOAN_TYPES.map((t) => (
-            <div key={t.value} className="border border-gray-200 rounded-lg p-4">
+            <div
+              key={t.value}
+              className={`border rounded-lg p-4 ${
+                t.value === "bonus" ? "border-slate-200 bg-slate-50/30" : "border-gray-200"
+              }`}
+            >
               <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
                 <div className="flex items-center gap-2">
                   <span className="w-2.5 h-2.5 rounded-full" style={{ background: t.color }} />
-                  <h3 className="text-sm font-bold text-gray-800">{t.label} Loan</h3>
+                  <h3 className="text-sm font-semibold text-gray-800">{t.label} Loan</h3>
                 </div>
                 <div className="flex flex-wrap items-center gap-3 text-[11px] text-gray-500">
-                  <span className="flex items-center gap-1">
-                    <span className="inline-block w-4 h-0.5" style={{ background: t.color }} />
-                    Actual
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <span
-                      className="inline-block w-4 h-0.5"
-                      style={{ background: `repeating-linear-gradient(to right, ${t.color} 0 3px, transparent 3px 6px)` }}
-                    />
-                    Forecast
-                  </span>
+                  {t.value === "bonus" ? (
+                    <>
+                      <span className="flex items-center gap-1">
+                        <span className="inline-block w-3 h-3 rounded-sm" style={{ background: "#94a3b8" }} />
+                        Actual demand
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <span className="inline-block w-3 h-3 rounded-sm" style={{ background: t.color, opacity: 0.58 }} />
+                        Expected demand
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="flex items-center gap-1">
+                        <span className="inline-block w-4 h-0.5" style={{ background: t.color }} />
+                        Actual
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <span
+                          className="inline-block w-4 h-0.5"
+                          style={{ background: `repeating-linear-gradient(to right, ${t.color} 0 3px, transparent 3px 6px)` }}
+                        />
+                        Forecast
+                      </span>
+                    </>
+                  )}
                 </div>
               </div>
               {typeErrors[t.value] && (
@@ -566,9 +594,14 @@ const LoanDemandForecastCard = ({ className = "" }) => {
                 return (
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
                     {tiles.map((tile) => (
-                      <div key={tile.label} className="rounded-lg bg-gray-50 px-3 py-2.5">
+                      <div
+                        key={tile.label}
+                        className={`rounded-lg px-3 py-2.5 ${
+                          t.value === "bonus" ? "bg-white/80 border border-slate-100" : "bg-gray-50"
+                        }`}
+                      >
                         <p className="text-[11px] text-gray-500">{tile.label}</p>
-                        <p className="text-lg font-bold text-gray-800 leading-tight" title={tile.title}>
+                        <p className="text-lg font-semibold text-gray-800 leading-tight" title={tile.title}>
                           {tile.value}
                           {tile.sub && <span className="ml-1.5 text-xs font-medium text-gray-500">{tile.sub}</span>}
                         </p>
@@ -578,10 +611,16 @@ const LoanDemandForecastCard = ({ className = "" }) => {
                 );
               })()}
               {(
-                <div className="h-60">
-                  <ResponsiveContainer debounce={200} width="100%" height="100%">
+                <div className={t.value === "bonus" ? "h-64 flex flex-col" : "h-60 flex flex-col"}>
+                  {t.value === "bonus" && (
+                    <p className="mb-1 text-[11px] text-slate-500">
+                      Compare what was requested before with what may be needed next.
+                    </p>
+                  )}
+                  <div className="min-h-0 flex-1">
+                    <ResponsiveContainer debounce={200} width="100%" height="100%">
                     <ComposedChart data={seriesByType[t.value]} margin={{ top: 10, right: 12, left: 0, bottom: 0 }}>
-                      <CartesianGrid stroke="#f0f0f0" vertical={false} />
+                      <CartesianGrid stroke={t.value === "bonus" ? "#e8edf3" : "#f0f0f0"} vertical={false} />
                       <XAxis dataKey="label" axisLine={{ stroke: "#e5e7eb" }} tickLine={false} tick={{ fontSize: 11, fill: "#6b7280" }} />
                       <YAxis
                         axisLine={false}
@@ -599,31 +638,64 @@ const LoanDemandForecastCard = ({ className = "" }) => {
                           strokeDasharray="3 3"
                         />
                       )}
-                      <Line
-                        type="monotone"
-                        dataKey="actual"
-                        stroke={t.color}
-                        strokeWidth={2}
-                        dot={DiamondDot(t.color)}
-                        activeDot={{ r: 5 }}
-                        name={`${t.label} (actual)`}
-                        connectNulls={false}
-                        isAnimationActive={false}
-                      />
-                      <Line
-                        type="monotone"
-                        dataKey="predicted"
-                        stroke={t.color}
-                        strokeWidth={2}
-                        strokeDasharray="5 4"
-                        dot={DiamondDot(t.color)}
-                        activeDot={{ r: 5 }}
-                        name={`${t.label} (forecast)`}
-                        connectNulls={false}
-                        isAnimationActive={false}
-                      />
+                      {t.value === "bonus" ? (
+                        <>
+                          <Bar
+                            dataKey="actual"
+                            fill="#94a3b8"
+                            fillOpacity={0.72}
+                            radius={[3, 3, 0, 0]}
+                            name="Actual demand"
+                            isAnimationActive={false}
+                          />
+                          <Bar
+                            dataKey="predicted"
+                            fill={t.color}
+                            fillOpacity={0.58}
+                            radius={[3, 3, 0, 0]}
+                            name="Expected demand"
+                            isAnimationActive={false}
+                          >
+                            <ErrorBar
+                              dataKey="forecastError"
+                              width={8}
+                              strokeWidth={1.5}
+                              stroke={t.color}
+                              opacity={0.62}
+                              direction="y"
+                            />
+                          </Bar>
+                        </>
+                      ) : (
+                        <>
+                          <Line
+                            type="monotone"
+                            dataKey="actual"
+                            stroke={t.color}
+                            strokeWidth={2}
+                            dot={DiamondDot(t.color)}
+                            activeDot={{ r: 5 }}
+                            name={`${t.label} (actual)`}
+                            connectNulls={false}
+                            isAnimationActive={false}
+                          />
+                          <Line
+                            type="monotone"
+                            dataKey="predicted"
+                            stroke={t.color}
+                            strokeWidth={2}
+                            strokeDasharray="5 4"
+                            dot={DiamondDot(t.color)}
+                            activeDot={{ r: 5 }}
+                            name={`${t.label} (forecast)`}
+                            connectNulls={false}
+                            isAnimationActive={false}
+                          />
+                        </>
+                      )}
                     </ComposedChart>
-                  </ResponsiveContainer>
+                    </ResponsiveContainer>
+                  </div>
                 </div>
               )}
               {insightsByType[t.value]?.length > 0 && (

@@ -81,6 +81,7 @@ const Treasurer_Approval = () => {
           loan_status,
           manager_review_requested_at,
           application_date,
+          applicant_full_name,
           member:member_id (
             first_name,
             last_name,
@@ -231,16 +232,18 @@ const Treasurer_Approval = () => {
   };
 
   const displayLoans = loans.map((loan) => {
-    const isNonMember = loan.source === "non_member";
+    // Non-member Bonus loans now insert into `loans` with member_id = NULL
+    // (Step 8); "no member" is the real signal, not just the legacy
+    // `source === "non_member"` (non_member_loans-sourced rows, kept as
+    // read-only history).
+    const isNonMember = loan.source === "non_member" || !loan.member;
     const firstName = loan.member?.first_name || "";
     const lastName = loan.member?.last_name || "";
     const memberName = isNonMember
-      ? (loan.full_name || "Unknown Applicant")
+      ? (loan.applicant_full_name || loan.full_name || "Unknown Applicant")
       : (`${firstName} ${lastName}`.trim() || "Unknown Member");
 
-    const loanTypeName = isNonMember
-      ? "Non-member Bonus Loan"
-      : (loan.loan_types?.name || "N/A");
+    const loanTypeName = loan.loan_types?.name || (isNonMember ? "Non-member Bonus Loan" : "N/A");
     const migsStatus = isNonMember ? "N/A" : (loan.member?.is_bona_fide ? "MIGS" : "NON-MIGS");
 
     return {

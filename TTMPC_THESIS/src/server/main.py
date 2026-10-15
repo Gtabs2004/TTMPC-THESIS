@@ -2703,6 +2703,7 @@ async def get_cashier_ready_for_disbursement_loans():
             supabase.table("loans")
             .select(
                 "control_number,loan_amount,principal_amount,interest_rate,term,loan_status,application_status,application_date," \
+                "applicant_full_name," \
                 "member:member_id(first_name,last_name)," \
                 "loan_type:loan_type_id(name,interest_rate)"
             )
@@ -2725,10 +2726,17 @@ async def get_cashier_ready_for_disbursement_loans():
                 row.get("interest_rate"),
                 loan_type_row.get("interest_rate"),
             )
+            # Non-member Bonus loans (Step 8) have no member join; fall back
+            # to the applicant name typed in at intake.
+            member_name = (
+                f"{member.get('first_name') or ''} {member.get('last_name') or ''}".strip()
+                or row.get("applicant_full_name")
+                or "Unknown Member"
+            )
             mapped.append(
                 {
                     "loan_id": row.get("control_number"),
-                    "member_name": f"{member.get('first_name') or ''} {member.get('last_name') or ''}".strip() or "Unknown Member",
+                    "member_name": member_name,
                     "loan_type": loan_type_row.get("name") or "N/A",
                     "loan_amount": decimal_to_float(row.get("loan_amount") or 0),
                     "principal_amount": decimal_to_float(row.get("principal_amount") or row.get("loan_amount") or 0),
@@ -2803,7 +2811,7 @@ async def get_treasurer_released_loans():
             supabase.table("loans")
             .select(
                 "control_number,loan_amount,principal_amount,interest_rate,term,loan_status,application_status," \
-                "application_date,disbursal_date,release_method,released_by,raw_payload," \
+                "application_date,disbursal_date,release_method,released_by,raw_payload,applicant_full_name," \
                 "member:member_id(membership_id,first_name,last_name,is_bona_fide)," \
                 "loan_type:loan_type_id(name,interest_rate)"
             )
@@ -2817,7 +2825,7 @@ async def get_treasurer_released_loans():
             supabase.table("loans")
             .select(
                 "control_number,loan_amount,principal_amount,interest_rate,term,loan_status,application_status," \
-                "application_date,disbursal_date,raw_payload," \
+                "application_date,disbursal_date,raw_payload,applicant_full_name," \
                 "member:member_id(membership_id,first_name,last_name,is_bona_fide)," \
                 "loan_type:loan_type_id(name,interest_rate)"
             )
@@ -2859,7 +2867,11 @@ async def get_treasurer_released_loans():
         loan_type_name = (row.get("loan_type") or {}).get("name")
         loan_type = _normalize_disbursement_loan_type(loan_type_name)
         migs = _classify_migs(member)
-        member_name = f"{member.get('first_name') or ''} {member.get('last_name') or ''}".strip() or "Unknown Member"
+        member_name = (
+            f"{member.get('first_name') or ''} {member.get('last_name') or ''}".strip()
+            or row.get("applicant_full_name")
+            or "Unknown Member"
+        )
         amount = Decimal(str(row.get("principal_amount") or row.get("loan_amount") or 0))
         total_released += amount
         disbursal_date = str(row.get("disbursal_date") or "")[:10] or None
@@ -2924,6 +2936,7 @@ async def get_treasurer_priority_queue(limit: int = 10, offset: int = 0):
             supabase.table("loans")
             .select(
                 "control_number,loan_amount,principal_amount,loan_status,application_status,application_date,"
+                "applicant_full_name,"
                 "member:member_id(membership_id,first_name,last_name,is_bona_fide),"
                 "loan_type:loan_type_id(name)"
             )
@@ -2960,7 +2973,11 @@ async def get_treasurer_priority_queue(limit: int = 10, offset: int = 0):
                 days_waiting = None
 
         amount = decimal_to_float(row.get("principal_amount") or row.get("loan_amount") or 0)
-        member_name = f"{member.get('first_name') or ''} {member.get('last_name') or ''}".strip() or "Unknown Member"
+        member_name = (
+            f"{member.get('first_name') or ''} {member.get('last_name') or ''}".strip()
+            or row.get("applicant_full_name")
+            or "Unknown Member"
+        )
 
         queue.append({
             "rank": rank,
@@ -3097,7 +3114,7 @@ async def get_treasurer_rescheduled_loans():
             supabase.table("loans")
             .select(
                 "control_number,member_id,loan_amount,principal_amount,term,loan_status,application_date," \
-                "application_type,rescheduled_at,reschedule_note," \
+                "application_type,rescheduled_at,reschedule_note,applicant_full_name," \
                 f"{LOAN_FEE_SNAPSHOT_COLUMNS}," \
                 "member:member_id(first_name,last_name)," \
                 "loan_type:loan_type_id(name,code)"
@@ -3166,7 +3183,11 @@ async def get_treasurer_rescheduled_loans():
         rows.append({
             "loan_id": cn,
             "source": "loans",
-            "member_name": f"{member.get('first_name') or ''} {member.get('last_name') or ''}".strip() or "Unknown Member",
+            "member_name": (
+                f"{member.get('first_name') or ''} {member.get('last_name') or ''}".strip()
+                or r.get("applicant_full_name")
+                or "Unknown Member"
+            ),
             "loan_type": (r.get("loan_type") or {}).get("name") or "N/A",
             "loan_amount": decimal_to_float(r.get("loan_amount") or 0),
             "net_cash_out": decimal_to_float(net_cash_out),
@@ -3237,7 +3258,7 @@ async def get_treasurer_decision_queue(limit: int = 5):
             supabase.table("loans")
             .select(
                 "control_number,member_id,loan_amount,principal_amount,loan_status,application_date,"
-                f"application_type,{LOAN_FEE_SNAPSHOT_COLUMNS},"
+                f"application_type,applicant_full_name,{LOAN_FEE_SNAPSHOT_COLUMNS},"
                 "member:member_id(first_name,last_name,is_bona_fide),"
                 "loan_type:loan_type_id(name,code)"
             )
@@ -3301,7 +3322,11 @@ async def get_treasurer_decision_queue(limit: int = 5):
         queue.append({
             "loan_id": cn,
             "source": "loans",
-            "member_name": f"{member.get('first_name') or ''} {member.get('last_name') or ''}".strip() or "Unknown Member",
+            "member_name": (
+                f"{member.get('first_name') or ''} {member.get('last_name') or ''}".strip()
+                or r.get("applicant_full_name")
+                or "Unknown Member"
+            ),
             "migs": migs,
             "loan_type": loan_type,
             "rank": rank,
@@ -6829,6 +6854,7 @@ def get_bookkeeper_loan_approval_queue(current_user: dict = _Depends(_get_curren
             supabase.table("loans")
             .select(
                 "control_number,loan_amount,term,loan_status,application_status,application_date,"
+                "applicant_full_name,"
                 "member:member_id(first_name,last_name,is_bona_fide),"
                 "loan_types:loan_type_id(name)"
             )
@@ -13578,7 +13604,8 @@ def _resolve_loan_member_meta(loan_id: str) -> dict[str, Any]:
         resp = (
             supabase.table("loans")
             .select(
-                "control_number, member_id, member:member_id(first_name,last_name), "
+                "control_number, member_id, applicant_full_name, "
+                "member:member_id(first_name,last_name), "
                 "loan_type:loan_type_id(name)"
             )
             .eq("control_number", loan_id)
@@ -13590,12 +13617,14 @@ def _resolve_loan_member_meta(loan_id: str) -> dict[str, Any]:
             out["member_id"] = str(row.get("member_id") or "").strip()
             member = row.get("member") or {}
             name = f"{(member.get('first_name') or '').strip()} {(member.get('last_name') or '').strip()}".strip()
-            out["member_name"] = name
+            # Non-member Bonus loans (Step 8) have no member join.
+            out["member_name"] = name or (row.get("applicant_full_name") or "").strip()
             lt = row.get("loan_type") or {}
             out["loan_type"] = (lt.get("name") or "").strip() if isinstance(lt, dict) else ""
     except Exception:
         pass
-    # Fallback to non_member_loans for non-member applicants.
+    # Fallback to non_member_loans for legacy non-member applicants
+    # (loans not yet migrated / pre-Step 8 non_member_loans-sourced rows).
     if not out["member_name"]:
         try:
             resp = (

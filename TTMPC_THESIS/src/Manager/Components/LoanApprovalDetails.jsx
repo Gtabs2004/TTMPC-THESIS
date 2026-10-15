@@ -486,6 +486,7 @@ const LoanApprovalDetails = () => {
               raw_payload,
               loan_purpose,
               source_of_income,
+              applicant_full_name,
               member:member_id (
                 id,
                 membership_id,
@@ -505,16 +506,20 @@ const LoanApprovalDetails = () => {
 
         if (!data) throw new Error('Loan record not found.');
 
+        // Non-member Bonus loans now insert into `loans` with
+        // member_id = NULL (Step 8); "no member" is the real signal, not
+        // just isNonMemberSource (which only means "fetched from the legacy
+        // non_member_loans table").
+        const hasNoMember = isNonMemberSource || !data.member;
         const firstName = data.member?.first_name || '';
         const lastName = data.member?.last_name || '';
-        const memberName = isNonMemberSource
-          ? (data.full_name || 'Unknown Applicant')
+        const memberName = hasNoMember
+          ? (data.applicant_full_name || data.full_name || 'Unknown Applicant')
           : (`${firstName} ${lastName}`.trim() || 'Unknown Member');
         const principalAmount = Number(data.principal_amount ?? data.loan_amount ?? 0);
         const termMonths = Number(data.term || 0);
-        const resolvedLoanType = isNonMemberSource
-          ? 'Non-member Bonus Loan'
-          : (data.loan_type?.name || 'N/A');
+        const resolvedLoanType = data.loan_type?.name
+          || (isNonMemberSource ? 'Non-member Bonus Loan' : 'N/A');
         // Always re-resolve from loan_types so stale per-loan snapshots from the
         // pre-rate-fix era cannot poison the display. Fall back to the snapshot
         // only if loan_types lookup yields nothing.
@@ -616,6 +621,7 @@ const LoanApprovalDetails = () => {
         const mapped = {
           id: data.control_number,
           sourceTable: tableName,
+          hasNoMember,
           rawPayload: data.raw_payload || {},
           applicationDate: data.application_date || null,
           memberName,
@@ -627,7 +633,7 @@ const LoanApprovalDetails = () => {
             recommendedAmountRaw: Number(data.loan_amount || 0),
             term: `${data.term || 0} Months`,
             // Legacy fallback only; the live MIGS label from useMigsLabel is preferred in the UI.
-            migsStatus: isNonMemberSource ? 'N/A' : (data.member?.is_bona_fide ? 'MIGS' : 'NON-MIGS'),
+            migsStatus: hasNoMember ? 'N/A' : (data.member?.is_bona_fide ? 'MIGS' : 'NON-MIGS'),
             memberEmail: (
               data.user_email
               || data.raw_payload?.optionalFields?.user_email
@@ -656,6 +662,8 @@ const LoanApprovalDetails = () => {
             monthlyAmortization: formatCurrency(monthlyAmortization),
             emergencySchedule: emergencyScheduleRows,
           },
+          // non_member_loans-sourced rows (legacy) have no fee columns at all;
+          // non-member Bonus rows now in `loans` (Step 8) do, same as member rows.
           deductions: isNonMemberSource ? null : {
             service_fee: data.service_fee,
             cbu_deduction: data.cbu_deduction,
@@ -1296,7 +1304,9 @@ const LoanApprovalDetails = () => {
       // amount, not the MIGS CBU x3/5 cap — require it to be saved before
       // recommending. Checked against the DB-saved value (verifiedBonusAmountSaved),
       // not just whatever's typed in the input, so a stray unsaved edit can't
-      // slip through.
+      // slip through. Applies to non-member Bonus too now that it's a real
+      // `loans` row (Step 8) — only legacy non_member_loans-sourced rows
+      // (which have no verified_bonus_amount column) are exempt.
       const isBonusLoan = String(loanDetails.summary?.loanType || '').toLowerCase().includes('bonus');
       if (isBonusLoan && !isNonMemberSource) {
         if (verifiedBonusAmountSaved === null || verifiedBonusAmountSaved === undefined) {

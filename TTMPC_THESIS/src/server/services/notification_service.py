@@ -87,7 +87,7 @@ def _fetch_loan_with_member(supabase, loan_id: str) -> dict[str, Any] | None:
             supabase.table("loans")
             .select(
                 "control_number, loan_amount, principal_amount, loan_status, last_emailed_status, "
-                "raw_payload, member_id, "
+                "raw_payload, member_id, applicant_full_name, "
                 "member:member_id(first_name,last_name,membership_id), "
                 "loan_type:loan_type_id(name)"
             )
@@ -127,6 +127,7 @@ def _normalize_loan_row(supabase, row: dict, *, source_table: str) -> dict[str, 
 
     member_name = (
         f"{_safe(member.get('first_name'))} {_safe(member.get('last_name'))}".strip()
+        or _safe(row.get("applicant_full_name"))
         or _safe(row.get("full_name"))
         or "Member"
     )

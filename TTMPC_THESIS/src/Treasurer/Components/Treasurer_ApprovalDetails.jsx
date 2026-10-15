@@ -340,6 +340,7 @@ const Treasurer_ApprovalDetails = () => {
               raw_payload,
               loan_purpose,
               source_of_income,
+              applicant_full_name,
               member:member_id (
                 id,
                 first_name,
@@ -359,8 +360,13 @@ const Treasurer_ApprovalDetails = () => {
 
         if (!data) throw new Error('Loan record not found.');
 
+        // Non-member Bonus loans now insert into `loans` with
+        // member_id = NULL (Step 8); "no member" is the real signal, not
+        // just isNonMemberSource (legacy non_member_loans rows).
+        const hasNoMember = isNonMemberSource || !data.member_id;
+
         let resolvedMember = data.member;
-        if (!isNonMemberSource && (!resolvedMember?.first_name && !resolvedMember?.last_name) && data.member_id) {
+        if (!hasNoMember && (!resolvedMember?.first_name && !resolvedMember?.last_name) && data.member_id) {
           const fallbackMember = await fetchMemberById(data.member_id);
           if (fallbackMember) {
             resolvedMember = fallbackMember;
@@ -369,8 +375,8 @@ const Treasurer_ApprovalDetails = () => {
 
         const firstName = resolvedMember?.first_name || '';
         const lastName = resolvedMember?.last_name || '';
-        const memberName = isNonMemberSource
-          ? (data.full_name || 'Unknown Applicant')
+        const memberName = hasNoMember
+          ? (data.applicant_full_name || data.full_name || 'Unknown Applicant')
           : (`${firstName} ${lastName}`.trim() || 'Unknown Member');
 
         const normalizeText = (value) => {
@@ -383,7 +389,7 @@ const Treasurer_ApprovalDetails = () => {
         let resolvedEmployerPosition = normalizeText(data.source_of_income)
           || normalizeText(data.raw_payload?.optionalFields?.source_of_income);
 
-        if (!resolvedEmployerPosition && !isNonMemberSource) {
+        if (!resolvedEmployerPosition && !hasNoMember) {
           const membershipNumberId = String(resolvedMember?.membership_id || '').trim();
           if (membershipNumberId) {
             const { data: pdsRow, error: pdsError } = await supabase
@@ -408,9 +414,8 @@ const Treasurer_ApprovalDetails = () => {
 
         const principalAmount = Number(data.principal_amount ?? data.loan_amount ?? 0);
         const termMonths = Number(data.term || 0);
-        const resolvedLoanType = isNonMemberSource
-          ? 'Non-member Bonus Loan'
-          : (data.loan_type?.name || 'N/A');
+        const resolvedLoanType = data.loan_type?.name
+          || (hasNoMember ? 'Non-member Bonus Loan' : 'N/A');
         // Prefer the live loan_types rate (same as Manager view): older loan
         // snapshots stored 83 instead of 0.83 for Consolidated.
         let effectiveInterestRate = await resolveInterestRateFromLoanTypes(resolvedLoanType, data.loan_type_code);
@@ -519,7 +524,7 @@ const Treasurer_ApprovalDetails = () => {
             recommendedAmount: formatCurrency(data.loan_amount),
             term: `${data.term || 0} Months`,
             // Legacy fallback only; live label via useMigsLabel preferred.
-            migsStatus: isNonMemberSource ? 'N/A' : (resolvedMember?.is_bona_fide ? 'MIGS' : 'NON-MIGS'),
+            migsStatus: hasNoMember ? 'N/A' : (resolvedMember?.is_bona_fide ? 'MIGS' : 'NON-MIGS'),
             loanPurpose: data.loan_purpose || data.raw_payload?.optionalFields?.loan_purpose || 'N/A',
             employerPosition: resolvedEmployerPosition,
             bookkeeperInternalRemarks: data.bookkeeper_internal_remarks || 'No internal remarks submitted.',
