@@ -3267,17 +3267,30 @@ async def get_treasurer_decision_queue(limit: int = 5):
         raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
 
     try:
-        loans_resp = (
-            supabase.table("loans")
-            .select(
-                "control_number,member_id,loan_amount,principal_amount,loan_status,application_date,"
-                f"application_type,applicant_full_name,{LOAN_FEE_SNAPSHOT_COLUMNS},"
-                "member:member_id(first_name,last_name,is_bona_fide),"
-                "loan_type:loan_type_id(name,code)"
-            )
-            .execute()
-        )
-        all_loans = loans_resp.data or []
+        # PostgREST can cap an unbounded response at its max-rows setting.
+        # Page through the full table so newer queue entries are not hidden
+        # behind older loans.
+        all_loans = []
+        page_size = 1000
+        offset = 0
+        while True:
+            batch = (
+                supabase.table("loans")
+                .select(
+                    "control_number,member_id,loan_amount,principal_amount,loan_status,application_date,"
+                    f"application_type,applicant_full_name,{LOAN_FEE_SNAPSHOT_COLUMNS},"
+                    "member:member_id(first_name,last_name,is_bona_fide),"
+                    "loan_type:loan_type_id(name,code)"
+                )
+                .range(offset, offset + page_size - 1)
+                .execute()
+            ).data or []
+            if not batch:
+                break
+            all_loans.extend(batch)
+            if len(batch) < page_size:
+                break
+            offset += page_size
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to load loans: {e}")
 
