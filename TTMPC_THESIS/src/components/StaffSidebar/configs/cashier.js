@@ -7,7 +7,6 @@ import {
   ArrowDownLeft,
   ShoppingCart,
   History,
-  Gift,
 } from "lucide-react";
 
 // Cashier portal navigation. Same list on every Cashier page.
@@ -15,7 +14,6 @@ export const cashierNav = [
   { name: "Dashboard",             icon: LayoutDashboard, path: "/Cashier_Dashboard" },
   { name: "Loan Payments",         icon: ArrowUpRight,    path: "/Cashier_Payments" },
   { name: "Loan Disbursement",     icon: Send,            path: "/Cashier_Disbursement" },
-  { name: "Non-Member Bonus Loan", icon: Gift,            path: "/Cashier_NonMember_Bonus" },
   { name: "Membership Payments",   icon: UserPlus,        path: "/Cashier_MembershipPayments" },
   {
     name: "Account Transactions",

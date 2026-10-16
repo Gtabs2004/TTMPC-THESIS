@@ -6,7 +6,7 @@ import { PHP_FULL, liquidityStatus } from "./treasuryData";
 
 const LIQUIDITY_META = {
   healthy: {
-    label: "Healthy Liquidity",
+    label: "Healthy ",
     icon: CheckCircle2,
     tone: "text-green-700",
     badge: "bg-green-50 text-green-700 ring-green-200",
@@ -16,7 +16,7 @@ const LIQUIDITY_META = {
         : "No loans are awaiting a funding decision.",
   },
   limited: {
-    label: "Limited Liquidity",
+    label: "Limited ",
     icon: AlertTriangle,
     tone: "text-amber-700",
     badge: "bg-amber-50 text-amber-700 ring-amber-200",

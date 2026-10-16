@@ -30,6 +30,7 @@ import {
   Calendar,
   ChevronLeft,
   History,
+  Gift,
 } from "lucide-react";
 import {
   AreaChart,
@@ -359,7 +360,17 @@ const Cashier_Dashboard = () => {
 
         {/* DASHBOARD CONTENT */}
         <main className="animate-page-in p-8">
-          <h1 className="text-2xl font-bold text-gray-900 mb-6">Dashboard</h1>
+          <div className="flex items-center justify-between gap-4 mb-6">
+            <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
+            <button
+              type="button"
+              onClick={() => navigate("/Cashier_NonMember_Bonus")}
+              className="flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 transition"
+            >
+              <Gift size={16} />
+              New Non-Member Bonus Loan
+            </button>
+          </div>
 
           {/* KPI Cards */}
           <StatCardRow cols={4}>

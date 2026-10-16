@@ -38,3 +38,4 @@ TTMPC_THESIS/src/server/Loan_Demand_Data/
 
 # Auto-generated PWA service worker build output (regenerates on every dev run)
 TTMPC_THESIS/dev-dist/
+.env
