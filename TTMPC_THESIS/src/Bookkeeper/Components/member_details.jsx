@@ -43,12 +43,12 @@ const ActiveLoansPanel = ({ membershipId }) => {
         const res = await fetch(`${API_BASE_URL}/api/member/${encodeURIComponent(membershipId)}/debt-capacity`);
         const payload = await res.json().catch(() => ({}));
         if (!res.ok || !payload?.success) {
-          throw new Error(payload?.detail || 'Failed to load active loans.');
+          throw new Error(payload?.detail || 'Failed to load loans.');
         }
         if (!cancelled) setData(payload.data);
       } catch (err) {
         if (silent) return;
-        if (!cancelled) setError(err?.message || 'Unable to load active loans.');
+        if (!cancelled) setError(err?.message || 'Unable to load loans.');
       } finally {
         if (!cancelled && !silent) setLoading(false);
       }
@@ -73,11 +73,11 @@ const ActiveLoansPanel = ({ membershipId }) => {
       <div className="flex items-center justify-between mb-5">
         <div className="flex items-center gap-2">
           <FileText className="w-5 h-5 text-[#1a4a2f]" />
-          <h2 className="text-lg font-bold text-gray-800">Existing Active Loans</h2>
+          <h2 className="text-lg font-bold text-gray-800">Loan History</h2>
         </div>
         {!loading && !error ? (
           <span className="text-xs text-gray-500">
-            {activeLoans.length === 0 ? 'No active loans' : `${activeLoans.length} loan${activeLoans.length === 1 ? '' : 's'}`}
+            {activeLoans.length === 0 ? 'No loans on record' : `${activeLoans.length} loan${activeLoans.length === 1 ? '' : 's'}`}
           </span>
         ) : null}
       </div>
@@ -93,7 +93,7 @@ const ActiveLoansPanel = ({ membershipId }) => {
         </div>
       ) : activeLoans.length === 0 ? (
         <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 p-6 text-sm text-gray-500 text-center">
-          This member has no active loans on record.
+          This member has no loans on record.
         </div>
       ) : (
         <div className="overflow-x-auto rounded-lg border border-gray-100">

@@ -8,7 +8,7 @@ import {
 // Deposit-side interest (what the coop PAYS members), stored in
 // public.deposit_interest_policies (deposit_interest_policies_schema.sql).
 // annual_rate is whole percent per year, e.g. 3 = 3% p.a.
-// The real rates aren't decided yet, so every value here is editable.
+// TD rates are edited per principal bracket in deposit_interest_policy_tiers.
 const PRODUCT_CODES = {
   SAVINGS: ["SAVINGS"],
   TIME_DEPOSIT: ["TD_6M", "TD_12M"],
@@ -28,6 +28,8 @@ const DepositInterestPanel = ({ product }) => {
   const codes = PRODUCT_CODES[product];
   const [rows, setRows] = useState({});     // keyed by product_code, last saved
   const [draft, setDraft] = useState({});   // keyed by product_code, editable copy
+  const [tierRows, setTierRows] = useState({});
+  const [tierDraft, setTierDraft] = useState({});
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -48,6 +50,13 @@ const DepositInterestPanel = ({ product }) => {
     return d;
   };
 
+  const toTierDraft = (map) => Object.fromEntries(
+    Object.entries(map).map(([code, tiers]) => [
+      code,
+      tiers.map((tier) => ({ ...tier, annual_rate_percent: tier.annual_rate_percent ?? "" })),
+    ])
+  );
+
   const fetchRows = async () => {
     setLoading(true);
     setError("");
@@ -61,6 +70,26 @@ const DepositInterestPanel = ({ product }) => {
       (data || []).forEach((r) => { map[r.product_code] = r; });
       setRows(map);
       setDraft(toDraft(map));
+
+      if (product === "TIME_DEPOSIT") {
+        const { data: tierData, error: tierError } = await supabase
+          .from("deposit_interest_policy_tiers")
+          .select("*")
+          .in("product_code", codes)
+          .order("product_code")
+          .order("term_days")
+          .order("bracket_min");
+        if (tierError) throw new Error(`deposit_interest_policy_tiers: ${tierError.message}`);
+        const tierMap = {};
+        (tierData || []).forEach((tier) => {
+          tierMap[tier.product_code] = [...(tierMap[tier.product_code] || []), tier];
+        });
+        setTierRows(tierMap);
+        setTierDraft(toTierDraft(tierMap));
+      } else {
+        setTierRows({});
+        setTierDraft({});
+      }
     } catch (e) {
       setError(e.message || "Failed to load interest policies.");
     } finally {
@@ -82,6 +111,7 @@ const DepositInterestPanel = ({ product }) => {
 
   const handleCancel = () => {
     setDraft(toDraft(rows));
+    setTierDraft(toTierDraft(tierRows));
     setEditing(false);
     setError("");
   };
@@ -95,7 +125,23 @@ const DepositInterestPanel = ({ product }) => {
       if (!session?.user?.id) {
         throw new Error("Your session has expired. Please sign in again to save policy changes.");
       }
-      for (const code of codes) {
+      if (product === "TIME_DEPOSIT") {
+        for (const code of codes) {
+          for (const tier of tierDraft[code] || []) {
+            const rate = Number(tier.annual_rate_percent);
+            if (!Number.isFinite(rate) || rate < 0 || rate >= 100) {
+              throw new Error(`${tier.bracket_label}: enter an annual rate from 0 to 99.99 (%).`);
+            }
+            const { data, error: err } = await supabase
+              .from("deposit_interest_policy_tiers")
+              .update({ annual_rate_percent: rate, updated_by: session.user.id })
+              .eq("id", tier.id)
+              .select("id");
+            if (err) throw new Error(`Failed to save ${tier.bracket_label}: ${err.message}`);
+            if (!data?.length) throw new Error(`${tier.bracket_label} was not saved.`);
+          }
+        }
+      } else for (const code of codes) {
         const d = draft[code];
         const rate = Number(d.annual_rate);
         if (String(d.annual_rate).trim() === "" || !Number.isFinite(rate) || rate < 0 || rate >= 100) {
@@ -151,15 +197,30 @@ const DepositInterestPanel = ({ product }) => {
     return {
       kind: "td",
       terms: codes.map((code) => {
-        const d = draft[code] || {};
-        const months = rows[code]?.term_months || (code === "TD_6M" ? 6 : 12);
-        const rate = Number(d.annual_rate || 0) / 100;
-        const min = Number(d.minimum_balance || 0);
-        const interest = (p * rate * months) / 12;
-        return { code, name: rows[code]?.product_name || code, months, interest, total: p + interest, belowMin: p < min, min };
+        const days = code === "TD_6M" ? 180 : 365;
+        const tiers = tierDraft[code] || [];
+        const tier = tiers.find((candidate) => (
+          p >= Number(candidate.bracket_min)
+          && (candidate.bracket_max == null || p <= Number(candidate.bracket_max))
+        ));
+        if (!tier) {
+          return { code, name: rows[code]?.product_name || code, days, belowMin: true, min: 50000 };
+        }
+        const rate = Number(tier.annual_rate_percent || 0) / 100;
+        const interest = days === 180 ? (p * rate * 180) / 365 : p * rate;
+        return {
+          code,
+          name: rows[code]?.product_name || code,
+          days,
+          rate: Number(tier.annual_rate_percent),
+          bracket: tier.bracket_label,
+          interest,
+          total: p + interest,
+          belowMin: false,
+        };
       }),
     };
-  }, [draft, sample, product, rows, codes]);
+  }, [draft, sample, product, rows, codes, tierDraft]);
 
   const missing = codes.filter((c) => !rows[c]);
   const inputCls = "w-40 border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-[#66B538] outline-none";
@@ -287,44 +348,44 @@ const DepositInterestPanel = ({ product }) => {
             </>
           )}
 
-          {product === "TIME_DEPOSIT" && codes.map((code) => draft[code] && (
+          {product === "TIME_DEPOSIT" && codes.map((code) => tierDraft[code] && (
             <fieldset key={code} className="mb-6 border border-gray-200 rounded-lg p-4">
               <legend className="px-2 text-xs font-bold uppercase tracking-wider text-gray-500 flex items-center gap-1">
                 <Clock size={12} /> {rows[code]?.product_name || code}
               </legend>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1">Annual Interest Rate</label>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="number" step="0.0001" min="0"
-                      value={draft[code].annual_rate}
-                      onChange={(e) => setField(code, "annual_rate", e.target.value)}
-                      className={inputCls}
-                    />
-                    <span className="text-sm text-gray-500">% per year</span>
+              <div className="space-y-3">
+                {tierDraft[code].map((tier) => (
+                  <div key={tier.id} className="grid grid-cols-1 md:grid-cols-[1fr_auto] items-end gap-3 rounded-lg bg-gray-50 p-3">
+                    <div>
+                      <p className="text-xs font-semibold text-gray-700">{tier.bracket_label}</p>
+                      <p className="text-[11px] text-gray-500">{tier.term_days} days</p>
+                    </div>
+                    <label className="text-xs font-semibold text-gray-600">
+                      Annual rate
+                      <span className="ml-2 inline-flex items-center gap-2 font-normal">
+                        <input
+                          type="number" step="0.0001" min="0" max="99.99"
+                          value={tier.annual_rate_percent}
+                          onChange={(e) => setTierDraft((prev) => ({
+                            ...prev,
+                            [code]: prev[code].map((candidate) => candidate.id === tier.id
+                              ? { ...candidate, annual_rate_percent: e.target.value }
+                              : candidate),
+                          }))}
+                          className={`${inputCls} w-28`}
+                        />
+                        <span className="text-sm text-gray-500">%</span>
+                      </span>
+                    </label>
                   </div>
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1">Minimum Placement</label>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm text-gray-500">₱</span>
-                    <input
-                      type="text" inputMode="decimal" placeholder="No minimum"
-                      value={formatWithCommas(draft[code].minimum_balance)}
-                      onChange={(e) => setField(code, "minimum_balance", stripCommas(e.target.value))}
-                      className={inputCls}
-                    />
-                  </div>
-                </div>
+                ))}
               </div>
             </fieldset>
           ))}
           {product === "TIME_DEPOSIT" && (
             <p className="text-xs text-gray-500">
-              One-time placement; interest is paid at maturity. At maturity the member withdraws everything or only the
-              interest (keeping the principal), then renews or opens a new placement. A placement keeps the rate it was
-              opened with.
+              Rates are selected per placement principal and term. A placement stores the applied rate and bracket at
+              opening, so later policy changes do not rewrite existing certificates.
             </p>
           )}
 
@@ -380,9 +441,10 @@ const DepositInterestPanel = ({ product }) => {
                 <div key={t.code} className="border-t border-gray-100 pt-3 first:border-0 first:pt-0">
                   <p className="font-semibold text-gray-800 mb-1">{t.name}</p>
                   {t.belowMin ? (
-                    <p className="text-amber-700 text-xs">Below the {peso(t.min)} minimum placement.</p>
+                    <p className="text-amber-700 text-xs">No applicable bracket below ₱50,000.00.</p>
                   ) : (
                     <>
+                      <p className="text-gray-500 text-xs mb-1">{t.days} days · {t.rate}% · {t.bracket}</p>
                       <div className="flex justify-between"><span className="text-gray-600">Interest at maturity</span><span className="font-mono">{peso(t.interest)}</span></div>
                       <div className="flex justify-between font-semibold"><span>Total at maturity</span><span className="font-mono text-primary">{peso(t.total)}</span></div>
                     </>

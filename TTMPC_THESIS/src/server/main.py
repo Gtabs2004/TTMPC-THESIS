@@ -680,6 +680,19 @@ class CashierSavingsWithdrawRequest(BaseModel):
     amount: Decimal = Field(..., gt=0)
 
 
+class TimeDepositOpenRequest(BaseModel):
+    member_id: str = Field(..., min_length=1)
+    principal: Decimal = Field(..., gt=0)
+    term_days: Literal[180, 365]
+    placement_date: date | None = None
+    opening_key: str | None = Field(default=None, max_length=120)
+
+
+class TimeDepositPreviewRequest(BaseModel):
+    principal: Decimal = Field(..., gt=0)
+    term_days: Literal[180, 365]
+
+
 TWOPLACES = Decimal("0.01")
 CBU_STARTING_CAPITAL = Decimal("0")
 CBU_SHARE_VALUE = Decimal("1000")
@@ -7206,12 +7219,18 @@ async def get_member_debt_capacity(member_key: str):
         )
         loan_rows = loans_resp.data or []
 
+        # Statuses whose outstanding balance counts toward debt-capacity ceilings.
+        # (Fully paid / rejected / cancelled loans still show in the member's
+        # loan history panel below, just with $0 contribution to the ceilings.)
         active_statuses = {"released", "partially paid", "unpaid", "paid"}
         active_by_type: dict[str, list[dict]] = {"consolidated": [], "emergency": [], "bonus": []}
+        all_by_type: dict[str, list[dict]] = {"consolidated": [], "emergency": [], "bonus": []}
         for row in loan_rows:
+            lt_code = _resolve_loan_type_code(row)
+            if lt_code in all_by_type:
+                all_by_type[lt_code].append(row)
             if str(row.get("loan_status") or "").strip().lower() not in active_statuses:
                 continue
-            lt_code = _resolve_loan_type_code(row)
             if lt_code in active_by_type:
                 active_by_type[lt_code].append(row)
 
@@ -7221,14 +7240,20 @@ async def get_member_debt_capacity(member_key: str):
             for r in lst
             if r.get("control_number")
         ]
+        all_ids = [
+            str(r.get("control_number"))
+            for lst in all_by_type.values()
+            for r in lst
+            if r.get("control_number")
+        ]
         paid_by_loan: dict[str, Decimal] = {}
         legacy_loan_ids: set[str] = set()
-        if active_ids:
+        if all_ids:
             try:
                 pay_resp = (
                     supabase.table("loan_payments")
                     .select("loan_id,amount_paid,confirmation_status")
-                    .in_("loan_id", active_ids)
+                    .in_("loan_id", all_ids)
                     .execute()
                 ).data or []
                 for p in pay_resp:
@@ -7241,7 +7266,7 @@ async def get_member_debt_capacity(member_key: str):
                 leg_resp = (
                     supabase.table("loan_payments_legacy")
                     .select("loan_id,amount_paid")
-                    .in_("loan_id", active_ids)
+                    .in_("loan_id", all_ids)
                     .execute()
                 ).data or []
                 for p in leg_resp:
@@ -7251,15 +7276,15 @@ async def get_member_debt_capacity(member_key: str):
             except Exception:
                 pass
 
-        # Earliest unpaid schedule per active loan — used for penalty accrual.
+        # Earliest unpaid schedule per loan — used for penalty accrual.
         # Penalty applies only after the 3-month grace past the earliest missed due date.
         earliest_unpaid_due: dict[str, date] = {}
-        if active_ids:
+        if all_ids:
             try:
                 sched_resp = (
                     supabase.table("loan_schedules")
                     .select("loan_id,due_date,schedule_status")
-                    .in_("loan_id", active_ids)
+                    .in_("loan_id", all_ids)
                     .execute()
                 ).data or []
                 for s in sched_resp:
@@ -7357,8 +7382,10 @@ async def get_member_debt_capacity(member_key: str):
                 "disbursal_date": r.get("disbursal_date"),
             }
 
+        # All of the member's loans (any status), for the member-details history
+        # panel. Ceilings above are computed from active_by_type only.
         active_loans_list: list[dict] = []
-        for lt_code, rows in active_by_type.items():
+        for lt_code, rows in all_by_type.items():
             label = lt_code.capitalize()
             for row in rows:
                 active_loans_list.append(_loan_summary(row, label, lt_code))
@@ -10269,6 +10296,249 @@ def _resolve_account_number_from_param(param: str) -> str | None:
     if key.upper().startswith("SA-"):
         return key
     return resolve_savings_account_number(key)
+
+
+def _require_time_deposit_staff(current_user: dict) -> None:
+    role = _resolve_staff_role(current_user["id"], current_user.get("email") or "")
+    if role not in {"cashier", "bookkeeper", "manager", "treasurer"}:
+        raise HTTPException(status_code=403, detail="This portal cannot view Time Deposit records.")
+
+
+@app.get("/api/time-deposits/kpis")
+def list_time_deposit_kpis(current_user: dict = _Depends(_get_current_user)):
+    """Read the DB-side Time Deposit dashboard aggregates for staff portals."""
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+    _require_time_deposit_staff(current_user)
+    try:
+        row = (
+            supabase.table("v_time_deposit_kpis")
+            .select("*")
+            .limit(1)
+            .execute()
+            .data or []
+        )
+        return {"success": True, "data": row[0] if row else {}}
+    except Exception as err:
+        raise HTTPException(status_code=500, detail=f"Failed to load Time Deposit KPIs: {err}")
+
+
+@app.get("/api/time-deposits")
+def list_time_deposits(
+    status: str | None = None,
+    search: str | None = None,
+    current_user: dict = _Depends(_get_current_user),
+):
+    """Read TD contracts through the backend; no client table access is allowed."""
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+    _require_time_deposit_staff(current_user)
+    try:
+        query = (
+            supabase.table("time_deposits")
+            .select(
+                "id,certificate_number,member_id,prior_deposit_id,cycle_number,"
+                "placement_date,maturity_date,principal,term_days,annual_rate,"
+                "rate_bracket_min,rate_bracket_max,rate_bracket_label,"
+                "expected_interest,expected_maturity_value,status,created_at,updated_at,settled_at"
+            )
+            .order("maturity_date")
+        )
+        if status:
+            query = query.eq("status", status)
+        rows = query.execute().data or []
+
+        if search:
+            term = search.strip().lower()
+            rows = [
+                row for row in rows
+                if term in str(row.get("certificate_number", "")).lower()
+                or term in str(row.get("member_id", "")).lower()
+                or term in str(row.get("rate_bracket_label", "")).lower()
+            ]
+
+        member_ids = sorted({row["member_id"] for row in rows if row.get("member_id")})
+        member_lookup: dict[str, dict] = {}
+        if member_ids:
+            member_rows = (
+                supabase.table("member")
+                .select("id,membership_id,first_name,last_name")
+                .in_("id", member_ids)
+                .execute()
+                .data or []
+            )
+            member_lookup = {row["id"]: row for row in member_rows}
+
+        for row in rows:
+            member = member_lookup.get(row.get("member_id")) or {}
+            row["membership_id"] = member.get("membership_id")
+            row["account_name"] = " ".join(
+                part for part in (member.get("first_name"), member.get("last_name")) if part
+            ) or row.get("membership_id") or "Member"
+
+        return {"success": True, "data": rows, "count": len(rows)}
+    except HTTPException as err:
+        raise err
+    except Exception as err:
+        raise HTTPException(status_code=500, detail=f"Failed to list Time Deposits: {err}")
+
+
+@app.post("/api/time-deposits/open")
+def open_time_deposit(
+    payload: TimeDepositOpenRequest,
+    current_user: dict = _Depends(_get_current_user),
+):
+    """Record a member-linked TD placement without debiting regular savings."""
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+    _require_time_deposit_staff(current_user)
+    try:
+        result = supabase.rpc(
+            "td_open",
+            {
+                "p_member_id": payload.member_id,
+                "p_principal": str(money(payload.principal)),
+                "p_term_days": payload.term_days,
+                "p_placement_date": (payload.placement_date or date.today()).isoformat(),
+                "p_opening_key": payload.opening_key or str(uuid4()),
+            },
+        ).execute()
+        row = (result.data or [None])[0]
+        if not row:
+            raise HTTPException(status_code=500, detail="Time Deposit placement was not created.")
+        return {"success": True, "data": row}
+    except HTTPException as err:
+        raise err
+    except Exception as err:
+        raise HTTPException(status_code=400, detail=f"Failed to open Time Deposit: {err}")
+
+
+@app.post("/api/time-deposits/preview")
+def preview_time_deposit(
+    payload: TimeDepositPreviewRequest,
+    current_user: dict = _Depends(_get_current_user),
+):
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+    _require_time_deposit_staff(current_user)
+    try:
+        result = supabase.rpc(
+            "td_calculate_preview",
+            {"p_principal": str(money(payload.principal)), "p_term_days": payload.term_days},
+        ).execute()
+        row = (result.data or [None])[0]
+        if not row:
+            raise HTTPException(status_code=400, detail="No applicable Time Deposit policy.")
+        return {"success": True, "data": row}
+    except HTTPException as err:
+        raise err
+    except Exception as err:
+        raise HTTPException(status_code=400, detail=f"Failed to calculate Time Deposit preview: {err}")
+
+
+@app.get("/api/time-deposits/member-search")
+def search_time_deposit_members(
+    q: str = "",
+    current_user: dict = _Depends(_get_current_user),
+):
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+    _require_time_deposit_staff(current_user)
+    term = _re.sub(r"[,()*%\\]", " ", str(q or "")).strip()
+    if len(term) < 2:
+        return {"success": True, "data": []}
+    try:
+        rows = (
+            supabase.table("member")
+            .select("id,membership_id,first_name,middle_initial,last_name,member_status")
+            .or_(f"membership_id.ilike.%{term}%,first_name.ilike.%{term}%,last_name.ilike.%{term}%")
+            .order("last_name")
+            .limit(20)
+            .execute()
+        ).data or []
+        return {
+            "success": True,
+            "data": [
+                {
+                    "id": row["id"],
+                    "membership_id": row.get("membership_id"),
+                    "name": resolve_member_full_name(row),
+                }
+                for row in rows
+                if row.get("membership_id") and not _is_leaving(row)
+            ],
+        }
+    except Exception as err:
+        raise HTTPException(status_code=500, detail=f"Failed to search members: {err}")
+
+
+@app.get("/api/time-deposits/members")
+def list_time_deposit_members(current_user: dict = _Depends(_get_current_user)):
+    """List eligible existing members for the cashier TD picker."""
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+    _require_time_deposit_staff(current_user)
+    try:
+        rows = (
+            supabase.table("member")
+            .select("id,membership_id,first_name,middle_initial,last_name,member_status")
+            .order("last_name")
+            .order("first_name")
+            .limit(2000)
+            .execute()
+        ).data or []
+        return {
+            "success": True,
+            "data": [
+                {
+                    "id": row["id"],
+                    "membership_id": row.get("membership_id"),
+                    "name": resolve_member_full_name(row),
+                }
+                for row in rows
+                if row.get("membership_id") and not _is_leaving(row)
+            ],
+        }
+    except Exception as err:
+        raise HTTPException(status_code=500, detail=f"Failed to load members: {err}")
+
+
+@app.get("/api/member/time-deposits")
+def list_member_time_deposits(current_user: dict = _Depends(_get_current_user)):
+    """Return only the authenticated member's TD contracts and placement ledger."""
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+    account = _get_member_account_by_auth_user(current_user["id"])
+    member_id = str((account or {}).get("user_id") or "").strip()
+    if not member_id:
+        raise HTTPException(status_code=403, detail="No member profile is linked to this account.")
+    try:
+        placements = (
+            supabase.table("time_deposits")
+            .select(
+                "id,certificate_number,placement_date,maturity_date,principal,term_days,"
+                "annual_rate,rate_bracket_min,rate_bracket_max,rate_bracket_label,"
+                "expected_interest,expected_maturity_value,status,created_at,settled_at"
+            )
+            .eq("member_id", member_id)
+            .order("maturity_date")
+            .execute()
+            .data or []
+        )
+        ids = [row["id"] for row in placements]
+        ledger = []
+        if ids:
+            ledger = (
+                supabase.table("time_deposit_ledger")
+                .select("id,time_deposit_id,entry_type,amount,reference,posted_at")
+                .in_("time_deposit_id", ids)
+                .order("posted_at", desc=True)
+                .execute()
+                .data or []
+            )
+        return {"success": True, "data": {"placements": placements, "ledger": ledger}}
+    except Exception as err:
+        raise HTTPException(status_code=500, detail=f"Failed to load member Time Deposits: {err}")
 
 
 @app.get("/api/savings/accounts")

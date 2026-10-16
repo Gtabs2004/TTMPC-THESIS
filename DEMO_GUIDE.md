@@ -8,7 +8,7 @@
 
 ## 0. Pre-Demo Checklist (do this 15 min before)
 
-- [ ] Backend running: `cd TTMPC_THESIS/src/server` → `uvicorn main:app --reload --host 127.0.0.1 --port 8000`
+- [ ] Backend running: `cd TTMPC_THESIS/src/server` → `uvicorn main:app --reload --reload-include "*.py" --host 127.0.0.1 --port 8000`
 - [ ] Frontend running: `cd TTMPC_THESIS` → `npm run dev` (should open at http://localhost:5173)
 - [ ] Confirm `.env` has valid Supabase + Resend keys
 - [ ] Open browser at 100% zoom, close unrelated tabs

@@ -120,6 +120,17 @@ class AccrualQuote:
 
 
 @dataclass(frozen=True)
+class TDInterestQuote:
+    principal: Decimal
+    term_days: int
+    annual_rate: Decimal
+    bracket_label: str
+    interest: Decimal
+    maturity_value: Decimal
+    formula: str
+
+
+@dataclass(frozen=True)
 class PreTerminationQuote:
     elapsed_ratio: Decimal
     applied_rate: Decimal
@@ -188,6 +199,45 @@ def calculate_daily_accrual(principal, rate, tax_rate, divisor: int = 360) -> Ac
     gross = money(principal * rate / Decimal(divisor))
     tax = money(gross * tax_rate)
     return AccrualQuote(gross=gross, tax=tax, net=gross - tax)
+
+
+TD_TERM_DAYS = (180, 365)
+TD_RATE_BRACKETS = (
+    (Decimal("50000"), Decimal("200000"), Decimal("0.015"), Decimal("0.020"), "PHP 50,000.00-PHP 199,999.99"),
+    (Decimal("200000"), Decimal("500000"), Decimal("0.020"), Decimal("0.025"), "PHP 200,000.00-PHP 499,999.99"),
+    (Decimal("500000"), Decimal("800000"), Decimal("0.025"), Decimal("0.030"), "PHP 500,000.00-PHP 799,999.99"),
+    (Decimal("800000"), None, Decimal("0.030"), Decimal("0.040"), "PHP 800,000.00 and above"),
+)
+
+
+def calculate_td_interest(principal, term_days: int) -> TDInterestQuote:
+    principal = _dec(principal, "principal")
+    if principal <= 0:
+        raise TimeDepositError("Principal must be greater than zero.")
+    if money(principal) != principal:
+        raise TimeDepositError("Principal must be in whole centavos.")
+    if term_days not in TD_TERM_DAYS:
+        raise TimeDepositError("Time Deposit term must be 180 or 365 days.")
+
+    for lower, upper, rate_180, rate_365, bracket_label in TD_RATE_BRACKETS:
+        if principal >= lower and (upper is None or principal < upper):
+            annual_rate = rate_180 if term_days == 180 else rate_365
+            interest = principal * annual_rate
+            formula = "principal x annual rate" if term_days == 365 else "principal x annual rate / 365 x 180"
+            if term_days == 180:
+                interest = principal * annual_rate / Decimal("365") * Decimal("180")
+            interest = money(interest)
+            return TDInterestQuote(
+                principal=principal,
+                term_days=term_days,
+                annual_rate=annual_rate,
+                bracket_label=bracket_label,
+                interest=interest,
+                maturity_value=money(principal + interest),
+                formula=formula,
+            )
+
+    raise TimeDepositError("No applicable Time Deposit rate bracket for this principal.")
 
 
 def _step_down_rate(elapsed_ratio: Decimal, contract_rate: Decimal, savings_rate: Decimal) -> Decimal:

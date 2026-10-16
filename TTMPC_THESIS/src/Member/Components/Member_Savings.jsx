@@ -7,6 +7,7 @@ import { UserAuth } from "../../contex/AuthContext";
 import { useNotification } from "../../contex/NotificationContext";
 import { supabase } from "../../supabaseClient";
 import { resolveMemberIdentity } from "../../utils/memberIdentity";
+import { authHeaders } from "../../utils/authHeaders";
 import { pickLatestCbuRow } from "../../utils/cbuOrdering";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
 import TableStateRow from "../../components/TableStateRow";
@@ -109,6 +110,22 @@ const formatDate = (value) => {
   return d.toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' });
 };
 
+const getTdProgress = (placement) => {
+  const start = new Date(`${placement.placement_date}T00:00:00`);
+  const maturity = new Date(`${placement.maturity_date}T00:00:00`);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const totalDays = Math.max(1, Number(placement.term_days || 0));
+  const elapsedDays = Math.max(0, Math.floor((today.getTime() - start.getTime()) / 86400000));
+  const matured = today >= maturity || placement.status === 'matured';
+  return {
+    totalDays,
+    elapsedDays: Math.min(elapsedDays, totalDays),
+    percent: matured ? 100 : Math.min(100, Math.round((elapsedDays / totalDays) * 100)),
+    matured,
+  };
+};
+
 const Member_Savings = () => {
   const { session, signOut } = UserAuth();
   const navigate = useNavigate();
@@ -118,6 +135,7 @@ const Member_Savings = () => {
   const [savingsError, setSavingsError] = useState('');
   const [regularSavings, setRegularSavings] = useState(0);
   const [timeDeposit, setTimeDeposit] = useState(0);
+  const [timeDeposits, setTimeDeposits] = useState([]);
   const [ledgerData, setLedgerData] = useState([]);
   const [memberLabel, setMemberLabel] = useState('Member');
   const [avatarUrl, setAvatarUrl] = useState('');
@@ -151,6 +169,13 @@ const Member_Savings = () => {
         const { memberId, fullName, avatarUrl: signedAvatarUrl, account, memberRow } = await resolveMemberIdentity();
         const membershipId = String(account?.membership_id || memberRow?.membership_number_id || '').trim();
         if (!memberId) throw new Error('Unable to resolve member account for savings.');
+
+        const tdHeaders = await authHeaders();
+        const tdResponse = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000'}/api/member/time-deposits`, { headers: tdHeaders });
+        const tdPayload = await tdResponse.json().catch(() => ({}));
+        if (!tdResponse.ok || !tdPayload?.success) throw new Error(tdPayload?.detail || 'Unable to load Time Deposits.');
+        const tdPlacements = tdPayload.data?.placements || [];
+        const tdLedgerRows = tdPayload.data?.ledger || [];
 
         // 1. Find this member's savings account(s) in the new schema
         const { data: savingsAccountRows, error: savingsAccountError } = await supabase
@@ -234,6 +259,19 @@ const Member_Savings = () => {
                 status: String(row?.transaction_status || 'pending_verification'),
               };
             }),
+          ...tdLedgerRows.map((row) => {
+            const placement = tdPlacements.find((candidate) => candidate.id === row.time_deposit_id);
+            return {
+              id: row.id,
+              date: formatDate(row.posted_at),
+              type: `Time Deposit Placement${placement?.certificate_number ? ` · ${placement.certificate_number}` : ''}`,
+              typeIcon: 'trend',
+              amount: `+${formatCurrency(row.amount)}`,
+              amountColor: 'text-green-600',
+              balance: '—',
+              status: 'posted',
+            };
+          }),
         ];
 
         if (mappedLedger.length === 0 && totalRegular > 0) {
@@ -253,7 +291,10 @@ const Member_Savings = () => {
           memberLabel: fullName || 'Member',
           avatarUrl: signedAvatarUrl || '',
           regularSavings: totalRegular,
-          timeDeposit: 0,
+          timeDeposit: tdPlacements
+            .filter((placement) => placement.status !== 'closed')
+            .reduce((sum, placement) => sum + Number(placement.principal || 0), 0),
+          timeDeposits: tdPlacements,
           ledgerData: mappedLedger,
           _sessionUserId: memberId,
         };
@@ -265,6 +306,7 @@ const Member_Savings = () => {
       setAvatarUrl(snap.avatarUrl);
       setRegularSavings(snap.regularSavings);
       setTimeDeposit(snap.timeDeposit);
+      setTimeDeposits(snap.timeDeposits || []);
       setLedgerData(snap.ledgerData);
     };
 
@@ -291,6 +333,7 @@ const Member_Savings = () => {
           setLedgerData([]);
           setRegularSavings(0);
           setTimeDeposit(0);
+          setTimeDeposits([]);
         }
       } finally {
         if (!silent) if (isMounted) setLoadingSavings(false);
@@ -436,6 +479,45 @@ const Member_Savings = () => {
               <h3 className="text-base sm:text-2xl lg:text-3xl font-black text-gray-900 dark:text-mdark-text break-words">{formatCurrency(totalSavings)}</h3>
             </div>
           </div>
+
+          {timeDeposits.length > 0 && (
+            <section className="mb-8">
+              <div className="mb-4 flex items-center justify-between">
+                <div>
+                  <h2 className="text-xl font-bold text-gray-900 dark:text-mdark-text">My Time Deposits</h2>
+                  <p className="mt-1 text-xs text-gray-500 dark:text-mdark-text-secondary">Track each certificate through its term.</p>
+                </div>
+              </div>
+              <div className="grid gap-4 lg:grid-cols-2">
+                {timeDeposits.map((placement) => {
+                  const progress = getTdProgress(placement);
+                  return (
+                    <article key={placement.id} className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm dark:border-mdark-border dark:bg-mdark-card">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-mdark-text-secondary">{placement.certificate_number}</p>
+                          <h3 className="mt-1 text-lg font-bold text-gray-900 dark:text-mdark-text">{formatCurrency(placement.principal)}</h3>
+                        </div>
+                        <span className={`rounded-full px-3 py-1 text-xs font-bold ${progress.matured ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'}`}>
+                          {progress.matured ? 'MATURED' : 'IN PROGRESS'}
+                        </span>
+                      </div>
+                      <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
+                        <div><span className="text-gray-500 dark:text-mdark-text-secondary">Term</span><p className="font-semibold text-gray-800 dark:text-mdark-text">{placement.term_days} days</p></div>
+                        <div><span className="text-gray-500 dark:text-mdark-text-secondary">Rate</span><p className="font-semibold text-gray-800 dark:text-mdark-text">{(Number(placement.annual_rate || 0) * 100).toFixed(2)}%</p></div>
+                        <div><span className="text-gray-500 dark:text-mdark-text-secondary">Expected tubo</span><p className="font-semibold text-emerald-700">{formatCurrency(placement.expected_interest)}</p></div>
+                        <div><span className="text-gray-500 dark:text-mdark-text-secondary">Maturity</span><p className="font-semibold text-gray-800 dark:text-mdark-text">{formatDate(placement.maturity_date)}</p></div>
+                      </div>
+                      <div className="mt-5">
+                        <div className="mb-2 flex justify-between text-xs font-semibold text-gray-500 dark:text-mdark-text-secondary"><span>{progress.elapsedDays} of {progress.totalDays} days</span><span>{progress.percent}% complete</span></div>
+                        <div className="h-2 overflow-hidden rounded-full bg-gray-100 dark:bg-mdark-elevated"><div className="h-full rounded-full bg-member-green dark:bg-mdark-accent" style={{ width: `${progress.percent}%` }} /></div>
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            </section>
+          )}
 
           {savingsError ? (
             <div className="mb-6 rounded-xl border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/30 px-4 py-3 text-sm font-medium text-red-700 dark:text-red-400">

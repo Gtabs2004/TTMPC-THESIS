@@ -33,6 +33,7 @@ import { TableToolbar } from "../../components/TableToolbar";
 import TableActionButton from "../../components/TableActionButton";
 import Pagination from "../../components/Pagination";
 import TableStateRow from "../../components/TableStateRow";
+import { authHeaders } from "../../utils/authHeaders";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 const PAGE_SIZE = 10;
@@ -101,11 +102,61 @@ const useSavingsAccounts = () => {
   return { accounts, status, error, refresh: fetchAccounts };
 };
 
+const useTimeDeposits = (enabled) => {
+  const [placements, setPlacements] = useState([]);
+  const [kpis, setKpis] = useState({});
+  const [status, setStatus] = useState("idle");
+  const [error, setError] = useState(null);
+
+  const fetchTimeDeposits = useCallback(async ({ silent = false } = {}) => {
+    if (!silent) setStatus("loading");
+    if (!silent) setError(null);
+    try {
+      const headers = await authHeaders();
+      const [placementsResponse, kpisResponse] = await Promise.all([
+        fetch(`${API_BASE_URL}/api/time-deposits`, { headers }),
+        fetch(`${API_BASE_URL}/api/time-deposits/kpis`, { headers }),
+      ]);
+      const placementsResult = await placementsResponse.json().catch(() => ({}));
+      const kpisResult = await kpisResponse.json().catch(() => ({}));
+      if (!placementsResponse.ok || !placementsResult?.success) {
+        throw new Error(placementsResult?.detail || "Failed to load Time Deposits.");
+      }
+      if (!kpisResponse.ok || !kpisResult?.success) {
+        throw new Error(kpisResult?.detail || "Failed to load Time Deposit KPIs.");
+      }
+      setPlacements(Array.isArray(placementsResult.data) ? placementsResult.data : []);
+      setKpis(kpisResult.data || {});
+      setStatus("ready");
+    } catch (err) {
+      if (silent) return;
+      setError(err?.message || "Unable to fetch Time Deposits.");
+      setPlacements([]);
+      setKpis({});
+      setStatus("error");
+    }
+  }, []);
+
+  useEffect(() => {
+    if (enabled) fetchTimeDeposits();
+  }, [enabled, fetchTimeDeposits]);
+
+  return { placements, kpis, status, error, refresh: fetchTimeDeposits };
+};
+
 const Cashier_Savings = () => {
-    const navigate = useNavigate();
+  const navigate = useNavigate();
   const { addNotification } = useNotification();
+  const [activeView, setActiveView] = useState("savings");
 
   const { accounts, status, error, refresh } = useSavingsAccounts();
+  const {
+    placements,
+    kpis: tdKpis,
+    status: tdStatus,
+    error: tdError,
+    refresh: refreshTimeDeposits,
+  } = useTimeDeposits(activeView === "time-deposits");
   const [searchTerm, setSearchTerm] = useState("");
   const [kindFilter, setKindFilter] = useState("all");
   const [sortBy, setSortBy] = useState("balance");
@@ -172,6 +223,11 @@ const Cashier_Savings = () => {
 
 
   const handleRefresh = async () => {
+    if (activeView === "time-deposits") {
+      await refreshTimeDeposits();
+      addNotification("Time Deposits refreshed.", "success");
+      return;
+    }
     await refresh();
     addNotification("Savings accounts refreshed.", "success");
   };
@@ -190,18 +246,44 @@ const Cashier_Savings = () => {
           <div className="mb-8">
             <div className="flex items-center justify-between gap-4 mb-6">
               <div>
-                <h1 className="text-3xl font-bold text-gray-900">Savings Accounts</h1>
+                <h1 className="text-3xl font-bold text-gray-900">
+                  {activeView === "savings" ? "Savings Accounts" : "Time Deposits"}
+                </h1>
                 <p className="text-sm text-gray-500 mt-1">
-                  Manage member passbooks and standalone cooperative funds
+                  {activeView === "savings"
+                    ? "Manage member passbooks and standalone cooperative funds"
+                    : "Monitor certificate placements and maturity status"}
                 </p>
               </div>
               <div className="flex items-center gap-2 px-3 py-1 bg-blue-50 border border-blue-200 rounded-lg text-xs text-blue-600 font-medium">
-                {accounts.length} accounts • {formatCurrency(totals.total)} total
+                {activeView === "savings"
+                  ? `${accounts.length} accounts • ${formatCurrency(totals.total)} total`
+                  : `${placements.length} placements • ${formatCurrency(tdKpis.locked_td_principal)} principal`}
               </div>
             </div>
 
+            <div className="inline-flex rounded-lg border border-gray-200 bg-white p-1 mb-6" role="tablist" aria-label="Deposit type">
+              {[
+                { value: "savings", label: "Regular Savings" },
+                { value: "time-deposits", label: "Time Deposits" },
+              ].map((tab) => (
+                <button
+                  key={tab.value}
+                  type="button"
+                  role="tab"
+                  aria-selected={activeView === tab.value}
+                  onClick={() => setActiveView(tab.value)}
+                  className={`rounded-md px-4 py-2 text-sm font-semibold transition ${activeView === tab.value
+                    ? "bg-green-600 text-white"
+                    : "text-gray-600 hover:bg-gray-50"}`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
             {/* SUMMARY CARDS */}
-            <StatCardRow cols={3}>
+            {activeView === "savings" && <StatCardRow cols={3}>
               <StatCard
                 label="Total Balance"
                 value={formatCurrency(totals.total)}
@@ -223,26 +305,32 @@ const Cashier_Savings = () => {
                 iconColor="text-amber-600"
                 subtext={`${formatCurrency(totals.standaloneTotal)} held`}
               />
-            </StatCardRow>
+            </StatCardRow>}
+            {activeView === "time-deposits" && <StatCardRow cols={3}>
+              <StatCard label="Total Time Deposit Principal" value={formatCurrency(tdKpis.locked_td_principal)} icon={Wallet} iconColor="text-green-600" subtext="Locked and matured principal" />
+              <StatCard label="Total Time Deposit Accounts" value={tdKpis.total_time_deposit_accounts || 0} icon={Clock} iconColor="text-emerald-600" subtext={`${formatCurrency(tdKpis.locked_td_principal)} locked principal`} />
+              <StatCard label="Awaiting Settlement" value={tdKpis.matured_awaiting_settlement_count || 0} icon={AlertCircle} iconColor="text-amber-600" subtext="Matured certificates" />
+            </StatCardRow>}
 
             {/* ALERTS */}
-            {status === "loading" && (
+            {(activeView === "savings" ? status : tdStatus) === "loading" && (
               <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700 flex items-center gap-2">
                 <Clock size={16} />
-                Loading savings accounts...
+                {activeView === "savings" ? "Loading savings accounts..." : "Loading Time Deposits..."}
               </div>
             )}
 
-            {status === "error" && (
+            {(activeView === "savings" ? status : tdStatus) === "error" && (
               <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 flex items-center gap-2">
                 <AlertCircle size={16} />
-                {error}
+                {activeView === "savings" ? error : tdError}
               </div>
             )}
 
           </div>
 
           {/* MAIN TABLE (search & filter toolbar shares this card) */}
+          {activeView === "savings" && (
           <div className="mb-8 rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
             <TableToolbar subtitle={`Showing ${paginated.length} of ${filtered.length} accounts`}>
               <div className="relative w-full sm:w-64">
@@ -423,6 +511,97 @@ const Cashier_Savings = () => {
               <Pagination page={page} totalPages={totalPages} onChange={setPage} />
             )}
           </div>
+          )}
+
+          {activeView === "time-deposits" && (
+            <div className="mb-8 rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+              <TableToolbar subtitle={`Showing ${placements.length} placements`}>
+                <div className="relative w-full sm:w-64">
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+                  <input
+                    type="text"
+                    placeholder="Search certificate or member ID..."
+                    value={searchTerm}
+                    onChange={(event) => setSearchTerm(event.target.value)}
+                    className="w-full h-8 rounded-lg border border-gray-200 bg-white pl-8 pr-3 text-[11px] font-semibold focus:outline-none focus:ring-2 focus:ring-[#2C7A3F]/40"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={handleRefresh}
+                  className="flex items-center gap-1.5 h-8 px-2.5 rounded-lg border border-gray-200 bg-white text-[11px] font-semibold text-gray-700 hover:bg-gray-50 transition"
+                >
+                  <RefreshCw size={13} />
+                  Refresh
+                </button>
+                <button
+                  type="button"
+                  onClick={() => navigate("/open_time_deposit")}
+                  className="flex items-center gap-1.5 h-8 px-2.5 rounded-lg bg-green-600 hover:bg-green-700 text-white font-semibold text-[11px] transition-colors"
+                >
+                  <UserPlus size={13} />
+                  Open Time Deposit
+                </button>
+              </TableToolbar>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-primary-deep text-[10px] uppercase tracking-wider text-white font-extrabold">
+                      <th className="p-5 font-bold">TD No.</th>
+                      <th className="p-5 font-bold">Account Name</th>
+                      <th className="p-5 font-bold">Term &amp; Rate</th>
+                      <th className="p-5 font-bold text-right">Principal</th>
+                      <th className="p-5 font-bold text-right">Expected Tubo</th>
+                      <th className="p-5 font-bold">Maturity Date</th>
+                      <th className="p-5 font-bold">Status</th>
+                      <th className="p-5 font-bold text-center">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {tdStatus === "loading" ? (
+                      <TableStateRow colSpan={8} variant="loading" label="Loading Time Deposits..." />
+                    ) : tdStatus === "error" ? (
+                      <TableStateRow colSpan={8} variant="empty" icon={AlertCircle} label={tdError || "Unable to load Time Deposits."} />
+                    ) : placements.length === 0 ? (
+                      <TableStateRow colSpan={8} variant="empty" icon={AlertCircle} label="No Time Deposit placements found" />
+                    ) : (
+                      placements
+                        .filter((row) => {
+                          const term = searchTerm.trim().toLowerCase();
+                          return !term
+                            || String(row.certificate_number || "").toLowerCase().includes(term)
+                            || String(row.membership_id || "").toLowerCase().includes(term)
+                            || String(row.account_name || "").toLowerCase().includes(term);
+                        })
+                        .map((row) => (
+                          <tr key={row.id} className="border-b border-gray-100 hover:bg-gray-50/50">
+                            <td className="p-5 font-mono text-sm text-gray-800">{row.certificate_number}</td>
+                            <td className="p-5">
+                              <p className="text-sm font-medium text-gray-900">{row.account_name}</p>
+                              <p className="text-xs text-gray-500 mt-0.5">{row.membership_id || "Member ID unavailable"}</p>
+                            </td>
+                            <td className="p-5 text-sm text-gray-700">
+                              <div>{row.term_days} days</div>
+                              <div className="text-xs text-gray-500">{(Number(row.annual_rate || 0) * 100).toFixed(2)}%</div>
+                            </td>
+                            <td className="p-5 text-right text-sm font-semibold text-gray-900">{formatCurrency(row.principal)}</td>
+                            <td className="p-5 text-right text-sm font-semibold text-emerald-700">{formatCurrency(row.expected_interest)}</td>
+                            <td className="p-5 text-sm text-gray-600">{formatDate(row.maturity_date)}</td>
+                            <td className="p-5">
+                              <span className={`inline-flex px-3 py-1.5 rounded-full text-xs font-semibold ${row.status === "matured" ? "bg-amber-100 text-amber-800" : row.status === "closed" ? "bg-gray-100 text-gray-700" : "bg-blue-100 text-blue-800"}`}>
+                                {String(row.status || "unknown").toUpperCase()}
+                              </span>
+                            </td>
+                            <td className="p-5 text-center text-xs text-gray-400">Details pending</td>
+                          </tr>
+                        ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </main>
       </div>
     </div>

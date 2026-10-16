@@ -87,6 +87,7 @@ import Cashier_Dashboard from "./Cashier/Components/Cashier_Dashboard";
 import Cashier_Savings from "./Cashier/Components/Cashier_Savings";
 import Savings_Details from "./Cashier/Components/Savings_Details";
 import Add_Savings from "./Cashier/Components/Add_Savings";
+import Open_Time_Deposit from "./Cashier/Components/Open_Time_Deposit";
 import Secretary_Attendance from "./secretary/Secretary_Attendance";
 import Secretary_General_Assembly from "./secretary/Secretary_General_Assembly";
 import Secretary_Records from "./secretary/Secretary_Records";
@@ -213,6 +214,7 @@ export const router = createBrowserRouter([
     {path: "/Cashier_NonMember_Bonus", element: cashierGuarded(<Bonus_Loan staffIntake/>)},
     {path: "/Cashier_Savings", element: cashierGuarded(<Cashier_Savings/>)},
     {path: "/add_savings", element: cashierGuarded(<Add_Savings/>)},
+    {path: "/open_time_deposit", element: cashierGuarded(<Open_Time_Deposit/>)},
     {path: "/Savings_Details/:id", element: cashierGuarded(<Savings_Details/>)},
     {path: "/Secretary_Attendance", element: secretaryGuarded(<Secretary_Attendance/>)},
     {path: "/Secretary_General_Assembly", element: secretaryGuarded(<Secretary_General_Assembly/>)},

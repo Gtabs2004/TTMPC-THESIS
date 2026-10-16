@@ -52,7 +52,7 @@ npm install
 From `TTMPC_THESIS/src/server`:
 
 ```powershell
-python -m uvicorn main:app --reload
+python -m uvicorn main:app --reload --reload-include "*.py"
 ```
 
 ### Start the frontend

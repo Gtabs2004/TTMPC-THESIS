@@ -18,8 +18,9 @@ npm run lint      # ESLint
 
 ### Backend (FastAPI, inside `TTMPC_THESIS/src/server/`)
 ```bash
-uvicorn main:app --reload --host 127.0.0.1 --port 8000
+uvicorn main:app --reload --reload-include "*.py" --host 127.0.0.1 --port 8000
 ```
+`--reload-include "*.py"` scopes the auto-reload watcher to Python source only. Without it, uvicorn watches every file under `src/server/` (including the `.sql` migration files and `.md` plan docs that live there), so saving/creating any of those restarts the whole process and kills in-flight requests — surfacing in the frontend as "Server disconnected" on calls like the dashboard-summary warm-up.
 Dependencies: `pip install -r requirements.txt` (Python 3.13, use `.venv/`)
 
 ### Environment
