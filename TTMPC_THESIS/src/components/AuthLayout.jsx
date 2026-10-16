@@ -85,11 +85,23 @@ function BrandPanel({ variant = 'default' }) {
   return (
     <aside className={`auth-slide relative hidden overflow-hidden md:flex md:flex-col md:items-center md:text-center ${isStaff ? 'justify-start bg-[#eaf6df] px-8 pt-12 lg:px-10 lg:pt-14' : 'justify-center bg-[#EAF6E1] md:p-10 lg:p-12'}`}>
       {isStaff ? (
-        <img
-          src="/assets/img/login.png"
-          alt="TTMPC staff and member portal"
-          className="auth-staff-art absolute inset-0 h-full w-full object-cover object-center"
-        />
+        <>
+          <img
+            src="/assets/img/bg-login.png"
+            alt=""
+            aria-hidden="true"
+            className="auth-staff-art absolute inset-0 h-full w-full object-cover object-center"
+          />
+          <div className="relative z-10 flex flex-col items-center gap-3 pt-1">
+            <img src="/img/ttmpc logo.png" alt="TTMPC Logo" className="h-24 w-auto drop-shadow-sm lg:h-28" />
+            <p className="max-w-[18rem] text-sm font-semibold leading-snug text-[#1f7d26]">
+              Tubungan Teachers Multi-Purpose Cooperative
+            </p>
+            <p className="mt-4 text-xs font-semibold uppercase tracking-[0.24em] text-[#238527]">
+              Staff &amp; Member Portal
+            </p>
+          </div>
+        </>
       ) : (
         <>
           {/* Decorative layer — purely visual, hidden from assistive tech */}
