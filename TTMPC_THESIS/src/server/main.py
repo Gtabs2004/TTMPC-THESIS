@@ -376,7 +376,7 @@ class StatusEmailRequest(BaseModel):
 class LoanStatusEmailRequest(BaseModel):
     loan_id: str
     stage: Literal["bookkeeper", "manager", "treasurer"]
-    action: Literal["recommend", "reject", "revise", "approve", "proceed", "disburse", "released"]
+    action: Literal["recommend", "reject", "revise", "approve", "proceed", "disburse", "reschedule", "released"]
     remarks: str | None = None
     actor_user_id: str | None = None
     next_approver_email: str | None = None

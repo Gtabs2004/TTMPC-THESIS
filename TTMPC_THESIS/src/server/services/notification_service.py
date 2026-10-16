@@ -39,7 +39,7 @@ logger = logging.getLogger("ttmpc.email.notify")
 # Stages that are allowed to be wired from the public dispatch endpoint.
 _VALID_STAGES: tuple[Stage, ...] = ("bookkeeper", "manager", "treasurer")
 _VALID_ACTIONS: tuple[Action, ...] = (
-    "recommend", "reject", "revise", "approve", "proceed", "disburse", "released",
+    "recommend", "reject", "revise", "approve", "proceed", "disburse", "reschedule", "released",
 )
 
 

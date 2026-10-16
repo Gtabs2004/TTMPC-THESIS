@@ -16,9 +16,9 @@ const RANK_TONE = {
 };
 
 const FUNDING = {
-  fundable:     { label: "Fundable",           cls: "bg-green-50 text-green-700 ring-green-200" },
-  review:       { label: "Review",             cls: "bg-amber-50 text-amber-700 ring-amber-200" },
-  insufficient: { label: "Insufficient funds", cls: "bg-red-50 text-red-700 ring-red-200" },
+  fundable:     { label: "Eligible",         cls: "bg-green-50 text-green-700 ring-green-200" },
+  review:       { label: "Needs Review",      cls: "bg-amber-50 text-amber-700 ring-amber-200" },
+  insufficient: { label: "Insufficient Funds", cls: "bg-red-50 text-red-700 ring-red-200" },
 };
 
 const RankBadge = ({ rank, title }) => (
@@ -150,9 +150,9 @@ const TreasuryDecisionQueue = ({ decision, ready }) => {
                 </p>
               </div>
               <div className="flex flex-wrap gap-2 text-[11px] font-semibold">
-                {dSummary.fundable_count > 0 && <span className={`px-2 py-1 rounded-full ring-1 ${FUNDING.fundable.cls}`}>{dSummary.fundable_count} fundable</span>}
-                {dSummary.review_count > 0 && <span className={`px-2 py-1 rounded-full ring-1 ${FUNDING.review.cls}`}>{dSummary.review_count} to review</span>}
-                {dSummary.insufficient_count > 0 && <span className={`px-2 py-1 rounded-full ring-1 ${FUNDING.insufficient.cls}`}>{dSummary.insufficient_count} short of funds</span>}
+                {dSummary.fundable_count > 0 && <span className={`px-2 py-1 rounded-full ring-1 ${FUNDING.fundable.cls}`}>{dSummary.fundable_count} Eligible</span>}
+                {dSummary.review_count > 0 && <span className={`px-2 py-1 rounded-full ring-1 ${FUNDING.review.cls}`}>{dSummary.review_count} Needs Review</span>}
+                {dSummary.insufficient_count > 0 && <span className={`px-2 py-1 rounded-full ring-1 ${FUNDING.insufficient.cls}`}>{dSummary.insufficient_count} Insufficient Funds</span>}
               </div>
             </div>
           )}

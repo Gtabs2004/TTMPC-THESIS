@@ -26,6 +26,7 @@ Action = Literal[
     "approve",           # manager -> treasurer
     "proceed",           # alias for manager approve
     "disburse",          # treasurer disbursement scheduled
+    "reschedule",        # treasurer disbursement postponed
     "released",          # treasurer/cashier confirmed release
 ]
 
@@ -67,6 +68,7 @@ def _resolve_status_label(stage: Stage, action: Action) -> str:
         ("manager", "reject"): "Rejected by Manager",
         ("manager", "revise"): "Returned for Revision (Manager)",
         ("treasurer", "disburse"): "Ready for Claim at Cashier",
+        ("treasurer", "reschedule"): "Disbursement Rescheduled",
         ("treasurer", "released"): "Released / Disbursed",
         ("treasurer", "reject"): "Disbursement Cancelled",
     }

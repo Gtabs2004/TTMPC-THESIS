@@ -711,14 +711,16 @@ const Treasurer_ApprovalDetails = () => {
       //   On 'disburse' (Treasurer confirms): email the member that the loan
       //   is ready to claim at the Cashier. Non-blocking — backend uses
       //   BackgroundTasks + Resend and dedups on the transition.
-      //   'reject' / 'reschedule' do NOT email the member.
-      if (modalType === 'disburse') {
+      //   Reschedule includes the Treasurer's note so the member knows why
+      //   disbursement was postponed. Email remains non-blocking.
+      if (modalType === 'disburse' || modalType === 'reschedule') {
         try {
           const { data: { user } = {} } = (await supabase.auth.getUser()) || {};
           dispatchLoanEmail({
             loanId: loanDetails.id,
             stage: 'treasurer',
-            action: 'disburse',
+            action: modalType,
+            remarks: modalType === 'reschedule' ? remarks.trim() : null,
             actorUserId: user?.id || null,
           });
         } catch (_err) {
@@ -1481,7 +1483,7 @@ const Treasurer_ApprovalDetails = () => {
         {/* Shared Notification Options */}
         <div className="mt-6">
           <h4 className="text-[10px] font-bold text-green-700 uppercase tracking-wider mb-3">Notification Options</h4>
-          <p className="text-xs text-gray-500">Email sending is disabled for this flow.</p>
+          <p className="text-xs text-gray-500">The member will receive an email notification after confirmation.</p>
         </div>
       </ConfirmDialog>
 
