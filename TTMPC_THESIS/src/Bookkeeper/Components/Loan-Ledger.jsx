@@ -83,6 +83,7 @@ const toPaymentRow = (entry, index) => {
     penaltyText: penalty > 0 ? formatCurrency(penalty) : "—",
     remainingText: formatCurrency(entry.remaining_after),
     status,
+    statusText: status ? status.charAt(0).toUpperCase() + status.slice(1) : status,
     statusStyle: getStatusStyle(status),
   };
 };
@@ -128,7 +129,7 @@ const PaymentRow = memo(function PaymentRow({ row }) {
       <td className="px-4 py-3">
         {row.status ? (
           <span className={`inline-flex whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-semibold ${row.statusStyle}`}>
-            {row.status}
+            {row.statusText}
           </span>
         ) : (
           <span className="text-gray-400">—</span>
@@ -239,7 +240,8 @@ const LoanLedger = () => {
     const totalsLines = [
       `Total Amount Paid: ${fmt(totalPaid)}`,
       `Total Penalty: ${fmt(totalPenalty)}`,
-      `Remaining Balance: ${fmt(loan.remaining_balance)}`,
+      `Total Remaining Payable: ${fmt(loan.remaining_balance)}`,
+      `Total Loan Obligation: ${fmt(loan.total_payable)}`,
     ];
     totalsLines.forEach((line, i) => {
       doc.text(line, pageWidth - 50, ruleY + 16 + i * 16, { align: "right" });
@@ -607,7 +609,10 @@ const LoanLedger = () => {
                 <p><span className="font-semibold">Amortization:</span> {formatCurrency(selectedLoan.amortization)}</p>
               )}
               {!isRenewed && (
-                <p><span className="font-semibold">Remaining Balance:</span> {formatCurrency(selectedLoan.remaining_balance)}</p>
+                <p><span className="font-semibold">Total Remaining Payable:</span> {formatCurrency(selectedLoan.remaining_balance)}</p>
+              )}
+              {!isRenewed && (
+                <p><span className="font-semibold">Total Loan Obligation:</span> {formatCurrency(selectedLoan.total_payable)}</p>
               )}
               <p>
                 <span className="font-semibold">{isRenewed ? "Closing Date:" : "Due Date:"}</span>{" "}
@@ -638,7 +643,7 @@ const LoanLedger = () => {
                   <th className="sticky top-0 z-10 bg-primary-deep px-4 py-3 align-bottom font-bold">Reference No.</th>
                   <th className="sticky top-0 z-10 bg-primary-deep px-4 py-3 align-bottom text-right font-bold">Payment Amount</th>
                   <th className="sticky top-0 z-10 bg-primary-deep px-4 py-3 align-bottom text-right font-bold">Penalty</th>
-                  <th className="sticky top-0 z-10 bg-primary-deep px-4 py-3 align-bottom text-right font-bold">Remaining After Payment</th>
+                  <th className="sticky top-0 z-10 bg-primary-deep px-4 py-3 align-bottom text-right font-bold">Total Payable After</th>
                   <th className="sticky top-0 z-10 bg-primary-deep px-4 py-3 align-bottom font-bold">Status</th>
                 </tr>
               </thead>

@@ -1604,9 +1604,17 @@ def build_single_schedule_row(
     row_arrears = net_carry if net_carry > 0 else Decimal("0")
     row_credit = -net_carry if net_carry < 0 else Decimal("0")
 
-    # Credit can only offset what this installment actually asks for; anything
-    # beyond that stays as credit for the installment after this one.
-    row_credit = min(row_credit, expected_amount)
+    # Every installment always asks for its full amortization (confirmed
+    # 2026-10-17): credit only ever closes a WHOLE installment outright
+    # (Prepaid, 0 due) -- it never partially discounts one. The moment what's
+    # left is less than a full installment, it is NOT applied here; the
+    # caller banks it instead (loans.banked_credit) until the loan's final
+    # installment, which is the only place a partial credit amount may land.
+    if row_credit >= expected_amount:
+        applied_now, leftover_credit = expected_amount, money(row_credit - expected_amount)
+    else:
+        applied_now, leftover_credit = Decimal("0"), row_credit
+    row_credit = applied_now
 
     return {
         "schedule_id": build_sequence_id("TTMPCLP_SI_", start_sequence_number),
@@ -1624,6 +1632,9 @@ def build_single_schedule_row(
         "carried_arrears": decimal_to_float(row_arrears),
         "applied_credit": decimal_to_float(row_credit),
         "schedule_status": "Unpaid",
+        # Not a DB column -- read by the caller to update loans.banked_credit,
+        # then discarded before the dict is inserted into loan_schedules.
+        "_leftover_credit": decimal_to_float(leftover_credit),
     }
 
 
@@ -1667,7 +1678,7 @@ def roll_forward_missed_installments(loan_id: str, as_of: date | None = None) ->
         loan_row = (
             supabase.table("loans")
             .select(
-                "control_number,loan_amount,principal_amount,interest_rate,term,loan_status,"
+                "control_number,loan_amount,principal_amount,interest_rate,term,loan_status,banked_credit,"
                 "loan_type:loan_type_id(name)"
             )
             .eq("control_number", loan_id)
@@ -1760,6 +1771,16 @@ def roll_forward_missed_installments(loan_id: str, as_of: date | None = None) ->
                 carried_arrears=carry_arrears,
                 applied_credit=carry_credit,
             )
+            leftover_credit = Decimal(str(next_row.pop("_leftover_credit", 0) or 0))
+            if leftover_credit > 0:
+                try:
+                    supabase.table("loans").update(
+                        {"banked_credit": decimal_to_float(
+                            Decimal(str(loan_row.get("banked_credit") or 0)) + leftover_credit
+                        )}
+                    ).eq("control_number", loan_id).execute()
+                except Exception:
+                    logging.exception("Could not bank leftover credit for loan %s.", loan_id)
 
             # Close first: only one open row per loan is allowed (unique index).
             supabase.table("loan_schedules").update(
@@ -2304,12 +2325,14 @@ async def get_cashier_loans_for_payments():
             schedules_by_loan = {}
 
         schedule_display_by_internal_id: dict[str, str] = {}
+        schedule_by_internal_id: dict[str, dict] = {}
         for loan_schedules in schedules_by_loan.values():
             for sched in loan_schedules:
                 internal_id = str(sched.get("id") or "")
                 display_id = str(sched.get("schedule_id") or internal_id)
                 if internal_id:
                     schedule_display_by_internal_id[internal_id] = display_id
+                    schedule_by_internal_id[internal_id] = sched
 
         # loan_payments (live) — filtered to the active loan-id set instead of
         # paging through the whole table (which is what made this endpoint
@@ -2327,7 +2350,7 @@ async def get_cashier_loans_for_payments():
             page = 1000
             offset = 0
             query_base = supabase.table("loan_payments").select(
-                "id,loan_id,schedule_id,amount_paid,penalties,payment_date,deficiency,confirmation_status,payment_reference,transaction_reference"
+                "id,loan_id,schedule_id,amount_paid,penalties,payment_date,deficiency,confirmation_status,payment_reference,transaction_reference,applied_to_current,applied_to_credit"
             )
             if _active_ids_list:
                 query_base = query_base.in_("loan_id", _active_ids_list)
@@ -2414,6 +2437,8 @@ async def get_cashier_loans_for_payments():
             pass
 
         confirmed_paid_by_loan: dict[str, Decimal] = {}
+        principal_paid_by_loan: dict[str, Decimal] = {}
+        unallocated_paid_by_loan: dict[str, Decimal] = {}
         last_payment_date_by_loan: dict[str, str] = {}
         payment_dates_by_loan: dict[str, list[date]] = {}
         legacy_loan_ids: set[str] = set()
@@ -2425,7 +2450,29 @@ async def get_cashier_loans_for_payments():
             is_confirmed = status in {"validated", "confirmed", "bookkeeper_confirmed", "approved"}
             if not is_confirmed:
                 continue
-            confirmed_paid_by_loan[loan_key] = confirmed_paid_by_loan.get(loan_key, Decimal("0")) + Decimal(str(payment.get("amount_paid") or 0))
+            amount_paid_dec = Decimal(str(payment.get("amount_paid") or 0))
+            confirmed_paid_by_loan[loan_key] = confirmed_paid_by_loan.get(loan_key, Decimal("0")) + amount_paid_dec
+
+            # Same allocation rule as the Bookkeeper ledger and the SOA view: an
+            # overpayment (applied_to_credit) is a straight principal prepayment,
+            # not interest -- only applied_to_current (capped at that
+            # installment's own due) carries that installment's interest share.
+            applied_current = payment.get("applied_to_current")
+            applied_credit = payment.get("applied_to_credit")
+            if applied_current is not None or applied_credit is not None:
+                applied_current_dec = Decimal(str(applied_current or 0))
+                applied_credit_dec = Decimal(str(applied_credit or 0))
+                sched = schedule_by_internal_id.get(str(payment.get("schedule_id") or "")) or {}
+                expected_amount = Decimal(str(sched.get("expected_amount") or 0))
+                expected_interest = Decimal(str(sched.get("expected_interest") or sched.get("interest_component") or 0))
+                interest_share = (expected_interest / expected_amount) if expected_amount > 0 else Decimal("0")
+                interest_part = money(applied_current_dec * interest_share)
+                principal_part = (applied_current_dec - interest_part) + applied_credit_dec
+                principal_paid_by_loan[loan_key] = principal_paid_by_loan.get(loan_key, Decimal("0")) + principal_part
+            else:
+                # No allocation on file (legacy/pre-migration): fall back to the
+                # loan-wide interest ratio once total_interest is known below.
+                unallocated_paid_by_loan[loan_key] = unallocated_paid_by_loan.get(loan_key, Decimal("0")) + amount_paid_dec
             # payments are pre-sorted by payment_date DESC, so first hit per loan is newest.
             pay_date = payment.get("payment_date")
             if loan_key and pay_date and loan_key not in last_payment_date_by_loan:
@@ -2469,6 +2516,8 @@ async def get_cashier_loans_for_payments():
 
             principal_amount = Decimal(str(loan.get("principal_amount") or loan.get("loan_amount") or 0))
             confirmed_paid = confirmed_paid_by_loan.get(control_number, Decimal("0"))
+            principal_paid_so_far = principal_paid_by_loan.get(control_number, Decimal("0"))
+            unallocated_paid = unallocated_paid_by_loan.get(control_number, Decimal("0"))
             total_interest_amount = Decimal(str(loan.get("total_interest") or 0))
             if total_interest_amount <= 0:
                 term_months_val = int(loan.get("term") or 0)
@@ -2482,6 +2531,18 @@ async def get_cashier_loans_for_payments():
             remaining_balance = max(total_payable_amount - confirmed_paid, Decimal("0"))
             if _ledger_says_fully_paid(loan):
                 remaining_balance = Decimal("0")
+
+            # Unallocated (legacy/pre-migration) payments fall back to the
+            # loan-wide interest ratio, same as the Bookkeeper ledger.
+            unallocated_interest_share = (
+                total_interest_amount / total_payable_amount if total_payable_amount > 0 else Decimal("0")
+            )
+            unallocated_principal = unallocated_paid - money(unallocated_paid * unallocated_interest_share)
+            outstanding_principal = max(
+                principal_amount - principal_paid_so_far - unallocated_principal, Decimal("0")
+            )
+            if _ledger_says_fully_paid(loan):
+                outstanding_principal = Decimal("0")
 
             schedules = schedules_by_loan.get(control_number, [])
             next_schedule = None
@@ -2633,6 +2694,7 @@ async def get_cashier_loans_for_payments():
                     "zero_payment_streak": zero_payment_streak,
                     "is_legacy": is_legacy_loan,
                     "remaining_balance": decimal_to_float(remaining_balance),
+                    "outstanding_principal": decimal_to_float(outstanding_principal),
                     "total_payable": decimal_to_float(total_payable_amount),
                     "total_interest": decimal_to_float(total_interest_amount),
                     "loan_status": repayment_status,
@@ -5340,6 +5402,7 @@ async def disburse_cashier_loan(loan_id: str, payload: CashierDisbursementReques
                 remaining_principal_before=principal_amount,
                 start_sequence_number=start_sequence_number,
             )
+            next_due_row.pop("_leftover_credit", None)
 
             try:
                 insert_schedule_response = supabase.table("loan_schedules").insert(next_due_row).execute()
@@ -8603,7 +8666,7 @@ async def get_bookkeeper_loan_ledger(loan_id: str):
     try:
         pay_resp = (
             supabase.table("loan_payments")
-            .select("id,loan_id,schedule_id,amount_paid,penalties,payment_date,confirmation_status,payment_reference,transaction_reference")
+            .select("id,loan_id,schedule_id,amount_paid,penalties,payment_date,confirmation_status,payment_reference,transaction_reference,applied_to_current,applied_to_credit")
             .eq("loan_id", clean_loan_id)
             .order("payment_date")
             .execute()
@@ -8641,7 +8704,7 @@ async def get_bookkeeper_loan_ledger(loan_id: str):
     try:
         sched_resp = (
             supabase.table("loan_schedules")
-            .select("loan_id,schedule_id,due_date,schedule_status,expected_amount,installment_no")
+            .select("id,loan_id,schedule_id,due_date,schedule_status,expected_amount,expected_interest,interest_component,installment_no")
             .eq("loan_id", clean_loan_id)
             .order("due_date")
             .execute()
@@ -8679,12 +8742,40 @@ async def get_bookkeeper_loan_ledger(loan_id: str):
             _due_dates.append(d)
     _due_dates.sort()
 
+    schedule_by_id = {s.get("id"): s for s in schedule_rows if s.get("id")}
+
     total_validated = Decimal("0")
+    cumulative_principal_paid = Decimal("0")
     payment_history = []
     for payment in payment_rows:
         amount_paid = Decimal(str(payment.get("amount_paid") or 0))
         if is_validated_payment_status(payment.get("confirmation_status")):
             total_validated += amount_paid
+            # Same rule as member_statement_of_account_view_v3: an overpayment
+            # (applied_to_credit) is a straight principal prepayment, not
+            # interest -- only applied_to_current (capped at the installment's
+            # own due) carries that installment's interest share. Rows with no
+            # allocation on file (legacy, or pre-migration) fall back to
+            # treating the whole payment by the loan-wide interest ratio.
+            applied_current = payment.get("applied_to_current")
+            applied_credit = payment.get("applied_to_credit")
+            has_allocation = applied_current is not None or applied_credit is not None
+            if has_allocation:
+                applied_current = Decimal(str(applied_current or 0))
+                applied_credit = Decimal(str(applied_credit or 0))
+                sched = schedule_by_id.get(payment.get("schedule_id")) or {}
+                expected_amount = Decimal(str(sched.get("expected_amount") or 0))
+                expected_interest = Decimal(str(sched.get("expected_interest") or sched.get("interest_component") or 0))
+                interest_share = (expected_interest / expected_amount) if expected_amount > 0 else (
+                    total_interest_amount / total_payable_amount if total_payable_amount > 0 else Decimal("0")
+                )
+                interest_part = money(applied_current * interest_share)
+                principal_part = (applied_current - interest_part) + applied_credit
+            else:
+                interest_share = total_interest_amount / total_payable_amount if total_payable_amount > 0 else Decimal("0")
+                interest_part = money(amount_paid * interest_share)
+                principal_part = amount_paid - interest_part
+            cumulative_principal_paid += principal_part
         running_remaining = max(total_payable_amount - total_validated, Decimal("0"))
 
         days_offset = None
@@ -8708,6 +8799,15 @@ async def get_bookkeeper_loan_ledger(loan_id: str):
     remaining_balance = max(total_payable_amount - total_validated, Decimal("0"))
     if _ledger_says_fully_paid(row):
         remaining_balance = Decimal("0")
+    # remaining_balance stays principal+interest (same definition used by the
+    # payment approval path), but the ledger also shows how much principal is
+    # left so a payment larger than one installment doesn't read as if the
+    # balance barely moved. Uses the actual per-payment allocation
+    # (applied_to_current/applied_to_credit) computed above, not a naive
+    # interest-first waterfall on the total payable -- an overpayment that
+    # exceeds the loan's remaining lifetime interest would otherwise still
+    # show zero principal paid.
+    outstanding_principal = max(principal_amount - cumulative_principal_paid, Decimal("0"))
     if remaining_balance <= 0:
         repayment_status = "Fully Paid"
     elif total_validated > 0:
@@ -8766,6 +8866,7 @@ async def get_bookkeeper_loan_ledger(loan_id: str):
         "term_months": int(row.get("term") or 0),
         "amortization": decimal_to_float(row.get("monthly_amortization") or 0),
         "remaining_balance": decimal_to_float(remaining_balance),
+        "outstanding_principal": decimal_to_float(outstanding_principal),
         "total_payable": decimal_to_float(total_payable_amount),
         "total_interest": decimal_to_float(total_interest_amount),
         "due_date": due_date,
@@ -13004,7 +13105,7 @@ async def approve_bookkeeper_payment(
         loan_response = (
             supabase.table("loans")
             .select(
-                "control_number,loan_amount,principal_amount,interest_rate,term,loan_status,total_interest,monthly_amortization," \
+                "control_number,loan_amount,principal_amount,interest_rate,term,loan_status,total_interest,monthly_amortization,banked_credit," \
                 "loan_type:loan_type_id(name)"
             )
             .eq("control_number", loan_id)
@@ -13122,6 +13223,21 @@ async def approve_bookkeeper_payment(
         # earlier periods are applied: arrears add to it, credit reduces it.
         schedule_arrears = Decimal(str(current_schedule.get("carried_arrears") or 0))
         schedule_credit = Decimal(str(current_schedule.get("applied_credit") or 0))
+
+        # Banked credit (confirmed 2026-10-17): a partial-installment
+        # overpayment credit is held on the loan, never discounting a middle
+        # installment -- it only ever surfaces here, at the loan's FINAL
+        # installment, where it finally reduces what's due.
+        current_installment_no_value = int(current_schedule.get("installment_no") or 0)
+        is_final_installment = term_months > 0 and current_installment_no_value >= term_months
+        banked_credit_applied = Decimal("0")
+        if is_final_installment:
+            banked_credit_applied = min(
+                Decimal(str(loan_row.get("banked_credit") or 0)),
+                max(loan_monthly_amortization if loan_monthly_amortization > 0 else schedule_expected_amount, Decimal("0")),
+            )
+            schedule_credit = schedule_credit + banked_credit_applied
+
         if installment_due > 0:
             installment_due = max(installment_due + schedule_arrears - schedule_credit, Decimal("0"))
 
@@ -13141,6 +13257,22 @@ async def approve_bookkeeper_payment(
             # Half a peso of tolerance for centavo rounding between the schedule and the UI.
             or paid_toward_installment + Decimal("0.50") >= installment_due
         )
+
+        # Banked credit was spent reducing the final installment's due above --
+        # once that installment is actually settled, clear it so it can't be
+        # applied again against a later attempt on the same (or a future) row.
+        if is_final_installment and installment_covered and banked_credit_applied > 0:
+            try:
+                (
+                    supabase.table("loans")
+                    .update({"banked_credit": decimal_to_float(
+                        max(Decimal(str(loan_row.get("banked_credit") or 0)) - banked_credit_applied, Decimal("0"))
+                    )})
+                    .eq("control_number", loan_id)
+                    .execute()
+                )
+            except Exception:
+                logging.exception("Could not clear spent banked credit for loan %s.", loan_id)
 
         # The penalty is collected ON TOP of amount_paid (loan_payments.penalties):
         # the cashier screen splits the cash handed over into penalty first,
@@ -13309,64 +13441,121 @@ async def approve_bookkeeper_payment(
             except Exception:
                 next_sequence_number = 0
 
-            next_schedule_row = build_single_schedule_row(
-                loan_type=normalized_loan_type,
-                principal=principal_amount,
-                term_months=term_months,
-                monthly_rate_decimal=monthly_rate_decimal,
-                due_date=next_due_date,
-                loan_id=loan_id,
-                installment_no=next_installment_no,
-                remaining_principal_before=remaining_before,
-                start_sequence_number=next_sequence_number,
-                carried_arrears=carry_arrears_forward,
-                applied_credit=carry_credit_forward,
-            )
+            # An overpayment can cover more than one future installment (e.g. a
+            # ₱5,000 payment against a ₱1,499/month loan). Every installment
+            # always asks for its full amortization (confirmed 2026-10-17):
+            # credit only ever closes a WHOLE installment outright (Prepaid, 0
+            # due) -- the moment what's left is less than one full installment,
+            # it is NOT applied to that next installment. It is banked on the
+            # loan (loans.banked_credit) instead, untouched until the loan's
+            # final installment, which is the only place a partial amount may
+            # land. Loop: generate the next installment; if it was closed
+            # outright by credit with more remaining, continue onto the one
+            # after it; otherwise stop (the row keeps its own full amount due).
+            pending_credit = carry_credit_forward
+            pending_arrears = carry_arrears_forward
+            remaining_before_loop = remaining_before
+            installment_no_loop = next_installment_no
+            due_date_loop = next_due_date
+            sequence_loop = next_sequence_number
+            while True:
+                next_schedule_row = build_single_schedule_row(
+                    loan_type=normalized_loan_type,
+                    principal=principal_amount,
+                    term_months=term_months,
+                    monthly_rate_decimal=monthly_rate_decimal,
+                    due_date=due_date_loop,
+                    loan_id=loan_id,
+                    installment_no=installment_no_loop,
+                    remaining_principal_before=remaining_before_loop,
+                    start_sequence_number=sequence_loop,
+                    carried_arrears=pending_arrears,
+                    applied_credit=pending_credit,
+                )
+                leftover_credit = money(Decimal(str(next_schedule_row.pop("_leftover_credit", 0) or 0)))
 
-            # A colliding schedule_id must not drop us into the legacy fallback
-            # below, which loses carried_arrears/applied_credit. Retry with a
-            # fresh unique id instead.
-            insert_error: Exception | None = None
-            for _attempt in range(3):
-                try:
-                    insert_next_response = (
-                        supabase.table("loan_schedules").insert(next_schedule_row).execute()
+                # A colliding schedule_id must not drop us into the legacy fallback
+                # below, which loses carried_arrears/applied_credit. Retry with a
+                # fresh unique id instead.
+                insert_error: Exception | None = None
+                for _attempt in range(3):
+                    try:
+                        insert_next_response = (
+                            supabase.table("loan_schedules").insert(next_schedule_row).execute()
+                        )
+                        created_next_schedule = (insert_next_response.data or [None])[0]
+                        insert_error = None
+                        break
+                    except Exception as sched_err:
+                        insert_error = sched_err
+                        if "duplicate" in str(sched_err).lower() or "unique" in str(sched_err).lower():
+                            next_schedule_row["schedule_id"] = f"TTMPCLP_SI_{uuid4().hex[:12].upper()}"
+                            continue
+                        break
+
+                if insert_error is not None:
+                    logging.warning(
+                        "Next schedule insert failed for loan %s installment %s (%s); "
+                        "folding arrears into expected_amount instead.",
+                        loan_id, installment_no_loop, insert_error,
                     )
+                    # Pre-migration DBs lack carried_arrears/applied_credit. Fold any
+                    # arrears into expected_amount so the shortfall is still billed
+                    # rather than silently dropped.
+                    legacy_expected = (
+                        Decimal(str(next_schedule_row["expected_amount"]))
+                        + pending_arrears
+                        - pending_credit
+                    )
+                    legacy_next_row = {
+                        "loan_id": next_schedule_row["loan_id"],
+                        "installment_no": next_schedule_row["installment_no"],
+                        "due_date": next_schedule_row["due_date"],
+                        "expected_amount": decimal_to_float(max(legacy_expected, Decimal("0"))),
+                        "principal_component": next_schedule_row["principal_component"],
+                        "interest_component": next_schedule_row["interest_component"],
+                        "schedule_status": "Unpaid",
+                    }
+                    insert_next_response = supabase.table("loan_schedules").insert(legacy_next_row).execute()
                     created_next_schedule = (insert_next_response.data or [None])[0]
-                    insert_error = None
-                    break
-                except Exception as sched_err:
-                    insert_error = sched_err
-                    if "duplicate" in str(sched_err).lower() or "unique" in str(sched_err).lower():
-                        next_schedule_row["schedule_id"] = f"TTMPCLP_SI_{uuid4().hex[:12].upper()}"
-                        continue
                     break
 
-            if insert_error is not None:
-                logging.warning(
-                    "Next schedule insert failed for loan %s installment %s (%s); "
-                    "folding arrears into expected_amount instead.",
-                    loan_id, next_installment_no, insert_error,
+                row_applied_credit = Decimal(str(next_schedule_row["applied_credit"]))
+
+                # Nothing closed this row outright, or the loan has no more
+                # installments to cascade onto -- stop. Whatever's left over
+                # (less than a full installment, or simply unused) is banked
+                # rather than discounting this row.
+                if row_applied_credit <= 0 or installment_no_loop >= term_months:
+                    if leftover_credit > 0:
+                        try:
+                            (
+                                supabase.table("loans")
+                                .update({"banked_credit": decimal_to_float(
+                                    Decimal(str(loan_row.get("banked_credit") or 0)) + leftover_credit
+                                )})
+                                .eq("control_number", loan_id)
+                                .execute()
+                            )
+                        except Exception:
+                            logging.exception("Could not bank leftover credit for loan %s.", loan_id)
+                    break
+
+                # This installment is entirely paid off by credit with more left
+                # over: close it immediately so it doesn't sit open, and continue
+                # the loop onto the installment after it with what remains.
+                (
+                    supabase.table("loan_schedules")
+                    .update({"schedule_status": "Paid"})
+                    .eq("id", created_next_schedule.get("id"))
+                    .execute()
                 )
-                # Pre-migration DBs lack carried_arrears/applied_credit. Fold any
-                # arrears into expected_amount so the shortfall is still billed
-                # rather than silently dropped.
-                legacy_expected = (
-                    Decimal(str(next_schedule_row["expected_amount"]))
-                    + carry_arrears_forward
-                    - carry_credit_forward
-                )
-                legacy_next_row = {
-                    "loan_id": next_schedule_row["loan_id"],
-                    "installment_no": next_schedule_row["installment_no"],
-                    "due_date": next_schedule_row["due_date"],
-                    "expected_amount": decimal_to_float(max(legacy_expected, Decimal("0"))),
-                    "principal_component": next_schedule_row["principal_component"],
-                    "interest_component": next_schedule_row["interest_component"],
-                    "schedule_status": "Unpaid",
-                }
-                insert_next_response = supabase.table("loan_schedules").insert(legacy_next_row).execute()
-                created_next_schedule = (insert_next_response.data or [None])[0]
+                remaining_before_loop = Decimal(str(next_schedule_row.get("remaining_principal") or 0))
+                pending_credit = leftover_credit
+                pending_arrears = Decimal("0")
+                installment_no_loop += 1
+                due_date_loop = add_months(due_date_loop, 1)
+                sequence_loop += 1
 
         loan_status_update = "fully paid" if remaining_loan_balance <= 0 else "partially paid"
         try:

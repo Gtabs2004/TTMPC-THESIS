@@ -67,7 +67,7 @@ const ALLOWED_TYPES = ["consolidated", "emergency", "bonus"];
 
 const StatusBadge = ({ row }) => {
   const tone =
-    row.status === "Paid"
+    row.status === "Paid" || row.status === "Prepaid"
       ? "bg-green-50 text-green-700 dark:bg-mdark-accent/15 dark:text-mdark-accent"
       : row.status === "Partial"
         ? "bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-300"
@@ -80,7 +80,8 @@ const StatusBadge = ({ row }) => {
           : "bg-gray-100 text-gray-600 dark:bg-mdark-elevated dark:text-mdark-text-secondary";
   const label = row.status === "Overdue" ? `Overdue · ${row.daysPastDue}d`
     : row.status === "Partial" ? "Partial payment"
-    : row.status === "Carried" ? "Not paid · carried forward" : row.status;
+    : row.status === "Carried" ? "Not paid · carried forward"
+    : row.status === "Prepaid" ? "Settled by advance credit" : row.status;
   return (
     <span className={`inline-block rounded px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wider ${tone}`}>
       {label}
@@ -315,7 +316,7 @@ const Member_StatementOfAccount = () => {
         const { data, error } = await supabase
           .from("member_statement_of_account")
           .select(
-            "payment_id, control_number, payment_date, due_date, installment_no, payment_status, reference_id, principal_paid, interest_paid, deficiency, penalty, total_amount_paid, outstanding_balance"
+            "payment_id, control_number, payment_date, due_date, installment_no, payment_status, reference_id, principal_paid, interest_paid, deficiency, penalty, total_amount_paid, outstanding_balance, outstanding_principal"
           )
           .eq("member_id", memberId)
           .eq("control_number", selectedLoan.control_number)
@@ -337,9 +338,9 @@ const Member_StatementOfAccount = () => {
 
         const { data: carriedData, error: carriedError } = await supabase
           .from("loan_schedules")
-          .select("id, installment_no, due_date, expected_amount, expected_principal, expected_interest")
+          .select("id, installment_no, due_date, expected_amount, expected_principal, expected_interest, schedule_status, applied_credit")
           .eq("loan_id", selectedLoan.control_number)
-          .eq("schedule_status", "partially_paid")
+          .in("schedule_status", ["partially_paid", "Paid"])
           .order("installment_no", { ascending: true });
         if (isMounted) setCarriedRows(carriedError ? [] : carriedData || []);
       } catch (err) {
@@ -492,11 +493,17 @@ const Member_StatementOfAccount = () => {
         amount: r.total_amount_paid,
         balance: r.outstanding_balance,
       }));
-    // The first installment that isn't overdue is the one to pay this month.
+    // The first installment that isn't overdue is the one to pay this month --
+    // unless an earlier overpayment's credit already covers it in full
+    // (amount_due rolled to 0), in which case it's settled, not pending.
     const nextNo = positionRows.find((r) => r.status !== "Overdue")?.installment_no;
     const owedRows = positionRows.map((r) => ({
       key: `s-${r.installment_no}`,
-      status: r.status === "Overdue" ? "Overdue" : r.installment_no === nextNo ? "Due Next" : "Not Yet Due",
+      status: r.status === "Overdue"
+        ? "Overdue"
+        : r.installment_no === nextNo
+        ? (Number(r.amount_due) <= 0 ? "Prepaid" : "Due Next")
+        : "Not Yet Due",
       daysPastDue: r.days_past_due,
       installment: r.installment_no,
       dueDate: r.due_date,
@@ -518,7 +525,11 @@ const Member_StatementOfAccount = () => {
       .filter((s) => !paidNos.has(s.installment_no))
       .map((s) => ({
         key: `c-${s.installment_no}`,
-        status: "Carried",
+        // Closed short (missed, shortfall rolled to the next bill) vs closed
+        // by an earlier overpayment's credit covering it in full -- same
+        // "no payment of its own" shape, different reason, so label them
+        // differently rather than letting a credit-settled month vanish.
+        status: s.schedule_status === "Paid" ? "Prepaid" : "Carried",
         installment: s.installment_no,
         dueDate: s.due_date,
         paidOn: null,
@@ -526,7 +537,7 @@ const Member_StatementOfAccount = () => {
         principal: s.expected_principal,
         interest: s.expected_interest,
         penalty: null,
-        amount: s.expected_amount,
+        amount: s.schedule_status === "Paid" ? 0 : s.expected_amount,
         balance: null,
       }));
     return [...paidRows, ...carried, ...owedRows].sort((a, b) =>
@@ -556,6 +567,7 @@ const Member_StatementOfAccount = () => {
     if (last) return Number(last.outstanding_balance || 0);
     return position ? position.remaining : 0;
   }, [rows, position]);
+
 
   const savingsTotals = useMemo(() => {
     return savingsRows.reduce(
@@ -1126,7 +1138,7 @@ const Member_StatementOfAccount = () => {
                         <TableStateRow colSpan={10} variant="empty" icon={Receipt} label="No payments or installments found for this loan." />
                       ) : (
                         statementRows.map((r) => {
-                          const paid = r.status === "Paid" || r.status === "Partial";
+                          const paid = r.status === "Paid" || r.status === "Partial" || r.status === "Prepaid";
                           return (
                             <tr key={r.key} className={`border-b border-gray-100 dark:border-mdark-border transition-colors ${r.status === "Overdue" ? "bg-red-50/40 dark:bg-red-500/5" : "hover:bg-gray-50/50 dark:hover:bg-mdark-elevated/50"}`}>
                               <td className="p-4 text-sm font-medium text-gray-700 dark:text-mdark-text">{r.installment ?? "—"}</td>
@@ -1179,7 +1191,7 @@ const Member_StatementOfAccount = () => {
                     <TableStateRow bare variant="empty" icon={Receipt} label="No payments or installments found for this loan." />
                   ) : (
                     statementRows.map((r) => {
-                      const paid = r.status === "Paid" || r.status === "Partial";
+                      const paid = r.status === "Paid" || r.status === "Partial" || r.status === "Prepaid";
                       return (
                         <div key={r.key} className={`px-4 py-3.5 ${r.status === "Overdue" ? "bg-red-50/40 dark:bg-red-500/5" : ""}`}>
                           <div className="flex items-start justify-between gap-3">

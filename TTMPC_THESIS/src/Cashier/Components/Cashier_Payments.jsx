@@ -431,6 +431,9 @@ const Cashier_Payments = () => {
           loan_amount: Number(loan.loan_amount || 0),
           term_months: Number(loan.term_months || 0),
           remaining_balance: Number(loan.remaining_balance || 0),
+          outstanding_principal: loan.outstanding_principal !== undefined && loan.outstanding_principal !== null
+            ? Number(loan.outstanding_principal)
+            : null,
           total_payable: Number(loan.total_payable || 0),
           total_interest: Number(loan.total_interest || 0),
           due_date: loan.due_date || null,
@@ -458,10 +461,6 @@ const Cashier_Payments = () => {
 
       const rawPaymentRecords = result?.data?.payment_records || [];
 
-      // Waterfall split of cumulative payments into interest-first, then principal.
-      // Live calc against loan_payments — no schema change, always in sync with what
-      // the Cashier has actually recorded. Assumes payments cover interest first
-      // (standard cooperative practice), which matches how amortization is built.
       const paidByLoan = rawPaymentRecords.reduce((acc, p) => {
         const key = String(p.loan_id || "");
         if (!key) return acc;
@@ -469,11 +468,15 @@ const Cashier_Payments = () => {
         return acc;
       }, {});
 
+      // outstanding_principal comes from the backend, which allocates each
+      // payment the same way the payment-approval endpoint does (overpayment
+      // beyond an installment's due is a straight principal prepayment, not
+      // interest). Only fall back to an interest-first waterfall on total
+      // payments when the backend didn't send the field (older cached data) --
+      // that fallback is known to misread a large overpayment as "still
+      // paying off interest" when it's less than the loan's lifetime interest.
       const enrichedLoans = mappedLoans.map((loan) => {
         const totalPaid = paidByLoan[String(loan.loan_id || "")] || 0;
-        // Prefer the backend-provided total_interest, but fall back to
-        // (amortization × term − principal) when the field is 0/missing.
-        // Old loans and mock data both hit this fallback.
         let totalInterest = Number(loan.total_interest || 0);
         if (totalInterest <= 0) {
           const derived =
@@ -481,17 +484,18 @@ const Cashier_Payments = () => {
             Number(loan.loan_amount || 0);
           if (derived > 0) totalInterest = derived;
         }
-        const interestPaid = Math.min(totalPaid, totalInterest);
-        const outstandingInterest = Math.max(totalInterest - interestPaid, 0);
-        const outstandingPrincipal = Math.max(
-          Number(loan.remaining_balance || 0) - outstandingInterest,
-          0,
-        );
+        let outstandingPrincipal = loan.outstanding_principal;
+        if (outstandingPrincipal === null || outstandingPrincipal === undefined) {
+          const interestPaid = Math.min(totalPaid, totalInterest);
+          const outstandingInterest = Math.max(totalInterest - interestPaid, 0);
+          outstandingPrincipal = Math.max(
+            Number(loan.remaining_balance || 0) - outstandingInterest,
+            0,
+          );
+        }
         return {
           ...loan,
           total_interest: totalInterest,
-          interest_paid: interestPaid,
-          outstanding_interest: outstandingInterest,
           outstanding_principal: outstandingPrincipal,
         };
       });
@@ -918,7 +922,7 @@ const Cashier_Payments = () => {
                     </th>
 
                     <th className="p-5 font-bold whitespace-nowrap">
-                      Delay Status
+                      Payment Status
                     </th>
 
 
@@ -927,7 +931,7 @@ const Cashier_Payments = () => {
                         onClick={() => handleSort("remaining_balance")}
                         className="flex items-center gap-2 font-semibold hover:text-green-100 transition group"
                       >
-                        Total Balance
+                        Total Payable
                         <ArrowUpDown size={14} className="opacity-0 group-hover:opacity-100 transition" />
                       </button>
                     </th>
@@ -1062,9 +1066,11 @@ const Cashier_Payments = () => {
                       <div><span className="text-gray-500">Amortization: </span><span className="font-medium text-gray-900">{formatCurrency(selectedLoan.amortization)}</span></div>
                       <div><span className="text-gray-500">Disbursed: </span><span className="font-medium text-gray-900">{selectedLoan.disbursal_date ? new Date(selectedLoan.disbursal_date).toLocaleDateString() : "—"}</span></div>
                       <div><span className="text-gray-500">Next Unpaid Due: </span><span className="font-medium text-gray-900">{selectedLoan.due_date ? new Date(selectedLoan.due_date).toLocaleDateString() : "—"}</span></div>
-                      <div><span className="text-gray-500">Remaining Balance: </span><span className="font-semibold text-gray-900">{formatCurrency(selectedLoan.remaining_balance)}</span></div>
+                      <div><span className="text-gray-500">Total Loan Obligation: </span><span className="font-semibold text-gray-900">{formatCurrency(selectedLoan.total_payable)}</span></div>   
+                      <div><span className="text-gray-500">Total Remaining Payable: </span><span className="font-semibold text-gray-900">{formatCurrency(selectedLoan.remaining_balance)}</span></div>
+                  
                       <div>
-                        <span className="text-gray-500">Delay Status: </span>
+                        <span className="text-gray-500">Payment Status: </span>
                         {(() => {
                           const key = resolveDelayStatus(selectedLoan);
                           const meta = DELAY_STATUS_META[key];
@@ -1114,14 +1120,24 @@ const Cashier_Payments = () => {
                             <tbody>
                               {shown.map((s) => {
                                 const isOverdue = s.status === "Overdue";
+                                // A "next" row can already be fully covered by credit from an
+                                // earlier overpayment (amount_due rolled to 0) -- that reads as
+                                // settled, not something still pending collection.
+                                const isSettledByCredit = !isOverdue && Number(s.amount_due) <= 0;
                                 return (
                                   <tr key={s.installment_no} className={`border-t border-gray-100 ${isOverdue ? "bg-red-50/50" : ""}`}>
                                     <td className="px-5 py-3 text-gray-700">{s.installment_no}</td>
                                     <td className="px-5 py-3 text-gray-700 tabular-nums">{new Date(s.due_date).toLocaleDateString()}</td>
                                     <td className="px-5 py-3 text-right font-medium text-gray-900 tabular-nums">{formatCurrency(s.amount_due)}</td>
                                     <td className="px-5 py-3">
-                                      <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${isOverdue ? "bg-red-100 text-red-700" : "bg-amber-100 text-amber-700"}`}>
-                                        {isOverdue ? `Overdue · ${s.days_past_due}d` : "Due Next"}
+                                      <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${
+                                        isOverdue
+                                          ? "bg-red-100 text-red-700"
+                                          : isSettledByCredit
+                                          ? "bg-green-100 text-green-700"
+                                          : "bg-amber-100 text-amber-700"
+                                      }`}>
+                                        {isOverdue ? `Overdue · ${s.days_past_due}d` : isSettledByCredit ? "Prepaid" : "Due Next"}
                                       </span>
                                     </td>
                                   </tr>
@@ -1189,9 +1205,10 @@ const Cashier_Payments = () => {
                                           : st.includes("reject")
                                           ? "bg-red-100 text-red-700"
                                           : "bg-amber-100 text-amber-700";
+                                      const displayStatus = p.confirmation_status || "pending";
                                       return (
                                         <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${cls}`}>
-                                          {p.confirmation_status || "pending"}
+                                          {displayStatus.charAt(0).toUpperCase() + displayStatus.slice(1)}
                                         </span>
                                       );
                                     })()}
@@ -1365,15 +1382,20 @@ const Cashier_Payments = () => {
                         to bottom as a group -- money on the left, loan terms on the
                         right -- instead of the eye zig-zagging across columns.
                         Collapses to a single ordered column on small screens. */}
-                    <dl className="mt-4 grid grid-cols-1 gap-x-10 gap-y-2.5 text-sm sm:grid-flow-col sm:grid-cols-2 sm:grid-rows-3">
+                    <dl className="mt-4 grid grid-cols-1 gap-x-10 gap-y-2.5 text-sm sm:grid-flow-col sm:grid-cols-2 sm:grid-rows-4">
                       <div className="flex items-baseline justify-between gap-3 border-b border-gray-100 pb-2">
                         <dt className="text-gray-500">Principal</dt>
                         <dd className="font-medium text-gray-900 tabular-nums">{formatCurrency(selectedLoan.loan_amount)}</dd>
                       </div>
+                       <div className="flex items-baseline justify-between gap-3 border-b border-gray-100 pb-2">
+                        <dt className="text-gray-500">Total Loan Obligation</dt>
+                        <dd className="font-medium text-gray-900 tabular-nums">{formatCurrency(selectedLoan.total_payable)}</dd>
+                      </div>
                       <div className="flex items-baseline justify-between gap-3 border-b border-gray-100 pb-2">
-                        <dt className="text-gray-500">Outstanding Balance</dt>
+                        <dt className="text-gray-500">Total Remaining Payable</dt>
                         <dd className="font-medium text-gray-900 tabular-nums">{formatCurrency(selectedLoan.remaining_balance)}</dd>
                       </div>
+                     
                       <div className="flex items-baseline justify-between gap-3 border-b border-gray-100 pb-2">
                         <dt className="text-gray-500">Amortization</dt>
                         <dd className="font-semibold text-gray-900 tabular-nums">{formatCurrency(selectedLoan.amortization)}</dd>
@@ -1521,6 +1543,11 @@ const Cashier_Payments = () => {
                           </span>
                         </div>
                       )}
+                      {priorCredit > 0 && totalAmountDueThisPeriod <= 0 && (
+                        <p className="rounded-lg bg-green-50 px-3 py-2 text-xs font-medium text-green-700">
+                          This period is already paid in full from the member's advance payment. No collection is needed this month.
+                        </p>
+                      )}
                     </div>
 
                     <div className="mt-4 flex items-baseline justify-between gap-3 border-t-2 border-gray-900 pt-4">
@@ -1532,10 +1559,14 @@ const Cashier_Payments = () => {
                         so it stays visually attached rather than becoming another box. */}
                     <div className="mt-4 flex items-baseline justify-between gap-3 border-t border-gray-100 pt-3">
                       <div>
-                        <p className="text-sm text-gray-600">Remaining loan balance</p>
-                        <p className="text-xs text-gray-400">After this payment</p>
+                        <p className="text-sm text-gray-600">Total remaining payable</p>
+                        <p className="text-xs text-gray-400">Principal + interest, after this payment</p>
                       </div>
                       <p className="text-base font-semibold text-gray-700 tabular-nums">{formatCurrency(updatedBalancePreview)}</p>
+                    </div>
+                    <div className="flex items-baseline justify-between gap-3 pt-1">
+                      <p className="text-xs text-gray-400">Total loan obligation</p>
+                      <p className="text-xs text-gray-500 tabular-nums">{formatCurrency(selectedLoan?.total_payable)}</p>
                     </div>
                   </section>
 

@@ -136,10 +136,18 @@ split AS (
 with_running AS (
     SELECT
         s.*,
-        ROUND(s.loan_portion * s.interest_share, 2)                 AS interest_part,
+        -- An overpayment (applied_to_credit) is a straight principal prepayment,
+        -- not interest -- only the portion that actually covers this installment
+        -- (applied_to_current) carries this installment's interest share. Rows
+        -- with no allocation on file (legacy) fall back to splitting the whole
+        -- loan_portion by interest_share, same as before.
+        ROUND(
+            (CASE WHEN s.has_allocation THEN s.applied_to_current ELSE s.loan_portion END)
+            * s.interest_share, 2)                                  AS interest_part,
         SUM(s.loan_portion) OVER w                                  AS cumulative_paid,
-        SUM(s.loan_portion - ROUND(s.loan_portion * s.interest_share, 2)) OVER w
-                                                                    AS cumulative_principal
+        SUM(s.loan_portion - ROUND(
+            (CASE WHEN s.has_allocation THEN s.applied_to_current ELSE s.loan_portion END)
+            * s.interest_share, 2)) OVER w                          AS cumulative_principal
     FROM split s
     WINDOW w AS (
         PARTITION BY s.control_number
