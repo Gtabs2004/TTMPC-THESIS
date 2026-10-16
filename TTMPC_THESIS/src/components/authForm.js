@@ -6,6 +6,9 @@ export const authInputClass =
   'disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed ' +
   'aria-[invalid=true]:border-red-500 aria-[invalid=true]:focus:ring-red-500/30';
 
+export const staffAuthInputClass =
+  authInputClass + ' !border-[#d7dfec] !bg-[#edf3ff]';
+
 export const authLabelClass = 'block text-sm font-semibold text-gray-700';
 
 // Maps raw auth errors to calm, user-facing copy. Anything we don't recognise

@@ -4,7 +4,7 @@ import { UserAuth } from '../contex/AuthContext';
 import { Mail, Lock } from 'lucide-react';
 import PasswordInput from '../components/PasswordInput';
 import AuthLayout, { AuthError, AuthSubmitButton } from '../components/AuthLayout';
-import { authInputClass, authLabelClass, friendlyAuthError } from '../components/authForm';
+import { authLabelClass, friendlyAuthError, staffAuthInputClass } from '../components/authForm';
 
 function MemberLogin() {
   const [email, setEmail] = useState('');
@@ -35,7 +35,11 @@ function MemberLogin() {
   const describedBy = error ? 'auth-error' : undefined;
 
   return (
-    <AuthLayout title="Welcome back!" subtitle="Sign in to access your TTMPC member account.">
+    <AuthLayout
+      title="Welcome back!"
+      subtitle="Sign in to access your TTMPC member account."
+      variant="staff"
+    >
       <form onSubmit={handleSubmit} className="space-y-5">
         {/* EMAIL FIELD */}
         <div>
@@ -58,7 +62,7 @@ function MemberLogin() {
               aria-describedby={describedBy}
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className={authInputClass}
+              className={staffAuthInputClass}
             />
           </div>
         </div>
@@ -91,7 +95,7 @@ function MemberLogin() {
             wrapperClassName="mt-1.5 shadow-none"
             toggleTabIndex={0}
             toggleClassName="text-gray-500 hover:text-gray-700 focus:outline-none focus-visible:text-[#3A7D1C]"
-            className={`${authInputClass} pr-10`}
+            className={`${staffAuthInputClass} pr-10`}
           />
         </div>
 
