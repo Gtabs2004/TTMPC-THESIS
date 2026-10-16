@@ -27,7 +27,6 @@ import {
   Wallet,
   PiggyBank,
   Calendar,
-  ArrowUpRight,
   History,
   User,
   Receipt,
@@ -247,6 +246,36 @@ const MemberDashboard = () => {
     })();
     return () => { cancelled = true; };
   }, [rtVersion]);
+
+  // The login bundle contains loan terms but not the computed outstanding
+  // balance. Reuse the lifecycle endpoint used by My Loans so this KPI never
+  // falls back to zero just because remaining_balance was not in the bundle.
+  useEffect(() => {
+    if (!migsMemberKey) return undefined;
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/member/lifecycle/${encodeURIComponent(migsMemberKey)}`, {
+          headers: { Accept: 'application/json', ...(await authHeaders()) },
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok || !payload?.success || cancelled) return;
+
+        const lifecycleById = new Map(
+          (payload.data?.loans || []).map((loan) => [String(loan.loan_id || loan.control_number), loan])
+        );
+        setMemberLoans((currentLoans) => currentLoans.map((loan) => {
+          const lifecycleLoan = lifecycleById.get(String(loan.control_number || loan.loan_id));
+          return lifecycleLoan ? { ...loan, ...lifecycleLoan } : loan;
+        }));
+      } catch {
+        // The dashboard still renders its loan terms if the enrichment request fails.
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [migsMemberKey, rtVersion]);
 
   // A row opens Statement of Account → Transactions with that row's receipt
   // (or its status note) already open.
@@ -641,13 +670,16 @@ const MemberDashboard = () => {
   // now covers it (along with the email and profile steps) as a blocking
   // overlay, so a toast saying the same thing would only fire behind it.
 
+  // A loan is financially active only after disbursement. Applications that
+  // are pending, under review, approved, or awaiting funds are not active
+  // loans and must not inflate these dashboard KPIs.
   const activeLoans = useMemo(
-    () => memberLoans.filter((loan) => !['rejected', 'cancelled'].includes(String(loan.loan_status || '').toLowerCase())),
+    () => memberLoans.filter((loan) => ['released', 'partially paid'].includes(String(loan.loan_status || loan.application_status || '').trim().toLowerCase())),
     [memberLoans]
   );
 
   const activeLoanBalance = useMemo(
-    () => activeLoans.reduce((sum, loan) => sum + (loan.totalPayable || 0), 0),
+    () => activeLoans.reduce((sum, loan) => sum + Number(loan.remaining_balance || 0), 0),
     [activeLoans]
   );
 
@@ -928,7 +960,7 @@ const MemberDashboard = () => {
               <p className="text-[11px] sm:text-xs font-bold text-gray-500 dark:text-mdark-text-secondary mb-1">Share Capital</p>
               <h3 className="text-base sm:text-xl lg:text-2xl font-black text-gray-900 dark:text-mdark-text mb-1.5 sm:mb-2 break-words">{formatCurrency(profile?.shareCapital || 0)}</h3>
               <p className="text-[10px] font-bold text-green-600 dark:text-mdark-accent flex items-center mt-auto">
-                <ArrowUpRight className="w-3 h-3 mr-0.5 shrink-0" /> +5.2% from last month
+                Current recorded balance
               </p>
             </div>
 
