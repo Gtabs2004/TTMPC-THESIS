@@ -61,10 +61,17 @@ const BookkeeperLoanApproval = () => {
   };
 
   const getSubmissionTimeValue = (value) => {
-    if (!value) return 0;
+    if (!value) return Number.POSITIVE_INFINITY;
     const parsed = new Date(value);
-    return Number.isNaN(parsed.getTime()) ? 0 : parsed.getTime();
+    return Number.isNaN(parsed.getTime()) ? Number.POSITIVE_INFINITY : parsed.getTime();
   };
+
+  const sortQueueRows = (rows) => [...rows].sort((a, b) => {
+    const aTime = getSubmissionTimeValue(a.application_date);
+    const bTime = getSubmissionTimeValue(b.application_date);
+    if (aTime !== bTime) return aTime - bTime;
+    return String(a.control_number || "").localeCompare(String(b.control_number || ""));
+  });
 
 
   useEffect(() => {
@@ -87,7 +94,7 @@ const BookkeeperLoanApproval = () => {
 
         if (queueResponse.ok) {
           const queueResult = await queueResponse.json();
-          setLoans(queueResult?.data || []);
+          setLoans(sortQueueRows(queueResult?.data || []));
           if (!silent) addNotification("Loan applications loaded successfully", "success");
           return;
         }
@@ -114,7 +121,8 @@ const BookkeeperLoanApproval = () => {
           member:member_id (
             first_name,
             last_name,
-            is_bona_fide
+            is_bona_fide,
+            membership_id
           ),
           loan_types:loan_type_id (
             name
@@ -157,7 +165,7 @@ const BookkeeperLoanApproval = () => {
         source: "loans",
       }));
 
-      const combinedQueue = [...mappedLoans, ...mappedNonMember]
+      const combinedQueue = sortQueueRows([...mappedLoans, ...mappedNonMember]
         .filter((loan) => {
           const statuses = new Set([
             String(loan.loan_status || "").trim().toLowerCase(),
@@ -165,13 +173,7 @@ const BookkeeperLoanApproval = () => {
           ]);
           return ["pending", "draft", "revision_requested"].some((status) => statuses.has(status));
         })
-        // FIFO: earliest submitted application appears first.
-        .sort((a, b) => {
-          const aTime = getSubmissionTimeValue(a.application_date);
-          const bTime = getSubmissionTimeValue(b.application_date);
-          if (aTime !== bTime) return aTime - bTime;
-          return String(a.control_number || "").localeCompare(String(b.control_number || ""));
-        });
+        );
 
       setLoans(combinedQueue);
       if (!silent) addNotification("Loan applications loaded successfully", "success");
@@ -231,7 +233,9 @@ const BookkeeperLoanApproval = () => {
       ["pending", "draft", "revision_requested"].includes(status)
     ) || statuses.find(Boolean) || "";
     const loanTypeName = loan.loan_types?.name || (isNonMember ? "Non-member Bonus Loan" : "N/A");
-    const migsStatus = isNonMember ? "N/A" : (loan.member?.is_bona_fide ? "MIGS" : "NON-MIGS");
+    const migsStatus = isNonMember
+      ? "N/A"
+      : (loan.migs_status || "Unscored");
 
     return {
       id: loan.control_number,

@@ -3123,18 +3123,28 @@ async def get_treasurer_rescheduled_loans():
         raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
 
     try:
-        loans_resp = (
-            supabase.table("loans")
-            .select(
-                "control_number,member_id,loan_amount,principal_amount,term,loan_status,application_date," \
-                "application_type,rescheduled_at,reschedule_note,applicant_full_name," \
-                f"{LOAN_FEE_SNAPSHOT_COLUMNS}," \
-                "member:member_id(first_name,last_name)," \
-                "loan_type:loan_type_id(name,code)"
-            )
-            .execute()
-        )
-        all_loans = loans_resp.data or []
+        all_loans = []
+        page_size = 1000
+        offset = 0
+        while True:
+            batch = (
+                supabase.table("loans")
+                .select(
+                    "control_number,member_id,loan_amount,principal_amount,term,loan_status,application_date," \
+                    "application_type,rescheduled_at,reschedule_note,applicant_full_name," \
+                    f"{LOAN_FEE_SNAPSHOT_COLUMNS}," \
+                    "member:member_id(first_name,last_name)," \
+                    "loan_type:loan_type_id(name,code)"
+                )
+                .range(offset, offset + page_size - 1)
+                .execute()
+            ).data or []
+            if not batch:
+                break
+            all_loans.extend(batch)
+            if len(batch) < page_size:
+                break
+            offset += page_size
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to load loans: {e}")
 
@@ -3158,6 +3168,7 @@ async def get_treasurer_rescheduled_loans():
                 "control_number,loan_amount,term,loan_status,application_date,full_name,loan_type_code," \
                 "rescheduled_at,reschedule_note"
             )
+            .range(0, 999)
             .execute()
         )
         non_member_rows = [
@@ -6857,7 +6868,7 @@ def get_bookkeeper_pending_counts(current_user: dict = _Depends(_get_current_use
 
 
 @app.get("/api/bookkeeper/loan-approval-queue")
-def get_bookkeeper_loan_approval_queue(current_user: dict = _Depends(_get_current_user)):
+async def get_bookkeeper_loan_approval_queue(current_user: dict = _Depends(_get_current_user)):
     """Return the Bookkeeper queue through the authenticated server client."""
     global supabase
     if not supabase:
@@ -6881,7 +6892,7 @@ def get_bookkeeper_loan_approval_queue(current_user: dict = _Depends(_get_curren
             .select(
                 "control_number,loan_amount,term,loan_status,application_status,application_date,"
                 "applicant_full_name,"
-                "member:member_id(first_name,last_name,is_bona_fide),"
+                "member:member_id(first_name,last_name,is_bona_fide,membership_id),"
                 "loan_types:loan_type_id(name)"
             )
             .or_(queue_filter)
@@ -6919,7 +6930,22 @@ def get_bookkeeper_loan_approval_queue(current_user: dict = _Depends(_get_curren
                 str(row.get("application_status") or "").strip().lower(),
             } & queue_statuses)
 
-        rows = [{**row, "source": "loans"} for row in loans_rows if is_queue_row(row)]
+        try:
+            classification_payload = await list_migs_classifications()
+            classifications = classification_payload.get("data") or {}
+        except Exception:
+            # Queue loading must remain available if the optional MIGS snapshot
+            # tables have not been deployed yet.
+            classifications = {}
+
+        def attach_migs_status(row: dict) -> dict:
+            member = row.get("member") or {}
+            membership_id = str(member.get("membership_id") or "").strip()
+            code = classifications.get(membership_id, "unscored")
+            label = {"migs": "MIGS", "non_migs": "NON-MIGS", "unscored": "Unscored"}.get(code, "Unscored")
+            return {**row, "source": "loans", "migs_status": label}
+
+        rows = [attach_migs_status(row) for row in loans_rows if is_queue_row(row)]
         rows.extend({**row, "source": "non_member"} for row in non_member_rows if is_queue_row(row))
         rows.sort(key=lambda row: (
             str(row.get("application_date") or ""),
@@ -9002,7 +9028,8 @@ async def restructure_loan_term(loan_id: str, body: LoanRestructureRequest):
 # ============================================================================
 
 @app.get("/api/member/lifecycle/{member_id}")
-async def get_member_lifecycle(member_id: str):
+async def get_member_lifecycle(member_id: str, request: Request):
+    global supabase
     if not supabase:
         raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
 
@@ -9278,6 +9305,18 @@ async def get_member_lifecycle(member_id: str):
     except HTTPException as err:
         raise err
     except Exception as err:
+        error_text = str(err).lower()
+        transient_socket_error = (
+            "10035" in error_text
+            or "non-blocking socket" in error_text
+            or "server disconnected" in error_text
+        )
+        if transient_socket_error and url and key and not getattr(request.state, "lifecycle_retried", False):
+            # Supabase's pooled HTTP client can retain a stale Windows socket.
+            # Rebuild it once and retry the complete read-only lifecycle query.
+            supabase = create_client(url, key, options=_SUPABASE_CLIENT_OPTIONS)
+            request.state.lifecycle_retried = True
+            return await get_member_lifecycle(member_id, request)
         raise HTTPException(status_code=500, detail=f"Failed to fetch member lifecycle: {err}")
 
 

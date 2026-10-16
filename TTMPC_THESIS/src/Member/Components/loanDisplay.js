@@ -12,7 +12,7 @@ export const memberStatusLabel = (loan) => {
   if (status === "partially paid") return { text: "Ongoing Payments", tone: "info" };
   if (status === "released") return { text: "Disbursed", tone: "info" };
   if (status === "to be disbursed" || status === "ready for disbursement") return { text: "Ready for Release", tone: "warn" };
-  if (status === "pending rescheduling") return { text: "Awaiting Funds", tone: "warn" };
+  if (status === "pending rescheduling") return { text: "Rescheduled", tone: "warn" };
   if (status === "approved") return { text: "Approved", tone: "success" };
   if (status === "recommended for approval") return { text: "Under Review", tone: "warn" };
   if (status === "pending") return { text: "Submitted", tone: "warn" };

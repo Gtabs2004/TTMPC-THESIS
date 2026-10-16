@@ -85,7 +85,8 @@ const Treasurer_Approval = () => {
           member:member_id (
             first_name,
             last_name,
-            is_bona_fide
+            is_bona_fide,
+            membership_id
           ),
           loan_types:loan_type_id (
             name
@@ -112,6 +113,19 @@ const Treasurer_Approval = () => {
 
       if (nonMemberError) throw nonMemberError;
 
+      let classifications = {};
+      try {
+        const classificationResponse = await fetch(`${API_BASE_URL}/api/migs/classifications`, {
+          headers: { Accept: "application/json" },
+        });
+        const classificationPayload = await classificationResponse.json().catch(() => ({}));
+        if (classificationResponse.ok && classificationPayload?.success) {
+          classifications = classificationPayload.data || {};
+        }
+      } catch {
+        // Missing MIGS snapshots remain visible as Unscored.
+      }
+
       const needsMemberFallback = (loansData || []).filter(
         (row) => row.member_id && !row.member?.first_name && !row.member?.last_name
       );
@@ -122,7 +136,7 @@ const Treasurer_Approval = () => {
         const fetchMembersFrom = async (tableName, keyColumn) => {
           const { data, error } = await supabase
             .from(tableName)
-            .select(`${keyColumn}, first_name, last_name, is_bona_fide`)
+            .select(`${keyColumn}, first_name, last_name, is_bona_fide, membership_id`)
             .in(keyColumn, unresolvedMemberIds);
           if (error) return [];
           return (data || []).map((row) => ({ ...row, __fkKey: row[keyColumn] }));
@@ -152,6 +166,7 @@ const Treasurer_Approval = () => {
       const mappedLoans = (loansData || []).map((row) => ({
         ...row,
         source: "loans",
+        migs_status: classifications[String(row.member?.membership_id || "").trim()] || "unscored",
       }));
 
       const combinedQueue = [...mappedLoans, ...mappedNonMember]
@@ -244,7 +259,9 @@ const Treasurer_Approval = () => {
       : (`${firstName} ${lastName}`.trim() || "Unknown Member");
 
     const loanTypeName = loan.loan_types?.name || (isNonMember ? "Non-member Bonus Loan" : "N/A");
-    const migsStatus = isNonMember ? "N/A" : (loan.member?.is_bona_fide ? "MIGS" : "NON-MIGS");
+    const migsStatus = isNonMember
+      ? "N/A"
+      : ({ migs: "MIGS", non_migs: "NON-MIGS", unscored: "Unscored" }[loan.migs_status] || "Unscored");
 
     return {
       id: loan.control_number,

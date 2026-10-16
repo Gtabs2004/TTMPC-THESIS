@@ -32,6 +32,7 @@ import {
 } from "lucide-react";
 
 const PAGE_SIZE = 10;
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 
 const Loan_Approval = () => {
     const navigate = useNavigate();
@@ -62,7 +63,8 @@ const Loan_Approval = () => {
           member:member_id (
             first_name,
             last_name,
-            is_bona_fide
+            is_bona_fide,
+            membership_id
           ),
           loan_types:loan_type_id (
             name
@@ -87,6 +89,19 @@ const Loan_Approval = () => {
 
       if (nonMemberError) throw nonMemberError;
 
+      let classifications = {};
+      try {
+        const classificationResponse = await fetch(`${API_BASE_URL}/api/migs/classifications`, {
+          headers: { Accept: "application/json" },
+        });
+        const classificationPayload = await classificationResponse.json().catch(() => ({}));
+        if (classificationResponse.ok && classificationPayload?.success) {
+          classifications = classificationPayload.data || {};
+        }
+      } catch {
+        // Missing MIGS snapshots must remain visible as Unscored.
+      }
+
       const mappedNonMember = (nonMemberData || []).map((row) => ({
         ...row,
         source: "non_member",
@@ -95,6 +110,7 @@ const Loan_Approval = () => {
       const mappedLoans = (loansData || []).map((row) => ({
         ...row,
         source: "loans",
+        migs_status: classifications[String(row.member?.membership_id || "").trim()] || "unscored",
       }));
 
       const managerQueue = [...mappedLoans, ...mappedNonMember]
@@ -150,8 +166,9 @@ const Loan_Approval = () => {
 
     const loanTypeName = loan.loan_types?.name || (isNonMember ? "Non-member Bonus Loan" : "N/A");
 
-    // Assuming 'is_bona_fide' determines if they are a Member In Good Standing (MIGS)
-    const migsStatus = isNonMember ? "N/A" : (loan.member?.is_bona_fide ? "MIGS" : "NON-MIGS");
+    const migsStatus = isNonMember
+      ? "N/A"
+      : ({ migs: "MIGS", non_migs: "NON-MIGS", unscored: "Unscored" }[loan.migs_status] || "Unscored");
 
     return {
       id: loan.control_number,
