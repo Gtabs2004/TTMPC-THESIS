@@ -1086,16 +1086,6 @@ def send_pmes_invitation_email(
             </td>
           </tr>
 
-          <!-- CTA -->
-          <tr>
-            <td align="center" style="padding:20px 32px 32px 32px;">
-              <a href="{FRONTEND_BASE_URL}/login"
-                 style="background-color:#389734;color:#ffffff;text-decoration:none;padding:12px 28px;border-radius:8px;font-weight:700;font-size:14px;display:inline-block;font-family:Arial,Helvetica,sans-serif;">
-                View Application Status
-              </a>
-            </td>
-          </tr>
-
           <!-- Footer -->
           <tr>
             <td style="background-color:#F8FAFC;border-top:1px solid #E2E8F0;padding:18px 24px;text-align:center;">
