@@ -29,6 +29,7 @@ import { UserAuth } from "../../contex/AuthContext";
 import { useNotification } from "../../contex/NotificationContext";
 import { supabase } from "../../supabaseClient";
 import { resolveMemberIdentity } from "../../utils/memberIdentity";
+import { authHeaders } from "../../utils/authHeaders";
 import { sortCbuRowsAscending } from "../../utils/cbuOrdering";
 import LoanNotificationBell from "../../components/LoanNotificationBell";
 import TableStateRow from "../../components/TableStateRow";
@@ -64,6 +65,7 @@ const styles = `
 `;
 
 const ALLOWED_TYPES = ["consolidated", "emergency", "bonus"];
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 
 const StatusBadge = ({ row }) => {
   const tone =
@@ -134,9 +136,22 @@ const humanizeSource = (value) => {
 const STATEMENT_TABS = [
   { key: "loan", label: "Loan" },
   { key: "savings", label: "Savings" },
+  { key: "time-deposits", label: "Time Deposits" },
   { key: "transactions", label: "Transactions" },
   { key: "cbu", label: "Capital Build-Up" },
 ];
+
+const tdProgress = (placement) => {
+  const placed = new Date(placement.placement_date);
+  const matures = new Date(placement.maturity_date);
+  const totalDays = Math.max(1, Math.round((matures - placed) / 86400000));
+  const elapsedDays = Math.min(
+    totalDays,
+    Math.max(0, Math.round((Date.now() - placed.getTime()) / 86400000))
+  );
+  const percent = Math.min(100, Math.max(0, Math.round((elapsedDays / totalDays) * 100)));
+  return { totalDays, elapsedDays, percent };
+};
 
 const Member_StatementOfAccount = () => {
   const { signOut } = UserAuth();
@@ -193,6 +208,12 @@ const Member_StatementOfAccount = () => {
   useRealtimeRefetch(RT.CBU, () => setCbuLoaded(false));
   const [cbuError, setCbuError] = useState("");
   const [cbuRows, setCbuRows] = useState([]);
+
+  const [tdLoaded, setTdLoaded] = useState(false);
+  const [loadingTd, setLoadingTd] = useState(false);
+  const [tdError, setTdError] = useState("");
+  const [tdPlacements, setTdPlacements] = useState([]);
+  useRealtimeRefetch(RT.SAVINGS, () => setTdLoaded(false));
 
   const menuItems = [
       { name: "Dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -441,6 +462,37 @@ const Member_StatementOfAccount = () => {
       isMounted = false;
     };
   }, [activeTab, memberId, cbuLoaded]);
+
+  useEffect(() => {
+    if (activeTab !== "time-deposits" || tdLoaded || !memberId) return;
+    let isMounted = true;
+
+    const fetchTimeDeposits = async () => {
+      try {
+        setLoadingTd(true);
+        setTdError("");
+        const headers = await authHeaders();
+        const response = await fetch(`${API_BASE_URL}/api/member/time-deposits`, { headers });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok || !payload.success) {
+          throw new Error(payload.detail || "Unable to load Time Deposits.");
+        }
+        if (isMounted) {
+          setTdPlacements(payload.data?.placements || []);
+          setTdLoaded(true);
+        }
+      } catch (err) {
+        if (isMounted) setTdError(err.message || "Unable to load Time Deposits.");
+      } finally {
+        if (isMounted) setLoadingTd(false);
+      }
+    };
+
+    fetchTimeDeposits();
+    return () => {
+      isMounted = false;
+    };
+  }, [activeTab, memberId, tdLoaded]);
 
   const totals = useMemo(() => {
     return rows.reduce(
@@ -1359,6 +1411,116 @@ const Member_StatementOfAccount = () => {
                     </div>
                   ) : null}
                 </div>
+              </div>
+            </>
+          )}
+
+          {activeTab === "time-deposits" && (
+            <>
+              <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:gap-6 mb-8">
+                <div className="bg-white dark:bg-mdark-card p-3.5 sm:p-5 lg:p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-mdark-border flex flex-col">
+                  <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-[#EAF1EB] dark:bg-mdark-accent/15 flex items-center justify-center mb-2.5 sm:mb-6">
+                    <PiggyBank className="w-4 h-4 sm:w-5 sm:h-5 text-member-green dark:text-mdark-accent" />
+                  </div>
+                  <p className="text-[10px] font-bold text-gray-500 dark:text-mdark-text-secondary uppercase tracking-widest mb-1">Active Principal</p>
+                  <h3 className="text-base sm:text-2xl lg:text-3xl font-black text-gray-900 dark:text-mdark-text break-words">
+                    {formatCurrency(
+                      tdPlacements
+                        .filter((p) => p.status !== "closed")
+                        .reduce((sum, p) => sum + Number(p.principal || 0), 0)
+                    )}
+                  </h3>
+                </div>
+                <div className="bg-white dark:bg-mdark-card p-3.5 sm:p-5 lg:p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-mdark-border flex flex-col">
+                  <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-member-green dark:bg-mdark-accent flex items-center justify-center mb-2.5 sm:mb-6">
+                    <Wallet className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
+                  </div>
+                  <p className="text-[10px] font-bold text-gray-500 dark:text-mdark-text-secondary uppercase tracking-widest mb-1">Certificates</p>
+                  <h3 className="text-base sm:text-2xl lg:text-3xl font-black text-gray-900 dark:text-mdark-text">{tdPlacements.length}</h3>
+                </div>
+              </div>
+
+              <div className="bg-white dark:bg-mdark-card rounded-2xl shadow-sm border border-gray-100 dark:border-mdark-border overflow-hidden mb-8">
+                <div className="p-6 border-b border-gray-100 dark:border-mdark-border">
+                  <h3 className="text-lg font-bold text-gray-900 dark:text-mdark-text">Time Deposit Certificates</h3>
+                  <p className="text-xs text-gray-500 dark:text-mdark-text-secondary mt-1">
+                    Expected interest earned is an estimate until the certificate matures and is settled.
+                  </p>
+                </div>
+
+                {loadingTd ? (
+                  <div className="p-6">
+                    <TableStateRow bare variant="loading" label="Loading Time Deposits…" />
+                  </div>
+                ) : tdError ? (
+                  <p className="p-6 text-sm text-red-600 dark:text-red-400">{tdError}</p>
+                ) : tdPlacements.length === 0 ? (
+                  <div className="p-6">
+                    <TableStateRow bare variant="empty" icon={PiggyBank} label="No Time Deposit certificates yet." />
+                  </div>
+                ) : (
+                  <div className="divide-y divide-gray-100 dark:divide-mdark-border">
+                    {tdPlacements.map((p) => {
+                      const { totalDays, elapsedDays, percent } = tdProgress(p);
+                      const isMatured = p.status === "matured";
+                      const isClosed = p.status === "closed";
+                      const statusLabel = isClosed ? "Settled" : isMatured ? "Matured — awaiting settlement" : "Term in progress";
+                      const statusTone = isClosed
+                        ? "bg-gray-100 text-gray-700 dark:bg-mdark-elevated dark:text-mdark-text-secondary"
+                        : isMatured
+                          ? "bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400"
+                          : "bg-[#EAF1EB] text-member-green dark:bg-mdark-accent/15 dark:text-mdark-accent";
+                      return (
+                        <div key={p.id} className="p-6">
+                          <div className="flex flex-wrap items-start justify-between gap-3 mb-3">
+                            <div>
+                              <p className="text-sm font-mono font-bold text-gray-800 dark:text-mdark-text">{p.certificate_number}</p>
+                              <p className="text-xs text-gray-500 dark:text-mdark-text-secondary mt-0.5">
+                                {p.term_days} days · {(Number(p.annual_rate || 0) * 100).toFixed(2)}% annual rate
+                              </p>
+                            </div>
+                            <span className={`inline-flex rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-wider ${statusTone}`}>
+                              {statusLabel}
+                            </span>
+                          </div>
+
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4 text-sm">
+                            <div>
+                              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Principal</p>
+                              <p className="font-bold text-gray-900 dark:text-mdark-text">{formatCurrency(p.principal)}</p>
+                            </div>
+                            <div>
+                              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Interest Earned</p>
+                              <p className="font-bold text-emerald-700 dark:text-mdark-accent">{formatCurrency(p.expected_interest)}</p>
+                            </div>
+                            <div>
+                              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Placed</p>
+                              <p className="font-semibold text-gray-700 dark:text-mdark-text">{formatDate(p.placement_date)}</p>
+                            </div>
+                            <div>
+                              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Maturity Date</p>
+                              <p className="font-semibold text-gray-700 dark:text-mdark-text">{formatDate(p.maturity_date)}</p>
+                            </div>
+                          </div>
+
+                          {!isClosed && (
+                            <div>
+                              <div className="flex items-center justify-between text-[11px] text-gray-500 dark:text-mdark-text-secondary mb-1">
+                                <span>{elapsedDays} of {totalDays} days · {percent}% complete</span>
+                              </div>
+                              <div className="h-2 rounded-full bg-gray-100 dark:bg-mdark-elevated overflow-hidden">
+                                <div
+                                  className={`h-full rounded-full ${isMatured ? "bg-amber-400" : "bg-member-green dark:bg-mdark-accent"}`}
+                                  style={{ width: `${isMatured ? 100 : percent}%` }}
+                                />
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             </>
           )}

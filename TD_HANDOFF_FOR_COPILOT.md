@@ -45,13 +45,20 @@ From the spec's Section 13 — these determine real money-movement logic, not ar
 1. Funding source: Regular Savings transfer, cash deposit, or both?
 2. Is ₱50,000 a strict minimum, or are there exceptions?
 3. Is the rate bracket always based on the individual certificate's principal?
-4. Rollover: original rate or the rate in effect at the new cycle's start?
-5. Rollover timing: starts on maturity date or when staff actually processes it?
-6. Maturity handling: manual member choice, or automatic renewal under an approved default?
+4. Renewal rate for the new cycle.
+5. Renewal timing: starts on the maturity date or when staff actually processes it?
+6. Maturity processing controls, including whether a second staff approval is required.
 7. Exact maturity-date/timezone/day-count convention (cooperative business timezone, weekends/holidays handling).
 8. Any withholding tax or other deduction on interest payouts?
 9. Rounding convention the bookkeeper actually uses for ledger entries.
-10. Does opening or settling a TD require a second staff approval?
+Confirmed maturity choices:
+- The member chooses either to withdraw the full principal plus interest, or to
+  receive the interest and renew using the original principal amount.
+- A renewal may use either a 6-month or 1-year term, selected by the member.
+- The interest for the completed certificate does not change when it reaches
+  maturity; it remains the amount agreed for that certificate's original term.
+- Renewal must create a linked new cycle and preserve the original certificate
+  and settlement history.
 
 **Isolate these behind the RPC boundary** (decision #2 above) so the rest of the feature (calculation preview, dashboard, member portal UI, audit/receipt wiring) can be built and tested now without them, and the money-movement logic can be filled in once policy is confirmed.
 

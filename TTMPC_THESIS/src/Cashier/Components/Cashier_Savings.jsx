@@ -163,6 +163,18 @@ const Cashier_Savings = () => {
   const [showFilters, setShowFilters] = useState(false);
   const [page, setPage] = useState(1);
 
+  const [settleTarget, setSettleTarget] = useState(null);
+  const [settleMode, setSettleMode] = useState("FULL_PAYOUT");
+  const [settleTermDays, setSettleTermDays] = useState(180);
+  const [settleStatus, setSettleStatus] = useState("idle");
+  const [settleError, setSettleError] = useState("");
+
+  const [pretermTarget, setPretermTarget] = useState(null);
+  const [pretermReason, setPretermReason] = useState("");
+  const [pretermStatus, setPretermStatus] = useState("idle");
+  const [pretermError, setPretermError] = useState("");
+  const [pretermRequests, setPretermRequests] = useState([]);
+
 
   const totals = useMemo(() => {
     let total = 0;
@@ -221,10 +233,34 @@ const Cashier_Savings = () => {
 
   useEffect(() => setPage(1), [searchTerm, kindFilter, sortBy]);
 
+  const fetchPretermRequests = useCallback(async () => {
+    try {
+      const headers = await authHeaders();
+      const response = await fetch(`${API_BASE_URL}/api/time-deposits/pre-termination-requests`, { headers });
+      const payload = await response.json().catch(() => ({}));
+      if (response.ok && payload?.success) {
+        setPretermRequests(Array.isArray(payload.data) ? payload.data : []);
+      }
+    } catch {
+      // Best-effort; the Action column just won't show request status.
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activeView === "time-deposits") fetchPretermRequests();
+  }, [activeView, fetchPretermRequests]);
+
+  const pretermByTdId = useMemo(() => {
+    const map = {};
+    pretermRequests.forEach((r) => {
+      if (r.status === "pending" || r.status === "approved") map[r.time_deposit_id] = r;
+    });
+    return map;
+  }, [pretermRequests]);
 
   const handleRefresh = async () => {
     if (activeView === "time-deposits") {
-      await refreshTimeDeposits();
+      await Promise.all([refreshTimeDeposits(), fetchPretermRequests()]);
       addNotification("Time Deposits refreshed.", "success");
       return;
     }
@@ -552,7 +588,7 @@ const Cashier_Savings = () => {
                       <th className="p-5 font-bold">Account Name</th>
                       <th className="p-5 font-bold">Term &amp; Rate</th>
                       <th className="p-5 font-bold text-right">Principal</th>
-                      <th className="p-5 font-bold text-right">Expected Tubo</th>
+                      <th className="p-5 font-bold text-right">Interest Earned</th>
                       <th className="p-5 font-bold">Maturity Date</th>
                       <th className="p-5 font-bold">Status</th>
                       <th className="p-5 font-bold text-center">Action</th>
@@ -593,7 +629,70 @@ const Cashier_Savings = () => {
                                 {String(row.status || "unknown").toUpperCase()}
                               </span>
                             </td>
-                            <td className="p-5 text-center text-xs text-gray-400">Details pending</td>
+                            <td className="p-5 text-center">
+                              {row.status === "matured" ? (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setSettleTarget(row);
+                                    setSettleMode("FULL_PAYOUT");
+                                    setSettleTermDays(180);
+                                    setSettleError("");
+                                    setSettleStatus("idle");
+                                  }}
+                                  className="inline-flex items-center gap-1 h-7 px-3 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-[11px] font-semibold transition-colors"
+                                >
+                                  Settle
+                                </button>
+                              ) : row.status === "locked" && pretermByTdId[row.id]?.status === "pending" ? (
+                                <span className="inline-flex px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 text-[10px] font-semibold">
+                                  Pre-term pending
+                                </span>
+                              ) : row.status === "locked" && pretermByTdId[row.id]?.status === "approved" ? (
+                                <button
+                                  type="button"
+                                  disabled={pretermStatus === "submitting"}
+                                  onClick={async () => {
+                                    setPretermStatus("submitting");
+                                    try {
+                                      const headers = { ...(await authHeaders()), "Content-Type": "application/json" };
+                                      const response = await fetch(
+                                        `${API_BASE_URL}/api/time-deposits/pre-termination-requests/${pretermByTdId[row.id].id}/execute`,
+                                        { method: "POST", headers }
+                                      );
+                                      const payload = await response.json().catch(() => ({}));
+                                      if (!response.ok || !payload.success) {
+                                        throw new Error(payload.detail || "Unable to process the payout.");
+                                      }
+                                      addNotification("Pre-termination payout processed. Certificate closed.", "success");
+                                      await Promise.all([refreshTimeDeposits(), fetchPretermRequests()]);
+                                    } catch (err) {
+                                      addNotification(err.message || "Unable to process the payout.", "error");
+                                    } finally {
+                                      setPretermStatus("idle");
+                                    }
+                                  }}
+                                  className="inline-flex items-center gap-1 h-7 px-3 rounded-lg bg-green-600 hover:bg-green-700 text-white text-[11px] font-semibold transition-colors disabled:cursor-not-allowed disabled:bg-gray-300"
+                                >
+                                  Pay Out
+                                </button>
+                              ) : row.status === "locked" ? (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setPretermTarget(row);
+                                    setPretermReason("");
+                                    setPretermError("");
+                                    setPretermStatus("idle");
+                                  }}
+                                  className="inline-flex items-center gap-1 h-7 px-3 rounded-lg border border-red-200 bg-white hover:bg-red-50 text-red-600 text-[11px] font-semibold transition-colors"
+                                >
+                                  Request Pre-termination
+                                </button>
+                              ) : (
+                                <span className="text-xs text-gray-400">—</span>
+                              )}
+                            </td>
                           </tr>
                         ))
                     )}
@@ -604,6 +703,250 @@ const Cashier_Savings = () => {
           )}
         </main>
       </div>
+
+      {settleTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="w-full max-w-md rounded-2xl bg-white shadow-xl">
+            <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4">
+              <div>
+                <h3 className="text-base font-bold text-gray-900">Settle Time Deposit</h3>
+                <p className="text-xs text-gray-500 mt-0.5 font-mono">{settleTarget.certificate_number}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSettleTarget(null)}
+                className="text-gray-400 hover:text-gray-600"
+                aria-label="Close"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="px-6 py-5 space-y-4">
+              <div className="rounded-xl bg-gray-50 border border-gray-100 p-4 text-sm">
+                <div className="flex justify-between py-0.5">
+                  <span className="text-gray-500">Member</span>
+                  <span className="font-semibold text-gray-900">{settleTarget.account_name}</span>
+                </div>
+                <div className="flex justify-between py-0.5">
+                  <span className="text-gray-500">Principal</span>
+                  <span className="font-semibold text-gray-900">{formatCurrency(settleTarget.principal)}</span>
+                </div>
+                <div className="flex justify-between py-0.5">
+                  <span className="text-gray-500">Interest earned</span>
+                  <span className="font-semibold text-emerald-700">{formatCurrency(settleTarget.expected_interest)}</span>
+                </div>
+              </div>
+
+              <div>
+                <p className="text-xs font-semibold text-gray-700 mb-2">What does the member want to do?</p>
+                <div className="space-y-2">
+                  <label className={`flex items-start gap-3 rounded-xl border p-3 cursor-pointer transition ${settleMode === "FULL_PAYOUT" ? "border-green-600 bg-green-50" : "border-gray-200 hover:bg-gray-50"}`}>
+                    <input
+                      type="radio"
+                      name="settle-mode"
+                      checked={settleMode === "FULL_PAYOUT"}
+                      onChange={() => setSettleMode("FULL_PAYOUT")}
+                      className="mt-0.5"
+                    />
+                    <span>
+                      <span className="block text-sm font-semibold text-gray-900">Withdraw all</span>
+                      <span className="block text-xs text-gray-500">
+                        Pay out principal + interest earned ({formatCurrency(Number(settleTarget.principal || 0) + Number(settleTarget.expected_interest || 0))} total). Certificate closes.
+                      </span>
+                    </span>
+                  </label>
+                  <label className={`flex items-start gap-3 rounded-xl border p-3 cursor-pointer transition ${settleMode === "ROLL_PRINCIPAL_ONLY" ? "border-green-600 bg-green-50" : "border-gray-200 hover:bg-gray-50"}`}>
+                    <input
+                      type="radio"
+                      name="settle-mode"
+                      checked={settleMode === "ROLL_PRINCIPAL_ONLY"}
+                      onChange={() => setSettleMode("ROLL_PRINCIPAL_ONLY")}
+                      className="mt-0.5"
+                    />
+                    <span>
+                      <span className="block text-sm font-semibold text-gray-900">Withdraw interest, renew principal</span>
+                      <span className="block text-xs text-gray-500">
+                        Pay out {formatCurrency(settleTarget.expected_interest)} interest earned now; the original principal opens a new certificate.
+                      </span>
+                    </span>
+                  </label>
+                </div>
+              </div>
+
+              {settleMode === "ROLL_PRINCIPAL_ONLY" && (
+                <div>
+                  <p className="text-xs font-semibold text-gray-700 mb-2">New certificate term</p>
+                  <div className="inline-flex rounded-lg border border-gray-200 bg-white p-1">
+                    {[180, 365].map((days) => (
+                      <button
+                        key={days}
+                        type="button"
+                        onClick={() => setSettleTermDays(days)}
+                        className={`rounded-md px-3 py-1.5 text-xs font-semibold transition ${settleTermDays === days ? "bg-green-600 text-white" : "text-gray-600 hover:bg-gray-50"}`}
+                      >
+                        {days === 180 ? "6 months" : "1 year"}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {settleError && (
+                <p className="text-xs font-medium text-red-600">{settleError}</p>
+              )}
+            </div>
+
+            <div className="flex items-center justify-end gap-3 border-t border-gray-100 px-6 py-4">
+              <button
+                type="button"
+                onClick={() => setSettleTarget(null)}
+                className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-100 transition"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={settleStatus === "submitting"}
+                onClick={async () => {
+                  setSettleStatus("submitting");
+                  setSettleError("");
+                  try {
+                    const headers = { ...(await authHeaders()), "Content-Type": "application/json" };
+                    const response = await fetch(`${API_BASE_URL}/api/time-deposits/${settleTarget.id}/settle`, {
+                      method: "POST",
+                      headers,
+                      body: JSON.stringify({
+                        mode: settleMode,
+                        new_term_days: settleMode === "ROLL_PRINCIPAL_ONLY" ? settleTermDays : null,
+                      }),
+                    });
+                    const payload = await response.json().catch(() => ({}));
+                    if (!response.ok || !payload.success) {
+                      throw new Error(payload.detail || "Unable to settle the Time Deposit.");
+                    }
+                    addNotification(
+                      settleMode === "FULL_PAYOUT"
+                        ? "Time Deposit settled and closed."
+                        : `Interest paid out; principal renewed into ${payload.data.new_certificate_number}.`,
+                      "success"
+                    );
+                    setSettleTarget(null);
+                    setSettleStatus("idle");
+                    await refreshTimeDeposits();
+                  } catch (err) {
+                    setSettleError(err.message || "Unable to settle the Time Deposit.");
+                    setSettleStatus("error");
+                  }
+                }}
+                className="rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 transition disabled:cursor-not-allowed disabled:bg-gray-300"
+              >
+                {settleStatus === "submitting" ? "Processing..." : "Confirm Settlement"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {pretermTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="w-full max-w-md rounded-2xl bg-white shadow-xl">
+            <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4">
+              <div>
+                <h3 className="text-base font-bold text-gray-900">Request Pre-termination</h3>
+                <p className="text-xs text-gray-500 mt-0.5 font-mono">{pretermTarget.certificate_number}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPretermTarget(null)}
+                className="text-gray-400 hover:text-gray-600"
+                aria-label="Close"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="px-6 py-5 space-y-4">
+              <div className="rounded-xl bg-amber-50 border border-amber-200 p-3 text-xs text-amber-800">
+                Closing this certificate before its maturity date reduces the interest paid and may include an admin fee set by the Bookkeeper. This request goes to the Bookkeeper for approval before any payout.
+              </div>
+
+              <div className="rounded-xl bg-gray-50 border border-gray-100 p-4 text-sm">
+                <div className="flex justify-between py-0.5">
+                  <span className="text-gray-500">Member</span>
+                  <span className="font-semibold text-gray-900">{pretermTarget.account_name}</span>
+                </div>
+                <div className="flex justify-between py-0.5">
+                  <span className="text-gray-500">Principal</span>
+                  <span className="font-semibold text-gray-900">{formatCurrency(pretermTarget.principal)}</span>
+                </div>
+                <div className="flex justify-between py-0.5">
+                  <span className="text-gray-500">Maturity Date</span>
+                  <span className="font-semibold text-gray-900">{formatDate(pretermTarget.maturity_date)}</span>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-2">Reason for early closure</label>
+                <textarea
+                  value={pretermReason}
+                  onChange={(event) => setPretermReason(event.target.value)}
+                  rows={3}
+                  placeholder="e.g. medical emergency, urgent family need..."
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                />
+              </div>
+
+              {pretermError && (
+                <p className="text-xs font-medium text-red-600">{pretermError}</p>
+              )}
+            </div>
+
+            <div className="flex items-center justify-end gap-3 border-t border-gray-100 px-6 py-4">
+              <button
+                type="button"
+                onClick={() => setPretermTarget(null)}
+                className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-100 transition"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={pretermStatus === "submitting" || !pretermReason.trim()}
+                onClick={async () => {
+                  setPretermStatus("submitting");
+                  setPretermError("");
+                  try {
+                    const headers = { ...(await authHeaders()), "Content-Type": "application/json" };
+                    const response = await fetch(
+                      `${API_BASE_URL}/api/time-deposits/${pretermTarget.id}/pre-termination/request`,
+                      {
+                        method: "POST",
+                        headers,
+                        body: JSON.stringify({ reason: pretermReason.trim() }),
+                      }
+                    );
+                    const payload = await response.json().catch(() => ({}));
+                    if (!response.ok || !payload.success) {
+                      throw new Error(payload.detail || "Unable to submit the request.");
+                    }
+                    addNotification("Pre-termination request sent to the Bookkeeper.", "success");
+                    setPretermTarget(null);
+                    setPretermStatus("idle");
+                    await fetchPretermRequests();
+                  } catch (err) {
+                    setPretermError(err.message || "Unable to submit the request.");
+                    setPretermStatus("error");
+                  }
+                }}
+                className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 transition disabled:cursor-not-allowed disabled:bg-gray-300"
+              >
+                {pretermStatus === "submitting" ? "Sending..." : "Send Request"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -56,10 +56,40 @@ const formatDate = (value) => {
 const getStatusStyle = (status) => {
   const key = String(status || "").toLowerCase();
   if (key === "pending_verification") return "bg-amber-100 text-amber-800";
-  if (key === "validated") return "bg-green-100 text-green-800";
+  if (key === "validated" || key === "approved" || key === "executed") return "bg-green-100 text-green-800";
   if (key === "rejected") return "bg-red-100 text-red-800";
   return "bg-gray-100 text-gray-700";
 };
+
+// Normalizes both row shapes (savings withdrawal queue rows and TD
+// pre-termination requests) into one display shape so a single table and
+// tab set can show either kind side by side, per the Bookkeeper's request
+// to handle both approval queues in one place.
+const normalizeSavingsRow = (row) => ({
+  kind: "savings",
+  key: `savings-${row.transaction_id}`,
+  id: row.transaction_id,
+  memberLabel: row.member_name || "Unknown Member",
+  refLabel: row.savings_id,
+  typeLabel: row.account_type || row.transaction_type,
+  amount: row.amount,
+  requestedAt: row.requested_at,
+  status: String(row.transaction_status || "").toLowerCase(),
+  raw: row,
+});
+
+const normalizePretermRow = (row) => ({
+  kind: "preterm",
+  key: `preterm-${row.id}`,
+  id: row.id,
+  memberLabel: row.time_deposit?.account_name || "Unknown Member",
+  refLabel: row.time_deposit?.certificate_number || row.time_deposit_id,
+  typeLabel: "TD Pre-termination",
+  amount: row.total_payout ?? null,
+  requestedAt: row.requested_at,
+  status: row.status === "pending" ? "pending_verification" : row.status,
+  raw: row,
+});
 
 const BookkeeperSavingsTransactions = () => {
     const navigate = useNavigate();
@@ -67,8 +97,12 @@ const BookkeeperSavingsTransactions = () => {
   const confirm = useConfirm();
   const [rejectTarget, setRejectTarget] = useState(null);
   const [rejectReason, setRejectReason] = useState("");
+  const [pretermDecisionTarget, setPretermDecisionTarget] = useState(null);
+  const [pretermAdminFee, setPretermAdminFee] = useState("0");
+  const [pretermDecisionReason, setPretermDecisionReason] = useState("");
 
   const [rows, setRows] = useState([]);
+  const [pretermRows, setPretermRows] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [activeTab, setActiveTab] = useState("pending_verification");
@@ -78,43 +112,58 @@ const BookkeeperSavingsTransactions = () => {
     [rows]
   );
 
+  const allRows = useMemo(
+    () => [
+      ...withdrawalRows.map(normalizeSavingsRow),
+      ...pretermRows.map(normalizePretermRow),
+    ],
+    [withdrawalRows, pretermRows]
+  );
+
   const filteredRows = useMemo(() => {
     const normalizedSearch = searchTerm.trim().toLowerCase();
 
-    return withdrawalRows
-      .filter((row) => String(row.transaction_status || "").toLowerCase() === activeTab)
+    return allRows
+      .filter((row) => row.status === activeTab)
       .filter((row) => {
         if (!normalizedSearch) return true;
         return (
-          String(row.transaction_id || "").toLowerCase().includes(normalizedSearch)
-          || String(row.savings_id || "").toLowerCase().includes(normalizedSearch)
-          || String(row.member_name || "").toLowerCase().includes(normalizedSearch)
+          String(row.id || "").toLowerCase().includes(normalizedSearch)
+          || String(row.refLabel || "").toLowerCase().includes(normalizedSearch)
+          || String(row.memberLabel || "").toLowerCase().includes(normalizedSearch)
         );
-      });
-  }, [withdrawalRows, activeTab, searchTerm]);
+      })
+      .sort((a, b) => new Date(b.requestedAt || 0) - new Date(a.requestedAt || 0));
+  }, [allRows, activeTab, searchTerm]);
 
   const tabCounts = useMemo(() => {
-    const pending = withdrawalRows.filter((row) => String(row.transaction_status || "").toLowerCase() === "pending_verification").length;
-    const validated = withdrawalRows.filter((row) => String(row.transaction_status || "").toLowerCase() === "validated").length;
-    const rejected = withdrawalRows.filter((row) => String(row.transaction_status || "").toLowerCase() === "rejected").length;
+    const pending = allRows.filter((row) => row.status === "pending_verification").length;
+    const validated = allRows.filter((row) => row.status === "validated" || row.status === "approved" || row.status === "executed").length;
+    const rejected = allRows.filter((row) => row.status === "rejected").length;
 
     return { pending, validated, rejected };
-  }, [withdrawalRows]);
+  }, [allRows]);
 
   async function fetchRows({ silent = false } = {}) {
     if (!silent) setLoading(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/api/bookkeeper/savings-transactions`);
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok || !payload?.success) {
-        throw new Error(payload?.detail || "Failed to load savings transaction queue.");
+      const headers = await authHeaders();
+      const [savingsResponse, pretermResponse] = await Promise.all([
+        fetch(`${API_BASE_URL}/api/bookkeeper/savings-transactions`),
+        fetch(`${API_BASE_URL}/api/time-deposits/pre-termination-requests`, { headers }),
+      ]);
+      const savingsPayload = await savingsResponse.json().catch(() => ({}));
+      const pretermPayload = await pretermResponse.json().catch(() => ({}));
+      if (!savingsResponse.ok || !savingsPayload?.success) {
+        throw new Error(savingsPayload?.detail || "Failed to load savings transaction queue.");
       }
-      setRows(Array.isArray(payload.data) ? payload.data : []);
-      if (!silent) addNotification("Savings transactions loaded successfully", "success");
+      setRows(Array.isArray(savingsPayload.data) ? savingsPayload.data : []);
+      setPretermRows(pretermResponse.ok && pretermPayload?.success ? (pretermPayload.data || []) : []);
+      if (!silent) addNotification("Transactions loaded successfully", "success");
     } catch (error) {
       if (silent) return;
       setRows([]);
-      addNotification(error?.message || "Unable to load savings transaction queue.", "error");
+      addNotification(error?.message || "Unable to load the transaction queue.", "error");
     } finally {
       if (!silent) setLoading(false);
     }
@@ -124,6 +173,44 @@ const BookkeeperSavingsTransactions = () => {
   useEffect(() => {
     fetchRows();
   }, []);
+
+  const decidePreterm = async (requestId, approve, { adminFee = 0, reason = "" } = {}) => {
+    setWorkingId(requestId);
+    try {
+      const headers = { ...(await authHeaders()), "Content-Type": "application/json" };
+      const response = await fetch(`${API_BASE_URL}/api/time-deposits/pre-termination-requests/${requestId}/decide`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ approve, admin_fee: Number(adminFee) || 0, decision_reason: reason || null }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || !payload?.success) {
+        throw new Error(payload?.detail || "Failed to record the decision.");
+      }
+      addNotification(approve ? "Pre-termination approved." : "Pre-termination rejected.", approve ? "success" : "warning");
+      await fetchRows();
+    } catch (error) {
+      addNotification(error?.message || "Unable to record the decision.", "error");
+    } finally {
+      setWorkingId("");
+    }
+  };
+
+  const openPretermApproveDialog = (row) => {
+    setPretermDecisionTarget(row);
+    setPretermAdminFee("0");
+    setPretermDecisionReason("");
+  };
+
+  const handlePretermReject = async (row) => {
+    const ok = await confirm({
+      title: "Reject Pre-termination Request",
+      message: `Reject the pre-termination request for certificate ${row.refLabel}?`,
+      confirmLabel: "Reject",
+      tone: "destructive",
+    });
+    if (ok) await decidePreterm(row.id, false);
+  };
 
 
   const confirmPost = async (transactionId) => {
@@ -249,9 +336,9 @@ const BookkeeperSavingsTransactions = () => {
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="bg-primary-deep text-[10px] uppercase tracking-wider text-white font-extrabold">
-                    <th className="p-5 font-bold">Transaction ID</th>
+                    <th className="p-5 font-bold">Reference</th>
                     <th className="p-5 font-bold">Member</th>
-                    <th className="p-5 font-bold">Savings ID</th>
+                    <th className="p-5 font-bold">Account / Certificate</th>
                     <th className="p-5 font-bold">Type</th>
                     <th className="p-5 font-bold text-right">Amount</th>
                     <th className="p-5 font-bold">Requested</th>
@@ -271,37 +358,59 @@ const BookkeeperSavingsTransactions = () => {
                     />
                   ) : (
                     filteredRows.map((row) => (
-                      <tr key={row.transaction_id} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
-                        <td className="p-5 text-sm font-mono text-gray-900">{row.transaction_id}</td>
-                        <td className="p-5 text-sm text-gray-800">{row.member_name || "Unknown Member"}</td>
-                        <td className="p-5 text-sm font-mono text-gray-700">{row.savings_id}</td>
+                      <tr key={row.key} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
+                        <td className="p-5 text-sm font-mono text-gray-900">
+                          {row.kind === "preterm" ? String(row.id).slice(0, 8) : row.id}
+                        </td>
+                        <td className="p-5 text-sm text-gray-800">{row.memberLabel}</td>
+                        <td className="p-5 text-sm font-mono text-gray-700">{row.refLabel}</td>
                         <td className="p-5 text-sm">
-                          <span className="inline-flex px-2 py-0.5 rounded-full bg-gray-100 text-gray-700 text-[10px] font-medium">
-                            {row.account_type || row.transaction_type}
+                          <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-medium ${row.kind === "preterm" ? "bg-red-50 text-red-700" : "bg-gray-100 text-gray-700"}`}>
+                            {row.typeLabel}
                           </span>
                         </td>
-                        <td className="p-5 text-sm text-right font-semibold text-gray-900 tabular-nums">{formatCurrency(row.amount)}</td>
-                        <td className="p-5 text-sm text-gray-600">{formatDate(row.requested_at)}</td>
+                        <td className="p-5 text-sm text-right font-semibold text-gray-900 tabular-nums">
+                          {row.amount != null ? formatCurrency(row.amount) : "—"}
+                        </td>
+                        <td className="p-5 text-sm text-gray-600">{formatDate(row.requestedAt)}</td>
                         <td className="p-5 text-sm">
-                          <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold ${getStatusStyle(row.transaction_status)}`}>
-                            {row.transaction_status}
+                          <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold ${getStatusStyle(row.status)}`}>
+                            {row.status}
                           </span>
                         </td>
                         <td className="p-5 text-sm text-right">
-                          {row.transaction_status === "pending_verification" ? (
+                          {row.kind === "savings" && row.status === "pending_verification" ? (
                             <div className="inline-flex items-center gap-1.5">
                               <TableActionButton
                                 icon={CheckCircle}
-                                onClick={() => handleConfirmPostClick(row)}
-                                disabled={workingId === row.transaction_id}
+                                onClick={() => handleConfirmPostClick(row.raw)}
+                                disabled={workingId === row.id}
                               >
                                 Confirm
                               </TableActionButton>
                               <TableActionButton
                                 icon={XCircle}
                                 variant="danger"
-                                onClick={() => openRejectDialog(row)}
-                                disabled={workingId === row.transaction_id}
+                                onClick={() => openRejectDialog(row.raw)}
+                                disabled={workingId === row.id}
+                              >
+                                Reject
+                              </TableActionButton>
+                            </div>
+                          ) : row.kind === "preterm" && row.status === "pending_verification" ? (
+                            <div className="inline-flex items-center gap-1.5">
+                              <TableActionButton
+                                icon={CheckCircle}
+                                onClick={() => openPretermApproveDialog(row)}
+                                disabled={workingId === row.id}
+                              >
+                                Approve
+                              </TableActionButton>
+                              <TableActionButton
+                                icon={XCircle}
+                                variant="danger"
+                                onClick={() => handlePretermReject(row)}
+                                disabled={workingId === row.id}
                               >
                                 Reject
                               </TableActionButton>
@@ -337,6 +446,45 @@ const BookkeeperSavingsTransactions = () => {
           rows={4}
           className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
           placeholder="Enter rejection reason"
+        />
+      </ConfirmDialog>
+
+      <ConfirmDialog
+        open={!!pretermDecisionTarget}
+        title="Approve Pre-termination"
+        message={
+          pretermDecisionTarget
+            ? `Approve closing certificate ${pretermDecisionTarget.refLabel} before maturity? Reason given: "${pretermDecisionTarget.raw.reason}". Interest adjusted to ${formatCurrency(pretermDecisionTarget.raw.adjusted_interest)} for ${pretermDecisionTarget.raw.elapsed_days} days elapsed.`
+            : ""
+        }
+        confirmLabel="Approve"
+        tone="default"
+        loading={!!pretermDecisionTarget && workingId === pretermDecisionTarget.id}
+        onCancel={() => setPretermDecisionTarget(null)}
+        onConfirm={async () => {
+          await decidePreterm(pretermDecisionTarget.id, true, {
+            adminFee: pretermAdminFee,
+            reason: pretermDecisionReason,
+          });
+          setPretermDecisionTarget(null);
+        }}
+      >
+        <label className="block text-xs font-semibold text-gray-700 mb-1">Admin fee (deducted from principal)</label>
+        <input
+          type="number"
+          min="0"
+          step="0.01"
+          value={pretermAdminFee}
+          onChange={(e) => setPretermAdminFee(e.target.value)}
+          className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm mb-3 focus:outline-none focus:ring-2 focus:ring-green-500"
+        />
+        <label className="block text-xs font-semibold text-gray-700 mb-1">Approval note (optional)</label>
+        <textarea
+          value={pretermDecisionReason}
+          onChange={(e) => setPretermDecisionReason(e.target.value)}
+          rows={3}
+          className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+          placeholder="Optional note"
         />
       </ConfirmDialog>
     </div>

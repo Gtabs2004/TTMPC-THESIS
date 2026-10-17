@@ -26,6 +26,7 @@ from contextlib import asynccontextmanager
 from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from typing import Annotated, Any, Literal, Union
+from zoneinfo import ZoneInfo
 from fastapi import BackgroundTasks, Body, FastAPI, HTTPException, Request, Response
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
@@ -686,11 +687,27 @@ class TimeDepositOpenRequest(BaseModel):
     term_days: Literal[180, 365]
     placement_date: date | None = None
     opening_key: str | None = Field(default=None, max_length=120)
+    override_minimum: bool = False
 
 
 class TimeDepositPreviewRequest(BaseModel):
     principal: Decimal = Field(..., gt=0)
     term_days: Literal[180, 365]
+
+
+class TimeDepositSettleRequest(BaseModel):
+    mode: Literal["FULL_PAYOUT", "ROLL_PRINCIPAL_ONLY"]
+    new_term_days: Literal[180, 365] | None = None
+
+
+class TimeDepositPreTerminationRequestPayload(BaseModel):
+    reason: str = Field(..., min_length=1, max_length=500)
+
+
+class TimeDepositPreTerminationDecisionPayload(BaseModel):
+    approve: bool
+    decision_reason: str | None = Field(default=None, max_length=500)
+    admin_fee: Decimal = Field(default=Decimal("0"), ge=0)
 
 
 TWOPLACES = Decimal("0.01")
@@ -10457,12 +10474,173 @@ def _require_time_deposit_staff(current_user: dict) -> None:
         raise HTTPException(status_code=403, detail="This portal cannot view Time Deposit records.")
 
 
+def _cooperative_today() -> date:
+    return datetime.now(ZoneInfo("Asia/Manila")).date()
+
+
+def _send_td_email(*, to_email: str, subject: str, body_html: str) -> None:
+    """Fire-and-forget email for a Time Deposit event. Best-effort, never raises.
+
+    Deliberately not threaded through send_status_email()'s loan-status
+    templating (is_revision/is_approved/etc.) -- that function is shaped
+    around loan statuses and a TD event is not one. Reuses the same
+    Resend HTTP call shape instead.
+    """
+    if not to_email:
+        return
+    load_dotenv(ROOT_ENV_PATH, override=True)
+    runtime_resend_api_key = os.environ.get("RESEND_API_KEY") or os.environ.get("VITE_RESEND_API_KEY")
+    runtime_resend_from_email = os.environ.get("RESEND_FROM_EMAIL", resend_from_email)
+    if not runtime_resend_api_key:
+        return
+    try:
+        req = urlrequest.Request(
+            "https://api.resend.com/emails",
+            data=json.dumps({
+                "from": runtime_resend_from_email,
+                "to": [to_email],
+                "subject": subject,
+                "html": body_html,
+            }).encode("utf-8"),
+            headers={
+                "Authorization": f"Bearer {runtime_resend_api_key}",
+                "Content-Type": "application/json",
+                "Accept": "application/json",
+                "User-Agent": "TTMPC-Member-Portal/1.0",
+            },
+            method="POST",
+        )
+        urlrequest.urlopen(req, timeout=10)
+    except Exception as err:
+        logger.warning("time deposit email failed: %s", err)
+
+
+def _td_notify(
+    *,
+    member_id: str,
+    notification_type: str,
+    severity: str,
+    title: str,
+    message: str,
+    time_deposit_id: str,
+) -> None:
+    """Drop a bell notification (and, on first fire, an email) for a Time
+    Deposit event. Best-effort, never raises.
+
+    Deduplicated per (member, time deposit, type) so a repeated sync call
+    (every page load hits _sync_time_deposit_maturities) does not spam the
+    same "matured"/"upcoming" notice every time -- mirrors the loan workflow's
+    dedup_key convention (see loan_notifications_schema.sql). The email only
+    goes out on a fresh insert, not on a dedup-skipped repeat, for the same
+    reason: a member who hasn't read the bell notification yet shouldn't get
+    the same email again every time the sync runs.
+    """
+    try:
+        dedup_key = f"time_deposit:{time_deposit_id}:{notification_type}"
+        inserted = supabase.table("loan_notifications").insert({
+            "recipient_role": "member",
+            "recipient_member_id": member_id,
+            "title": title,
+            "message": message,
+            "notification_type": notification_type,
+            "severity": severity,
+            "loan_id": None,
+            "redirect_url": "/member-statement-of-account?tab=time-deposits",
+            "dedup_key": dedup_key,
+            "is_read": False,
+        }).execute()
+        if not (inserted.data or []):
+            return
+    except Exception as err:
+        logger.warning("time deposit notification failed: %s", err)
+        return
+
+    try:
+        member_row = (
+            supabase.table("member")
+            .select("email")
+            .eq("id", member_id)
+            .limit(1)
+            .execute()
+            .data or [None]
+        )[0]
+        to_email = str((member_row or {}).get("email") or "").strip()
+        if to_email:
+            _send_td_email(
+                to_email=to_email,
+                subject=title,
+                body_html=(
+                    f"<div style='font-family:Arial,sans-serif;color:#111827;padding:16px;'>"
+                    f"<p>{_html_escape(message)}</p>"
+                    f"<p style='font-size:12px;color:#64748B;margin-top:24px;'>"
+                    f"Tubungan Teachers' Multi-Purpose Cooperative</p></div>"
+                ),
+            )
+    except Exception as err:
+        logger.warning("time deposit email lookup failed: %s", err)
+
+
+def _sync_time_deposit_maturities() -> None:
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+    today = _cooperative_today()
+    try:
+        supabase.rpc("td_mark_matured", {"p_as_of": today.isoformat()}).execute()
+    except Exception as err:
+        raise HTTPException(status_code=500, detail=f"Failed to synchronize Time Deposit maturities: {err}")
+
+    try:
+        matured_rows = (
+            supabase.table("time_deposits")
+            .select("id,certificate_number,member_id,principal,expected_interest")
+            .eq("status", "matured")
+            .execute()
+            .data or []
+        )
+        for row in matured_rows:
+            _td_notify(
+                member_id=row["member_id"],
+                notification_type="td_matured",
+                severity="warning",
+                title="Time Deposit matured",
+                message=(
+                    f"Certificate {row['certificate_number']} has matured. Visit the branch to "
+                    f"withdraw your principal and interest, or renew your principal."
+                ),
+                time_deposit_id=row["id"],
+            )
+
+        upcoming_rows = (
+            supabase.table("time_deposits")
+            .select("id,certificate_number,member_id,maturity_date")
+            .eq("status", "locked")
+            .eq("maturity_date", (today + timedelta(days=3)).isoformat())
+            .execute()
+            .data or []
+        )
+        for row in upcoming_rows:
+            _td_notify(
+                member_id=row["member_id"],
+                notification_type="td_maturity_upcoming",
+                severity="info",
+                title="Time Deposit maturing soon",
+                message=(
+                    f"Certificate {row['certificate_number']} matures on "
+                    f"{row['maturity_date']}. Decide whether to withdraw or renew."
+                ),
+                time_deposit_id=row["id"],
+            )
+    except Exception as err:
+        logger.warning("time deposit notification sync failed: %s", err)
+
+
 @app.get("/api/time-deposits/kpis")
 def list_time_deposit_kpis(current_user: dict = _Depends(_get_current_user)):
     """Read the DB-side Time Deposit dashboard aggregates for staff portals."""
     if not supabase:
         raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
     _require_time_deposit_staff(current_user)
+    _sync_time_deposit_maturities()
     try:
         row = (
             supabase.table("v_time_deposit_kpis")
@@ -10486,6 +10664,7 @@ def list_time_deposits(
     if not supabase:
         raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
     _require_time_deposit_staff(current_user)
+    _sync_time_deposit_maturities()
     try:
         query = (
             supabase.table("time_deposits")
@@ -10554,6 +10733,7 @@ def open_time_deposit(
                 "p_term_days": payload.term_days,
                 "p_placement_date": (payload.placement_date or date.today()).isoformat(),
                 "p_opening_key": payload.opening_key or str(uuid4()),
+                "p_override_minimum": payload.override_minimum,
             },
         ).execute()
         row = (result.data or [None])[0]
@@ -10564,6 +10744,200 @@ def open_time_deposit(
         raise err
     except Exception as err:
         raise HTTPException(status_code=400, detail=f"Failed to open Time Deposit: {err}")
+
+
+@app.post("/api/time-deposits/{time_deposit_id}/settle")
+def settle_time_deposit(
+    time_deposit_id: str,
+    payload: TimeDepositSettleRequest,
+    current_user: dict = _Depends(_get_current_user),
+):
+    """Process a matured certificate's withdraw-all or renew-principal choice.
+
+    Staff-processed only (TD_LIFECYCLE_PLAN.md D6) -- the member tells the
+    Cashier their choice at the counter; there is no automatic settlement.
+    """
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+    _require_time_deposit_staff(current_user)
+    if payload.mode == "ROLL_PRINCIPAL_ONLY" and not payload.new_term_days:
+        raise HTTPException(status_code=400, detail="A renewal requires choosing a 180 or 365 day term.")
+    try:
+        result = supabase.rpc(
+            "td_settle_maturity",
+            {
+                "p_time_deposit_id": time_deposit_id,
+                "p_mode": payload.mode,
+                "p_new_term_days": payload.new_term_days,
+                "p_posted_by": current_user["id"],
+            },
+        ).execute()
+        row = (result.data or [None])[0]
+        if not row:
+            raise HTTPException(status_code=500, detail="Time Deposit settlement was not recorded.")
+        return {"success": True, "data": row}
+    except HTTPException as err:
+        raise err
+    except Exception as err:
+        raise HTTPException(status_code=400, detail=f"Failed to settle Time Deposit: {err}")
+
+
+def _require_cashier(current_user: dict) -> None:
+    role = _resolve_staff_role(current_user["id"], current_user.get("email") or "")
+    if role not in {"cashier", "bookkeeper"}:
+        raise HTTPException(status_code=403, detail="Only a Cashier can do this.")
+
+
+@app.post("/api/time-deposits/{time_deposit_id}/pre-termination/request")
+def request_time_deposit_pre_termination(
+    time_deposit_id: str,
+    payload: TimeDepositPreTerminationRequestPayload,
+    current_user: dict = _Depends(_get_current_user),
+):
+    """Cashier asks the Bookkeeper to approve closing a certificate before maturity."""
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+    _require_cashier(current_user)
+    try:
+        result = supabase.rpc(
+            "td_request_pre_termination",
+            {
+                "p_time_deposit_id": time_deposit_id,
+                "p_reason": payload.reason,
+                "p_actor_user_id": current_user["id"],
+                "p_actor_email": current_user.get("email") or "",
+            },
+        ).execute()
+        row = (result.data or [None])[0]
+        if not row:
+            raise HTTPException(status_code=500, detail="The pre-termination request was not saved.")
+        return {"success": True, "data": row}
+    except HTTPException as err:
+        raise err
+    except Exception as err:
+        raise HTTPException(status_code=400, detail=f"Failed to request pre-termination: {err}")
+
+
+@app.get("/api/time-deposits/pre-termination-requests")
+def list_time_deposit_pre_termination_requests(
+    status: str | None = None,
+    current_user: dict = _Depends(_get_current_user),
+):
+    """Staff queue of pre-termination requests (pending/approved/rejected/executed)."""
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+    _require_time_deposit_staff(current_user)
+    try:
+        query = (
+            supabase.table("time_deposit_pretermination_requests")
+            .select(
+                "id,time_deposit_id,reason,status,elapsed_days,applied_rate,adjusted_interest,"
+                "admin_fee,principal_payout,total_payout,requested_by,requested_at,"
+                "decided_by,decided_at,decision_reason,executed_by,executed_at"
+            )
+            .order("requested_at", desc=True)
+        )
+        if status:
+            query = query.eq("status", status)
+        rows = query.execute().data or []
+
+        td_ids = sorted({row["time_deposit_id"] for row in rows if row.get("time_deposit_id")})
+        td_lookup: dict[str, dict] = {}
+        if td_ids:
+            td_rows = (
+                supabase.table("time_deposits")
+                .select("id,certificate_number,member_id,principal,term_days,placement_date,maturity_date")
+                .in_("id", td_ids)
+                .execute()
+                .data or []
+            )
+            member_ids = sorted({row["member_id"] for row in td_rows if row.get("member_id")})
+            member_lookup: dict[str, dict] = {}
+            if member_ids:
+                member_rows = (
+                    supabase.table("member")
+                    .select("id,membership_id,first_name,last_name")
+                    .in_("id", member_ids)
+                    .execute()
+                    .data or []
+                )
+                member_lookup = {row["id"]: row for row in member_rows}
+            for td in td_rows:
+                member = member_lookup.get(td.get("member_id")) or {}
+                td["membership_id"] = member.get("membership_id")
+                td["account_name"] = " ".join(
+                    part for part in (member.get("first_name"), member.get("last_name")) if part
+                ) or td.get("membership_id") or "Member"
+            td_lookup = {row["id"]: row for row in td_rows}
+
+        for row in rows:
+            row["time_deposit"] = td_lookup.get(row.get("time_deposit_id"))
+
+        return {"success": True, "data": rows, "count": len(rows)}
+    except Exception as err:
+        raise HTTPException(status_code=500, detail=f"Failed to list pre-termination requests: {err}")
+
+
+@app.post("/api/time-deposits/pre-termination-requests/{request_id}/decide")
+def decide_time_deposit_pre_termination(
+    request_id: str,
+    payload: TimeDepositPreTerminationDecisionPayload,
+    current_user: dict = _Depends(_get_current_user),
+):
+    """Bookkeeper approves or rejects a pending pre-termination request."""
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+    role = _resolve_staff_role(current_user["id"], current_user.get("email") or "")
+    if role != "bookkeeper":
+        raise HTTPException(status_code=403, detail="Only the Bookkeeper can approve or reject a pre-termination request.")
+    try:
+        result = supabase.rpc(
+            "td_decide_pre_termination",
+            {
+                "p_request_id": request_id,
+                "p_approve": payload.approve,
+                "p_decision_reason": payload.decision_reason,
+                "p_admin_fee": str(money(payload.admin_fee)),
+                "p_actor_user_id": current_user["id"],
+                "p_actor_email": current_user.get("email") or "",
+            },
+        ).execute()
+        row = (result.data or [None])[0]
+        if not row:
+            raise HTTPException(status_code=500, detail="The decision was not recorded.")
+        return {"success": True, "data": row}
+    except HTTPException as err:
+        raise err
+    except Exception as err:
+        raise HTTPException(status_code=400, detail=f"Failed to decide pre-termination: {err}")
+
+
+@app.post("/api/time-deposits/pre-termination-requests/{request_id}/execute")
+def execute_time_deposit_pre_termination(
+    request_id: str,
+    current_user: dict = _Depends(_get_current_user),
+):
+    """Cashier pays out an approved pre-termination request."""
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+    _require_cashier(current_user)
+    try:
+        result = supabase.rpc(
+            "td_execute_pre_termination",
+            {
+                "p_request_id": request_id,
+                "p_actor_user_id": current_user["id"],
+                "p_actor_email": current_user.get("email") or "",
+            },
+        ).execute()
+        row = (result.data or [None])[0]
+        if not row:
+            raise HTTPException(status_code=500, detail="The payout was not recorded.")
+        return {"success": True, "data": row}
+    except HTTPException as err:
+        raise err
+    except Exception as err:
+        raise HTTPException(status_code=400, detail=f"Failed to execute pre-termination: {err}")
 
 
 @app.post("/api/time-deposits/preview")
@@ -10665,6 +11039,7 @@ def list_member_time_deposits(current_user: dict = _Depends(_get_current_user)):
     member_id = str((account or {}).get("user_id") or "").strip()
     if not member_id:
         raise HTTPException(status_code=403, detail="No member profile is linked to this account.")
+    _sync_time_deposit_maturities()
     try:
         placements = (
             supabase.table("time_deposits")

@@ -245,7 +245,7 @@ DECLARE
     v_certificate text;
     v_existing public.time_deposits%ROWTYPE;
 BEGIN
-    IF p_member_id IS NULL OR NOT EXISTS (SELECT 1 FROM public.member WHERE id = p_member_id) THEN
+    IF p_member_id IS NULL OR NOT EXISTS (SELECT 1 FROM public.member WHERE member.id = p_member_id) THEN
         RAISE EXCEPTION 'Member does not exist.';
     END IF;
     IF p_principal IS NULL OR p_principal <= 0 THEN
@@ -303,7 +303,8 @@ BEGIN
         status, opening_key
     ) VALUES (
         v_id, v_certificate, p_member_id, p_placement_date,
-        p_placement_date + p_term_days, p_principal, p_term_days, v_rate,
+        p_placement_date + (CASE WHEN p_term_days = 180 THEN 6 ELSE 12 END || ' months')::interval,
+        p_principal, p_term_days, v_rate,
         v_bracket_min, v_bracket_max, v_bracket_label, v_interest,
         round(p_principal + v_interest, 2), 'locked', p_opening_key
     );

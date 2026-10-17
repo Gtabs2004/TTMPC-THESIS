@@ -169,20 +169,30 @@ Conceptual statuses:
 
 Use established project status conventions if present. Determine maturity consistently using the cooperative's business timezone and agreed date convention; avoid browser-timezone errors.
 
-At maturity, the currently discussed settlement choices are:
+At maturity, the member chooses between the following settlement options. The
+certificate is not renewed or withdrawn automatically without the member's
+choice:
 
 ### Option A — Withdraw Tubo Only / Principal Rollover
 
 Expected business result:
-- Pay the interest earned for the matured cycle through the authorized payout/withdrawal process.
+- Pay only the interest earned for the matured cycle through the authorized
+  payout/withdrawal process.
 - Record the actual interest payment in the appropriate ledger.
-- Retain the principal for a new TD cycle.
+- Renew the TD using the original principal amount; the original principal is
+  not increased by the interest payment.
+- Let the member choose the new cycle's term: 180 days (6 months) or 365 days
+  (1 year).
 - Preserve the original certificate and settlement history.
 - Create a linked renewal/cycle record rather than overwriting the original placement dates and terms.
 - Record the new cycle's dates, rate, and terms.
 - Ensure the retained principal is not debited or credited a second time.
 
-**Unresolved:** Whether the renewed cycle uses the original rate or the rate effective when the new cycle starts; whether renewal starts on the maturity date or when the cashier actually processes it; and whether rollover is manual or automatic. Do not assume these rules.
+The interest for a completed 6-month or 1-year cycle is fixed by that
+certificate's agreed term and rate. Reaching maturity must not change the
+interest amount that the member is entitled to receive. Any new rate
+calculation applies only to the newly selected renewal cycle and must be
+stored on that linked cycle.
 
 ### Option B — Withdraw All
 
@@ -315,8 +325,8 @@ Use this checklist to track progress. Update it as work is completed.
 - [ ] Confirm whether ₱50,000 is a strict minimum placement.
 - [ ] Confirm whether rate brackets are based on each placement's principal.
 - [ ] Confirm maturity-date counting and timezone convention.
-- [ ] Confirm rollover rate and rollover effective date.
-- [ ] Confirm whether rollover is manual or automatic.
+- [ ] Confirm the approved rate for a newly selected renewal cycle and its effective date.
+- [x] Confirm maturity choice. (2026-10-17 — member chooses interest-only renewal or full withdrawal)
 - [ ] Confirm applicable tax, deduction, and rounding policies, if any.
 - [x] Design schema changes after repository/schema inspection. (2026-10-16 — dedicated TD tables, tier policies, RLS, ledger, and KPI view)
 - [x] Prepare SQL migrations and manual application instructions. (2026-10-16 — `time_deposit_01_schema.sql` through `time_deposit_03_kpis.sql`)
@@ -402,9 +412,9 @@ Do not fabricate test results, schema facts, successful database changes, or com
 1. **Funding:** Regular Savings transfer, cash deposit, or both?
 2. **Minimum placement:** Are amounts below ₱50,000 prohibited, or are there exceptions?
 3. **Bracket basis:** Is the bracket always based on the individual certificate's principal?
-4. **Rollover rate:** Original rate or rate in effect for the new cycle?
-5. **Rollover timing:** Starts on maturity date or when processed by staff?
-6. **Maturity behavior:** Manual member choice or automatic renewal under an approved default?
+4. **Renewal rate:** Which approved rate applies to the newly selected renewal cycle?
+5. **Renewal timing:** Starts on maturity date or when processed by staff?
+6. **Maturity behavior:** The member chooses interest-only renewal or full withdrawal; confirm the operational processing timing.
 7. **Maturity date convention:** How are placement date, day counting, weekends/holidays, and timezone handled?
 8. **Deductions:** Are withholding tax or other deductions applicable to interest payouts?
 9. **Rounding:** What rounding convention does the bookkeeper use for the actual ledger entry?

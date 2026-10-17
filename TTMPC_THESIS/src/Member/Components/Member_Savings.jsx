@@ -505,7 +505,7 @@ const Member_Savings = () => {
                       <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
                         <div><span className="text-gray-500 dark:text-mdark-text-secondary">Term</span><p className="font-semibold text-gray-800 dark:text-mdark-text">{placement.term_days} days</p></div>
                         <div><span className="text-gray-500 dark:text-mdark-text-secondary">Rate</span><p className="font-semibold text-gray-800 dark:text-mdark-text">{(Number(placement.annual_rate || 0) * 100).toFixed(2)}%</p></div>
-                        <div><span className="text-gray-500 dark:text-mdark-text-secondary">Expected tubo</span><p className="font-semibold text-emerald-700">{formatCurrency(placement.expected_interest)}</p></div>
+                        <div><span className="text-gray-500 dark:text-mdark-text-secondary">Expected interest earned</span><p className="font-semibold text-emerald-700">{formatCurrency(placement.expected_interest)}</p></div>
                         <div><span className="text-gray-500 dark:text-mdark-text-secondary">Maturity</span><p className="font-semibold text-gray-800 dark:text-mdark-text">{formatDate(placement.maturity_date)}</p></div>
                       </div>
                       <div className="mt-5">

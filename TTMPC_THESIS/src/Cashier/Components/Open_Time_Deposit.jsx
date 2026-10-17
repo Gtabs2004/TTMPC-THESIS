@@ -29,6 +29,10 @@ const Open_Time_Deposit = () => {
   const [status, setStatus] = useState("idle");
   const [error, setError] = useState("");
   const [result, setResult] = useState(null);
+  const [overrideMinimum, setOverrideMinimum] = useState(false);
+
+  const MIN_PLACEMENT = 50000;
+  const belowMinimum = Number(principal) > 0 && Number(principal) < MIN_PLACEMENT;
 
   const openMemberPicker = async () => {
     setMemberModalOpen(true);
@@ -93,8 +97,12 @@ const Open_Time_Deposit = () => {
 
   const openPlacement = async (event) => {
     event.preventDefault();
-    if (!member || !preview) {
-      setError("Select a member and enter a principal with an applicable rate bracket.");
+    if (!member) {
+      setError("Select a member before opening the certificate.");
+      return;
+    }
+    if (!preview && !(belowMinimum && overrideMinimum)) {
+      setError("Enter a principal with an applicable rate bracket, or check the minimum override.");
       return;
     }
     setStatus("submitting");
@@ -109,6 +117,7 @@ const Open_Time_Deposit = () => {
           principal: Number(principal),
           term_days: termDays,
           opening_key: crypto.randomUUID(),
+          override_minimum: belowMinimum && overrideMinimum,
         }),
       });
       const payload = await response.json().catch(() => ({}));
@@ -138,7 +147,7 @@ const Open_Time_Deposit = () => {
                 <div><span className="text-gray-500">Principal</span><p className="font-semibold">{formatCurrency(result.principal)}</p></div>
                 <div><span className="text-gray-500">Term and rate</span><p className="font-semibold">{result.term_days} days · {(Number(result.annual_rate) * 100).toFixed(2)}%</p></div>
                 <div><span className="text-gray-500">Maturity date</span><p className="font-semibold">{result.maturity_date}</p></div>
-                <div><span className="text-gray-500">Expected tubo</span><p className="font-semibold text-emerald-700">{formatCurrency(result.expected_interest)}</p></div>
+                <div><span className="text-gray-500">Expected interest earned</span><p className="font-semibold text-emerald-700">{formatCurrency(result.expected_interest)}</p></div>
                 <div><span className="text-gray-500">Maturity value</span><p className="font-semibold">{formatCurrency(result.expected_maturity_value)}</p></div>
               </div>
               <button type="button" onClick={() => navigate("/Cashier_Savings")} className="mt-8 rounded-lg bg-green-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-green-700">Back to Time Deposits</button>
@@ -172,16 +181,37 @@ const Open_Time_Deposit = () => {
               {member && <div className="mt-3 flex items-center gap-3 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-900"><UserRound size={18} /><span><strong className="block">{member.name}</strong>{member.membership_id}</span></div>}
 
               <div className="mt-5 grid gap-4 sm:grid-cols-2">
-                <label className="text-sm font-semibold text-gray-700">Principal (₱)<input type="number" min="0.01" step="0.01" value={principal} onChange={(event) => setPrincipal(event.target.value)} className="mt-2 h-10 w-full rounded-lg border border-gray-300 px-3 font-normal outline-none focus:border-green-600" /></label>
+                <label className="text-sm font-semibold text-gray-700">Principal (₱)<input type="number" min="0.01" step="0.01" value={principal} onChange={(event) => { setPrincipal(event.target.value); setOverrideMinimum(false); }} className="mt-2 h-10 w-full rounded-lg border border-gray-300 px-3 font-normal outline-none focus:border-green-600" /></label>
                 <label className="text-sm font-semibold text-gray-700">Term<select value={termDays} onChange={(event) => setTermDays(Number(event.target.value))} className="mt-2 h-10 w-full rounded-lg border border-gray-300 px-3 font-normal outline-none focus:border-green-600"><option value={180}>180 days (6 months)</option><option value={365}>365 days (1 year)</option></select></label>
               </div>
+
+              {belowMinimum && (
+                <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3">
+                  <p className="text-xs font-semibold text-amber-800">This principal is below the ₱50,000 minimum for a Time Deposit.</p>
+                  <label className="mt-2 flex items-center gap-2 text-xs text-amber-800">
+                    <input type="checkbox" checked={overrideMinimum} onChange={(event) => setOverrideMinimum(event.target.checked)} />
+                    Override and place it anyway (uses the ₱50,000–199,999.99 rate tier)
+                  </label>
+                </div>
+              )}
             </section>
 
             <aside className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
               <h2 className="text-lg font-bold text-gray-900">Placement preview</h2>
               {status === "previewing" && <div className="mt-6 flex items-center gap-2 text-sm text-gray-500"><LoaderCircle className="animate-spin" size={16} /> Calculating...</div>}
-              {!preview && status !== "previewing" && <p className="mt-6 text-sm text-gray-500">Enter a principal to see the applicable rate and expected maturity value.</p>}
-              {preview && <div className="mt-5 space-y-3 text-sm"><div className="rounded-lg bg-gray-50 p-3"><p className="font-semibold text-gray-800">{preview.rate_bracket_label}</p><p className="mt-1 text-gray-500">{preview.term_days} days · {(Number(preview.annual_rate) * 100).toFixed(2)}% annual rate</p></div><div className="flex justify-between"><span className="text-gray-600">Expected tubo</span><strong>{formatCurrency(preview.expected_interest)}</strong></div><div className="flex justify-between border-t pt-3"><span className="font-semibold">Maturity value</span><strong className="text-emerald-700">{formatCurrency(preview.expected_maturity_value)}</strong></div><p className="text-xs text-gray-500">Formula: {preview.formula}</p><button type="submit" disabled={!member || status === "submitting"} className="mt-4 flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-green-600 px-4 text-sm font-semibold text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50">{status === "submitting" ? <><LoaderCircle className="animate-spin" size={16} /> Opening...</> : <><Clock3 size={16} /> Open Time Deposit</>}</button></div>}
+              {!preview && status !== "previewing" && !(belowMinimum && overrideMinimum) && <p className="mt-6 text-sm text-gray-500">Enter a principal to see the applicable rate and expected maturity value.</p>}
+              {!preview && belowMinimum && overrideMinimum && (
+                <div className="mt-5 space-y-3 text-sm">
+                  <div className="rounded-lg bg-amber-50 p-3">
+                    <p className="font-semibold text-amber-800">Below-minimum placement (override)</p>
+                    <p className="mt-1 text-amber-700">No standard rate bracket applies; the ₱50,000–199,999.99 tier's rate will be used.</p>
+                  </div>
+                  <button type="submit" disabled={!member || status === "submitting"} className="mt-4 flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-amber-600 px-4 text-sm font-semibold text-white hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-50">
+                    {status === "submitting" ? <><LoaderCircle className="animate-spin" size={16} /> Opening...</> : <><Clock3 size={16} /> Open Below-Minimum Time Deposit</>}
+                  </button>
+                </div>
+              )}
+              {preview && <div className="mt-5 space-y-3 text-sm"><div className="rounded-lg bg-gray-50 p-3"><p className="font-semibold text-gray-800">{preview.rate_bracket_label}</p><p className="mt-1 text-gray-500">{preview.term_days} days · {(Number(preview.annual_rate) * 100).toFixed(2)}% annual rate</p></div><div className="flex justify-between"><span className="text-gray-600">Expected interest earned</span><strong>{formatCurrency(preview.expected_interest)}</strong></div><div className="flex justify-between border-t pt-3"><span className="font-semibold">Maturity value</span><strong className="text-emerald-700">{formatCurrency(preview.expected_maturity_value)}</strong></div><p className="text-xs text-gray-500">Formula: {preview.formula}</p><button type="submit" disabled={!member || status === "submitting"} className="mt-4 flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-green-600 px-4 text-sm font-semibold text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50">{status === "submitting" ? <><LoaderCircle className="animate-spin" size={16} /> Opening...</> : <><Clock3 size={16} /> Open Time Deposit</>}</button></div>}
             </aside>
           </form>
 
