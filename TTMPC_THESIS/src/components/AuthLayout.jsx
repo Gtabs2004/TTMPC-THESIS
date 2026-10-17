@@ -183,7 +183,7 @@ export default function AuthLayout({
   variant = 'default',
 }) {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-[#CFE8C4] via-[#E4F2DC] to-[#F1F7EC] p-4 font-[Poppins,sans-serif] sm:p-8">
+    <div className={`flex min-h-screen items-center justify-center bg-gradient-to-br from-[#CFE8C4] via-[#E4F2DC] to-[#F1F7EC] p-4 font-[Poppins,sans-serif] sm:p-8`}>
       <style>{`
         @keyframes authSlide { from { opacity: 0; transform: translateX(-16px); } to { opacity: 1; transform: none; } }
         @keyframes authRise  { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
