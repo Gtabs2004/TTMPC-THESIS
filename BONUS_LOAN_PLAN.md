@@ -1,5 +1,7 @@
 # Bonus Loan Module — Analysis & Plan
 
+> **SUPERSEDED 2026-10-18.** The Bookkeeper (real person, asked directly) confirmed the **Saka upfront-interest-deduction model** is the correct Bonus Loan logic, overriding the lump-sum model described below (which came from management's 2026-10-14 Q&A). Under Saka: interest for the whole term is deducted from proceeds **at release** (net proceeds = principal − upfront interest − fees); the borrower owes only the **principal** at the bonus month, since interest was already collected upfront. This is now live — see the "2026-10-18 Saka implementation" note at the bottom of this file and `BONUS_LOAN_BOOKKEEPER_SPEC.md`. Everything below this point describes the **old, now-replaced** lump-sum design — kept for history, not current behavior.
+
 Status: **D1–D13 resolved 2026-10-14 via management Q&A (21-question sheet, handwritten answers) + Messenger clarification from Mimzy. Steps 1–6 + Step 8 of §4 BUILT 2026-10-14/15.** 4 SQL migrations already applied to LIVE 2026-10-14 (no errors): `rename_koica_loans_to_non_member_loans.sql`, `bonus_verified_amount_schema.sql`, `get_loan_eligibility_rpc.sql`, `bonus_loan_window_trigger.sql`. **One more migration still needs to be run: `bonus_nonmember_in_loans_schema.sql`** (Step 8, adds `applicant_full_name`/`applicant_credentials` to `loans`). Also found and fixed a real window-constant bug on 2026-10-15 (a fifth hardcoded copy in `Member_ApplyLoans.jsx` was missed in the first pass). **Step 7 not started** (Cashier UI copy — minor). **Step 9 (formal tests) not started** — recommend testing the full flow end-to-end, including non-member intake, before relying on this in production.
 
 Source policy (TTMPC Bonus Loan sheet):
@@ -237,3 +239,27 @@ Run on the TEST Supabase mirror first, not LIVE, until Step 6 ships (see as-buil
 - Payment approval: paying the single installment in full closes the loan (`fully paid`, no next row created); a partial payment leaves it open with a recomputed remaining balance.
 - Penalty: missed due date accrues 1%/month of the *original* principal only, starting the day after due date (no grace) — verify this doesn't leak into non-Bonus loan types, and that the base doesn't shrink after a partial payment.
 - `npm run build` + `npm run lint` (already run clean as of this pass — no new errors introduced).
+
+---
+
+## 8. 2026-10-18 — Saka upfront-deduction model (SUPERSEDES §1–7 above)
+
+**Trigger:** the Bookkeeper (real person) was asked directly and confirmed the Bonus Loan deducts interest upfront at release ("Saka"), not at the bonus month as the lump-sum model (§1–7) assumed. User explicitly chose the Bookkeeper's answer as final over the 2026-10-14 management Q&A.
+
+**What changed, conceptually:**
+- **Old (lump-sum):** nothing deducted at release; borrower owes principal + accrued interest at the bonus month.
+- **New (Saka):** `upfront_interest = principal × monthly_rate × term`, deducted from proceeds at release (`net_proceeds = principal − upfront_interest − fees`, blocked if ≤ 0). Borrower owes **principal only** at the bonus month — interest is already fully collected.
+- Term/rate/penalty/eligibility/non-member-storage rules from §2–§3 above are otherwise **unchanged** — only the *timing* of interest collection flipped.
+
+**Built 2026-10-18:**
+- `main.py` `/api/loans/compute` Bonus branch — `expected_amount` (amount due at bonus month) is now `principal_component` only; `total_deductions`/`net_proceeds` now include the upfront interest and raise 400 if proceeds would be ≤ 0.
+- `main.py` `build_single_schedule_row` Bonus branch — the single schedule row's `expected_amount`/`interest_component` reflects principal-only due (interest already collected).
+- `main.py` `_compute_net_cash_out` — new optional `bonus_upfront_interest` param; `disburse_cashier_loan` passes the real figure computed from the actual release-date term; `preview_cashier_disbursement` and `_compute_vault_available`/`_net_cash_out_for_rows` fall back to a new `_estimate_bonus_upfront_interest()` helper (reads the loan row's stored term/rate — an estimate pre-release, since the true term is only final at the real release date, same caveat as the old model's as-built notes in §6 above). Added `term`/`interest_rate` to those endpoints' `loans` selects so the estimator has data to work with.
+- `main.py` `disburse_cashier_loan` — blocks release with 400 if net cash out would be ≤ 0 for Bonus.
+- Frontend: `Bonus_Loan.jsx` agreement copy and computation summary card now describe upfront deduction ("Upfront Interest (deducted at release)" / "Principal Due at the Bonus") instead of "nothing paid until the bonus." `loanComputeApi.js` (offline fallback) mirrors the backend exactly, including the ≤0 guard. `LoanDeductionsCard.jsx` gained an optional `bonus_upfront_interest` row so the Cashier/Bookkeeper deductions card totals correctly for Bonus.
+
+**Not touched / still needs review:**
+- Penalty logic (`compute_loan_penalty` et al.) — unaffected, already based on original principal, which is still correct since the bonus-month amount due is principal either way.
+- The Bookkeeper's bonus-amount verification gate (`verified_bonus_amount` cap) — unaffected; still caps the loan principal, not interest.
+- No DB schema change was needed — `bonus_upfront_interest` is a computed/display value, not a stored column. If a dedicated receipt line-item for it is wanted later, that needs a migration (not done here).
+- Formal end-to-end testing (old §7 checklist) needs to be redone against the Saka numbers — not done in this pass.

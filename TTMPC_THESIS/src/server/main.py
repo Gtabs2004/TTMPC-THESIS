@@ -1601,13 +1601,13 @@ def build_single_schedule_row(
         expected_amount = Decimal(principal_cents + interest_cents) / Decimal("100")
         remaining_after = Decimal(ending_balance_cents) / Decimal("100")
     elif loan_type == "bonus":
-        # Single lump-sum payoff at the bonus month: nothing is collected
-        # monthly. term_months here is "months from release to the bonus
-        # due date" (Q5/Q9), not a count of installments — there is only
-        # ever installment #1 (Step 3: no next row is created after payoff).
+        # Saka upfront-deduction model (Bookkeeper-confirmed 2026-10-18):
+        # interest for the whole term was already deducted from proceeds at
+        # release, so only the principal is owed at the bonus month. There
+        # is only ever installment #1 (no next row is created after payoff).
         principal_component = max(remaining_principal_before, Decimal("0"))
-        interest_component = money(principal * monthly_rate_decimal * Decimal(term_months))
-        expected_amount = money(principal_component + interest_component)
+        interest_component = Decimal("0")
+        expected_amount = principal_component
         remaining_after = Decimal("0")
     else:
         principal_component = money(principal / Decimal(term_months))
@@ -2077,20 +2077,25 @@ async def compute_loan(payload: LoanComputeRequest):
         monthly_amortization = first_total_payment
 
     elif payload.loan_type == "bonus":
-        # Bonus is not amortized: nothing is collected monthly. The whole
-        # principal plus interest accrued for the months actually elapsed
-        # (term_months = months from release to the target bonus month-end,
-        # partial first month counts as a full month) is due in a single
-        # installment at the bonus month. See BONUS_LOAN_PLAN.md Step 2.
+        # Bonus uses upfront "Saka" interest deduction, confirmed by the
+        # Bookkeeper (2026-10-18): the full interest spanning release to the
+        # target bonus month is deducted at release. The borrower receives
+        # principal minus that upfront interest (and other fees) as net
+        # proceeds, and owes only the full principal at the bonus month —
+        # interest is already fully satisfied at release. See
+        # BONUS_LOAN_BOOKKEEPER_SPEC.md.
         member_category = str(payload.member_category).strip().lower()
         loan_type_code = resolve_loan_type_code("bonus", member_category)
         monthly_rate = resolve_monthly_rate_decimal("bonus", None, loan_type_code=loan_type_code)
         if monthly_rate <= 0:
             raise HTTPException(status_code=400, detail=f"Interest rate for {loan_type_code} is not configured in loan_types.")
 
+        upfront_interest = money(principal * monthly_rate * Decimal(term))
         principal_component = principal
-        interest_component = money(principal * monthly_rate * Decimal(term))
-        expected_amount = money(principal_component + interest_component)
+        interest_component = upfront_interest
+        # What the borrower owes at the bonus month: principal only, since
+        # interest was already deducted at release.
+        expected_amount = principal_component
         monthly_amortization = expected_amount
 
         fee_policy = resolve_fee_policy(loan_type_code)
@@ -2110,8 +2115,28 @@ async def compute_loan(payload: LoanComputeRequest):
         )
 
     total_interest = money(sum((row.interest_component for row in monthly_breakdown), Decimal("0")))
-    total_deductions = money(service_fee + cbu_deduction + insurance_fee + notarial_fee)
-    net_proceeds = money(principal - total_deductions)
+    if payload.loan_type == "bonus":
+        # Upfront interest is deducted from proceeds at release, same as the
+        # other fee deductions — net proceeds must not go negative.
+        total_deductions = money(service_fee + cbu_deduction + insurance_fee + notarial_fee + total_interest)
+        net_proceeds = money(principal - total_deductions)
+        if net_proceeds <= 0:
+            raise HTTPException(
+                status_code=400,
+                detail="Net proceeds would be zero or negative after upfront interest and fees — reduce the term or principal.",
+            )
+    else:
+        total_deductions = money(service_fee + cbu_deduction + insurance_fee + notarial_fee)
+        net_proceeds = money(principal - total_deductions)
+
+    deductions_out = {
+        "service_fee": service_fee,
+        "cbu_deduction": cbu_deduction,
+        "insurance_fee": insurance_fee,
+        "notarial_fee": notarial_fee,
+    }
+    if payload.loan_type == "bonus":
+        deductions_out["bonus_upfront_interest"] = total_interest
 
     return {
         "success": True,
@@ -2123,12 +2148,7 @@ async def compute_loan(payload: LoanComputeRequest):
             total_interest=total_interest,
             total_deductions=total_deductions,
             net_proceeds=net_proceeds,
-            deductions={
-                "service_fee": service_fee,
-                "cbu_deduction": cbu_deduction,
-                "insurance_fee": insurance_fee,
-                "notarial_fee": notarial_fee,
-            },
+            deductions=deductions_out,
             monthly_breakdown=monthly_breakdown,
         ).model_dump(mode="json"),
     }
@@ -5092,7 +5112,39 @@ def _stored_fee_breakdown(loan_row: dict) -> dict | None:
     return fees
 
 
-def _compute_net_cash_out(loan_row: dict, renewal_payoff: Decimal = Decimal("0")) -> dict:
+def _estimate_bonus_upfront_interest(loan_row: dict) -> Decimal:
+    """Estimate Saka upfront interest for a Bonus loan that hasn't been
+    released yet (preview / vault-availability contexts), from whatever term
+    and rate are currently stored on the row. This is only an estimate — the
+    real figure is recomputed from the actual release date in
+    disburse_cashier_loan, since the application-time term can be stale
+    (BONUS_LOAN_PLAN.md as-built notes)."""
+    loan_type_row = loan_row.get("loan_type") or {}
+    if normalize_cashier_loan_type(loan_type_row.get("name")) != "bonus":
+        return Decimal("0")
+    principal = Decimal(str(loan_row.get("principal_amount") or loan_row.get("loan_amount") or 0))
+    term_months = int(loan_row.get("term") or 0)
+    if principal <= 0 or term_months <= 0:
+        return Decimal("0")
+    interest_rate_percent = (
+        Decimal(str(loan_row.get("interest_rate"))) if loan_row.get("interest_rate") is not None else None
+    )
+    monthly_rate = resolve_monthly_rate_decimal(
+        "bonus",
+        interest_rate_percent,
+        loan_type_code=resolve_loan_type_code("bonus"),
+        loan_type_name=loan_type_row.get("name"),
+    )
+    if monthly_rate <= 0:
+        return Decimal("0")
+    return money(principal * monthly_rate * Decimal(term_months))
+
+
+def _compute_net_cash_out(
+    loan_row: dict,
+    renewal_payoff: Decimal = Decimal("0"),
+    bonus_upfront_interest: Decimal | None = None,
+) -> dict:
     principal = Decimal(str(loan_row.get("principal_amount") or loan_row.get("loan_amount") or 0))
     type_code = _resolve_loan_type_code_for_breakdown(loan_row.get("loan_type") or {})
     fees = _stored_fee_breakdown(loan_row) or (
@@ -5102,12 +5154,24 @@ def _compute_net_cash_out(loan_row: dict, renewal_payoff: Decimal = Decimal("0")
               "notarial_fee": Decimal("0"), "total_deductions": Decimal("0")}
     )
     payoff = money(max(renewal_payoff, Decimal("0")))
-    net_cash_out = money(max(principal - fees["total_deductions"] - payoff, Decimal("0")))
+    # Saka upfront-deduction model (Bookkeeper-confirmed 2026-10-18): Bonus
+    # deducts the whole term's interest from proceeds at release, same as a
+    # fee. If the caller didn't supply the real release-date figure (only
+    # disburse_cashier_loan can, since it knows the actual release date),
+    # fall back to an estimate from the loan row's stored term/rate.
+    if bonus_upfront_interest is None:
+        bonus_upfront_interest = _estimate_bonus_upfront_interest(loan_row)
+    upfront_interest = money(max(bonus_upfront_interest, Decimal("0")))
+    total_deductions = money(fees["total_deductions"] + upfront_interest)
+    net_cash_out = money(max(principal - total_deductions - payoff, Decimal("0")))
     return {
         "loan_type_code": type_code,
         "principal": money(principal),
-        "deductions": {k: fees[k] for k in ("service_fee", "cbu_deduction", "insurance_fee", "notarial_fee")},
-        "total_deductions": fees["total_deductions"],
+        "deductions": {
+            k: fees[k] for k in ("service_fee", "cbu_deduction", "insurance_fee", "notarial_fee")
+        },
+        "bonus_upfront_interest": upfront_interest,
+        "total_deductions": total_deductions,
         "is_renewal": str(loan_row.get("application_type") or "").strip().lower() == "renewal",
         "renewal_payoff": payoff,
         "net_cash_out": net_cash_out,
@@ -5148,7 +5212,7 @@ def _compute_vault_available() -> dict:
             supabase.table("loans")
             .select(
                 "control_number,member_id,loan_amount,principal_amount,loan_status,application_type,"
-                f"application_date,{LOAN_FEE_SNAPSHOT_COLUMNS},loan_type:loan_type_id(name,code)"
+                f"application_date,term,interest_rate,{LOAN_FEE_SNAPSHOT_COLUMNS},loan_type:loan_type_id(name,code)"
             )
             .execute()
         )
@@ -5190,7 +5254,7 @@ async def preview_cashier_disbursement(loan_id: str):
             supabase.table("loans")
             .select(
                 "control_number,member_id,loan_amount,principal_amount,application_type,application_date,"
-                f"{LOAN_FEE_SNAPSHOT_COLUMNS},loan_type:loan_type_id(name,code)"
+                f"term,interest_rate,{LOAN_FEE_SNAPSHOT_COLUMNS},loan_type:loan_type_id(name,code)"
             )
             .eq("control_number", clean_loan_id)
             .limit(1)
@@ -5332,8 +5396,16 @@ async def disburse_cashier_loan(loan_id: str, payload: CashierDisbursementReques
             renewal_payoff = _outstanding_balances([predecessor]).get(
                 str(predecessor.get("control_number")), Decimal("0")
             )
-        release_breakdown = _compute_net_cash_out(loan_row, renewal_payoff)
+        bonus_upfront_interest = None
+        if normalized_loan_type == "bonus":
+            bonus_upfront_interest = money(principal_amount * monthly_rate_decimal * Decimal(term_months))
+        release_breakdown = _compute_net_cash_out(loan_row, renewal_payoff, bonus_upfront_interest)
         net_cash_out = release_breakdown["net_cash_out"]
+        if normalized_loan_type == "bonus" and net_cash_out <= 0:
+            raise HTTPException(
+                status_code=400,
+                detail="Net proceeds for this Bonus loan would be zero or negative after upfront interest and fees.",
+            )
 
         vault_debited = False
         vault_new_balance = None

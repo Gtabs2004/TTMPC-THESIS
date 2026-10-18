@@ -15,6 +15,14 @@ const ROWS = [
 // recorded), so they come from the current fee policy, as the Cashier does.
 export default function LoanDeductionsCard({ loan, isRenewal = false, estimated = false, className = '' }) {
   const saved = loan && ROWS.every(([key]) => loan[key] !== null && loan[key] !== undefined);
+  // Saka upfront-deduction model: Bonus also deducts the whole term's
+  // interest at release, on top of the four standard fees. The caller
+  // supplies it as `bonus_upfront_interest` (not one of the saved loan
+  // columns) so the displayed total matches net_proceeds.
+  const bonusUpfrontInterest = Number(loan?.bonus_upfront_interest || 0);
+  const rows = bonusUpfrontInterest > 0
+    ? [...ROWS, ['bonus_upfront_interest', 'Upfront Interest (Bonus)']]
+    : ROWS;
 
   return (
     <div className={`rounded-xl border border-amber-200 bg-amber-50 p-4 ${className}`}>
@@ -25,7 +33,7 @@ export default function LoanDeductionsCard({ loan, isRenewal = false, estimated 
       {saved ? (
         <>
           <div className="space-y-1.5 text-sm">
-            {ROWS.map(([key, label]) => (
+            {rows.map(([key, label]) => (
               <div key={key} className="flex justify-between">
                 <span className="text-gray-600">{label}</span>
                 <span className="font-semibold text-gray-800">{peso(loan[key])}</span>
@@ -35,7 +43,7 @@ export default function LoanDeductionsCard({ loan, isRenewal = false, estimated 
           <div className="mt-2 flex justify-between border-t border-amber-200 pt-2 text-sm">
             <span className="font-semibold text-gray-700">Total Deductions</span>
             <span className="font-bold text-gray-900">
-              {peso(ROWS.reduce((sum, [key]) => sum + Number(loan[key] || 0), 0))}
+              {peso(rows.reduce((sum, [key]) => sum + Number(loan[key] || 0), 0))}
             </span>
           </div>
           <div className="mt-2 flex justify-between">

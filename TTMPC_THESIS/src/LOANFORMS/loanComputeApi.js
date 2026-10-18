@@ -206,13 +206,12 @@ const buildMonthlyBreakdown = (loanType, principal, termMonths, monthlyRate, fir
   }
 
   if (loanType === 'bonus') {
-    // Single lump-sum payoff, not an amortized schedule: nothing is
-    // collected monthly. Interest = principal * rate * elapsed months (Q9),
-    // due in one installment at the bonus month (BONUS_LOAN_PLAN.md Step 2).
-    // termMonths here means "months elapsed to the bonus date", mirroring
-    // main.py's /api/loans/compute Bonus branch exactly.
+    // Saka upfront-deduction model (Bookkeeper-confirmed): interest for the
+    // whole term is deducted from proceeds at release, so only the
+    // principal is owed at the bonus month. Mirrors main.py's
+    // /api/loans/compute Bonus branch exactly.
     const interestComponent = money(principal * monthlyRate * termMonths);
-    const expectedAmount = money(principal + interestComponent);
+    const expectedAmount = principal;
     breakdown.push({
       installment_no: 1,
       due_date: addMonths(dueDate, termMonths - 1).toISOString().split('T')[0],
@@ -295,8 +294,15 @@ const computeLoanLocally = async (payload) => {
   const monthlyBreakdown = buildMonthlyBreakdown(loanType, principal, termMonths, monthlyRate, firstDueDate);
   const monthlyAmortization = monthlyBreakdown.length ? Number(monthlyBreakdown[0].expected_amount || 0) : 0;
   const totalInterest = money(monthlyBreakdown.reduce((sum, row) => sum + Number(row.interest_component || 0), 0));
-  const totalDeductions = money(serviceFee + cbuDeduction + insuranceFee + notarialFee);
+  // Saka upfront-deduction model: Bonus deducts the whole term's interest
+  // from proceeds at release, same as the other fees.
+  const totalDeductions = loanType === 'bonus'
+    ? money(serviceFee + cbuDeduction + insuranceFee + notarialFee + totalInterest)
+    : money(serviceFee + cbuDeduction + insuranceFee + notarialFee);
   const netProceeds = money(principal - totalDeductions);
+  if (loanType === 'bonus' && netProceeds <= 0) {
+    throw new Error('Net proceeds would be zero or negative after upfront interest and fees — reduce the term or principal.');
+  }
 
   return {
     loan_type: loanType,
@@ -311,6 +317,7 @@ const computeLoanLocally = async (payload) => {
       cbu_deduction: money(cbuDeduction),
       insurance_fee: money(insuranceFee),
       notarial_fee: money(notarialFee),
+      ...(loanType === 'bonus' ? { bonus_upfront_interest: totalInterest } : {}),
     },
     monthly_breakdown: monthlyBreakdown,
   };

@@ -711,7 +711,7 @@ function Bonus_Loan({ staffIntake = false }) {
               
               <br className="hidden md:block" />
               
-              payable in full on the
+              with interest for the full term deducted upfront upon release, maturing on the
               <input
                 type="text"
                 name="target_bonus_display"
@@ -719,7 +719,7 @@ function Bonus_Loan({ staffIntake = false }) {
                 readOnly
                 className="border border-gray-300 rounded-md px-3 py-1.5 outline-none bg-gray-50 text-sm transition-all mx-0 my-2 w-full sm:mx-2 sm:my-0 sm:w-96 inline-block align-middle cursor-not-allowed text-gray-600"
               />
-              , with a total amount due (principal plus interest) of
+              , where I will owe the principal amount of
               <input
                 type="text"
                 name="monthly_amortization"
@@ -727,12 +727,12 @@ function Bonus_Loan({ staffIntake = false }) {
                 readOnly
                 className="border border-gray-300 rounded-md px-3 py-1.5 outline-none bg-gray-50 text-sm transition-all mx-0 my-2 w-full sm:mx-2 sm:my-0 sm:w-48 inline-block align-middle cursor-not-allowed"
               />
-              , which I promise to pay the amount to <strong>Tubungan Teachers' Multi Purpose Cooperative</strong>
+              in full, which I promise to pay the amount to <strong>Tubungan Teachers' Multi Purpose Cooperative</strong>
 
               <br />
 
               <span className="block mt-2 leading-normal">
-                <strong>(TTMPC)</strong> in accordance with the terms and conditions as stipulated in the Promissory Note of which I certify to have read and understood clearly. Nothing is paid until the bonus arrives; I bind myself to pay the amount above in full out of my bonus or surrender my ATM to TTMPC.
+                <strong>(TTMPC)</strong> in accordance with the terms and conditions as stipulated in the Promissory Note of which I certify to have read and understood clearly. Interest for the full term has already been deducted from my proceeds at release; I bind myself to pay the principal above in full out of my bonus or surrender my ATM to TTMPC.
               </span>
             </div>
 
@@ -756,12 +756,12 @@ function Bonus_Loan({ staffIntake = false }) {
                       ))}
                     </div>
                     <div className="mt-1.5 flex justify-between text-sm">
-                      <span className="text-gray-600">Total Interest (accrued, not paid monthly)</span>
+                      <span className="text-gray-600">Upfront Interest (deducted at release)</span>
                       <span className="font-semibold text-gray-800">{peso(computation.totalInterest)}</span>
                     </div>
                     <div className="mt-2 flex justify-between border-t border-green-200 pt-2">
-                      <span className="font-bold text-gray-900">Total Payable at the Bonus ({targetBonus.cycle})</span>
-                      <span className="font-black text-member-green">{peso(computation.principal + computation.totalInterest)}</span>
+                      <span className="font-bold text-gray-900">Principal Due at the Bonus ({targetBonus.cycle})</span>
+                      <span className="font-black text-member-green">{peso(computation.principal)}</span>
                     </div>
                   </div>
                 )}

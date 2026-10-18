@@ -2,7 +2,7 @@
 
 Scope: this document describes the Bonus Loan feature **as it concerns the Bookkeeper role only**. It is a Bookkeeper-focused slice of the full design in `BONUS_LOAN_PLAN.md` (the canonical source for rates, penalty math, non-member storage, etc.) — read that file for anything not repeated here. This doc exists because a request asked for a Bookkeeper-specific spec; it does not introduce new rules.
 
-Status: the behavior described below is **already built** (2026-10-14/15). This is documentation of current state, not a new feature plan.
+Status: sections 1, 3, 4, 5, 6, 7 below are unchanged since 2026-10-14/15. **Section 2's financial model was superseded 2026-10-18**: the Bookkeeper confirmed the Bonus Loan deducts interest upfront at release ("Saka"), not at bonus-month settlement. See `BONUS_LOAN_PLAN.md` §8 for the full implementation record.
 
 ---
 
