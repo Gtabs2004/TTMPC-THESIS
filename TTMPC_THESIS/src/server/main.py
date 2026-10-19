@@ -11545,6 +11545,415 @@ async def post_savings_account_withdraw(
 
 
 # ---------------------------------------------------------------------------
+# Savings Interest v2 — quarterly, Actual/365, running-balance accrual.
+# Confirmed cooperative rule (SAVINGS_INTEREST_V2_PLAN.md). Authoritative math
+# lives in savings_interest_v2/ledger_engine.py (Decimal/ROUND_HALF_UP,
+# unit-tested against the cooperative's reference dataset); this section only
+# feeds it savings_ledger rows per account and persists results.
+#
+# Segregation of duties mirrors loan_renewal_override_requests: Bookkeeper
+# posts, Manager reverses, never their own posting. Table is RLS-on with no
+# client policies, so this goes through the service-role Supabase client only
+# (schema: savings_interest_v2_schema.sql).
+# ---------------------------------------------------------------------------
+from savings_interest_v2.ledger_engine import (  # noqa: E402
+    SavingsLedgerEngine,
+    Transaction as _SavingsTxn,
+    money as _savings_money,
+    QUARTER_END_MONTHS_DAYS as _SAVINGS_QUARTER_END_MONTHS_DAYS,
+)
+
+
+def _require_manager(current_user: dict) -> None:
+    role = _resolve_staff_role(current_user["id"], current_user.get("email") or "")
+    if role != "manager":
+        raise HTTPException(status_code=403, detail="Only the Manager can reverse a savings interest posting.")
+
+
+def _savings_quarter_candidates(opening_date: date, limit: int = 8) -> list[date]:
+    """Quarter-end dates strictly after opening_date, up to today, oldest first."""
+    today = date.today()
+    out: list[date] = []
+    year = opening_date.year
+    while len(out) < limit:
+        for month, day in _SAVINGS_QUARTER_END_MONTHS_DAYS:
+            candidate = date(year, month, day)
+            if candidate > opening_date and candidate <= today:
+                out.append(candidate)
+        year += 1
+        if year > today.year + 1:
+            break
+    out.sort()
+    return out[:limit]
+
+
+def _run_savings_ledger_engine(account_number: str, upto: date | None = None) -> tuple[SavingsLedgerEngine, list, date | None]:
+    """Replays an account's savings_ledger (deposits/withdrawals only — prior
+    'Int.' rows are skipped, since those are what this engine itself posted
+    last time and replaying them would double-count) through the engine from
+    account opening, posting every quarter-close up to `upto` (default: the
+    latest quarter-end not already posted). Returns (engine, pending_quarters, last_posted_quarter).
+    """
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+
+    account_resp = (
+        supabase.table("savings_accounts")
+        .select("account_number,balance,created_at,status")
+        .eq("account_number", account_number)
+        .limit(1)
+        .execute()
+    )
+    account = (account_resp.data or [None])[0]
+    if not account:
+        raise HTTPException(status_code=404, detail="Savings account not found.")
+
+    policy_resp = (
+        supabase.table("deposit_interest_policies")
+        .select("annual_rate,minimum_balance,crediting_frequency")
+        .eq("product_code", "SAVINGS")
+        .limit(1)
+        .execute()
+    )
+    policy = (policy_resp.data or [None])[0] or {}
+    annual_rate_pct = Decimal(str(policy.get("annual_rate") or "1.0"))
+    minimum_balance = Decimal(str(policy["minimum_balance"])) if policy.get("minimum_balance") is not None else None
+
+    last_batch_resp = (
+        supabase.table("savings_interest_batches")
+        .select("period_quarter,closing_balance")
+        .eq("account_number", account_number)
+        .eq("status", "posted")
+        .order("period_quarter", desc=True)
+        .limit(1)
+        .execute()
+    )
+    last_batch = (last_batch_resp.data or [None])[0]
+
+    created_at_raw = account.get("created_at")
+    opening_date = (
+        date.fromisoformat(str(last_batch["period_quarter"]))
+        if last_batch
+        else (date.fromisoformat(str(created_at_raw)[:10]) if created_at_raw else date.today())
+    )
+    opening_balance = _savings_money(Decimal(str(last_batch["closing_balance"]))) if last_batch else Decimal("0")
+
+    ledger_resp = (
+        supabase.table("savings_ledger")
+        .select("entry_type,amount,posted_at,source")
+        .eq("account_number", account_number)
+        .neq("source", "savings_interest")
+        .gt("posted_at", opening_date.isoformat())
+        .order("posted_at")
+        .execute()
+    )
+    ledger_rows = ledger_resp.data or []
+
+    engine = SavingsLedgerEngine(
+        opening_date=opening_date,
+        opening_balance=opening_balance,
+        minimum_balance=minimum_balance,
+    )
+    # Patch the module-level annual rate for this run — BOD-edited, not the
+    # engine's hardcoded 1.00% default — without forking the tested engine.
+    import savings_interest_v2.ledger_engine as _engine_mod
+    _original_rate = _engine_mod.ANNUAL_RATE
+    _engine_mod.ANNUAL_RATE = annual_rate_pct / Decimal("100")
+    try:
+        for row in ledger_rows:
+            txn_date = date.fromisoformat(str(row["posted_at"])[:10])
+            code = "CD" if row["entry_type"] == "credit" else "WD"
+            engine.post_transaction(_SavingsTxn(txn_date=txn_date, code=code, amount=_savings_money(Decimal(str(row["amount"])))))
+
+        all_quarters = _savings_quarter_candidates(opening_date)
+        pending_quarters = [q for q in all_quarters if q <= (upto or date.today())]
+        for q in pending_quarters:
+            engine.post_quarter_close(q)
+    finally:
+        _engine_mod.ANNUAL_RATE = _original_rate
+
+    last_posted = date.fromisoformat(str(last_batch["period_quarter"])) if last_batch else None
+    return engine, pending_quarters, last_posted
+
+
+@app.get("/api/savings-interest/ledger/{account_number}")
+async def get_savings_interest_passbook(
+    account_number: str,
+    current_user: dict | None = _Depends(_get_current_user_optional),
+):
+    """Full passbook breakdown (deposits/withdrawals/interest, running balance,
+    accrued line interest) for the Cashier and Member passbook tables' Accrued
+    Int. column + formula tooltip. Replays from account opening, not just the
+    last posted quarter, so every historical row's accrued interest is shown."""
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+
+    account_resp = (
+        supabase.table("savings_accounts")
+        .select("account_number,created_at")
+        .eq("account_number", account_number)
+        .limit(1)
+        .execute()
+    )
+    account = (account_resp.data or [None])[0]
+    if not account:
+        raise HTTPException(status_code=404, detail="Savings account not found.")
+
+    policy_resp = (
+        supabase.table("deposit_interest_policies")
+        .select("annual_rate,minimum_balance")
+        .eq("product_code", "SAVINGS")
+        .limit(1)
+        .execute()
+    )
+    policy = (policy_resp.data or [None])[0] or {}
+    annual_rate_pct = Decimal(str(policy.get("annual_rate") or "1.0"))
+    minimum_balance = Decimal(str(policy["minimum_balance"])) if policy.get("minimum_balance") is not None else None
+
+    created_at_raw = account.get("created_at")
+    opening_date = date.fromisoformat(str(created_at_raw)[:10]) if created_at_raw else date.today()
+
+    ledger_resp = (
+        supabase.table("savings_ledger")
+        .select("id,entry_type,amount,posted_at,source")
+        .eq("account_number", account_number)
+        .neq("source", "savings_interest")
+        .order("posted_at")
+        .execute()
+    )
+    ledger_rows = ledger_resp.data or []
+
+    engine = SavingsLedgerEngine(
+        opening_date=opening_date,
+        opening_balance=Decimal("0"),
+        minimum_balance=minimum_balance,
+    )
+    import savings_interest_v2.ledger_engine as _engine_mod
+    _original_rate = _engine_mod.ANNUAL_RATE
+    _engine_mod.ANNUAL_RATE = annual_rate_pct / Decimal("100")
+    row_ids: list[str | None] = []
+    try:
+        for row in ledger_rows:
+            txn_date = date.fromisoformat(str(row["posted_at"])[:10])
+            code = "CD" if row["entry_type"] == "credit" else "WD"
+            engine.post_transaction(_SavingsTxn(txn_date=txn_date, code=code, amount=_savings_money(Decimal(str(row["amount"])))))
+            row_ids.append(row.get("id"))
+
+        all_quarters = _savings_quarter_candidates(opening_date)
+        pending_quarters = [q for q in all_quarters if q <= date.today()]
+        for q in pending_quarters:
+            engine.post_quarter_close(q)
+            row_ids.append(None)  # quarter-close rows have no savings_ledger id of their own yet
+    finally:
+        _engine_mod.ANNUAL_RATE = _original_rate
+
+    passbook = []
+    for ledger_entry_id, row in zip(row_ids, engine.rows):
+        passbook.append({
+            "id": ledger_entry_id,
+            "date": row.date.isoformat(),
+            "code": row.code,
+            "withdrawal": decimal_to_float(row.withdrawal) if row.withdrawal is not None else None,
+            "interest_posted": decimal_to_float(row.interest_posted) if row.interest_posted is not None else None,
+            "deposit": decimal_to_float(row.deposit) if row.deposit is not None else None,
+            "running_balance": decimal_to_float(row.total_balance),
+            "accrued_line_interest": decimal_to_float(row.accrued_line_interest),
+        })
+
+    return {
+        "success": True,
+        "data": passbook,
+        "interest_rate": decimal_to_float(annual_rate_pct) / 100,
+    }
+
+
+@app.get("/api/savings-interest/preview/{account_number}")
+async def preview_savings_interest(
+    account_number: str,
+    current_user: dict = _Depends(_get_current_user),
+):
+    """Computes (without posting) the interest due for the next unposted
+    quarter-close on this account. Used by the Cashier's 'Post Quarterly
+    Interest' confirmation modal."""
+    _require_bookkeeper(current_user)
+
+    engine, pending_quarters, _last_posted = _run_savings_ledger_engine(account_number)
+    if not pending_quarters:
+        return {"success": True, "data": None, "message": "No quarter-close is due for this account yet."}
+
+    target_quarter = pending_quarters[-1]
+    quarter_row = next((r for r in engine.rows if r.code == "Int." and r.date == target_quarter), None)
+    if not quarter_row:
+        raise HTTPException(status_code=500, detail="Interest engine did not produce a posting row for the target quarter.")
+
+    return {
+        "success": True,
+        "data": {
+            "account_number": account_number,
+            "period_quarter": target_quarter.isoformat(),
+            "interest_to_credit": decimal_to_float(quarter_row.interest_posted),
+            "current_balance": decimal_to_float(engine.balance - quarter_row.interest_posted),
+            "post_credit_balance": decimal_to_float(engine.balance),
+        },
+    }
+
+
+@app.post("/api/savings-interest/post/{account_number}")
+async def post_savings_interest(
+    account_number: str,
+    current_user: dict = _Depends(_get_current_user),
+):
+    """Posts the next unposted quarter-close's accrued interest as a
+    savings_ledger credit (source='savings_interest') and records the batch.
+    Bookkeeper-only (Cashier UI calls this via the Bookkeeper-reviewed flow —
+    same actor restriction as every other savings posting action)."""
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+    _require_bookkeeper(current_user)
+
+    engine, pending_quarters, _last_posted = _run_savings_ledger_engine(account_number)
+    if not pending_quarters:
+        raise HTTPException(status_code=409, detail="No quarter-close is due for this account yet.")
+
+    target_quarter = pending_quarters[-1]
+    quarter_row = next((r for r in engine.rows if r.code == "Int." and r.date == target_quarter), None)
+    if not quarter_row or quarter_row.interest_posted <= 0:
+        raise HTTPException(status_code=409, detail="Computed interest for this quarter is zero; nothing to post.")
+
+    policy_resp = (
+        supabase.table("deposit_interest_policies")
+        .select("annual_rate")
+        .eq("product_code", "SAVINGS")
+        .limit(1)
+        .execute()
+    )
+    annual_rate = (policy_resp.data or [{"annual_rate": 1.0}])[0].get("annual_rate") or 1.0
+
+    try:
+        ledger_insert = supabase.table("savings_ledger").insert({
+            "account_number": account_number,
+            "entry_type": "credit",
+            "amount": decimal_to_float(quarter_row.interest_posted),
+            "source": "savings_interest",
+            "remarks": f"Quarterly interest — {target_quarter.isoformat()}",
+            "posted_by": "bookkeeper",
+            "posted_at": target_quarter.isoformat(),
+        }).execute()
+        ledger_row = (ledger_insert.data or [None])[0]
+        if not ledger_row:
+            raise HTTPException(status_code=500, detail="Ledger insert returned no row.")
+    except HTTPException:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=500, detail=f"Failed to post interest credit: {exc}")
+
+    try:
+        batch_insert = supabase.table("savings_interest_batches").insert({
+            "account_number": account_number,
+            "period_quarter": target_quarter.isoformat(),
+            "annual_rate": annual_rate,
+            "opening_balance": decimal_to_float(engine.balance - quarter_row.interest_posted),
+            "closing_balance": decimal_to_float(ledger_row.get("running_balance") or engine.balance),
+            "interest_posted": decimal_to_float(quarter_row.interest_posted),
+            "ledger_entry_id": ledger_row.get("id"),
+            "posted_by_user_id": current_user["id"],
+            "posted_by_email": current_user.get("email") or None,
+        }).execute()
+        batch_row = (batch_insert.data or [None])[0]
+    except Exception as exc:  # noqa: BLE001
+        # Ledger credit already landed (source of truth for the balance);
+        # the batch row is bookkeeping on top, so surface but don't roll back.
+        raise HTTPException(status_code=500, detail=f"Interest credited, but failed to record the batch: {exc}")
+
+    return {
+        "success": True,
+        "message": f"Posted {decimal_to_float(quarter_row.interest_posted)} interest for {target_quarter.isoformat()}.",
+        "data": batch_row,
+    }
+
+
+@app.get("/api/savings-interest/batches/{account_number}")
+async def list_savings_interest_batches(
+    account_number: str,
+    current_user: dict = _Depends(_get_current_user),
+):
+    """Posting history for one account, newest first."""
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+    _require_bookkeeper(current_user)
+
+    rows = (
+        supabase.table("savings_interest_batches")
+        .select("*")
+        .eq("account_number", account_number)
+        .order("period_quarter", desc=True)
+        .execute()
+    ).data or []
+    return {"success": True, "data": rows}
+
+
+@app.post("/api/savings-interest/batches/{batch_id}/reverse")
+async def reverse_savings_interest_batch(
+    batch_id: int,
+    current_user: dict = _Depends(_get_current_user),
+):
+    """Manager-only reversal: debits the posted interest back out and marks
+    the batch reversed. A Manager cannot reverse their own posting — but
+    batches are always posted by the Bookkeeper, so this check also catches
+    the case where a Bookkeeper account was later promoted to Manager."""
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client is not initialized.")
+    _require_manager(current_user)
+
+    found = (
+        supabase.table("savings_interest_batches")
+        .select("*")
+        .eq("id", batch_id)
+        .limit(1)
+        .execute()
+    )
+    batch = (found.data or [None])[0]
+    if not batch:
+        raise HTTPException(status_code=404, detail="Batch not found.")
+    if batch.get("status") != "posted":
+        raise HTTPException(status_code=409, detail=f"This batch is already {batch.get('status')}.")
+    if str(batch.get("posted_by_user_id") or "") == current_user["id"]:
+        raise HTTPException(status_code=403, detail="You cannot reverse your own posting.")
+
+    try:
+        reversal_insert = supabase.table("savings_ledger").insert({
+            "account_number": batch["account_number"],
+            "entry_type": "debit",
+            "amount": batch["interest_posted"],
+            "source": "savings_interest_reversal",
+            "remarks": f"Reversal of {batch['period_quarter']} interest posting (batch {batch_id})",
+            "posted_by": "manager",
+        }).execute()
+        reversal_row = (reversal_insert.data or [None])[0]
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=500, detail=f"Failed to post reversal debit: {exc}")
+
+    updated = (
+        supabase.table("savings_interest_batches")
+        .update({
+            "status": "reversed",
+            "reversed_by_user_id": current_user["id"],
+            "reversed_by_email": current_user.get("email") or None,
+            "reversed_at": datetime.utcnow().isoformat(),
+            "reversal_ledger_entry_id": reversal_row.get("id") if reversal_row else None,
+        })
+        .eq("id", batch_id)
+        .eq("status", "posted")
+        .execute()
+    )
+    updated_row = (updated.data or [None])[0]
+    if not updated_row:
+        raise HTTPException(status_code=409, detail="This batch was already reversed by someone else.")
+
+    return {"success": True, "data": updated_row}
+
+
+# ---------------------------------------------------------------------------
 # MIGS scoring — read-only roster + per-member detail for the bookkeeper.
 # Live values: capital, loan availed YTD, savings balance, late-payment count.
 # Defaulted values (until those modules are wired): groceries=0, PLI=no

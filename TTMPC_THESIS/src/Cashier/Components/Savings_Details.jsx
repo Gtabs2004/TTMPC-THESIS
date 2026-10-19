@@ -25,10 +25,13 @@ import {
   Search,
   Send,
   ShoppingCart,
+  Sparkles,
   UserPlus,
   Wallet,
   History,
 } from "lucide-react";
+import PassbookBadge from "../../components/Savings/PassbookBadge";
+import InterestFormulaTooltip from "../../components/Savings/InterestFormulaTooltip";
 
 import { UserAuth } from "../../contex/AuthContext";
 import { useNotification } from "../../contex/NotificationContext";
@@ -140,6 +143,47 @@ const useSavingsAccount = (accountParam) => {
   return { data, ledger, status, error, refresh: fetchAccount, submitTransaction };
 };
 
+const useSavingsInterest = (accountNumber) => {
+  const [passbook, setPassbook] = useState([]);
+  const [interestRate, setInterestRate] = useState(0.01);
+  const [preview, setPreview] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  const fetchAll = useCallback(async ({ silent = false } = {}) => {
+    if (!accountNumber) return;
+    if (!silent) setLoading(true);
+    if (!silent) setError(null);
+    try {
+      const headers = await authHeaders();
+      const [passbookRes, previewRes] = await Promise.all([
+        fetch(`${API_BASE_URL}/api/savings-interest/ledger/${encodeURIComponent(accountNumber)}`, { headers }),
+        fetch(`${API_BASE_URL}/api/savings-interest/preview/${encodeURIComponent(accountNumber)}`, { headers }),
+      ]);
+      const passbookJson = await passbookRes.json().catch(() => ({}));
+      const previewJson = await previewRes.json().catch(() => ({}));
+
+      if (passbookRes.ok && passbookJson?.success) {
+        setPassbook(Array.isArray(passbookJson.data) ? passbookJson.data : []);
+        if (typeof passbookJson.interest_rate === "number") setInterestRate(passbookJson.interest_rate);
+      }
+      if (previewRes.ok && previewJson?.success) {
+        setPreview(previewJson.data || null);
+      }
+    } catch (err) {
+      if (!silent) setError(err?.message || "Unable to load savings interest data.");
+    } finally {
+      if (!silent) setLoading(false);
+    }
+  }, [accountNumber]);
+
+  useEffect(() => {
+    fetchAll();
+  }, [fetchAll]);
+
+  return { passbook, interestRate, preview, loading, error, refresh: fetchAll };
+};
+
 const Savings_Details = () => {
   const { id: accountParam } = useParams();
   const navigate = useNavigate();
@@ -148,6 +192,13 @@ const Savings_Details = () => {
 
   const { data, ledger, status, error, refresh, submitTransaction } =
     useSavingsAccount(accountParam);
+  const accountNumber = data?.account?.account_number;
+  const {
+    passbook: interestPassbook,
+    interestRate,
+    preview: interestPreview,
+    refresh: refreshInterest,
+  } = useSavingsInterest(accountNumber);
 
   const [showDepositModal, setShowDepositModal] = useState(false);
   const [showWithdrawModal, setShowWithdrawModal] = useState(false);
@@ -162,6 +213,9 @@ const Savings_Details = () => {
   // get theirs when the Bookkeeper confirms them.
   const [depositReceiptNo, setDepositReceiptNo] = useState("");
   const [ledgerPage, setLedgerPage] = useState(1);
+  const [showInterestModal, setShowInterestModal] = useState(false);
+  const [postInterestBusy, setPostInterestBusy] = useState(false);
+  const [postInterestError, setPostInterestError] = useState(null);
 
   const account = data?.account;
   const member = data?.member;
@@ -193,11 +247,52 @@ const Savings_Details = () => {
     return { credits, debits, count: ledger.length };
   }, [ledger]);
 
+  // Passbook rows are keyed by savings_ledger.id (quarter-close rows have no
+  // id of their own — they're synthesized by the interest engine).
+  const interestByLedgerId = useMemo(() => {
+    const map = new Map();
+    interestPassbook.forEach((row) => {
+      if (row.id) map.set(row.id, row);
+    });
+    return map;
+  }, [interestPassbook]);
+
+  const nextQuarterLabel = useMemo(() => {
+    if (!interestPreview?.period_quarter) return null;
+    const d = new Date(interestPreview.period_quarter);
+    if (Number.isNaN(d.getTime())) return null;
+    return d.toLocaleDateString("en-US", { month: "short", day: "2-digit", year: "numeric" });
+  }, [interestPreview]);
+
 
 
   const handleRefresh = async () => {
     await refresh();
     addNotification("Account refreshed.", "success");
+  };
+
+  const handlePostInterest = async () => {
+    if (!accountNumber) return;
+    setPostInterestError(null);
+    setPostInterestBusy(true);
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/savings-interest/post/${encodeURIComponent(accountNumber)}`,
+        { method: "POST", headers: await authHeaders() }
+      );
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || !result?.success) {
+        throw new Error(result?.detail || "Failed to post quarterly interest.");
+      }
+      setShowInterestModal(false);
+      setFeedbackMessage(`Quarterly interest of ${formatCurrency(result.data?.interest_posted)} posted.`);
+      addNotification("Quarterly interest posted.", "success");
+      await Promise.all([refresh(), refreshInterest()]);
+    } catch (err) {
+      setPostInterestError(err?.message || "Failed to post quarterly interest.");
+    } finally {
+      setPostInterestBusy(false);
+    }
   };
 
 
@@ -398,6 +493,17 @@ const Savings_Details = () => {
                     iconColor="text-rose-600"
                     subtext="Across all withdrawals"
                   />
+                  <StatCard
+                    label="Accrued Interest (Current Quarter)"
+                    value={formatCurrency(interestPreview?.interest_to_credit)}
+                    icon={Sparkles}
+                    iconColor="text-blue-600"
+                    subtext={
+                      nextQuarterLabel
+                        ? `Next Post: ${nextQuarterLabel} (${(interestRate * 100).toFixed(2)}% p.a.)`
+                        : `No quarter-close due yet (${(interestRate * 100).toFixed(2)}% p.a.)`
+                    }
+                  />
                 </StatCardRow>
 
                 {/* ACTION BUTTONS */}
@@ -418,6 +524,14 @@ const Savings_Details = () => {
                     <ArrowUpCircle size={16} />
                     Request Withdrawal
                   </button>
+                  <button
+                    onClick={() => setShowInterestModal(true)}
+                    disabled={account.status !== "active"}
+                    className="flex items-center gap-2 rounded-xl border-2 border-emerald-700 text-emerald-700 hover:bg-emerald-50 font-medium px-4 py-2 text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <Sparkles size={16} />
+                    Post Quarterly Interest
+                  </button>
                 </div>
               </div>
 
@@ -432,60 +546,70 @@ const Savings_Details = () => {
                   <table className="w-full text-left border-collapse">
                     <thead>
                       <tr className="bg-primary-deep text-[10px] uppercase tracking-wider text-white font-extrabold">
-                        <th className="p-5 font-bold">Posted</th>
-                        <th className="p-5 font-bold">Type</th>
-                        <th className="p-5 font-bold text-right">Amount</th>
+                        <th className="p-5 font-bold">Date</th>
+                        <th className="p-5 font-bold">Code</th>
+                        <th className="p-5 font-bold text-right">Withdrawals</th>
+                        <th className="p-5 font-bold text-right">Interest Credited</th>
+                        <th className="p-5 font-bold text-right">Deposits</th>
                         <th className="p-5 font-bold text-right">Running Balance</th>
-                        <th className="p-5 font-bold">Reference</th>
+                        <th className="p-5 font-bold text-right">Accrued Int.</th>
                         <th className="p-5 font-bold">Remarks</th>
                       </tr>
                     </thead>
                     <tbody>
                       {ledger.length === 0 ? (
                         <TableStateRow
-                          colSpan={6}
+                          colSpan={8}
                           variant="empty"
                           icon={Banknote}
                           label="No transactions yet on this account"
                           sublabel="The first deposit or withdrawal will appear here."
                         />
                       ) : (
-                        paginatedLedger.map((entry) => {
+                        paginatedLedger.map((entry, idx) => {
                           const isCredit = entry.entry_type === "credit";
+                          const isInterestPost = entry.source === "savings_interest";
+                          const interestRow = interestByLedgerId.get(entry.id);
+                          const prevEntry = paginatedLedger[idx + 1]; // table is newest-first
+                          const prevInterestRow = prevEntry ? interestByLedgerId.get(prevEntry.id) : null;
+                          const days = interestRow && prevInterestRow
+                            ? Math.round(
+                                (new Date(interestRow.date) - new Date(prevInterestRow.date)) / 86400000
+                              )
+                            : null;
                           return (
                             <tr key={entry.id} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
                               <td className="p-5 text-sm text-gray-600">
                                 {formatDateTime(entry.posted_at)}
                               </td>
                               <td className="p-5">
-                                <span
-                                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${
-                                    isCredit
-                                      ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                                      : "bg-rose-50 text-rose-700 border border-rose-200"
-                                  }`}
-                                >
-                                  {isCredit ? (
-                                    <ArrowDownCircle size={12} />
-                                  ) : (
-                                    <ArrowUpCircle size={12} />
-                                  )}
-                                  {isCredit ? "Credit" : "Debit"}
-                                </span>
+                                <PassbookBadge code={isInterestPost ? "Int." : isCredit ? "CD" : "WD"} />
                               </td>
-                              <td
-                                className={`p-5 text-right text-sm font-semibold ${
-                                  isCredit ? "text-emerald-700" : "text-rose-700"
-                                }`}
-                              >
-                                {isCredit ? "+" : "−"}
-                                {formatCurrency(entry.amount)}
+                              <td className="p-5 text-right text-sm font-semibold text-rose-700">
+                                {!isCredit ? `-${formatCurrency(entry.amount)}` : "—"}
                               </td>
-                              <td className="p-5 text-right text-sm font-medium text-gray-900">
+                              <td className="p-5 text-right text-sm font-bold text-emerald-700">
+                                {isInterestPost ? `+${formatCurrency(entry.amount)}` : "—"}
+                              </td>
+                              <td className="p-5 text-right text-sm font-semibold text-emerald-700">
+                                {isCredit && !isInterestPost ? `+${formatCurrency(entry.amount)}` : "—"}
+                              </td>
+                              <td className="p-5 text-right text-sm font-bold text-gray-900">
                                 {formatCurrency(entry.running_balance)}
                               </td>
-                              <td className="p-5 text-xs text-gray-500 font-mono">
-                                {entry.reference || "—"}
+                              <td className="p-5 text-right text-sm text-blue-700">
+                                {interestRow ? (
+                                  <InterestFormulaTooltip
+                                    days={days ?? 0}
+                                    balance={interestRow.running_balance}
+                                    rate={interestRate}
+                                    amount={interestRow.accrued_line_interest}
+                                  >
+                                    {formatCurrency(interestRow.accrued_line_interest)}
+                                  </InterestFormulaTooltip>
+                                ) : (
+                                  "—"
+                                )}
                               </td>
                               <td className="p-5 text-xs text-gray-600">
                                 {entry.remarks || entry.source || "—"}
@@ -616,6 +740,80 @@ const Savings_Details = () => {
                 className="px-4 py-2 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-sm font-semibold transition-colors disabled:opacity-50"
               >
                 {withdrawBusy ? "Submitting..." : "Submit Withdrawal"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* POST QUARTERLY INTEREST MODAL */}
+      {showInterestModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-6">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="text-xl font-bold text-gray-900">Post Quarterly Interest</h3>
+                <p className="text-xs text-gray-500 mt-1">
+                  Credits accrued interest for {account?.account_number}
+                </p>
+              </div>
+              <button
+                onClick={() => setShowInterestModal(false)}
+                className="text-gray-400 hover:text-gray-700"
+              >
+                ✕
+              </button>
+            </div>
+
+            {!interestPreview ? (
+              <div className="mb-5 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-600">
+                No quarter-close is due for this account yet.
+              </div>
+            ) : (
+              <div className="space-y-3 mb-5">
+                <div className="flex items-center justify-between rounded-lg bg-blue-50 border border-blue-200 px-4 py-3">
+                  <span className="text-sm text-blue-700 font-medium">Target Quarter</span>
+                  <span className="text-sm font-bold text-blue-900">{nextQuarterLabel}</span>
+                </div>
+                <div className="flex items-center justify-between px-1">
+                  <span className="text-sm text-gray-600">Period Interest to Credit</span>
+                  <span className="text-sm font-bold text-emerald-700">
+                    +{formatCurrency(interestPreview.interest_to_credit)}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between px-1">
+                  <span className="text-sm text-gray-600">Current Balance</span>
+                  <span className="text-sm font-medium text-gray-900">{formatCurrency(interestPreview.current_balance)}</span>
+                </div>
+                <div className="flex items-center justify-between px-1 border-t border-gray-100 pt-3">
+                  <span className="text-sm font-semibold text-gray-700">Post-Credit Balance</span>
+                  <span className="text-sm font-bold text-gray-900">
+                    {formatCurrency(interestPreview.post_credit_balance)}
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {postInterestError && (
+              <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 flex items-center gap-2">
+                <AlertCircle size={14} />
+                {postInterestError}
+              </div>
+            )}
+
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setShowInterestModal(false)}
+                className="px-4 py-2 rounded-lg border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 transition"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handlePostInterest}
+                disabled={postInterestBusy || !interestPreview}
+                className="px-4 py-2 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white text-sm font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {postInterestBusy ? "Posting..." : "Confirm & Post Interest"}
               </button>
             </div>
           </div>

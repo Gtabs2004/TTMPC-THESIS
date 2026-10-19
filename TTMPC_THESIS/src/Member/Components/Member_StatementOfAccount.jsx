@@ -54,8 +54,12 @@ import {
   Scroll,
   Wallet,
   PiggyBank,
-  AlertTriangle
+  AlertTriangle,
+  Sparkles,
+  CalendarClock,
 } from "lucide-react";
+import PassbookBadge from "../../components/Savings/PassbookBadge";
+import InterestFormulaTooltip from "../../components/Savings/InterestFormulaTooltip";
 
 const styles = `
   @keyframes fadeInUp { from { opacity: 0; transform: translateY(20px);} to { opacity: 1; transform: translateY(0);} }
@@ -199,6 +203,13 @@ const Member_StatementOfAccount = () => {
   const [savingsError, setSavingsError] = useState("");
   const [regularSavings, setRegularSavings] = useState(0);
   const [savingsRows, setSavingsRows] = useState([]);
+  // Savings Interest v2 (SAVINGS_INTEREST_V2_PLAN.md): per-account passbook
+  // breakdown (accrued line interest) + current rate, keyed by account_number
+  // so the ledger table can look up each row's accrued interest by ledger id.
+  const [interestByLedgerId, setInterestByLedgerId] = useState(new Map());
+  const [interestRate, setInterestRate] = useState(0.01);
+  const [interestPreview, setInterestPreview] = useState(null);
+  const [ytdInterestEarned, setYtdInterestEarned] = useState(0);
 
   const [cbuLoaded, setCbuLoaded] = useState(false);
   const [loadingCbu, setLoadingCbu] = useState(false);
@@ -413,6 +424,49 @@ const Member_StatementOfAccount = () => {
           setRegularSavings(total);
           setSavingsRows(ledger);
           setSavingsLoaded(true);
+        }
+
+        // Interest passbook + YTD total, merged across every account the
+        // member holds (most members have exactly one).
+        if (accountNumbers.length > 0) {
+          const headers = await authHeaders();
+          const results = await Promise.all(
+            accountNumbers.map(async (acctNo) => {
+              const [passbookRes, previewRes] = await Promise.all([
+                fetch(`${API_BASE_URL}/api/savings-interest/ledger/${encodeURIComponent(acctNo)}`, { headers }),
+                fetch(`${API_BASE_URL}/api/savings-interest/preview/${encodeURIComponent(acctNo)}`, { headers }),
+              ]);
+              const passbookJson = await passbookRes.json().catch(() => ({}));
+              const previewJson = await previewRes.json().catch(() => ({}));
+              return {
+                passbook: passbookRes.ok && passbookJson?.success ? passbookJson.data || [] : [],
+                rate: passbookJson?.interest_rate,
+                preview: previewRes.ok && previewJson?.success ? previewJson.data : null,
+              };
+            })
+          );
+
+          if (isMounted) {
+            const map = new Map();
+            let ytd = 0;
+            const currentYear = new Date().getFullYear();
+            let combinedPreview = null;
+            results.forEach(({ passbook, rate, preview }) => {
+              passbook.forEach((row) => {
+                if (row.id) map.set(row.id, row);
+                if (row.code === "Int." && row.interest_posted && new Date(row.date).getFullYear() === currentYear) {
+                  ytd += Number(row.interest_posted);
+                }
+              });
+              if (rate) setInterestRate(rate);
+              if (preview && (!combinedPreview || preview.period_quarter < combinedPreview.period_quarter)) {
+                combinedPreview = preview;
+              }
+            });
+            setInterestByLedgerId(map);
+            setYtdInterestEarned(ytd);
+            setInterestPreview(combinedPreview);
+          }
         }
       } catch (err) {
         if (isMounted) setSavingsError(err.message || "Unable to load savings statement.");
@@ -1292,7 +1346,7 @@ const Member_StatementOfAccount = () => {
 
           {activeTab === "savings" && (
             <>
-              <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:gap-6 mb-8">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 lg:gap-6 mb-8">
                 <div className="bg-white dark:bg-mdark-card p-3.5 sm:p-5 lg:p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-mdark-border flex flex-col">
                   <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-[#EAF1EB] dark:bg-mdark-accent/15 flex items-center justify-center mb-2.5 sm:mb-6">
                     <Wallet className="w-4 h-4 sm:w-5 sm:h-5 text-member-green dark:text-mdark-accent" />
@@ -1301,11 +1355,23 @@ const Member_StatementOfAccount = () => {
                   <h3 className="text-base sm:text-2xl lg:text-3xl font-black text-gray-900 dark:text-mdark-text break-words">{formatCurrency(regularSavings)}</h3>
                 </div>
                 <div className="bg-white dark:bg-mdark-card p-3.5 sm:p-5 lg:p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-mdark-border flex flex-col">
-                  <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-member-green dark:bg-mdark-accent flex items-center justify-center mb-2.5 sm:mb-6">
-                    <Banknote className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
+                  <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-blue-50 dark:bg-blue-500/15 flex items-center justify-center mb-2.5 sm:mb-6">
+                    <Sparkles className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600 dark:text-blue-300" />
                   </div>
-                  <p className="text-[10px] font-bold text-gray-500 dark:text-mdark-text-secondary uppercase tracking-widest mb-1">Entries</p>
-                  <h3 className="text-base sm:text-2xl lg:text-3xl font-black text-gray-900 dark:text-mdark-text">{savingsRows.length}</h3>
+                  <p className="text-[10px] font-bold text-gray-500 dark:text-mdark-text-secondary uppercase tracking-widest mb-1">Total Interest Earned (YTD)</p>
+                  <h3 className="text-base sm:text-2xl lg:text-3xl font-black text-gray-900 dark:text-mdark-text break-words">{formatCurrency(ytdInterestEarned)}</h3>
+                </div>
+                <div className="bg-white dark:bg-mdark-card p-3.5 sm:p-5 lg:p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-mdark-border flex flex-col">
+                  <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-member-green dark:bg-mdark-accent flex items-center justify-center mb-2.5 sm:mb-6">
+                    <CalendarClock className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
+                  </div>
+                  <p className="text-[10px] font-bold text-gray-500 dark:text-mdark-text-secondary uppercase tracking-widest mb-1">Next Interest Posting</p>
+                  <h3 className="text-base sm:text-2xl lg:text-3xl font-black text-gray-900 dark:text-mdark-text break-words">
+                    {interestPreview?.period_quarter ? formatDate(interestPreview.period_quarter) : "—"}
+                  </h3>
+                  <span className="mt-1 inline-flex self-start px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#EAF1EB] text-member-green dark:bg-mdark-accent/15 dark:text-mdark-accent">
+                    {(interestRate * 100).toFixed(2)}% Annual Rate
+                  </span>
                 </div>
               </div>
 
@@ -1328,31 +1394,64 @@ const Member_StatementOfAccount = () => {
                       <tr className="bg-primary-deep dark:bg-mdark-nav text-[10px] uppercase tracking-wider text-white dark:text-mdark-text font-extrabold">
                         <th className="p-5 font-bold">Date</th>
                         <th className="p-5 font-bold">Transaction Type</th>
-                        <th className="p-5 font-bold">Reference</th>
-                        <th className="p-5 font-bold text-right">Amount</th>
+                        <th className="p-5 font-bold text-right">Withdrawals</th>
+                        <th className="p-5 font-bold text-right">Interest Earned</th>
+                        <th className="p-5 font-bold text-right">Deposits</th>
                         <th className="p-5 font-bold text-right">Balance</th>
                       </tr>
                     </thead>
                     <tbody>
                       {loadingSavings ? (
-                        <TableStateRow colSpan={5} variant="loading" label="Loading savings statement…" />
+                        <TableStateRow colSpan={6} variant="loading" label="Loading savings statement…" />
                       ) : savingsError ? (
                         <tr>
-                          <td colSpan="5" className="p-5 text-sm text-red-600 dark:text-red-400">{savingsError}</td>
+                          <td colSpan="6" className="p-5 text-sm text-red-600 dark:text-red-400">{savingsError}</td>
                         </tr>
                       ) : savingsRows.length === 0 ? (
-                        <TableStateRow colSpan={5} variant="empty" icon={Wallet} label="No savings transactions found." />
+                        <TableStateRow colSpan={6} variant="empty" icon={Wallet} label="No savings transactions found." />
                       ) : (
-                        savingsRows.map((r) => {
+                        savingsRows.map((r, idx) => {
                           const isCredit = String(r?.entry_type || "").toLowerCase() === "credit";
                           const amount = Number(r?.amount || 0);
+                          const isInterestPost = String(r?.source || "") === "savings_interest";
+                          const interestRow = interestByLedgerId.get(r.id);
+                          const prevRow = savingsRows[idx - 1]; // query sorts oldest-first
+                          const prevInterestRow = prevRow ? interestByLedgerId.get(prevRow.id) : null;
+                          const days = interestRow && prevInterestRow
+                            ? Math.round((new Date(interestRow.date) - new Date(prevInterestRow.date)) / 86400000)
+                            : null;
                           return (
                             <tr key={r.id} className="border-b border-gray-100 dark:border-mdark-border hover:bg-gray-50/50 dark:hover:bg-mdark-elevated/50 transition-colors">
                               <td className="p-5 text-sm font-medium text-gray-700 dark:text-mdark-text">{formatDate(r.posted_at)}</td>
-                              <td className="p-5 text-sm font-bold text-gray-700 dark:text-mdark-text">{r.remarks || (isCredit ? "Savings Deposit" : "Savings Withdrawal")}</td>
-                              <td className="p-5 text-xs font-mono text-gray-600 dark:text-mdark-text-secondary break-all">{r.reference || "—"}</td>
-                              <td className={`p-5 text-sm font-bold text-right ${isCredit ? "text-green-600 dark:text-mdark-accent" : "text-red-500 dark:text-red-400"}`}>
-                                {isCredit ? "+" : "-"}{formatCurrency(amount)}
+                              <td className="p-5">
+                                <div className="flex items-center gap-2">
+                                  <PassbookBadge code={isInterestPost ? "Int." : isCredit ? "CD" : "WD"} />
+                                  {interestRow ? (
+                                    <InterestFormulaTooltip
+                                      days={days ?? 0}
+                                      balance={interestRow.running_balance}
+                                      rate={interestRate}
+                                      amount={interestRow.accrued_line_interest}
+                                    >
+                                      <span className="text-xs font-bold text-gray-700 dark:text-mdark-text">
+                                        {r.remarks || (isCredit ? "Savings Deposit" : "Savings Withdrawal")}
+                                      </span>
+                                    </InterestFormulaTooltip>
+                                  ) : (
+                                    <span className="text-xs font-bold text-gray-700 dark:text-mdark-text">
+                                      {r.remarks || (isCredit ? "Savings Deposit" : "Savings Withdrawal")}
+                                    </span>
+                                  )}
+                                </div>
+                              </td>
+                              <td className="p-5 text-sm font-bold text-right text-red-500 dark:text-red-400">
+                                {!isCredit ? `-${formatCurrency(amount)}` : "—"}
+                              </td>
+                              <td className="p-5 text-sm font-bold text-right text-blue-700 dark:text-blue-300">
+                                {isInterestPost ? `+${formatCurrency(amount)}` : "—"}
+                              </td>
+                              <td className="p-5 text-sm font-bold text-right text-green-600 dark:text-mdark-accent">
+                                {isCredit && !isInterestPost ? `+${formatCurrency(amount)}` : "—"}
                               </td>
                               <td className="p-5 text-sm font-black text-gray-900 dark:text-mdark-text text-right">{formatCurrency(r.running_balance)}</td>
                             </tr>
@@ -1363,10 +1462,10 @@ const Member_StatementOfAccount = () => {
                     {!loadingSavings && !savingsError && savingsRows.length > 0 ? (
                       <tfoot>
                         <tr className="bg-[#EAF1EB] text-member-green dark:bg-mdark-accent/15 dark:text-mdark-accent">
-                          <td className="p-5 text-xs font-extrabold uppercase tracking-wider" colSpan="3">Totals</td>
-                          <td className="p-5 text-sm font-black text-right">
-                            +{formatCurrency(savingsTotals.credits)} / -{formatCurrency(savingsTotals.debits)}
-                          </td>
+                          <td className="p-5 text-xs font-extrabold uppercase tracking-wider" colSpan="2">Totals</td>
+                          <td className="p-5 text-sm font-black text-right">-{formatCurrency(savingsTotals.debits)}</td>
+                          <td className="p-5 text-sm font-black text-right">+{formatCurrency(ytdInterestEarned)}</td>
+                          <td className="p-5 text-sm font-black text-right">+{formatCurrency(savingsTotals.credits)}</td>
                           <td className="p-5 text-sm font-black text-right">{formatCurrency(regularSavings)}</td>
                         </tr>
                       </tfoot>
