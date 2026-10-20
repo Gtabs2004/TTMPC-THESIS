@@ -48,7 +48,7 @@ function buildAuditQuery(filters, extra = {}) {
   return params.toString();
 }
 
-const PAGE_SIZE = 5;
+const PAGE_SIZE = 10;
 
 // Audit entries that stand for a transaction with a receipt, and the roles
 // allowed to open receipts from here (RECEIPT_SYSTEM_PLAN.md §2, §8). The

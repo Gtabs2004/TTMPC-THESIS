@@ -36,7 +36,7 @@ import {
 } from "lucide-react";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
-const ITEMS_PER_PAGE = 8;
+const ITEMS_PER_PAGE = 10;
 
 const PRIORITY_RULES = [
   { rank: 1, label: "Emergency", note: "MIGS & Non-MIGS · 20k max", match: (r) => r.type === "Emergency" },

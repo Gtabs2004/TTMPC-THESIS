@@ -1,0 +1,488 @@
+================================================================================
+APPENDIX: SOURCE CODE SAMPLES
+REGANT — Decision Support System for TTMPC
+================================================================================
+
+
+--------------------------------------------------------------------------------
+1. MIGS SCORING ENGINE
+--------------------------------------------------------------------------------
+
+1.1 Backend — migs_engine.py (full file, pure scoring function, no DB calls)
+
+--------------------------------------------------------------------------------
+"""
+TTMPC MIGS (Marginalized and/or Informal/Grassroots Sector) Scoring Engine.
+
+Pure function: given a member's profile data, computes a 0-100 score across
+7 criteria and classifies the member as MIGS or Non-MIGS against the 50-point
+threshold. No database access happens in this module -- callers assemble the
+input dict and persist the result elsewhere.
+"""
+
+from __future__ import annotations
+
+from typing import Any
+
+
+MIGS_THRESHOLD = 50
+MIGS_LOAN_MULTIPLIER = 5
+NON_MIGS_LOAN_MULTIPLIER = 3
+
+
+def _score_income(monthly_income: float) -> int:
+    if monthly_income <= 0:
+        return 0
+    if monthly_income <= 5000:
+        return 20
+    if monthly_income <= 10000:
+        return 15
+    if monthly_income <= 15000:
+        return 10
+    if monthly_income <= 20000:
+        return 5
+    return 0
+
+
+def _score_occupation(occupation: str) -> int:
+    tier_1 = {"farmer", "fisherman", "vendor", "laborer", "tricycle driver"}
+    tier_2 = {"driver", "helper", "sari-sari store owner"}
+    occ = (occupation or "").strip().lower()
+    if occ in tier_1:
+        return 15
+    if occ in tier_2:
+        return 10
+    return 5
+
+
+def _score_housing(housing_status: str) -> int:
+    status = (housing_status or "").strip().lower()
+    if status in {"informal settler", "renting"}:
+        return 15
+    if status == "owned (no title)":
+        return 10
+    return 0
+
+
+def _score_education(highest_education: str) -> int:
+    edu = (highest_education or "").strip().lower()
+    if edu in {"none", "elementary"}:
+        return 15
+    if edu == "high school":
+        return 10
+    if edu == "vocational":
+        return 5
+    return 0
+
+
+def _score_dependents(number_of_dependents: int) -> int:
+    if number_of_dependents >= 5:
+        return 15
+    if number_of_dependents >= 3:
+        return 10
+    if number_of_dependents >= 1:
+        return 5
+    return 0
+
+
+def _score_access_to_services(has_access_to_services: bool) -> int:
+    return 0 if has_access_to_services else 10
+
+
+def _score_land_ownership(owns_land: bool) -> int:
+    return 0 if owns_land else 10
+
+
+def compute_migs_score(profile: dict[str, Any]) -> dict[str, Any]:
+    """Compute the 7-criteria MIGS score and classification for one member.
+
+    `profile` keys: monthly_income, occupation, housing_status,
+    highest_education, number_of_dependents, has_access_to_services,
+    owns_land.
+    """
+    breakdown = {
+        "income": _score_income(profile.get("monthly_income", 0)),
+        "occupation": _score_occupation(profile.get("occupation", "")),
+        "housing": _score_housing(profile.get("housing_status", "")),
+        "education": _score_education(profile.get("highest_education", "")),
+        "dependents": _score_dependents(profile.get("number_of_dependents", 0)),
+        "access_to_services": _score_access_to_services(
+            profile.get("has_access_to_services", True)
+        ),
+        "land_ownership": _score_land_ownership(profile.get("owns_land", True)),
+    }
+
+    total_score = sum(breakdown.values())
+    is_migs = total_score >= MIGS_THRESHOLD
+    multiplier = MIGS_LOAN_MULTIPLIER if is_migs else NON_MIGS_LOAN_MULTIPLIER
+
+    return {
+        "total_score": total_score,
+        "is_migs": is_migs,
+        "classification": "MIGS" if is_migs else "Non-MIGS",
+        "loan_multiplier": multiplier,
+        "breakdown": breakdown,
+    }
+--------------------------------------------------------------------------------
+
+
+1.2 Frontend — MIGS.jsx (Bookkeeper portal, consumes /api/migs/* endpoints)
+
+--------------------------------------------------------------------------------
+const [lastComputeRun, setLastComputeRun] = useState(null);
+const rtVersion = useRealtimeVersion([...RT.MEMBERS, ...RT.LOANS, ...RT.CBU]);
+const rtSeen = useRef(rtVersion);
+
+useEffect(() => {
+  const silent = rtSeen.current !== rtVersion;
+  rtSeen.current = rtVersion;
+  const fetchMigsMembers = async () => {
+    if (!silent) setLoading(true);
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/migs/members?year=${encodeURIComponent(yearFilter)}`
+      );
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || !result?.success) {
+        throw new Error(result?.detail || "Failed to load MIGS members.");
+      }
+      setRows(Array.isArray(result.data) ? result.data : []);
+      addNotification(
+        `Loaded ${result.count || 0} members for MIGS scoring.`,
+        "success"
+      );
+    } catch (err) {
+      addNotification(err?.message || "Failed to load MIGS members.", "error");
+    } finally {
+      if (!silent) setLoading(false);
+    }
+  };
+  fetchMigsMembers();
+}, [yearFilter, rtVersion]);
+
+const handleRecomputeAll = async () => {
+  const ok = await confirm({
+    title: "Recompute MIGS Classifications",
+    message: "Recompute and label every member's MIGS classification? This saves a snapshot to the system so other modules (loan approval, member view) can use the official label.",
+    confirmLabel: "Recompute All",
+    tone: "warning",
+  });
+  if (!ok) return;
+  setComputing(true);
+  try {
+    const response = await fetch(
+      `${API_BASE_URL}/api/migs/recompute-all?year=${encodeURIComponent(yearFilter)}`,
+      { method: "POST" }
+    );
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(result?.detail || "Failed to compute MIGS for all members.");
+    }
+    const total = (result?.inserted || 0) + (result?.updated || 0);
+    setLastComputeRun(result?.accrual_date || new Date().toISOString().slice(0, 10));
+    addNotification(
+      `Labeled ${total} members as of ${result?.accrual_date}. ${result?.errors?.length ? `(${result.errors.length} errors)` : ""}`,
+      "success"
+    );
+  } catch (err) {
+    addNotification(err?.message || "Failed to recompute MIGS.", "error");
+  } finally {
+    setComputing(false);
+  }
+};
+--------------------------------------------------------------------------------
+
+
+--------------------------------------------------------------------------------
+2. LOAN DEMAND FORECASTING
+--------------------------------------------------------------------------------
+
+2.1 Backend — demand_model.py (MA-12 / seasonal-naive forecast + confidence bands)
+
+--------------------------------------------------------------------------------
+def _ma12(series: dict[str, float], target_month: str, extended: dict[str, float]) -> float:
+    """Trailing 12-month average ending the month before `target_month`,
+    reading from `extended` (series plus any already-computed forecast
+    months) so a multi-month-ahead forecast chains correctly."""
+    months = _month_range(_add_months(target_month, -12), _add_months(target_month, -1))
+    values = [extended.get(m, series.get(m, 0.0)) for m in months]
+    return sum(values) / len(values) if values else 0.0
+
+
+def _seasonal_naive(series: dict[str, float], target_month: str, extended: dict[str, float]) -> float:
+    """Same month, one year earlier. Falls back to the MA-12 of whatever
+    history is available if that exact month isn't known yet (e.g.
+    forecasting more than 12 months past the last real data point)."""
+    prev_year_month = _add_months(target_month, -12)
+    if prev_year_month in series:
+        return series[prev_year_month]
+    if prev_year_month in extended:
+        return extended[prev_year_month]
+    return _ma12(series, target_month, extended)
+
+
+def _band(entry: dict, alpha: float, point: float) -> tuple[float, float]:
+    """(lower, upper) = point forecast +/- the empirical backtest error
+    quantiles for the requested confidence level. alpha=0.20 -> ~80% band
+    (p10/p90); anything <= 0.05 -> ~95% band (p025/p975); otherwise falls
+    back to the nearer of the two available quantile pairs."""
+    q = entry.get("error_quantiles") or {}
+    if alpha <= 0.075:
+        lo_key, hi_key = "p025", "p975"
+    else:
+        lo_key, hi_key = "p10", "p90"
+    lo = float(q.get(lo_key, 0.0))
+    hi = float(q.get(hi_key, 0.0))
+    return max(0.0, point + lo), point + hi
+
+
+def forecast(loan_type: str, periods: int = 12, alpha: float = 0.20) -> list[dict]:
+    """Return forecasted monthly amounts + confidence bands for the
+    `periods` months immediately after the last known month.
+
+    `lower`/`upper` use `alpha` (0.20 -> ~80% band, the default);
+    `lower95`/`upper95` are always the ~95% band. Lower bounds are clipped
+    at 0 since negative loan demand makes no sense.
+    """
+    if periods <= 0:
+        return []
+
+    entry = _config_entry(loan_type)
+    method = _METHOD_BY_TYPE[loan_type.strip().lower()]
+    is_bonus = loan_type.strip().lower() == "bonus"
+    series = _monthly_series(loan_type)
+    if not series:
+        return []
+
+    last_month = max(series.keys())
+    extended: dict[str, float] = {}
+
+    out = []
+    cursor = last_month
+    for _ in range(periods):
+        cursor = _add_months(cursor, 1)
+        if method == "ma12":
+            point = _ma12(series, cursor, extended)
+        else:
+            point = _seasonal_naive(series, cursor, extended)
+        extended[cursor] = point
+
+        if is_bonus and cursor[5:7] not in {"05", "11"}:
+            continue
+
+        lower, upper = _band(entry, alpha, point)
+        lower95, upper95 = _band(entry, SECONDARY_ALPHA, point)
+        y, m = int(cursor[:4]), int(cursor[5:7])
+        out.append({
+            "period": f"{y:04d}-{m:02d}-01",
+            "predicted": float(point),
+            "lower": lower,
+            "upper": float(upper),
+            "lower95": lower95,
+            "upper95": float(upper95),
+        })
+    return out
+--------------------------------------------------------------------------------
+
+
+2.2 Frontend — LoanDemandForecastCard.jsx (consumes /api/analytics/demand/*)
+
+--------------------------------------------------------------------------------
+useEffect(() => {
+  let cancelled = false;
+  (async () => {
+    try {
+      const res = await fetch(
+        `${API_BASE_URL}/api/analytics/demand/actuals?loan_type=consolidated`,
+        { headers: { Accept: "application/json" } }
+      );
+      const payload = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(payload?.detail || "Failed to discover available years.");
+      const years = Array.isArray(payload.available_years) && payload.available_years.length
+        ? payload.available_years
+        : [payload.year];
+      const thisYear = new Date().getFullYear();
+      if (!cancelled) {
+        setAvailableYears([...new Set([...years, thisYear, thisYear + 1])].sort((a, b) => a - b));
+      }
+    } catch (err) {
+      if (!cancelled) setError(err?.message || "Unable to load year list.");
+    }
+  })();
+
+  (async () => {
+    const results = await Promise.all(
+      LOAN_TYPES.map(async (t) => {
+        try {
+          const res = await fetch(
+            `${API_BASE_URL}/api/analytics/demand/forecast?loan_type=${t.value}&months_from_today=${monthsFromTodayNeeded()}`,
+            { headers: { Accept: "application/json" } }
+          );
+          const payload = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(payload?.detail || `Failed to load ${t.label} forecast.`);
+          return [t.value, payload?.data ?? payload, null];
+        } catch (err) {
+          return [t.value, null, err?.message || `Failed to load ${t.label} forecast.`];
+        }
+      })
+    );
+    // results merged into forecast state here
+  })();
+}, []);
+--------------------------------------------------------------------------------
+
+
+--------------------------------------------------------------------------------
+3. CREDIT RISK MODEL
+--------------------------------------------------------------------------------
+
+3.1 Backend — risk_model.py (batch scoring + occlusion-based explainability)
+
+--------------------------------------------------------------------------------
+def _occlusion_contributions(model, frame) -> list[dict[str, float]]:
+    """Per-row {feature: signed contribution}, computed in one batched call."""
+    import numpy as np
+    import pandas as pd
+
+    n_rows = len(frame)
+    n_feat = len(FEATURE_COLUMNS)
+
+    blocks = [frame]
+    for feat in FEATURE_COLUMNS:
+        occluded = frame.copy()
+        occluded[feat] = np.nan
+        blocks.append(occluded)
+    stacked = pd.concat(blocks, ignore_index=True)
+
+    probs = model.predict_proba(stacked)[:, 1]
+    base = probs[:n_rows]
+
+    per_row: list[dict[str, float]] = []
+    for i in range(n_rows):
+        contribs: dict[str, float] = {}
+        for j, feat in enumerate(FEATURE_COLUMNS):
+            without = probs[(j + 1) * n_rows + i]
+            contribs[feat] = float(base[i] - without)
+        per_row.append(contribs)
+    return per_row
+
+
+def score_many(
+    feature_rows: list[dict[str, Any]],
+    operating_point: str = DEFAULT_OPERATING_POINT,
+) -> list[dict]:
+    """Score a batch of assembled feature dicts.
+
+    Each result is the payload the Credit Risk UI reads:
+
+        {
+          "probability": float,        # 0..1, higher = riskier
+          "band": "GREEN"|"AMBER"|"RED",
+          "risk_label": str,
+          "action": str,               # what the cooperative does with this band
+          "band_share": float,         # share of applications in this band
+          "band_bad_rate_per_100": int,# historical trouble rate for this band
+          "flagged": bool,             # at/above the active operating point
+          "operating_point": str,      # which setting decided `flagged`
+          "never_rejects": str,        # handoff Sec 4 -- routes, never denies
+          "model_version": str,
+          "drivers": [ {feature, value, cohort_median,
+                        contribution, direction}, ... ],
+        }
+    """
+    if not feature_rows:
+        return []
+
+    import numpy as np
+
+    bundle = _load_model()
+    model = bundle["pipeline"]
+    thr = dict(bundle.get("thresholds") or {})
+    version = bundle.get("version")
+    medians = cohort_medians()
+
+    if operating_point not in OPERATING_POINTS:
+        raise ValueError(
+            f"Unknown operating point {operating_point!r}. "
+            f"Expected one of {sorted(OPERATING_POINTS)}."
+        )
+    flag_threshold = thr[operating_point]
+
+    frame = _build_frame(feature_rows)
+    probs = model.predict_proba(frame)[:, 1]
+    contribs = _occlusion_contributions(model, frame)
+
+    results: list[dict] = []
+    for i, prob in enumerate(probs):
+        probability = float(prob)
+        row_values = frame.iloc[i].to_dict()
+
+        drivers = []
+        for feat, contribution in sorted(
+            contribs[i].items(), key=lambda kv: abs(kv[1]), reverse=True
+        ):
+            if contribution > 1e-9:
+                direction = "up"
+            elif contribution < -1e-9:
+                direction = "down"
+            else:
+                direction = "neutral"
+            raw = row_values.get(feat)
+            drivers.append({
+                "feature": feat,
+                "value": None if raw is None or np.isnan(raw) else float(raw),
+                "cohort_median": float(medians.get(feat, 0.0)),
+                "contribution": float(contribution),
+                "direction": direction,
+            })
+
+        current_band = band(probability, thr)
+        meta = BAND_META[current_band]
+        results.append({
+            "probability": probability,
+            "band": current_band,
+            "risk_label": meta["label"],
+            "action": meta["action"],
+            "band_share": meta["share"],
+            "band_bad_rate_per_100": meta["bad_rate_per_100"],
+            "flagged": probability >= flag_threshold,
+            "operating_point": operating_point,
+            "never_rejects": NEVER_REJECTS_NOTICE,
+            "model_version": version,
+            "thresholds": thr,
+            "drivers": drivers,
+        })
+    return results
+--------------------------------------------------------------------------------
+
+
+3.2 Frontend — CreditRiskPage.jsx (consumes /api/credit-risk/queue, /api/risk/model-info)
+
+--------------------------------------------------------------------------------
+const fetchQueue = async ({ silent = false } = {}) => {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/credit-risk/queue`);
+    const json = await res.json();
+    if (!res.ok || !json?.success) {
+      throw new Error(json?.detail || "Failed to load credit risk queue.");
+    }
+    const data = json?.data || {};
+    setRows(Array.isArray(data.rows) ? data.rows : []);
+    setModelVersion(data.model_version || null);
+    // Model metadata (accuracy, thresholds, operating point) is served
+    // separately so it stays correct across retrainings without a redeploy.
+    try {
+      const infoRes = await fetch(`${API_BASE_URL}/api/risk/model-info`);
+      if (infoRes.ok) {
+        const infoJson = await infoRes.json();
+        setModelInfo(infoJson?.data || null);
+      }
+    } catch {
+      setModelInfo(null);
+    }
+    if (!silent) setLoadError("");
+  } catch (err) {
+    if (!silent) setLoadError(err?.message || "Failed to load credit risk queue.");
+  }
+};
+--------------------------------------------------------------------------------

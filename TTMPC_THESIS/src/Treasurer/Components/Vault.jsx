@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { StatCard, StatCardRow } from "../../components/StatCard";
 import { TableToolbar } from "../../components/TableToolbar";
 import TableStateRow from "../../components/TableStateRow";
+import Pagination from "../../components/Pagination";
 import { supabase } from "../../supabaseClient";
 import { UserAuth } from "../../contex/AuthContext";
 import { useNotification } from "../../contex/NotificationContext";
@@ -47,6 +48,8 @@ const CHANGE_TYPES = [
   { value: "opening_balance", label: "Opening Balance", sign: +1, tone: "text-blue-700 bg-blue-50 ring-blue-200" },
 ];
 
+const ITEMS_PER_PAGE = 10;
+
 const PHP = (v) =>
   new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP", minimumFractionDigits: 2 }).format(Number(v || 0));
 
@@ -70,6 +73,7 @@ const Vault = () => {
   const [error, setError] = useState("");
   const [showModal, setShowModal] = useState(false);
   const [typeFilter, setTypeFilter] = useState("all");
+  const [currentPage, setCurrentPage] = useState(1);
   const [forecast, setForecast] = useState({ consolidated: null, emergency: null, targetPeriod: null });
   const [forecastLoading, setForecastLoading] = useState(false);
   const [forecastError, setForecastError] = useState("");

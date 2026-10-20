@@ -29,8 +29,8 @@ import {
 } from "lucide-react";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
-const RESCHEDULED_PAGE_SIZE = 5;
-const AWAITING_PAGE_SIZE = 5;
+const RESCHEDULED_PAGE_SIZE = 10;
+const AWAITING_PAGE_SIZE = 10;
 
 const PHP = (v) =>
   `₱${Number(v || 0).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
