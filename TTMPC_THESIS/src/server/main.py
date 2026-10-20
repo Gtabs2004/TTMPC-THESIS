@@ -20326,11 +20326,19 @@ def read_audit_log(
 
         # Role scope, unless BOD (sees everything).
         q = _audit_scope_to_role(q, role)
-        if module:
-            q = q.eq("entity_type", module)
+        # `module` (entity_type) and `action` each accept a comma-separated list,
+        # e.g. the "Deposits" filter sends module=savings,cbu.
+        modules = [m.strip() for m in (module or "").split(",") if m.strip()]
+        if len(modules) == 1:
+            q = q.eq("entity_type", modules[0])
+        elif modules:
+            q = q.in_("entity_type", modules)
 
-        if action:
-            q = q.eq("action", action)
+        actions = [a.strip() for a in (action or "").split(",") if a.strip()]
+        if len(actions) == 1:
+            q = q.eq("action", actions[0])
+        elif actions:
+            q = q.in_("action", actions)
         # The actor_role filter is BOD-only; for anyone else the scope above
         # already pins it to their own role, so a filter can't widen it.
         if actor_role and role in _AUDIT_FULL_ACCESS_ROLES:

@@ -36,10 +36,58 @@ async function auditAuthHeaders() {
   return { Authorization: `Bearer ${session?.access_token || ""}` };
 }
 
+// "Transaction Type" dropdown. Each choice is a preset over the two things the
+// audit API can filter on: what was acted on (entity_type -> `module`) and what
+// was done to it (`action`). Either may list several values, comma-separated.
+const TRANSACTION_TYPES = [
+  { key: "",            label: "All Activity" },
+  { key: "payment",     label: "Loan Payments",           module: "payment" },
+  { key: "deposit",     label: "Deposits",                module: "savings,cbu,time_deposit" },
+  { key: "withdrawal",  label: "Withdrawals",             module: "withdrawal" },
+  { key: "disbursement",label: "Loan Disbursements",      action: "disburse" },
+  { key: "membership",  label: "Membership Fees",         module: "membership_payment" },
+  { key: "grocery",     label: "Grocery",                 module: "grocery" },
+  { key: "approval",    label: "Approvals",               action: "approve" },
+  { key: "rejection",   label: "Rejections",              action: "reject" },
+  { key: "review",      label: "Reviews & Recommendations", action: "recommend,revise" },
+  { key: "account",     label: "Account Changes",         action: "deactivate,reactivate,change_role" },
+  { key: "termination", label: "Terminations",            action: "terminate" },
+  { key: "application", label: "Member Applications",     module: "application" },
+  { key: "loan",        label: "Loan Decisions",          module: "loan" },
+  { key: "receipt",     label: "Receipts Viewed",         module: "receipt" },
+];
+
+// Which Transaction Type choices each role sees, matching the work that role
+// actually does (same split as the KPI cards). BOD sees everything; an unknown
+// role (before the first load returns) falls back to the full list.
+const TYPES_BY_ROLE = {
+  // Each list is checked against what that role actually writes to the audit
+  // log (rows are scoped to the actor's own role), not just what the role does.
+  manager:    ["approval", "rejection", "review", "loan", "receipt"],
+  bookkeeper: ["deposit", "approval", "rejection", "review", "loan", "receipt"],
+  // Treasurer: releases / rejects / reschedules loans (logged as loan updates)
+  // and views receipts. Vault entries, the cash ledger and savings accounts
+  // are not audited actions, and payments and member withdrawals belong to the
+  // Cashier and Bookkeeper.
+  treasurer:  ["loan", "receipt"],
+  cashier:    ["payment", "deposit", "withdrawal", "disbursement", "membership", "receipt"],
+  secretary:  ["application", "termination"],
+};
+
+const transactionTypesFor = (role) => {
+  const allowed = TYPES_BY_ROLE[String(role || "").toLowerCase()];
+  return allowed
+    ? TRANSACTION_TYPES.filter((t) => t.key === "" || allowed.includes(t.key))
+    : TRANSACTION_TYPES;
+};
+
 function buildAuditQuery(filters, extra = {}) {
   const params = new URLSearchParams();
-  if (filters.module) params.set("module", filters.module);
-  if (filters.action) params.set("action", filters.action);
+  const type = TRANSACTION_TYPES.find((t) => t.key === filters.type) || {};
+  const module = filters.module || type.module;
+  const action = filters.action || type.action;
+  if (module) params.set("module", module);
+  if (action) params.set("action", action);
   if (filters.role) params.set("actor_role", filters.role.toLowerCase());
   if (filters.from) params.set("date_from", filters.from);
   if (filters.to) params.set("date_to", filters.to);
@@ -315,6 +363,7 @@ const AuditLogViewer = ({ showActorRoleFilter = true, onError }) => {
 
   const [searchInput, setSearchInput] = useState("");
   const [filters, setFilters] = useState({
+    type: "",        // Transaction Type preset (see TRANSACTION_TYPES)
     module: "",      // mapped to entity_type on apply
     role: "",        // actor_role
     action: "",      // audit_log.action
@@ -365,10 +414,12 @@ const AuditLogViewer = ({ showActorRoleFilter = true, onError }) => {
     loadKpis();
   });
 
+  // Reload on page or filter change. (The handlers used to call
+  // setTimeout(loadRows), which re-ran with the previous render's filters.)
   useEffect(() => {
     loadRows();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page]);
+  }, [page, filters]);
 
   useEffect(() => {
     loadKpis();
@@ -379,14 +430,12 @@ const AuditLogViewer = ({ showActorRoleFilter = true, onError }) => {
     e?.preventDefault?.();
     setFilters((f) => ({ ...f, search: searchInput }));
     setPage(1);
-    setTimeout(loadRows, 0);
   };
 
   const setModule = (value) => {
     setFilters((f) => ({ ...f, module: value }));
     setShowModuleMenu(false);
     setPage(1);
-    setTimeout(loadRows, 0);
   };
 
   const setDateRange = (key) => {
@@ -410,8 +459,26 @@ const AuditLogViewer = ({ showActorRoleFilter = true, onError }) => {
     setFilters((f) => ({ ...f, from, to }));
     setShowDateMenu(false);
     setPage(1);
-    setTimeout(loadRows, 0);
   };
+
+  const setTransactionType = (value) => {
+    setFilters((f) => ({ ...f, type: value }));
+    setPage(1);
+  };
+
+  // One dropdown, used in the main table's toolbar and in the View All filters.
+  const renderTypeSelect = (className) => (
+    <select
+      value={filters.type}
+      onChange={(e) => setTransactionType(e.target.value)}
+      aria-label="Filter by transaction type"
+      className={className}
+    >
+      {transactionTypesFor(viewerRole).map((t) => (
+        <option key={t.key} value={t.key}>{t.label}</option>
+      ))}
+    </select>
+  );
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
@@ -439,6 +506,8 @@ const AuditLogViewer = ({ showActorRoleFilter = true, onError }) => {
           className="bg-gray-50 w-56 h-10 rounded-lg border border-gray-200 px-4 pl-10 py-1 text-sm focus:outline-none focus:border-green-500 transition-colors"
         />
       </div>
+
+      {renderTypeSelect("h-10 px-3 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50")}
 
       <div className="relative">
         <button
@@ -487,8 +556,7 @@ const AuditLogViewer = ({ showActorRoleFilter = true, onError }) => {
             const v = e.target.value;
             setFilters((f) => ({ ...f, role: v }));
             setPage(1);
-            setTimeout(loadRows, 0);
-          }}
+                  }}
           className="h-10 px-3 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50"
         >
           <option value="">All Roles</option>
@@ -565,6 +633,7 @@ const AuditLogViewer = ({ showActorRoleFilter = true, onError }) => {
           title="Audit Log"
           subtitle={`Showing ${rows.length} of ${total} log entries`}
         >
+          {renderTypeSelect("h-8 rounded-lg border border-gray-200 bg-white px-2 pr-6 text-[11px] font-semibold text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#2C7A3F]/40")}
           <button
             type="button"
             onClick={() => setShowViewAll(true)}

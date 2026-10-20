@@ -144,20 +144,9 @@ const Cashier_Grocery = () => {
           <h1 className="text-2xl font-bold text-gray-900 mb-6">Grocery</h1>
 
           {/* Summary Cards */}
-          <StatCardRow cols={3}>
-            <StatCard
-              label="Total Transactions"
-              value={
-                <>
-                  {totals.count}{" "}
-                  <span className="text-sm font-normal text-gray-500">
-                    ₱{totals.sum.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                  </span>
-                </>
-              }
-              icon={ShoppingCart}
-              iconColor="text-green-600"
-            />
+          <StatCardRow cols={4}>
+            <StatCard label="Total Transactions" value={totals.count} icon={ShoppingCart} iconColor="text-green-600" />
+            <StatCard label="Total Amount" value={`₱${totals.sum.toLocaleString(undefined, { minimumFractionDigits: 2 })}`} icon={Banknote} iconColor="text-green-600" />
             <StatCard label="Paid" value={totals.paid} icon={CheckCircle2} iconColor="text-green-600" />
             <StatCard label="On Credit" value={totals.credit} icon={AlertCircle} iconColor="text-orange-500" />
           </StatCardRow>
