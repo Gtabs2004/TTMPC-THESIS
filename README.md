@@ -11,7 +11,6 @@ with Parallel Risk Prediction, Debt Capacity Framework, and Loan Demand Forecast
   <img src="https://img.shields.io/badge/Status-Active%20Development-22c55e?style=for-the-badge"/>
   <img src="https://img.shields.io/badge/Type-Thesis-16a34a?style=for-the-badge"/>
   <img src="https://img.shields.io/badge/System-Decision%20Support%20System-518e2e?style=for-the-badge"/>
-    <img src="https://img.shields.io/badge/System-Decision%20Support%20System-518e2e?style=for-the-badge"/>
 </p>
 
 <p align="center">
